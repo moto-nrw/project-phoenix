@@ -101,8 +101,8 @@ func TestFindActiveOverlaps_FastPaths(t *testing.T) {
 		period := &schedule.CalendarPeriod{
 			Name:       "Inaktiv",
 			PeriodType: schedule.PeriodTypeSchoolYear,
-			StartDate:  timezone.NewDate(2025, time.August, 1),
-			EndDate:    timezone.NewDate(2026, time.July, 31),
+			StartDate:  schedule.NewDate(2025, time.August, 1),
+			EndDate:    schedule.NewDate(2026, time.July, 31),
 			IsActive:   false,
 		}
 		overlaps, err := svc.FindActiveOverlaps(context.Background(), period)
@@ -145,10 +145,11 @@ func TestShouldMaterialize(t *testing.T) {
 
 	// Anchor: Monday 2025-09-01 = "Week A"
 	anchor := timezone.NewDate(2025, 9, 1)
+	scheduleAnchor := schedule.Date(anchor)
 
 	abPeriod := &schedule.CalendarPeriod{
 		WeekCycleLength: 2,
-		WeekCycleAnchor: &anchor,
+		WeekCycleAnchor: &scheduleAnchor,
 	}
 
 	noCyclePeriod := &schedule.CalendarPeriod{
@@ -252,7 +253,7 @@ func TestShouldMaterialize(t *testing.T) {
 	t.Run("three-week cycle (A/B/C)", func(t *testing.T) {
 		threeCycle := &schedule.CalendarPeriod{
 			WeekCycleLength: 3,
-			WeekCycleAnchor: &anchor,
+			WeekCycleAnchor: &scheduleAnchor,
 		}
 
 		// Anchor week = pattern 1
@@ -294,9 +295,10 @@ func TestShouldMaterialize(t *testing.T) {
 		// The old float-hours math truncated 167/24 to 6 days, producing the
 		// wrong A/B pattern for any anchor on or before the transition.
 		dstAnchor := timezone.NewDate(2026, 3, 23)
+		scheduleDSTAnchor := schedule.Date(dstAnchor)
 		dstPeriod := &schedule.CalendarPeriod{
 			WeekCycleLength: 2,
-			WeekCycleAnchor: &dstAnchor,
+			WeekCycleAnchor: &scheduleDSTAnchor,
 		}
 
 		// Mon 2026-03-30 is exactly 7 civil days after the anchor, post-DST.
@@ -322,9 +324,10 @@ func TestShouldMaterialize(t *testing.T) {
 		// And the fall transition (CEST → CET on Sun 2026-10-25 = 169h week).
 		// Anchor Mon 2026-10-19 (week A) → Mon 2026-10-26 must be week B.
 		fallAnchor := timezone.NewDate(2026, 10, 19)
+		scheduleFallAnchor := schedule.Date(fallAnchor)
 		fallPeriod := &schedule.CalendarPeriod{
 			WeekCycleLength: 2,
-			WeekCycleAnchor: &fallAnchor,
+			WeekCycleAnchor: &scheduleFallAnchor,
 		}
 		oct26Berlin := timezone.DateFromTime(time.Date(2026, 10, 26, 0, 0, 0, 0, berlin))
 		assert.True(t, svc.ShouldMaterialize(2, oct26Berlin, fallPeriod),

@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Deliberately NOT parallel: this test holds a table lock while a competing
-// transaction waits for it, which can deadlock alongside other lock tests.
 func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 	holderRepo := repoUsers.NewCaregiverBindingLocker(db)
 

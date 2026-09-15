@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -27,7 +28,7 @@ type SSEStats struct {
 }
 
 type SSEStatsProvider interface {
-	SnapshotStats() SSEStats
+	SnapshotSSEClientsByTenant() map[int64]int
 }
 
 // PWAUsageStat is one (tenant, portal) bucket of PWA standalone-usage
@@ -142,6 +143,50 @@ var (
 		},
 		[]string{"job_id", "outcome"},
 	)
+	workerJobMaxDuration = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_job_max_duration_seconds",
+			Help: "Longest observed embedded Worker job run by stable job ID.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_duration_seconds",
+			Help:    "Bounded tenant batch duration by stable job ID.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchTenants = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_tenants_total",
+			Help: "Tenants processed by bounded Worker batches, split by result.",
+		},
+		[]string{"job_id", "result"},
+	)
+	workerTenantBatchRetries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_worker_tenant_batch_retries_total",
+			Help: "Deadlock and serialization retries within bounded tenant batches.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchBacklog = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "phoenix_worker_tenant_batch_backlog",
+			Help: "Tenants not yet attempted in the current Worker job run.",
+		},
+		[]string{"job_id"},
+	)
+	workerTenantBatchPoolWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_worker_tenant_batch_pool_wait_seconds",
+			Help:    "Database-pool wait attributed to a bounded tenant batch.",
+			Buckets: []float64{0, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"job_id"},
+	)
 	settingsLookups = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "phoenix_settings_lookups_total",
@@ -188,6 +233,346 @@ var (
 		},
 		[]string{"operation"},
 	)
+	organizationTenancyOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_operations_total", Help: "Organization and Tenancy operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	organizationTenancyDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_operation_duration_seconds", Help: "Organization and Tenancy operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	organizationTenancyQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_queries_total", Help: "Persistence queries issued by Organization and Tenancy operations."},
+		[]string{"operation"},
+	)
+	organizationTenancyRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_organization_tenancy_rows_changed_total", Help: "Rows changed by Organization and Tenancy commands."},
+		[]string{"operation"},
+	)
+	organizationTenancyStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_organization_tenancy_statement_duration_seconds", Help: "Cumulative Organization and Tenancy database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	peopleDirectoryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_operations_total", Help: "People Directory operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	peopleDirectoryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_operation_duration_seconds", Help: "People Directory operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	peopleDirectoryQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_queries_total", Help: "Persistence queries issued by People Directory operations."},
+		[]string{"operation"},
+	)
+	peopleDirectoryRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_rows_changed_total", Help: "Rows changed by People Directory commands."},
+		[]string{"operation"},
+	)
+	peopleDirectoryStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_people_directory_statement_duration_seconds", Help: "Cumulative People Directory database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	identityAccessOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_identity_access_operations_total", Help: "Identity & Access operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	identityAccessDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_identity_access_operation_duration_seconds", Help: "Identity & Access operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	identityAccessQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_identity_access_queries_total", Help: "Persistence queries issued by Identity & Access operations."},
+		[]string{"operation"},
+	)
+	identityAccessRowsChanged = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_identity_access_rows_changed_total", Help: "Rows changed by Identity & Access commands."},
+		[]string{"operation"},
+	)
+	identityAccessStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_identity_access_statement_duration_seconds", Help: "Cumulative Identity & Access database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	peopleDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_people_directory_http_responses_total", Help: "People Directory HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
+	guardianDirectoryHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_guardian_directory_http_responses_total", Help: "Guardian directory (/api/guardians) HTTP responses by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
+	schoolStructureOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_operations_total", Help: "School Structure operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolStructureDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_operation_duration_seconds", Help: "School Structure operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolStructureQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_queries_total", Help: "Persistence queries issued by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_structure_rows_total", Help: "Rows returned or changed by School Structure operations."},
+		[]string{"operation"},
+	)
+	schoolStructureStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_structure_statement_duration_seconds", Help: "Cumulative School Structure database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	facilitiesOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_facilities_operations_total", Help: "Facilities operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	facilitiesDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_facilities_operation_duration_seconds", Help: "Facilities operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	facilitiesQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_facilities_queries_total", Help: "Persistence queries issued by Facilities operations."},
+		[]string{"operation"},
+	)
+	facilitiesRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_facilities_rows_total", Help: "Rows returned or changed by Facilities operations."},
+		[]string{"operation"},
+	)
+	facilitiesStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_facilities_statement_duration_seconds", Help: "Cumulative Facilities database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	fileStorageOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_operations_total", Help: "File Storage operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	fileStorageDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_file_storage_operation_duration_seconds", Help: "File Storage operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}},
+		[]string{"operation"},
+	)
+	fileStorageQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_queries_total", Help: "Persistence queries issued by File Storage operations."},
+		[]string{"operation"},
+	)
+	fileStorageRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_file_storage_rows_total", Help: "Rows returned or changed by File Storage operations."},
+		[]string{"operation"},
+	)
+	fileStorageStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_file_storage_statement_duration_seconds", Help: "Cumulative File Storage database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	deviceFleetOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_operations_total", Help: "Device Fleet operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	deviceFleetDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_device_fleet_operation_duration_seconds", Help: "Device Fleet operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	deviceFleetQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_queries_total", Help: "Persistence queries issued by Device Fleet operations."},
+		[]string{"operation"},
+	)
+	deviceFleetRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_device_fleet_rows_total", Help: "Rows returned or changed by Device Fleet operations."},
+		[]string{"operation"},
+	)
+	deviceFleetStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_device_fleet_statement_duration_seconds", Help: "Cumulative Device Fleet database-statement duration by operation.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	timetableActivitiesOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_operations_total", Help: "Timetable & Activities operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	timetableActivitiesDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_timetable_activities_operation_duration_seconds", Help: "Timetable & Activities operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	timetableActivitiesQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_queries_total", Help: "Persistence queries issued by Timetable & Activities operations."},
+		[]string{"operation"},
+	)
+	timetableActivitiesRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_rows_total", Help: "Rows returned or changed by Timetable & Activities operations."},
+		[]string{"operation"},
+	)
+	timetableActivitiesDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_timetable_activities_duplicate_prevention_conflicts_total", Help: "Timetable & Activities writes rejected by database uniqueness constraints."},
+		[]string{"operation"},
+	)
+	timetableActivitiesStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_timetable_activities_statement_duration_seconds", Help: "Cumulative Timetable & Activities database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolCalendarOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_calendar_operations_total", Help: "School Calendar operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolCalendarDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_calendar_operation_duration_seconds", Help: "School Calendar operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolCalendarQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_calendar_queries_total", Help: "Persistence queries issued by School Calendar operations."},
+		[]string{"operation"},
+	)
+	schoolCalendarRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_calendar_rows_total", Help: "Rows returned or changed by School Calendar operations."},
+		[]string{"operation"},
+	)
+	schoolCalendarStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_calendar_statement_duration_seconds", Help: "Cumulative School Calendar database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	workforceOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_workforce_operations_total", Help: "Workforce work-time operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	workforceDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_workforce_operation_duration_seconds", Help: "Workforce work-time operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	workforceQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_workforce_queries_total", Help: "Persistence queries issued by Workforce work-time operations."},
+		[]string{"operation"},
+	)
+	workforceRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_workforce_rows_total", Help: "Rows returned or changed by Workforce work-time operations."},
+		[]string{"operation"},
+	)
+	workforceStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_workforce_statement_duration_seconds", Help: "Cumulative Workforce work-time database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	dataImportRuns = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_runs_total", Help: "Data Import runs by entity and mode (preview or import)."},
+		[]string{"entity", "mode"},
+	)
+	dataImportRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_rows_total", Help: "Data Import rows by entity, mode and outcome (parsed, accepted, rejected, created, updated)."},
+		[]string{"entity", "mode", "outcome"},
+	)
+	dataImportDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_duration_seconds", Help: "Data Import run duration by entity and mode.", Buckets: []float64{0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30}},
+		[]string{"entity", "mode"},
+	)
+	dataImportBatches = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_batches_total", Help: "Data Import batches committed or retried and deadlocks observed."},
+		[]string{"entity", "outcome"},
+	)
+	dataImportCheckpointLag = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_checkpoint_lag_rows", Help: "Rows remaining after the last durable checkpoint when an import request finishes.", Buckets: []float64{0, 1, 10, 100, 1000, 10000, 100000}},
+		[]string{"entity"},
+	)
+	dataImportWait = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_wait_seconds", Help: "Cumulative UnitOfWork pool and lock waits per import request.", Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 5, 30}},
+		[]string{"entity", "kind"},
+	)
+	dataImportCommands = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_data_import_owner_commands_total", Help: "Owner command attempts made by Data Import, including rolled-back attempts."},
+		[]string{"entity", "owner", "operation", "outcome"},
+	)
+	dataImportCommandDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_data_import_owner_command_duration_seconds", Help: "Owner command latency during Data Import.", Buckets: []float64{0.0001, 0.001, 0.01, 0.1, 1, 5, 30}},
+		[]string{"entity", "owner", "operation"},
+	)
+	appointmentsOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_operations_total", Help: "Appointments operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	appointmentsDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_appointments_operation_duration_seconds", Help: "Appointments operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	appointmentsQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_queries_total", Help: "Persistence queries issued by Appointments operations."},
+		[]string{"operation"},
+	)
+	appointmentsRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_rows_total", Help: "Rows returned or changed by Appointments operations."},
+		[]string{"operation"},
+	)
+	appointmentsDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_appointments_duplicate_prevention_conflicts_total", Help: "Idempotent Appointments writes resolved by a database uniqueness conflict."},
+		[]string{"operation"},
+	)
+	appointmentsStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_appointments_statement_duration_seconds", Help: "Cumulative Appointments database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	communicationOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_operations_total", Help: "Communication operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	communicationDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_communication_operation_duration_seconds", Help: "Communication operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	communicationQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_queries_total", Help: "Persistence queries issued by Communication operations."},
+		[]string{"operation"},
+	)
+	communicationRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_rows_total", Help: "Rows returned or changed by Communication operations."},
+		[]string{"operation"},
+	)
+	communicationDuplicatePreventionConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_communication_duplicate_prevention_conflicts_total", Help: "Idempotent Communication writes resolved by a database uniqueness conflict."},
+		[]string{"operation"},
+	)
+	communicationStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_communication_statement_duration_seconds", Help: "Cumulative Communication database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	carePlanOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_operations_total", Help: "Care Plan operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	carePlanDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_care_plan_operation_duration_seconds", Help: "Care Plan operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	carePlanQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_queries_total", Help: "Persistence queries issued by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_rows_total", Help: "Rows returned or changed by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanDuplicateConflicts = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_care_plan_duplicate_conflicts_total", Help: "Duplicate writes prevented by Care Plan operations."},
+		[]string{"operation"},
+	)
+	carePlanStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_care_plan_statement_duration_seconds", Help: "Cumulative Care Plan database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolMembershipOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_operations_total", Help: "School Membership operations by operation, outcome, and stable error code."},
+		[]string{"operation", "outcome", "code"},
+	)
+	schoolMembershipDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_membership_operation_duration_seconds", Help: "School Membership operation duration by operation.", Buckets: []float64{0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25}},
+		[]string{"operation"},
+	)
+	schoolMembershipQueries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_queries_total", Help: "Persistence queries issued by School Membership operations."},
+		[]string{"operation"},
+	)
+	schoolMembershipRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_rows_total", Help: "Rows returned or changed by School Membership operations."},
+		[]string{"operation"},
+	)
+	schoolMembershipStatementDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_school_membership_statement_duration_seconds", Help: "Cumulative School Membership database-statement duration by operation, used as a lock-wait upper bound.", Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5}},
+		[]string{"operation"},
+	)
+	schoolMembershipHTTPResponses = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_school_membership_http_responses_total", Help: "School Membership HTTP responses under /api/staff by actual status class and stable code."},
+		[]string{"status_class", "code"},
+	)
 	feedbackOperations = prometheus.NewCounterVec(
 		prometheus.CounterOpts{Name: "phoenix_feedback_operations_total", Help: "Feedback operations by operation, outcome, and stable error code."},
 		[]string{"operation", "outcome", "code"},
@@ -215,6 +600,64 @@ var (
 			Buckets: []float64{0.0001, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5},
 		},
 		[]string{"operation"},
+	)
+	auditAppends = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_appends_total",
+			Help: "Audit append attempts by stable event type and outcome.",
+		},
+		[]string{"event_type", "outcome"},
+	)
+	auditAppendDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_audit_append_duration_seconds",
+			Help:    "Audit append duration by stable event type.",
+			Buckets: []float64{0.0001, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1},
+		},
+		[]string{"event_type"},
+	)
+	auditRows = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_audit_rows_total",
+			Help: "Rows appended to Audit ledgers by stable event type.",
+		},
+		[]string{"event_type"},
+	)
+	synchronousDeliveries = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_synchronous_deliveries_total",
+			Help: "Fail-closed delivery calls by transport, template, caller, and outcome.",
+		},
+		[]string{"transport", "template", "caller", "outcome"},
+	)
+	synchronousDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_synchronous_delivery_duration_seconds",
+			Help:    "Fail-closed delivery duration by transport, template, and caller.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "caller"},
+	)
+	durableDeliveryOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "phoenix_delivery_operations_total",
+			Help: "Durable Delivery intents processed by transport, template, operation, and outcome.",
+		},
+		[]string{"transport", "template", "operation", "outcome"},
+	)
+	durableDeliveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name:    "phoenix_delivery_operation_duration_seconds",
+			Help:    "Durable Delivery operation duration, including provider and status-query latency.",
+			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 45, 60},
+		},
+		[]string{"transport", "template", "operation"},
+	)
+	durableDeliveryOldestPendingAge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "phoenix_delivery_oldest_pending_age_seconds",
+			Help: "Age in seconds of the oldest pending or claimed Delivery intent.",
+		},
 	)
 	rateLimitRejections = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -307,6 +750,8 @@ var (
 	pwaStatsProvider PWAUsageStatsProvider
 	pwaGaugeMu       sync.Mutex
 	pwaGaugeLabels   = make(map[[2]string]struct{})
+	workerJobMaxMu   sync.Mutex
+	workerJobMax     = make(map[string]time.Duration)
 
 	dbOpenConnectionsDesc      = prometheus.NewDesc("phoenix_db_open_connections", "Open DB connections.", nil, nil)
 	dbInUseConnectionsDesc     = prometheus.NewDesc("phoenix_db_in_use_connections", "DB connections currently in use.", nil, nil)
@@ -332,6 +777,12 @@ func init() {
 		unitOfWorkPoolWait,
 		unitOfWorkLockWait,
 		workerJobDuration,
+		workerJobMaxDuration,
+		workerTenantBatchDuration,
+		workerTenantBatchTenants,
+		workerTenantBatchRetries,
+		workerTenantBatchBacklog,
+		workerTenantBatchPoolWait,
 		settingsLookups,
 		settingsLookupDuration,
 		settingsSideEffectFailures,
@@ -340,12 +791,107 @@ func init() {
 		mealPlanQueries,
 		mealPlanRowsChanged,
 		mealPlanStatementDuration,
+		sessionEndOperations,
+		sessionEndDuration,
+		organizationTenancyOperations,
+		organizationTenancyDuration,
+		organizationTenancyQueries,
+		organizationTenancyRowsChanged,
+		organizationTenancyStatementDuration,
+		peopleDirectoryOperations,
+		peopleDirectoryDuration,
+		peopleDirectoryQueries,
+		peopleDirectoryRowsChanged,
+		peopleDirectoryStatementDuration,
+		identityAccessOperations,
+		identityAccessDuration,
+		identityAccessQueries,
+		identityAccessRowsChanged,
+		identityAccessStatementDuration,
+		peopleDirectoryHTTPResponses,
+		guardianDirectoryHTTPResponses,
+		schoolStructureOperations,
+		schoolStructureDuration,
+		schoolStructureQueries,
+		schoolStructureRows,
+		schoolStructureStatementDuration,
+		facilitiesOperations,
+		facilitiesDuration,
+		facilitiesQueries,
+		facilitiesRows,
+		facilitiesStatementDuration,
+		fileStorageOperations,
+		fileStorageDuration,
+		fileStorageQueries,
+		fileStorageRows,
+		fileStorageStatementDuration,
+		deviceFleetOperations,
+		deviceFleetDuration,
+		deviceFleetQueries,
+		deviceFleetRows,
+		deviceFleetStatementDuration,
+		timetableActivitiesOperations,
+		timetableActivitiesDuration,
+		timetableActivitiesQueries,
+		timetableActivitiesRows,
+		timetableActivitiesDuplicatePreventionConflicts,
+		timetableActivitiesStatementDuration,
+		schoolCalendarOperations,
+		schoolCalendarDuration,
+		schoolCalendarQueries,
+		schoolCalendarRows,
+		schoolCalendarStatementDuration,
+		workforceOperations,
+		workforceDuration,
+		workforceQueries,
+		workforceRows,
+		workforceStatementDuration,
+		dataImportRuns,
+		dataImportRows,
+		dataImportDuration,
+		dataImportBatches,
+		dataImportCheckpointLag,
+		dataImportWait,
+		dataImportCommands,
+		dataImportCommandDuration,
+		appointmentsOperations,
+		appointmentsDuration,
+		appointmentsQueries,
+		appointmentsRows,
+		appointmentsDuplicatePreventionConflicts,
+		appointmentsStatementDuration,
+		communicationOperations,
+		communicationDuration,
+		communicationQueries,
+		communicationRows,
+		communicationDuplicatePreventionConflicts,
+		communicationStatementDuration,
+		carePlanOperations,
+		carePlanDuration,
+		carePlanQueries,
+		carePlanRows,
+		carePlanDuplicateConflicts,
+		carePlanStatementDuration,
+		schoolMembershipOperations,
+		schoolMembershipDuration,
+		schoolMembershipQueries,
+		schoolMembershipRows,
+		schoolMembershipStatementDuration,
+		schoolMembershipHTTPResponses,
 		feedbackOperations,
 		feedbackHTTPResponses,
 		feedbackDuration,
 		feedbackQueries,
 		feedbackRowsChanged,
 		feedbackStatementDuration,
+		auditAppends,
+		auditAppendDuration,
+		auditRows,
+		synchronousDeliveries,
+		synchronousDeliveryDuration,
+		durableDeliveryOperations,
+		durableDeliveryDuration,
+		durableDeliveryOldestPendingAge,
 		rateLimitRejections,
 		authorizationDenials,
 		authMiddlewareDuration,
@@ -449,9 +995,454 @@ func ObserveFeedbackOperation(operation string, duration time.Duration, queries,
 	}
 }
 
+func ObserveOrganizationTenancyOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	organizationTenancyOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	organizationTenancyDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		organizationTenancyQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		organizationTenancyRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		organizationTenancyStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObservePeopleDirectoryOperation records the runtime evidence of one People
+// Directory capability call: outcome and stable code, duration, query count,
+// changed rows, and cumulative statement duration.
+func ObservePeopleDirectoryOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	peopleDirectoryOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	peopleDirectoryDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		peopleDirectoryQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		peopleDirectoryRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		peopleDirectoryStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveIdentityAccessOperation records the runtime evidence of one Identity
+// & Access capability call: outcome and stable code, duration, query count,
+// changed rows, and cumulative statement duration.
+func ObserveIdentityAccessOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	identityAccessOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	identityAccessDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		identityAccessQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		identityAccessRowsChanged.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		identityAccessStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObservePeopleDirectoryHTTPResponse counts one /api/users response by the
+// status class actually written and the stable outcome code.
+func ObservePeopleDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	peopleDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+// ObserveGuardianDirectoryHTTPResponse counts one /api/guardians response by
+// the status class actually written and the stable outcome code (#2663).
+func ObserveGuardianDirectoryHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	guardianDirectoryHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+// ObserveSchoolMembershipOperation records the runtime evidence of one School
+// Membership capability call: outcome and stable code, duration, query
+// count, rows, and cumulative statement duration.
+func ObserveSchoolMembershipOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolMembershipOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolMembershipDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolMembershipQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolMembershipRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolMembershipStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveSchoolMembershipHTTPResponse counts one School Membership HTTP
+// adapter response (/api/staff membership routes, /api/class-list-entries)
+// by the status class actually written and the stable outcome code.
+func ObserveSchoolMembershipHTTPResponse(status int, code string) {
+	statusClass := strconv.Itoa(status/100) + "xx"
+	schoolMembershipHTTPResponses.WithLabelValues(statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveSchoolStructureOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolStructureOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolStructureDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolStructureQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolStructureRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolStructureStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveFacilitiesOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	facilitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	facilitiesDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		facilitiesQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		facilitiesRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		facilitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveFileStorageOperation records one File Storage operation: its
+// outcome, duration, statement count, rows, and statement duration (#2707).
+func ObserveFileStorageOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	fileStorageOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	fileStorageDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		fileStorageQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		fileStorageRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		fileStorageStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveDeviceFleetOperation records one Device Fleet operation: its
+// outcome, duration, statement count, affected rows, and statement duration.
+func ObserveDeviceFleetOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	deviceFleetOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	deviceFleetDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		deviceFleetQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		deviceFleetRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		deviceFleetStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveTimetableActivitiesOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	timetableActivitiesOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	timetableActivitiesDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		timetableActivitiesQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		timetableActivitiesRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		timetableActivitiesDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
+	}
+	if statementDuration > 0 {
+		timetableActivitiesStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveSchoolCalendarOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	schoolCalendarOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	schoolCalendarDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		schoolCalendarQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		schoolCalendarRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		schoolCalendarStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveWorkforceOperation records the runtime evidence of one Workforce
+// work-time capability call: outcome and stable code, duration, query count,
+// rows, and cumulative statement duration.
+func ObserveWorkforceOperation(operation string, duration time.Duration, queries, rows int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	workforceOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	workforceDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		workforceQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		workforceRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if statementDuration > 0 {
+		workforceStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+// ObserveDataImport records one Data Import run (#2708): rows parsed,
+// accepted, rejected, created and updated plus the run duration, by entity
+// and mode. It carries no personal data.
+func ObserveDataImport(entity string, dryRun bool, rows, accepted, rejected, created, updated int, duration time.Duration) {
+	entity = sanitizeLabel(entity)
+	mode := "import"
+	if dryRun {
+		mode = "preview"
+	}
+	dataImportRuns.WithLabelValues(entity, mode).Inc()
+	for outcome, count := range map[string]int{"parsed": rows, "accepted": accepted, "rejected": rejected, "created": created, "updated": updated} {
+		if count > 0 {
+			dataImportRows.WithLabelValues(entity, mode, outcome).Add(float64(count))
+		}
+	}
+	dataImportDuration.WithLabelValues(entity, mode).Observe(duration.Seconds())
+}
+
+// ObserveDataImportRuntime contains no upload, tenant, account or row labels.
+func ObserveDataImportRuntime(entity string, committed, retried, lag, deadlocks int, poolWait, lockWait time.Duration) {
+	entity = sanitizeLabel(entity)
+	for outcome, count := range map[string]int{"committed": committed, "retried": retried, "deadlock": deadlocks} {
+		if count > 0 {
+			dataImportBatches.WithLabelValues(entity, outcome).Add(float64(count))
+		}
+	}
+	dataImportCheckpointLag.WithLabelValues(entity).Observe(float64(lag))
+	dataImportWait.WithLabelValues(entity, "pool").Observe(poolWait.Seconds())
+	dataImportWait.WithLabelValues(entity, "lock").Observe(lockWait.Seconds())
+}
+
+func ObserveDataImportCommand(entity, owner, operation string, duration time.Duration, failed bool) {
+	entity, owner, operation = sanitizeLabel(entity), sanitizeLabel(owner), sanitizeLabel(operation)
+	outcome := "success"
+	if failed {
+		outcome = "error"
+	}
+	dataImportCommands.WithLabelValues(entity, owner, operation, outcome).Inc()
+	dataImportCommandDuration.WithLabelValues(entity, owner, operation).Observe(duration.Seconds())
+}
+
+func ObserveAppointmentsOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	appointmentsOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	appointmentsDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		appointmentsQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		appointmentsRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		appointmentsDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
+	}
+	if statementDuration > 0 {
+		appointmentsStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveCommunicationOperation(operation string, duration time.Duration, queries, rows, duplicatePreventionConflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	communicationOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	communicationDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		communicationQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		communicationRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if duplicatePreventionConflicts > 0 {
+		communicationDuplicatePreventionConflicts.WithLabelValues(operation).Add(float64(duplicatePreventionConflicts))
+	}
+	if statementDuration > 0 {
+		communicationStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
+func ObserveCarePlanOperation(operation string, duration time.Duration, queries, rows, conflicts int64, statementDuration time.Duration, code string, err error) {
+	outcome := "success"
+	if err == nil {
+		code = "none"
+	} else {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	carePlanOperations.WithLabelValues(operation, outcome, sanitizeLabel(code)).Inc()
+	carePlanDuration.WithLabelValues(operation).Observe(duration.Seconds())
+	if queries > 0 {
+		carePlanQueries.WithLabelValues(operation).Add(float64(queries))
+	}
+	if rows > 0 {
+		carePlanRows.WithLabelValues(operation).Add(float64(rows))
+	}
+	if conflicts > 0 {
+		carePlanDuplicateConflicts.WithLabelValues(operation).Add(float64(conflicts))
+	}
+	if statementDuration > 0 {
+		carePlanStatementDuration.WithLabelValues(operation).Observe(statementDuration.Seconds())
+	}
+}
+
 func ObserveFeedbackHTTPResponse(surface string, status int, code string) {
 	statusClass := strconv.Itoa(status/100) + "xx"
 	feedbackHTTPResponses.WithLabelValues(sanitizeLabel(surface), statusClass, sanitizeLabel(code)).Inc()
+}
+
+func ObserveAuditAppend(eventType string, duration time.Duration, rows int, err error) {
+	eventType = sanitizeLabel(eventType)
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	auditAppends.WithLabelValues(eventType, outcome).Inc()
+	auditAppendDuration.WithLabelValues(eventType).Observe(duration.Seconds())
+	if rows > 0 {
+		auditRows.WithLabelValues(eventType).Add(float64(rows))
+	}
+}
+
+// ObserveSynchronousDelivery records fail-closed sends without recipient or
+// payload labels. The outcome separates timeouts/cancellation from transport
+// failures so operators can alert on each class independently.
+func ObserveSynchronousDelivery(transport, template, caller string, duration time.Duration, err error) {
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	caller = sanitizeLabel(caller)
+	synchronousDeliveries.WithLabelValues(transport, template, caller, outcome).Inc()
+	synchronousDeliveryDuration.WithLabelValues(transport, template, caller).Observe(duration.Seconds())
+}
+
+func ObserveDurableDelivery(transport, template, operation string, duration time.Duration, count int, err error) {
+	if operation == "oldest_pending_age" {
+		if err == nil {
+			durableDeliveryOldestPendingAge.Set(duration.Seconds())
+		}
+		return
+	}
+	outcome := "success"
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		outcome = "timeout"
+	case errors.Is(err, context.Canceled):
+		outcome = "canceled"
+	case err != nil:
+		outcome = "failure"
+	}
+	transport = sanitizeLabel(transport)
+	template = sanitizeLabel(template)
+	operation = sanitizeLabel(operation)
+	amount := count
+	if amount <= 0 {
+		amount = 1
+	}
+	durableDeliveryOperations.WithLabelValues(transport, template, operation, outcome).Add(float64(amount))
+	durableDeliveryDuration.WithLabelValues(transport, template, operation).Observe(duration.Seconds())
 }
 
 func ObserveTenantRequest(tenantID int64, scope, method, route string, status int, duration time.Duration, txOutcome string) {
@@ -496,7 +1487,32 @@ func RecordUnitOfWorkEvent(entryPoint, kind, result string, duration time.Durati
 
 // RecordWorkerRunEvent records one bounded embedded-job outcome.
 func RecordWorkerRunEvent(jobID, outcome string, duration time.Duration) {
-	workerJobDuration.WithLabelValues(sanitizeLabel(jobID), sanitizeLabel(outcome)).Observe(duration.Seconds())
+	jobID = sanitizeLabel(jobID)
+	workerJobDuration.WithLabelValues(jobID, sanitizeLabel(outcome)).Observe(duration.Seconds())
+	workerJobMaxMu.Lock()
+	if duration > workerJobMax[jobID] {
+		workerJobMax[jobID] = duration
+		workerJobMaxDuration.WithLabelValues(jobID).Set(duration.Seconds())
+	}
+	workerJobMaxMu.Unlock()
+}
+
+// RecordWorkerTenantBatchEvent records one bounded group of isolated tenant
+// commands. Labels contain only the registered job ID and fixed outcomes.
+func RecordWorkerTenantBatchEvent(jobID string, duration time.Duration, processed, failed, retries, backlog int, poolWait time.Duration) {
+	jobID = sanitizeLabel(jobID)
+	workerTenantBatchDuration.WithLabelValues(jobID).Observe(duration.Seconds())
+	workerTenantBatchTenants.WithLabelValues(jobID, "success").Add(float64(processed - failed))
+	workerTenantBatchTenants.WithLabelValues(jobID, "failure").Add(float64(failed))
+	workerTenantBatchRetries.WithLabelValues(jobID).Add(float64(retries))
+	workerTenantBatchBacklog.WithLabelValues(jobID).Set(float64(backlog))
+	workerTenantBatchPoolWait.WithLabelValues(jobID).Observe(poolWait.Seconds())
+}
+
+// SetWorkerTenantBatchBacklog records backlog when a job completes no tenant
+// batch, so an earlier non-zero value does not remain visible indefinitely.
+func SetWorkerTenantBatchBacklog(jobID string, backlog int) {
+	workerTenantBatchBacklog.WithLabelValues(sanitizeLabel(jobID)).Set(float64(backlog))
 }
 
 func ObserveSettingsLookup(key, cache, outcome string, duration time.Duration) {
@@ -627,7 +1643,7 @@ func refreshSSEGauges() {
 	if provider == nil {
 		return
 	}
-	stats := provider.SnapshotStats()
+	stats := SSEStats{ClientsByTenant: provider.SnapshotSSEClientsByTenant()}
 	currentTenants := make(map[string]struct{}, len(stats.ClientsByTenant))
 	sseGaugeMu.Lock()
 	defer sseGaugeMu.Unlock()
@@ -678,4 +1694,29 @@ func refreshPWAGauges() {
 		}
 	}
 	pwaGaugeLabels = current
+}
+
+// Session end workflow (#2697): outcome and latency per stable operation. The
+// owners it coordinates record their own statement counts; the tenant runtime
+// records pool and lock waits for the unit of work.
+var (
+	sessionEndOperations = prometheus.NewCounterVec(
+		prometheus.CounterOpts{Name: "phoenix_session_end_operations_total", Help: "Session end workflow runs by operation and outcome."},
+		[]string{"operation", "outcome"},
+	)
+	sessionEndDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{Name: "phoenix_session_end_operation_duration_seconds", Help: "Session end workflow duration by operation.", Buckets: []float64{0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5}},
+		[]string{"operation"},
+	)
+)
+
+// ObserveSessionEndOperation records one session end workflow run.
+func ObserveSessionEndOperation(operation string, duration time.Duration, err error) {
+	outcome := "success"
+	if err != nil {
+		outcome = "error"
+	}
+	operation = sanitizeLabel(operation)
+	sessionEndOperations.WithLabelValues(operation, outcome).Inc()
+	sessionEndDuration.WithLabelValues(operation).Observe(duration.Seconds())
 }

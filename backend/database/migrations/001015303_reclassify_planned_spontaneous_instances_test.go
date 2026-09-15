@@ -15,6 +15,7 @@ import (
 // offering link. Ad-hoc rows (created at start, so never persisted as
 // planned+spontaneous) keep their flag.
 func TestReclassifyPlannedSpontaneousInstances(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

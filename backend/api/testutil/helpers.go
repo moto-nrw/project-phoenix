@@ -4,15 +4,15 @@
 //
 // API tests follow the hermetic test pattern established in the codebase:
 // - Real database with test fixtures
-// - Real services via factory
+// - Real services via route/module-sized builders
 // - httptest for HTTP request/response
 // - Context injection for JWT claims and permissions
 //
 // Example:
 //
 //	func setupAuthRoute(t *testing.T) (*bun.DB, *Resource) {
-//	    db, services := testutil.SetupAPITest(t)
-//	    return db, NewResource(services.Auth, services.Invitation)
+//	    db, module := testutil.SetupAuthModule(t)
+//	    return db, NewResource(module.Auth, module.Invitation)
 //	}
 //
 //	func TestHandler(t *testing.T) {
@@ -35,7 +35,6 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log/slog"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -51,9 +50,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -67,39 +66,324 @@ const (
 	contentTypeJSON   = "application/json"
 )
 
-// SetupAPITest constructs the legacy graph inside route- and module-sized
-// test builders. Callers must not expose the returned Factory.
-// The returned pool is shared by every test in the binary and must not be closed.
-func SetupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory) {
+// SetupSettingsModule builds the settings route's real application boundary.
+func SetupSettingsModule(t *testing.T) (*bun.DB, services.SettingsTestModule) {
 	t.Helper()
-	db, serviceFactory, _ := setupAPITest(t, clocks...)
-	return db, serviceFactory
-}
-
-func setupAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
-	t.Helper()
-
 	db := testpkg.SetupTestDB(t)
-	repoFactory := repositories.NewFactory(db, clocks...)
-	settings := feedbackCompose.NewSettings()
-	module, err := feedbackCompose.New(feedbackCompose.Dependencies{
-		DB:       db,
-		Settings: settings,
-		Today:    feedbackModule.Today,
-		Observe:  func(feedbackCompose.Observation) {},
-	})
-	require.NoError(t, err, "Failed to create Feedback module")
-	serviceFactory, err := services.NewFactoryForTestsWithFeedback(repoFactory, db, slog.Default(), module, settings.Bind, clocks...)
-	require.NoError(t, err, "Failed to create service factory")
-	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)), "Failed to configure tenant runtime")
-	return db, serviceFactory, module
+	return db, SetupSettingsModuleWithDB(t, db)
 }
 
-// SetupFeedbackAPITest adds the migrated Feedback module to the legacy test
-// graph without putting the module back onto services.Factory.
-func SetupFeedbackAPITest(t *testing.T, clocks ...func() time.Time) (*bun.DB, *services.Factory, *feedbackModule.Module) {
+// SetupSettingsModuleWithDB preserves an isolated pool for query-budget tests.
+func SetupSettingsModuleWithDB(t *testing.T, db *bun.DB) services.SettingsTestModule {
 	t.Helper()
-	return setupAPITest(t, clocks...)
+	module, err := services.NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return module
+}
+
+// SetupFileStoreModule composes the File Storage capability over the test
+// database and the caller's uploads object store (#2707).
+func SetupFileStoreModule(t *testing.T, objects services.UploadsBackend) (*bun.DB, services.FileStoreTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewFileStoreTestModule(db, testpkg.TenantRuntime(t, db), objects)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupAbsenceTypeModule(t *testing.T) (*bun.DB, services.AbsenceTypeTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewAbsenceTypeTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupBirthdayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.BirthdayTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewBirthdayTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupShiftTypeModule(t *testing.T) (*bun.DB, services.ShiftTypeTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewShiftTypeTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupDeviceModule(t *testing.T) (*bun.DB, services.DeviceTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewDeviceTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupTimetableModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.TimetableTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewTimetableTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupAuthModule(t *testing.T) (*bun.DB, services.AuthTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupInvitationModule(t *testing.T) (*bun.DB, services.InvitationTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewInvitationTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupScheduleModule(t *testing.T) (*bun.DB, services.ScheduleTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewScheduleTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStatisticsModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.StatisticsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewStatisticsTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupGradeTransitionModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.GradeTransitionTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewGradeTransitionTestModule(db, clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupUserContextModule(t *testing.T) (*bun.DB, services.UserContextTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewUserContextTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupRoomsModule(t *testing.T) (*bun.DB, services.RoomsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewRoomsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+// SetupCheckinModule composes the device-scan workflow over the test
+// database. An optional clock pins the instant the kiosk scans are admitted.
+func SetupCheckinModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.CheckinTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewCheckinTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStaffMessagingModule(t *testing.T) (*bun.DB, services.StaffMessagingTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewStaffMessagingTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupRFIDModule(t *testing.T) (*bun.DB, services.RFIDTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewRFIDTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupGroupsModule(t *testing.T) (*bun.DB, services.GroupsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewGroupsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupClassListModule(t *testing.T) (*bun.DB, services.ClassListTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewClassListTestModule(db)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupWorkSessionModule(t *testing.T) (*bun.DB, services.WorkSessionTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewWorkSessionTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupIoTDataModule(t *testing.T) (*bun.DB, services.IoTDataTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewIoTDataTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupActiveModule(t *testing.T) (*bun.DB, services.ActiveTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewActiveTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupRemindersModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.RemindersTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewRemindersTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupOperatorSettingsModule(t *testing.T) (*bun.DB, services.OperatorSettingsTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewOperatorSettingsTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupSettingsCallbacksModule(t *testing.T, photos services.StudentPhotoBootstrap) (*bun.DB, services.SettingsCallbacksTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewSettingsCallbacksTestModule(db, testpkg.TenantRuntime(t, db), photos.Unlinker)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupClassDayModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.ClassDayTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewClassDayTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupSchoolModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.SchoolTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewSchoolTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupGuardianModule(t *testing.T) (*bun.DB, services.GuardianTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewGuardianTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupWorkforceModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.WorkforceTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewWorkforceTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStaffModule(t *testing.T) (*bun.DB, services.StaffTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewStaffTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupStudentModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.StudentTestModule) {
+	t.Helper()
+	db, feedback := SetupFeedbackModule(t)
+	module, err := services.NewStudentTestModule(db, testpkg.TenantRuntime(t, db), feedback.Feedback, clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupImportModule(t *testing.T, databases ...*bun.DB) (*bun.DB, services.ImportTestModule) {
+	t.Helper()
+	var db *bun.DB
+	if len(databases) > 0 {
+		db = databases[0]
+	} else {
+		db = testpkg.SetupTestDB(t)
+	}
+	module, err := services.NewImportTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.TimetableScenarioTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewTimetableScenarioTestModule(db, testpkg.TenantRuntime(t, db), clocks...)
+	require.NoError(t, err)
+	return db, module
+}
+
+func SetupCalendarModule(t *testing.T) (*bun.DB, services.CalendarTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewCalendarTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	return db, module
+}
+
+type FeedbackTestModule struct {
+	services.RFIDTestModule
+	services.SettingsTestModule
+	Feedback *feedbackModule.Module
+}
+
+func SetupFeedbackModule(t *testing.T) (*bun.DB, FeedbackTestModule) {
+	t.Helper()
+	db, settings := SetupSettingsModule(t)
+	identity, err := services.NewRFIDTestModule(db)
+	require.NoError(t, err)
+	resolvers := feedbackCompose.NewSettings()
+	resolvers.Bind(func(ctx context.Context) (bool, error) {
+		return settings.Settings.ResolveBool(ctx, "feedback.enabled")
+	}, func(ctx context.Context) (int, error) {
+		return settings.Settings.ResolveInt(ctx, "feedback.data_retention_days")
+	})
+	feedback, err := feedbackCompose.New(feedbackCompose.Dependencies{
+		DB: db, Settings: resolvers, Today: feedbackModule.Today, Observe: func(feedbackCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	return db, FeedbackTestModule{RFIDTestModule: identity, SettingsTestModule: settings, Feedback: feedback}
+}
+
+func SetupActivitiesModule(t *testing.T) (*bun.DB, services.ActivitiesTestModule) {
+	t.Helper()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewActivitiesTestModule(db)
+	require.NoError(t, err)
+	return db, module
 }
 
 // RequestOption configures an HTTP request for testing.
@@ -168,6 +452,16 @@ func RecordingUnprotectedGroupFunc(called *bool) func(chi.Router, func(chi.Route
 
 func IdentityMiddleware(next http.Handler) http.Handler { return next }
 
+// DeviceIdentity exposes the authenticated principal facts to HTTP adapter
+// runtimes without making each adapter test import the device middleware.
+func DeviceIdentity(ctx context.Context) (int64, string, bool) {
+	principal := device.DeviceFromCtx(ctx)
+	if principal == nil {
+		return 0, "", false
+	}
+	return principal.ID, principal.DeviceID, true
+}
+
 func RespondSuccess(w http.ResponseWriter, r *http.Request, status int, data any, message string) {
 	render.Status(r, status)
 	render.JSON(w, r, Response{Status: "success", Data: data, Message: message})
@@ -182,6 +476,31 @@ func RespondError(w http.ResponseWriter, r *http.Request, status int, err error)
 
 func RespondInvalidRequest(w http.ResponseWriter, r *http.Request, err error) {
 	RespondError(w, r, http.StatusBadRequest, err)
+}
+
+// RespondCoded renders the shared error envelope with a stable code and the
+// optional structured details, the way api/common does for the kiosk. It
+// stands in for a composition root's failure renderer in HTTP adapter tests
+// that must not import the shared HTTP package themselves.
+func RespondCoded(w http.ResponseWriter, r *http.Request, status int, code string, err error, details map[string]string, clientMessage string) {
+	message := clientMessage
+	if message == "" && err != nil {
+		message = err.Error()
+	}
+	var payload map[string]any
+	if len(details) > 0 {
+		payload = make(map[string]any, len(details))
+		for key, value := range details {
+			payload[key] = value
+		}
+	}
+	render.Status(r, status)
+	render.JSON(w, r, struct {
+		Status  string         `json:"status"`
+		Error   string         `json:"error,omitempty"`
+		Code    string         `json:"code,omitempty"`
+		Details map[string]any `json:"details,omitempty"`
+	}{Status: "error", Error: message, Code: code, Details: payload})
 }
 
 func ErrorResponder(resolve func(error) (int, error)) func(http.ResponseWriter, *http.Request, error, string) {
@@ -237,13 +556,60 @@ func SeedTestJWTConfig() {
 	viper.SetDefault("auth_jwt_refresh_expiry", "1h")
 }
 
+// NewDeviceAuthenticators composes the production device authentication
+// middleware for handler tests. staffPIN may be nil when a test never
+// presents a personal staff credential; settings may be nil to authenticate
+// with fallbackPIN alone.
+func NewDeviceAuthenticators(
+	devices deviceauth.Fleet,
+	schools deviceauth.SchoolDirectory,
+	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error),
+	settings deviceauth.Settings,
+	fallbackPIN string,
+) *deviceauth.Authenticators {
+	return deviceauth.New(deviceauth.Dependencies{
+		Devices:     devices,
+		Schools:     schools,
+		StaffPIN:    deviceauth.StaffPIN(staffPIN),
+		Settings:    settings,
+		FallbackPIN: fallbackPIN,
+	})
+}
+
+// DevicePrincipal converts a device row into the principal the device auth
+// middleware binds to a request, so handler tests see exactly what
+// production handlers see. It never copies the API key.
+func DevicePrincipal(d *iot.Device) *device.AuthenticatedDevice {
+	if d == nil {
+		return nil
+	}
+	return &device.AuthenticatedDevice{
+		ID:         d.ID,
+		TenantID:   d.TenantID,
+		DeviceID:   d.DeviceID,
+		DeviceType: d.DeviceType,
+		Name:       d.Name,
+		Status:     string(d.Status),
+		LastSeen:   d.LastSeen,
+	}
+}
+
+// StaffPrincipal converts a staff row into the principal the device auth
+// middleware binds after a verified account PIN.
+func StaffPrincipal(s *users.Staff) *device.AuthenticatedStaff {
+	if s == nil {
+		return nil
+	}
+	return &device.AuthenticatedStaff{ID: s.ID, TenantID: s.TenantID}
+}
+
 // WithDeviceContext adds an IoT device to the request context.
 // This is used for testing device-authenticated endpoints.
 // Also injects the device's tenant_id so TenantTxMiddleware can create
 // a tenant-scoped transaction (mirrors production device auth middleware).
 func WithDeviceContext(d *iot.Device) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxDevice, d)
+		ctx := context.WithValue(req.Context(), device.CtxDevice, DevicePrincipal(d))
 		if tid := d.GetTenantID(); tid != 0 {
 			ctx = tenant.WithTenantID(ctx, tid)
 		}
@@ -251,11 +617,33 @@ func WithDeviceContext(d *iot.Device) RequestOption {
 	}
 }
 
+// WithDeviceIdentity supplies a device principal to hermetic HTTP adapter tests
+// that do not need a persisted device or a tenant transaction.
+func WithDeviceIdentity(id int64, deviceID string) RequestOption {
+	return func(req *http.Request) {
+		principal := &device.AuthenticatedDevice{ID: id, DeviceID: deviceID}
+		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxDevice, principal))
+	}
+}
+
+// Rollback helpers exercise the same tenant marker as production middleware.
+func MarkRollback(ctx context.Context)                       { tenant.MarkRollback(ctx) }
+func WithRollbackMarker(ctx context.Context) context.Context { return tenant.WithRollbackMarker(ctx) }
+func RollbackRequested(ctx context.Context) bool             { return tenant.RollbackRequested(ctx) }
+
+// WithIoTDeviceRequest marks the request as a kiosk request, the way the
+// device middleware does, so services authorize through the device session.
+func WithIoTDeviceRequest() RequestOption {
+	return func(req *http.Request) {
+		*req = *req.WithContext(context.WithValue(req.Context(), device.CtxIsIoTDevice, true))
+	}
+}
+
 // WithStaffContext adds a staff member to the request context.
 // This is used for testing endpoints that require staff authentication.
 func WithStaffContext(s *users.Staff) RequestOption {
 	return func(req *http.Request) {
-		ctx := context.WithValue(req.Context(), device.CtxStaff, s)
+		ctx := context.WithValue(req.Context(), device.CtxStaff, StaffPrincipal(s))
 		*req = *req.WithContext(ctx)
 	}
 }
@@ -353,9 +741,16 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 // themselves run it unchanged underneath, since their requests arrive here
 // unauthenticated and pass through.
 func NewTenantRouter(db *bun.DB) chi.Router {
+	router := NewJSONRouter()
+	router.Use(testpkg.TenantTxMiddleware(db))
+	return router
+}
+
+// NewJSONRouter provides the JSON response middleware for isolated handler
+// tests that supply their own identity and do not need a database transaction.
+func NewJSONRouter() chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Use(testpkg.TenantTxMiddleware(db))
 	return router
 }
 
@@ -388,7 +783,7 @@ func ExecuteRequest(router chi.Router, req *http.Request) *httptest.ResponseReco
 func ExecuteWithAuth(t *testing.T, router chi.Router, req *http.Request, claims jwt.AppClaims) *httptest.ResponseRecorder {
 	t.Helper()
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
 }
 
 // ExecuteWithAuthPermissions folds the given permission set into the claims
@@ -398,7 +793,20 @@ func ExecuteWithAuthPermissions(t *testing.T, router chi.Router, req *http.Reque
 	t.Helper()
 	claims.Permissions = permissions
 	req.Header.Set("Authorization", "Bearer "+MintTestJWT(t, claims))
-	return ExecuteRequest(router, req)
+	return ExecuteRequestForTest(t, router, req)
+}
+
+// ExecuteRequestForTest is ExecuteRequest with t's disposable database
+// runtime when the test opted into one.
+func ExecuteRequestForTest(t *testing.T, router chi.Router, req *http.Request) *httptest.ResponseRecorder {
+	t.Helper()
+	rr := httptest.NewRecorder()
+	ctx := testpkg.WithTestTenantRuntime(t, req.Context())
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		ctx = tenant.WithTenantID(ctx, tenantID)
+	}
+	router.ServeHTTP(rr, req.WithContext(ctx))
+	return rr
 }
 
 // Response represents a standard API response for testing.

@@ -420,7 +420,7 @@ func TestAccountManagementOrganizationScopeStaysWithinOrganization(t *testing.T)
 	organizationID, schoolID := e.createSchoolInOwnOrganization(t)
 	sameOrgID, _ := e.accountForTenant(t, "account-scope-org-local", schoolID)
 	foreignID, _ := e.foreignAccount(t, "account-scope-org-foreign")
-	ctx := tenant.WithScope(tenant.WithOrgID(context.Background(), organizationID), tenant.ScopeOrg)
+	ctx := testpkg.WithTestTenantRuntime(t, tenant.WithScope(tenant.WithOrgID(context.Background(), organizationID), tenant.ScopeOrg))
 
 	got, err := e.tc.resource.AuthService.GetAccountByID(ctx, int(sameOrgID))
 	require.NoError(t, err)

@@ -173,6 +173,7 @@ describe("MOTO_COLOR_PALETTE", () => {
       },
       neutral: {
         soft: "#F3F4F6",
+        muted: "#D1D5DB",
         light: "#9CA3AF",
         base: "#6B7280",
         strong: "#374151",
@@ -183,6 +184,11 @@ describe("MOTO_COLOR_PALETTE", () => {
         base: "#78716C",
         strong: "#44403C",
       },
+      roomCategory: {
+        group: "#10B981",
+        theme: "#8B5CF6",
+        sport: "#EC4899",
+      },
     });
   });
 });
@@ -191,26 +197,22 @@ describe("getLocationBadgeTone", () => {
   it("maps brand colors to soft surfaces and strong text colors", () => {
     expect(getLocationBadgeTone(LOCATION_COLORS.GROUP_ROOM)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.green.soft,
-      dotColor: MOTO_COLOR_PALETTE.green.base,
       textColor: MOTO_COLOR_PALETTE.green.strong,
     });
     expect(getLocationBadgeTone(LOCATION_COLORS.HOME)).toEqual({
       backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
-      dotColor: MOTO_COLOR_PALETTE.neutral.light,
       textColor: "#4B5563",
     });
   });
 
-  it("keeps a custom room color's hue in the label, not just the dot", () => {
+  it("keeps a custom room color's hue in the label", () => {
     // Room colors (#1324) can never match a LOCATION_BADGE_TONES row: the
     // backend reserves exactly the status hexes, so an admin-picked color is
     // always something else. A flat neutral label would collapse every custom
-    // room onto one pill and leave only the 6px dot to tell them apart, which
-    // is the differentiation the feature exists for. #5b7842 is #A3D977
+    // room onto one pill, which is the differentiation the feature exists for. #5b7842 is #A3D977
     // darkened to 4.77:1 on the gray-50 pill.
     expect(getLocationBadgeTone("#A3D977")).toEqual({
       backgroundColor: "#F9FAFB",
-      dotColor: "#A3D977",
       textColor: "#5b7842",
     });
   });
@@ -619,7 +621,7 @@ describe("getAccessibleTextColor", () => {
   }
 
   const WHITE = "#FFFFFF";
-  // Die Pillenfläche der StatusDotBadge — die dunklere der beiden Flächen und
+  // Die Pillenfläche der StatusColorBadge — die dunklere der beiden Flächen und
   // damit der Fall, an dem sich der Kontrast entscheidet.
   const GRAY_50 = "#F9FAFB";
 

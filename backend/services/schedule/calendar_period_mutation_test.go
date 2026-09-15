@@ -1,4 +1,4 @@
-package schedule
+package schedule_test
 
 import (
 	"context"
@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -36,12 +36,12 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	})
 	ctx := testpkg.TenantContext(tenantID)
 
-	repo := scheduleRepo.NewCalendarPeriodRepository(db)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CalendarPeriod
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("Care-link-preflight-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(2026, time.August, 1),
-		EndDate:         timezone.NewDate(2027, time.July, 31),
+		StartDate:       scheduleModel.NewDate(2026, time.August, 1),
+		EndDate:         scheduleModel.NewDate(2027, time.July, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -49,7 +49,7 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	require.NoError(t, repo.Create(ctx, period))
 
 	var replacements []*scheduleModel.CalendarPeriod
-	service := NewCalendarPeriodServiceWithConfig(CalendarPeriodServiceConfig{
+	service := scheduleSvc.NewCalendarPeriodServiceWithConfig(scheduleSvc.CalendarPeriodServiceConfig{
 		Repo: repo,
 		DB:   db,
 		ValidateCareOfferingChange: func(callCtx context.Context, gotPeriodID int64, replacement *scheduleModel.CalendarPeriod) error {
@@ -62,8 +62,8 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	})
 
 	updated := *period
-	updated.StartDate = timezone.NewDate(2026, time.September, 1)
-	updated.EndDate = timezone.NewDate(2027, time.June, 30)
+	updated.StartDate = scheduleModel.NewDate(2026, time.September, 1)
+	updated.EndDate = scheduleModel.NewDate(2027, time.June, 30)
 	err := service.UpdatePeriod(ctx, &updated)
 	require.ErrorIs(t, err, scheduleModel.ErrCalendarPeriodCareOfferingConflict)
 
@@ -83,7 +83,7 @@ func TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged(t *tes
 	assert.Nil(t, replacements[1], "delete preflight is represented by a nil replacement")
 
 	assert.False(t, errors.Is(
-		&ScheduleError{Op: "probe", Err: errors.New("database unavailable")},
+		&scheduleSvc.ScheduleError{Op: "probe", Err: errors.New("database unavailable")},
 		scheduleModel.ErrCalendarPeriodCareOfferingConflict,
 	), "infrastructure errors must not be classified as care-link conflicts")
 }

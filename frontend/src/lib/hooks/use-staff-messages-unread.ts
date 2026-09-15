@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 import { fetchStaffUnreadCount } from "~/lib/staff-messages-api";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useTenantSafe, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useUnreadCount } from "./use-unread-count";
 
 /**
@@ -37,5 +38,6 @@ export function useStaffMessagesUnread() {
     // that happens while the tab is backgrounded no refresh event fires and the
     // badge would stay stale until a full reload. A focus refetch heals it.
     refetchOnFocus: true,
+    initialCount: useShellSeed()?.counts.teamChatUnread,
   });
 }

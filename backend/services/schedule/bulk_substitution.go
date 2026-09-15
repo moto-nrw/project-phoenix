@@ -153,10 +153,15 @@ func (s *instanceService) planBulkDays(ctx context.Context, in BulkSubstitutionI
 	plans := make([]bulkDayPlan, 0, len(dates))
 	for _, date := range dates {
 		if in.SubstituteStaffID == nil {
-			absencePlan, err := s.planAbsences(ctx, []DeviationAbsenceInput{{
+			absences := []DeviationAbsenceInput{{
 				StaffID: in.AbsentStaffID,
 				Reason:  reason,
-			}}, date)
+			}}
+			readSet, err := s.loadDeviationReadSet(ctx, 0, ApplyDeviationsInput{Absences: absences}, date)
+			if err != nil {
+				return nil, bulkDayError(date, err)
+			}
+			absencePlan, err := planAbsences(absences, date, readSet)
 			if err != nil {
 				return nil, bulkDayError(date, err)
 			}
@@ -164,25 +169,25 @@ func (s *instanceService) planBulkDays(ctx context.Context, in BulkSubstitutionI
 			continue
 		}
 
+		subs := []DeviationSubstitutionInput{{
+			AbsentStaffID:     in.AbsentStaffID,
+			SubstituteStaffID: *in.SubstituteStaffID,
+			Reason:            in.Reason,
+		}}
+		readSet, err := s.loadDeviationReadSet(ctx, 0, ApplyDeviationsInput{Substitutions: subs}, date)
+		if err != nil {
+			return nil, bulkDayError(date, err)
+		}
 		// The substitute must not already be absent in the DB on this date —
 		// the same day-wide rule validateDeviationStaff enforces (#1840).
-		subRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, *in.SubstituteStaffID, date)
-		if err != nil {
-			return nil, devErrInternal("load substitute assignments failed", err)
-		}
-		for _, row := range subRows {
+		for _, row := range readSet.rowsByStaff[*in.SubstituteStaffID] {
 			if row.IsAbsent {
 				return nil, devErrBadRequest(fmt.Sprintf(
 					"die Ersatzperson ist am %s selbst abwesend", date.Format("02.01.2006")))
 			}
 		}
 
-		subs := []DeviationSubstitutionInput{{
-			AbsentStaffID:     in.AbsentStaffID,
-			SubstituteStaffID: *in.SubstituteStaffID,
-			Reason:            in.Reason,
-		}}
-		subPlan, _, err := s.planSubstitutions(ctx, subs, nil, nil, date)
+		subPlan, _, err := planSubstitutions(subs, nil, nil, readSet)
 		if err != nil {
 			return nil, bulkDayError(date, err)
 		}

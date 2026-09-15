@@ -90,8 +90,7 @@ export function InvitationForm({
   }, []);
 
   const handleChange =
-    (key: keyof CreateInvitationRequest) =>
-    (value: string | number | undefined) => {
+    (key: keyof CreateInvitationRequest) => (value: string | undefined) => {
       setForm((prev) => ({ ...prev, [key]: value }));
     };
 
@@ -112,7 +111,7 @@ export function InvitationForm({
       setErrorFieldName("email");
       return;
     }
-    if (!form.roleId || form.roleId <= 0) {
+    if (!form.roleId || !/^[1-9]\d*$/.test(form.roleId)) {
       setError("Bitte wähle eine Rolle aus.");
       setErrorFieldName("roleId");
       return;
@@ -164,7 +163,7 @@ export function InvitationForm({
   };
 
   return (
-    <div className="rounded-2xl border border-gray-200/50 bg-white/90 p-4 shadow-sm backdrop-blur-sm md:p-6">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm md:p-6">
       <div className="mb-4 flex items-center gap-2 md:gap-3">
         <div className="rounded-xl bg-gray-100 p-2">
           <Mail
@@ -233,12 +232,10 @@ export function InvitationForm({
           <CustomSelect
             id="invitation-role"
             ariaLabelledBy="invitation-role-label"
-            value={form.roleId === undefined ? "" : String(form.roleId)}
-            onChange={(next) =>
-              handleChange("roleId")(Number(next) || undefined)
-            }
+            value={form.roleId ?? ""}
+            onChange={(next) => handleChange("roleId")(next || undefined)}
             options={roles.map((role) => ({
-              value: String(role.id),
+              value: role.id,
               label: role.name,
             }))}
             placeholder="Rolle auswählen..."

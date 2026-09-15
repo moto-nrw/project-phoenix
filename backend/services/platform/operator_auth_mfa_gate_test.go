@@ -127,11 +127,8 @@ func newOperatorAuthServiceForGate(t *testing.T, mfa *stubOperatorMFAService) (p
 	return svc, op
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
+	t.Parallel()
 	svc, op := newOperatorAuthServiceForGate(t, nil)
 
 	result, err := svc.LoginWithMFAGate(
@@ -147,11 +144,8 @@ func TestOperatorLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
 	assert.False(t, result.MFAEnrollmentRequired)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T) {
+	t.Parallel()
 	// Post-#1430 review (Item #1) contract: an unenrolled operator must
 	// receive a narrow enrollment-scoped JWT (no refresh token), NOT a
 	// full operator session. The previous design returned `authenticated`
@@ -182,11 +176,8 @@ func TestOperatorLoginWithMFAGate_NotEnrolled_IssuesEnrollmentToken(t *testing.T
 	require.NotNil(t, result.Operator)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_EnrolledNoCookie_ReturnsChallenge(t *testing.T) {
+	t.Parallel()
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn:  func(context.Context, int64) (bool, error) { return true, nil },
 		startChallengeFn: func(context.Context, int64, net.IP) (string, error) { return "challenge-xyz", nil },
@@ -207,11 +198,8 @@ func TestOperatorLoginWithMFAGate_EnrolledNoCookie_ReturnsChallenge(t *testing.T
 	assert.Positive(t, result.TrustedDeviceDays)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_EnrolledValidCookie_SkipsMFA(t *testing.T) {
+	t.Parallel()
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
 		verifyTrustedDeviceFn: func(_ context.Context, _ int64, cookie string) (bool, error) {
@@ -234,11 +222,8 @@ func TestOperatorLoginWithMFAGate_EnrolledValidCookie_SkipsMFA(t *testing.T) {
 	assert.Empty(t, result.ChallengeToken)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_EnrolledInvalidCookie_FallsThroughToChallenge(t *testing.T) {
+	t.Parallel()
 	mfa := &stubOperatorMFAService{
 		hasEnrollmentFn:       func(context.Context, int64) (bool, error) { return true, nil },
 		verifyTrustedDeviceFn: func(context.Context, int64, string) (bool, error) { return false, nil },
@@ -257,11 +242,8 @@ func TestOperatorLoginWithMFAGate_EnrolledInvalidCookie_FallsThroughToChallenge(
 	assert.Equal(t, "fresh-challenge", result.ChallengeToken)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_WrongPassword_NoMFACalls(t *testing.T) {
+	t.Parallel()
 	// The stub methods panic on call; if the password gate fails before
 	// the MFA branch the test passes silently.
 	mfa := &stubOperatorMFAService{
@@ -279,11 +261,8 @@ func TestOperatorLoginWithMFAGate_WrongPassword_NoMFACalls(t *testing.T) {
 	require.Error(t, err)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_UnknownEmail_ReturnsInvalidCreds(t *testing.T) {
+	t.Parallel()
 	mfa := &stubOperatorMFAService{} // every call would panic
 	svc, _ := newOperatorAuthServiceForGate(t, mfa)
 
@@ -296,11 +275,8 @@ func TestOperatorLoginWithMFAGate_UnknownEmail_ReturnsInvalidCreds(t *testing.T)
 	require.ErrorAs(t, err, &ic)
 }
 
-// Deliberately NOT parallel: platform announcements and operators are
-// tenant-less. The fixtures reuse fixed operator e-mails and the assertions
-// count rows the whole clone shares, so two of these tests running side by
-// side see each other's data.
 func TestOperatorLoginWithMFAGate_InactiveOperator_ReturnsInactiveError(t *testing.T) {
+	t.Parallel()
 	hash, err := userpass.HashPassword(operatorGatePassword, nil)
 	require.NoError(t, err)
 

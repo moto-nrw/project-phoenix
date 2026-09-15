@@ -1,6 +1,15 @@
+---
+paths:
+  - "backend/**"
+---
+
 # Backend Architectural Conventions
 
-**RULE: Every new backend change must respect the conventions below.** They exist to block the per-entity copy-paste patterns that bloated the codebase. If a rule below conflicts with a reviewer's preference, the rule wins — the whole point is to remove the per-PR judgment call.
+**Scope: legacy layer safety.** Read `backend/CLAUDE.md` Active Architecture
+Migration (#2580) first. The capability-first policy in
+`backend/architecture/policy.json` takes precedence when choosing boundaries;
+the conventions below constrain unmigrated code. Existing factories and broad
+test composition are shrink-only, not templates for new code.
 
 > **Verification status (2026-06-12):** all structural claims re-verified against the codebase. Two rules are now CI-enforced by ratchet tests (see Rules 1 and 11); the boilerplate counts in Rules 3, 5, and 7 are point-in-time measurements — re-run the detection commands at the bottom before relying on a specific number.
 
@@ -155,7 +164,7 @@ gocognit -over 15 backend/api/
 Two shapes that keep handlers under the threshold without hiding logic:
 
 - **Pure pass-through handlers** (parse → one service call → respond) should not exist as named functions at all — register them with the `api/common` handler builders (`IDAction`, `TwoIDAction`, `IDFetch`, `BindAction`) directly in `Router()`. Cutoff: a handler with per-request branching, multi-service reads, or response shaping keeps a named function; do not grow option-struct builder variants to force-fit those.
-- **Error classification** belongs in a declarative rule table (`api/common/error_rules.go`: `ErrorRule` + `RulesRenderer` / `UnwrapRenderer`), not a hand-written switch. `UnwrapRenderer` covers the domain-wrapper pattern (render the inner sentinel, keep the wrapped error for 500 logs). The one sanctioned hand-written renderer is `api/iot/internal/shared.ErrorRenderer` (multi-domain dispatch + PyrePortal wire contract).
+- **Error classification** belongs in a declarative rule table (`api/common/error_rules.go`: `ErrorRule` + `RulesRenderer` / `UnwrapRenderer`), not a hand-written switch. `UnwrapRenderer` covers the domain-wrapper pattern (render the inner sentinel, keep the wrapped error for 500 logs). The retained IoT session and device routes keep their multi-domain PyrePortal mapping as a rule table in `api/iot/sessions/errors.go`; the kiosk scan routes classify through the public `modules/devicescan` contract instead.
 
 ---
 
@@ -329,6 +338,22 @@ If a test's purpose genuinely requires the system clock, inject a clock where po
 
 ---
 
+## 15. Query Budgets — Every List Endpoint Has One (#2940)
+
+**RULE: A new list endpoint (or list-shaped service method) ships with a query-budget test and a register entry in `backend/test/query_budgets.go`.** N+1 loops show up at three fixtures already, so the test is cheap: create 3 rows, run the request, create more, run it again, assert the statement count did not move, then hand the statements to the register.
+
+```go
+counter := testpkg.CaptureQueries(t, db)          // bun.QueryHook, disabled at cleanup
+rr := exec(...)                                    // the request under test
+testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
+```
+
+- **One counter.** `testpkg.QueryCounter` (`backend/test/query_counter.go`) is the only bun hook tests may define: `CaptureQueries(t, db)` attaches it to a DB, `NewQueryCounter()` feeds `db.WithQueryHook` for a private clone. It buckets by operation (`Operation("SELECT")`), table (`Selects("config.setting_values")`) or predicate (`Matching`). Tests that count own their database (`SetupIsolatedTestDB`) or a `WithQueryHook` clone before they run in parallel.
+- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`services/schedule/timetable_read_exception_conflicts.go` is the reference shape).
+- **Two CI halves.** `TestQueryBudgetRatchet` (source-level, runs in the no-database ratchet step) fails on register entries no test references, scenario names no entry defines, and any `_test.go` file defining its own `BeforeQuery` hook. The budget tests themselves run with the full backend suite.
+
+---
+
 ## Code Review Checklist
 
 - [ ] No repository imports/fields/getter-calls in `api/` (CI: `TestHandlerLayerRatchet`)
@@ -345,6 +370,7 @@ If a test's purpose genuinely requires the system clock, inject a clock where po
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
+- [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query_budgets.go`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
 
 ## Detection commands (one-shot health check)
 

@@ -1,38 +1,58 @@
 package repositories
 
 import (
+	"context"
+	"fmt"
+
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	iotRepo "github.com/moto-nrw/project-phoenix/database/repositories/iot"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
 )
+
+func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
+	return func(ctx context.Context) (bun.IDB, int64) {
+		tenantID := auditModels.TenantIDFromContext(ctx)
+		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
+			switch tx := raw.(type) {
+			case bun.Tx:
+				return tx, tenantID
+			case *bun.Tx:
+				if tx != nil {
+					return tx, tenantID
+				}
+			}
+		}
+		return db, tenantID
+	}
+}
 
 type AuthCleanupRepositories struct {
 	Account                authModels.AccountRepository
 	Token                  authModels.TokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       iotModels.PushSubscriptionRepository
+	PushSubscription       deliveryModels.PushSubscriptionRepository
 }
 
-func NewAuthCleanupRepositories(db *bun.DB) AuthCleanupRepositories {
+func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
+	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		Account: authRepo.NewAccountRepository(db), Token: authRepo.NewTokenRepository(db),
+		Account: authRepo.NewAccountRepository(db), Token: NewTokenRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		AuthEvent:              auditRepo.NewAuthEventRepository(db), PushSubscription: iotRepo.NewPushSubscriptionRepository(db),
+		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
 
@@ -42,33 +62,42 @@ func NewInvitationCleanupRepository(db *bun.DB) authModels.InvitationTokenReposi
 
 type SessionCleanupRepositories struct {
 	Group           activeModels.GroupRepository
-	Visit           activeModels.VisitRepository
 	Supervisor      activeModels.GroupSupervisorRepository
 	Device          iotModels.DeviceRepository
-	TimetableBridge *scheduleRepo.ActivityInstanceRepository
+	TimetableBridge scheduleModels.ActivityInstanceRepository
 }
 
-func NewSessionCleanupRepositories(db *bun.DB) SessionCleanupRepositories {
+func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Capability) SessionCleanupRepositories {
+	if timetableCapability == nil {
+		panic("session cleanup repositories: timetable capability is required")
+	}
+	fleet, err := NewDeviceFleet(db)
+	if err != nil {
+		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
+	}
+	group := activeRepo.NewGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}))
+	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
+	rooms, err := NewFacilities(db)
+	if err != nil {
+		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
+	}
+	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
 	return SessionCleanupRepositories{
-		Group: activeRepo.NewGroupRepository(db), Visit: activeRepo.NewVisitRepository(db),
-		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: iotRepo.NewDeviceRepository(db),
-		TimetableBridge: scheduleRepo.NewActivityInstanceRepository(db),
+		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
+		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
 	}
 }
 
 type RetentionCleanupRepositories struct {
-	Visit      activeModels.VisitRepository
-	Attendance activeModels.AttendanceRepository
 	Supervisor activeModels.GroupSupervisorRepository
-	Consent    usersModels.PrivacyConsentRepository
 	Deletion   auditModels.DataDeletionRepository
 }
 
-func NewRetentionCleanupRepositories(db *bun.DB) RetentionCleanupRepositories {
+func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
+	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
-		Visit: activeRepo.NewVisitRepository(db), Attendance: activeRepo.NewAttendanceRepository(db),
-		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: usersRepo.NewPrivacyConsentRepository(db),
-		Deletion: auditRepo.NewDataDeletionRepository(db),
+		Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
+		Deletion:   RouteDataDeletionWrites(deletions, command),
 	}
 }
 
@@ -80,11 +109,16 @@ type TimetableCleanupRepositories struct {
 	Deviation auditModels.DeviationEventRepository
 }
 
-func NewTimetableCleanupRepositories(db *bun.DB) TimetableCleanupRepositories {
+func NewTimetableCleanupRepositories(db *bun.DB, command auditModels.Command, timetableCapability timetable.Capability) TimetableCleanupRepositories {
+	if timetableCapability == nil {
+		panic("timetable cleanup repositories: timetable capability is required")
+	}
+	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return TimetableCleanupRepositories{
-		Instance: scheduleRepo.NewActivityInstanceRepository(db), Exception: scheduleRepo.NewActivityExceptionRepository(db),
-		Student: scheduleRepo.NewInstanceStudentRepository(db), Deletion: auditRepo.NewDataDeletionRepository(db),
-		Deviation: auditRepo.NewDeviationEventRepository(db),
+		Instance:  timetableActivityInstanceRepository{timetable: timetableCapability},
+		Exception: timetableActivityExceptionRepository{timetable: timetableCapability},
+		Student:   timetableInstanceStudentRepository{timetable: timetableCapability}, Deletion: RouteDataDeletionWrites(deletions, command),
+		Deviation: auditRepo.NewDeviationEventRepository(auditRootRuntime(db)),
 	}
 }
 
@@ -94,26 +128,33 @@ type TimeTrackingCleanupRepositories struct {
 	Deletion auditModels.DataDeletionRepository
 }
 
-func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositories {
+func NewTimeTrackingCleanupRepositories(db *bun.DB, command auditModels.Command) TimeTrackingCleanupRepositories {
+	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup repositories: compose school membership: %v", err))
+	}
+	workTime, err := NewWorkforce(db, membership)
+	if err != nil {
+		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
+	}
 	return TimeTrackingCleanupRepositories{
-		Session: activeRepo.NewWorkSessionRepository(db), Absence: activeRepo.NewStaffAbsenceRepository(db),
-		Deletion: auditRepo.NewDataDeletionRepository(db),
+		Session: workforceLegacy.NewWorkSessionRepository(workTime), Absence: workforceLegacy.NewStaffAbsenceRepository(workTime),
+		Deletion: RouteDataDeletionWrites(deletions, command),
 	}
 }
 
 type CleanupSettingsRepositories struct {
-	Value  configModels.SettingValueRepository
-	Audit  configModels.SettingAuditRepository
-	School platformModels.SchoolRepository
+	Value configModels.SettingValueRepository
+	Audit configModels.SettingAuditRepository
 }
 
 func NewCleanupSettingsRepositories(db *bun.DB, runtime configRepo.Runtime) CleanupSettingsRepositories {
 	return CleanupSettingsRepositories{
 		Value: configRepo.NewSettingValueRepository(runtime), Audit: configRepo.NewSettingAuditRepository(runtime),
-		School: platformRepo.NewSchoolRepository(db),
 	}
 }
 
-func NewSettingsCommandRepositories(db *bun.DB) (platformModels.SchoolRepository, configModels.SettingValueRepository) {
-	return platformRepo.NewSchoolRepository(db), configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
+func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
+	return configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
 }

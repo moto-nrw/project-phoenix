@@ -16,7 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/platform"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
+	platformModel "github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // Test constants used in mock assertions (not DB-dependent)

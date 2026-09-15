@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,9 +13,15 @@ import (
 // Test Setup
 // =============================================================================
 
-func setupViperDefaults() {
-	viper.Set("auth_jwt_expiry", 15*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 24*time.Hour)
+func newTestTokenAuth(_ *testing.T, secret string, durations ...time.Duration) (*TokenAuth, error) {
+	expiry, refreshExpiry := 15*time.Minute, 24*time.Hour
+	if len(durations) > 0 {
+		expiry = durations[0]
+	}
+	if len(durations) > 1 {
+		refreshExpiry = durations[1]
+	}
+	return NewTokenAuthWithDurations(secret, expiry, refreshExpiry)
 }
 
 const testSecret = "test-secret-32-chars-minimum!!!"
@@ -26,9 +31,9 @@ const testSecret = "test-secret-32-chars-minimum!!!"
 // =============================================================================
 
 func TestNewTokenAuthWithSecret_ValidSecret(t *testing.T) {
-	setupViperDefaults()
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 	assert.NotNil(t, auth.JwtAuth)
@@ -37,19 +42,19 @@ func TestNewTokenAuthWithSecret_ValidSecret(t *testing.T) {
 }
 
 func TestNewTokenAuthWithSecret_EmptySecret(t *testing.T) {
-	setupViperDefaults()
+	t.Parallel()
 
 	// Empty secret still works (security validation is elsewhere)
-	auth, err := NewTokenAuthWithSecret("")
+	auth, err := newTestTokenAuth(t, "")
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 }
 
 func TestNewTokenAuthWithSecret_ShortSecret(t *testing.T) {
-	setupViperDefaults()
+	t.Parallel()
 
 	// Short secret still works but would log warning in NewTokenAuth
-	auth, err := NewTokenAuthWithSecret("short")
+	auth, err := newTestTokenAuth(t, "short")
 	require.NoError(t, err)
 	assert.NotNil(t, auth)
 }
@@ -59,8 +64,8 @@ func TestNewTokenAuthWithSecret_ShortSecret(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_CreateJWT_ValidClaims(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -84,8 +89,8 @@ func TestTokenAuth_CreateJWT_ValidClaims(t *testing.T) {
 }
 
 func TestTokenAuth_CreateJWT_SetsExpiry(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -111,8 +116,8 @@ func TestTokenAuth_CreateJWT_SetsExpiry(t *testing.T) {
 }
 
 func TestTokenAuth_CreateJWT_MinimalClaims(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -127,8 +132,8 @@ func TestTokenAuth_CreateJWT_MinimalClaims(t *testing.T) {
 }
 
 func TestTokenAuth_CreateJWT_EmptyPermissions(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -144,8 +149,8 @@ func TestTokenAuth_CreateJWT_EmptyPermissions(t *testing.T) {
 }
 
 func TestTokenAuth_CreateJWT_NilPermissions(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -165,8 +170,8 @@ func TestTokenAuth_CreateJWT_NilPermissions(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_CreateRefreshJWT_ValidClaims(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := RefreshClaims{
@@ -180,8 +185,8 @@ func TestTokenAuth_CreateRefreshJWT_ValidClaims(t *testing.T) {
 }
 
 func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := RefreshClaims{
@@ -206,8 +211,8 @@ func TestTokenAuth_CreateRefreshJWT_SetsExpiry(t *testing.T) {
 }
 
 func TestTokenAuth_CreateRefreshJWT_PreservesPersistedExpiry(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	expiresAt := time.Now().Add(10 * time.Minute).Unix()
@@ -232,8 +237,8 @@ func TestTokenAuth_CreateRefreshJWT_PreservesPersistedExpiry(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_GenTokenPair_ValidClaims(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	accessClaims := AppClaims{
@@ -259,8 +264,8 @@ func TestTokenAuth_GenTokenPair_ValidClaims(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_GetRefreshExpiry(t *testing.T) {
-	viper.Set("auth_jwt_refresh_expiry", 48*time.Hour)
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret, 15*time.Minute, 48*time.Hour)
 	require.NoError(t, err)
 
 	expiry := auth.GetRefreshExpiry()
@@ -272,8 +277,8 @@ func TestTokenAuth_GetRefreshExpiry(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_Verifier_ReturnsMiddleware(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	verifier := auth.Verifier()
@@ -430,8 +435,8 @@ func TestRandStringBytes_ContainsOnlyValidChars(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_CreateAndVerify_AccessToken(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	originalClaims := AppClaims{
@@ -454,8 +459,8 @@ func TestTokenAuth_CreateAndVerify_AccessToken(t *testing.T) {
 }
 
 func TestTokenAuth_CreateAndVerify_RefreshToken(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	originalClaims := RefreshClaims{
@@ -473,10 +478,10 @@ func TestTokenAuth_CreateAndVerify_RefreshToken(t *testing.T) {
 }
 
 func TestTokenAuth_VerifyWithWrongSecret(t *testing.T) {
-	setupViperDefaults()
+	t.Parallel()
 
 	// Create token with one secret
-	auth1, err := NewTokenAuthWithSecret("secret-one-32-chars-minimum!!!!")
+	auth1, err := newTestTokenAuth(t, "secret-one-32-chars-minimum!!!!")
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -489,7 +494,7 @@ func TestTokenAuth_VerifyWithWrongSecret(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to verify with different secret
-	auth2, err := NewTokenAuthWithSecret("secret-two-32-chars-minimum!!!!")
+	auth2, err := newTestTokenAuth(t, "secret-two-32-chars-minimum!!!!")
 	require.NoError(t, err)
 
 	_, err = auth2.JwtAuth.Decode(token)
@@ -501,8 +506,8 @@ func TestTokenAuth_VerifyWithWrongSecret(t *testing.T) {
 // =============================================================================
 
 func TestTokenAuth_CreateJWT_SpecialCharactersInClaims(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -531,8 +536,8 @@ func TestTokenAuth_CreateJWT_SpecialCharactersInClaims(t *testing.T) {
 }
 
 func TestTokenAuth_CreateJWT_EmptyUsername(t *testing.T) {
-	setupViperDefaults()
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	t.Parallel()
+	auth, err := newTestTokenAuth(t, testSecret)
 	require.NoError(t, err)
 
 	claims := AppClaims{
@@ -548,10 +553,9 @@ func TestTokenAuth_CreateJWT_EmptyUsername(t *testing.T) {
 }
 
 func TestTokenAuth_CustomExpiry(t *testing.T) {
-	viper.Set("auth_jwt_expiry", 5*time.Minute)
-	viper.Set("auth_jwt_refresh_expiry", 1*time.Hour)
+	t.Parallel()
 
-	auth, err := NewTokenAuthWithSecret(testSecret)
+	auth, err := newTestTokenAuth(t, testSecret, 5*time.Minute, time.Hour)
 	require.NoError(t, err)
 
 	assert.Equal(t, 5*time.Minute, auth.JwtExpiry)

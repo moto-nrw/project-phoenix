@@ -1,0 +1,711 @@
+{
+  "history": [
+    {
+      "shape": "SELECT \"student_data_change_request\".\"id\", \"student_data_change_request\".\"tenant_id\", \"student_data_change_request\".\"created_at\", \"student_data_change_request\".…",
+      "executions": 1,
+      "planning_ms": 0.17,
+      "execution_ms": 5.423,
+      "rows_returned": 51,
+      "rows_scanned": 48608,
+      "shared_hit_blocks": 2245,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"excused_absence_request\".\"id\", \"excused_absence_request\".\"tenant_id\", \"excused_absence_request\".\"created_at\", \"excused_absence_request\".\"updated_at\", \"e…",
+      "executions": 1,
+      "planning_ms": 0.117,
+      "execution_ms": 2.769,
+      "rows_returned": 32,
+      "rows_scanned": 24304,
+      "shared_hit_blocks": 1123,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"guardi…",
+      "executions": 2,
+      "planning_ms": 0.045,
+      "execution_ms": 0.029,
+      "rows_returned": 25,
+      "rows_scanned": 25,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"person\".\"id\", \"person\".\"created_at\", \"person\".\"updated_at\", \"person\".\"tenant_id\", \"person\".\"first_name\", \"person\".\"last_name\", \"person\".\"birthday\", \"per…",
+      "executions": 1,
+      "planning_ms": 0.024,
+      "execution_ms": 0.048,
+      "rows_returned": 33,
+      "rows_scanned": 66,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"person\".\"id\", \"person\".\"created_at\", \"person\".\"updated_at\", \"person\".\"tenant_id\", \"person\".\"first_name\", \"person\".\"last_name\", \"person\".\"birthday\", \"per…",
+      "executions": 2,
+      "planning_ms": 0.03,
+      "execution_ms": 0.021,
+      "rows_returned": 25,
+      "rows_scanned": 25,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"offering_change_request\".\"id\", \"offering_change_request\".\"tenant_id\", \"offering_change_request\".\"created_at\", \"offering_change_request\".\"updated_at\", \"o…",
+      "executions": 1,
+      "planning_ms": 0.04,
+      "execution_ms": 0.034,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".id, \"student\".bus_days, \"student\".pickup_days, \"student\".departure_days, \"student\".allowed_departure_modes, \"student\".departure_companion_note …",
+      "executions": 2,
+      "planning_ms": 0.037,
+      "execution_ms": 0.016,
+      "rows_returned": 25,
+      "rows_scanned": 25,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_schedule_change_request\".\"id\", \"care_schedule_change_request\".\"tenant_id\", \"care_schedule_change_request\".\"created_at\", \"care_schedule_change_reque…",
+      "executions": 1,
+      "planning_ms": 0.142,
+      "execution_ms": 0.032,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 1,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"group_…",
+      "executions": 1,
+      "planning_ms": 0.036,
+      "execution_ms": 0.023,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"person\".\"id\", \"person\".\"created_at\", \"person\".\"updated_at\", \"person\".\"tenant_id\", \"person\".\"first_name\", \"person\".\"last_name\", \"person\".\"birthday\", \"per…",
+      "executions": 2,
+      "planning_ms": 0.024,
+      "execution_ms": 0.011,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"enrollment_offering_adjustment\".\"id\", \"enrollment_offering_adjustment\".\"tenant_id\", \"enrollment_offering_adjustment\".\"request_id\", \"enrollment_offering_…",
+      "executions": 1,
+      "planning_ms": 0.025,
+      "execution_ms": 0.02,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    }
+  ],
+  "open": [
+    {
+      "shape": "SELECT \"excused_absence_request\".\"id\", \"excused_absence_request\".\"tenant_id\", \"excused_absence_request\".\"created_at\", \"excused_absence_request\".\"updated_at\", \"e…",
+      "executions": 1,
+      "planning_ms": 0.163,
+      "execution_ms": 3.089,
+      "rows_returned": 32,
+      "rows_scanned": 24304,
+      "shared_hit_blocks": 1123,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_data_change_request\".\"id\", \"student_data_change_request\".\"tenant_id\", \"student_data_change_request\".\"created_at\", \"student_data_change_request\".…",
+      "executions": 1,
+      "planning_ms": 0.15,
+      "execution_ms": 3.062,
+      "rows_returned": 32,
+      "rows_scanned": 24304,
+      "shared_hit_blocks": 1124,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_schedule_change_request\".\"id\", \"care_schedule_change_request\".\"tenant_id\", \"care_schedule_change_request\".\"created_at\", \"care_schedule_change_reque…",
+      "executions": 1,
+      "planning_ms": 0.175,
+      "execution_ms": 3.001,
+      "rows_returned": 32,
+      "rows_scanned": 24304,
+      "shared_hit_blocks": 1123,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"request_child_offering\".\"id\", \"request_child_offering\".\"tenant_id\", \"request_child_offering\".\"created_at\", \"request_child_offering\".\"updated_at\", \"reque…",
+      "executions": 39,
+      "planning_ms": 0.085,
+      "execution_ms": 0.068,
+      "rows_returned": 2,
+      "rows_scanned": 5,
+      "shared_hit_blocks": 4,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"group_…",
+      "executions": 78,
+      "planning_ms": 0.04,
+      "execution_ms": 0.028,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".id, \"student\".bus_days, \"student\".pickup_days, \"student\".departure_days, \"student\".allowed_departure_modes, \"student\".departure_companion_note …",
+      "executions": 87,
+      "planning_ms": 0.054,
+      "execution_ms": 0.023,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT gp.account_id AS account_id, btrim(COALESCE(gp.first_name,?) || ? || COALESCE(gp.last_name,?)) AS name, sg.relationship_type AS relationship_type, sg.is_…",
+      "executions": 39,
+      "planning_ms": 0.179,
+      "execution_ms": 0.036,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"guardi…",
+      "executions": 48,
+      "planning_ms": 0.052,
+      "execution_ms": 0.029,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"guardi…",
+      "executions": 39,
+      "planning_ms": 0.036,
+      "execution_ms": 0.031,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_offering\".\"id\", \"care_offering\".\"tenant_id\", \"care_offering\".\"created_at\", \"care_offering\".\"updated_at\", \"care_offering\".\"phase_id\", \"care_offering…",
+      "executions": 41,
+      "planning_ms": 0.03,
+      "execution_ms": 0.025,
+      "rows_returned": 2,
+      "rows_scanned": 2,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT child.id AS child_id, COALESCE(child.created_student_id, child.matched_student_id) AS student_id FROM enrollment.request_children AS child WHERE (child.t…",
+      "executions": 39,
+      "planning_ms": 0.025,
+      "execution_ms": 0.026,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"class_arrival_exception\".\"id\", \"class_arrival_exception\".\"created_at\", \"class_arrival_exception\".\"updated_at\", \"class_arrival_exception\".\"tenant_id\", \"c…",
+      "executions": 39,
+      "planning_ms": 0.028,
+      "execution_ms": 0.022,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_pickup_exception\".\"id\", \"student_pickup_exception\".\"tenant_id\", \"student_pickup_exception\".\"created_at\", \"student_pickup_exception\".\"updated_at\"…",
+      "executions": 39,
+      "planning_ms": 0.044,
+      "execution_ms": 0.021,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"class_arrival_time\".\"id\", \"class_arrival_time\".\"created_at\", \"class_arrival_time\".\"updated_at\", \"class_arrival_time\".\"tenant_id\", \"class_arrival_time\".\"…",
+      "executions": 39,
+      "planning_ms": 0.02,
+      "execution_ms": 0.02,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_status_day\".* FROM active.student_status_days AS \"student_status_day\" WHERE (\"student_status_day\".tenant_id = ?) AND (\"student_status_day\".stude…",
+      "executions": 39,
+      "planning_ms": 0.055,
+      "execution_ms": 0.02,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_offering_auto_trigger\".\"id\", \"care_offering_auto_trigger\".\"tenant_id\", \"care_offering_auto_trigger\".\"target_care_offering_id\", \"care_offering_auto_…",
+      "executions": 43,
+      "planning_ms": 0.027,
+      "execution_ms": 0.013,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_arrival_schedule\".\"id\", \"student_arrival_schedule\".\"tenant_id\", \"student_arrival_schedule\".\"created_at\", \"student_arrival_schedule\".\"updated_at\"…",
+      "executions": 39,
+      "planning_ms": 0.028,
+      "execution_ms": 0.014,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_pickup_schedule\".\"id\", \"student_pickup_schedule\".\"tenant_id\", \"student_pickup_schedule\".\"created_at\", \"student_pickup_schedule\".\"updated_at\", \"s…",
+      "executions": 39,
+      "planning_ms": 0.033,
+      "execution_ms": 0.014,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"person\".\"id\", \"person\".\"created_at\", \"person\".\"updated_at\", \"person\".\"tenant_id\", \"person\".\"first_name\", \"person\".\"last_name\", \"person\".\"birthday\", \"per…",
+      "executions": 8,
+      "planning_ms": 0.041,
+      "execution_ms": 0.023,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_offering\".\"id\", \"care_offering\".\"tenant_id\", \"care_offering\".\"created_at\", \"care_offering\".\"updated_at\", \"care_offering\".\"phase_id\", \"care_offering…",
+      "executions": 2,
+      "planning_ms": 0.061,
+      "execution_ms": 0.08,
+      "rows_returned": 64,
+      "rows_scanned": 64,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"person\".\"id\", \"person\".\"created_at\", \"person\".\"updated_at\", \"person\".\"tenant_id\", \"person\".\"first_name\", \"person\".\"last_name\", \"person\".\"birthday\", \"per…",
+      "executions": 2,
+      "planning_ms": 0.029,
+      "execution_ms": 0.058,
+      "rows_returned": 33,
+      "rows_scanned": 66,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"request_child_offering\".\"id\", \"request_child_offering\".\"tenant_id\", \"request_child_offering\".\"created_at\", \"request_child_offering\".\"updated_at\", \"reque…",
+      "executions": 2,
+      "planning_ms": 0.048,
+      "execution_ms": 0.035,
+      "rows_returned": 64,
+      "rows_scanned": 64,
+      "shared_hit_blocks": 1,
+      "shared_read_blocks": 0,
+      "seq_scans": [
+        "request_child_offerings"
+      ]
+    },
+    {
+      "shape": "SELECT \"phase\".\"id\", \"phase\".\"tenant_id\", \"phase\".\"created_at\", \"phase\".\"updated_at\", \"phase\".\"name\", \"phase\".\"kind\", \"phase\".\"service_start_date\", \"phase\".\"ser…",
+      "executions": 2,
+      "planning_ms": 0.054,
+      "execution_ms": 0.034,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_schedule_change_request\".\"id\", \"care_schedule_change_request\".\"tenant_id\", \"care_schedule_change_request\".\"created_at\", \"care_schedule_change_reque…",
+      "executions": 1,
+      "planning_ms": 0.165,
+      "execution_ms": 0.056,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"request\".\"id\", \"request\".\"tenant_id\", \"request\".\"created_at\", \"request\".\"updated_at\", \"request\".\"schema_id\", \"request\".\"phase_id\", \"request\".\"guardian_f…",
+      "executions": 2,
+      "planning_ms": 0.036,
+      "execution_ms": 0.027,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"group_…",
+      "executions": 2,
+      "planning_ms": 0.037,
+      "execution_ms": 0.026,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"request_child\".\"id\", \"request_child\".\"tenant_id\", \"request_child\".\"created_at\", \"request_child\".\"updated_at\", \"request_child\".\"request_id\", \"request_chi…",
+      "executions": 2,
+      "planning_ms": 0.035,
+      "execution_ms": 0.026,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"offering_change_request\".\"id\", \"offering_change_request\".\"tenant_id\", \"offering_change_request\".\"created_at\", \"offering_change_request\".\"updated_at\", \"o…",
+      "executions": 1,
+      "planning_ms": 0.084,
+      "execution_ms": 0.05,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"excused_absence_request\".\"id\", \"excused_absence_request\".\"tenant_id\", \"excused_absence_request\".\"created_at\", \"excused_absence_request\".\"updated_at\", \"e…",
+      "executions": 1,
+      "planning_ms": 0.139,
+      "execution_ms": 0.04,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"excused_absence_request\".\"id\", \"excused_absence_request\".\"tenant_id\", \"excused_absence_request\".\"created_at\", \"excused_absence_request\".\"updated_at\", \"e…",
+      "executions": 1,
+      "planning_ms": 0.03,
+      "execution_ms": 0.034,
+      "rows_returned": 7,
+      "rows_scanned": 7,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_schedule_change_request\".\"id\", \"care_schedule_change_request\".\"tenant_id\", \"care_schedule_change_request\".\"created_at\", \"care_schedule_change_reque…",
+      "executions": 1,
+      "planning_ms": 0.041,
+      "execution_ms": 0.032,
+      "rows_returned": 7,
+      "rows_scanned": 7,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"offering_change_request\".\"id\", \"offering_change_request\".\"tenant_id\", \"offering_change_request\".\"created_at\", \"offering_change_request\".\"updated_at\", \"o…",
+      "executions": 1,
+      "planning_ms": 0.031,
+      "execution_ms": 0.032,
+      "rows_returned": 7,
+      "rows_scanned": 7,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_data_change_request\".\"id\", \"student_data_change_request\".\"tenant_id\", \"student_data_change_request\".\"created_at\", \"student_data_change_request\".…",
+      "executions": 1,
+      "planning_ms": 0.036,
+      "execution_ms": 0.028,
+      "rows_returned": 7,
+      "rows_scanned": 7,
+      "shared_hit_blocks": 4,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"offering_change_request\".\"id\", \"offering_change_request\".\"tenant_id\", \"offering_change_request\".\"created_at\", \"offering_change_request\".\"updated_at\", \"o…",
+      "executions": 1,
+      "planning_ms": 0.056,
+      "execution_ms": 0.026,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"setting_value\".\"id\", \"setting_value\".\"tenant_id\", \"setting_value\".\"setting_key\", \"setting_value\".\"value\", \"setting_value\".\"updated_by\", \"setting_value\".…",
+      "executions": 1,
+      "planning_ms": 0.023,
+      "execution_ms": 0.018,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 1,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"group\".\"id\", \"group\".\"created_at\", \"group\".\"updated_at\", \"group\".\"tenant_id\", \"group\".\"name\", \"group\".\"room_id\" FROM education.groups AS \"group\" WHERE (…",
+      "executions": 1,
+      "planning_ms": 0.03,
+      "execution_ms": 0.016,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT DISTINCT ON (\"family_protection_event\".student_id) \"family_protection_event\".\"id\", \"family_protection_event\".\"created_at\", \"family_protection_event\".\"upd…",
+      "executions": 1,
+      "planning_ms": 0.024,
+      "execution_ms": 0.012,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_data_change_request\".\"id\", \"student_data_change_request\".\"tenant_id\", \"student_data_change_request\".\"created_at\", \"student_data_change_request\".…",
+      "executions": 1,
+      "planning_ms": 0.192,
+      "execution_ms": 0.008,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 0,
+      "shared_read_blocks": 0
+    }
+  ],
+  "pending-count": [
+    {
+      "shape": "SELECT \"request_child_offering\".\"id\", \"request_child_offering\".\"tenant_id\", \"request_child_offering\".\"created_at\", \"request_child_offering\".\"updated_at\", \"reque…",
+      "executions": 32,
+      "planning_ms": 0.075,
+      "execution_ms": 0.056,
+      "rows_returned": 2,
+      "rows_scanned": 5,
+      "shared_hit_blocks": 4,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"group_…",
+      "executions": 64,
+      "planning_ms": 0.031,
+      "execution_ms": 0.022,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".id, \"student\".bus_days, \"student\".pickup_days, \"student\".departure_days, \"student\".allowed_departure_modes, \"student\".departure_companion_note …",
+      "executions": 68,
+      "planning_ms": 0.042,
+      "execution_ms": 0.019,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT gp.account_id AS account_id, btrim(COALESCE(gp.first_name,?) || ? || COALESCE(gp.last_name,?)) AS name, sg.relationship_type AS relationship_type, sg.is_…",
+      "executions": 32,
+      "planning_ms": 0.149,
+      "execution_ms": 0.037,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"guardi…",
+      "executions": 36,
+      "planning_ms": 0.058,
+      "execution_ms": 0.032,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_pickup_exception\".\"id\", \"student_pickup_exception\".\"tenant_id\", \"student_pickup_exception\".\"created_at\", \"student_pickup_exception\".\"updated_at\"…",
+      "executions": 32,
+      "planning_ms": 0.039,
+      "execution_ms": 0.031,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student\".\"id\", \"student\".\"created_at\", \"student\".\"updated_at\", \"student\".\"tenant_id\", \"student\".\"person_id\", \"student\".\"school_class\", \"student\".\"guardi…",
+      "executions": 32,
+      "planning_ms": 0.031,
+      "execution_ms": 0.025,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_offering\".\"id\", \"care_offering\".\"tenant_id\", \"care_offering\".\"created_at\", \"care_offering\".\"updated_at\", \"care_offering\".\"phase_id\", \"care_offering…",
+      "executions": 32,
+      "planning_ms": 0.023,
+      "execution_ms": 0.022,
+      "rows_returned": 2,
+      "rows_scanned": 2,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"class_arrival_time\".\"id\", \"class_arrival_time\".\"created_at\", \"class_arrival_time\".\"updated_at\", \"class_arrival_time\".\"tenant_id\", \"class_arrival_time\".\"…",
+      "executions": 32,
+      "planning_ms": 0.018,
+      "execution_ms": 0.021,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"class_arrival_exception\".\"id\", \"class_arrival_exception\".\"created_at\", \"class_arrival_exception\".\"updated_at\", \"class_arrival_exception\".\"tenant_id\", \"c…",
+      "executions": 32,
+      "planning_ms": 0.024,
+      "execution_ms": 0.019,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_status_day\".* FROM active.student_status_days AS \"student_status_day\" WHERE (\"student_status_day\".tenant_id = ?) AND (\"student_status_day\".stude…",
+      "executions": 32,
+      "planning_ms": 0.041,
+      "execution_ms": 0.017,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_pickup_schedule\".\"id\", \"student_pickup_schedule\".\"tenant_id\", \"student_pickup_schedule\".\"created_at\", \"student_pickup_schedule\".\"updated_at\", \"s…",
+      "executions": 32,
+      "planning_ms": 0.03,
+      "execution_ms": 0.013,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_offering_auto_trigger\".\"id\", \"care_offering_auto_trigger\".\"tenant_id\", \"care_offering_auto_trigger\".\"target_care_offering_id\", \"care_offering_auto_…",
+      "executions": 32,
+      "planning_ms": 0.022,
+      "execution_ms": 0.013,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT child.id AS child_id, COALESCE(child.created_student_id, child.matched_student_id) AS student_id FROM enrollment.request_children AS child WHERE (child.t…",
+      "executions": 32,
+      "planning_ms": 0.021,
+      "execution_ms": 0.011,
+      "rows_returned": 1,
+      "rows_scanned": 1,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_arrival_schedule\".\"id\", \"student_arrival_schedule\".\"tenant_id\", \"student_arrival_schedule\".\"created_at\", \"student_arrival_schedule\".\"updated_at\"…",
+      "executions": 32,
+      "planning_ms": 0.019,
+      "execution_ms": 0.01,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"person\".\"id\", \"person\".\"created_at\", \"person\".\"updated_at\", \"person\".\"tenant_id\", \"person\".\"first_name\", \"person\".\"last_name\", \"person\".\"birthday\", \"per…",
+      "executions": 3,
+      "planning_ms": 0.048,
+      "execution_ms": 0.032,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"excused_absence_request\".\"id\", \"excused_absence_request\".\"tenant_id\", \"excused_absence_request\".\"created_at\", \"excused_absence_request\".\"updated_at\", \"e…",
+      "executions": 1,
+      "planning_ms": 0.025,
+      "execution_ms": 0.049,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"care_schedule_change_request\".\"id\", \"care_schedule_change_request\".\"tenant_id\", \"care_schedule_change_request\".\"created_at\", \"care_schedule_change_reque…",
+      "executions": 1,
+      "planning_ms": 0.029,
+      "execution_ms": 0.035,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 3,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"offering_change_request\".\"id\", \"offering_change_request\".\"tenant_id\", \"offering_change_request\".\"created_at\", \"offering_change_request\".\"updated_at\", \"o…",
+      "executions": 1,
+      "planning_ms": 0.032,
+      "execution_ms": 0.033,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 2,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"student_data_change_request\".\"id\", \"student_data_change_request\".\"tenant_id\", \"student_data_change_request\".\"created_at\", \"student_data_change_request\".…",
+      "executions": 1,
+      "planning_ms": 0.03,
+      "execution_ms": 0.025,
+      "rows_returned": 32,
+      "rows_scanned": 32,
+      "shared_hit_blocks": 4,
+      "shared_read_blocks": 0
+    },
+    {
+      "shape": "SELECT \"setting_value\".\"id\", \"setting_value\".\"tenant_id\", \"setting_value\".\"setting_key\", \"setting_value\".\"value\", \"setting_value\".\"updated_by\", \"setting_value\".…",
+      "executions": 1,
+      "planning_ms": 0.018,
+      "execution_ms": 0.011,
+      "rows_returned": 0,
+      "rows_scanned": 0,
+      "shared_hit_blocks": 1,
+      "shared_read_blocks": 0
+    }
+  ]
+}

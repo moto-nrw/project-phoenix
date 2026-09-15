@@ -10,6 +10,7 @@ import (
 )
 
 func TestPhaseAudienceExistingStudentsUpRepairsMissingEligibilityColumns(t *testing.T) {
+	t.Parallel()
 	sqlDB, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	db := testpkg.NewBunDB(sqlDB)

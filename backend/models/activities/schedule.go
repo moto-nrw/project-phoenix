@@ -2,9 +2,6 @@ package activities
 
 import (
 	"errors"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Valid weekday values following ISO 8601 (Monday = 1, Sunday = 7)
@@ -20,8 +17,8 @@ const (
 
 // Schedule represents a scheduled time for an activity group
 type Schedule struct {
-	base.Model `bun:"schema:activities,table:schedules"`
-	base.TenantModel
+	Model `bun:"schema:activities,table:schedules"`
+	TenantModel
 	Weekday          int    `bun:"weekday,notnull" json:"weekday"`
 	TimeframeID      *int64 `bun:"timeframe_id" json:"timeframe_id,omitempty"`
 	ActivityGroupID  int64  `bun:"activity_group_id,notnull" json:"activity_group_id"`
@@ -32,13 +29,13 @@ type Schedule struct {
 	// convention as enrollment valid_until). NULL = open-ended. Set by the
 	// template split ("Dieser und alle folgenden") to retire the old
 	// template's recurrence from the effective date onward.
-	ValidUntil *timezone.Date `bun:"valid_until" json:"valid_until,omitempty"`
+	ValidUntil *Date `bun:"valid_until" json:"valid_until,omitempty"`
 	// ValidFrom is the inclusive start of this schedule's recurrence: the
 	// schedule produces no instances BEFORE this date. NULL = open start.
 	// Set on successor schedules by the template split ("Dieser und alle
 	// folgenden") so materialization never emits successor instances before
 	// the effective date (which would duplicate the old template's rows).
-	ValidFrom *timezone.Date `bun:"valid_from" json:"valid_from,omitempty"`
+	ValidFrom *Date `bun:"valid_from" json:"valid_from,omitempty"`
 
 	// Relations - these would be populated when using the ORM's relations
 	// ActivityGroup *Group `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
@@ -66,4 +63,28 @@ func (s *Schedule) Validate() error {
 // HasTimeframe checks if the schedule has a timeframe
 func (s *Schedule) HasTimeframe() bool {
 	return s.TimeframeID != nil && *s.TimeframeID > 0
+}
+
+func (s *Schedule) ValidityDateStrings() (*string, *string) {
+	return scheduleDateString(s.ValidUntil), scheduleDateString(s.ValidFrom)
+}
+
+func (s *Schedule) SetValidityDateStrings(validUntil, validFrom *string) {
+	s.ValidUntil, s.ValidFrom = scheduleDate(validUntil), scheduleDate(validFrom)
+}
+
+func scheduleDateString(value *Date) *string {
+	if value == nil {
+		return nil
+	}
+	result := value.String()
+	return &result
+}
+
+func scheduleDate(value *string) *Date {
+	if value == nil {
+		return nil
+	}
+	result := Date(*value)
+	return &result
 }

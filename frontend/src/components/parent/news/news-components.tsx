@@ -18,16 +18,21 @@ import { Button } from "~/components/ui/button";
 import { LinkifiedText } from "~/components/ui/linkified-text";
 import { Alert } from "~/components/ui/alert";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { Radio } from "~/components/ui/radio";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { AttachmentList } from "~/components/ui/attachment-list";
 import {
   ParentApiError,
   type ParentAnnouncement,
+  type ParentAnnouncementAttachment,
   type ParentAnnouncementPollChild,
   acknowledgeAnnouncement,
+  announcementAttachmentDownloadUrl,
+  listAnnouncementAttachments,
   markAnnouncementRead,
   respondToAnnouncement,
 } from "~/lib/parent-api";
@@ -119,6 +124,14 @@ function NewsCardMeta({
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold tracking-wide uppercase">
       <span className={typeClass}>{type}</span>
+      {item.reminder_sent_at && (
+        <>
+          <span className="text-gray-300" aria-hidden="true">
+            ·
+          </span>
+          <span className="text-moto-blue-strong">{t("newsReminder")}</span>
+        </>
+      )}
       {isBindingLetter(item) && !item.acknowledged && (
         <>
           <span className="text-gray-300" aria-hidden="true">
@@ -396,7 +409,7 @@ function PollAnswerRows({
           <fieldset
             key={child.student_id}
             disabled={closed || saving}
-            className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm disabled:opacity-60"
+            className="moto-content-surface rounded-2xl border p-4 shadow-sm disabled:opacity-60"
           >
             <legend className="mb-3 w-full">
               <span className="flex items-center justify-between gap-3">
@@ -410,13 +423,10 @@ function PollAnswerRows({
               {options.map((option) => {
                 const active = selected.includes(option.id);
                 return (
-                  <label
+                  <ChoiceTile
                     key={option.id}
-                    className={`flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-base font-medium transition-colors has-[:disabled]:cursor-not-allowed ${
-                      active
-                        ? "border-gray-400 bg-gray-50 text-gray-950"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
+                    selected={active}
+                    className="min-h-12 px-4 py-3 text-base has-[:disabled]:cursor-not-allowed"
                   >
                     {multi ? (
                       <Checkbox
@@ -431,7 +441,7 @@ function PollAnswerRows({
                       />
                     )}
                     <span>{option.label}</span>
-                  </label>
+                  </ChoiceTile>
                 );
               })}
             </div>
@@ -480,14 +490,12 @@ export function NewsCard({
       : "news";
 
   return (
-    <button
-      type="button"
+    <ChoiceTile
+      as="button"
       onClick={() => onOpen(item)}
-      className={`focus-visible:ring-moto-blue flex min-h-12 w-full items-center gap-3 rounded-xl border p-4 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none active:bg-gray-100 ${
-        outstanding
-          ? "border-moto-blue/50 bg-moto-blue-soft hover:border-moto-blue/70 hover:bg-moto-blue/10"
-          : "border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50"
-      }`}
+      selected={outstanding}
+      tone="blue"
+      className="min-h-12 w-full p-4 shadow-sm active:bg-gray-100"
     >
       <span className="relative flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100">
         <MotoConceptIcon concept={concept} tone="blue" size={22} />
@@ -515,7 +523,9 @@ export function NewsCard({
             : ""}
         </span>
         <span className="mt-1.5 line-clamp-2 block text-sm leading-5 text-gray-600">
-          {item.body}
+          {item.reminder_sent_at && item.reminder_text
+            ? item.reminder_text
+            : item.body}
         </span>
         <span className="mt-2 block">
           <NewsCardState item={item} />
@@ -525,7 +535,125 @@ export function NewsCard({
         className="h-5 w-5 shrink-0 text-gray-400"
         aria-hidden="true"
       />
-    </button>
+    </ChoiceTile>
+  );
+}
+
+/**
+ * Files the school attached to this message (#2890).
+ *
+ * Loaded when the message is opened, not with the feed: the file only matters
+ * once somebody is reading, and the school's audience rule is checked per
+ * message.
+ *
+ * A failed load is shown, not swallowed: silence looks exactly like "this
+ * message has no file", so a family would never learn that a document exists
+ * and would never try again. The message carries the retry.
+ *
+ * The list is cleared before each load, so switching from one message to the
+ * next never shows the previous message's file names next to download links
+ * that already point at the new message.
+ *
+ * It says "zu dieser Nachricht" rather than something like "Dateiablage": this
+ * is one message's attachment, not the entrance to a folder the family could
+ * browse.
+ */
+function NewsAttachments({
+  item,
+}: Readonly<{ item: ParentAnnouncement }>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const [attachments, setAttachments] = useState<
+    ParentAnnouncementAttachment[]
+  >([]);
+  const [failed, setFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setAttachments([]);
+    setFailed(false);
+    void listAnnouncementAttachments(item.id)
+      .then((list) => {
+        if (!cancelled) setAttachments(list);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("parent_announcement_attachments_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item.id, reloadToken]);
+
+  if (failed) {
+    return (
+      <div className="mt-4 border-t border-gray-100 pt-4">
+        <Alert
+          type="error"
+          message={t("newsAttachmentsError")}
+          action={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setReloadToken((n) => n + 1)}
+            >
+              {t("newsAttachmentsRetry")}
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (attachments.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-gray-100 pt-4">
+      <p className="text-sm font-semibold text-gray-900">
+        {t("newsAttachmentsTitle")}
+      </p>
+      <p className="mt-0.5 mb-3 text-sm text-gray-500">
+        {t("newsAttachmentsHint")}
+      </p>
+      <AttachmentList
+        attachments={attachments}
+        downloadUrl={(attachmentId) =>
+          announcementAttachmentDownloadUrl(item.id, attachmentId)
+        }
+        downloadLabel={t("newsAttachmentsDownload")}
+        openLabel={t("newsAttachmentsOpen")}
+      />
+    </div>
+  );
+}
+
+/**
+ * The school's scheduled reminder (#3162): the same message, sent again at a
+ * moment the school chose, with its own short wording. It sits above the full
+ * text so the reason the message is back on top is the first thing read. It
+ * asks for nothing: read and confirmation state are untouched by a reminder.
+ */
+function NewsReminderNote({
+  sentAt,
+  text,
+}: Readonly<{ sentAt: string; text?: string }>): React.ReactNode {
+  const t = useTranslations("parentDashboard");
+  const locale = useLocale();
+  return (
+    <div className="bg-moto-blue-soft mt-4 rounded-xl px-4 py-3">
+      <p className="text-moto-blue-strong text-xs font-semibold tracking-wide uppercase">
+        {t("newsReminderFrom", { date: formatBerlinDate(sentAt, locale) })}
+      </p>
+      {text && (
+        <p className="mt-1 text-base leading-7 whitespace-pre-line text-gray-900">
+          <LinkifiedText text={text} />
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -539,7 +667,7 @@ function NewsMessageSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm"
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <h4 id={headingId} className="text-base font-semibold text-gray-950">
@@ -551,9 +679,18 @@ function NewsMessageSection({
           </time>
         )}
       </div>
+      {item.reminder_sent_at && (
+        <NewsReminderNote
+          sentAt={item.reminder_sent_at}
+          text={item.reminder_text}
+        />
+      )}
+
       <p className="mt-4 text-base leading-7 whitespace-pre-line text-gray-800">
         <LinkifiedText text={item.body} />
       </p>
+
+      <NewsAttachments item={item} />
 
       {item.link_url && (
         <a

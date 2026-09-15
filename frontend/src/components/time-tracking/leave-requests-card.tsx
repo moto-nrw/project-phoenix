@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { SectionCard } from "~/components/ui/section-card";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { useFormError } from "~/components/ui/form-error";
 import { useToast } from "~/contexts/ToastContext";
 import {
   absenceStatusMeta,
@@ -184,14 +187,25 @@ export function LeaveRequestsCard() {
 
   return (
     <>
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold text-gray-900 sm:text-lg">
-            Urlaub
-          </h2>
-          <span className="text-xs text-gray-400">{year}</span>
-        </div>
-
+      <SectionCard
+        title="Urlaub"
+        description="Urlaubsanträge stellen, Status verfolgen und stornieren."
+        actions={
+          <>
+            <span className="text-xs text-gray-400">{year}</span>
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setModalOpen(true)}
+              disabled={loading}
+            >
+              Urlaub beantragen
+            </Button>
+          </>
+        }
+        bodyClassName="mt-5"
+      >
         <div
           className={`grid grid-cols-2 gap-4 ${counts.question > 0 ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}
         >
@@ -233,22 +247,6 @@ export function LeaveRequestsCard() {
           />
         </div>
 
-        <div className="mt-5 flex flex-col gap-2 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-xs text-gray-500">
-            Urlaubsanträge stellen, Status verfolgen und stornieren.
-          </p>
-          <Button
-            type="button"
-            variant="primary"
-            size="compact"
-            onClick={() => setModalOpen(true)}
-            disabled={loading}
-            className="!rounded-full"
-          >
-            Urlaub beantragen
-          </Button>
-        </div>
-
         {sortedQuestionedVacations.length > 0 && (
           <div className="mt-5 border-t border-gray-100 pt-5">
             <h3 className="mb-3 text-xs font-semibold tracking-wider text-gray-500 uppercase">
@@ -286,7 +284,7 @@ export function LeaveRequestsCard() {
             </ul>
           </div>
         )}
-      </div>
+      </SectionCard>
 
       <VacationRequestModal
         isOpen={modalOpen}
@@ -308,7 +306,7 @@ export function LeaveRequestsCard() {
         confirmText="Stornieren"
         cancelText="Behalten"
         isConfirmLoading={cancelSubmitting}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
+        confirmVariant="danger"
       >
         {cancelTarget && (
           <div className="space-y-2 text-sm text-gray-700">
@@ -345,7 +343,7 @@ function AbsenceRequestItem({
       new Date(absence.dateStart).getTime() > currentTimestamp);
 
   return (
-    <li className="rounded-xl border border-gray-100 bg-white px-4 py-3">
+    <li className="moto-content-surface rounded-xl border px-4 py-3 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-800">
@@ -369,14 +367,14 @@ function AbsenceRequestItem({
           )}
         </div>
         <div className="flex items-center gap-3">
-          <StatusDotBadge label={meta.label} color={meta.color} />
+          <StatusColorBadge label={meta.label} color={meta.color} />
           {cancelable && (
             <Button
               type="button"
               variant="ghost"
               size="compact"
               onClick={() => onCancel(absence)}
-              className="px-0 text-red-600 hover:bg-transparent hover:text-red-700"
+              className="text-moto-red hover:text-moto-red-hover px-0 hover:bg-transparent"
             >
               Stornieren
             </Button>
@@ -401,11 +399,17 @@ function ResubmitAbsenceForm({
 }) {
   const [note, setNote] = useState(absence.note ?? "");
   const [submitting, setSubmitting] = useState(false);
+  // Fehler stehen am Formular (Alert oben, Feldfehler am Feld), nicht als
+  // Toast: Bauart 2 Regel 5.
+  const [noteError, setNoteError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {
+    setNoteError(null);
+    setSubmitError(null);
     if (note.trim().length < 3) {
-      toast.error("Bitte gib eine kurze Antwort ein.");
+      setNoteError("Bitte gib eine kurze Antwort ein.");
       return;
     }
     setSubmitting(true);
@@ -414,7 +418,7 @@ function ResubmitAbsenceForm({
       toast.success("Antrag erneut eingereicht.");
       onResubmitted();
     } catch (err) {
-      toast.error(
+      setSubmitError(
         err instanceof Error
           ? err.message
           : "Antrag konnte nicht erneut eingereicht werden.",
@@ -426,6 +430,7 @@ function ResubmitAbsenceForm({
 
   return (
     <div className="mt-3 border-t border-gray-100 pt-3">
+      <FormErrorAlert message={submitError} className="mb-3" />
       <label
         htmlFor={`resubmit-note-${absence.id}`}
         className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase"
@@ -435,10 +440,14 @@ function ResubmitAbsenceForm({
       <Textarea
         id={`resubmit-note-${absence.id}`}
         value={note}
-        onChange={(e) => setNote(e.target.value)}
+        onChange={(e) => {
+          setNote(e.target.value);
+          setNoteError(null);
+        }}
         rows={2}
         maxLength={500}
         placeholder="Antwort auf die Rückfrage ergänzen…"
+        error={noteError ?? undefined}
       />
       <div className="mt-2 flex justify-end">
         <Button

@@ -101,12 +101,23 @@ interface ListboxDropdownProps<K extends string> {
   readonly menuFooter?: ReactNode;
   /** Classes for the scrollable option list in search/slot mode. */
   readonly listClassName?: string;
+  /** Content shown inside the listbox when filtering leaves no options. */
+  readonly emptyState?: ReactNode;
   /**
    * Controls rendered next to an option, OUTSIDE its button — a button inside
    * a button is invalid, and the row must stay one option to a screen reader.
    */
   readonly renderOptionActions?: (
     option: ListboxDropdownOption<K>,
+  ) => ReactNode;
+  /**
+   * Visual content for a single-select option. The option keeps its standard
+   * role and accessible name from {@link ListboxDropdownOption.label}; use
+   * this only for supplementary presentation such as a color marker.
+   */
+  readonly renderOption?: (
+    option: ListboxDropdownOption<K>,
+    state: { readonly selected: boolean },
   ) => ReactNode;
 }
 
@@ -230,7 +241,9 @@ export function ListboxDropdown<K extends string>({
   menuHeader,
   menuFooter,
   listClassName = "",
+  emptyState,
   renderOptionActions,
+  renderOption,
 }: ListboxDropdownProps<K>) {
   const generatedListboxId = useId();
   const listboxId = id ? `${id}-listbox` : generatedListboxId;
@@ -798,15 +811,21 @@ export function ListboxDropdown<K extends string>({
                 // row carries actions: as a bare flex child its min-width stays
                 // auto, so one long custom name widens the option past the menu
                 // and scrolls the list sideways on narrow viewports.
-                <span className="min-w-0 flex-1 truncate" title={option.label}>
-                  {option.label}
-                </span>
+                (renderOption?.(option, { selected: isActive }) ?? (
+                  <span
+                    className="min-w-0 flex-1 truncate"
+                    title={option.label}
+                  >
+                    {option.label}
+                  </span>
+                ))
               )}
             </button>
             {actions}
           </li>
         );
       })}
+      {options.length === 0 ? emptyState : null}
     </ul>
   );
 

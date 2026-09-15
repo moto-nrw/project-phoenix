@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := service.GetStudentAttendanceStatus(ctx, student.ID)
@@ -21,11 +20,11 @@ package active_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -39,45 +38,6 @@ import (
 //
 // Attendance fixtures are provided by testpkg:
 // - testpkg.CreateTestAttendance(t, db, studentID, staffID, deviceID, checkInTime, checkOutTime)
-// - testpkg.CleanupActivityFixtures automatically cleans up attendance records by student_id
-
-// =============================================================================
-// Model Tests (No Database Required)
-// =============================================================================
-
-// TestAttendance_IsCheckedIn tests the IsCheckedIn helper method on the Attendance model.
-// This is a pure model test - it doesn't need a database connection.
-func TestAttendance_IsCheckedIn(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name           string
-		checkOutTime   *time.Time
-		expectedResult bool
-	}{
-		{
-			name:           "Student is checked in (no checkout time)",
-			checkOutTime:   nil,
-			expectedResult: true,
-		},
-		{
-			name:           "Student is checked out (has checkout time)",
-			checkOutTime:   func() *time.Time { t := time.Now(); return &t }(),
-			expectedResult: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			attendance := &active.Attendance{
-				CheckOutTime: tt.checkOutTime,
-			}
-
-			result := attendance.IsCheckedIn()
-			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
-}
 
 // =============================================================================
 // Service Integration Tests (Hermetic Pattern with Real Database)
@@ -318,14 +278,14 @@ func TestToggleStudentAttendance_CheckInWithZeroStaffID(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.NotZero(t, result.AttendanceID)
 
-	var checkedInBy sql.NullInt64
+	var checkedInBy *int64
 	err = db.NewSelect().
 		TableExpr(`active.attendance`).
 		Column("checked_in_by").
 		Where("id = ?", result.AttendanceID).
 		Scan(ctx, &checkedInBy)
 	require.NoError(t, err)
-	assert.False(t, checkedInBy.Valid, "device-attributed check-in must not claim a staff identity")
+	assert.Nil(t, checkedInBy, "device-attributed check-in must not claim a staff identity")
 }
 
 // TestToggleStudentAttendance_CheckOut tests checking out a student who is checked in.
@@ -483,85 +443,6 @@ func TestToggleStudentAttendance_WebAuthorizationPath(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, "checked_in", result.Action)
 		assert.Equal(t, student.ID, result.StudentID)
-	})
-}
-
-// TestCheckTeacherStudentAccess tests the CheckTeacherStudentAccess function
-func TestCheckTeacherStudentAccess(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns false for staff without teacher record", func(t *testing.T) {
-		// ARRANGE: Create student and staff (staff is not a teacher)
-		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "6a")
-		staff := testpkg.CreateTestStaff(t, db, "Unrelated", "Staff")
-
-		// ACT: Check access - should return false because staff is not a teacher
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, staff.ID, student.ID)
-
-		// ASSERT: No error, but access denied
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Staff without teacher record should not have access")
-	})
-
-	t.Run("returns false for non-existent staff", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "Orphan", "Student", "6b")
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, 99999999, student.ID)
-
-		// ASSERT: Either returns false or error - both are acceptable
-		if err == nil {
-			assert.False(t, hasAccess)
-		}
-	})
-
-	t.Run("teacher with group access can access student in their group", func(t *testing.T) {
-		// ARRANGE: Create a full teacher with account
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Group", "Teacher")
-		student := testpkg.CreateTestStudent(t, db, "Group", "Student", "6c")
-
-		// Note: We don't have a way to easily assign the teacher to the student's group
-		// without more complex fixture setup, so this test verifies the error path
-		// when teacher exists but has no group relationship
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, student.ID)
-
-		// ASSERT: No error but no access (teacher exists but not assigned to student's group)
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Expected no access when teacher not in student's group")
-	})
-
-	t.Run("returns false for non-existent student", func(t *testing.T) {
-		// ARRANGE: Create a teacher so the check reaches the student lookup.
-		teacher := testpkg.CreateTestTeacher(t, db, "MissingStudent", "Teacher")
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, 999999999)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Missing students must be treated as an authorization miss")
-	})
-
-	t.Run("returns false for student with nil group ID", func(t *testing.T) {
-		// ARRANGE: Create a teacher and student without group assignment
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "NoGroup", "Teacher")
-		student := testpkg.CreateTestStudent(t, db, "NoGroup", "Student", "6d")
-		// Note: student.GroupID is nil by default
-
-		// ACT
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, hasAccess, "Expected no access when student has no group")
 	})
 }
 
@@ -776,8 +657,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
+		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance (check-in)
 		result, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -794,8 +675,8 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "IoTNoGroup", "Student", "12b")
 
 		// Create IoT device context using device package constants
-		ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
-		ctx = context.WithValue(ctx, device.CtxDevice, testDevice)
+		ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
+		ctx = services.WithAttendanceDevice(ctx, testDevice.ID, testDevice.TenantID)
 
 		// ACT: Toggle attendance
 		_, err := service.ToggleStudentAttendance(ctx, student.ID, 0, testDevice.ID, false)
@@ -979,13 +860,9 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithSupervisor(t *testing.T) {
 	assert.Equal(t, "checked_out", result.Action)
 	assert.Equal(t, open.ID, result.AttendanceID)
 
-	var row active.Attendance
-	err = db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background())
+	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
 	require.NoError(t, err)
+	require.NotNil(t, row)
 	require.NotNil(t, row.CheckOutTime)
 	require.NotNil(t, row.CheckedOutBy)
 	assert.Equal(t, staff.ID, *row.CheckedOutBy)
@@ -1040,13 +917,9 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithoutActiveSupervisor(t *testi
 			assert.Equal(t, "checked_out", result.Action)
 			assert.Equal(t, open.ID, result.AttendanceID)
 
-			var row active.Attendance
-			err = db.NewSelect().
-				Model(&row).
-				ModelTableExpr(`active.attendance AS "attendance"`).
-				Where(`"attendance".id = ?`, open.ID).
-				Scan(context.Background())
+			row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
 			require.NoError(t, err)
+			require.NotNil(t, row)
 			require.NotNil(t, row.CheckOutTime)
 			assert.Nil(t, row.CheckedOutBy)
 			require.NotNil(t, row.CheckedOutDeviceID)
@@ -1067,7 +940,7 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = context.WithValue(ctx, device.CtxStaff, authenticatedStaff)
+	ctx = services.WithAttendanceStaff(ctx, authenticatedStaff.ID, authenticatedStaff.TenantID)
 
 	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 
@@ -1075,12 +948,9 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, open.ID, result.AttendanceID)
 
-	var row active.Attendance
-	require.NoError(t, db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background()))
+	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
+	require.NoError(t, err)
+	require.NotNil(t, row)
 	require.NotNil(t, row.CheckedOutBy)
 	assert.Equal(t, authenticatedStaff.ID, *row.CheckedOutBy)
 	require.NotNil(t, row.CheckedOutDeviceID)
@@ -1105,12 +975,9 @@ func TestCheckOutStudentFromDevice_DoesNotSwallowSupervisorLookupFailure(t *test
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "resolve daily checkout staff attribution")
 
-	var row active.Attendance
-	require.NoError(t, db.NewSelect().
-		Model(&row).
-		ModelTableExpr(`active.attendance AS "attendance"`).
-		Where(`"attendance".id = ?`, open.ID).
-		Scan(context.Background()))
+	row, err := testSchoolPresence(t, db).FindAttendance(testpkg.Ctx(t), open.ID)
+	require.NoError(t, err)
+	require.NotNil(t, row)
 	assert.Nil(t, row.CheckOutTime)
 }
 
@@ -1205,7 +1072,7 @@ func TestCheckOutStudent_EndsOpenVisit(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out", status.Status)
 
-	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	endedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "open visit must be ended by attendance checkout")
 }
@@ -1242,7 +1109,7 @@ func TestCheckOutStudent_NoOpenAttendance_HealsOrphanVisit(t *testing.T) {
 	assert.Equal(t, "checked_out", result.Action)
 	assert.Zero(t, result.AttendanceID, "no open attendance row → idempotent close")
 
-	healedVisit, err := service.GetVisit(ctx, visit.ID)
+	healedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, healedVisit.ExitTime, "orphaned visit must be healed even on the idempotent path")
 }
@@ -1275,7 +1142,7 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	require.NotNil(t, result)
 	assert.Equal(t, "checked_out", result.Action)
 
-	endedVisit, err := service.GetVisit(ctx, visit.ID)
+	endedVisit, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open visit")
 }

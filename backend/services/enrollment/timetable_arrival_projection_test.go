@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -29,22 +29,24 @@ func timetableDataWithArrivalBaseline(
 	authoritative bool,
 ) *scheduleService.TimetableDataService {
 	t.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	return scheduleService.NewTimetableDataService(scheduleService.TimetableDataDependencies{
-		InstanceStudentRepo:   scheduleRepo.NewInstanceStudentRepository(env.db),
+		InstanceStudentRepo:   env.repos.InstanceStudent,
 		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(env.db),
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(env.db),
-		ActivityScheduleRepo:  activitiesRepo.NewScheduleRepository(env.db),
+		ActivityScheduleRepo:  env.repos.ActivitySchedule,
 		ArrivalScheduleRepo:   env.repos.StudentArrivalSchedule,
 		ArrivalBaselines:      bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalExceptionRepo:  env.repos.StudentArrivalException,
 		PickupScheduleRepo:    env.repos.StudentPickupSchedule,
 		PickupBaselines: scheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
-			env.repos.RequestChildOffering,
+			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
 		),
 		PickupExceptionRepo: env.repos.StudentPickupException,
-		VisitRepo:           activeRepo.NewVisitRepository(env.db),
+		Presence:            presence,
 		EducationGroupRepo:  educationRepo.NewGroupRepository(env.db),
 		Logger:              slog.Default(),
 		DB:                  env.db,
@@ -60,7 +62,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "wochenansicht", []string{"mon"})
@@ -74,7 +76,7 @@ func TestTimetableRead_StudentWeekAppliesTheBookingMode(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Wochenansicht")
 	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
 	t.Run("with the booking mode on only the booked weekday plans", func(t *testing.T) {
@@ -111,7 +113,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "ohne-klassenzeit", []string{"mon"})
@@ -121,7 +123,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	setStudentClass(t, env, studentID, "4c")
 	setArrivalClassTimes(t, env, "4c", map[string]string{"tue": "12:45"})
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	data := timetableDataWithArrivalBaseline(t, env, true)
 	pre, err := data.PreloadStudentWeek(ctx, studentID, monday, monday)
 	require.NoError(t, err)
@@ -139,7 +141,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	reason := "Fällt aus"
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: activity.ID,
-		ExceptionDate:   monday,
+		ExceptionDate:   scheduleModels.Date(monday),
 		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
 		Reason:          &reason,
 	}
@@ -165,7 +167,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.TodayDate().AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, decisionTestToday.AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createArrivalOffering(t, env, "konflikt", []string{"mon"})
@@ -179,7 +181,7 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, env.db, "Betreuung", "Konflikt")
 	testpkg.CreateTestArrivalSchedule(t, env.db, studentID, scheduleModels.WeekdayThursday, staff.ID, "11:45")
 
-	monday := nextWeekday(timezone.TodayDate(), time.Monday)
+	monday := nextWeekday(decisionTestToday, time.Monday)
 	thursday := monday.AddDays(3)
 
 	// Both days: the activity is moved to 10:00, before the 11:45 arrival.
@@ -219,7 +221,7 @@ func createModifiedException(
 	reason := "Verlegt"
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   date,
+		ExceptionDate:   scheduleModels.Date(date),
 		ExceptionType:   scheduleModels.ActivityExceptionModified,
 		StartTime:       &startTime,
 		Reason:          &reason,

@@ -3,10 +3,6 @@ package schedule
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // StaffShiftSeries is one recurring shift rule (#1889): the same wall-clock
@@ -18,8 +14,8 @@ import (
 // segments produced by "Ab jetzt dauerhaft" splits, mirroring the timetable
 // template lineage.
 type StaffShiftSeries struct {
-	base.Model `bun:"schema:schedule,table:staff_shift_series"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:staff_shift_series"`
+	TenantModel
 	StaffID int64 `bun:"staff_id,notnull" json:"staff_id"`
 	// Weekdays are ISO weekdays (1=Monday … 7=Sunday), non-empty.
 	Weekdays []int16 `bun:"weekdays,array,notnull" json:"weekdays"`
@@ -35,10 +31,10 @@ type StaffShiftSeries struct {
 	CalendarPeriodID int64 `bun:"calendar_period_id,notnull" json:"calendar_period_id"`
 	// WeekPattern: 0 = every week, 1 = week A, 2 = week B (the encoding
 	// ShouldMaterializeWeekPattern expects).
-	WeekPattern  int            `bun:"week_pattern,notnull,default:0" json:"week_pattern"`
-	ValidFrom    timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil   *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-	SeriesRootID *int64         `bun:"series_root_id" json:"series_root_id,omitempty"`
+	WeekPattern  int    `bun:"week_pattern,notnull,default:0" json:"week_pattern"`
+	ValidFrom    Date   `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil   *Date  `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	SeriesRootID *int64 `bun:"series_root_id" json:"series_root_id,omitempty"`
 	// RetainedOccurrenceShiftID records the concrete current-day row that a
 	// same-day permanent edit retained. It is deliberately separate from
 	// Detached: detached rows can also be ordinary one-off deviations, which
@@ -46,8 +42,6 @@ type StaffShiftSeries struct {
 	RetainedOccurrenceShiftID *int64 `bun:"retained_occurrence_shift_id" json:"-"`
 	CreatedBy                 int64  `bun:"created_by,notnull" json:"created_by"`
 	UpdatedBy                 *int64 `bun:"updated_by" json:"updated_by,omitempty"`
-
-	Staff *users.Staff `bun:"rel:belongs-to,join:tenant_id=tenant_id,join:staff_id=id" json:"staff,omitempty"`
 }
 
 // Week pattern values shared with the timetable recurrence primitives.
@@ -122,9 +116,9 @@ func (s *StaffShiftSeries) ContainsWeekday(weekday int) bool {
 // series: deleting a single materialized series shift removes the concrete
 // row and stores its date here so re-plans and splits never regenerate it.
 type StaffShiftSeriesException struct {
-	base.Model `bun:"schema:schedule,table:staff_shift_series_exceptions"`
-	base.TenantModel
-	SeriesID  int64         `bun:"series_id,notnull" json:"series_id"`
-	Date      timezone.Date `bun:"date,notnull,type:date" json:"date"`
-	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
+	Model `bun:"schema:schedule,table:staff_shift_series_exceptions"`
+	TenantModel
+	SeriesID  int64 `bun:"series_id,notnull" json:"series_id"`
+	Date      Date  `bun:"date,notnull,type:date" json:"date"`
+	CreatedBy int64 `bun:"created_by,notnull" json:"created_by"`
 }

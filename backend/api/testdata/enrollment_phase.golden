@@ -1,0 +1,24 @@
+{
+  "data": {
+    "audience": "open",
+    "available_school_classes": [],
+    "care_offering_selection_mode": "optional",
+    "care_overflow_mode": "waitlist",
+    "created_at": "TIMESTAMP",
+    "eligible_grade_levels": [],
+    "eligible_school_classes": [],
+    "id": "RECORD_ID",
+    "is_active": true,
+    "kind": "school_year",
+    "name": "Contract Phase",
+    "require_school_class": false,
+    "rollover_auto_approve": false,
+    "rollover_bumps_grade": false,
+    "service_end_date": "2031-07-31",
+    "service_start_date": "2030-08-01",
+    "show_status_reason_to_parent": false,
+    "updated_at": "TIMESTAMP"
+  },
+  "message": "Phase retrieved",
+  "status": "success"
+}

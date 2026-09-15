@@ -7,7 +7,7 @@ This directory contains the theme configuration for Project Phoenix.
 Import the theme configuration in your components:
 
 ```tsx
-import { theme } from '@/lib';
+import { theme } from "@/lib";
 
 // Use theme values directly
 const primaryColor = theme.colors.primary[600];
@@ -18,7 +18,7 @@ const spacing = theme.spacing[4];
 
 ```tsx
 // Continue using Tailwind classes that correspond to theme values
-<div className="text-primary-600 bg-background-card p-4 rounded-lg">
+<div className="text-primary-600 bg-background-card rounded-lg p-4">
   Themed content
 </div>
 ```
@@ -27,12 +27,14 @@ const spacing = theme.spacing[4];
 
 ```tsx
 // Use theme values directly with inline styles when needed
-<div style={{ 
-  color: theme.colors.primary[600],
-  backgroundColor: theme.colors.background.card,
-  padding: theme.spacing[4],
-  borderRadius: theme.borderRadius.lg 
-}}>
+<div
+  style={{
+    color: theme.colors.primary[600],
+    backgroundColor: theme.colors.background.card,
+    padding: theme.spacing[4],
+    borderRadius: theme.borderRadius.lg,
+  }}
+>
   Themed content
 </div>
 ```
@@ -56,7 +58,7 @@ The theme configuration is fully typed:
 
 ```tsx
 // Get type-safe access to theme properties
-import type { ThemeValue } from '@/lib';
+import type { ThemeValue } from "@/lib";
 
-type PrimaryColor = ThemeValue<'colors.primary.600'>;
+type PrimaryColor = ThemeValue<"colors.primary.600">;
 ```

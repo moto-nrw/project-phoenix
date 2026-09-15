@@ -136,8 +136,9 @@ func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManif
 		return err
 	}
 	return errors.Join(
-		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy),
-		CompareLegacyBaselines(manifest, baseManifest),
+		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest),
+		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
+		CompareCompositionSurface(options.project, options.baseRef),
 	)
 }
 

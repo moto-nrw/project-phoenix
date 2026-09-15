@@ -5,8 +5,6 @@ import {
   getDeviceTypeDisplayName,
   getDeviceStatusDisplayName,
   getDeviceStatusColor,
-  getOnlineDeviceColor,
-  getOfflineDeviceColor,
   formatLastSeen,
   getDeviceTypeEmoji,
   generateDefaultDeviceName,
@@ -245,7 +243,7 @@ describe("iot-helpers", () => {
   describe("getDeviceStatusColor", () => {
     it("should return green classes for active status", () => {
       expect(getDeviceStatusColor("active")).toBe(
-        "bg-green-100 text-green-800",
+        "bg-moto-green-soft text-moto-green-strong",
       );
     });
 
@@ -257,28 +255,18 @@ describe("iot-helpers", () => {
 
     it("should return yellow classes for maintenance status", () => {
       expect(getDeviceStatusColor("maintenance")).toBe(
-        "bg-yellow-100 text-yellow-800",
+        "bg-moto-amber-soft text-moto-amber-strong",
       );
     });
 
     it("should return red classes for offline status", () => {
-      expect(getDeviceStatusColor("offline")).toBe("bg-red-100 text-red-800");
+      expect(getDeviceStatusColor("offline")).toBe(
+        "bg-moto-red-soft text-moto-red-strong",
+      );
     });
 
     it("should return default gray classes for unknown status", () => {
       expect(getDeviceStatusColor("unknown")).toBe("bg-gray-100 text-gray-800");
-    });
-  });
-
-  describe("getOnlineDeviceColor", () => {
-    it("should return green classes", () => {
-      expect(getOnlineDeviceColor()).toBe("bg-green-100 text-green-800");
-    });
-  });
-
-  describe("getOfflineDeviceColor", () => {
-    it("should return red classes", () => {
-      expect(getOfflineDeviceColor()).toBe("bg-red-100 text-red-800");
     });
   });
 

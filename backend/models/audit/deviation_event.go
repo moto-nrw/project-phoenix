@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Event types for audit.deviation_events. Open vocabulary: the column has no
@@ -58,13 +55,13 @@ var ShiftScopedDeviationEventTypes = []string{DeviationEventShiftMoved}
 // other PII beyond staff/account IDs are stored; display names resolve at
 // read time.
 type DeviationEvent struct {
-	ID               int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel `bun:"schema:audit,table:deviation_events"`
+	ID          int64 `bun:"id,pk,autoincrement" json:"id"`
+	TenantModel `bun:"schema:audit,table:deviation_events"`
 
 	// ActivityGroupID is nil for spontaneous instances (no template); those
 	// anchor via InstanceID, which re-plans never delete.
-	ActivityGroupID *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`
-	OccurrenceDate  timezone.Date `bun:"occurrence_date,notnull,type:date" json:"occurrence_date"`
+	ActivityGroupID *int64 `bun:"activity_group_id" json:"activity_group_id,omitempty"`
+	OccurrenceDate  Date   `bun:"occurrence_date,notnull,type:date" json:"occurrence_date"`
 	// StartTime maps a TIME column; only the wall-clock portion is meaningful
 	// (same convention as schedule.activity_instances.start_time).
 	StartTime time.Time `bun:"start_time,notnull" json:"start_time"`
@@ -115,8 +112,8 @@ type DeviationEventRepository interface {
 	// ListByRange returns events with occurrence_date in [from, to], newest
 	// first, optionally narrowed to one slot via activityGroupID and
 	// startTime ("HH:MM").
-	ListByRange(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]*DeviationEvent, error)
+	ListByRange(ctx context.Context, from, to Date, activityGroupID *int64, startTime *string) ([]*DeviationEvent, error)
 	// DeleteOlderThan removes events whose occurrence_date is before the
 	// cutoff (GDPR retention, rides the timetable retention window).
-	DeleteOlderThan(ctx context.Context, cutoff timezone.Date) (int64, error)
+	DeleteOlderThan(ctx context.Context, cutoff Date) (int64, error)
 }

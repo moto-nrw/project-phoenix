@@ -31,6 +31,7 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
+  hasPermission: () => false,
 }));
 
 // Mock next-auth/react
@@ -45,7 +46,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room" ? navigationMockState.roomParam : null,
@@ -75,13 +76,28 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -202,6 +218,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -406,7 +423,14 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     cleanup();
   });
 
+  // Die Suche steht im Dialog hinter der Kopf-Aktion „Kind hinzufügen“
+  // (#3112); ist er schon offen, bleibt er offen.
   const searchFor = async (value: string) => {
+    if (!screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" })) {
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Kind hinzufügen" }),
+      );
+    }
     const input = await screen.findByRole("searchbox", {
       name: "Kind ungeplant suchen",
     });
@@ -473,7 +497,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
       ],
     });
 
-    render(<MeinRaumPage />);
+    const { rerender } = render(<MeinRaumPage />);
     await searchFor("Marie");
 
     const beierCard = await screen.findByRole("button", {
@@ -501,12 +525,50 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(garschagenCard).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
 
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    expect(
+      screen.queryByText("Kind konnte nicht zur Aktivität hinzugefügt werden."),
+    ).not.toBeInTheDocument();
+
+    await searchFor("Marie");
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+    );
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValueOnce(
+      new Error("check-in failed"),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
+    await screen.findByText(
+      "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+    );
+    currentRosterData = {
+      ...rosterData,
+      instance: { ...rosterData.instance, id: "100", title: "Sport" },
+    };
+    rerender(<MeinRaumPage />);
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Kind konnte nicht zur Aktivität hinzugefügt werden.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: /Marie Garschagen/ }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
     await waitFor(() => {
-      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(2);
+      expect(timetableOperationsApi.checkIn).toHaveBeenCalledTimes(3);
       expect(timetableOperationsApi.checkIn).toHaveBeenLastCalledWith(
-        "99",
+        "100",
         "202",
       );
     });

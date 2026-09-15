@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -89,6 +90,7 @@ type StudentPhotoServiceDependencies struct {
 	Unlinker    PhotoUnlinker
 	DB          *bun.DB
 	Logger      *slog.Logger
+	Consents    StudentConsentChangeRecorder
 }
 
 type studentPhotoService struct {
@@ -153,6 +155,7 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 			return ErrPhotoConsentWithdrawn
 		}
 
+		before := *fresh
 		var capturedOld string
 		if fresh.PhotoPath != nil {
 			capturedOld = *fresh.PhotoPath
@@ -164,6 +167,18 @@ func (s *studentPhotoService) CommitUpload(ctx context.Context, req CommitUpload
 		}
 		if err := s.StudentRepo.Update(ctx, fresh); err != nil {
 			return err
+		}
+		if req.ConsentAck && s.Consents != nil {
+			if err := s.Consents.RecordTransitions(
+				ctx,
+				&before,
+				fresh,
+				auditModels.StudentConsentSourceTenantPortal,
+				jwt.ActorAccountIDFromCtx(ctx),
+				time.Now(),
+			); err != nil {
+				return err
+			}
 		}
 
 		oldCopy := capturedOld

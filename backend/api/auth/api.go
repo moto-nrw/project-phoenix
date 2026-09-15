@@ -103,6 +103,9 @@ func (rs *Resource) Router() chi.Router {
 	// Create JWT auth instance for middleware
 	tokenAuth := jwt.MustNewTokenAuth()
 
+	// Token validation uses the general identity quota, not the password-login quota.
+	r.Post("/session/validate", rs.validateSession)
+
 	// Rate-limited public routes (brute-force protection)
 	r.Group(func(r chi.Router) {
 		if rs.authRateLimiter != nil {
@@ -124,6 +127,15 @@ func (rs *Resource) Router() chi.Router {
 
 	// Public routes (no rate limiting — these are read-only lookups)
 	r.Get("/invitations/{token}", rs.validateInvitation)
+	// Ending a staff-view preview (#2893) is public and token-proved, like the
+	// invitation accepts below and /mfa/verify above: the signed preview token
+	// in the body is the credential (admin, school, target, and preview id all
+	// come from its claims). A session cannot be required here — the end must
+	// still be recordable when the admin's own tokens have long expired,
+	// otherwise the audit trail keeps a start without an end. The call writes
+	// only the one-shot audit row (unique per preview instance) and grants
+	// nothing; garbage bodies fail signature parsing before any DB work.
+	r.Post("/staff-preview/end", rs.endStaffPreview)
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/guardian-invitations/{token}", rs.validateGuardianInvitation)
 	r.Post("/guardian-invitations/{token}/accept", rs.acceptGuardianInvitation)
@@ -157,11 +169,28 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		// Write block for admin staff-view preview tokens (#2893): a preview
+		// token must not switch tenants, change passwords, manage roles, or
+		// start another preview. Same placement as in ProtectedTenantGroup.
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.TenantMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
 		// Tenant switching
 		r.Post("/switch-tenant", rs.switchTenant)
+
+		// Admin staff-view preview (#2893). "admin:*" matches the admin
+		// wildcard (precedent: DELETE /auth/tokens/expired below). start
+		// deliberately runs WITHOUT the tenant transaction — like
+		// /switch-tenant it opens its own admin transaction inside the
+		// service; the candidate list is a plain RLS read and gets one.
+		// Registered as flat paths (no subrouter mount) so the client's
+		// slash-less POST /auth/staff-preview matches exactly — pinned by
+		// TestStaffPreviewEndpoints against the production router. The end
+		// route lives in the PUBLIC section above: it authenticates by the
+		// signed preview token in its body, not by this session.
+		r.With(common.RequiresPermission("admin:*")).Post("/staff-preview", rs.startStaffPreview)
+		r.With(common.RequiresPermission("admin:*"), common.TenantTxMiddleware).Get("/staff-preview/candidates", rs.listStaffPreviewCandidates)
 
 		// Current user routes
 		r.Get("/account", rs.getAccount)
@@ -208,7 +237,12 @@ func (rs *Resource) Router() chi.Router {
 			// Role management routes
 			r.Route("/roles", func(r chi.Router) {
 				r.With(common.RequiresPermission("roles:create")).Post("/", rs.createRole)
-				r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.listRoles)
+				// The list carries names and descriptions only (no
+				// permissions). Whoever may create or manage users assigns one
+				// of these roles by name, in the staff import or role field for
+				// instance, so they read the list too; role details and permission
+				// sets stay behind roles:read (#2906).
+				r.With(common.RequiresAnyPermission(permRolesRead, permUsersCreate, permUsersManage)).Get("/", rs.listRoles)
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(common.RequiresPermission(permRolesRead)).Get("/", rs.getRoleByID)
 					r.With(common.RequiresPermission("roles:update")).Put("/", rs.updateRole)
@@ -245,6 +279,7 @@ func (rs *Resource) Router() chi.Router {
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
+						r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
 						r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
 						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, accountManagementErrorRenderer))
 					})
@@ -278,6 +313,7 @@ func (rs *Resource) Router() chi.Router {
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
+				r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
 				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
 				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
 			})

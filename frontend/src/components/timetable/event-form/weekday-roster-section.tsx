@@ -16,6 +16,7 @@
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Field } from "./field";
@@ -39,6 +40,11 @@ export interface WeekdayRosterSectionProps {
   setPerWeekdayRoster: (enabled: boolean) => void;
   setWeekdayRoster: (weekday: number, roster: WeekdayRosterState) => void;
   applyActiveWeekdayToAll: () => void;
+  /**
+   * The series takes its children from an offering (#3165): only the staff
+   * is assigned per weekday, the per-weekday child list is not offered.
+   */
+  childrenFromSource: boolean;
   staff: PersonOption[];
   students: PersonOption[];
   studentBulkOptions: Array<{
@@ -56,6 +62,7 @@ export function WeekdayRosterSection({
   setPerWeekdayRoster,
   setWeekdayRoster,
   applyActiveWeekdayToAll,
+  childrenFromSource,
   staff,
   students,
   studentBulkOptions,
@@ -64,12 +71,28 @@ export function WeekdayRosterSection({
     weekdayDeviatesFromBaseline(form, weekday, weekdays),
   );
 
+  let description: string;
+  if (weekdays.length < 2) {
+    description = childrenFromSource
+      ? "Der Regeltermin findet nur an einem Wochentag statt. Sobald weitere Wochentage ausgewählt sind, kann das Personal pro Tag festgelegt werden."
+      : "Der Regeltermin findet nur an einem Wochentag statt. Sobald weitere Wochentage ausgewählt sind, kann die Zuordnung pro Tag festgelegt werden.";
+  } else if (form.perWeekdayRoster) {
+    description = childrenFromSource
+      ? "Jeder Wochentag hat eigenes Personal. Änderungen gelten nur für den ausgewählten Tag, bis Sie sie auf alle Tage übertragen."
+      : "Jeder Wochentag hat eine eigene Zuordnung. Änderungen gelten nur für den ausgewählten Tag, bis Sie sie auf alle Tage übertragen.";
+  } else {
+    description = childrenFromSource
+      ? "Alle Wochentage haben dasselbe Personal. Wechseln Sie zu „Pro Wochentag“, wenn montags andere Personen zuständig sind als dienstags."
+      : "Alle Wochentage teilen sich eine Zuordnung. Wechseln Sie zu „Pro Wochentag“, wenn montags andere Personen oder Kinder zuständig sind als dienstags.";
+  }
+
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-gray-700">
-          Personal und Kinder
-        </span>
+    <SectionCard
+      title={childrenFromSource ? "Personal" : "Personal und Kinder"}
+      titleClassName="text-sm"
+      description={description}
+      headingLevel={3}
+      actions={
         <SegmentedControl
           items={[
             { value: "shared", label: "Für alle Tage gleich" },
@@ -77,24 +100,15 @@ export function WeekdayRosterSection({
           ]}
           value={form.perWeekdayRoster ? "per-weekday" : "shared"}
           onChange={(next) => setPerWeekdayRoster(next === "per-weekday")}
-          ariaLabel="Zuordnung von Personal und Kindern"
+          ariaLabel={
+            childrenFromSource
+              ? "Zuordnung von Personal"
+              : "Zuordnung von Personal und Kindern"
+          }
         />
-      </div>
-
-      {weekdays.length < 2 ? (
-        <p className="text-xs text-gray-500">
-          Der Regeltermin findet nur an einem Wochentag statt. Sobald weitere
-          Wochentage ausgewählt sind, kann die Zuordnung pro Tag festgelegt
-          werden.
-        </p>
-      ) : (
-        <p className="text-xs leading-5 text-gray-600">
-          {form.perWeekdayRoster
-            ? "Jeder Wochentag hat eine eigene Zuordnung. Änderungen gelten nur für den ausgewählten Tag, bis du sie auf alle Tage überträgst."
-            : "Alle Wochentage teilen sich eine Zuordnung. Wechsle zu „Pro Wochentag“, wenn montags andere Personen oder Kinder zuständig sind als dienstags."}
-        </p>
-      )}
-
+      }
+      bodyClassName="mt-4 flex flex-col gap-3"
+    >
       {form.perWeekdayRoster && weekdays.length >= 2 && (
         <>
           <SegmentedControl
@@ -150,6 +164,7 @@ export function WeekdayRosterSection({
           roster={rosterForWeekday(form, activeWeekday)}
           weekday={activeWeekday}
           onChange={(roster) => setWeekdayRoster(activeWeekday, roster)}
+          showStudents={!childrenFromSource}
           staff={staff}
           students={students}
           studentBulkOptions={studentBulkOptions}
@@ -160,7 +175,7 @@ export function WeekdayRosterSection({
           }
         />
       ) : null}
-    </div>
+    </SectionCard>
   );
 }
 
@@ -168,6 +183,7 @@ function WeekdayRosterFields({
   roster,
   weekday,
   onChange,
+  showStudents,
   staff,
   students,
   studentBulkOptions,
@@ -176,6 +192,7 @@ function WeekdayRosterFields({
   roster: WeekdayRosterState;
   weekday: number;
   onChange: (roster: WeekdayRosterState) => void;
+  showStudents: boolean;
   staff: PersonOption[];
   students: PersonOption[];
   studentBulkOptions: Array<{
@@ -224,15 +241,17 @@ function WeekdayRosterFields({
         </Field>
       )}
 
-      <MultiSelectField
-        label={`Kinder am ${dayLabel}`}
-        options={students}
-        value={roster.studentIds}
-        onChange={(ids) => onChange({ ...roster, studentIds: ids })}
-        metadata="student"
-        bulkOptions={studentBulkOptions}
-        protectedValues={protectedStudentIds}
-      />
+      {showStudents && (
+        <MultiSelectField
+          label={`Kinder am ${dayLabel}`}
+          options={students}
+          value={roster.studentIds}
+          onChange={(ids) => onChange({ ...roster, studentIds: ids })}
+          metadata="student"
+          bulkOptions={studentBulkOptions}
+          protectedValues={protectedStudentIds}
+        />
+      )}
 
       {roster.staffIds.length === 0 && (
         <Alert

@@ -25,6 +25,7 @@ interface AnchoredPopoverProps {
   readonly ariaLabel: string;
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
   readonly preferredWidth?: number;
+  readonly align?: "start" | "end";
   readonly className?: string;
   readonly renderTrigger: (props: {
     ref: RefObject<HTMLButtonElement | null>;
@@ -32,7 +33,10 @@ interface AnchoredPopoverProps {
     panelId: string;
     toggle: () => void;
   }) => ReactNode;
-  readonly children: (props: { close: () => void }) => ReactNode;
+  readonly children: (props: {
+    close: () => void;
+    overflowMenuPortal: { ownerId: string; zIndex: number };
+  }) => ReactNode;
 }
 
 export function AnchoredPopover({
@@ -41,6 +45,7 @@ export function AnchoredPopover({
   ariaLabel,
   initialFocusRef,
   preferredWidth,
+  align = "start",
   className,
   renderTrigger,
   children,
@@ -72,8 +77,9 @@ export function AnchoredPopover({
     const viewportHeight = window.innerHeight;
     const maxWidth = Math.max(viewportWidth - VIEWPORT_MARGIN * 2, 0);
     const width = Math.min(preferredWidth ?? rect.width, maxWidth);
+    const desiredLeft = align === "end" ? rect.right - width : rect.left;
     const left = Math.min(
-      Math.max(rect.left, VIEWPORT_MARGIN),
+      Math.max(desiredLeft, VIEWPORT_MARGIN),
       Math.max(viewportWidth - width - VIEWPORT_MARGIN, VIEWPORT_MARGIN),
     );
     const spaceBelow =
@@ -101,7 +107,7 @@ export function AnchoredPopover({
       style.top = rect.bottom + PANEL_GAP - (scopeRect?.top ?? 0);
     }
     setPanelStyle(style);
-  }, [preferredWidth]);
+  }, [align, preferredWidth]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -119,21 +125,41 @@ export function AnchoredPopover({
 
   useEffect(() => {
     if (!open) return;
+    const belongsToPopoverMenu = (target: EventTarget | null) => {
+      const element =
+        target instanceof Element
+          ? target
+          : target instanceof Node
+            ? target.parentElement
+            : null;
+      return (
+        element
+          ?.closest("[data-overflow-menu-owner]")
+          ?.getAttribute("data-overflow-menu-owner") === panelId
+      );
+    };
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (
         triggerRef.current?.contains(target) ||
-        panelRef.current?.contains(target)
+        panelRef.current?.contains(target) ||
+        belongsToPopoverMenu(target)
       ) {
         return;
       }
       close(false);
     };
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (belongsToPopoverMenu(event.target)) return;
+      if (event.key === "Escape") close();
+    };
     document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [close, open]);
+  }, [close, open, panelId]);
 
   useEffect(() => {
     if (!open || !panelStyle) return;
@@ -147,6 +173,7 @@ export function AnchoredPopover({
         id={panelId}
         role="dialog"
         aria-label={ariaLabel}
+        data-overflow-menu-scope="true"
         onKeyDown={(event) => {
           if (event.key !== "Escape") return;
           event.preventDefault();
@@ -155,12 +182,15 @@ export function AnchoredPopover({
           close();
         }}
         className={cn(
-          "scrollbar-thin overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white shadow-lg",
+          "moto-popover-surface scrollbar-thin overflow-y-auto overscroll-contain rounded-xl border",
           className,
         )}
         style={{ ...panelStyle, visibility: panelStyle ? "visible" : "hidden" }}
       >
-        {children({ close: () => close() })}
+        {children({
+          close: () => close(),
+          overflowMenuPortal: { ownerId: panelId, zIndex: 10001 },
+        })}
       </div>
     ) : null;
 

@@ -20,6 +20,7 @@ type Token struct {
 
 	// Token family tracking for detecting token theft
 	FamilyID          string     `bun:"family_id" json:"family_id,omitempty"`
+	FamilyExpiryCap   *time.Time `bun:"family_expiry_cap" json:"-"`
 	Generation        int        `bun:"generation,default:0" json:"generation"`
 	RotatedAt         *time.Time `bun:"rotated_at" json:"-"`
 	ReplacementToken  *string    `bun:"replacement_token" json:"-"`
@@ -36,24 +37,6 @@ const (
 	PortalScopeSchool  = "school"
 	PortalScopeUnknown = "unknown"
 )
-
-// CapPortalScopes returns the portal_scope values that share one session cap.
-// Tenant and org share the staff portal. Unknown legacy rows stay in their
-// own bucket so a staff login cannot evict a legacy parent session.
-func CapPortalScopes(portalScope string) []string {
-	switch portalScope {
-	case PortalScopeTenant, PortalScopeOrg:
-		return []string{PortalScopeTenant, PortalScopeOrg}
-	case PortalScopeParent:
-		return []string{PortalScopeParent}
-	case PortalScopeSchool:
-		return []string{PortalScopeSchool}
-	case "", PortalScopeUnknown:
-		return []string{PortalScopeUnknown}
-	default:
-		return []string{portalScope}
-	}
-}
 
 // Validate ensures token data is valid. It performs pure field validation only.
 // The expiry/validity decision is wall-clock policy enforced by the read paths'

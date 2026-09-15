@@ -6,6 +6,11 @@ import {
   DatevConfigIncompleteError,
   type DatevExportReport,
 } from "~/lib/datev-export-api";
+import {
+  fetchSFTPStatus,
+  transferExportViaSFTP,
+  type SFTPStatus,
+} from "~/lib/sftp-export-api";
 
 vi.mock("~/lib/datev-export-api", async (importOriginal) => {
   const original =
@@ -13,7 +18,33 @@ vi.mock("~/lib/datev-export-api", async (importOriginal) => {
   return { ...original, fetchDatevExportReport: vi.fn() };
 });
 
+vi.mock("~/lib/sftp-export-api", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("~/lib/sftp-export-api")>();
+  return {
+    ...original,
+    fetchSFTPStatus: vi.fn(),
+    transferExportViaSFTP: vi.fn(),
+  };
+});
+
 const fetchReportMock = vi.mocked(fetchDatevExportReport);
+const fetchSFTPStatusMock = vi.mocked(fetchSFTPStatus);
+const transferMock = vi.mocked(transferExportViaSFTP);
+
+const notConfiguredStatus: SFTPStatus = {
+  enabled: false,
+  ready: false,
+  missingSettings: [],
+};
+
+const readyStatus: SFTPStatus = {
+  enabled: true,
+  ready: true,
+  host: "dateien.beispiel.de",
+  remoteDirectory: "/upload/lohn",
+  missingSettings: [],
+};
 
 const emptyReport: DatevExportReport = {
   lineCount: 12,
@@ -33,6 +64,10 @@ describe("StaffTimeExportModal", () => {
       value: { href: "" },
       writable: true,
     });
+    // Standard: keine Gegenstelle eingerichtet — der ehrliche Ausgangszustand
+    // jeder Schule, die die Übertragung nicht nutzt.
+    fetchSFTPStatusMock.mockResolvedValue(notConfiguredStatus);
+    transferMock.mockReset();
   });
 
   afterEach(() => {
@@ -228,5 +263,113 @@ describe("StaffTimeExportModal", () => {
     expect(
       screen.getByRole("button", { name: "Exportieren" }),
     ).not.toBeDisabled();
+  });
+
+  // Übertragung an die Gegenstelle (#3050). Die Tests pinnen vor allem die
+  // Verständlichkeit: eine Auswahl, die nichts tun kann, ist deaktiviert und
+  // sagt warum — und ein Fehlschlag wird nie als Erfolg gezeigt.
+  describe("Übertragung an die Gegenstelle", () => {
+    it("zeigt die Auswahl gar nicht, solange die Schnittstelle ausgeschaltet ist", async () => {
+      renderModal();
+
+      // Erst warten, bis der Status da ist — sonst würde der Test auch
+      // bestehen, weil noch gar nichts gerendert wurde.
+      await waitFor(() => expect(fetchSFTPStatusMock).toHaveBeenCalled());
+
+      expect(screen.queryByText("Wohin")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "An die Gegenstelle übertragen" }),
+      ).not.toBeInTheDocument();
+      // Der Download bleibt der einzige Weg — und der einzige Knopf.
+      expect(
+        screen.getByRole("button", { name: "Exportieren" }),
+      ).toBeInTheDocument();
+    });
+
+    // Eingeschaltet, aber unvollständig: Hier hat jemand die Übertragung
+    // gewollt. Die Auswahl bleibt sichtbar und sagt, was fehlt — ein stiller
+    // Rückfall auf den Download würde die halbfertige Einrichtung verbergen.
+    it("zeigt die Auswahl gesperrt, wenn sie eingeschaltet aber unvollständig ist", async () => {
+      fetchSFTPStatusMock.mockResolvedValue({
+        enabled: true,
+        ready: false,
+        missingSettings: ["sftp.host", "sftp.password"],
+      });
+      renderModal();
+
+      await waitFor(() =>
+        expect(
+          screen.getByText(/noch nicht vollständig eingerichtet/),
+        ).toBeInTheDocument(),
+      );
+      expect(
+        screen.getByRole("button", { name: "An die Gegenstelle übertragen" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Exportieren" }),
+      ).toBeInTheDocument();
+    });
+
+    it("nennt das Ziel und überträgt dieselbe Auswahl wie der Download", async () => {
+      fetchSFTPStatusMock.mockResolvedValue(readyStatus);
+      transferMock.mockResolvedValue({
+        transferred: true,
+        filename: "zeitkonten-2026-06.csv",
+        targetHost: "dateien.beispiel.de",
+        targetDirectory: "/upload/lohn",
+      });
+      renderModal();
+
+      const option = await screen.findByRole("button", {
+        name: "An die Gegenstelle übertragen",
+      });
+      expect(option).not.toBeDisabled();
+      fireEvent.click(option);
+
+      expect(screen.getByText(/dateien\.beispiel\.de/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Übertragen" }));
+
+      await waitFor(() =>
+        expect(transferMock).toHaveBeenCalledWith({
+          year: 2026,
+          month: 6,
+          format: "csv",
+          wholeYear: false,
+          granularity: "month",
+          timeFormat: "hhmm",
+        }),
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByText(/zeitkonten-2026-06\.csv wurde übertragen/),
+        ).toBeInTheDocument(),
+      );
+      // Kein Download nebenher.
+      expect(globalThis.location.href).toBe("");
+    });
+
+    it("zeigt einen Fehlschlag als Fehlschlag, obwohl die Antwort 200 ist", async () => {
+      fetchSFTPStatusMock.mockResolvedValue(readyStatus);
+      transferMock.mockResolvedValue({
+        transferred: false,
+        filename: "zeitkonten-2026-06.csv",
+        reason: "host_key_mismatch",
+      });
+      renderModal();
+
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "An die Gegenstelle übertragen",
+        }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Übertragen" }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText(/nicht sicher erkannt werden/),
+        ).toBeInTheDocument(),
+      );
+      expect(screen.queryByText(/wurde übertragen/)).not.toBeInTheDocument();
+    });
   });
 });

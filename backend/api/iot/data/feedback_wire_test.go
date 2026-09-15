@@ -4,14 +4,11 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	iotModel "github.com/moto-nrw/project-phoenix/models/iot"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,8 +26,8 @@ func (f wireFeedback) Submit(context.Context, feedbackModule.CreateEntry) (feedb
 
 type wireStudentReader struct{}
 
-func (wireStudentReader) GetStudentByIDForUpdate(context.Context, int64) (*usersModel.Student, error) {
-	return &usersModel.Student{Status: usersModel.StudentStatusActive}, nil
+func (wireStudentReader) LockFeedbackStudent(context.Context, int64) (FeedbackStudent, error) {
+	return FeedbackStudent{Alumnus: false}, nil
 }
 
 type wireObservation struct {
@@ -43,10 +40,10 @@ func executeFeedbackWireRequest(t *testing.T, body string, feedback wireFeedback
 	var observations []wireObservation
 	resource := NewFeedbackResource(wireStudentReader{}, feedback, func(status int, code string) {
 		observations = append(observations, wireObservation{status: status, code: code})
-	}, nil)
-	request := httptest.NewRequest(http.MethodPost, "/feedback", bytes.NewBufferString(body))
+	}, testRuntime(), nil)
+	request := httptest.NewRequest("POST", "/feedback", bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
-	testutil.WithDeviceContext(&iotModel.Device{DeviceID: "wire-device"})(request)
+	testutil.WithDeviceIdentity(0, "wire-device")(request)
 	return testutil.ExecuteRequest(resource.Router(), request), observations
 }
 
@@ -67,7 +64,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 				ID: 7, StudentID: 42, Value: feedbackModule.ValuePositive, Day: "2026-08-31", Time: "10:11:12", CreatedAt: fixedTime,
 			}},
 			request: `{"student_id":42,"value":"positive"}`,
-			status:  http.StatusCreated,
+			status:  201,
 			code:    "none",
 			body:    `{"status":"success","data":{"created_at":"2026-08-31T10:11:12Z","day":"2026-08-31","id":7,"student_id":42,"time":"10:11:12","value":"positive"},"message":"Feedback submitted successfully"}` + "\n",
 		},
@@ -75,7 +72,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			name:     "disabled",
 			feedback: wireFeedback{available: false},
 			request:  `{"student_id":42,"value":"positive"}`,
-			status:   http.StatusOK,
+			status:   200,
 			code:     "feedback_disabled",
 			body:     `{"status":"success","data":{"reason":"feedback_disabled","status":"skipped"},"message":"Feedback is disabled for this tenant"}` + "\n",
 		},
@@ -83,7 +80,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			name:     "mapped validation error",
 			feedback: wireFeedback{available: true, err: &feedbackModule.InvalidEntryDataError{Err: errors.New("rejected")}},
 			request:  `{"student_id":42,"value":"positive"}`,
-			status:   http.StatusBadRequest,
+			status:   400,
 			code:     "invalid_entry_data",
 			body:     `{"status":"error","error":"invalid feedback entry data: rejected"}` + "\n",
 		},
@@ -91,7 +88,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			name:     "missing student ID",
 			feedback: wireFeedback{available: true},
 			request:  `{"value":"positive"}`,
-			status:   http.StatusBadRequest,
+			status:   400,
 			code:     "invalid_parameters",
 			body:     `{"status":"error","error":"student_id is required and must be positive"}` + "\n",
 		},
@@ -99,7 +96,7 @@ func TestIoTFeedbackWireContractsStayStable(t *testing.T) {
 			name:     "missing value",
 			feedback: wireFeedback{available: true},
 			request:  `{"student_id":42}`,
-			status:   http.StatusBadRequest,
+			status:   400,
 			code:     "invalid_parameters",
 			body:     `{"status":"error","error":"value is required"}` + "\n",
 		},
@@ -118,7 +115,7 @@ func TestFeedbackTimestampUsesBerlinCalendarAndClock(t *testing.T) {
 	t.Parallel()
 	instant := time.Date(2026, 8, 31, 23, 30, 45, 0, time.UTC)
 
-	day, clock := feedbackTimestamp(instant)
+	day, clock := feedbackModule.TimestampParts(instant)
 
 	assert.Equal(t, feedbackModule.Date("2026-09-01"), day)
 	assert.Equal(t, "01:30:45", clock)

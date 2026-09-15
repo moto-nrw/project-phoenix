@@ -56,7 +56,7 @@ export function EntityHeaderCard({
   }
 
   return (
-    <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+    <section className="moto-content-surface rounded-xl border p-6 shadow-sm">
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="flex min-w-0 flex-1 items-start gap-3 sm:gap-4">
           {concept ? (

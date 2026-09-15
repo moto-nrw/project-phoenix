@@ -29,15 +29,13 @@ const createSampleStaff = (overrides: Partial<Staff> = {}): Staff => ({
 });
 
 describe("getStaffLocationStatus", () => {
-  it("returns Abwesend status with red styling for absent staff", () => {
+  it("gibt Abwesend neutral grau zurueck — nicht das Rot von Krank", () => {
     const staff = createSampleStaff({ currentLocation: "Abwesend" });
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Abwesend");
-    expect(result.customBgColor).toBe("#DC2626");
-    // The glow must be the same red as the badge it sits under — #DC2626 is
-    // rgb(220, 38, 38), not the retired #FF3130.
-    expect(result.customShadow).toContain("220, 38, 38");
+    // Grau wie „Zuhause" beim Kind. Nicht eingestempelt ist kein Notfall.
+    expect(result.customBgColor).toBe("#6B7280");
   });
 
   it("returns Anwesend status with green styling for present staff", () => {
@@ -46,8 +44,6 @@ describe("getStaffLocationStatus", () => {
 
     expect(result.label).toBe("Anwesend");
     expect(result.customBgColor).toBe("#83CD2D");
-    expect(result.customShadow).toContain("131, 205, 45");
-    expect(result.badgeColor).toContain("text-white");
   });
 
   it("returns Homeoffice status with light blue styling", () => {
@@ -56,40 +52,38 @@ describe("getStaffLocationStatus", () => {
 
     expect(result.label).toBe("Homeoffice");
     expect(result.customBgColor).toBe("#0EA5E9");
-    expect(result.customShadow).toContain("14, 165, 233");
   });
 
-  it("returns Krank status with gray styling", () => {
+  it("gibt Krank in derselben Farbe zurueck wie beim Kind", () => {
     const staff = createSampleStaff({ currentLocation: "Krank" });
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Krank");
-    expect(result.customBgColor).toBe("#6B7280");
-    expect(result.customShadow).toContain("107, 114, 128");
+    expect(result.customBgColor).toBe("#DC2626");
   });
 
-  it("returns Urlaub status with gray styling", () => {
+  it("gibt Urlaub als genehmigte Abwesenheit in Lila zurueck", () => {
     const staff = createSampleStaff({ currentLocation: "Urlaub" });
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Urlaub");
-    expect(result.customBgColor).toBe("#6B7280");
+    expect(result.customBgColor).toBe("#7C3AED");
   });
 
-  it("returns Fortbildung status with gray styling", () => {
+  it("gibt Fortbildung als genehmigte Abwesenheit in Lila zurueck", () => {
     const staff = createSampleStaff({ currentLocation: "Fortbildung" });
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Fortbildung");
-    expect(result.customBgColor).toBe("#6B7280");
+    expect(result.customBgColor).toBe("#7C3AED");
   });
 
-  it("returns Freizeitausgleich status with gray styling", () => {
+  it("gibt Freizeitausgleich als genehmigte Abwesenheit in Lila zurueck", () => {
     const staff = createSampleStaff({ currentLocation: "Freizeitausgleich" });
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Freizeitausgleich");
-    expect(result.customBgColor).toBe("#6B7280");
+    expect(result.customBgColor).toBe("#7C3AED");
   });
 
   it("returns Anwesend for staff in a specific room (supervising)", () => {
@@ -106,7 +100,7 @@ describe("getStaffLocationStatus", () => {
     const result = getStaffLocationStatus(staff);
 
     expect(result.label).toBe("Abwesend");
-    expect(result.customBgColor).toBe("#DC2626");
+    expect(result.customBgColor).toBe("#6B7280");
   });
 
   it("handles supervising staff in multiple rooms as Anwesend", () => {
@@ -339,7 +333,8 @@ describe("formatStaffNotes", () => {
       "This is a very long note that exceeds the default maximum length limit";
     const result = formatStaffNotes(longNotes, 30);
 
-    expect(result).toBe("This is a very long note th...");
+    // Ein Zeichen für die Auslassung, nicht drei Punkte.
+    expect(result).toBe("This is a very long note that…");
     expect(result?.length).toBe(30);
   });
 
@@ -347,7 +342,7 @@ describe("formatStaffNotes", () => {
     const notes = "Short note here";
     const result = formatStaffNotes(notes, 10);
 
-    expect(result).toBe("Short n...");
+    expect(result).toBe("Short not…");
   });
 
   it("does not truncate notes exactly at max length", () => {

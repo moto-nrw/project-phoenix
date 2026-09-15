@@ -3,7 +3,9 @@ package mealplan
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -17,14 +19,22 @@ type Access uint8
 const (
 	AccessRead Access = iota + 1
 	AccessWrite
+	AccessParticipants
 )
 
+type ExportFile struct {
+	Data        []byte
+	ContentType string
+	Filename    string
+}
+
 type Runtime struct {
-	Protected      func(chi.Router, func(chi.Router, Middleware))
-	Permission     func(Access) Middleware
-	Success        func(http.ResponseWriter, *http.Request, int, any, string)
-	InvalidRequest func(http.ResponseWriter, *http.Request, error)
-	ModuleFailure  func(http.ResponseWriter, *http.Request, error, string)
+	Protected       func(chi.Router, func(chi.Router, Middleware))
+	Permission      func(Access) Middleware
+	Success         func(http.ResponseWriter, *http.Request, int, any, string)
+	InvalidRequest  func(http.ResponseWriter, *http.Request, error)
+	ModuleFailure   func(http.ResponseWriter, *http.Request, error, string)
+	ExportDailyList func(mealplanModule.DailyList, string) (ExportFile, error)
 }
 
 type Resource struct {
@@ -33,7 +43,7 @@ type Resource struct {
 }
 
 func NewResource(module *mealplanModule.Module, runtime Runtime) *Resource {
-	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil {
+	if module == nil || runtime.Protected == nil || runtime.Permission == nil || runtime.Success == nil || runtime.InvalidRequest == nil || runtime.ModuleFailure == nil || runtime.ExportDailyList == nil {
 		panic("meal plan HTTP: all dependencies are required")
 	}
 	return &Resource{module: module, runtime: runtime}
@@ -46,6 +56,8 @@ func (rs *Resource) Router() chi.Router {
 		protected.With(rs.runtime.Permission(AccessRead), withTx).Get("/", rs.getWeek)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Put("/{date}", rs.setDay)
 		protected.With(rs.runtime.Permission(AccessWrite), withTx).Delete("/{date}", rs.deleteDay)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants", rs.getParticipants)
+		protected.With(rs.runtime.Permission(AccessParticipants), withTx).Get("/participants/export", rs.exportParticipants)
 	})
 	return router
 }
@@ -55,6 +67,19 @@ type MealPlanEntryResponse struct {
 	Position int     `json:"position"`
 	Dish     string  `json:"dish"`
 	Note     *string `json:"note,omitempty"`
+}
+
+type DailyParticipantResponse struct {
+	StudentID   string `json:"student_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	SchoolClass string `json:"school_class"`
+}
+
+type DailyListResponse struct {
+	Date         string                     `json:"date"`
+	CutoffTime   string                     `json:"cutoff_time"`
+	Participants []DailyParticipantResponse `json:"participants"`
 }
 
 type DishRequest struct {
@@ -129,4 +154,55 @@ func (rs *Resource) deleteDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, nil, "Meal deleted successfully")
+}
+
+func (rs *Resource) getParticipants(w http.ResponseWriter, r *http.Request) {
+	list, ok := rs.dailyList(w, r)
+	if !ok {
+		return
+	}
+	participants := make([]DailyParticipantResponse, 0, len(list.Participants))
+	for _, participant := range list.Participants {
+		participants = append(participants, DailyParticipantResponse{StudentID: strconv.FormatInt(participant.StudentID, 10), FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	}
+	rs.runtime.Success(w, r, http.StatusOK, DailyListResponse{Date: string(list.Date), CutoffTime: list.CutoffTime, Participants: participants}, "Meal participation list retrieved successfully")
+}
+
+func (rs *Resource) exportParticipants(w http.ResponseWriter, r *http.Request) {
+	list, ok := rs.dailyList(w, r)
+	if !ok {
+		return
+	}
+	format := r.URL.Query().Get("format")
+	if format == "" {
+		format = "pdf"
+	}
+	if format != "pdf" && format != "xlsx" {
+		rs.runtime.InvalidRequest(w, r, fmt.Errorf("unsupported format %q", format))
+		return
+	}
+	file, err := rs.runtime.ExportDailyList(list, format)
+	if err != nil {
+		rs.runtime.ModuleFailure(w, r, err, "failed to export meal participation list")
+		return
+	}
+	w.Header().Set("Content-Type", file.ContentType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
+	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(file.Data)
+}
+
+func (rs *Resource) dailyList(w http.ResponseWriter, r *http.Request) (mealplanModule.DailyList, bool) {
+	date, err := mealplanModule.ParseDate(r.URL.Query().Get("date"))
+	if err != nil {
+		rs.runtime.InvalidRequest(w, r, errors.New("date must be in YYYY-MM-DD format"))
+		return mealplanModule.DailyList{}, false
+	}
+	list, err := rs.module.DailyList(r.Context(), date)
+	if err != nil {
+		rs.runtime.ModuleFailure(w, r, err, "failed to load meal participation list")
+		return mealplanModule.DailyList{}, false
+	}
+	return list, true
 }

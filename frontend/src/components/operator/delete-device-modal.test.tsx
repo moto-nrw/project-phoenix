@@ -171,10 +171,10 @@ describe("DeleteDeviceModal", () => {
     fireEvent.click(screen.getByText("Endgültig löschen"));
 
     await waitFor(() => {
-      expect(screen.getByText("Wird gelöscht...")).toBeInTheDocument();
+      expect(screen.getByText("Wird gelöscht…")).toBeInTheDocument();
     });
     expect(
-      screen.getByRole("button", { name: "Wird gelöscht..." }),
+      screen.getByRole("button", { name: "Wird gelöscht…" }),
     ).toBeDisabled();
     expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
 

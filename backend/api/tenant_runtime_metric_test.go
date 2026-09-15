@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -17,7 +19,13 @@ func TestRecordHTTPRuntimeEventCountsMissingTenant(t *testing.T) {
 	before := httpMissingTenantRuntimeEvents(t)
 	tracer := newRuntimeTracer(slog.New(slog.DiscardHandler))
 
-	recordHTTPRuntimeEvent(context.Background(), tracer, tenant.RuntimeEvent{Kind: tenant.RuntimeMissingTenant, Err: tenant.ErrInvalidTenantID})
+	request := httptest.NewRequest(http.MethodGet, "/api/rooms", nil)
+	recordHTTPRuntimeEvent(tracer, httpRuntimeObservation{
+		Request: request,
+		Route:   "/api/rooms",
+		Status:  http.StatusInternalServerError,
+		Event:   tenant.RuntimeEvent{Kind: tenant.RuntimeMissingTenant, Err: tenant.ErrInvalidTenantID},
+	})
 
 	assert.GreaterOrEqual(t, httpMissingTenantRuntimeEvents(t), before+1)
 }

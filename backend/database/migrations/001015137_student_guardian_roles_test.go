@@ -10,6 +10,7 @@ import (
 )
 
 func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -45,6 +46,7 @@ func TestStudentGuardianRolesMigration_LegalRelationshipWinsOverContactFlags(t *
 }
 
 func TestStudentGuardianRolesMigration_BackfillsRelativeEmergencyPickupWithoutPortalAccess(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

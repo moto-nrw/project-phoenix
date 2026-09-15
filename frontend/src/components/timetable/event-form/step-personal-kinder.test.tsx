@@ -303,6 +303,40 @@ describe("StepPersonalKinder — Angebots-Quelle", () => {
   });
 });
 
+describe("StepPersonalKinder — Personal je Wochentag mit Angebot als Quelle (#3165)", () => {
+  const sourcedPerWeekdayForm = () => ({
+    ...emptyForm("2026-08-03"),
+    targetGroupType: "angebot" as const,
+    sourceCareOfferingIds: ["42"],
+    weekdays: [1, 2],
+    perWeekdayRoster: true,
+    weekdayRosters: {
+      1: { staffIds: [], primaryStaffId: "", studentIds: [] },
+      2: { staffIds: [], primaryStaffId: "", studentIds: ["12"] },
+    },
+  });
+
+  it("offers per-weekday staff but no per-weekday child list", () => {
+    renderStep({ form: sourcedPerWeekdayForm() });
+
+    expect(
+      screen.getByRole("group", { name: "Wochentag für die Zuordnung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Personal am Montag")).toBeInTheDocument();
+    expect(screen.queryByText("Kinder am Montag")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/Die Kinderliste kommt aus den gewählten/),
+    ).toBeInTheDocument();
+  });
+
+  it("does not flag a weekday as deviating because of hidden child lists", () => {
+    renderStep({ form: sourcedPerWeekdayForm(), activeRosterWeekday: 2 });
+
+    expect(screen.queryByText("abweichend")).not.toBeInTheDocument();
+    expect(screen.getByText("wie üblich")).toBeInTheDocument();
+  });
+});
+
 describe("StepPersonalKinder — Maximale Teilnehmerzahl (#2233)", () => {
   it("renders the stored limit editable in the series flow", () => {
     const { update } = renderStep({

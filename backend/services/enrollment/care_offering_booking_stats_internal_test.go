@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // The three stubs embed their interface and override only what
@@ -18,13 +19,16 @@ import (
 // silently returning a zero value.
 
 type bookingStatsPhaseRepo struct {
-	enrollmentModels.PhaseRepository
-	phase *enrollmentModels.Phase
+	PhaseBatchReader
+	phase *capability.Phase
 	err   error
 }
 
-func (r bookingStatsPhaseRepo) FindByID(context.Context, int64) (*enrollmentModels.Phase, error) {
-	return r.phase, r.err
+func (r bookingStatsPhaseRepo) Phase(context.Context, int64) (*capability.Phase, error) {
+	if r.phase == nil {
+		return nil, r.err
+	}
+	return OwnerPhaseForTest(r.phase), r.err
 }
 
 type bookingStatsOfferingRepo struct {
@@ -38,8 +42,8 @@ func (r bookingStatsOfferingRepo) ListByPhase(context.Context, int64) ([]*enroll
 }
 
 type bookingStatsLinkRepo struct {
-	enrollmentModels.RequestChildOfferingRepository
-	grades    []*enrollmentModels.CareOfferingGradeLevelCount
+	OfferingBookingReader
+	grades    []*capability.OfferingGradeCount
 	gradesErr error
 	peaks     map[int64]int
 	peakErr   error
@@ -51,17 +55,17 @@ type bookingStatsLinkRepo struct {
 	peakCallCount int
 }
 
-func (r *bookingStatsLinkRepo) CountActiveGradeLevelsByCareOfferingIDs(
-	_ context.Context, ids []int64, from, until timezone.Date,
-) ([]*enrollmentModels.CareOfferingGradeLevelCount, error) {
+func (r *bookingStatsLinkRepo) OfferingGradeCounts(
+	_ context.Context, ids []int64, from, until capability.Date,
+) ([]*capability.OfferingGradeCount, error) {
 	r.gotIDs = ids
-	r.gotFrom = from
-	r.gotUntil = until
+	r.gotFrom = timezone.Date(from)
+	r.gotUntil = timezone.Date(until)
 	return r.grades, r.gradesErr
 }
 
-func (r *bookingStatsLinkRepo) CountMaxActiveByCareOfferingIDsInRange(
-	_ context.Context, ids []int64, _, _ timezone.Date,
+func (r *bookingStatsLinkRepo) OfferingCapacityPeaks(
+	_ context.Context, ids []int64, _, _ capability.Date,
 ) (map[int64]int, error) {
 	r.peakCallCount++
 	r.gotPeakIDs = ids
@@ -73,23 +77,26 @@ func (r *bookingStatsLinkRepo) CountMaxActiveByCareOfferingIDsInRange(
 
 func intPtr(v int) *int { return &v }
 
+const bookingStatsTestToday timezone.Date = "2026-08-24"
+
 func bookingStatsService(
-	phase *enrollmentModels.Phase,
+	phase *capability.Phase,
 	offerings []*enrollmentModels.CareOffering,
 	links *bookingStatsLinkRepo,
 ) *careOfferingService {
 	return &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
-		Repo:                     bookingStatsOfferingRepo{offerings: offerings},
-		PhaseRepo:                bookingStatsPhaseRepo{phase: phase},
-		RequestChildOfferingRepo: links,
+		Repo:     bookingStatsOfferingRepo{offerings: offerings},
+		Phases:   bookingStatsPhaseRepo{phase: phase},
+		Bookings: links,
+		Today:    func() timezone.Date { return bookingStatsTestToday },
 	}}
 }
 
-func runningPhase() *enrollmentModels.Phase {
-	today := timezone.TodayDate()
-	return &enrollmentModels.Phase{
-		ServiceStartDate: today.AddDays(-30),
-		ServiceEndDate:   today.AddDays(60),
+func runningPhase() *capability.Phase {
+	today := bookingStatsTestToday
+	return &capability.Phase{
+		ServiceStartDate: capability.Date(today.AddDays(-30)),
+		ServiceEndDate:   capability.Date(today.AddDays(60)),
 	}
 }
 
@@ -104,7 +111,7 @@ func TestListBookingStats_ReportsCapacityAndGradeDistribution(t *testing.T) {
 	offerings[1].ID = 9
 	links := &bookingStatsLinkRepo{
 		peaks: map[int64]int{7: 14, 9: 3},
-		grades: []*enrollmentModels.CareOfferingGradeLevelCount{
+		grades: []*capability.OfferingGradeCount{
 			{CareOfferingID: 7, GradeLevel: gradePtr(1), Count: 12},
 			{CareOfferingID: 7, GradeLevel: gradePtr(3), Count: 2},
 			{CareOfferingID: 9, GradeLevel: nil, Count: 3},
@@ -133,10 +140,10 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 
 	// The displayed occupancy must be the number the capacity gate will apply
 	// on save, so the window has to match applyCapacityOverflowCore's.
-	today := timezone.NewDate(2026, 8, 24)
-	phase := &enrollmentModels.Phase{
-		ServiceStartDate: today.AddDays(-30),
-		ServiceEndDate:   today.AddDays(60),
+	today := bookingStatsTestToday
+	phase := &capability.Phase{
+		ServiceStartDate: capability.Date(today.AddDays(-30)),
+		ServiceEndDate:   capability.Date(today.AddDays(60)),
 	}
 	offering := &enrollmentModels.CareOffering{Name: "Ganztag"}
 	offering.ID = 1
@@ -148,17 +155,17 @@ func TestListBookingStats_CountsInTheCapacityGatesWindow(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, today, links.gotFrom, "a running phase counts from today")
-	assert.Equal(t, phase.ServiceEndDate.AddDays(1), links.gotUntil, "the last service day is inclusive")
+	assert.Equal(t, timezone.Date(phase.ServiceEndDate).AddDays(1), links.gotUntil, "the last service day is inclusive")
 	assert.Equal(t, []int64{1}, links.gotIDs)
 }
 
 func TestListBookingStats_CountsFromTheStartOfAFuturePhase(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
-	phase := &enrollmentModels.Phase{
-		ServiceStartDate: today.AddDays(30),
-		ServiceEndDate:   today.AddDays(200),
+	today := bookingStatsTestToday
+	phase := &capability.Phase{
+		ServiceStartDate: capability.Date(today.AddDays(30)),
+		ServiceEndDate:   capability.Date(today.AddDays(200)),
 	}
 	offering := &enrollmentModels.CareOffering{Name: "Ganztag"}
 	offering.ID = 1
@@ -168,7 +175,7 @@ func TestListBookingStats_CountsFromTheStartOfAFuturePhase(t *testing.T) {
 		ListBookingStats(context.Background(), 5)
 	require.NoError(t, err)
 
-	assert.Equal(t, phase.ServiceStartDate, links.gotFrom)
+	assert.Equal(t, timezone.Date(phase.ServiceStartDate), links.gotFrom)
 }
 
 func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) {
@@ -177,10 +184,10 @@ func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) 
 	// [today, end+1) is empty once a phase has ended. Reporting zero would
 	// claim every offering is free; the final service day is the honest
 	// answer for a historical phase.
-	today := timezone.TodayDate()
-	phase := &enrollmentModels.Phase{
-		ServiceStartDate: today.AddDays(-200),
-		ServiceEndDate:   today.AddDays(-30),
+	today := bookingStatsTestToday
+	phase := &capability.Phase{
+		ServiceStartDate: capability.Date(today.AddDays(-200)),
+		ServiceEndDate:   capability.Date(today.AddDays(-30)),
 	}
 	offering := &enrollmentModels.CareOffering{Name: "Ganztag"}
 	offering.ID = 1
@@ -190,21 +197,21 @@ func TestListBookingStats_FallsBackToTheFinalDayOfACompletedPhase(t *testing.T) 
 		ListBookingStats(context.Background(), 5)
 	require.NoError(t, err)
 
-	assert.Equal(t, phase.ServiceEndDate, links.gotFrom)
-	assert.Equal(t, phase.ServiceEndDate.AddDays(1), links.gotUntil)
+	assert.Equal(t, timezone.Date(phase.ServiceEndDate), links.gotFrom)
+	assert.Equal(t, timezone.Date(phase.ServiceEndDate).AddDays(1), links.gotUntil)
 	assert.Equal(t, 4, stats[0].Booked)
 }
 
 func TestBookingStatsWindow_DefaultsToTodayWithoutPhaseDates(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := bookingStatsTestToday
 
 	from, until := bookingStatsWindowOn(nil, today)
 	assert.Equal(t, today, from)
 	assert.Equal(t, today.AddDays(1), until)
 
-	from, until = bookingStatsWindowOn(&enrollmentModels.Phase{}, today)
+	from, until = bookingStatsWindowOn(&capability.Phase{}, today)
 	assert.Equal(t, today, from)
 	assert.Equal(t, today.AddDays(1), until)
 	assert.True(t, from.Before(until), "the window is never empty")
@@ -262,9 +269,9 @@ func TestListBookingStats_ClassifiesAMissingPhaseAsInvalid(t *testing.T) {
 	t.Parallel()
 
 	service := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
-		Repo:                     bookingStatsOfferingRepo{},
-		PhaseRepo:                bookingStatsPhaseRepo{err: modelBase.ErrNotFound},
-		RequestChildOfferingRepo: &bookingStatsLinkRepo{},
+		Repo:     bookingStatsOfferingRepo{},
+		Phases:   bookingStatsPhaseRepo{err: modelBase.ErrNotFound},
+		Bookings: &bookingStatsLinkRepo{},
 	}}
 
 	_, err := service.ListBookingStats(context.Background(), 5)
@@ -275,15 +282,15 @@ func TestListBookingStats_RequiresItsRepositories(t *testing.T) {
 	t.Parallel()
 
 	noLinks := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
-		Repo:      bookingStatsOfferingRepo{},
-		PhaseRepo: bookingStatsPhaseRepo{phase: runningPhase()},
+		Repo:   bookingStatsOfferingRepo{},
+		Phases: bookingStatsPhaseRepo{phase: runningPhase()},
 	}}
 	_, err := noLinks.ListBookingStats(context.Background(), 5)
 	require.ErrorContains(t, err, "request child offering repository")
 
 	noPhases := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
-		Repo:                     bookingStatsOfferingRepo{},
-		RequestChildOfferingRepo: &bookingStatsLinkRepo{},
+		Repo:     bookingStatsOfferingRepo{},
+		Bookings: &bookingStatsLinkRepo{},
 	}}
 	_, err = noPhases.ListBookingStats(context.Background(), 5)
 	require.ErrorContains(t, err, "phase repository")
@@ -296,9 +303,9 @@ func TestListBookingStats_PropagatesRepositoryFailures(t *testing.T) {
 	offering.ID = 1
 
 	offeringsFailed := &careOfferingService{CareOfferingServiceConfig: CareOfferingServiceConfig{
-		Repo:                     bookingStatsOfferingRepo{err: errors.New("offerings down")},
-		PhaseRepo:                bookingStatsPhaseRepo{phase: runningPhase()},
-		RequestChildOfferingRepo: &bookingStatsLinkRepo{},
+		Repo:     bookingStatsOfferingRepo{err: errors.New("offerings down")},
+		Phases:   bookingStatsPhaseRepo{phase: runningPhase()},
+		Bookings: &bookingStatsLinkRepo{},
 	}}
 	_, err := offeringsFailed.ListBookingStats(context.Background(), 5)
 	require.ErrorContains(t, err, "offerings down")

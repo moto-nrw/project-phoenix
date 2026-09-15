@@ -23,7 +23,7 @@ func candidateGoPackages(project, ref string, candidate *Policy) (map[string]str
 	if err != nil {
 		return nil, fmt.Errorf("resolve project directory: %w", err)
 	}
-	added, err := goPackageDirs(root, "diff", "--name-only", "--diff-filter=A", "-z", sha, "--", filepath.ToSlash(projectPath))
+	added, err := goPackageDirs(root, "diff", "--no-renames", "--name-only", "--diff-filter=A", "-z", sha, "--", filepath.ToSlash(projectPath))
 	if err != nil {
 		return nil, fmt.Errorf("list candidate package files: %w", err)
 	}
@@ -40,6 +40,37 @@ func candidateGoPackages(project, ref string, candidate *Policy) (map[string]str
 		}
 		if _, alreadyExisted := base[dir]; !alreadyExisted {
 			result[path] = struct{}{}
+		}
+	}
+	return result, nil
+}
+
+// candidateOnlyExternalPackages returns classified external packages imported
+// exclusively by first-party packages introduced in the candidate. Their
+// classification cannot grant an existing package a new dependency.
+func candidateOnlyExternalPackages(project string, candidate *Policy, createdPackages map[string]struct{}) (map[string]struct{}, error) {
+	output, err := runGoList(project, candidate.Build)
+	if err != nil {
+		return nil, err
+	}
+	graph, err := decodeGraph(output, candidate.ModulePath, project)
+	if err != nil {
+		return nil, err
+	}
+	classified := candidate.externalPackageMap()
+	result := make(map[string]struct{})
+	disqualified := make(map[string]struct{})
+	for _, edge := range graph.Edges {
+		if _, exists := classified[edge.Target]; !exists {
+			continue
+		}
+		if _, created := createdPackages[edge.Source]; !created {
+			disqualified[edge.Target] = struct{}{}
+			delete(result, edge.Target)
+			continue
+		}
+		if _, blocked := disqualified[edge.Target]; !blocked {
+			result[edge.Target] = struct{}{}
 		}
 	}
 	return result, nil

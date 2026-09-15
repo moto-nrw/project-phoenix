@@ -36,9 +36,8 @@ func TestAccountRepository_IncrementMFAAttempts_AtomicUnderRace(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-counter")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 
 	const (
 		concurrency = 12
@@ -96,9 +95,8 @@ func TestAccountRepository_ResetMFAAttempts_ClearsCounterAndLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-atomic-reset")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 
 	// Drive the counter past the threshold so a lock is in place.
 	for i := 0; i < 6; i++ {

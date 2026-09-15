@@ -1,7 +1,15 @@
 "use client";
 
-import { Suspense, useState, useEffect, useCallback, useRef } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
+import { Pencil } from "lucide-react";
+import { Avatar } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EditActions } from "~/components/ui/edit-actions";
+import { FormModal } from "~/components/ui/form-modal";
+import { useFormError } from "~/components/ui/form-error";
+import { Input } from "~/components/ui/input";
 import { PasswordChangeModal } from "~/components/ui/password-change-modal";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import {
@@ -9,6 +17,7 @@ import {
   PageHeaderSkeleton,
   SkeletonRegion,
 } from "~/components/ui/page-skeletons";
+import { SectionCard } from "~/components/ui/section-card";
 import { useToast } from "~/contexts/ToastContext";
 import { sessionFetch } from "~/lib/session-cache";
 import { TrustedDevicesSection } from "~/components/settings/trusted-devices-section";
@@ -52,9 +61,11 @@ function OperatorSettingsContent() {
   });
   const [profileData, setProfileData] = useState<OperatorProfile | null>(null);
 
-  // Email change state
+  // E-Mail-Wechsel: eigener Ablauf mit Passwortabfrage und Bestätigungslink,
+  // darum ein eigener Dialog, der unabhängig vom Bearbeiten-Zustand der
+  // Stammdaten erreichbar ist (#3117).
   const [showEmailChangeDialog, setShowEmailChangeDialog] = useState(false);
-  const [emailChangeError, setEmailChangeError] = useState<string | null>(null);
+  const [emailChangeError, setEmailChangeError] = useFormError();
   const [emailChangeLoading, setEmailChangeLoading] = useState(false);
   const [emailChangeNewEmail, setEmailChangeNewEmail] = useState("");
   const [emailChangePassword, setEmailChangePassword] = useState("");
@@ -105,6 +116,20 @@ function OperatorSettingsContent() {
     };
   }, [status, sessionName, sessionEmail]);
 
+  const resetFormFromProfile = useCallback(() => {
+    if (profileData) {
+      setFormData({
+        displayName: profileData.display_name,
+        email: profileData.email,
+      });
+    } else if (status === "authenticated") {
+      setFormData({
+        displayName: sessionName,
+        email: isEmail(sessionEmail) ? sessionEmail : "",
+      });
+    }
+  }, [profileData, status, sessionName, sessionEmail]);
+
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
@@ -146,7 +171,15 @@ function OperatorSettingsContent() {
     }
   };
 
+  const handleCloseEmailDialog = () => {
+    setShowEmailChangeDialog(false);
+    setEmailChangeError(null);
+    setEmailChangeNewEmail("");
+    setEmailChangePassword("");
+  };
+
   const handleEmailChange = async () => {
+    if (!emailChangeNewEmail || !emailChangePassword) return;
     setEmailChangeLoading(true);
     setEmailChangeError(null);
     try {
@@ -180,9 +213,7 @@ function OperatorSettingsContent() {
       }
 
       const confirmedEmail = emailChangeNewEmail;
-      setShowEmailChangeDialog(false);
-      setEmailChangeNewEmail("");
-      setEmailChangePassword("");
+      handleCloseEmailDialog();
       toastSuccess(
         `Eine Bestätigungs-E-Mail wird an ${confirmedEmail} gesendet. Bitte überprüfe dein Postfach.`,
         { duration: 3000 },
@@ -194,159 +225,104 @@ function OperatorSettingsContent() {
     }
   };
 
-  const emailDialogRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    const dialog = emailDialogRef.current;
-    if (!dialog) return;
-    if (showEmailChangeDialog && !dialog.open) {
-      dialog.showModal();
-    } else if (!showEmailChangeDialog && dialog.open) {
-      dialog.close();
-    }
-  }, [showEmailChangeDialog]);
-
-  const handleCloseEmailDialog = () => {
-    setShowEmailChangeDialog(false);
-    setEmailChangeError(null);
-    setEmailChangeNewEmail("");
-    setEmailChangePassword("");
-  };
-
   if (status === "loading") {
     return operatorSettingsLoadingFallback;
   }
 
-  const initials = formData.displayName
-    .split(" ")
-    .map((p) => p.charAt(0))
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const emailChangeReady =
+    !emailChangeLoading && !!emailChangeNewEmail && !!emailChangePassword;
 
   return (
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch title="Profil" concept="settings" />
 
       <div className="mx-auto max-w-2xl space-y-6 px-4 pb-8 md:px-6">
-        {/* Avatar Section */}
         <div className="flex flex-col items-center pt-4">
-          <div className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-gray-800 text-white shadow-xl">
-            <span className="text-3xl font-bold">{initials}</span>
-          </div>
+          <Avatar name={formData.displayName} size="xl" />
         </div>
 
-        {/* Profile Form */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
-          <div className="space-y-4">
-            <div>
-              <label
-                htmlFor="settings-displayname"
-                className="mb-2 block text-sm font-medium text-gray-700"
+        <SectionCard
+          title="Persönliche Daten"
+          actions={
+            isEditing ? undefined : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={() => setIsEditing(true)}
               >
-                Anzeigename
-              </label>
-              <input
-                id="settings-displayname"
+                <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                Bearbeiten
+              </Button>
+            )
+          }
+        >
+          {isEditing ? (
+            <div className="space-y-4">
+              <Input
+                label="Anzeigename"
+                name="settings-displayname"
                 type="text"
                 value={formData.displayName}
                 onChange={(e) =>
                   setFormData({ ...formData, displayName: e.target.value })
                 }
-                disabled={!isEditing}
                 maxLength={255}
-                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:outline-none disabled:bg-gray-50 disabled:text-gray-500"
+              />
+              <EditActions
+                onCancel={() => {
+                  setIsEditing(false);
+                  resetFormFromProfile();
+                }}
+                onSave={() => void handleSaveProfile()}
+                saving={isSaving}
               />
             </div>
-            <div>
-              <label
-                htmlFor="settings-email"
-                className="mb-2 block text-sm font-medium text-gray-700"
-              >
-                E-Mail
-              </label>
-              <input
-                id="settings-email"
-                type="email"
-                value={formData.email}
-                disabled
-                maxLength={255}
-                className="w-full rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-500"
-              />
-              {isEditing && (
-                <button
-                  type="button"
-                  onClick={() => setShowEmailChangeDialog(true)}
-                  className="text-moto-blue hover:text-moto-blue-hover mt-2 text-sm font-medium transition-colors"
-                >
-                  E-Mail ändern
-                </button>
-              )}
-            </div>
-          </div>
-          <div className="mt-4 flex gap-3">
-            {isEditing ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsEditing(false);
-                    if (profileData) {
-                      setFormData({
-                        displayName: profileData.display_name,
-                        email: profileData.email,
-                      });
-                    } else if (status === "authenticated") {
-                      setFormData({
-                        displayName: sessionName,
-                        email: isEmail(sessionEmail) ? sessionEmail : "",
-                      });
-                    }
-                  }}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleSaveProfile()}
-                  disabled={isSaving}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
-                >
-                  {isSaving ? "Speichern..." : "Speichern"}
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsEditing(true)}
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
-              >
-                Bearbeiten
-              </button>
-            )}
-          </div>
-        </div>
+          ) : (
+            <DataGrid>
+              <DataField label="Anzeigename" fullWidth>
+                {formData.displayName || "–"}
+              </DataField>
+            </DataGrid>
+          )}
+        </SectionCard>
 
-        {/* Security Section */}
-        <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm md:p-6">
-          <h3 className="mb-3 text-base font-semibold text-gray-900">
-            Passwort ändern
-          </h3>
-          <p className="mb-4 text-sm text-gray-600">
-            Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche
-            Sicherheit.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowPasswordModal(true)}
-            className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
-          >
-            Passwort ändern
-          </button>
-        </div>
+        <SectionCard
+          title="E-Mail-Adresse"
+          description="Die neue Adresse gilt erst, nachdem Sie den Link in der Bestätigungs-E-Mail geöffnet haben."
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setShowEmailChangeDialog(true)}
+            >
+              E-Mail ändern
+            </Button>
+          }
+        >
+          <DataGrid>
+            <DataField label="E-Mail" fullWidth>
+              {formData.email || "–"}
+            </DataField>
+          </DataGrid>
+        </SectionCard>
 
-        {/* Trusted Devices Section */}
+        <SectionCard
+          title="Passwort"
+          description="Aktualisieren Sie Ihr Passwort regelmäßig für zusätzliche Sicherheit."
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setShowPasswordModal(true)}
+            >
+              Passwort ändern
+            </Button>
+          }
+        />
+
         <PasskeySettingsSection scope="operator" />
         <TrustedDevicesSection scope="operator" />
       </div>
@@ -363,109 +339,71 @@ function OperatorSettingsContent() {
         />
       )}
 
-      <dialog
-        ref={emailDialogRef}
-        aria-labelledby="email-change-title"
+      <FormModal
+        isOpen={showEmailChangeDialog}
         onClose={handleCloseEmailDialog}
-        className="m-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-xl backdrop:bg-black/50"
-      >
-        {showEmailChangeDialog && (
+        title="E-Mail-Adresse ändern"
+        size="sm"
+        mobilePosition="center"
+        closeDisabled={emailChangeLoading}
+        error={emailChangeError}
+        footer={
           <>
-            <h2
-              id="email-change-title"
-              className="mb-4 text-lg font-semibold text-gray-900"
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={handleCloseEmailDialog}
+              disabled={emailChangeLoading}
             >
-              E-Mail-Adresse ändern
-            </h2>
-
-            {emailChangeError && (
-              <div
-                role="alert"
-                className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700"
-              >
-                {emailChangeError}
-              </div>
-            )}
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleEmailChange();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  e.currentTarget.requestSubmit();
-                }
-              }}
+              Abbrechen
+            </Button>
+            <Button
+              form="operator-email-change-form"
+              type="submit"
+              variant="primary"
+              size="md"
+              disabled={!emailChangeReady}
             >
-              <div className="space-y-4">
-                <div>
-                  <label
-                    htmlFor="new-email"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Neue E-Mail-Adresse
-                  </label>
-                  <input
-                    id="new-email"
-                    type="email"
-                    required
-                    autoFocus
-                    autoComplete="email"
-                    pattern="[A-Za-z0-9._+%\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]+"
-                    title="Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de)"
-                    value={emailChangeNewEmail}
-                    onChange={(e) => setEmailChangeNewEmail(e.target.value)}
-                    className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:outline-none"
-                    placeholder="neue@email.de"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="confirm-password"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    Aktuelles Passwort
-                  </label>
-                  <input
-                    id="confirm-password"
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    value={emailChangePassword}
-                    onChange={(e) => setEmailChangePassword(e.target.value)}
-                    className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-4 py-3 text-base transition-all focus:ring-2 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={handleCloseEmailDialog}
-                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all hover:bg-gray-50"
-                >
-                  Abbrechen
-                </button>
-                <button
-                  type="submit"
-                  disabled={
-                    emailChangeLoading ||
-                    !emailChangeNewEmail ||
-                    !emailChangePassword
-                  }
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-gray-700 disabled:opacity-50"
-                >
-                  {emailChangeLoading
-                    ? "Wird gesendet..."
-                    : "E-Mail-Änderung anfordern"}
-                </button>
-              </div>
-            </form>
+              {emailChangeLoading
+                ? "Wird gesendet..."
+                : "E-Mail-Änderung anfordern"}
+            </Button>
           </>
-        )}
-      </dialog>
+        }
+      >
+        <form
+          id="operator-email-change-form"
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleEmailChange();
+          }}
+        >
+          <Input
+            label="Neue E-Mail-Adresse"
+            name="new-email"
+            type="email"
+            required
+            autoFocus
+            autoComplete="email"
+            pattern="[A-Za-z0-9._+%\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]+"
+            title="Bitte geben Sie eine gültige E-Mail-Adresse ein (z.B. name@beispiel.de)"
+            value={emailChangeNewEmail}
+            onChange={(e) => setEmailChangeNewEmail(e.target.value)}
+            placeholder="neue@email.de"
+          />
+          <Input
+            label="Aktuelles Passwort"
+            name="confirm-password"
+            type="password"
+            required
+            autoComplete="current-password"
+            value={emailChangePassword}
+            onChange={(e) => setEmailChangePassword(e.target.value)}
+          />
+        </form>
+      </FormModal>
     </div>
   );
 }

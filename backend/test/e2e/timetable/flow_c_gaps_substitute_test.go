@@ -20,10 +20,9 @@ import (
 // the admin swaps in a substitute across all affected instances, a follow-up
 // conflict attempt is rejected atomically (no partial writes), and /gaps
 // surfaces an unrelated instance with zero non-absent staff.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowC_GapsAndSubstitute(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := setupTimetableScenarioModule(t)
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).
@@ -87,12 +86,10 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	require.NotZero(t, startResp.ActiveGroupID)
 
 	// --- Step 3: /gaps — baseline should be empty --------------------------
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
-	gapsQueryCount := qc.get()
+	gapsQueryCount := qc.Total()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps body=%s", rr.Body.String())
 
 	var gapsResp1 struct {
@@ -198,7 +195,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	startFixture := parseHHMMLocal(t, "16:00")
 	endFixture := parseHHMMLocal(t, "17:00")
 	gapInstance := &scheduleModel.ActivityInstance{
-		Date:          target,
+		Date:          scheduleModel.Date(target),
 		Title:         "FlowC-Gap-Instance",
 		StartTime:     startFixture,
 		EndTime:       endFixture,
@@ -225,9 +222,9 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	}
 
 	// --- Step 8: /gaps must now surface the gap instance -------------------
-	qc.reset()
+	qc.Reset()
 	rr = s.do("GET", fmt.Sprintf("/gaps?date=%s&date_to=%s", fromS, fromS), nil, s.primaryAdminClaims())
-	gapsQueryCount2 := qc.get()
+	gapsQueryCount2 := qc.Total()
 	require.Equal(t, http.StatusOK, rr.Code, "gaps(with-gap) body=%s", rr.Body.String())
 
 	var gapsResp2 struct {

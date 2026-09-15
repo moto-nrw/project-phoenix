@@ -2,34 +2,55 @@ package parent
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strings"
-	"time"
 
-	"github.com/uptrace/bun"
+	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // EnrollmentRequestRepository implements
 // parentModels.EnrollmentRequestRepository.
 type EnrollmentRequestRepository struct {
-	db *bun.DB
+	runtime   Runtime
+	guardians GuardianDirectory
+	accounts  AccountDirectory
+	commands  EnrollmentCommands
 }
+
+// AccountDirectory is the narrow Identity & Access fact the parent dashboard
+// needs: the e-mail address behind a platform account. An unknown account
+// resolves to an empty address, which matches applications by id only.
+type AccountDirectory interface {
+	AccountEmail(ctx context.Context, accountID int64) (string, error)
+}
+
+var errAccountDirectoryRequired = errors.New("parent repository: account directory is required")
 
 // NewEnrollmentRequestRepository wires a fresh repository.
-func NewEnrollmentRequestRepository(db *bun.DB) parentModels.EnrollmentRequestRepository {
-	return &EnrollmentRequestRepository{db: db}
+//
+// accounts is the Identity & Access lookup the account's e-mail is read
+// through (#2720); auth.accounts is not read here.
+func NewEnrollmentRequestRepository(runtime Runtime, commands EnrollmentCommands, accounts AccountDirectory) parentModels.EnrollmentRequestRepository {
+	if commands == nil {
+		panic("parent repository: enrollment commands are required")
+	}
+	if accounts == nil {
+		panic(errAccountDirectoryRequired)
+	}
+	return &EnrollmentRequestRepository{runtime: requireRuntime(runtime), commands: commands, accounts: accounts}
 }
 
-// ListByAccount returns every enrollment.requests row owned by the
-// given account, joined to phase + school + child rows. Two queries:
-// one for the request envelope (with phase + school joined in), one
-// for the child rows scoped to those requests. We bundle them here so
-// the parent dashboard can render the whole list with a single fetch.
+// BindGuardianDirectory installs the People Directory the account's guardian
+// links are read from (#2663).
+func (r *EnrollmentRequestRepository) BindGuardianDirectory(guardians GuardianDirectory) {
+	r.guardians = guardians
+}
+
+// ListByAccount composes Enrollment-owned applications with the account identity
+// and relationship-level permissions needed by the parent dashboard.
 //
 // Cross-tenant — caller must wrap in tenant.WithAdminTx.
 func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error) {
@@ -37,138 +58,54 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
 
-	type row struct {
-		RequestID                int64         `bun:"request_id"`
-		TenantID                 int64         `bun:"tenant_id"`
-		StatusToken              string        `bun:"status_token"`
-		SubmittedAt              time.Time     `bun:"submitted_at"`
-		WithdrawnAt              *time.Time    `bun:"withdrawn_at"`
-		PhaseID                  int64         `bun:"phase_id"`
-		PhaseName                string        `bun:"phase_name"`
-		ServiceStartDate         timezone.Date `bun:"service_start_date"`
-		ServiceEndDate           timezone.Date `bun:"service_end_date"`
-		ShowStatusReasonToParent bool          `bun:"show_status_reason_to_parent"`
-		SchoolName               string        `bun:"school_name"`
-		SchoolSlug               string        `bun:"school_slug"`
+	if r.accounts == nil {
+		return nil, errAccountDirectoryRequired
 	}
-
-	// Two-pronged match:
-	//   - primary: req.guardian_account_id = ? (set on parent-auth
-	//     submits, or backfilled by the guardian-invite-accept flow)
-	//   - fallback: req.guardian_account_id IS NULL AND the request's
-	//     guardian_email matches the account's email (case- and
-	//     trim-insensitive)
-	// The fallback covers the edge case where the invite-accept
-	// backfill failed silently (e.g. a transient FK race) — without
-	// it, "Meine Anmeldungen" silently disappears for parents whose
-	// submissions never got stamped.
-	const requestQuery = `
-		SELECT
-			req.id              AS request_id,
-			req.tenant_id       AS tenant_id,
-			req.status_token    AS status_token,
-			req.submitted_at    AS submitted_at,
-			req.withdrawn_at    AS withdrawn_at,
-			ph.id               AS phase_id,
-			ph.name             AS phase_name,
-			ph.service_start_date AS service_start_date,
-			ph.service_end_date   AS service_end_date,
-			ph.show_status_reason_to_parent AS show_status_reason_to_parent,
-			sch.name            AS school_name,
-			sch.slug            AS school_slug
-		FROM enrollment.requests AS req
-		JOIN enrollment.phases AS ph ON ph.id = req.phase_id
-		JOIN platform.schools AS sch ON sch.id = req.tenant_id
-		LEFT JOIN auth.accounts AS acc ON acc.id = ?
-		WHERE (
-		    req.guardian_account_id = ?
-		    OR (
-		      req.guardian_account_id IS NULL
-		      AND acc.email IS NOT NULL
-		      AND LOWER(TRIM(req.guardian_email)) = LOWER(TRIM(acc.email))
-		    )
-		  )
-		  AND sch.deleted_at IS NULL
-		  AND NOT EXISTS (
-		    SELECT 1
-		    FROM enrollment.request_children AS rc_created
-		    WHERE rc_created.request_id = req.id
-		      AND rc_created.created_student_id IS NOT NULL
-		      AND NOT EXISTS (
-		        SELECT 1
-		        FROM users.students_guardians AS sg
-		        JOIN users.guardian_profiles AS gp
-		          ON gp.id = sg.guardian_profile_id
-		         AND gp.tenant_id = sg.tenant_id
-		        WHERE sg.student_id = rc_created.created_student_id
-		          AND sg.tenant_id = req.tenant_id
-		          AND gp.account_id = ?
-		          AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE
-		      )
-		  )
-		ORDER BY req.submitted_at DESC, req.id DESC
-	`
-
-	var rows []row
-	if err := base.GetDB(ctx, r.db).NewRaw(
-		requestQuery,
-		accountID,
-		accountID,
-		accountID,
-		authorize.GuardianPermissionEnrollmentsView,
-	).Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
+	accountEmail, err := r.accounts.AccountEmail(ctx, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("parent: load enrollment account identity: %w", err)
+	}
+	rows, err := r.commands.AccountRequests(ctx, accountID, accountEmail)
+	if err != nil {
+		return nil, err
 	}
 	if len(rows) == 0 {
 		return []*parentModels.EnrollmentRequestSummary{}, nil
 	}
 
-	requestIDs := make([]int64, 0, len(rows))
-	for _, rr := range rows {
-		requestIDs = append(requestIDs, rr.RequestID)
+	// A request whose approved child became a student is only listed while
+	// the account still holds parent_portal.enrollments.view on EVERY such
+	// child at the request's school. The links belong to the People
+	// Directory (#2663) and are read inside the same admin transaction.
+	links, err := guardianLinksByAccount(ctx, r.guardians, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("parent: list enrollment requests: %w", err)
+	}
+	viewable := make(map[[2]int64]struct{}, len(links))
+	for _, link := range links {
+		if link.HasPermission(careplan.GuardianPermissionEnrollmentsView) {
+			viewable[[2]int64{link.TenantID, link.StudentID}] = struct{}{}
+		}
 	}
 
-	type childRow struct {
-		RequestID    int64   `bun:"request_id"`
-		ChildID      int64   `bun:"child_id"`
-		FirstName    string  `bun:"first_name"`
-		LastName     string  `bun:"last_name"`
-		Status       string  `bun:"status"`
-		StatusReason *string `bun:"status_reason"`
-		SortOrder    int     `bun:"sort_order"`
-	}
-
-	var children []childRow
-	const childQuery = `
-		SELECT
-			rc.request_id    AS request_id,
-			rc.id            AS child_id,
-			rc.first_name    AS first_name,
-			rc.last_name     AS last_name,
-			rc.status        AS status,
-			rc.status_reason AS status_reason,
-			rc.sort_order    AS sort_order
-		FROM enrollment.request_children AS rc
-		WHERE rc.request_id IN (?)
-		ORDER BY rc.request_id, rc.sort_order, rc.id
-	`
-	if err := base.GetDB(ctx, r.db).NewRaw(childQuery, bun.List(requestIDs)).Scan(ctx, &children); err != nil {
-		return nil, fmt.Errorf("parent: list enrollment request children: %w", err)
-	}
-
+	hidden := make(map[int64]struct{})
 	childrenByRequest := make(map[int64][]parentModels.EnrollmentRequestChildSummary, len(rows))
-	for _, c := range children {
-		childrenByRequest[c.RequestID] = append(childrenByRequest[c.RequestID], parentModels.EnrollmentRequestChildSummary{
-			ChildID:      c.ChildID,
-			FirstName:    c.FirstName,
-			LastName:     c.LastName,
-			Status:       c.Status,
-			StatusReason: c.StatusReason,
-		})
+	for _, rr := range rows {
+		for _, c := range rr.Children {
+			if c.CreatedStudentID != nil {
+				if _, ok := viewable[[2]int64{rr.TenantID, *c.CreatedStudentID}]; !ok {
+					hidden[rr.RequestID] = struct{}{}
+				}
+			}
+			childrenByRequest[rr.RequestID] = append(childrenByRequest[rr.RequestID], parentModels.EnrollmentRequestChildSummary{ChildID: c.ChildID, FirstName: c.FirstName, LastName: c.LastName, Status: c.Status, StatusReason: c.StatusReason})
+		}
 	}
 
 	out := make([]*parentModels.EnrollmentRequestSummary, 0, len(rows))
 	for _, rr := range rows {
+		if _, skip := hidden[rr.RequestID]; skip {
+			continue
+		}
 		out = append(out, &parentModels.EnrollmentRequestSummary{
 			RequestID:                rr.RequestID,
 			TenantID:                 rr.TenantID,
@@ -177,11 +114,9 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			WithdrawnAt:              rr.WithdrawnAt,
 			PhaseID:                  rr.PhaseID,
 			PhaseName:                rr.PhaseName,
-			ServiceStartDate:         rr.ServiceStartDate,
-			ServiceEndDate:           rr.ServiceEndDate,
+			ServiceStartDate:         careplan.Date(rr.ServiceStartDate),
+			ServiceEndDate:           careplan.Date(rr.ServiceEndDate),
 			ShowStatusReasonToParent: rr.ShowStatusReasonToParent,
-			SchoolName:               rr.SchoolName,
-			SchoolSlug:               rr.SchoolSlug,
 			Children:                 childrenByRequest[rr.RequestID],
 		})
 	}
@@ -194,23 +129,11 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 // submitted before the parent had an account show up in /me/enrollments
 // after acceptance. Cross-tenant — caller wraps in WithAdminTx.
 func (r *EnrollmentRequestRepository) BackfillGuardianAccountID(ctx context.Context, accountID int64, email string) (int, error) {
-	if accountID <= 0 {
-		return 0, fmt.Errorf("parent: account_id must be positive")
-	}
-	emailLC := strings.ToLower(strings.TrimSpace(email))
-	if emailLC == "" {
-		return 0, nil
-	}
+	return r.commands.BackfillGuardianAccountID(ctx, accountID, email)
+}
 
-	res, err := base.GetDB(ctx, r.db).NewRaw(`
-		UPDATE enrollment.requests
-		SET guardian_account_id = ?
-		WHERE guardian_account_id IS NULL
-		  AND LOWER(TRIM(guardian_email)) = ?
-	`, accountID, emailLC).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("parent: backfill guardian_account_id: %w", err)
-	}
-	rows, _ := res.RowsAffected()
-	return int(rows), nil
+// EnrollmentCommands is Parent's port for reading and attaching pre-account submissions.
+type EnrollmentCommands interface {
+	AccountRequests(context.Context, int64, string) ([]enrollment.AccountRequest, error)
+	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 }

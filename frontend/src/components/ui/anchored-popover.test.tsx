@@ -3,11 +3,17 @@ import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { AnchoredPopover } from "./anchored-popover";
+import { OverflowMenu } from "./page-header/OverflowMenu";
 
 function TestPopover({
   scoped = false,
   preferredWidth,
-}: Readonly<{ scoped?: boolean; preferredWidth?: number }>) {
+  align,
+}: Readonly<{
+  scoped?: boolean;
+  preferredWidth?: number;
+  align?: "start" | "end";
+}>) {
   const [open, setOpen] = useState(false);
   const popover = (
     <AnchoredPopover
@@ -15,6 +21,7 @@ function TestPopover({
       onOpenChange={setOpen}
       ariaLabel="Testauswahl"
       preferredWidth={preferredWidth}
+      align={align}
       renderTrigger={({ ref, toggle }) => (
         <button ref={ref} type="button" onClick={toggle}>
           Öffnen
@@ -67,12 +74,75 @@ describe("AnchoredPopover", () => {
     });
   });
 
+  it("keeps an overflow menu click inside the popover", () => {
+    const onOpenChange = vi.fn();
+    const onAction = vi.fn();
+    render(
+      <AnchoredPopover
+        open
+        onOpenChange={onOpenChange}
+        ariaLabel="Testauswahl"
+        renderTrigger={({ ref }) => (
+          <button ref={ref} type="button">
+            Öffnen
+          </button>
+        )}
+      >
+        {({ overflowMenuPortal }) => (
+          <OverflowMenu
+            items={[{ label: "Bearbeiten", onClick: onAction }]}
+            portalOwnerId={overflowMenuPortal.ownerId}
+            portalZIndex={overflowMenuPortal.zIndex}
+          />
+        )}
+      </AnchoredPopover>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    const action = screen.getByRole("menuitem", { name: "Bearbeiten" });
+    expect(action.closest("[data-overflow-menu-owner]")).toHaveAttribute(
+      "data-overflow-menu-owner",
+      screen.getByRole("dialog", { name: "Testauswahl" }).id,
+    );
+
+    fireEvent.mouseDown(action);
+    fireEvent.click(action);
+
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(onAction).toHaveBeenCalledOnce();
+  });
+
   it("uses a preferred panel width independently from the trigger", () => {
     render(<TestPopover preferredWidth={380} />);
     fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
 
     expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
       width: "380px",
+    });
+  });
+
+  it("right-aligns an end-aligned panel with its trigger", () => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: 1920,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+      left: 1800,
+      right: 1840,
+      top: 100,
+      bottom: 140,
+      width: 40,
+      height: 40,
+      x: 1800,
+      y: 100,
+      toJSON: () => undefined,
+    });
+
+    render(<TestPopover preferredWidth={288} align="end" />);
+    fireEvent.click(screen.getByRole("button", { name: "Öffnen" }));
+
+    expect(screen.getByRole("dialog", { name: "Testauswahl" })).toHaveStyle({
+      left: "1552px",
     });
   });
 });

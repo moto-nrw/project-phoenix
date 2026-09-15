@@ -17,12 +17,14 @@ import (
 // name literally would file the wildcard ones as staff and hand out a tier the
 // running code disagrees with.
 func TestRolesBaseRoleBackfillMatchesWildcardPermissions(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	wildcardResource := ensureBackfillPermission(t, db, "users:*", "users", "*")
 	wildcardAction := ensureBackfillPermission(t, db, "*:manage", "*", "manage")

@@ -5,16 +5,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type capacityRoomRepository struct {
-	facilityModels.RoomRepository
-	room     *facilityModels.Room
+	AttendanceRooms
+	room     *SessionRoom
 	err      error
 	lockedID int64
 }
@@ -23,8 +24,8 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 	t.Parallel()
 
 	capacity := 1
-	roomRepo := &capacityRoomRepository{room: &facilityModels.Room{
-		Model:    base.Model{ID: 12},
+	roomRepo := &capacityRoomRepository{room: &SessionRoom{
+		ID:       12,
 		Name:     "Mensa",
 		Capacity: &capacity,
 	}}
@@ -34,10 +35,10 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 	groupRepo := &groupRepoForActiveWrapperTest{groups: map[int64]*activeModels.Group{
 		20: {Model: base.Model{ID: 20}, RoomID: 12},
 	}}
-	svc := &service{ServiceDependencies: ServiceDependencies{
-		RoomRepo:  roomRepo,
-		VisitRepo: visitRepo,
-		GroupRepo: groupRepo,
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
+		RoomRepo:       roomRepo,
+		SchoolPresence: visitRepo,
+		GroupRepo:      groupRepo,
 	}}
 	targetGroup := &activeModels.Group{Model: base.Model{ID: 21}, RoomID: 12}
 
@@ -45,15 +46,15 @@ func TestEnsureCapacityForStudentMoveDoesNotCountSameRoomTransfers(t *testing.T)
 		context.Background(),
 		targetGroup,
 		[]int64{30},
-		map[int64]*activeModels.Attendance{30: {}},
-		map[int64]*activeModels.Visit{30: {ActiveGroupID: 20}},
+		map[int64]studentpresence.Attendance{30: {}},
+		map[int64]*studentpresence.Visit{30: {ActiveGroupID: 20}},
 	)
 
 	require.NoError(t, err)
 	assert.Zero(t, roomRepo.lockedID)
 }
 
-func (r *capacityRoomRepository) FindByIDForUpdate(_ context.Context, id int64) (*facilityModels.Room, error) {
+func (r *capacityRoomRepository) FindByIDForUpdate(_ context.Context, id int64) (*SessionRoom, error) {
 	r.lockedID = id
 	return r.room, r.err
 }
@@ -64,11 +65,11 @@ func TestEnsureRoomCapacity(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("allows rooms without a limit", func(t *testing.T) {
-		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{Model: base.Model{ID: 12}, Name: "Turnhalle"}}
+		roomRepo := &capacityRoomRepository{room: &SessionRoom{ID: 12, Name: "Turnhalle"}}
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 200, nil
 		}}
-		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, VisitRepo: visitRepo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, RoomRepo: roomRepo, SchoolPresence: visitRepo}}
 
 		err := svc.ensureRoomCapacity(ctx, 12, 30)
 
@@ -78,11 +79,11 @@ func TestEnsureRoomCapacity(t *testing.T) {
 
 	t.Run("allows filling the last available places", func(t *testing.T) {
 		capacity := 43
-		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{Model: base.Model{ID: 12}, Name: "Mensa", Capacity: &capacity}}
+		roomRepo := &capacityRoomRepository{room: &SessionRoom{ID: 12, Name: "Mensa", Capacity: &capacity}}
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 40, nil
 		}}
-		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, VisitRepo: visitRepo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, RoomRepo: roomRepo, SchoolPresence: visitRepo}}
 
 		err := svc.ensureRoomCapacity(ctx, 12, 3)
 
@@ -91,11 +92,11 @@ func TestEnsureRoomCapacity(t *testing.T) {
 
 	t.Run("rejects a request that would exceed the limit", func(t *testing.T) {
 		capacity := 43
-		roomRepo := &capacityRoomRepository{room: &facilityModels.Room{Model: base.Model{ID: 12}, Name: "Mensa", Capacity: &capacity}}
+		roomRepo := &capacityRoomRepository{room: &SessionRoom{ID: 12, Name: "Mensa", Capacity: &capacity}}
 		visitRepo := &mockVisitRepository{countActiveByRoomIDFunc: func(context.Context, int64) (int, error) {
 			return 42, nil
 		}}
-		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: roomRepo, VisitRepo: visitRepo}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, RoomRepo: roomRepo, SchoolPresence: visitRepo}}
 
 		err := svc.ensureRoomCapacity(ctx, 12, 2)
 

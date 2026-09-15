@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,7 +39,8 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		// The German sentence travels to the UI unchanged — it is the only
 		// instruction the user gets ("in einem Moment erneut speichern").
-		assert.Equal(t, userService.ErrCompanionLockBusy.Error(), resp.ErrorText)
+		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.ErrorText)
+		assert.Equal(t, userService.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
 	})
 
 	t.Run("still a conflict when wrapped by a caller", func(t *testing.T) {
@@ -66,20 +68,21 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 	})
 }
 
-func TestDeleteStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
+func TestStudentDeletionErrorRenderer_CompanionLockBusy(t *testing.T) {
 	t.Parallel()
 
 	// Deleting a child drops its links, which takes the same far-end locks as an
 	// update — so the delete path needs the identical classification.
 	t.Run("busy lock is a retriable conflict", func(t *testing.T) {
-		resp := rendererStatus(t, deleteStudentTxErrorRenderer(userService.ErrCompanionLockBusy))
+		resp := rendererStatus(t, studentDeletionErrorRenderer(studentdeletion.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
-		assert.Equal(t, userService.ErrCompanionLockBusy.Error(), resp.ErrorText)
+		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.ErrorText)
+		assert.Equal(t, userService.ErrCompanionLockBusy.Error(), resp.ErrorText, "the workflow keeps the user-facing text of the update path")
 	})
 
 	t.Run("an unrelated error is still a server error", func(t *testing.T) {
-		resp := rendererStatus(t, deleteStudentTxErrorRenderer(errors.New("boom")))
+		resp := rendererStatus(t, studentDeletionErrorRenderer(errors.New("boom")))
 
 		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
 	})

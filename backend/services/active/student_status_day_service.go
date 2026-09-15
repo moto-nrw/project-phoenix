@@ -5,11 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/uptrace/bun"
 )
 
 // StudentStatusDayService owns status-day persistence and the absence-overview
@@ -18,24 +15,26 @@ import (
 // enrollment eligibility for each row.
 type StudentStatusDayService struct {
 	repo             activeModels.StudentStatusDayRepository
-	pickupExceptions scheduleModels.StudentPickupExceptionRepository
-	db               *bun.DB
+	pickupExceptions ManualPartialAbsenceReader
+	db               DatabaseHandle
 	now              func() time.Time
+	lockExceptionDay func(context.Context, int64, string) error
 }
 
 // NewStudentStatusDayServiceWithPartialAbsences also prevents a full-day
 // status from silently overwriting a time-specific excusal on the same date.
 func NewStudentStatusDayServiceWithPartialAbsences(
 	repo activeModels.StudentStatusDayRepository,
-	pickupExceptions scheduleModels.StudentPickupExceptionRepository,
-	db *bun.DB,
+	pickupExceptions ManualPartialAbsenceReader,
+	db DatabaseHandle,
+	lockExceptionDay func(context.Context, int64, string) error,
 	clocks ...func() time.Time,
 ) *StudentStatusDayService {
 	now := time.Now
 	if len(clocks) > 0 && clocks[0] != nil {
 		now = clocks[0]
 	}
-	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, now: now}
+	return &StudentStatusDayService{repo: repo, pickupExceptions: pickupExceptions, db: db, now: now, lockExceptionDay: lockExceptionDay}
 }
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many
@@ -74,7 +73,7 @@ func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *act
 		if s.db == nil {
 			return errors.New("student status day service database is not configured")
 		}
-		if err := careplanning.LockExceptionDay(ctx, s.db, entry.StudentID, entry.Date); err != nil {
+		if err := s.lockStatusDate(ctx, entry.StudentID, entry.Date.String()); err != nil {
 			return err
 		}
 		if err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []timezone.Date{entry.Date}); err != nil {
@@ -82,6 +81,13 @@ func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *act
 		}
 	}
 	return s.repo.UpsertReported(ctx, entry)
+}
+
+func (s *StudentStatusDayService) lockStatusDate(ctx context.Context, studentID int64, date string) error {
+	if s.lockExceptionDay == nil {
+		return errors.New("careplanning: exception-day lock is not bound for database")
+	}
+	return s.lockExceptionDay(ctx, studentID, date)
 }
 
 // MarkCleared clears a student's status for one date.

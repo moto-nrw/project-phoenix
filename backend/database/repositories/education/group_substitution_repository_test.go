@@ -25,7 +25,7 @@ func TestGroupSubstitutionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates substitution with substitute only", func(t *testing.T) {
@@ -73,7 +73,8 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	dependencies := repositories.NewUnobservedTimetableDependencies(db)
+	repo := repositories.NewFactory(db, dependencies).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	group := testpkg.CreateTestEducationGroup(t, db, "SubDelOffboard")
@@ -94,7 +95,7 @@ func TestGroupSubstitutionRepository_DeleteActiveOrFutureByStaffID(t *testing.T)
 	otherFuture := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, otherStaff.ID,
 		today.AddDays(5), today.AddDays(10))
 
-	affected, err := repo.DeleteActiveOrFutureByStaffID(ctx, staff.ID, today)
+	affected, err := dependencies.Workforce.DeleteGroupSubstitutionsForStaff(ctx, staff.ID, today.String())
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), affected)
 
@@ -117,7 +118,7 @@ func TestGroupSubstitutionRepository_BlockersExcludeLegacyPersonnelRows(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 	group := testpkg.CreateTestEducationGroup(t, db, "TypedBlockers")
 	target := testpkg.CreateTestStaff(t, db, "Typed", "Target")
@@ -138,7 +139,7 @@ func TestGroupSubstitutionRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing substitution", func(t *testing.T) {
@@ -166,7 +167,7 @@ func TestGroupSubstitutionRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates substitution reason", func(t *testing.T) {
@@ -192,7 +193,7 @@ func TestGroupSubstitutionRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing substitution", func(t *testing.T) {
@@ -220,7 +221,7 @@ func TestGroupSubstitutionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all substitutions", func(t *testing.T) {
@@ -242,7 +243,7 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists with pagination", func(t *testing.T) {
@@ -267,7 +268,7 @@ func TestGroupSubstitutionRepository_FindByGroup(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds substitutions by group ID", func(t *testing.T) {
@@ -298,7 +299,7 @@ func TestGroupSubstitutionRepository_FindActive(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active substitutions for date", func(t *testing.T) {
@@ -322,7 +323,7 @@ func TestGroupSubstitutionRepository_FindOverlapping(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds overlapping substitutions", func(t *testing.T) {
@@ -369,7 +370,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstitute(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active substitutions by substitute staff and date", func(t *testing.T) {
@@ -420,7 +421,7 @@ func TestGroupSubstitutionRepository_Create_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
@@ -452,7 +453,7 @@ func TestGroupSubstitutionRepository_Update_Validation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for nil substitution", func(t *testing.T) {
@@ -471,7 +472,7 @@ func TestGroupSubstitutionRepository_List_WithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by active status", func(t *testing.T) {
@@ -556,7 +557,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("loads relations for multiple substitutions", func(t *testing.T) {
@@ -586,7 +587,8 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 			if s.ID == sub1.ID || s.ID == sub2.ID {
 				assert.NotNil(t, s.Group, "Group should be loaded")
 				assert.NotNil(t, s.SubstituteStaff, "Substitute staff should be loaded")
-				assert.NotNil(t, s.SubstituteStaff.Person, "Staff person should be loaded")
+				// Staff.Person is attached by the substitution service through
+				// the People Directory (#2661); the repository stops at staff.
 			}
 		}
 	})
@@ -608,7 +610,7 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GroupSubstitution
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GroupSubstitution
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds active substitutions by substitute with relations", func(t *testing.T) {
@@ -628,6 +630,5 @@ func TestGroupSubstitutionRepository_FindActiveBySubstituteWithRelations(t *test
 		found := subs[0]
 		assert.NotNil(t, found.Group)
 		assert.NotNil(t, found.SubstituteStaff)
-		assert.NotNil(t, found.SubstituteStaff.Person)
 	})
 }

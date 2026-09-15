@@ -10,8 +10,7 @@ export interface UseUrlParamsOptions {
    * `useSearchParams()` itself doesn't pick up). Off by default — the two
    * current consumers (Vertretung, Dienstplan) never navigate via the
    * browser's back/forward buttons within the view, only via in-page
-   * controls that go through `updateParams`. Planned for the Betreuungsplan
-   * (docs/planung-redesign 06 §2.1).
+   * controls that go through `updateParams`.
    */
   syncPopstate?: boolean;
 }

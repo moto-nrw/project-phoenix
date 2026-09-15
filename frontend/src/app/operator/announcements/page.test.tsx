@@ -442,19 +442,18 @@ describe("OperatorAnnouncementsPage", () => {
 
     fireEvent.click(await screen.findByText("Löschen"));
 
+    // ConfirmDeleteModal (#3110) renders through the kit Modal.
     await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Ankündigung löschen" }),
+      ).toBeInTheDocument();
     });
 
-    // Cancel
-    const cancelButton = screen.getByText("Cancel");
-    if (cancelButton) {
-      fireEvent.click(cancelButton);
-    }
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
 
     await waitFor(() => {
       expect(
-        screen.queryByTestId("confirmation-modal"),
+        screen.queryByRole("heading", { name: "Ankündigung löschen" }),
       ).not.toBeInTheDocument();
     });
   });
@@ -1175,11 +1174,13 @@ describe("OperatorAnnouncementsPage", () => {
 
       fireEvent.click(await screen.findByText("Löschen"));
 
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId("confirm-button"));
+      // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ja, löschen" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig löschen" }),
+      );
 
       await waitFor(() => {
         expect(mockDelete).toHaveBeenCalledWith("1");
@@ -1206,11 +1207,13 @@ describe("OperatorAnnouncementsPage", () => {
 
       fireEvent.click(await screen.findByText("Löschen"));
 
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId("confirm-button"));
+      // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ja, löschen" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig löschen" }),
+      );
 
       await waitFor(() => {
         expect(mockToastError).toHaveBeenCalledWith(
@@ -1344,11 +1347,13 @@ describe("OperatorAnnouncementsPage", () => {
 
       fireEvent.click(await screen.findByText("Löschen"));
 
-      await waitFor(() => {
-        expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-      });
-
-      fireEvent.click(screen.getByTestId("confirm-button"));
+      // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ja, löschen" }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Endgültig löschen" }),
+      );
 
       await waitFor(() => {
         expect(mockDelete).toHaveBeenCalledWith("1");

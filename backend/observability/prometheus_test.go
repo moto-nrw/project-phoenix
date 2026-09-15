@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -15,14 +16,12 @@ type staticSSEStatsProvider struct {
 	stats SSEStats
 }
 
-func (p staticSSEStatsProvider) SnapshotStats() SSEStats {
-	return p.stats
+func (p staticSSEStatsProvider) SnapshotSSEClientsByTenant() map[int64]int {
+	return p.stats.ClientsByTenant
 }
 
-// Deliberately NOT parallel: RegisterSSEStatsProvider installs a
-// process-global provider that MetricsHandler reads on every scrape, so two
-// of these tests overwrite each other's provider.
 func TestRefreshSSEGaugesResetsDisconnectedTenants(t *testing.T) {
+	t.Parallel()
 	RegisterSSEStatsProvider(staticSSEStatsProvider{
 		stats: SSEStats{ClientsByTenant: map[int64]int{101: 2, 202: 1}},
 	})
@@ -135,6 +134,47 @@ func TestRecordUnitOfWorkEvidence(t *testing.T) {
 	assert.Equal(t, lockBefore+1, testutil.CollectAndCount(unitOfWorkLockWait))
 }
 
+func TestObserveCarePlanOperationRecordsDuplicateConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "record_care_exit_removals_test"
+	before := testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation))
+
+	ObserveCarePlanOperation(operation, time.Millisecond, 1, 0, 2, time.Millisecond, "none", nil)
+
+	assert.Equal(t, before+2, testutil.ToFloat64(carePlanDuplicateConflicts.WithLabelValues(operation)))
+}
+
+func TestObserveAppointmentsOperationRecordsDuplicatePreventionConflicts(t *testing.T) {
+	t.Parallel()
+	const operation = "cancel_appointment_occurrence"
+	before := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+
+	ObserveAppointmentsOperation(operation, time.Millisecond, 1, 0, 1, time.Millisecond, "none", nil)
+
+	after := testutil.ToFloat64(appointmentsDuplicatePreventionConflicts.WithLabelValues(operation))
+	assert.Equal(t, before+1, after)
+}
+
+func TestObserveCommunicationOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	const operation = "mark_seen_contract_test"
+	operationsBefore := testutil.ToFloat64(communicationOperations.WithLabelValues(operation, "success", "none"))
+	queriesBefore := testutil.ToFloat64(communicationQueries.WithLabelValues(operation))
+	rowsBefore := testutil.ToFloat64(communicationRows.WithLabelValues(operation))
+	conflictsBefore := testutil.ToFloat64(communicationDuplicatePreventionConflicts.WithLabelValues(operation))
+	durationsBefore := testutil.CollectAndCount(communicationDuration)
+	statementsBefore := testutil.CollectAndCount(communicationStatementDuration)
+
+	ObserveCommunicationOperation(operation, 2*time.Millisecond, 3, 1, 1, time.Millisecond, "ignored_on_success", nil)
+
+	assert.Equal(t, operationsBefore+1, testutil.ToFloat64(communicationOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, queriesBefore+3, testutil.ToFloat64(communicationQueries.WithLabelValues(operation)))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(communicationRows.WithLabelValues(operation)))
+	assert.Equal(t, conflictsBefore+1, testutil.ToFloat64(communicationDuplicatePreventionConflicts.WithLabelValues(operation)))
+	assert.Equal(t, durationsBefore+1, testutil.CollectAndCount(communicationDuration))
+	assert.Equal(t, statementsBefore+1, testutil.CollectAndCount(communicationStatementDuration))
+}
+
 func TestFeedbackHTTPResponseUsesActualStatusClassAndStableCode(t *testing.T) {
 	t.Parallel()
 	badRequestBefore := testutil.ToFloat64(feedbackHTTPResponses.WithLabelValues("iot", "4xx", "invalid_parameters"))
@@ -180,6 +220,72 @@ func TestObserveMealPlanOperationRecordsStatementDuration(t *testing.T) {
 	ObserveMealPlanOperation("replace_day", time.Millisecond, 2, 1, 3*time.Millisecond, nil)
 
 	assert.Equal(t, before+1, testutil.CollectAndCount(mealPlanStatementDuration))
+}
+
+func TestObserveOrganizationTenancyOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const operation = "soft_delete_organization"
+	successBefore := testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "error", "has_schools"))
+	statementBefore := testutil.CollectAndCount(organizationTenancyStatementDuration)
+
+	ObserveOrganizationTenancyOperation(operation, time.Millisecond, 3, 1, 2*time.Millisecond, "none", nil)
+	ObserveOrganizationTenancyOperation(operation, time.Millisecond, 2, 0, 0, "has_schools", assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(organizationTenancyOperations.WithLabelValues(operation, "error", "has_schools")))
+	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(organizationTenancyStatementDuration))
+}
+
+func TestObserveSchoolStructureOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const operation = "list_groups_by_id"
+	successBefore := testutil.ToFloat64(schoolStructureOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(schoolStructureOperations.WithLabelValues(operation, "error", "internal_error"))
+	statementBefore := testutil.CollectAndCount(schoolStructureStatementDuration)
+
+	ObserveSchoolStructureOperation(operation, time.Millisecond, 1, 4, 2*time.Millisecond, "none", nil)
+	ObserveSchoolStructureOperation(operation, time.Millisecond, 1, 0, 0, "internal_error", assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(schoolStructureOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(schoolStructureOperations.WithLabelValues(operation, "error", "internal_error")))
+	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(schoolStructureStatementDuration))
+}
+
+func TestObserveFacilitiesOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const operation = "list_rooms_by_id"
+	successBefore := testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "error", "internal_error"))
+	statementBefore := testutil.CollectAndCount(facilitiesStatementDuration)
+
+	ObserveFacilitiesOperation(operation, time.Millisecond, 1, 4, 2*time.Millisecond, "none", nil)
+	ObserveFacilitiesOperation(operation, time.Millisecond, 1, 0, 0, "internal_error", assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(facilitiesOperations.WithLabelValues(operation, "error", "internal_error")))
+	assert.Equal(t, statementBefore+1, testutil.CollectAndCount(facilitiesStatementDuration))
+}
+
+func TestObserveAuditAppendRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+
+	const eventType = "*audit.AuthEvent"
+	successBefore := testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "success"))
+	errorBefore := testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "error"))
+	rowsBefore := testutil.ToFloat64(auditRows.WithLabelValues(eventType))
+	durationBefore := testutil.CollectAndCount(auditAppendDuration)
+
+	ObserveAuditAppend(eventType, 2*time.Millisecond, 1, nil)
+	ObserveAuditAppend(eventType, time.Millisecond, 0, assert.AnError)
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "success")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(auditAppends.WithLabelValues(eventType, "error")))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(auditRows.WithLabelValues(eventType)))
+	assert.Equal(t, durationBefore+1, testutil.CollectAndCount(auditAppendDuration))
 }
 
 func TestDBStatsCollectorEmitsProviderMetrics(t *testing.T) {
@@ -233,4 +339,65 @@ func TestMain(m *testing.M) {
 func gaugeValue(t *testing.T, tenant string) float64 {
 	t.Helper()
 	return testutil.ToFloat64(sseClients.WithLabelValues(tenant))
+}
+
+func TestObservePeopleDirectoryOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	operation := "find_person"
+	successBefore := testutil.ToFloat64(peopleDirectoryOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(peopleDirectoryOperations.WithLabelValues(operation, "error", "not_found"))
+	queriesBefore := testutil.ToFloat64(peopleDirectoryQueries.WithLabelValues(operation))
+	rowsBefore := testutil.ToFloat64(peopleDirectoryRowsChanged.WithLabelValues(operation))
+
+	ObservePeopleDirectoryOperation(operation, time.Millisecond, 2, 1, time.Millisecond, "ignored", nil)
+	ObservePeopleDirectoryOperation(operation, time.Millisecond, 1, 0, 0, "not_found", errors.New("person not found"))
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(peopleDirectoryOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(peopleDirectoryOperations.WithLabelValues(operation, "error", "not_found")))
+	assert.Equal(t, queriesBefore+3, testutil.ToFloat64(peopleDirectoryQueries.WithLabelValues(operation)))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(peopleDirectoryRowsChanged.WithLabelValues(operation)))
+}
+
+func TestObservePeopleDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(peopleDirectoryHTTPResponses.WithLabelValues("4xx", "not_found"))
+
+	ObservePeopleDirectoryHTTPResponse(404, "not_found")
+
+	assert.Equal(t, before+1, testutil.ToFloat64(peopleDirectoryHTTPResponses.WithLabelValues("4xx", "not_found")))
+}
+
+func TestObserveGuardianDirectoryHTTPResponseUsesStatusClass(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(guardianDirectoryHTTPResponses.WithLabelValues("4xx", "forbidden"))
+
+	ObserveGuardianDirectoryHTTPResponse(403, "forbidden")
+
+	assert.Equal(t, before+1, testutil.ToFloat64(guardianDirectoryHTTPResponses.WithLabelValues("4xx", "forbidden")))
+}
+
+func TestObserveSchoolMembershipOperationRecordsRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	operation := "find_staff"
+	successBefore := testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "success", "none"))
+	errorBefore := testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "error", "not_found"))
+	queriesBefore := testutil.ToFloat64(schoolMembershipQueries.WithLabelValues(operation))
+	rowsBefore := testutil.ToFloat64(schoolMembershipRows.WithLabelValues(operation))
+
+	ObserveSchoolMembershipOperation(operation, time.Millisecond, 2, 1, time.Millisecond, "ignored", nil)
+	ObserveSchoolMembershipOperation(operation, time.Millisecond, 1, 0, 0, "not_found", errors.New("staff member not found"))
+
+	assert.Equal(t, successBefore+1, testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "success", "none")))
+	assert.Equal(t, errorBefore+1, testutil.ToFloat64(schoolMembershipOperations.WithLabelValues(operation, "error", "not_found")))
+	assert.Equal(t, queriesBefore+3, testutil.ToFloat64(schoolMembershipQueries.WithLabelValues(operation)))
+	assert.Equal(t, rowsBefore+1, testutil.ToFloat64(schoolMembershipRows.WithLabelValues(operation)))
+}
+
+func TestObserveSchoolMembershipHTTPResponseUsesStatusClass(t *testing.T) {
+	t.Parallel()
+	before := testutil.ToFloat64(schoolMembershipHTTPResponses.WithLabelValues("4xx", "not_found"))
+
+	ObserveSchoolMembershipHTTPResponse(404, "not_found")
+
+	assert.Equal(t, before+1, testutil.ToFloat64(schoolMembershipHTTPResponses.WithLabelValues("4xx", "not_found")))
 }

@@ -2,14 +2,16 @@
 // Refactored with extracted sub-components to reduce cognitive complexity
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { LogoutModal } from "~/components/ui/logout-modal";
+import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { useSidebarCollapsed } from "~/lib/hooks/use-sidebar-collapsed";
 import { BrandTenantSwitcher } from "~/components/tenant/tenant-switcher";
+import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import {
@@ -34,6 +36,8 @@ import {
   StudentHistoryBreadcrumb,
   StudentDetailBreadcrumb,
   StaffDetailBreadcrumb,
+  RoomDetailBreadcrumb,
+  AnnouncementDetailBreadcrumb,
   ParentChildBreadcrumb,
   PageTitleDisplay,
 } from "./header/breadcrumb-components";
@@ -87,6 +91,13 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/einstellungen" || pathname === "/school/einstellungen") {
     return "Einstellungen";
   }
+  // Tagesinformationen der OGS-Leitung (#2208).
+  if (
+    pathname === "/tagesinformationen" ||
+    pathname === "/school/tagesinformationen"
+  ) {
+    return "Tagesinformationen";
+  }
   return null;
 }
 
@@ -95,6 +106,8 @@ export function Header() {
   const {
     studentName,
     staffName,
+    roomName,
+    announcementTitle,
     referrerPage,
     activeSupervisionName,
     ogsGroupName,
@@ -102,8 +115,8 @@ export function Header() {
   } = breadcrumb;
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -113,8 +126,8 @@ export function Header() {
     routingMode,
   );
   const tenantContext = useTenantSafe();
-  // parentNav is available in every shell; only parent-mode branches read it, so
-  // the German staff/operator labels are untouched (they render the de mirror).
+  // parentNav is available in every shell. Staff/operator shells use the de
+  // mirror; the parents portal supplies its active locale.
   const tParentNav = useTranslations("parentNav");
   const pageTitle = customPageTitle ?? getPageTitle(pathname);
   const {
@@ -124,6 +137,7 @@ export function Header() {
     mode,
     homeUrl,
     profileUrl,
+    canStartStaffPreview,
   } = useShellAuth();
   // Ein-/Ausklappen der Desktop-Seitenleiste (#2825) — nur in den Portalen
   // mit einklappbarer Leiste; das Eltern- und das Schul-Portal haben eigene
@@ -180,8 +194,8 @@ export function Header() {
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (
-      matchesPathPrefix(pathname, "/parents/enroll") ||
-      matchesPathPrefix(pathname, "/enroll")
+      matchesPathPrefix(pathname, "/parents/anmeldung") ||
+      matchesPathPrefix(pathname, "/anmeldung")
     )
       return tParentNav("enroll");
     return null;
@@ -208,7 +222,9 @@ export function Header() {
             ? "Admin"
             : "Betreuer";
 
-  // Scroll effect for header shrinking (hysteresis to prevent flicker)
+  // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
+  // gegen Flackern). Die Höhe bleibt fest: der frühere Scroll-Zustand von
+  // 48px ist seit #2827 der Normalzustand.
   useEffect(() => {
     const handleScroll = () => {
       const y = globalThis.window.scrollY;
@@ -219,30 +235,6 @@ export function Header() {
     });
     return () => globalThis.window.removeEventListener("scroll", handleScroll);
   }, []);
-
-  useEffect(() => {
-    if (!isProfileMenuOpen) return;
-
-    const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (profileMenuRef.current?.contains(target)) return;
-      setIsProfileMenuOpen(false);
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsProfileMenuOpen(false);
-      }
-    };
-
-    document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isProfileMenuOpen]);
 
   // Get page type information
   const pageTypeInfo = getPageTypeInfo(pathname);
@@ -258,9 +250,19 @@ export function Header() {
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
   const displayAvatar = profile?.avatar;
+  const profileMenuLabel = tParentNav("profileMenu", { name: displayName });
   const brandLabel = mode === "teacher" ? tenantContext?.tenant?.name : null;
 
   const isSessionExpired = sessionExpired;
+
+  // Ortsangabe für Bildschirme unter md. Der Bereich der Seitenleiste steht
+  // voran, weil eine Seite wie "Vertretung" ohne ihn nicht verortet ist.
+  const mobileLocation =
+    mode === "parent"
+      ? displayedPageTitle
+      : sectionBreadcrumb
+        ? `${sectionBreadcrumb.sectionLabel} › ${sectionBreadcrumb.deepLabel ?? sectionBreadcrumb.pageLabel}`
+        : displayedPageTitle;
 
   return (
     <header
@@ -273,15 +275,11 @@ export function Header() {
       }`}
     >
       <div className="w-full px-4 sm:px-6 lg:px-8">
-        <div
-          className={`flex w-full items-center transition-[height] duration-300 ${
-            isScrolled ? "h-12 lg:h-16" : "h-14 lg:h-16"
-          }`}
-        >
+        <div className="flex h-12 w-full items-center">
           {/* Left section: Logo + Brand + Context — must be allowed to
               shrink (min-w-0) so long tenant names / breadcrumbs truncate
               instead of pushing the header past the viewport (#2011) */}
-          <div className="flex min-w-0 flex-1 items-center space-x-4">
+          <div className="flex min-w-0 flex-1 items-center space-x-3">
             {/* Seitenleisten-Toggle (#2825): erstes Element der Kopfzeile,
                 links vom Logo — die Standardposition (Gmail, GitHub) für
                 Layouts mit vollbreiter Topbar. */}
@@ -314,25 +312,26 @@ export function Header() {
               // Brand doubles as tenant switcher when the account has
               // multiple tenants; renders a plain BrandLink otherwise.
               <BrandTenantSwitcher
-                isScrolled={isScrolled}
                 href={homeUrl}
                 label={brandLabel}
+                hideLabelBelow="md"
               />
             ) : (
               <BrandLink
-                isScrolled={isScrolled}
                 href={homeUrl}
                 label={brandLabel}
-                hideLabelOnMobile={mode === "parent"}
+                hideLabelBelow={mode === "parent" ? "lg" : undefined}
               />
             )}
             <BreadcrumbDivider />
-            {/* Elternportal: Seitentitel auch auf Mobilgeräten anzeigen —
-                die Breadcrumb-Komponenten sind hidden md:flex, ohne diesen
-                Titel fehlt unterhalb md jede Ortsangabe (#Elternapp-Audit). */}
-            {mode === "parent" && (
+            {/* Ortsangabe auf dem Telefon: die Brotkrumen sind hidden md:flex,
+                und seit die Seiten keine Bereichs-Überschrift mehr tragen, wäre
+                unterhalb md sonst nirgends zu sehen, wo man ist. Im
+                Mitarbeiterportal zeigt sie den Bereich der Seitenleiste mit,
+                weil er dort die Brotkrume ersetzt. */}
+            {mobileLocation && (
               <span className="min-w-0 truncate text-sm font-semibold text-gray-900 md:hidden">
-                {displayedPageTitle}
+                {mobileLocation}
               </span>
             )}
             <HeaderBreadcrumb
@@ -340,9 +339,10 @@ export function Header() {
               pageTitle={displayedPageTitle}
               pageTypeInfo={pageTypeInfo}
               sectionBreadcrumb={sectionBreadcrumb}
-              isScrolled={isScrolled}
               studentName={studentName}
               staffName={staffName}
+              roomName={roomName}
+              announcementTitle={announcementTitle}
               referrer={referrer}
               breadcrumbLabel={breadcrumbLabel}
               historyType={historyType}
@@ -352,7 +352,7 @@ export function Header() {
           </div>
 
           {/* Right section: Actions + Profile */}
-          <div className="ml-auto flex flex-shrink-0 items-center space-x-3">
+          <div className="ml-auto flex flex-shrink-0 items-center space-x-2">
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
@@ -367,34 +367,53 @@ export function Header() {
 
             {mode === "teacher" ? <RemindersBell /> : null}
             {/* User menu */}
-            <div ref={profileMenuRef} className="relative">
-              <ProfileTrigger
-                displayName={displayName}
-                displayAvatar={displayAvatar}
-                userRole={userRole}
-                isOpen={isProfileMenuOpen}
-                compactOnTablet={mode === "parent"}
-                onClick={() => setIsProfileMenuOpen(!isProfileMenuOpen)}
-              />
-              <ProfileDropdownMenu
-                isOpen={isProfileMenuOpen}
-                displayName={displayName}
-                displayAvatar={displayAvatar}
-                userEmail={userEmail}
-                profileUrl={profileUrl}
-                profileLabel={
-                  mode === "operator"
-                    ? "Profileinstellungen"
-                    : mode === "parent"
-                      ? tParentNav("settings")
-                      : mode === "school"
-                        ? "Einstellungen"
-                        : undefined
-                }
-                onClose={() => setIsProfileMenuOpen(false)}
-                onLogout={() => setIsLogoutModalOpen(true)}
-              />
-            </div>
+            <AnchoredPopover
+              open={isProfileMenuOpen}
+              onOpenChange={setIsProfileMenuOpen}
+              ariaLabel={profileMenuLabel}
+              preferredWidth={288}
+              align="end"
+              className="border-0 bg-transparent p-0 shadow-none"
+              renderTrigger={({ ref, toggle, panelId }) => (
+                <ProfileTrigger
+                  ref={ref}
+                  menuId={panelId}
+                  ariaLabel={profileMenuLabel}
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userRole={userRole}
+                  isOpen={isProfileMenuOpen}
+                  compactOnTablet={mode === "parent"}
+                  onClick={toggle}
+                />
+              )}
+            >
+              {({ close }) => (
+                <ProfileDropdownMenu
+                  isOpen={isProfileMenuOpen}
+                  displayName={displayName}
+                  displayAvatar={displayAvatar}
+                  userEmail={userEmail}
+                  profileUrl={profileUrl}
+                  profileLabel={
+                    mode === "operator"
+                      ? "Profileinstellungen"
+                      : mode === "parent"
+                        ? tParentNav("settings")
+                        : mode === "school"
+                          ? "Einstellungen"
+                          : undefined
+                  }
+                  onClose={close}
+                  onLogout={() => setIsLogoutModalOpen(true)}
+                  onStartPreview={
+                    mode === "teacher" && canStartStaffPreview
+                      ? () => setIsPreviewModalOpen(true)
+                      : undefined
+                  }
+                />
+              )}
+            </AnchoredPopover>
           </div>
         </div>
       </div>
@@ -403,6 +422,12 @@ export function Header() {
         isOpen={isLogoutModalOpen}
         onClose={() => setIsLogoutModalOpen(false)}
       />
+      {mode === "teacher" && canStartStaffPreview && (
+        <StaffPreviewModal
+          isOpen={isPreviewModalOpen}
+          onClose={() => setIsPreviewModalOpen(false)}
+        />
+      )}
     </header>
   );
 }
@@ -437,9 +462,10 @@ interface HeaderBreadcrumbProps {
   readonly pageTitle: string;
   readonly pageTypeInfo: ReturnType<typeof getPageTypeInfo>;
   readonly sectionBreadcrumb: ReturnType<typeof getSectionBreadcrumb>;
-  readonly isScrolled: boolean;
   readonly studentName?: string;
   readonly staffName?: string;
+  readonly roomName?: string;
+  readonly announcementTitle?: string;
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly historyType: string;
@@ -452,9 +478,10 @@ function HeaderBreadcrumb({
   pageTitle,
   pageTypeInfo,
   sectionBreadcrumb,
-  isScrolled,
   studentName,
   staffName,
+  roomName,
+  announcementTitle,
   referrer,
   breadcrumbLabel,
   historyType,
@@ -463,40 +490,27 @@ function HeaderBreadcrumb({
 }: HeaderBreadcrumbProps) {
   // Gruppierte Navigationsbereiche: Datenverwaltung, Planung, Eltern
   if (sectionBreadcrumb) {
-    return <SectionBreadcrumb {...sectionBreadcrumb} isScrolled={isScrolled} />;
+    return <SectionBreadcrumb {...sectionBreadcrumb} />;
   }
 
   // OGS Groups page
   if (pathname === "/ogs-groups") {
-    return (
-      <OgsGroupsBreadcrumb groupName={ogsGroupName} isScrolled={isScrolled} />
-    );
+    return <OgsGroupsBreadcrumb groupName={ogsGroupName} />;
   }
 
   // Active Supervisions page
   if (pathname === "/active-supervisions") {
     return (
-      <ActiveSupervisionsBreadcrumb
-        supervisionName={activeSupervisionName}
-        isScrolled={isScrolled}
-      />
+      <ActiveSupervisionsBreadcrumb supervisionName={activeSupervisionName} />
     );
   }
 
   if (pageTypeInfo.isEnrollmentPage) {
-    return (
-      <EnrollmentBreadcrumb
-        current={pageTitle}
-        pathname={pathname}
-        isScrolled={isScrolled}
-      />
-    );
+    return <EnrollmentBreadcrumb current={pageTitle} pathname={pathname} />;
   }
 
   if (pathname.startsWith("/parents/children/")) {
-    return (
-      <ParentChildBreadcrumb childName={pageTitle} isScrolled={isScrolled} />
-    );
+    return <ParentChildBreadcrumb childName={pageTitle} />;
   }
 
   // enrichReferrerWithParam liest localStorage; der Aufruf steht deshalb in
@@ -513,8 +527,37 @@ function HeaderBreadcrumb({
         pathname={pathname}
         studentName={studentName ?? "…"}
         historyType={historyType}
-        isScrolled={isScrolled}
         subSectionName={subSectionName}
+      />
+    );
+  }
+
+  // Raumseite (#3115): Räume / Name, bzw. aus der Datenverwaltung heraus
+  // Datenverwaltung / Räume / Name.
+  if (pageTypeInfo.isRoomDetailPage) {
+    return (
+      <RoomDetailBreadcrumb
+        roomName={roomName ?? "…"}
+        referrer={
+          referrer.startsWith("/rooms") ||
+          referrer.startsWith("/database/rooms")
+            ? referrer
+            : "/rooms"
+        }
+      />
+    );
+  }
+
+  // Mitteilungsseite (#3115): Mitteilungen / Titel.
+  if (pageTypeInfo.isAnnouncementDetailPage) {
+    return (
+      <AnnouncementDetailBreadcrumb
+        title={announcementTitle ?? "…"}
+        referrer={
+          referrer.startsWith("/parent-announcements")
+            ? referrer
+            : "/parent-announcements"
+        }
       />
     );
   }
@@ -524,7 +567,9 @@ function HeaderBreadcrumb({
     return (
       <StaffDetailBreadcrumb
         staffName={staffName ?? "…"}
-        isScrolled={isScrolled}
+        referrer={
+          referrer.startsWith("/database/personal") ? referrer : "/staff"
+        }
       />
     );
   }
@@ -539,12 +584,11 @@ function HeaderBreadcrumb({
         referrer={enrichReferrerWithParam(referrer)}
         breadcrumbLabel={breadcrumbLabel}
         studentName={studentName ?? "…"}
-        isScrolled={isScrolled}
         subSectionName={subSectionName}
       />
     );
   }
 
   // Default: show page title
-  return <PageTitleDisplay title={pageTitle} isScrolled={isScrolled} />;
+  return <PageTitleDisplay title={pageTitle} />;
 }

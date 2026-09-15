@@ -6,33 +6,6 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GroupTransferModal } from "./group-transfer-modal";
 
-// Mock Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
-    children,
-    footer,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-    footer?: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal">
-        <h2>{title}</h2>
-        <button type="button" onClick={onClose} data-testid="modal-close">
-          Close
-        </button>
-        {children}
-        {footer}
-      </div>
-    ) : null,
-}));
-
 const mockGroup = {
   id: "1",
   name: "Gruppe A",
@@ -226,7 +199,7 @@ describe("GroupTransferModal", () => {
     });
   });
 
-  it("calls onCancelTransfer when remove button is clicked", async () => {
+  it("calls onCancelTransfer only after the confirmation", async () => {
     render(
       <GroupTransferModal
         isOpen={true}
@@ -239,11 +212,25 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    const removeButton = await screen.findByText("Entfernen");
-    fireEvent.click(removeButton);
+    // #3109: taking a handover back asks first (ConfirmationModal).
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zurücknehmen" }),
+    );
+    expect(mockOnCancelTransfer).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Übergabe zurücknehmen?" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+    );
 
     await waitFor(() => {
       expect(mockOnCancelTransfer).toHaveBeenCalledWith("s1");
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Übergabe zurücknehmen?" }),
+      ).not.toBeInTheDocument();
     });
   });
 

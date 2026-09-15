@@ -413,6 +413,8 @@ func mapCareRequestError(err error, op string) error {
 		return ErrCareRequestAlreadyPending
 	case errors.Is(err, scheduleService.ErrInvalidCareRequestPayload):
 		return ErrInvalidCareRequestPayload
+	case errors.Is(err, scheduleService.ErrPickupChangeCutoffPassed):
+		return ErrPickupChangeCutoffPassed
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)
 	}

@@ -140,7 +140,7 @@ func createTestActivityException(
 	t.Helper()
 	row := &schedule.ActivityException{
 		ActivityGroupID: activityGroupID,
-		ExceptionDate:   date,
+		ExceptionDate:   schedule.Date(date),
 		ExceptionType:   excType,
 	}
 	row.SetTenantID(testpkg.Tenant(t))
@@ -476,7 +476,7 @@ func TestExceptionConflicts_ModifiedRoomOnly_NoWarning(t *testing.T) {
 	roomID := altRoom.ID
 	row := &schedule.ActivityException{
 		ActivityGroupID: group.ID,
-		ExceptionDate:   date,
+		ExceptionDate:   schedule.Date(date),
 		ExceptionType:   schedule.ActivityExceptionModified,
 		RoomID:          &roomID,
 	}

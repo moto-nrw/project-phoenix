@@ -52,6 +52,7 @@ func NewResource(service usercontext.UserContextService, db *bun.DB) *Resource {
 	// Setup routes with proper authentication chain
 	r.router.Use(tokenAuth.Verifier())
 	r.router.Use(jwt.Authenticator)
+	r.router.Use(common.ReadOnlyPreviewMiddleware)
 	r.router.Use(jwt.TenantMiddleware)
 	r.router.Use(common.SecurityPrincipalMiddleware)
 	withTx := common.TenantTxMiddleware
@@ -278,7 +279,7 @@ func (res *Resource) getGroupVisits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render.Status(r, http.StatusOK)
-	common.RenderError(w, r, common.NewResponse(visits, "Group visits retrieved successfully"))
+	common.RenderError(w, r, common.NewResponse(groupVisitResponses(visits), "Group visits retrieved successfully"))
 }
 
 // Avatar upload constants

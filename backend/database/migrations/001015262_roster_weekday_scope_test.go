@@ -11,6 +11,7 @@ import (
 )
 
 func TestWeekdayRosterPrimarySupervisorIsScopedByCalendarPeriod(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := time.Now().UnixNano()

@@ -28,8 +28,4 @@ func TestAbsenceQueuePermissionMatchesWriteGate(t *testing.T) {
 	if !CanReviewExcusedAbsenceRequests([]string{usersAbsence, usersRead}) || !CanReviewExcusedAbsenceRequests([]string{usersUpdate}) {
 		t.Fatal("valid absence authorities must open review queue")
 	}
-	filter := AbsenceWritableStudentFilter(context.Background(), []string{usersAbsence}, &testStaffContext{present: true})
-	if filter(&testStudent{present: true}) {
-		t.Fatal("queue filter must enforce the read prerequisite")
-	}
 }

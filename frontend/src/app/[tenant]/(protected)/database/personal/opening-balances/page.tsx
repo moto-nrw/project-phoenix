@@ -1,13 +1,22 @@
 "use client";
 
 import { useCallback, useMemo, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Download,
+  ListChecks,
+  X,
+} from "lucide-react";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
 import { Alert } from "~/components/ui/alert";
-import { BackButton } from "~/components/ui/back-button";
+
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
@@ -17,19 +26,30 @@ import {
   SkeletonRegion,
   TableSkeleton,
 } from "~/components/ui/page-skeletons";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { UploadSection } from "~/components/import/upload-section";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
+import {
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
+
+const OPENING_BALANCES_DESCRIPTION =
+  "Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo, Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum Stichtag. Aus dem Resturlaub errechnet moto die vor der Einführung genommenen Urlaubstage. Pro Person ist nur eine Übernahme möglich.";
 
 const logger = createLogger({ component: "OpeningBalanceImportPage" });
 
 // Wire-Format des generischen Imports (PascalCase, siehe
 // services/import/import_service.go). Zeilen ohne Befund tauchen NICHT in
-// `Errors` auf — nur fehlerhafte und mit Hinweisen versehene Zeilen.
+// `Errors` auf, nur fehlerhafte und mit Hinweisen versehene Zeilen.
 interface ImportValidationError {
   field: string;
   message: string;
@@ -89,14 +109,14 @@ function rowStatusFor(errors: readonly ImportValidationError[]): RowStatus {
   return "ok";
 }
 
-/** Leere Zellen bedeuten „diese Seite überspringen", nicht „Null". */
+/** Leere Zellen bedeuten „diese Seite überspringen“, nicht „Null“. */
 function cellValue(raw: string | undefined): string {
   const trimmed = raw?.trim() ?? "";
   return trimmed === "" ? "–" : trimmed;
 }
 
 function toDisplayRow(row: ImportRowResult): DisplayRow {
-  const data = row.Data;
+  const data = row.Data ?? {};
   const name = `${data.first_name ?? ""} ${data.last_name ?? ""}`.trim();
   return {
     key: `row-${row.RowNumber}`,
@@ -152,7 +172,7 @@ function isSpreadsheet(file: File): boolean {
 function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
   const status = STATUS_TONE[row.status];
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
       <div className="flex items-start gap-3">
         <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-600">
           {row.isSummary ? "∑" : row.rowNumber}
@@ -170,25 +190,22 @@ function PreviewRowCard({ row }: { readonly row: DisplayRow }) {
             )}
           </div>
           {row.values.length > 0 && (
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-              {row.values.map((value) => (
-                <div key={value.label}>
-                  <dt className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
-                    {value.label}
-                  </dt>
-                  <dd className="text-sm text-gray-900 tabular-nums">
-                    {value.value}
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            <div className="mt-2">
+              <DataGrid columns={4}>
+                {row.values.map((value) => (
+                  <DataField key={value.label} label={value.label}>
+                    <span className="tabular-nums">{value.value}</span>
+                  </DataField>
+                ))}
+              </DataGrid>
+            </div>
           )}
           {row.messages.length > 0 && (
             <ul className="mt-2 space-y-0.5">
               {row.messages.map((message) => (
                 <li
                   key={message}
-                  className={`text-xs ${row.status === "error" ? "text-[#9F1F1E]" : "text-[#8A5600]"}`}
+                  className={`text-xs ${row.status === "error" ? "text-moto-red-strong" : "text-moto-orange-strong"}`}
                 >
                   {message}
                 </li>
@@ -210,7 +227,7 @@ function StatTile({
 }) {
   return (
     <div className="rounded-xl bg-gray-50 px-3 py-2.5">
-      <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase">
+      <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
         {label}
       </p>
       <p className="mt-0.5 text-xl font-semibold text-gray-900 tabular-nums">
@@ -238,6 +255,7 @@ export default function OpeningBalanceImportPage() {
   const [previewResult, setPreviewResult] = useState<ImportResult | null>(null);
   const [previewStale, setPreviewStale] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -258,6 +276,7 @@ export default function OpeningBalanceImportPage() {
     setPreviewRows([]);
     setPreviewResult(null);
     setImportResult(null);
+    setImportInterrupted(false);
     setPreviewStale(false);
   }, []);
 
@@ -376,7 +395,7 @@ export default function OpeningBalanceImportPage() {
     [paramsComplete, resetPreview, runPreview],
   );
 
-  // Stichtag und Begründung gehen in jede Buchung ein — eine Vorschau, die
+  // Stichtag und Begründung gehen in jede Buchung ein: eine Vorschau, die
   // mit anderen Werten gerechnet wurde, darf nicht bestätigt werden.
   const invalidatePreview = useCallback(() => {
     previewRequestVersion.current++;
@@ -402,6 +421,20 @@ export default function OpeningBalanceImportPage() {
       });
       const payload = (await response.json()) as Record<string, unknown>;
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(payload);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewResult(null);
+          setPreviewRows((interrupted.Errors ?? []).map(toDisplayRow));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("opening_balance_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
           (payload.error as string | undefined) ??
             (payload.message as string | undefined) ??
@@ -411,6 +444,7 @@ export default function OpeningBalanceImportPage() {
 
       const result = payload.data as ImportResult;
       setImportResult(result);
+      setImportInterrupted(false);
       setPreviewResult(null);
       setPreviewRows((result.Errors ?? []).map(toDisplayRow));
 
@@ -449,15 +483,36 @@ export default function OpeningBalanceImportPage() {
     [handleFileSelect],
   );
 
+  // Statuszeile des Seitenkopfs: der Stand des Imports.
+  const balanceResult = importResult ?? previewResult;
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importResult
+          ? importInterrupted
+            ? `${importBatchSavedCount(importResult)} gespeichert`
+            : "Übernahme abgeschlossen"
+          : `${balanceResult?.TotalRows ?? 0} ${(balanceResult?.TotalRows ?? 0) === 1 ? "Zeile" : "Zeilen"}`,
+        (!importResult || importInterrupted) &&
+        (balanceResult?.ErrorCount ?? 0) > 0
+          ? `${balanceResult?.ErrorCount} Fehler`
+          : null,
+        effectiveDate ? `Stichtag ${formatDate(effectiveDate)}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : effectiveDate
+      ? `Stichtag ${formatDate(effectiveDate)}`
+      : "Noch keine Datei gewählt";
+
   if (status === "loading") {
     return (
-      <SkeletonRegion
-        label="Eröffnungssalden-Import wird geladen"
-        className="mx-auto max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8"
-      >
-        <FormSkeleton fields={4} />
-        <TableSkeleton rows={5} columns={4} />
-      </SkeletonRegion>
+      <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+        <SkeletonRegion label="Eröffnungssalden-Import wird geladen">
+          <FormSkeleton fields={4} />
+          <TableSkeleton rows={5} columns={4} />
+        </SkeletonRegion>
+      </TenantPage>
     );
   }
 
@@ -477,66 +532,43 @@ export default function OpeningBalanceImportPage() {
     : `${importable} ${importable === 1 ? "Übernahme" : "Übernahmen"} buchen`;
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
-      <BackButton referrer="/database/personal" />
-
-      <header>
-        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
-          Datenverwaltung
-        </p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-900 sm:text-3xl">
-          Eröffnungssalden importieren
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-gray-600">
-          Übernimmt die Stände aus dem Altsystem: Stundenkonto-Saldo,
-          Urlaubsanspruch samt Vorjahresübertrag und den Resturlaub zum
-          Stichtag. Aus dem Resturlaub errechnet moto die vor der Einführung
-          genommenen Urlaubstage. Pro Person ist nur eine Übernahme möglich.
-        </p>
-      </header>
+    <TenantPage title="Eröffnungssalden" stats={statusLine} back>
+      {/* Der Erklärtext steht auf einer Fläche, nicht auf dem gemusterten
+          Grund (BAUARTEN-SPEC, Teil 3). */}
+      <SectionCard>
+        <p className="text-sm text-gray-600">{OPENING_BALANCES_DESCRIPTION}</p>
+      </SectionCard>
 
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
-          <button
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="absolute top-1/2 right-4 -translate-y-1/2 text-gray-500 hover:text-gray-800"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
+            <X className="h-4 w-4" aria-hidden="true" />
+          </Button>
         </div>
       )}
 
-      {/* Schritt 1 — Vorlage */}
-      <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900">
-          Schritt 1: Vorlage herunterladen
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Spalten: <span className="font-medium">Personalnummer</span>{" "}
-          (optional), <span className="font-medium">Vorname</span>,{" "}
-          <span className="font-medium">Nachname</span>,{" "}
-          <span className="font-medium">Stundensaldo</span>,{" "}
-          <span className="font-medium">Jahresanspruch</span>,{" "}
-          <span className="font-medium">Vorjahresübertrag</span>,{" "}
-          <span className="font-medium">Resturlaub</span>. Eine leere Zelle
-          lässt die jeweilige Seite unangetastet.
-        </p>
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-end">
+      {/* Schritt 1: Vorlage */}
+      <SectionCard
+        title="Vorlage herunterladen"
+        description="Spalten: Personalnummer (optional), Vorname, Nachname, Stundensaldo, Jahresanspruch, Vorjahresübertrag, Resturlaub. Eine leere Zelle lässt die jeweilige Seite unangetastet."
+        icon={Download}
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
           <div className="sm:w-64">
             <label
               id="template-format-label"
@@ -560,24 +592,20 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="outline"
             size="md"
-            className="h-9"
             onClick={() => void handleDownloadTemplate()}
           >
             Vorlage herunterladen
           </Button>
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Schritt 2 — Stichtag und Begründung */}
-      <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-        <h2 className="text-sm font-semibold text-gray-900">
-          Schritt 2: Stichtag und Begründung
-        </h2>
-        <p className="mt-1 text-sm text-gray-600">
-          Beides gilt für die ganze Datei und wird an jeder Buchung
-          protokolliert.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      {/* Schritt 2: Stichtag und Begründung */}
+      <SectionCard
+        title="Stichtag und Begründung"
+        description="Beides gilt für die ganze Datei und wird an jeder Buchung protokolliert."
+        icon={CalendarDays}
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
           <ISODatePicker
             id="opening-balance-effective-date"
             label="Stichtag"
@@ -603,9 +631,9 @@ export default function OpeningBalanceImportPage() {
             }}
           />
         </div>
-      </section>
+      </SectionCard>
 
-      {/* Schritt 3 — Datei */}
+      {/* Schritt 3: Datei */}
       <UploadSection
         title="Schritt 3: Datei hochladen"
         isDragging={isDragging}
@@ -630,31 +658,26 @@ export default function OpeningBalanceImportPage() {
       />
 
       {previewStale && uploadedFile !== null && (
-        <section className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-          <p className="text-sm text-gray-600">
-            Stichtag oder Begründung wurden geändert. Die Vorschau muss mit den
-            neuen Angaben neu erstellt werden.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            className="h-9"
-            disabled={!paramsComplete || isLoading}
-            onClick={() => void runPreview(uploadedFile)}
-          >
-            Vorschau erneut erstellen
-          </Button>
-        </section>
+        <SectionCard
+          description="Stichtag oder Begründung wurden geändert. Die Vorschau muss mit den neuen Angaben neu erstellt werden."
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              disabled={!paramsComplete || isLoading}
+              onClick={() => void runPreview(uploadedFile)}
+            >
+              Vorschau erneut erstellen
+            </Button>
+          }
+        />
       )}
 
-      {/* Schritt 4 — Vorschau */}
+      {/* Schritt 4: Vorschau */}
       {showPreview && previewResult && (
-        <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Schritt 4: Vorschau prüfen
-          </h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <SectionCard title="Vorschau prüfen" icon={ListChecks}>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={previewResult.TotalRows} />
             <StatTile label="Übernehmbar" value={importable} />
             <StatTile label="Hinweise" value={previewResult.WarningCount} />
@@ -678,25 +701,41 @@ export default function OpeningBalanceImportPage() {
               ))
             )}
           </div>
-        </section>
+        </SectionCard>
       )}
 
       {/* Ergebnis */}
       {importResult && (
-        <section className="moto-content-surface rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
-          <h2 className="text-sm font-semibold text-gray-900">
-            Import abgeschlossen
-          </h2>
-          <div className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+        <SectionCard
+          title={
+            importInterrupted
+              ? "Import nicht vollständig"
+              : "Import abgeschlossen"
+          }
+          icon={importInterrupted ? AlertTriangle : CheckCircle2}
+          actions={
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={resetAll}
+            >
+              Weitere Datei importieren
+            </Button>
+          }
+        >
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             <StatTile label="Zeilen" value={importResult.TotalRows} />
             <StatTile label="Übernommen" value={importResult.CreatedCount} />
-            <StatTile label="Hinweise" value={importResult.WarningCount} />
+            <StatTile label="Hinweise" value={importResult.WarningCount ?? 0} />
             <StatTile label="Fehler" value={importResult.ErrorCount} />
           </div>
           {previewRows.length > 0 && (
             <>
               <p className="mt-3 text-sm text-gray-600">
-                Diese Zeilen wurden übersprungen oder tragen Hinweise:
+                {importInterrupted
+                  ? "Diese Zeile hat den Rest angehalten:"
+                  : "Diese Zeilen wurden übersprungen oder tragen Hinweise:"}
               </p>
               <div className="mt-2 space-y-2">
                 {previewRows.map((row) => (
@@ -705,18 +744,20 @@ export default function OpeningBalanceImportPage() {
               </div>
             </>
           )}
-          <div className="mt-4">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              className="h-9"
-              onClick={resetAll}
-            >
-              Weitere Datei importieren
-            </Button>
-          </div>
-        </section>
+          {importInterrupted && (
+            <div className="mt-4">
+              <Button
+                type="button"
+                variant="success"
+                size="md"
+                disabled={isImporting}
+                onClick={() => void handleImport()}
+              >
+                {isImporting ? "Wird übernommen…" : "Erneut versuchen"}
+              </Button>
+            </div>
+          )}
+        </SectionCard>
       )}
 
       {showPreview && previewRows.length > 0 && (
@@ -725,7 +766,7 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="outline"
             size="md"
-            className="h-9 flex-1"
+            className="flex-1"
             onClick={resetAll}
           >
             Abbrechen
@@ -734,7 +775,7 @@ export default function OpeningBalanceImportPage() {
             type="button"
             variant="success"
             size="md"
-            className="h-9 flex-1"
+            className="flex-1"
             disabled={importable === 0 || isImporting}
             onClick={() => void handleImport()}
           >
@@ -742,6 +783,6 @@ export default function OpeningBalanceImportPage() {
           </Button>
         </div>
       )}
-    </main>
+    </TenantPage>
   );
 }

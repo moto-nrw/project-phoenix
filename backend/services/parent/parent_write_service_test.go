@@ -2,6 +2,7 @@ package parent_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -18,8 +19,10 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/services"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -74,14 +77,24 @@ func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 	_ context.Context,
 	report notificationsService.AbsenceReport,
-) {
+) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
-func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
+func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool, reportFlags ...map[string]bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
+	values := map[string]bool{
+		configModels.KeyParentSickNoteEnabled: sickEnabled,
+		configModels.KeyParentNotesEnabled:    notesEnabled,
+	}
+	for _, flags := range reportFlags {
+		for key, value := range flags {
+			values[key] = value
+		}
+	}
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -89,10 +102,7 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 		StudentRepo:         repos.Student,
 		PickupExceptionRepo: repos.StudentPickupException,
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled: sickEnabled,
-				configModels.KeyParentNotesEnabled:    notesEnabled,
-			},
+			boolValues: values,
 			stringValues: map[string]string{
 				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
 			},
@@ -108,7 +118,7 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentServ
 func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
@@ -129,6 +139,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (p
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       repos.ParentMessage,
 		MessageReadRepo:   repos.ParentMessageRead,
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, bc, slog.Default()),
 		DB:                db,
 		Logger:            slog.Default(),
 	})
@@ -351,7 +362,7 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	t.Parallel()
 
 	svc, _, db := buildWriteService(t, true, true)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
 
@@ -360,7 +371,7 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	staffID := staff.ID
 	pickup := &scheduleModels.StudentPickupException{
 		StudentID:             chain.StudentID,
-		ExceptionDate:         date,
+		ExceptionDate:         scheduleModels.Date(date),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,
@@ -389,7 +400,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	parentLocked := make(chan struct{})
@@ -417,8 +428,8 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		Logger:      slog.Default(),
 	})
 
-	statusSvc := activeService.NewStudentStatusDayServiceWithPartialAbsences(repos.StudentStatusDay, nil, nil)
-	studentSvc := usersService.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion, nil)
+	statusSvc := activeService.NewStudentStatusDayServiceWithPartialAbsences(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
+	studentSvc := usersService.NewStudentService(repos.Student, repositories.NewStudentPrivacyConsentStore(db), repos.StudentCompanion, nil)
 	staffAttempted := make(chan struct{})
 	staffStudentSvc := &signalingStudentService{StudentService: studentSvc, attempted: staffAttempted}
 	date := timezone.NewDate(2026, 8, 24).AddDays(40)
@@ -443,8 +454,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		staffResult <- statusSvc.CreateForDates(testpkg.TenantContext(chain.TenantID), activeService.StatusDayWriteContext{
 			DB:             db,
 			TenantID:       chain.TenantID,
-			StudentService: staffStudentSvc,
-			Authorize:      func(context.Context, *userModels.Student) bool { return true },
+			StudentService: services.StatusDayStudents(staffStudentSvc, services.AllowAllStatusDayWrites),
 			AfterCommit:    func(int64) {},
 		}, chain.StudentID, activeModels.StudentStatusDayExcused, "Termin", []timezone.Date{date})
 	}()
@@ -557,7 +567,7 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	ctx := testpkg.TenantContext(chain.TenantID)
 	date := timezone.NewDate(2026, 8, 24).AddDays(7)
 	require.NoError(t, statusRepo.UpsertReported(ctx, &activeModels.StudentStatusDay{
@@ -700,7 +710,7 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	tctx := testpkg.Ctx(t)
 
 	base := timezone.NewDate(2026, 8, 24).AddDays(7)
@@ -829,7 +839,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	statusRepo := repositories.NewFactory(db).StudentStatusDay
+	statusRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentStatusDay
 	tctx := testpkg.Ctx(t)
 
 	staffExcusedDay := timezone.NewDate(2026, 8, 24).AddDays(2)
@@ -864,6 +874,49 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 }
 
 // --- ChildFeatures ---
+
+func TestParentReportKindsAreIndependent(t *testing.T) {
+	t.Parallel()
+	for _, sickEnabled := range []bool{false, true} {
+		for _, excusedEnabled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("sick=%t/excused=%t", sickEnabled, excusedEnabled), func(t *testing.T) {
+				t.Parallel()
+				ctx := testpkg.OwnCtx(t)
+				svc, _, db := buildWriteService(t, true, true, map[string]bool{
+					configModels.KeyParentSickReportsEnabled:    sickEnabled,
+					configModels.KeyParentExcusedReportsEnabled: excusedEnabled,
+				})
+				chain := testpkg.CreateTestParentGuardianChain(t, db)
+				flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)
+				require.NoError(t, err)
+				assert.Equal(t, sickEnabled, flags.SickNoteEnabled)
+				assert.Equal(t, excusedEnabled, flags.ExcusedNoteEnabled)
+				for index, report := range []struct {
+					status  string
+					enabled bool
+				}{
+					{activeModels.StudentStatusDaySick, sickEnabled},
+					{activeModels.StudentStatusDayExcused, excusedEnabled},
+				} {
+					result, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID, []timezone.Date{timezone.TodayDate().AddDays(index)}, "Testmeldung", report.status, nil)
+					if report.enabled {
+						require.NoError(t, err)
+						require.Len(t, result.StatusDays, 1)
+						assert.Equal(t, activeModels.StudentStatusSourceParent, result.StatusDays[0].Source)
+					} else {
+						require.ErrorIs(t, err, parentService.ErrSickNoteDisabled)
+						assert.Nil(t, result)
+					}
+				}
+				for _, table := range []string{"active.attendance", "active.visits"} {
+					count, err := db.NewSelect().TableExpr(table).Where("student_id = ?", chain.StudentID).Count(ctx)
+					require.NoError(t, err)
+					assert.Zero(t, count, "parent reports must not create actual attendance or room check-ins")
+				}
+			})
+		}
+	}
+}
 
 func TestChildFeatures_ReflectsTenantSettings(t *testing.T) {
 	t.Parallel()

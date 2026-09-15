@@ -6,11 +6,14 @@ package auth_test
 
 import (
 	"context"
+	"log/slog"
 	"net"
 	"testing"
+	"time"
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -119,20 +122,25 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(portalBindingJWTSecret)
 	require.NoError(t, err)
+	mailer := testpkg.NewCapturingMailer()
+	dispatcher := email.NewDispatcher(mailer, slog.Default())
+	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
 	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:     repos,
-		TokenAuth: tokenAuth,
-		JWTSecret: portalBindingJWTSecret,
-		DB:        db,
+		Repos:       repos,
+		TokenAuth:   tokenAuth,
+		Dispatcher:  dispatcher,
+		DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
+		FrontendURL: "https://moto.test/",
+		JWTSecret:   portalBindingJWTSecret,
+		DB:          db,
 	})
 	require.NoError(t, err)
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-portal-binding")
 	accountID := account.ID
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, accountID) })
 
 	tenantID, _ := newSchoolTenant(t, db)
 	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)

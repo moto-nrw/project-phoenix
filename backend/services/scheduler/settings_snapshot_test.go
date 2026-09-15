@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,23 +17,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-type schedulerSettingQueryCounter struct {
-	count atomic.Int32
-}
-
-func (c *schedulerSettingQueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	query := strings.ToLower(event.Query)
-	if strings.HasPrefix(strings.TrimSpace(query), "select") &&
-		strings.Contains(query, "config.setting_values") {
-		c.count.Add(1)
-	}
-	return ctx
-}
-
-func (*schedulerSettingQueryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
 
 func TestSchedulerPollingSettingKeysAreRegisteredUniqueAndNonSecret(t *testing.T) {
 	t.Parallel()
@@ -67,11 +50,10 @@ func TestSchedulerPollingSettingKeysIncludeAutoEndSettings(t *testing.T) {
 	assert.Contains(t, schedulerPollingSettingKeys, configModel.KeyTimetableAutoEndGraceMinutes)
 }
 
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
@@ -85,17 +67,19 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 		settings:   settings,
 		done:       make(chan struct{}),
 		logger:     slog.Default()})
+	runtime := testpkg.TenantRuntime(t, db)
+	scheduler.tenantRuntime = runtime
 
-	counter := &schedulerSettingQueryCounter{}
-	db.AddQueryHook(counter)
+	counter := testpkg.CaptureQueries(t, db)
 
 	snapshot, err := scheduler.loadMinuteSnapshot(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, snapshot)
 	assert.Contains(t, snapshot.tenantIDs, tenantA)
 	assert.Contains(t, snapshot.tenantIDs, tenantB)
-	assert.Equal(t, int32(1), counter.count.Load(),
-		"one scheduler minute must issue one config.setting_values SELECT for all active tenants")
+	// One scheduler minute issues one config.setting_values SELECT for all active tenants.
+	testpkg.AssertQueryBudget(t, "services.scheduler.minute_snapshot.setting_values",
+		counter.Selects("config.setting_values"))
 }
 
 func TestGetMinuteSnapshotCoalescesConcurrentLoads(t *testing.T) {

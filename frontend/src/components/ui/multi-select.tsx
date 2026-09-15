@@ -115,7 +115,7 @@ export function MultiSelect({
       triggerRole="button"
       testId={testId}
       className={`${TRIGGER_BASE_CLASS} ${triggerClassName ?? DEFAULT_TRIGGER_CLASS} ${className}`}
-      menuClassName={`scrollbar-thin overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${menuClassName}`}
+      menuClassName={`scrollbar-thin overflow-y-auto moto-popover-surface rounded-xl border py-1 ${menuClassName}`}
       optionClassName="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
       activeOptionClassName="flex w-full items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors"
       disabledOptionClassName="flex w-full cursor-not-allowed items-center gap-2 px-4 py-2 text-left text-sm text-gray-400 transition-colors"

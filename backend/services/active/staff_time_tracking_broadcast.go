@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 )
 
-func queueStaffTimeTrackingChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger) {
-	realtime.QueueStaffTimeTrackingChanged(ctx, broadcaster, logger)
+func queueStaffTimeTrackingChanged(ctx context.Context, broadcaster EventPublisher, logger *slog.Logger) {
+	realtimeevents.QueueStaffTimeTrackingChanged(ctx, broadcaster, logger)
 }

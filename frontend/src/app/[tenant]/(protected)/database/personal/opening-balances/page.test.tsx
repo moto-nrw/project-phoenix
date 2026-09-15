@@ -131,13 +131,13 @@ describe("OpeningBalanceImportPage", () => {
     render(<OpeningBalanceImportPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Eröffnungssalden importieren" }),
+      screen.getByRole("heading", { name: "Eröffnungssalden" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Schritt 1: Vorlage herunterladen"),
+      screen.getByRole("heading", { name: "Vorlage herunterladen" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Schritt 2: Stichtag und Begründung"),
+      screen.getByRole("heading", { name: "Stichtag und Begründung" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Schritt 3: Datei hochladen")).toBeInTheDocument();
   });
@@ -151,7 +151,9 @@ describe("OpeningBalanceImportPage", () => {
     global.URL.revokeObjectURL = vi.fn();
 
     render(<OpeningBalanceImportPage />);
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Vorlage herunterladen" }),
+    );
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -307,5 +309,70 @@ describe("OpeningBalanceImportPage", () => {
       );
     });
     expect(screen.getByText("Import abgeschlossen")).toBeInTheDocument();
+  });
+
+  it("zeigt gespeicherte Zeilen und die blockierende Zeile bei import_batch_failed", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce(previewResponse())
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Import fehlgeschlagen",
+            code: "import_batch_failed",
+            details: {
+              result: {
+                TotalRows: 205,
+                CreatedCount: 100,
+                UpdatedCount: 0,
+                ErrorCount: 1,
+                WarningCount: 0,
+                Errors: [
+                  {
+                    RowNumber: 152,
+                    Data: {
+                      personnel_number: "1003",
+                      first_name: "Clara",
+                      last_name: "Weber",
+                    },
+                    Errors: [
+                      {
+                        field: "create",
+                        message: "Anlegen fehlgeschlagen",
+                        code: "creation_failed",
+                        severity: "error",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+    render(<OpeningBalanceImportPage />);
+    fillParams();
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("2 Übernahmen buchen")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("2 Übernahmen buchen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/100 Zeilen sind gespeichert/),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Zeile 152 hat den Rest angehalten/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Import nicht vollständig")).toBeInTheDocument();
+    expect(screen.getByText("Clara Weber")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut versuchen" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("Import abgeschlossen")).not.toBeInTheDocument();
   });
 });

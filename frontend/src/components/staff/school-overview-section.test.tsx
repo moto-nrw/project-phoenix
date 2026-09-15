@@ -74,9 +74,9 @@ describe("SchoolOverviewSection", () => {
       },
     );
 
-    const weekTab = screen.getByRole("tab", { name: "Woche" });
+    const weekTab = screen.getByRole("button", { name: "Woche" });
     fireEvent.pointerDown(weekTab, { button: 0, pointerType: "mouse" });
-    fireEvent.mouseDown(weekTab, { button: 0 });
+    fireEvent.click(weekTab);
     fireEvent.click(weekTab);
 
     expect(useSWRAuth).toHaveBeenLastCalledWith(
@@ -128,9 +128,9 @@ describe("SchoolOverviewSection", () => {
 
     expect(screen.getByTitle(/Summe der Monatssalden/)).toBeInTheDocument();
 
-    const weekTab = screen.getByRole("tab", { name: "Woche" });
+    const weekTab = screen.getByRole("button", { name: "Woche" });
     fireEvent.pointerDown(weekTab, { button: 0, pointerType: "mouse" });
-    fireEvent.mouseDown(weekTab, { button: 0 });
+    fireEvent.click(weekTab);
     fireEvent.click(weekTab);
 
     expect(

@@ -42,11 +42,11 @@ func TestNormalizeSickReason(t *testing.T) {
 // --- staff sick reason round-trip via status-days ---
 
 func newStaffNotesResource(db *bun.DB) *Resource {
-	rf := repositories.NewFactory(db)
+	rf := newStudentTestRepositories(db)
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
-		StudentService:          usersSvc.NewStudentService(rf.Student, rf.PrivacyConsent, rf.StudentCompanion, nil),
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil),
+		StudentService:          usersSvc.NewStudentService(rf.Student, repositories.NewStudentPrivacyConsentStore(db), rf.StudentCompanion, nil),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),
 		DB:                      db,
 	})

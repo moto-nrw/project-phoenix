@@ -1,19 +1,17 @@
 "use client";
 
-import {
-  useState,
-  useEffect,
-  useMemo,
-  Suspense,
-  useCallback,
-  useRef,
-} from "react";
+import { useState, useEffect, useMemo, Suspense, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
-import { EmptyState } from "~/components/ui/empty-state";
+import { CollectionGrid } from "~/components/ui/collection-grid";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { TileCard } from "~/components/ui/tile-card";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type {
   FilterConfig,
   ActiveFilter,
@@ -39,8 +37,6 @@ import { SectionHeader } from "~/components/ui/concept-section-header";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
-import { RoomDetailModal } from "~/components/rooms/room-detail-modal";
-import { TRANSIT_ROOM_ID } from "~/components/rooms/room-detail-modal";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
 import type { DashboardAnalytics } from "~/lib/dashboard-helpers";
 import {
@@ -66,24 +62,19 @@ interface Room {
   studentCount?: number;
 }
 
+/** Die Sammlung dieser Seite, für den Rückweg aus der Raumseite (`?from=`). */
+const COLLECTION_PATH = "/rooms";
+const TRANSIT_PATH = "/rooms/unterwegs";
+
 function TransitAssignmentCard({
   count,
-  onOpen,
-  buttonRef,
+  href,
 }: {
   readonly count: number;
-  readonly onOpen: () => void;
-  readonly buttonRef: (node: HTMLButtonElement | null) => void;
+  readonly href: string;
 }) {
   return (
-    <button
-      type="button"
-      ref={buttonRef}
-      onClick={onOpen}
-      aria-haspopup="dialog"
-      aria-controls="room-detail-panel"
-      className="group moto-content-surface moto-hover-elevated mb-5 flex w-full items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus:ring-2 focus:ring-gray-300 focus:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)] sm:p-5"
-    >
+    <TileCard href={href} className="flex items-center justify-between gap-4">
       <SectionHeader
         className="min-w-0 flex-1"
         title="Unterwegs"
@@ -101,7 +92,7 @@ function TransitAssignmentCard({
           </span>
         }
       />
-    </button>
+    </TileCard>
   );
 }
 
@@ -113,19 +104,15 @@ function RoomsPageContent() {
     },
   });
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
-  // ?room={id} drives the detail modal so deep links work and the back
-  // button closes the overlay. Same convention as /database/* pages.
-  const selectedRoomId = searchParams.get("room");
-
   // Filters are local React state for snappy UI, but their initial
   // value comes from the URL so they SURVIVE a remount when the user
-  // drills through /students/X and returns with browser back. The student page's
-  // BackButton pushes back to /rooms with the params we tucked into
-  // ?from= (see students-in-room-section.tsx), so on remount the URL
-  // re-hydrates the React state.
+  // drills through /rooms/X or /students/X and returns with browser back.
+  // The object pages push back to /rooms with the params we tucked into
+  // ?from=, so on remount the URL re-hydrates the React state.
   const [searchTerm, setSearchTerm] = useState(
     () => searchParams.get("search") ?? "",
   );
@@ -138,28 +125,12 @@ function RoomsPageContent() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const [isMobile, setIsMobile] = useState(false);
-
-  // Handle mobile detection
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
-
   // Mirror local filter state into the URL so the current history entry
-  // always reflects the user's view. Without this, typing a filter while
-  // the URL is bare /rooms means closing a just-opened room modal pops
-  // back to a URL that never carried those filters. They would survive
-  // in React state for now, but a refresh, share, or future remount
-  // would silently drop them. router.replace keeps the entry count
-  // unchanged, so handleSelectRoom's push and handleCloseDetail's
-  // router.back() still work as documented. The early-return guards
-  // against the searchParams → updateUrlParams identity churn that
-  // would otherwise re-fire this effect after each replace.
+  // always reflects the user's view: a refresh, a shared link or the way
+  // back from a room page lands on the same narrowed grid. router.replace
+  // keeps the entry count unchanged. The early-return guards against the
+  // searchParams → updateUrlParams identity churn that would otherwise
+  // re-fire this effect after each replace.
   useEffect(() => {
     const currentSearch = searchParams.get("search") ?? "";
     const currentBuilding = searchParams.get("building") ?? "all";
@@ -298,90 +269,23 @@ function RoomsPageContent() {
     [exportRoomIds],
   );
 
-  // Track whether the click handler just pushed an entry. Used by the
-  // effect below to stamp a marker into the resulting history entry.
-  const justPushedRef = useRef(false);
-  const roomCardRefs = useRef(new Map<string, HTMLButtonElement>());
-  const pendingFocusRoomIdRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const roomIdToFocus = pendingFocusRoomIdRef.current;
-    if (selectedRoomId || !roomIdToFocus) return;
-    pendingFocusRoomIdRef.current = null;
-    window.requestAnimationFrame(() => {
-      roomCardRefs.current.get(roomIdToFocus)?.focus();
-    });
-  }, [selectedRoomId]);
-
-  // Open the detail modal by pushing ?room={id} as a NEW history entry
-  // (not replace), so the browser Back button closes the overlay
-  // instead of skipping past the rooms page. Bake the current filter
-  // state into the URL so it survives the round-trip through a child's
-  // detail page (student-card click → /students/X → back).
-  const handleSelectRoom = useCallback(
-    (room: Room) => {
-      const next = new URLSearchParams(searchParams.toString());
-      if (searchTerm) next.set("search", searchTerm);
-      else next.delete("search");
-      if (buildingFilter !== "all") next.set("building", buildingFilter);
-      else next.delete("building");
-      if (occupiedFilter !== "all") next.set("status", occupiedFilter);
-      else next.delete("status");
-      next.set("room", room.id);
-      justPushedRef.current = true;
-      router.push(`/rooms?${next.toString()}`);
-    },
-    [router, searchParams, searchTerm, buildingFilter, occupiedFilter],
-  );
-
-  const handleSelectTransitRoom = useCallback(() => {
-    const next = new URLSearchParams(searchParams.toString());
+  // Der Rückweg trägt die Filter mit, damit „Zurück" aus der Raumseite
+  // dieselbe eingegrenzte Übersicht zeigt, die man verlassen hat.
+  const fromReferrer = useMemo(() => {
+    const next = new URLSearchParams();
     if (searchTerm) next.set("search", searchTerm);
-    else next.delete("search");
     if (buildingFilter !== "all") next.set("building", buildingFilter);
-    else next.delete("building");
     if (occupiedFilter !== "all") next.set("status", occupiedFilter);
-    else next.delete("status");
-    next.set("room", TRANSIT_ROOM_ID);
-    justPushedRef.current = true;
-    router.push(`/rooms?${next.toString()}`);
-  }, [router, searchParams, searchTerm, buildingFilter, occupiedFilter]);
-
-  // After router.push commits, mark the now-current history entry as
-  // "we pushed this". Stored in window.history.state so it survives
-  // page remounts, for example when the user drills through /students/X and
-  // returns via browser back, the marker is still there even though
-  // the React component was unmounted in between.
-  useEffect(() => {
-    if (!justPushedRef.current || typeof window === "undefined") return;
-    justPushedRef.current = false;
-    window.history.replaceState(
-      { ...(window.history.state ?? {}), roomModalPushed: true },
-      "",
-    );
-  }, [searchParams]);
-
-  // Close by POPPING the modal entry rather than replacing in place.
-  // Replace would leave two consecutive /rooms entries in history, so
-  // the first browser Back after closing would appear to do nothing.
-  // Fall back to replace only when there's no in-app entry to pop
-  // (e.g. user landed directly on /rooms?room=… via a deep link, or
-  // got here from the student page's in-app back which pushed a fresh
-  // untagged entry).
-  const handleCloseDetail = useCallback(() => {
-    pendingFocusRoomIdRef.current = selectedRoomId;
-    const state = typeof window !== "undefined" ? window.history.state : null;
-    const wasPushedByUs =
-      state &&
-      typeof state === "object" &&
-      "roomModalPushed" in state &&
-      (state as { roomModalPushed?: unknown }).roomModalPushed === true;
-    if (wasPushedByUs) {
-      router.back();
-    } else {
-      updateUrlParams({ room: null });
-    }
-  }, [router, selectedRoomId, updateUrlParams]);
+    const query = next.toString();
+    return query ? `${COLLECTION_PATH}?${query}` : COLLECTION_PATH;
+  }, [buildingFilter, occupiedFilter, searchTerm]);
+  // Jede Kachel führt auf die Raumseite: eine Objektansicht je Typ, immer auf
+  // demselben Weg (BAUARTEN-SPEC Bauart 1 Regel 2, #3115).
+  const roomHref = useCallback(
+    (roomId: string) =>
+      tenantPath(`/rooms/${roomId}?from=${encodeURIComponent(fromReferrer)}`),
+    [fromReferrer, tenantPath],
+  );
 
   // Get unique values for filters
   const uniqueBuildings = useMemo(() => {
@@ -508,46 +412,68 @@ function RoomsPageContent() {
   // redirects on unauthenticated.
   const showSkeleton = status === "loading" || loading;
 
+  // Leerzustand kommt aus dem Gerüst (`empty`), nicht als handgebauter
+  // Block im Inhalt. Er bleibt aus, solange die Übergangsliste steht: dann
+  // ist die Seite nicht leer.
+  const hasActiveFilters =
+    searchTerm !== "" || buildingFilter !== "all" || occupiedFilter !== "all";
+  const resetFilters = useCallback(() => {
+    setSearchTerm("");
+    setBuildingFilter("all");
+    setOccupiedFilter("all");
+  }, []);
+  const emptyState =
+    !showSkeleton &&
+    !showTransitAssignment &&
+    !exportError &&
+    filteredRooms.length === 0
+      ? hasActiveFilters
+        ? {
+            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            title: "Keine Räume gefunden",
+            description:
+              "Zu Suche und Filtern passt kein Raum. Setzen Sie die Filter zurück, um alle Räume zu sehen.",
+            action: (
+              <Button type="button" size="md" onClick={resetFilters}>
+                Filter zurücksetzen
+              </Button>
+            ),
+          }
+        : {
+            icon: <MotoConceptIcon concept="rooms" size={48} />,
+            title: "Keine Räume gefunden",
+            description:
+              "Für diese Schule ist noch kein Raum angelegt. Räume legen Sie in der Datenverwaltung an.",
+          }
+      : null;
+
+  // Statuszeile unter dem Seitentitel, allein aus der geladenen Raumliste.
+  const roomSummary = (() => {
+    const rooms = roomsData ?? [];
+    const occupied = rooms.filter((room) => room.isOccupied).length;
+    return `${rooms.length} ${rooms.length === 1 ? "Raum" : "Räume"} · ${occupied} belegt`;
+  })();
+
   return (
-    <div className="-mt-1.5 w-full">
-      {/* PageHeaderWithSearch - Title only on mobile */}
-      <PageHeaderWithSearch
-        title={isMobile ? "Räume" : ""}
-        badge={
-          showSkeleton
-            ? undefined
-            : {
-                icon: <MotoConceptIcon concept="rooms" size={20} />,
-                count: filteredRooms.length,
-                label: "Räume",
-              }
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: "Raum suchen...",
-        }}
-        filters={filterConfigs}
-        activeFilters={activeFilters}
-        overflowMenu={overflowItems}
-        onClearAllFilters={() => {
-          setSearchTerm("");
-          setBuildingFilter("all");
-          setOccupiedFilter("all");
-        }}
-      />
-
-      {error && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
-          {error}
-        </div>
-      )}
-
-      {exportError && (
-        <div className="border-moto-red/30 bg-moto-red/10 text-moto-red mb-4 rounded-lg border p-4">
-          {exportError}
-        </div>
-      )}
+    <TenantPage
+      title="Räume"
+      stats={roomSummary}
+      statsLoading={showSkeleton}
+      // Das Exportmenü ist eine Aktion der Seite und sitzt deshalb im Kopf,
+      // damit es auch mobil erreichbar bleibt.
+      actions={<OverflowMenu items={overflowItems} />}
+      search={{
+        value: searchTerm,
+        onChange: setSearchTerm,
+        placeholder: "Raum suchen…",
+      }}
+      filters={filterConfigs}
+      activeFilters={activeFilters}
+      onClearAllFilters={resetFilters}
+      error={error}
+      empty={emptyState}
+    >
+      {exportError && <Alert type="error" message={exportError} />}
 
       {/* Room Cards Grid, skeleton mirrors the populated grid's column
           breakpoints and per-card shape (rounded-2xl, min-h-[180px],
@@ -563,161 +489,123 @@ function RoomsPageContent() {
           {showTransitAssignment ? (
             <TransitAssignmentCard
               count={transitCount}
-              onOpen={handleSelectTransitRoom}
-              buttonRef={(node) => {
-                if (node) {
-                  roomCardRefs.current.set(TRANSIT_ROOM_ID, node);
-                } else {
-                  roomCardRefs.current.delete(TRANSIT_ROOM_ID);
-                }
-              }}
-            />
-          ) : null}
-
-          {filteredRooms.length === 0 && !showTransitAssignment ? (
-            <EmptyState
-              icon={<MotoConceptIcon concept="rooms" size={48} />}
-              title="Keine Räume gefunden"
-              description="Versuchen Sie Ihre Suchkriterien anzupassen."
+              href={tenantPath(
+                `${TRANSIT_PATH}?from=${encodeURIComponent(fromReferrer)}`,
+              )}
             />
           ) : null}
 
           {filteredRooms.length > 0 ? (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {filteredRooms.map((room) => {
-                const handleClick = () => handleSelectRoom(room);
-                return (
-                  <button
-                    type="button"
-                    key={room.id}
-                    ref={(node) => {
-                      if (node) {
-                        roomCardRefs.current.set(room.id, node);
-                      } else {
-                        roomCardRefs.current.delete(room.id);
-                      }
-                    }}
-                    onClick={handleClick}
-                    aria-haspopup="dialog"
-                    aria-expanded={selectedRoomId === room.id}
-                    aria-controls={
-                      selectedRoomId === room.id
-                        ? "room-detail-panel"
-                        : undefined
-                    }
-                    className="group moto-content-surface moto-hover-elevated relative w-full cursor-pointer overflow-hidden rounded-2xl border border-gray-200 bg-white text-left shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:ring-offset-2 focus-visible:outline-none active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
-                  >
-                    <div className="relative p-6 pb-5">
-                      <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] md:group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]" />
-
-                      <div className="relative flex min-h-[156px] flex-col">
-                        <div className="mb-3 flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <h3 className="inline-block origin-left overflow-hidden text-lg font-bold text-ellipsis whitespace-nowrap text-gray-800 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:scale-[1.025] md:group-hover:text-gray-950 motion-reduce:md:group-hover:scale-100">
-                                {room.name}
-                              </h3>
-                              <ChevronRight
-                                className="h-4 w-4 flex-shrink-0 translate-x-0 text-gray-300 opacity-70 transition-[color,opacity,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] motion-reduce:transition-none md:group-hover:translate-x-0.5 md:group-hover:text-gray-600 md:group-hover:opacity-100 motion-reduce:md:group-hover:translate-x-0"
-                                aria-hidden="true"
-                              />
-                            </div>
-                            {(room.building !== undefined ||
-                              room.floor !== undefined) && (
-                              <p className="mt-0.5 overflow-hidden text-sm text-ellipsis whitespace-nowrap text-gray-500 transition-colors duration-300 md:group-hover:text-gray-600">
-                                {room.building &&
-                                  room.floor !== undefined &&
-                                  `${room.building} · ${formatFloor(room.floor)}`}
-                                {room.building &&
-                                  room.floor === undefined &&
-                                  room.building}
-                                {!room.building &&
-                                  room.floor !== undefined &&
-                                  formatFloor(room.floor)}
-                              </p>
-                            )}
+            <CollectionGrid>
+              {filteredRooms.map((room) => (
+                <TileCard
+                  key={room.id}
+                  href={roomHref(room.id)}
+                  ariaLabel={room.name}
+                  padding="none"
+                >
+                  <div className="relative p-4 sm:p-5">
+                    <div className="relative flex min-h-[120px] flex-col">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="truncate text-base font-bold text-gray-900">
+                              {room.name}
+                            </h3>
+                            <ChevronRight
+                              className="h-4 w-4 flex-shrink-0 text-gray-300 transition-colors duration-200 md:group-hover:text-gray-500"
+                              aria-hidden="true"
+                            />
                           </div>
-
-                          <RoomStatusBadge
-                            isOccupied={room.isOccupied}
-                            size="sm"
-                            className="font-bold"
-                          />
+                          {(room.building !== undefined ||
+                            room.floor !== undefined) && (
+                            <p className="mt-0.5 truncate text-xs text-gray-500">
+                              {room.building &&
+                                room.floor !== undefined &&
+                                `${room.building} · ${formatFloor(room.floor)}`}
+                              {room.building &&
+                                room.floor === undefined &&
+                                room.building}
+                              {!room.building &&
+                                room.floor !== undefined &&
+                                formatFloor(room.floor)}
+                            </p>
+                          )}
                         </div>
 
-                        <div className="flex-1 space-y-2">
-                          {room.isOccupied && room.groupName && (
-                            <div className="text-sm text-gray-700">
-                              <span className="font-medium">
-                                Aktuelle Aktivität:
-                              </span>{" "}
-                              {room.groupName}
-                            </div>
-                          )}
-                          {room.isOccupied &&
-                            ((room.studentCount !== undefined &&
-                              room.studentCount > 0) ||
-                              room.supervisorName) && (
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
-                                {room.studentCount !== undefined &&
-                                  room.studentCount > 0 && (
-                                    <span className="flex items-center gap-1">
-                                      <MotoDuotoneIcon
-                                        icon={UsersIcon}
-                                        tone="neutral"
-                                        size={16}
-                                      />
-                                      {room.studentCount}{" "}
-                                      {room.studentCount === 1
-                                        ? "Kind"
-                                        : "Kinder"}
-                                    </span>
-                                  )}
-                                {room.supervisorName && (
+                        <RoomStatusBadge
+                          isOccupied={room.isOccupied}
+                          size="sm"
+                          className="font-bold"
+                        />
+                      </div>
+
+                      <div className="flex-1 space-y-2">
+                        {room.isOccupied && room.groupName && (
+                          <div className="text-sm text-gray-700">
+                            <span className="font-medium">
+                              Aktuelle Aktivität:
+                            </span>{" "}
+                            {room.groupName}
+                          </div>
+                        )}
+                        {room.isOccupied &&
+                          ((room.studentCount !== undefined &&
+                            room.studentCount > 0) ||
+                            room.supervisorName) && (
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
+                              {room.studentCount !== undefined &&
+                                room.studentCount > 0 && (
                                   <span className="flex items-center gap-1">
                                     <MotoDuotoneIcon
-                                      icon={IdentificationCardIcon}
+                                      icon={UsersIcon}
                                       tone="neutral"
                                       size={16}
                                     />
-                                    {room.supervisorName}
+                                    {room.studentCount}{" "}
+                                    {room.studentCount === 1
+                                      ? "Kind"
+                                      : "Kinder"}
                                   </span>
                                 )}
-                              </div>
-                            )}
-
-                          {!room.isOccupied && (
-                            <>
-                              <div className="text-sm text-gray-600">
-                                Für Aktivitäten buchbar
-                              </div>
-                              {room.capacity !== undefined &&
-                                room.capacity > 0 && (
-                                  <div className="text-sm text-gray-600">
-                                    Kapazität: {room.capacity} Plätze
-                                  </div>
-                                )}
-                            </>
+                              {room.supervisorName && (
+                                <span className="flex items-center gap-1">
+                                  <MotoDuotoneIcon
+                                    icon={IdentificationCardIcon}
+                                    tone="neutral"
+                                    size={16}
+                                  />
+                                  {room.supervisorName}
+                                </span>
+                              )}
+                            </div>
                           )}
-                        </div>
 
-                        <p className="mt-2 text-xs text-gray-400 transition-colors duration-150 md:group-hover:text-blue-400">
-                          Tippen für mehr Infos
-                        </p>
-
-                        <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
+                        {!room.isOccupied && (
+                          <>
+                            <div className="text-sm text-gray-600">
+                              Für Aktivitäten buchbar
+                            </div>
+                            {room.capacity !== undefined &&
+                              room.capacity > 0 && (
+                                <div className="text-sm text-gray-600">
+                                  Kapazität: {room.capacity} Plätze
+                                </div>
+                              )}
+                          </>
+                        )}
                       </div>
+
+                      <div className="absolute right-3 bottom-3 h-3 w-3 rounded-full bg-white/30"></div>
                     </div>
-                  </button>
-                );
-              })}
-            </div>
+                  </div>
+                </TileCard>
+              ))}
+            </CollectionGrid>
           ) : null}
         </>
       )}
-
-      <RoomDetailModal roomId={selectedRoomId} onClose={handleCloseDetail} />
-    </div>
+    </TenantPage>
   );
 }
 
@@ -726,7 +614,7 @@ function RoomsPageContent() {
 // surfaces don't apply. Guard triggers Next.js notFound() for direct URL entry.
 export default function RoomsPage() {
   return (
-    <BinaryModeGuard>
+    <BinaryModeGuard title="Räume">
       <Suspense fallback={<RoomsGridSkeleton />}>
         <RoomsPageContent />
       </Suspense>

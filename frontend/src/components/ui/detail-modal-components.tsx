@@ -28,6 +28,20 @@ interface DataFieldProps {
   readonly fullWidth?: boolean;
   /** Use monospace font for values like IDs */
   readonly mono?: boolean;
+  /**
+   * Optional leading glyph for the label. Decorative only — the label carries
+   * the meaning, so the icon is hidden from assistive technology. Exists so a
+   * detail panel that wants icon rows does not build its own field row again
+   * (BAUARTEN-SPEC Bauart 2 Regel 2).
+   */
+  readonly icon?: ReactNode;
+  /**
+   * Label and value on one line, the value flush right. For statement-like
+   * rows (a balance preview, a status list) that would otherwise be built as
+   * a local `<dl>` with `justify-between` (BAUARTEN-SPEC Bauart 2 Regel 2,
+   * #3119). Stacked (label above value) stays the default.
+   */
+  readonly inline?: boolean;
 }
 
 /**
@@ -39,13 +53,28 @@ export function DataField({
   children,
   fullWidth = false,
   mono = false,
+  icon,
+  inline = false,
 }: DataFieldProps) {
+  const span = fullWidth ? "col-span-1 sm:col-span-2" : "";
+  const value = mono
+    ? "font-mono text-xs break-all text-gray-600 md:text-sm"
+    : "text-sm font-medium break-words text-gray-900";
   return (
-    <div className={fullWidth ? "col-span-1 sm:col-span-2" : ""}>
-      <dt className="text-xs text-gray-500">{label}</dt>
-      <dd
-        className={`mt-0.5 ${mono ? "font-mono text-xs break-all text-gray-600 md:text-sm" : "text-sm font-medium break-words text-gray-900"}`}
-      >
+    <div
+      className={
+        inline ? `flex items-center justify-between gap-4 ${span}` : span
+      }
+    >
+      <dt className="flex items-center gap-1.5 text-xs text-gray-500">
+        {icon ? (
+          <span aria-hidden="true" className="shrink-0 text-gray-400">
+            {icon}
+          </span>
+        ) : null}
+        {label}
+      </dt>
+      <dd className={inline ? `text-right ${value}` : `mt-0.5 ${value}`}>
         {children}
       </dd>
     </div>
@@ -84,7 +113,8 @@ type AccentColor =
 
 interface InfoSectionProps {
   readonly title: string;
-  readonly icon: ReactNode;
+  /** Optional leading glyph; a titled group without one renders text only. */
+  readonly icon?: ReactNode;
   readonly children: ReactNode;
   /**
    * Historic accent selector. Section surfaces are neutral now (no colored
@@ -122,7 +152,9 @@ export function InfoSection({
       className={`rounded-xl border border-gray-100 ${bgColorClasses[accentColor]} p-3 md:p-4`}
     >
       <h3 className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-900 md:mb-3 md:text-sm">
-        <span className="h-3.5 w-3.5 md:h-4 md:w-4">{icon}</span>
+        {icon ? (
+          <span className="h-3.5 w-3.5 md:h-4 md:w-4">{icon}</span>
+        ) : null}
         {title}
       </h3>
       {children}
@@ -136,18 +168,30 @@ export function InfoSection({
 
 interface DataGridProps {
   readonly children: ReactNode;
+  /**
+   * Column count from `sm` upwards; below that the grid stacks. `1` is a
+   * plain list of fields (a balance preview), `4` a row of short figures
+   * (import preview, key figures) that starts two-up on narrow screens.
+   * Default `2` is the detail-view layout (BAUARTEN-SPEC Bauart 2 Regel 2).
+   */
+  readonly columns?: 1 | 2 | 4;
 }
+
+const gridColumnClasses: Record<
+  NonNullable<DataGridProps["columns"]>,
+  string
+> = {
+  1: "grid grid-cols-1 gap-y-2 md:gap-y-3",
+  2: "grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3",
+  4: "grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-4 md:gap-x-4 md:gap-y-3",
+};
 
 /**
  * Grid layout for DataField components.
- * Provides responsive 1-2 column layout.
+ * Provides responsive 1-2 column layout by default; see `columns`.
  */
-export function DataGrid({ children }: DataGridProps) {
-  return (
-    <dl className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3">
-      {children}
-    </dl>
-  );
+export function DataGrid({ children, columns = 2 }: DataGridProps) {
+  return <dl className={gridColumnClasses[columns]}>{children}</dl>;
 }
 
 // =============================================================================

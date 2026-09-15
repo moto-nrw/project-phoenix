@@ -5,9 +5,6 @@ import (
 	"errors"
 	"time"
 	"unicode/utf8"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Common validation error messages for pickup schedule models.
@@ -86,8 +83,8 @@ var WeekdayNames = map[int]string{
 
 // StudentPickupSchedule represents a recurring weekly pickup schedule for a student
 type StudentPickupSchedule struct {
-	base.Model `bun:"schema:schedule,table:student_pickup_schedules"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_pickup_schedules"`
+	TenantModel
 
 	StudentID  int64     `bun:"student_id,notnull" json:"student_id"`
 	Weekday    int       `bun:"weekday,notnull" json:"weekday"`
@@ -146,13 +143,13 @@ func (s *StudentPickupSchedule) GetWeekdayName() string {
 
 // StudentPickupException represents a date-specific pickup exception
 type StudentPickupException struct {
-	base.Model `bun:"schema:schedule,table:student_pickup_exceptions"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_pickup_exceptions"`
+	TenantModel
 
-	StudentID     int64         `bun:"student_id,notnull" json:"student_id"`
-	ExceptionDate timezone.Date `bun:"exception_date,notnull" json:"exception_date"`
-	PickupTime    *time.Time    `bun:"pickup_time" json:"pickup_time,omitempty"`
-	Reason        *string       `bun:"reason" json:"reason,omitempty"`
+	StudentID     int64      `bun:"student_id,notnull" json:"student_id"`
+	ExceptionDate Date       `bun:"exception_date,notnull" json:"exception_date"`
+	PickupTime    *time.Time `bun:"pickup_time" json:"pickup_time,omitempty"`
+	Reason        *string    `bun:"reason" json:"reason,omitempty"`
 	// ExcusedFrom turns this existing day-specific pickup override into the
 	// source for a partial excusal. PickupTime normally matches it, but may
 	// differ after an explicit pickup-time decision.
@@ -184,11 +181,11 @@ func (e *StudentPickupException) HasManualPartialAbsence() bool {
 // every writer that updates a loaded row must normalize first.
 func (e *StudentPickupException) NormalizeWallClockTimes() {
 	if e.PickupTime != nil {
-		clock := timezone.NormalizeWallClock(*e.PickupTime)
+		clock := normalizeWallClock(*e.PickupTime)
 		e.PickupTime = &clock
 	}
 	if e.ExcusedFrom != nil {
-		clock := timezone.NormalizeWallClock(*e.ExcusedFrom)
+		clock := normalizeWallClock(*e.ExcusedFrom)
 		e.ExcusedFrom = &clock
 	}
 }
@@ -240,7 +237,7 @@ func (e *StudentPickupException) IsAbsent() bool {
 
 // StudentPickupScheduleRepository defines operations for managing student pickup schedules
 type StudentPickupScheduleRepository interface {
-	base.Repository[*StudentPickupSchedule]
+	repository[*StudentPickupSchedule]
 
 	// FindByStudentID finds all pickup schedules for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupSchedule, error)
@@ -265,7 +262,7 @@ type StudentPickupScheduleRepository interface {
 
 // StudentPickupExceptionRepository defines operations for managing student pickup exceptions
 type StudentPickupExceptionRepository interface {
-	base.Repository[*StudentPickupException]
+	repository[*StudentPickupException]
 
 	// FindByIDForUpdate retrieves and locks an exception for an atomic
 	// invariant check followed by mutation.
@@ -278,38 +275,38 @@ type StudentPickupExceptionRepository interface {
 	FindUpcomingByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupException, error)
 
 	// FindByStudentIDAndDate finds a pickup exception for a specific student and date
-	FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) (*StudentPickupException, error)
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date Date) (*StudentPickupException, error)
 
 	// FindByStudentIDsAndDate finds pickup exceptions for multiple students and a specific date (bulk query)
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentPickupException, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date Date) ([]*StudentPickupException, error)
 
 	// FindByStudentIDAndDateRange finds pickup exceptions for a student whose
 	// exception_date falls within the inclusive [from, to] range, sorted by
 	// date. Used by the timetable per-student week endpoint to pre-load all
 	// exceptions in a single query.
-	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*StudentPickupException, error)
+	FindByStudentIDAndDateRange(ctx context.Context, studentID int64, from, to Date) ([]*StudentPickupException, error)
 
 	// FindByStudentIDsAndDateRange is the bulk form of the above: every
 	// exception for the given students within the inclusive range, so a
 	// planner window resolves in one query instead of one per day.
-	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) ([]*StudentPickupException, error)
+	FindByStudentIDsAndDateRange(ctx context.Context, studentIDs []int64, from, to Date) ([]*StudentPickupException, error)
 
 	// DeleteByStudentID deletes all pickup exceptions for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
 	// DeletePastExceptions deletes all exceptions older than the given date
-	DeletePastExceptions(ctx context.Context, beforeDate timezone.Date) (int64, error)
+	DeletePastExceptions(ctx context.Context, beforeDate Date) (int64, error)
 }
 
 // StudentPickupNote represents a date-specific note for a student's pickup
 type StudentPickupNote struct {
-	base.Model `bun:"schema:schedule,table:student_pickup_notes"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:student_pickup_notes"`
+	TenantModel
 
-	StudentID int64         `bun:"student_id,notnull" json:"student_id"`
-	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
-	Content   string        `bun:"content,notnull" json:"content"`
-	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
+	StudentID int64  `bun:"student_id,notnull" json:"student_id"`
+	NoteDate  Date   `bun:"note_date,notnull" json:"note_date"`
+	Content   string `bun:"content,notnull" json:"content"`
+	CreatedBy int64  `bun:"created_by,notnull" json:"created_by"`
 }
 
 // Validate ensures pickup note data is valid
@@ -334,20 +331,20 @@ func (n *StudentPickupNote) Validate() error {
 
 // StudentPickupNoteRepository defines operations for managing student pickup notes
 type StudentPickupNoteRepository interface {
-	base.Repository[*StudentPickupNote]
+	repository[*StudentPickupNote]
 
 	// FindByStudentID finds all pickup notes for a student
 	FindByStudentID(ctx context.Context, studentID int64) ([]*StudentPickupNote, error)
 
 	// FindByStudentIDAndDate finds all pickup notes for a student on a specific date
-	FindByStudentIDAndDate(ctx context.Context, studentID int64, date timezone.Date) ([]*StudentPickupNote, error)
+	FindByStudentIDAndDate(ctx context.Context, studentID int64, date Date) ([]*StudentPickupNote, error)
 
 	// FindByStudentIDsAndDate finds all pickup notes for multiple students on a specific date (bulk query)
-	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*StudentPickupNote, error)
+	FindByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date Date) ([]*StudentPickupNote, error)
 
 	// DeleteByStudentID deletes all pickup notes for a student
 	DeleteByStudentID(ctx context.Context, studentID int64) error
 
 	// DeletePastNotes deletes all notes older than the given date
-	DeletePastNotes(ctx context.Context, beforeDate timezone.Date) (int64, error)
+	DeletePastNotes(ctx context.Context, beforeDate Date) (int64, error)
 }

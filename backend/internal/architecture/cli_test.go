@@ -817,6 +817,10 @@ func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ..
 		}
 		environmentVariables = append(filtered, prefix+value)
 	}
+	// These tests compare the CLI's failure diagnostics byte-for-byte. Keep
+	// runner-injected cache telemetry out of the surrounding `go run` process;
+	// the ordinary local Go build cache remains enabled.
+	environmentVariables = append(environmentVariables, "GOCACHEPROG=")
 	output, err := processOutput(root, environmentVariables, filepath.Join(root, "scripts", "backend-architecture.sh"), args...)
 	return string(output), err
 }

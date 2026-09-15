@@ -12,23 +12,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
-	ogsGroupLiveService "github.com/moto-nrw/project-phoenix/services/ogsgrouplive"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
 )
 
@@ -40,18 +42,12 @@ type Resource struct {
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
-	PersonService    userService.PersonService
-	GuardianService  *userService.GuardianService
-	EducationService educationService.Service
-	// GradeTransitionService is required by the purge route only: it strips the
-	// child's name from the transition ledger in the same transaction as the
-	// delete. Optional so bare test Resources still compile; the purge handler
-	// refuses rather than silently skipping the anonymization when it is nil.
-	GradeTransitionService *educationService.GradeTransitionService
+	PersonService          userService.PersonService
+	PeopleDirectory        peopleModule.Capability
+	EducationService       educationService.Service
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
-	StaffPINAuthenticator  authService.StaffPINAuthenticator
 	PickupScheduleService  scheduleService.PickupScheduleService
 	PartialAbsenceService  scheduleService.PartialAbsenceService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
@@ -68,8 +64,12 @@ type ResourceConfig struct {
 	// ClassListEntryService supplies the class-list-only entries (#2382) the
 	// "Klassenliste" export merges into the Klassenverband. Optional: nil
 	// exports without entries (bare test Resources).
-	ClassListEntryService  userService.ClassListEntryService
-	StudentDeletionService userService.StudentDeletionService
+	ClassListEntryService userService.ClassListEntryService
+	// StudentDeletion is the owner workflow behind the permanent deletion
+	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
+	// withdrawal deletion. Optional so bare test Resources still compile; the
+	// routes answer 500 rather than deleting through a second path when nil.
+	StudentDeletion *studentdeletion.Workflow
 	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
 	// exit, which is deliberately NOT a deletion.
 	CareLifecycleService    userService.CareLifecycleService
@@ -80,7 +80,7 @@ type ResourceConfig struct {
 	// (#1665).
 	OfferingChangeService    enrollmentService.OfferingChangeRequestService
 	PickupAdjustmentService  enrollmentService.PickupAdjustmentService
-	ExcusedRequestService    absenceService.ExcusedAbsenceRequestService
+	ExcusedRequestService    excusedrequests.Service
 	ParentRequestBulkService userService.ParentRequestBulkService
 	// ParentRequestConflictService resolves a whole conflict group at once
 	// (#2267). Optional: a bare test Resource answers 500 rather than
@@ -91,11 +91,15 @@ type ResourceConfig struct {
 	// RequestReviewAccess reports the caller's coarse reach over the parent
 	// request queues so the empty list can explain itself. Optional: a nil
 	// policy omits the field (bare test Resources).
-	RequestReviewAccess     ParentRequestReviewAccess
+	RequestReviewAccess ParentRequestReviewAccess
+	// RequestReview is the shared request-review projection (#2705) behind
+	// the aggregated list and the pending-count badge. Optional for bare
+	// test Resources; the two routes answer 500 without it.
+	RequestReview           requestreview.Query
 	StudentStatusDayService *activeService.StudentStatusDayService
 	AbsenceOverview         *activeService.StudentStatusDayOverviewService
 	StudentHistoryService   activeService.StudentHistoryService
-	OGSGroupLiveService     ogsGroupLiveService.Getter
+	OGSGroupLiveService     grouplive.Query
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
@@ -118,12 +122,16 @@ type ResourceConfig struct {
 	ParentEventEmitter *parentmessaging.Emitter
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
+	StudentConsents    userService.StudentConsentService
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService userService.StudentDocumentService
 	ListExportService      *listexport.RendererService
 	Logger                 *slog.Logger
 	Now                    func() time.Time
 	DB                     *bun.DB
+	// DeviceAuthenticator guards the RFID routes. The Device Fleet
+	// composition builds it; this resource only mounts it.
+	DeviceAuthenticator common.Middleware
 }
 
 // NewResource creates a new students resource from the provided configuration.
@@ -160,7 +168,7 @@ func (rs *Resource) Router() chi.Router {
 		// users:read retain their personal-group navigation; groups:read only
 		// controls whether the service includes further tenant groups.
 		r.With(withTx).Get("/ogs-group-navigation",
-			common.Fetch(func(ctx context.Context) ([]ogsGroupLiveService.Group, error) {
+			common.Fetch(func(ctx context.Context) ([]grouplive.Group, error) {
 				if rs.OGSGroupLiveService == nil {
 					return nil, errors.New("OGS group live service is not configured")
 				}
@@ -212,6 +220,10 @@ func (rs *Resource) Router() chi.Router {
 		// per-child write scope of the master-data queue — both are decided in the
 		// same Anfragen module.
 		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+		// Read-only view of ONE care-schedule request of any status, opened
+		// from a message-thread pill (#3135). Same route gate as deciding; the
+		// service re-checks the per-child review scope. Reading never writes.
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests/{requestId}", rs.getCareScheduleChangeRequest)
 
 		// Post-enrollment offering change requests (#1665). Approving one moves
 		// the child between activity groups on a chosen date, so it shares the
@@ -231,6 +243,12 @@ func (rs *Resource) Router() chi.Router {
 		// the excused queue's users:absence path — a caller who only holds that
 		// permission counts excused requests and nothing else.
 		r.With(common.RequiresAnyPermission(permissions.UsersUpdate, permissions.UsersAbsence), withTx).Get("/change-requests/pending-count", rs.pendingChangeRequestCount)
+
+		// Effective parent-request capability for shared navigation. This route
+		// is authenticated-only because callers with config:manage, users:delete
+		// or vacation:approve may open another part of the Anfragen module without
+		// holding the two permissions required by the aggregated parent queue.
+		r.With(withTx).Get("/change-requests/access", rs.changeRequestAccess)
 
 		// Aggregated Eltern request list (#2432): all four queues as ONE list
 		// (open or history) with search, filters and keyset pagination. Same
@@ -353,6 +371,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/arrival-times/bulk", rs.getBulkArrivalTimes)
 		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-times/{schoolClass}", rs.getClassArrivalTimes)
 
+		// Class-wide arrival day exceptions (#2962). Writes additionally run
+		// through operations.class_arrival_exception_editors in the handler.
+		r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/class-arrival-exceptions/{schoolClass}", rs.getClassArrivalExceptions)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/class-arrival-exceptions/{schoolClass}/{date}", rs.putClassArrivalException)
+		r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/class-arrival-exceptions/{schoolClass}/{date}", rs.deleteClassArrivalException)
+
 		// Web-based school check-in/out. Mode-agnostic (writes attendance only).
 		// The users:checkin permission is the gate; any verified staff member may
 		// toggle any student (#2329).
@@ -395,7 +419,7 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.StaffPINAuthenticator, nil))
+		r.Use(device.Required("DeviceAuthenticator", rs.DeviceAuthenticator))
 		r.Use(common.TenantTxMiddleware)
 
 		// RFID tag assignment endpoint

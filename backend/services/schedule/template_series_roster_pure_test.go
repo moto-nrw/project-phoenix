@@ -176,20 +176,20 @@ func TestProtectedPredecessorEnrollments(t *testing.T) {
 	requestChildID := int64(4242)
 	protectedByRequest := &activitiesModel.StudentEnrollment{
 		StudentID:                101,
-		ValidFrom:                seriesDate(3),
-		ValidUntil:               datePtr(17),
+		ValidFrom:                activitiesModel.Date(seriesDate(3)),
+		ValidUntil:               activityDatePtr(datePtr(17)),
 		EnrollmentRequestChildID: &requestChildID,
 	}
 	protectedButElsewhere := &activitiesModel.StudentEnrollment{
 		StudentID:        102,
-		ValidFrom:        seriesDate(24),
-		ValidUntil:       datePtr(31),
+		ValidFrom:        activitiesModel.Date(seriesDate(24)),
+		ValidUntil:       activityDatePtr(datePtr(31)),
 		SelectedWeekdays: []int{activitiesModel.WeekdayMonday},
 	}
 	editorOwned := &activitiesModel.StudentEnrollment{
 		StudentID:  103,
-		ValidFrom:  seriesDate(3),
-		ValidUntil: datePtr(17),
+		ValidFrom:  activitiesModel.Date(seriesDate(3)),
+		ValidUntil: activityDatePtr(datePtr(17)),
 	}
 
 	got := protectedPredecessorEnrollments(

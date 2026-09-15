@@ -275,8 +275,7 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 	// fresh.PhotoPath is non-NULL, regardless of feature toggle state.
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
 
-	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := deleteStudentConfirmed(t, tc, testutil.AdminTestClaims(1), student.ID)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -306,8 +305,7 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "DelNoPhoto", "ApiPath", "DN1")
 
-	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := deleteStudentConfirmed(t, tc, testutil.AdminTestClaims(1), student.ID)
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 

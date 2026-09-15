@@ -5,7 +5,8 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import { ShiftEditModal } from "./shift-edit-modal";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -419,13 +420,13 @@ describe("ShiftEditModal series scopes", () => {
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
-    expect(
-      screen.getByText(
-        "Diese Schicht ist Teil einer Serie. Was soll gelöscht werden?",
-      ),
-    ).toBeInTheDocument();
+    // Scope-Slot der ConfirmDeleteModal (#3110): die Wahl ist der erste
+    // Schritt, ohne sie bleibt Löschen gesperrt.
+    expect(screen.getByText("Was soll gelöscht werden?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Löschen" })).toBeDisabled();
 
-    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Nur diese Woche/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(deleteShift).toHaveBeenCalledWith("9");
@@ -438,7 +439,8 @@ describe("ShiftEditModal series scopes", () => {
     renderModal({ mode: "edit", shift: seriesShift });
 
     fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(endSeries).toHaveBeenCalledWith("5", "2026-09-07");
@@ -459,7 +461,8 @@ describe("ShiftEditModal series scopes", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Schicht löschen" }));
-    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
 
     await waitFor(() => {
       expect(endSeries).toHaveBeenCalledWith("5", "2026-09-07");
@@ -776,13 +779,8 @@ describe("ShiftEditModal series rule editing", () => {
 describe("ShiftEditModal series rule editing at the end of a segment", () => {
   beforeEach(() => {
     // Fake ONLY Date: testing-library's findBy* polls on real timers.
-    vi.useFakeTimers({ toFake: ["Date"] });
     // 12:00 Berlin on the opened occurrence's own day.
-    vi.setSystemTime(new Date("2026-09-07T10:00:00Z"));
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    setTestClock(new Date("2026-09-07T10:00:00Z"));
   });
 
   it("warns instead of saving when nothing is left to change", async () => {

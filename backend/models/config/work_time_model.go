@@ -96,15 +96,15 @@ func ResolveWeekIndex(rotationLength int, anchor, date CalendarDate) int {
 	return mod
 }
 
-// WorkTimeModelRepository defines tenant-scoped CRUD for work-time templates.
+// WorkTimeModelRepository is the retained work-time-template contract of the
+// consumers that have not moved to the Workforce capability yet (#2687). It
+// carries only what they still call: template administration itself runs
+// through that owner's facade.
 type WorkTimeModelRepository interface {
-	List(ctx context.Context) ([]*WorkTimeModel, error)
 	FindByID(ctx context.Context, id int64) (*WorkTimeModel, error)
 	// FindByIDs resolves the given templates with their entries in one batched
 	// read (missing IDs are simply absent from the result).
 	FindByIDs(ctx context.Context, ids []int64) ([]*WorkTimeModel, error)
 	Create(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
-	Update(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
-	RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error
 	Delete(ctx context.Context, id int64) error
 }

@@ -547,10 +547,11 @@ describe("VertretungView", () => {
     setupSWR({ weekError: new Error("boom") });
     render(<VertretungView />);
 
-    expect(screen.getByTestId("vertretung-week-error")).toBeVisible();
+    // Der Ladefehler kommt aus dem TenantPage-Gerüst (`error`), nicht aus
+    // einer eigenen Fehlerfläche der Seite.
     expect(
-      screen.getByText("Vertretung konnte nicht geladen werden"),
-    ).toBeInTheDocument();
+      screen.getByText(/Vertretung konnte nicht geladen werden/),
+    ).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Erneut versuchen" }),
     ).toBeInTheDocument();
@@ -669,8 +670,8 @@ describe("VertretungView", () => {
   it("startet in der Tagesansicht und gibt dem Raster genau einen Tag", () => {
     render(<VertretungView />);
 
-    expect(screen.getByRole("tab", { name: "Tag" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "Tag" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
     expect(mockGridProps.mock.calls.at(-1)?.[0].weekDays).toHaveLength(1);
@@ -684,10 +685,7 @@ describe("VertretungView", () => {
   it("schaltet über die Kontextleiste auf die Woche und schreibt view=woche in die URL", async () => {
     render(<VertretungView />);
 
-    // Radix-Tabs aktivieren per mousedown, nicht click.
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche" }), {
-      button: 0,
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Woche" }));
 
     await waitFor(() =>
       expect(new URLSearchParams(window.location.search).get("view")).toBe(
@@ -700,8 +698,8 @@ describe("VertretungView", () => {
     mockSearch.value = "view=woche";
     render(<VertretungView />);
 
-    expect(screen.getByRole("tab", { name: "Woche" })).toHaveAttribute(
-      "aria-selected",
+    expect(screen.getByRole("button", { name: "Woche" })).toHaveAttribute(
+      "aria-pressed",
       "true",
     );
     expect(screen.getByTestId("vertretung-week-list")).toBeInTheDocument();

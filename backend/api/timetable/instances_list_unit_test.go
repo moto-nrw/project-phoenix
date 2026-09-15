@@ -49,7 +49,7 @@ func TestSummarizeInstanceStudentsEarlyPickupRequiresExpectedCareDay(t *testing.
 	const studentID = int64(4711)
 	day := timezone.NewDate(2030, time.March, 4)
 	inst := &scheduleModel.ActivityInstance{
-		Date:      day,
+		Date:      scheduleModel.Date(day),
 		StartTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
 		EndTime:   timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
 		Status:    scheduleModel.InstanceStatusPlanned,

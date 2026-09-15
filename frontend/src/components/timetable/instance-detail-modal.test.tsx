@@ -7,7 +7,80 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import useSWR from "swr";
+
+// Vaul (SlideOver) rendert in jsdom nichts: das Detailpanel bliebe im Test
+// leer. Wie in components/ui/slide-over.test.tsx, plus ein Close-Knopf, der
+// wie das Original das Panel schliesst.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+  const CloseContext = React.createContext<() => void>(() => undefined);
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+        onOpenChange,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+        onOpenChange?: (open: boolean) => void;
+      }) => {
+        // Der Rückruf wird gemerkt statt bei jedem Rendern neu gebaut: ein
+        // frisch konstruierter Context-Wert rendert alle Verbraucher erneut
+        // (oxlint react/jsx-no-constructed-context-values).
+        const close = React.useCallback(
+          () => onOpenChange?.(false),
+          [onOpenChange],
+        );
+        return open === false ? null : (
+          <CloseContext.Provider value={close}>
+            <div>{children}</div>
+          </CloseContext.Provider>
+        );
+      },
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >(({ onClick, ...props }, ref) => {
+        const close = React.useContext(CloseContext);
+        return (
+          <button
+            ref={ref}
+            {...props}
+            onClick={(event) => {
+              onClick?.(event);
+              close();
+            }}
+          />
+        );
+      }),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
@@ -653,8 +726,12 @@ describe("InstanceDetailModal", () => {
 
     expect(screen.getByText("Fallback Kind")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+    ).toBeInTheDocument();
+    // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
     fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42" }),
@@ -685,7 +762,11 @@ describe("InstanceDetailModal", () => {
       screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+    // Scope-Slot der ConfirmDeleteModal (#3110): ohne Wahl bleibt Löschen
+    // gesperrt, die Wahl ist der erste Schritt.
+    expect(confirmDialogButton("Löschen")).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }));
+    fireEvent.click(confirmDialogButton("Löschen"));
     await waitFor(() =>
       expect(onDeleteFollowing).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),
@@ -715,14 +796,14 @@ describe("InstanceDetailModal", () => {
 
     await expectNoUnhandledRejection(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-      const followingOption = screen
-        .getByText("Ab jetzt dauerhaft")
-        .closest("button");
-      expect(followingOption).not.toBeNull();
-      fireEvent.click(followingOption!);
+      fireEvent.click(
+        screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }),
+      );
+      const confirm = confirmDialogButton("Löschen");
+      fireEvent.click(confirm);
 
       await waitFor(() => expect(onDeleteFollowing).toHaveBeenCalledOnce());
-      await waitFor(() => expect(followingOption).toBeEnabled());
+      await waitFor(() => expect(confirmDialogButton("Löschen")).toBeEnabled());
       expect(
         screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).toBeInTheDocument();
@@ -747,9 +828,12 @@ describe("InstanceDetailModal", () => {
     expect(
       screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Termin löschen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -788,9 +872,12 @@ describe("InstanceDetailModal", () => {
     expect(
       screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(confirmDialogButton("Löschen"));
+    fireEvent.click(confirmDialogButton("Endgültig löschen"));
     await waitFor(() =>
       expect(onDeleteCancelled).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),
@@ -825,9 +912,11 @@ describe("InstanceDetailModal", () => {
       expect(
         screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Termin löschen" }),
+      ).toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -851,9 +940,11 @@ describe("InstanceDetailModal", () => {
       expect(
         screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Termin löschen" }),
+      ).toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -873,16 +964,21 @@ describe("InstanceDetailModal", () => {
       );
 
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+      fireEvent.click(
+        screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }),
+      );
       vi.setSystemTime(new Date("2026-05-04T22:00:01Z"));
-      fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+      fireEvent.click(confirmDialogButton("Löschen"));
 
       expect(onDeleteFollowing).not.toHaveBeenCalled();
       expect(
         screen.queryByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).not.toBeInTheDocument();
-      expect(screen.getByText("Termin löschen?")).toBeInTheDocument();
+      expect(
+        screen.getByRole("dialog", { name: "Termin löschen" }),
+      ).toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -908,7 +1004,10 @@ describe("InstanceDetailModal", () => {
       );
 
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-      fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
+      fireEvent.click(
+        screen.getByRole("radio", { name: /Ab jetzt dauerhaft/ }),
+      );
+      fireEvent.click(confirmDialogButton("Löschen"));
       await waitFor(() => expect(onDeleteFollowing).toHaveBeenCalledOnce());
 
       await act(async () => {
@@ -918,7 +1017,9 @@ describe("InstanceDetailModal", () => {
       expect(
         screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
       ).toBeInTheDocument();
-      expect(screen.queryByText("Termin löschen?")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("dialog", { name: "Termin löschen" }),
+      ).not.toBeInTheDocument();
 
       await act(async () => {
         resolveDeletion?.();
@@ -929,7 +1030,7 @@ describe("InstanceDetailModal", () => {
       ).not.toBeInTheDocument();
       expect(screen.queryByText("Termin löschen?")).not.toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -967,7 +1068,7 @@ describe("InstanceDetailModal", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("Raum #3")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
-    // Das Kit-Modal ruft onClose erst nach der Exit-Animation (250ms) auf.
+    // Das Panel meldet den Schliessvorgang über onOpenChange.
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
 
     rerender(
@@ -1137,11 +1238,13 @@ describe("InstanceDetailModal", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
-    expect(screen.getByText("Abgesagten Termin löschen?")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abgesagten Termin löschen" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(confirmDialogButton("Abbrechen"));
     expect(
-      screen.queryByText("Abgesagten Termin löschen?"),
+      screen.queryByRole("dialog", { name: "Abgesagten Termin löschen" }),
     ).not.toBeInTheDocument();
     expect(onDeleteCancelled).not.toHaveBeenCalled();
   });

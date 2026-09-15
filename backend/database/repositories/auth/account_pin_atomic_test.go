@@ -34,9 +34,8 @@ func TestAccountRepository_IncrementPINAttempts_AtomicUnderRace(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-counter")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 
 	const (
 		concurrency = 12
@@ -92,9 +91,8 @@ func TestAccountRepository_ResetPINAttempts_ClearsCounterAndLock(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "pin-atomic-reset")
-	t.Cleanup(func() { testpkg.CleanupAccount(t, db, acc.ID) })
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 
 	for i := 0; i < 6; i++ {
 		_, err := repo.IncrementPINAttempts(context.Background(), acc.ID, 5, 15*time.Minute)

@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // TestGroupSupervisorRepository_ListActiveSupervisedRooms pins the whole-tenant
@@ -24,8 +24,9 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := activeRepo.NewGroupSupervisorRepository(db, func() time.Time {
-		return timezone.NewDate(2026, 8, 24).BerlinMidnight()
+	today := timezone.NewDate(2026, 8, 24)
+	repo := activeRepo.NewGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), func() time.Time {
+		return today.BerlinMidnight()
 	})
 	ctx := testpkg.Ctx(t)
 
@@ -48,7 +49,13 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	require.NoError(t, err)
 
 	openSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, openGroup.ID, "primary")
-	testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
+	closedSupervision := testpkg.CreateTestGroupSupervisor(t, db, staff.ID, closedGroup.ID, "primary")
+	// The repository clock is fixed above, so make the fixture interval include
+	// that date rather than the machine's current date.
+	openSupervision.StartDate = today
+	closedSupervision.StartDate = today
+	require.NoError(t, repo.Update(ctx, openSupervision))
+	require.NoError(t, repo.Update(ctx, closedSupervision))
 
 	t.Run("returns the room of an open supervised session", func(t *testing.T) {
 		rows, err := repo.ListActiveSupervisedRooms(ctx)
@@ -73,7 +80,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 
 	t.Run("excludes a supervision that ended before today", func(t *testing.T) {
 		// end_date in the past mirrors IsSupervisorActive returning false.
-		yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
+		yesterday := today.AddDays(-1)
 		_, err := db.NewUpdate().
 			TableExpr("active.group_supervisors").
 			Set("end_date = ?", yesterday).
@@ -100,8 +107,7 @@ func TestGroupSupervisorRepository_ListActiveSupervisedRooms(t *testing.T) {
 	})
 
 	t.Run("uses the Berlin date independently of the database timezone", func(t *testing.T) {
-		today := timezone.NewDate(2026, 8, 24)
-		err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		err := testpkg.WithTenantTx(t, context.Background(), db, testpkg.Tenant(t), func(txCtx context.Context, tx testpkg.Tx) error {
 			var databaseDate string
 			for _, zone := range []string{"Pacific/Kiritimati", "Etc/GMT+12"} {
 				var configuredZone string
@@ -197,7 +203,7 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).ActiveVisit
+	repo := newPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	room := testpkg.CreateTestRoom(t, db, "BulkVisitRoom")
@@ -213,23 +219,29 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 	testpkg.CreateTestVisit(t, db, departed.ID, openGroup.ID, entry, &exit)
 
 	t.Run("groups open visits by room and drops checked-out children", func(t *testing.T) {
-		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)
+		byRoom, err := repo.ListOpenVisitRooms(ctx, 0)
 		require.NoError(t, err)
 
-		assert.Contains(t, byRoom[room.ID], present.ID,
+		assert.Contains(t, byRoom, studentpresence.OpenVisitRoom{RoomID: room.ID, StudentID: present.ID},
 			"a child with an open visit belongs to its room")
-		assert.NotContains(t, byRoom[room.ID], departed.ID,
+		assert.NotContains(t, byRoom, studentpresence.OpenVisitRoom{RoomID: room.ID, StudentID: departed.ID},
 			"a child who already left must not be reported as present")
 	})
 
 	t.Run("agrees with the single-room reader it replaces", func(t *testing.T) {
-		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)
+		byRoom, err := repo.ListOpenVisitRooms(ctx, 0)
 		require.NoError(t, err)
 
-		single, err := repo.ListActiveStudentIDsByRoomID(ctx, room.ID)
+		single, err := repo.ListOpenVisitRooms(ctx, room.ID)
 		require.NoError(t, err)
 
-		assert.ElementsMatch(t, single, byRoom[room.ID],
+		selected := make([]studentpresence.OpenVisitRoom, 0)
+		for _, row := range byRoom {
+			if row.RoomID == room.ID {
+				selected = append(selected, row)
+			}
+		}
+		assert.ElementsMatch(t, single, selected,
 			"the bulk reader must return exactly what the per-room reader returns")
 	})
 
@@ -250,10 +262,10 @@ func TestVisitRepository_ListOpenVisitStudentIDsByRoom(t *testing.T) {
 			require.NoError(t, resetErr)
 		}()
 
-		byRoom, err := repo.ListOpenVisitStudentIDsByRoom(ctx)
+		byRoom, err := repo.ListOpenVisitRooms(ctx, 0)
 		require.NoError(t, err)
 
-		assert.NotContains(t, byRoom[room.ID], present.ID,
+		assert.NotContains(t, byRoom, studentpresence.OpenVisitRoom{RoomID: room.ID, StudentID: present.ID},
 			"a closed session leaves no presence behind")
 	})
 }

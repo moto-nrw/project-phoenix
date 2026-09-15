@@ -1,0 +1,21 @@
+[wt]
+	base = development
+	env = .env
+	copy = frontend/.env.local
+	compose = true
+	port = FRONTEND_HOST_PORT
+	port = MAILPIT_HOST_PORT
+	port = MAILPIT_SMTP_HOST_PORT
+	port = "PORT:3000"
+	port = POSTGRES_HOST_PORT
+	port = SERVER_HOST_PORT
+	port = TEST_DB_PORT
+	bootstrap = "devbox run bootstrap"
+	teardown = "docker compose down --remove-orphans"
+	disposable = .devbox
+	disposable = frontend/.next
+	disposable = frontend/coverage
+	disposable = frontend/next-env.d.ts
+	disposable = frontend/node_modules
+	disposable = frontend/tsconfig.tsbuildinfo
+	disposable = node_modules

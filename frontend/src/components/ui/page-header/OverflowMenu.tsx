@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
@@ -35,6 +35,8 @@ export interface OverflowMenuItem {
   readonly href?: string;
   /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
   readonly external?: boolean;
+  /** Marks the current item in a navigational overflow menu. */
+  readonly selected?: boolean;
 }
 
 /** Non-interactive thin divider between item groups. */
@@ -68,6 +70,15 @@ interface OverflowMenuProps {
   readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
+  /**
+   * Rolle und Auswahlzustand des Auslösers. Nötig für den gebündelten
+   * Seitenreiter (`TenantPageTab.menu`): er sieht aus wie ein Reiter und
+   * verhält sich so, meldete sich Hilfstechnik aber als reine Schaltfläche.
+   */
+  readonly triggerRole?: "tab";
+  readonly triggerAriaSelected?: boolean;
+  /** Tabulator-Reihenfolge für einen Auslöser, der Teil eines Composite-Widgets ist. */
+  readonly triggerTabIndex?: number;
   /** Called when the menu is opened from its trigger. */
   readonly onOpen?: () => void;
   /**
@@ -90,6 +101,14 @@ interface OverflowMenuProps {
    * fixed-width popover would poke out the side and read as misaligned.
    */
   readonly matchContainerSelector?: string;
+  /**
+   * Identifies an overlay which owns this menu while the menu itself is
+   * rendered at the document level. This lets a scrollable overlay treat menu
+   * interactions as internal without clipping the menu at its scroll edge.
+   */
+  readonly portalOwnerId?: string;
+  /** Stacking level for a document-level menu owned by an overlay. */
+  readonly portalZIndex?: number;
 }
 
 /**
@@ -104,11 +123,16 @@ interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
+  triggerRole,
+  triggerAriaSelected,
+  triggerTabIndex,
   onOpen,
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
   matchContainerSelector,
+  portalOwnerId,
+  portalZIndex,
 }: OverflowMenuProps) {
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
@@ -116,7 +140,14 @@ export function OverflowMenu({
   // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
   // that class-string order would not resolve).
   const triggerSizeClass =
-    triggerContent != null ? "" : triggerSize === "sm" ? "size-6" : "size-9";
+    // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
+    // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
+    // (40/44 px) per Nachfahren-Selektor erzwingt.
+    triggerContent != null
+      ? ""
+      : triggerSize === "sm"
+        ? "size-6"
+        : "aspect-square h-9";
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
@@ -129,6 +160,12 @@ export function OverflowMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  // Menus normally stay inside a slide-over's focus scope. A scrollable
+  // AnchoredPopover instead passes an owner ID, so its menu can escape the
+  // clipped panel while the popover still recognizes the interaction.
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+    null,
+  );
 
   // Close on outside click + Escape. Because the menu is fixed-positioned, also
   // close on scroll/resize so it never lingers detached from its trigger. Only
@@ -186,8 +223,24 @@ export function OverflowMenu({
   // - If neither side fits, use the side with more room and clamp to the
   //   viewport inset.
   const handleOpen = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect != null) {
+    const trigger = triggerRef.current;
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+    if (trigger != null && typeof document !== "undefined") {
+      const scope = portalOwnerId
+        ? null
+        : trigger.closest(
+            '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+          );
+      const nextPortalContainer =
+        scope instanceof HTMLElement ? scope : document.body;
+      const scopeRect =
+        nextPortalContainer === document.body
+          ? null
+          : nextPortalContainer.getBoundingClientRect();
+      const rect = trigger.getBoundingClientRect();
       const gap = 4; // matches the old mt-1
       const viewportInset = 8;
       // Vertical anchoring: below the trigger by default, flipped ABOVE it when
@@ -205,23 +258,28 @@ export function OverflowMenu({
       const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
         ? {
-            bottom: window.innerHeight - rect.top + gap,
+            bottom: scopeRect
+              ? scopeRect.bottom - rect.top + gap
+              : window.innerHeight - rect.top + gap,
             maxHeight: roomAbove,
           }
-        : { top: rect.bottom + gap, maxHeight: roomBelow };
+        : {
+            top: rect.bottom + gap - (scopeRect?.top ?? 0),
+            maxHeight: roomBelow,
+          };
       // Container-stretch mode: when an ancestor selector is given, size the
       // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
       // a narrow container instead of poking out the side. The trigger only
       // contributes the vertical position here.
       const container = matchContainerSelector
-        ? triggerRef.current?.closest(matchContainerSelector)
+        ? trigger.closest(matchContainerSelector)
         : null;
       if (container != null) {
         const cr = container.getBoundingClientRect();
         const inset = 8;
         setMenuStyle({
           ...vertical,
-          left: cr.left + inset,
+          left: cr.left + inset - (scopeRect?.left ?? 0),
           width: cr.width - inset * 2,
         });
       } else {
@@ -246,15 +304,21 @@ export function OverflowMenu({
         const alignRight =
           roomLeft >= renderedWidth ||
           (roomRight < renderedWidth && roomLeft >= roomRight);
-        const horizontal: CSSProperties = alignRight
-          ? { right: clampOffset(window.innerWidth - rect.right) }
-          : { left: clampOffset(rect.left) };
+        const left = alignRight
+          ? clampOffset(rect.right - renderedWidth)
+          : clampOffset(rect.left);
+        const horizontal: CSSProperties = scopeRect
+          ? { left: left - scopeRect.left }
+          : alignRight
+            ? { right: clampOffset(window.innerWidth - rect.right) }
+            : { left };
         const style: CSSProperties = { ...vertical, ...size, ...horizontal };
         setMenuStyle(style);
       }
+      setPortalContainer(nextPortalContainer);
     }
-    if (!isOpen) onOpen?.();
-    setIsOpen((prev) => !prev);
+    onOpen?.();
+    setIsOpen(true);
   };
 
   const onItemKey =
@@ -271,37 +335,51 @@ export function OverflowMenu({
   if (items.length === 0) return null;
 
   return (
-    <div className="relative inline-block">
+    <div
+      className="relative inline-block"
+      // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
+      // Zeile; ein reines Symbol behält sein Maß.
+      data-icon-only={triggerContent == null ? "" : undefined}
+    >
       <button
         ref={triggerRef}
         type="button"
         onClick={handleOpen}
+        role={triggerRole}
+        aria-selected={triggerAriaSelected}
+        tabIndex={triggerTabIndex}
         aria-label={ariaLabel}
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full" : ""} ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`}
       >
         {triggerContent ?? (
           <MoreVertical className={iconSizeClass} aria-hidden />
         )}
       </button>
 
-      {isOpen
+      {isOpen && portalContainer
         ? createPortal(
             <div
               ref={menuRef}
               id={menuId}
               role="menu"
               aria-label={ariaLabel}
-              style={menuStyle}
+              data-overflow-menu-owner={portalOwnerId}
+              style={{
+                ...menuStyle,
+                position:
+                  portalContainer !== document.body ? "absolute" : "fixed",
+                zIndex: portalZIndex,
+              }}
               // Surface mirrors DesktopFilters dropdown so menu / filter
               // popovers read as one component family — same border, radius,
               // and shadow elevation across the page. Fixed + portaled so it
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+              className={`moto-popover-surface fixed z-50 scrollbar-thin overflow-x-hidden overflow-y-auto rounded-xl border py-1 ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >
@@ -310,7 +388,7 @@ export function OverflowMenu({
                   return (
                     <div
                       key={`header-${entry.label}`}
-                      className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
+                      className={`px-3 py-2 ${index > 0 ? "mt-1 border-t border-gray-100 pt-3" : ""}`}
                     >
                       <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
                         {entry.label}
@@ -333,7 +411,7 @@ export function OverflowMenu({
                         entry.onClick();
                       }}
                       onKeyDown={onItemKey(entry)}
-                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium transition-colors ${
+                      className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                         entry.disabled
                           ? "cursor-not-allowed opacity-50"
                           : "hover:bg-gray-50 active:bg-gray-100"
@@ -359,12 +437,12 @@ export function OverflowMenu({
 
                 const item = entry;
                 const colorClass = item.destructive
-                  ? "text-red-600"
+                  ? "text-moto-red"
                   : "text-gray-700";
                 const interactive = item.disabled
                   ? "cursor-not-allowed opacity-50"
                   : "hover:bg-gray-50 active:bg-gray-100";
-                const itemClassName = `flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
+                const itemClassName = `flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${colorClass} ${interactive}`;
 
                 const inner = (
                   <>
@@ -392,6 +470,7 @@ export function OverflowMenu({
                       <a
                         key={`item-${item.label}`}
                         role="menuitem"
+                        aria-current={item.selected ? "true" : undefined}
                         tabIndex={0}
                         href={item.href}
                         target="_blank"
@@ -407,6 +486,7 @@ export function OverflowMenu({
                     <Link
                       key={`item-${item.label}`}
                       role="menuitem"
+                      aria-current={item.selected ? "true" : undefined}
                       tabIndex={0}
                       href={item.href}
                       onClick={onLinkActivate}
@@ -422,6 +502,7 @@ export function OverflowMenu({
                     key={`item-${item.label}`}
                     type="button"
                     role="menuitem"
+                    aria-current={item.selected ? "true" : undefined}
                     disabled={item.disabled}
                     onClick={() => {
                       if (item.disabled) return;
@@ -436,7 +517,7 @@ export function OverflowMenu({
                 );
               })}
             </div>,
-            document.body,
+            portalContainer,
           )
         : null}
     </div>

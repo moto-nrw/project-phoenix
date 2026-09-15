@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 import { PlannedNowSection } from "./planned-now-section";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -148,7 +149,7 @@ describe("PlannedNowSection", () => {
       const button = screen.getByRole("button", { name: "Starten ab 13:45" });
       expect(button).toBeDisabled();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
   });
 
@@ -172,8 +173,45 @@ describe("PlannedNowSection", () => {
       );
       expect(screen.queryByText("Hausaufgaben")).not.toBeInTheDocument();
     } finally {
-      vi.useRealTimers();
+      releaseFakeTimers();
     }
+  });
+
+  it("shows a class arrival exception as a neutral line, not as a warning", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            rosterPreview: [
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                warnings: [
+                  {
+                    kind: "class_arrival_exception",
+                    message:
+                      "Kommt heute um 12:45 Uhr (Klasse 2a: Unterricht fällt aus)",
+                    expectedArrival: "12:45",
+                    slotStart: "12:45",
+                    expectedGroupId: null,
+                    expectedGroupName: null,
+                    currentEducationGroupId: null,
+                  },
+                ],
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    const line = screen.getByText(
+      "Kommt heute um 12:45 Uhr (Klasse 2a: Unterricht fällt aus)",
+    );
+    expect(line.className).not.toContain("text-moto-amber-strong");
+    expect(screen.queryByLabelText(/Planungs-Hinweis/)).not.toBeInTheDocument();
   });
 
   it("renders roster planning warnings", () => {

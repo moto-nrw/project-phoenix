@@ -4,13 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,10 +14,10 @@ func TestRelationshipResolver_ResolveGroup_ExactMatch(t *testing.T) {
 	t.Parallel()
 
 	resolver := &RelationshipResolver{
-		groupCache: map[string]*education.Group{
-			"gruppe 1a": {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-			"gruppe 2b": {Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
-			"gruppe 3c": {Model: base.Model{ID: 3}, Name: "Gruppe 3C"},
+		groupCache: map[string]Reference{
+			"gruppe 1a": {ID: 1, Name: "Gruppe 1A"},
+			"gruppe 2b": {ID: 2, Name: "Gruppe 2B"},
+			"gruppe 3c": {ID: 3, Name: "Gruppe 3C"},
 		},
 	}
 
@@ -80,10 +76,10 @@ func TestRelationshipResolver_ResolveGroup_FuzzyMatch(t *testing.T) {
 	t.Parallel()
 
 	resolver := &RelationshipResolver{
-		groupCache: map[string]*education.Group{
-			"gruppe 1a":  {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-			"gruppe 2b":  {Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
-			"gruppe 10a": {Model: base.Model{ID: 10}, Name: "Gruppe 10A"},
+		groupCache: map[string]Reference{
+			"gruppe 1a":  {ID: 1, Name: "Gruppe 1A"},
+			"gruppe 2b":  {ID: 2, Name: "Gruppe 2B"},
+			"gruppe 10a": {ID: 10, Name: "Gruppe 10A"},
 		},
 	}
 
@@ -150,9 +146,9 @@ func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 	t.Parallel()
 
 	resolver := &RelationshipResolver{
-		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 202": {Model: base.Model{ID: 2}, Name: "Raum 202"},
+		roomCache: map[string]Reference{
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 202": {ID: 2, Name: "Raum 202"},
 		},
 	}
 
@@ -203,10 +199,10 @@ func TestRelationshipResolver_ResolveRoom_FuzzyMatch(t *testing.T) {
 	t.Parallel()
 
 	resolver := &RelationshipResolver{
-		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+		roomCache: map[string]Reference{
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 102": {ID: 2, Name: "Raum 102"},
+			"raum 201": {ID: 3, Name: "Raum 201"},
 		},
 	}
 
@@ -255,11 +251,11 @@ func TestRelationshipResolver_FindSimilarGroups(t *testing.T) {
 	t.Parallel()
 
 	resolver := &RelationshipResolver{
-		groupCache: map[string]*education.Group{
-			"gruppe 1a":  {Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-			"gruppe 1b":  {Model: base.Model{ID: 2}, Name: "Gruppe 1B"},
-			"gruppe 2a":  {Model: base.Model{ID: 3}, Name: "Gruppe 2A"},
-			"gruppe 10a": {Model: base.Model{ID: 4}, Name: "Gruppe 10A"},
+		groupCache: map[string]Reference{
+			"gruppe 1a":  {ID: 1, Name: "Gruppe 1A"},
+			"gruppe 1b":  {ID: 2, Name: "Gruppe 1B"},
+			"gruppe 2a":  {ID: 3, Name: "Gruppe 2A"},
+			"gruppe 10a": {ID: 4, Name: "Gruppe 10A"},
 		},
 	}
 
@@ -338,55 +334,8 @@ func TestNewRelationshipResolver(t *testing.T) {
 // ============================================================================
 
 type mockGroupRepo struct {
-	groups []*education.Group
+	groups []Reference
 	err    error
-}
-
-func (m *mockGroupRepo) Exists(_ context.Context, _ int64) (bool, error) {
-	return false, nil
-}
-
-func (m *mockGroupRepo) Create(_ context.Context, _ *education.Group) error { return nil }
-func (m *mockGroupRepo) FindByID(_ context.Context, _ interface{}) (*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) FindByIDForUpdate(_ context.Context, _ interface{}) (*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) FindByIDsWithRooms(_ context.Context, _ []int64) (map[int64]*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) Update(_ context.Context, _ *education.Group) error { return nil }
-func (m *mockGroupRepo) Delete(_ context.Context, _ interface{}) error      { return nil }
-func (m *mockGroupRepo) List(_ context.Context, _ map[string]interface{}) ([]*education.Group, error) {
-	return m.groups, m.err
-}
-func (m *mockGroupRepo) ListWithOptions(_ context.Context, _ *base.QueryOptions) ([]*education.Group, error) {
-	return m.groups, m.err
-}
-func (m *mockGroupRepo) ListWithRooms(_ context.Context, _ *education.GroupListQuery) ([]*education.Group, error) {
-	return m.groups, m.err
-}
-func (m *mockGroupRepo) FindByName(_ context.Context, _ string) (*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) FindByRoom(_ context.Context, _ int64) ([]*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) FindByTeacher(_ context.Context, _ int64) ([]*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) FindWithRoom(_ context.Context, _ int64) (*education.Group, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) ListStaffIDsByEducationGroupIDs(_ context.Context, _ []int64, _ timezone.Date) ([]education.StaffGroupID, error) {
-	return nil, nil
-}
-func (m *mockGroupRepo) CountWithOptions(_ context.Context, _ *base.QueryOptions) (int, error) {
-	return len(m.groups), nil
 }
 
 func TestRelationshipResolver_PreloadGroups(t *testing.T) {
@@ -397,12 +346,12 @@ func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 	t.Run("preloads groups successfully", func(t *testing.T) {
 		// ARRANGE
 		mockRepo := &mockGroupRepo{
-			groups: []*education.Group{
-				{Model: base.Model{ID: 1}, Name: "Gruppe 1A"},
-				{Model: base.Model{ID: 2}, Name: "Gruppe 2B"},
+			groups: []Reference{
+				{ID: 1, Name: "Gruppe 1A"},
+				{ID: 2, Name: "Gruppe 2B"},
 			},
 		}
-		resolver := NewRelationshipResolver(mockRepo, nil)
+		resolver := NewRelationshipResolver(mockRepo.lookup, nil)
 
 		// ACT
 		err := resolver.PreloadGroups(ctx)
@@ -419,7 +368,7 @@ func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 		mockRepo := &mockGroupRepo{
 			err: assert.AnError,
 		}
-		resolver := NewRelationshipResolver(mockRepo, nil)
+		resolver := NewRelationshipResolver(mockRepo.lookup, nil)
 
 		// ACT
 		err := resolver.PreloadGroups(ctx)
@@ -435,37 +384,8 @@ func TestRelationshipResolver_PreloadGroups(t *testing.T) {
 // ============================================================================
 
 type mockRoomRepo struct {
-	rooms []*facilities.Room
+	rooms []Reference
 	err   error
-}
-
-func (m *mockRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
-	return nil, nil
-}
-
-func (m *mockRoomRepo) Create(_ context.Context, _ *facilities.Room) error { return nil }
-func (m *mockRoomRepo) FindByID(_ context.Context, _ interface{}) (*facilities.Room, error) {
-	return nil, nil
-}
-func (m *mockRoomRepo) FindByIDForUpdate(_ context.Context, _ int64) (*facilities.Room, error) {
-	return nil, nil
-}
-func (m *mockRoomRepo) FindByName(_ context.Context, _ string) (*facilities.Room, error) {
-	return nil, nil
-}
-func (m *mockRoomRepo) FindByBuilding(_ context.Context, _ string) ([]*facilities.Room, error) {
-	return nil, nil
-}
-func (m *mockRoomRepo) FindByCategory(_ context.Context, _ string) ([]*facilities.Room, error) {
-	return nil, nil
-}
-func (m *mockRoomRepo) FindByFloor(_ context.Context, _ string, _ int) ([]*facilities.Room, error) {
-	return nil, nil
-}
-func (m *mockRoomRepo) Update(_ context.Context, _ *facilities.Room) error { return nil }
-func (m *mockRoomRepo) Delete(_ context.Context, _ interface{}) error      { return nil }
-func (m *mockRoomRepo) List(_ context.Context, _ map[string]interface{}) ([]*facilities.Room, error) {
-	return m.rooms, m.err
 }
 
 func TestRelationshipResolver_PreloadRooms(t *testing.T) {
@@ -476,12 +396,12 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 	t.Run("preloads rooms successfully", func(t *testing.T) {
 		// ARRANGE
 		mockRepo := &mockRoomRepo{
-			rooms: []*facilities.Room{
-				{Model: base.Model{ID: 1}, Name: "Raum 101"},
-				{Model: base.Model{ID: 2}, Name: "Raum 202"},
+			rooms: []Reference{
+				{ID: 1, Name: "Raum 101"},
+				{ID: 2, Name: "Raum 202"},
 			},
 		}
-		resolver := NewRelationshipResolver(nil, mockRepo)
+		resolver := NewRelationshipResolver(nil, mockRepo.lookup)
 
 		// ACT
 		err := resolver.PreloadRooms(ctx)
@@ -498,7 +418,7 @@ func TestRelationshipResolver_PreloadRooms(t *testing.T) {
 		mockRepo := &mockRoomRepo{
 			err: assert.AnError,
 		}
-		resolver := NewRelationshipResolver(nil, mockRepo)
+		resolver := NewRelationshipResolver(nil, mockRepo.lookup)
 
 		// ACT
 		err := resolver.PreloadRooms(ctx)
@@ -517,10 +437,10 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 	t.Parallel()
 
 	resolver := &RelationshipResolver{
-		roomCache: map[string]*facilities.Room{
-			"raum 101": {Model: base.Model{ID: 1}, Name: "Raum 101"},
-			"raum 102": {Model: base.Model{ID: 2}, Name: "Raum 102"},
-			"raum 201": {Model: base.Model{ID: 3}, Name: "Raum 201"},
+		roomCache: map[string]Reference{
+			"raum 101": {ID: 1, Name: "Raum 101"},
+			"raum 102": {ID: 2, Name: "Raum 102"},
+			"raum 201": {ID: 3, Name: "Raum 201"},
 		},
 	}
 
@@ -543,10 +463,7 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 }
 
 // Stubs for the issue #585 refactor interface additions — unused here.
-func (m *mockRoomRepo) FindWithOccupancy(context.Context, int64) (*facilities.RoomOccupancyRow, error) {
-	return nil, nil
-}
 
-func (m *mockRoomRepo) ListWithOccupancy(context.Context, *base.QueryOptions) ([]facilities.RoomOccupancyRow, error) {
-	return nil, nil
-}
+func (m *mockGroupRepo) lookup(context.Context) ([]Reference, error) { return m.groups, m.err }
+
+func (m *mockRoomRepo) lookup(context.Context) ([]Reference, error) { return m.rooms, m.err }

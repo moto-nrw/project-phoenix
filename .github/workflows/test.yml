@@ -74,8 +74,13 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Test affected-package selection
-        run: scripts/backend-affected-packages_test.sh
+      - name: Test backend test scripts
+        run: |
+          scripts/backend-affected-packages_test.sh
+          scripts/test-changed_test.sh
+
+      - name: Test absolute-rule guard
+        run: .claude/hooks/guard-absolute-rules_test.sh
 
       - name: Restore migrated DB snapshot
         id: db-snapshot
@@ -362,6 +367,10 @@ jobs:
       FRONTEND_URL: http://localhost:3000
       PARENTS_URL: http://parents.localhost:3000
       SCHOOL_URL: http://schule.localhost:3000
+      # services.NewFactory refuses to build without it: the personal CalDAV
+      # calendar derives its public server address from this value. Matches
+      # the PORT above so the seeded links point at this job's own server.
+      NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
       NEXT_PUBLIC_PARENTS_HOSTNAME: parents.localhost:3000
       NEXT_PUBLIC_SCHOOL_HOSTNAME: schule.localhost:3000
@@ -416,7 +425,7 @@ jobs:
           echo "server did not become healthy in 60s"
           exit 1
 
-      - name: Seed demo data
+      - name: Seed all four profiles and verify enrollment, withdrawal, web and NFC flows
         working-directory: backend
         run: |
           "${RUNNER_TEMP}/phoenix" seed \
@@ -424,14 +433,25 @@ jobs:
             --password "${OPERATOR_PASSWORD}" \
             --pin 1234 \
             --url http://localhost:8080 \
-            --tenant-slug demo-school \
+            --tenant-slug vollbetrieb \
             --staff-password 'SeedSmoke1234%' \
-            --admin-email school-admin@example.com
+            --admin-email vollbetrieb-admin@example.test
 
       - name: Simulate a full care day
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate full-day
+          "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
+
+      - name: Verify manual attendance profile
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" simulate status --profile manuell
+
+      - name: Read enrollment demo profiles
+        working-directory: backend
+        run: |
+          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
+          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-buchungen
 
       - name: Check seed coverage ratchet
         working-directory: backend

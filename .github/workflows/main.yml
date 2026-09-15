@@ -69,6 +69,8 @@ jobs:
               - 'backend/localization/locales.json'
               - 'backend/services/listexport/assets/**'
               - 'backend/templates/email/**'
+              - 'scripts/backend-architecture.sh'
+              - 'scripts/backend-architecture/**'
             backend-lint:
               - 'backend/**/*.go'
               - 'backend/go.mod'
@@ -82,6 +84,7 @@ jobs:
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/backend-architecture.sh'
+              - 'scripts/backend-architecture/**'
             backend-architecture:
               - 'backend/**/*.go'
               - 'backend/go.mod'
@@ -89,6 +92,7 @@ jobs:
               - 'backend/architecture/**'
               - 'backend/internal/architecture/**'
               - 'scripts/backend-architecture.sh'
+              - 'scripts/backend-architecture/**'
               - 'lefthook.yml'
             backend-lint-full:
               - 'backend/go.mod'
@@ -114,6 +118,10 @@ jobs:
               - 'scripts/backend-lint-packages.sh'
               - 'scripts/test-backend.sh'
               - 'scripts/test-changed.sh'
+              - 'scripts/test-changed_test.sh'
+              - 'scripts/test-run-id.sh'
+              - '.claude/hooks/guard-absolute-rules.sh'
+              - '.claude/hooks/guard-absolute-rules_test.sh'
             frontend-test-infra:
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
@@ -123,11 +131,32 @@ jobs:
               - 'frontend/src/test/setup.ts'
               - 'scripts/test-changed.sh'
             ci:
+              - 'lefthook.yml'
+              - 'scripts/pre-push*'
+              - 'scripts/check-quality.sh'
+              - 'scripts/check-backend-quality.sh'
+              - 'scripts/check-frontend-quality.sh'
+              - 'scripts/quality-timing.sh'
+              - 'scripts/check-secrets.sh'
+              - 'scripts/check-release-architecture*'
+              - 'scripts/release-backup*'
+              - 'scripts/test-support/release-docker.mjs'
+              - 'scripts/deploy-remote.sh'
+              - 'scripts/rollback-remote.sh'
+              - 'scripts/restore-db.sh'
+              - 'scripts/run-go-toolchain.sh'
               - '.github/**'
               - 'sonar-project.properties'
               - 'environments/**'
               - '.env.example'
               - 'package.json'
+
+      - name: Verify pre-push failure and selection behavior
+        run: node --test scripts/pre-push.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs
+
+      - name: Verify complete release restore with PostgreSQL
+        if: steps.filter.outputs.ci == 'true'
+        run: node --test scripts/release-backup.integration.test.mjs
 
   lint:
     permissions:
@@ -149,6 +178,7 @@ jobs:
     permissions:
       contents: read
       issues: read
+      actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -158,19 +188,25 @@ jobs:
         with:
           go-version-file: backend/go.mod
           cache: true
-          cache-dependency-path: backend/go.sum
+          cache-dependency-path: |
+            backend/go.sum
+            scripts/backend-architecture/go.sum
       - name: Check deterministic architecture ratchet
         env:
           BASE_REF: ${{ github.base_ref }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CUTOVER_BASE_SHA: 1c66eb9233fb398b186420b4ffb36004a8a83c6c
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.head_ref }}
           HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
           REPOSITORY: ${{ github.repository }}
         run: |
           if [[ "$EVENT_NAME" == "pull_request" ]]; then
-            if git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
+            if [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
+              node scripts/check-release-architecture.mjs
+            elif git cat-file -e "$BASE_SHA:backend/architecture/legacy.jsonl" 2>/dev/null; then
               scripts/backend-architecture.sh check --base-ref "$BASE_SHA"
             elif [[ "$BASE_SHA" == "$CUTOVER_BASE_SHA" ]]; then
               # The baseline cannot exist in the base commit that introduces it.
@@ -182,11 +218,6 @@ jobs:
                 exit 1
               fi
               scripts/backend-architecture.sh check
-            elif [[ "$BASE_REF" == "main" && "$HEAD_REF" == "development" && "$HEAD_REPO" == "$REPOSITORY" ]]; then
-              # The first release that carries the ratchet cannot compare
-              # against main because main does not have a baseline yet. Only
-              # the repository's development branch may take this path.
-              scripts/backend-architecture.sh check
             else
               echo "Base commit $BASE_SHA has no architecture baseline; rebase onto the cutover."
               exit 1
@@ -194,6 +225,37 @@ jobs:
           else
             scripts/backend-architecture.sh check
           fi
+      - name: Generate and validate current architecture projections
+        run: |
+          output_directory=$(mktemp -d)
+          cleanup() {
+            rm -rf -- "$output_directory"
+          }
+          trap cleanup EXIT
+
+          scripts/backend-architecture.sh diagram --output "$output_directory"
+          scripts/backend-architecture.sh dependencies \
+            --focus module:architecture-check \
+            --output "$output_directory"
+
+          for artifact in architecture.json go-arch-lint.yml dependencies.json dependencies.goda; do
+            test -s "$output_directory/$artifact"
+          done
+          python3 - \
+            "$output_directory/target.svg" \
+            "$output_directory/migration.svg" \
+            "$output_directory/dependencies.svg" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+
+          svg_tag = "{http://www.w3.org/2000/svg}svg"
+          for filename in sys.argv[1:]:
+              root = ET.parse(filename).getroot()
+              if root.tag != svg_tag:
+                  raise SystemExit(
+                      f"{filename}: root element is {root.tag}, expected {svg_tag}"
+                  )
+          PY
       - name: Audit open migration issues
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -266,6 +328,25 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Check environment key sync
         run: ./scripts/env-check.sh
+      - name: Check pinned pnpm contract
+        run: |
+          expected=$(jq -r '[.packages[] | select(startswith("pnpm_10@"))] | if length == 1 then .[0] | split("@")[1] else empty end' devbox.json)
+          if [[ -z "$expected" ]]; then
+            echo "::error file=devbox.json::Expected exactly one pnpm_10@<version> package"
+            exit 1
+          fi
+          locked=$(jq -r --arg package "pnpm_10@$expected" '.packages[$package].version // empty' devbox.lock)
+          if [[ "$locked" != "$expected" ]]; then
+            echo "::error file=devbox.lock::pnpm lock version $locked does not match Devbox pin $expected"
+            exit 1
+          fi
+          for manifest in package.json frontend/package.json; do
+            actual=$(jq -r '(.packageManager // "") | if startswith("pnpm@") then sub("^pnpm@"; "") | split("+")[0] else empty end' "$manifest")
+            if [[ "$actual" != "$expected" ]]; then
+              echo "::error file=$manifest::packageManager version $actual does not match Devbox pin $expected"
+              exit 1
+            fi
+          done
       - name: Block unencrypted secrets
         run: |
           failed=false
@@ -293,9 +374,27 @@ jobs:
     if: >-
       always()
       && (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
-    needs: [lint, test, backend-architecture-ratchet, env-sync-check]
+    needs: [detect-changes, lint, test, backend-architecture-ratchet, env-sync-check]
     runs-on: ubuntu-latest
     steps:
+      - name: Reject skipped mandatory checks
+        env:
+          ARCHITECTURE_REQUIRED: ${{ needs.detect-changes.outputs.run-backend-architecture }}
+          BACKEND_LINT_REQUIRED: ${{ needs.detect-changes.outputs.run-backend-lint }}
+          FRONTEND_LINT_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend-lint }}
+          BACKEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-backend }}
+          FRONTEND_TEST_REQUIRED: ${{ needs.detect-changes.outputs.run-frontend }}
+          SEED_SMOKE_REQUIRED: ${{ needs.detect-changes.outputs.run-seed-smoke }}
+          ARCHITECTURE_RESULT: ${{ needs.backend-architecture-ratchet.result }}
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+        run: |
+          if [[ "$ARCHITECTURE_REQUIRED" == true && "$ARCHITECTURE_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_LINT_REQUIRED" == true || "$FRONTEND_LINT_REQUIRED" == true ) && "$LINT_RESULT" == skipped ]] ||
+             [[ ( "$BACKEND_TEST_REQUIRED" == true || "$FRONTEND_TEST_REQUIRED" == true || "$SEED_SMOKE_REQUIRED" == true ) && "$TEST_RESULT" == skipped ]]; then
+            echo "A mandatory check was skipped (architecture=$ARCHITECTURE_RESULT, lint=$LINT_RESULT, test=$TEST_RESULT)"
+            exit 1
+          fi
       - uses: re-actors/alls-green@b5b5b37504aa4183270bd3d855c52a67f212be35 # release/v1
         with:
           jobs: ${{ toJSON(needs) }}

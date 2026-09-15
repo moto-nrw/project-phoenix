@@ -372,4 +372,48 @@ describe("personal calendar API", () => {
       "Anfrage fehlgeschlagen (HTTP 500)",
     );
   });
+
+  // A 2xx body that is not valid JSON used to reach the calendar's red error
+  // box as the browser's own English text — in Safari "The string did not
+  // match the expected pattern.", its default SyntaxError message.
+  describe("unreadable successful responses", () => {
+    const READABLE = "Das hat leider nicht geklappt. Bitte versuchen Sie es";
+
+    beforeEach(() => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+    });
+
+    it("reports a truncated json body in German", async () => {
+      fetchMock.mockResolvedValueOnce(
+        new Response('{"data": {"events": [', {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+
+      await expect(
+        getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
+      ).rejects.toThrow(READABLE);
+    });
+
+    it("reports an empty body in German", async () => {
+      fetchMock.mockResolvedValueOnce(new Response("", { status: 200 }));
+
+      await expect(
+        getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
+      ).rejects.toThrow(READABLE);
+    });
+
+    it("reports a failed connection in German and logs the native cause", async () => {
+      fetchMock.mockRejectedValueOnce(new TypeError("Load failed"));
+
+      await expect(
+        getStaffCalendar(new Date(2026, 0, 5), new Date(2026, 0, 11)),
+      ).rejects.toThrow(READABLE);
+      expect(console.error).toHaveBeenCalledWith(
+        "calendar_request_failed",
+        expect.objectContaining({ stage: "network", error: "Load failed" }),
+      );
+    });
+  });
 });

@@ -2,19 +2,15 @@ package config
 
 import (
 	"context"
-	"errors"
-	"time"
 
 	"github.com/uptrace/bun"
 )
 
-// Runtime supplies ambient transaction and tenant state without coupling the
-// settings Postgres adapter to the transaction implementation.
+// Runtime supplies the ambient transaction without coupling the settings
+// Postgres adapter to the transaction implementation. Tenant scoping is left
+// to the transaction's row-level security policy.
 type Runtime interface {
 	DB(context.Context) bun.IDB
-	TenantID(context.Context) int64
-	LockStaffBalance(context.Context, int64) error
-	TodayTime() time.Time
 }
 
 type directRuntime struct{ db *bun.DB }
@@ -24,9 +20,4 @@ type directRuntime struct{ db *bun.DB }
 // with their tenant-aware runtime before wiring settings repositories.
 func NewRuntime(db *bun.DB) Runtime { return directRuntime{db: db} }
 
-func (r directRuntime) DB(context.Context) bun.IDB   { return r.db }
-func (directRuntime) TenantID(context.Context) int64 { return 0 }
-func (directRuntime) TodayTime() time.Time           { return time.Now() }
-func (directRuntime) LockStaffBalance(context.Context, int64) error {
-	return errors.New("config repository transaction runtime is required")
-}
+func (r directRuntime) DB(context.Context) bun.IDB { return r.db }

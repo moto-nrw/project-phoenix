@@ -91,7 +91,21 @@ var (
 	// unchanged — same rule as the guardian split above.
 	ErrMustUseSchoolPortal = errors.New("school portal accounts must log in at the school portal")
 
+	// Admin staff-view preview (#2893)
+	// ErrPreviewSelf: previewing your own account is pointless and refused.
+	ErrPreviewSelf = errors.New("cannot preview your own account")
+	// ErrPreviewTargetNotStaff: the target has no tenant-portal surface at
+	// this school (guardian-only, or no role at all).
+	ErrPreviewTargetNotStaff = errors.New("account is not a staff member at this school")
+	// ErrPreviewTokenInvalid: the token presented when ending a preview is
+	// not a valid preview token of the calling admin at this school. The end
+	// call proves which preview it closes with that token, so a client cannot
+	// name an arbitrary account in the audit trail.
+	ErrPreviewTokenInvalid = errors.New("not a preview token of this session")
+
 	// Invitation errors
+	ErrInvitationOwnerRequired       = errors.New("sign in to the invited account before accepting")
+	ErrInvitationOwnerMismatch       = errors.New("the signed-in account does not own this invitation")
 	ErrInvitationNotFound            = errors.New("invitation not found")
 	ErrInvitationExpired             = errors.New("invitation has expired")
 	ErrInvitationUsed                = errors.New("invitation has already been used")

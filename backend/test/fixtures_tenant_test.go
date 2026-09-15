@@ -36,3 +36,20 @@ func TestEnsureTestTenant_IsConcurrentSafe(t *testing.T) {
 		require.NoError(t, err)
 	}
 }
+
+func TestCleanupTenantTestDataRemovesPlatformOwners(t *testing.T) {
+	t.Parallel()
+
+	db := SetupTestDB(t)
+	tenantID, _ := CreateTestTenant(t, db)
+
+	cleanupTenantTestData(t, db, tenantID)
+
+	for _, table := range []string{"platform.schools", "platform.organizations"} {
+		var exists bool
+		err := db.NewRaw("SELECT EXISTS (SELECT 1 FROM "+table+" WHERE id = ?)", tenantID).
+			Scan(context.Background(), &exists)
+		require.NoError(t, err)
+		require.False(t, exists, "%s row must be removed", table)
+	}
+}

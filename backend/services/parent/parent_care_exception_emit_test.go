@@ -14,9 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -29,11 +29,10 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -50,6 +49,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       repos.ParentMessage,
 		MessageReadRepo:   repos.ParentMessageRead,
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           emitter,
 		DB:                db,
 		Logger:            slog.Default(),
@@ -89,14 +89,13 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the
 	// guardian fan-out rides BroadcastChildUpdateToGuardians on the emitter.
 	emitterBC := testpkg.NewRecordingBroadcaster()
-	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, repos.ParentMessage,
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
-	testpkg.SetTenantRuntime(t, emitter, db)
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
@@ -113,6 +112,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       repos.ParentMessage,
 		MessageReadRepo:   repos.ParentMessageRead,
+		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           emitter,
 		DB:                db,
 		Logger:            slog.Default(),

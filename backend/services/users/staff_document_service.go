@@ -21,7 +21,8 @@ import (
 // the caller may reach the tab at all — per-category authority is decided
 // here: AU-Bescheinigungen are Art. 9 health data (staff_documents:health),
 // Lohnabrechnungen belong to the payroll tier (staff:financial), everything
-// else to the directory maintainers (users:update). Every upload and delete
+// else to the personnel administrators (staff:documents, #2906 — this tier
+// used to be users:update, which every Betreuer holds). Every upload and delete
 // writes a Stammdaten audit row in the same tenant transaction; serving a
 // sensitive category is refused when the access-log write fails — the same
 // two hard rules as the Stammdaten service.
@@ -186,7 +187,7 @@ func staffDocumentCategoryPermission(category string) string {
 	case userModels.StaffDocumentCategoryLohnabrechnung:
 		return permissions.StaffFinancial
 	default:
-		return permissions.UsersUpdate
+		return permissions.StaffDocuments
 	}
 }
 

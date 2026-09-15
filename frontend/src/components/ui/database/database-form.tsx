@@ -5,6 +5,7 @@ import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { Checkbox } from "~/components/ui/checkbox";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
@@ -269,6 +270,11 @@ interface DatabaseFormProps<T = Record<string, unknown>> {
   readonly submitLabel: string;
   readonly stickyActions?: boolean; // Render sticky action bar like other entity forms
   /**
+   * Ergänzt nachgeladene Felder mit ihren aktuellen Werten, ohne andere Werte
+   * eines offenen Entwurfs zu überschreiben.
+   */
+  readonly preserveDraftOnSectionsChange?: boolean;
+  /**
    * Ueberschriftenebene der Abschnittstitel. Default 2 fuer die
    * Master-Detail-Ansicht, wo das Formular direkt im Inhaltsbereich steht.
    * DatabaseFormModal setzt 4, weil Modal seinen Titel als h3 rendert und die
@@ -286,6 +292,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   error: externalError,
   submitLabel,
   stickyActions = false,
+  preserveDraftOnSectionsChange = false,
   sectionLevel = 2,
 }: DatabaseFormProps<T>) {
   const privacyStudentId =
@@ -315,6 +322,8 @@ export function DatabaseForm<T = Record<string, unknown>>({
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
   const dirtyPrivacyFieldsRef = useRef<Set<string>>(new Set());
+  const hasInitializedFormRef = useRef(false);
+  const renderedFieldNamesRef = useRef<Set<string>>(new Set());
   // Track mount state to avoid setState on unmounted component
   const isMountedRef = useRef(true);
 
@@ -341,9 +350,36 @@ export function DatabaseForm<T = Record<string, unknown>>({
       applyInitialData(initialFormData, initialData, sections);
     }
 
+    if (preserveDraftOnSectionsChange && hasInitializedFormRef.current) {
+      const fieldNames = new Set(
+        sections.flatMap((section) =>
+          section.fields.map((field) => field.name),
+        ),
+      );
+      const previousFieldNames = renderedFieldNamesRef.current;
+      setFormData((currentFormData) => {
+        const nextFormData = { ...currentFormData };
+        for (const [name, value] of Object.entries(initialFormData)) {
+          // Ein Feld, das vorher nicht sichtbar war, konnte noch nicht
+          // geändert werden. Sein frischer Anfangswert ist deshalb sicherer
+          // als ein eventuell schon im Hintergrund vorhandener Wert.
+          if (!previousFieldNames.has(name) || !(name in nextFormData)) {
+            nextFormData[name] = value;
+          }
+        }
+        return nextFormData;
+      });
+      renderedFieldNamesRef.current = fieldNames;
+      return;
+    }
+
     dirtyPrivacyFieldsRef.current.clear();
     setFormData(initialFormData);
-  }, [initialData, sections]);
+    hasInitializedFormRef.current = true;
+    renderedFieldNamesRef.current = new Set(
+      sections.flatMap((section) => section.fields.map((field) => field.name)),
+    );
+  }, [initialData, preserveDraftOnSectionsChange, sections]);
 
   // Apply separately fetched consent without resetting unrelated form edits.
   // Preserve consent fields too once the user has changed them locally.
@@ -588,7 +624,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
               return (
                 <span
                   key={value}
-                  className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-medium text-blue-800"
+                  className="bg-moto-blue-soft text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
                 >
                   {option.label}
                   <button
@@ -596,7 +632,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
                     onClick={() =>
                       handleMultiselectRemove(field.name, selectedValues, value)
                     }
-                    className="ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full bg-blue-200 text-blue-600 hover:bg-blue-300 hover:text-blue-700"
+                    className="bg-moto-blue/20 text-moto-blue-strong hover:bg-moto-blue/30 hover:text-moto-blue-strong ml-1 inline-flex h-3.5 w-3.5 items-center justify-center rounded-full"
                     aria-label={`Remove ${option.label}`}
                   >
                     ×
@@ -645,7 +681,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const hasError = field.name === errorFieldName;
 
     const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
-    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-red-600" : "text-gray-700"}`;
+    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-moto-red" : "text-gray-700"}`;
 
     switch (field.type) {
       case "custom": {
@@ -671,25 +707,27 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
       case "checkbox":
         return (
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id={field.name}
-              name={field.name}
-              checked={Boolean(formData[field.name])}
-              onChange={handleChange}
-              className="text-moto-blue focus:ring-moto-blue h-4 w-4 rounded border-gray-300"
-            />
+          <div>
             <label
               htmlFor={field.name}
-              className={`ml-2 block text-xs md:text-sm ${hasError ? "text-red-600" : "text-gray-700"}`}
+              className="flex cursor-pointer items-center gap-2"
             >
-              {field.label}
+              <Checkbox
+                id={field.name}
+                name={field.name}
+                checked={Boolean(formData[field.name])}
+                onChange={handleChange}
+              />
+              <span
+                className={`block text-xs md:text-sm ${hasError ? "text-moto-red" : "text-gray-700"}`}
+              >
+                {field.label}
+              </span>
             </label>
+            {/* Below the row, like every other field's hint. Inline it ran into
+                the label as one long line and broke the form's own rhythm. */}
             {field.helperText && (
-              <p className="ml-2 text-xs text-gray-500 md:text-sm">
-                {field.helperText}
-              </p>
+              <p className="mt-1 text-xs text-gray-500">{field.helperText}</p>
             )}
           </div>
         );

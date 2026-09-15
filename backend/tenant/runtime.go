@@ -76,7 +76,13 @@ type UnitOfWork struct {
 // mask its private transaction context. It keeps context-key ownership inside
 // the adapter that reads the key.
 func (uow UnitOfWork) WithTransactionDetacher(detach func(context.Context) context.Context) UnitOfWork {
-	uow.withoutTx = detach
+	previous := uow.withoutTx
+	uow.withoutTx = func(ctx context.Context) context.Context {
+		if previous != nil {
+			ctx = previous(ctx)
+		}
+		return detach(ctx)
+	}
 	return uow
 }
 
@@ -84,8 +90,20 @@ func (uow UnitOfWork) WithContextAdapters(
 	withTenant func(context.Context, int64) context.Context,
 	withTransaction func(context.Context, any) context.Context,
 ) UnitOfWork {
-	uow.withTenant = withTenant
-	uow.withTransaction = withTransaction
+	previousTenant := uow.withTenant
+	uow.withTenant = func(ctx context.Context, tenantID int64) context.Context {
+		if previousTenant != nil {
+			ctx = previousTenant(ctx, tenantID)
+		}
+		return withTenant(ctx, tenantID)
+	}
+	previousTransaction := uow.withTransaction
+	uow.withTransaction = func(ctx context.Context, transaction any) context.Context {
+		if previousTransaction != nil {
+			ctx = previousTransaction(ctx, transaction)
+		}
+		return withTransaction(ctx, transaction)
+	}
 	return uow
 }
 
@@ -150,6 +168,20 @@ func WithUnitOfWork(ctx context.Context, uow UnitOfWork) context.Context {
 // without coupling this package to HTTP or worker metrics.
 func WithUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent)) context.Context {
 	return context.WithValue(ctx, runtimeObserverKey{}, observer)
+}
+
+// WithAdditionalUnitOfWorkObserver attributes runtime evidence to a workflow
+// without replacing the root's transaction metrics observer.
+func WithAdditionalUnitOfWorkObserver(ctx context.Context, observer func(UnitOfWorkEvent)) context.Context {
+	previous, _ := ctx.Value(runtimeObserverKey{}).(func(UnitOfWorkEvent))
+	return WithUnitOfWorkObserver(ctx, func(event UnitOfWorkEvent) {
+		if previous != nil {
+			previous(event)
+		}
+		if observer != nil {
+			observer(event)
+		}
+	})
 }
 
 func WithRuntimeObserver(ctx context.Context, observer func(RuntimeEvent)) context.Context {
@@ -242,9 +274,11 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 	started := time.Now()
 	retries := 0
 	committed := false
+	var attemptHooks *afterCommitHooks
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
 			if !committed {
+				runAfterRollbackHooks(attemptHooks)
 				observeTransaction(ctx, UnitOfWorkPanicked, nil, started, retries)
 			}
 			panic(panicValue)
@@ -253,6 +287,7 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 
 	for attempt := 0; ; attempt++ {
 		attemptCtx, commitHooks := withAfterCommitHooks(ctx)
+		attemptHooks = commitHooks
 		err = run(attemptCtx)
 		if err == nil {
 			committed = true
@@ -260,6 +295,8 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 			runAfterCommitHooks(commitHooks)
 			return nil
 		}
+		runAfterRollbackHooks(commitHooks)
+		attemptHooks = nil
 		if !retry || attempt == maxTransactionRetries || !uow.retryable(err) {
 			observeTransaction(ctx, transactionResult(err), err, started, retries)
 			return err
@@ -328,6 +365,16 @@ func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) er
 
 // WithinAdmin runs fn in the cross-tenant administrative transaction.
 func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
+	return withinAdmin(ctx, false, fn)
+}
+
+// WithinAdminRetry runs an explicitly retry-safe administrative command,
+// replaying its whole transaction after a deadlock or serialization failure.
+func WithinAdminRetry(ctx context.Context, fn func(context.Context) error) error {
+	return withinAdmin(ctx, true, fn)
+}
+
+func withinAdmin(ctx context.Context, retry bool, fn func(context.Context) error) error {
 	if fn == nil {
 		return errors.New("tenant: callback is required")
 	}
@@ -338,7 +385,7 @@ func WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
 	}
 
 	ctx = ContextWithoutTenant(ctx)
-	return runtime.execute(ctx, false, func(attemptCtx context.Context) error {
+	return runtime.execute(ctx, retry, func(attemptCtx context.Context) error {
 		return runtime.withinAdmin(attemptCtx, func(txCtx context.Context, tx any) error {
 			txCtx = withTransaction(txCtx, tx)
 			return fn(withAdminTxFlag(txCtx))

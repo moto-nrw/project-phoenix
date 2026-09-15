@@ -2,6 +2,7 @@ package statistics
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -10,10 +11,67 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
+
+func enrolledEveryDay(timezone.Date, timezone.Date) bool { return true }
+
+type reportStudents struct{}
+
+func (reportStudents) FindOverlappingWithGroups(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]*ReportStudent, error) {
+	return nil, nil
+}
+
+type reportRetention struct{ err error }
+
+func (r reportRetention) RoomRetentionDays(context.Context) (int, error)   { return 30, r.err }
+func (r reportRetention) CourseRetentionDays(context.Context) (int, error) { return 365, r.err }
+
+type reportAudit struct {
+	recordErr error
+	lookupErr error
+	events    []AccessEvent
+}
+
+func (a *reportAudit) RecordStatisticsAccess(_ context.Context, event AccessEvent) error {
+	a.events = append(a.events, event)
+	return a.recordErr
+}
+
+func (a *reportAudit) SeenStatisticsAccessSince(context.Context, int64, map[string]string, time.Time) (bool, error) {
+	return false, a.lookupErr
+}
+
+func TestReportRejectsRetentionAndAuditFailures(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("dependency unavailable")
+	filters := Filters{From: timezone.NewDate(2026, 8, 1), To: timezone.NewDate(2026, 8, 2), Sections: []Section{SectionCourses}}
+	audit := &reportAudit{}
+	service := NewService(Config{Students: reportStudents{}, Retention: reportRetention{err: failure}, AccessLog: audit, Now: fixedNow})
+	report, err := service.Report(context.Background(), filters, Actor{AccountID: 1})
+	require.ErrorIs(t, err, failure)
+	require.Nil(t, report)
+	require.Empty(t, audit.events)
+
+	audit.recordErr = failure
+	service = NewService(Config{Students: reportStudents{}, Retention: reportRetention{}, AccessLog: audit, Now: fixedNow})
+	report, err = service.ReportForExport(context.Background(), filters, Actor{AccountID: 1}, "xlsx")
+	require.ErrorIs(t, err, ErrAuditFailed)
+	require.Nil(t, report)
+	require.Len(t, audit.events, 1)
+	require.Equal(t, "xlsx", audit.events[0].Metadata["format"])
+	require.Equal(t, "export", audit.events[0].Metadata["action"])
+	require.Equal(t, "unknown", audit.events[0].ActorRole)
+	require.Equal(t, filters.From.BerlinMidnight(), audit.events[0].RangeStart)
+	require.Equal(t, filters.To.EndOfDay(), audit.events[0].RangeEnd)
+
+	audit.events = nil
+	audit.recordErr = nil
+	audit.lookupErr = failure
+	report, err = service.Report(context.Background(), filters, Actor{AccountID: 1})
+	require.ErrorIs(t, err, ErrAuditFailed)
+	require.Nil(t, report)
+	require.Empty(t, audit.events)
+}
 
 type dateSet map[timezone.Date]bool
 
@@ -25,15 +83,15 @@ func (d dateSet) ClosingDayDates(context.Context, timezone.Date, timezone.Date) 
 	return map[timezone.Date]bool(d), nil
 }
 
-type periodList []*scheduleModels.CalendarPeriod
+type periodList []HolidayPeriod
 
-func (p periodList) FindActiveOverlappingByType(context.Context, string, timezone.Date, timezone.Date, int64) ([]*scheduleModels.CalendarPeriod, error) {
+func (p periodList) StatisticsHolidayPeriods(context.Context, timezone.Date, timezone.Date) ([]HolidayPeriod, error) {
 	return p, nil
 }
 
-type retentionSettings []userModels.StudentRetentionSetting
+type retentionSettings []RetentionSetting
 
-func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]userModels.StudentRetentionSetting, error) {
+func (s retentionSettings) ListAcceptedRetentionSettings(context.Context) ([]RetentionSetting, error) {
 	return s, nil
 }
 
@@ -41,9 +99,9 @@ type accessLogSpy struct {
 	metadata []map[string]string
 }
 
-func (s *accessLogSpy) Create(context.Context, *auditModels.DataAccessLog) error { return nil }
+func (s *accessLogSpy) RecordStatisticsAccess(context.Context, AccessEvent) error { return nil }
 
-func (s *accessLogSpy) ExistsSince(_ context.Context, _ int64, _ string, metadata map[string]string, _ time.Time) (bool, error) {
+func (s *accessLogSpy) SeenStatisticsAccessSince(_ context.Context, _ int64, metadata map[string]string, _ time.Time) (bool, error) {
 	s.metadata = append(s.metadata, metadata)
 	return false, nil
 }
@@ -104,19 +162,19 @@ func TestBuildStudentRows_CategoriesAndPrecedence(t *testing.T) {
 	d1, d2, d3, d4 := timezone.NewDate(2026, 6, 8), timezone.NewDate(2026, 6, 9), timezone.NewDate(2026, 6, 10), timezone.NewDate(2026, 6, 11)
 	care := map[timezone.Date]bool{d1: true, d2: true, d3: true, d4: true}
 	groupID := int64(77)
-	students := []*userModels.StudentWithGroupInfo{
-		{Student: &userModels.Student{PersonID: 10, SchoolClass: "1a", GroupID: &groupID, Person: &userModels.Person{FirstName: "Zoe", LastName: "Beta"}}, GroupName: "Sonne"},
-		{Student: &userModels.Student{PersonID: 11, SchoolClass: "1a", Person: &userModels.Person{FirstName: "Adam", LastName: "Alpha"}}},
+	students := []*ReportStudent{
+		{SchoolClass: "1a", GroupID: &groupID, FirstName: "Zoe", LastName: "Beta", GroupName: "Sonne", EnrolledOn: enrolledEveryDay},
+		{SchoolClass: "1a", FirstName: "Adam", LastName: "Alpha", EnrolledOn: enrolledEveryDay},
 	}
 	students[0].ID = 100
 	students[1].ID = 101
 
 	rows := buildStudentRows(students, care,
-		[]activeModels.AttendanceDayRow{
+		[]AttendanceDay{
 			{StudentID: 100, Date: d1},
 			{StudentID: 100, Date: timezone.NewDate(2026, 6, 13)}, // not a care day: ignored
 		},
-		[]activeModels.StatusDayRow{
+		[]StatusDay{
 			{StudentID: 100, Date: d2, Status: activeModels.StudentStatusDayExcused},
 			{StudentID: 100, Date: d2, Status: activeModels.StudentStatusDaySick}, // sick wins
 			{StudentID: 100, Date: d3, Status: activeModels.StudentStatusDayClassTrip},
@@ -175,10 +233,10 @@ func TestValidate_RangeRules(t *testing.T) {
 func TestFilterStudentsByGroup(t *testing.T) {
 	t.Parallel()
 	a, b := int64(21), int64(22)
-	students := []*userModels.StudentWithGroupInfo{
-		{Student: &userModels.Student{GroupID: &a}},
-		{Student: &userModels.Student{GroupID: &b}},
-		{Student: &userModels.Student{}},
+	students := []*ReportStudent{
+		{GroupID: &a, EnrolledOn: enrolledEveryDay},
+		{GroupID: &b, EnrolledOn: enrolledEveryDay},
+		{EnrolledOn: enrolledEveryDay},
 	}
 	assert.Len(t, filterStudentsByGroup(students, nil), 3)
 	assert.Len(t, filterStudentsByGroup(students, []int64{a}), 1)
@@ -187,7 +245,7 @@ func TestFilterStudentsByGroup(t *testing.T) {
 
 	// A nil row and a row without a hydrated student are skipped, not
 	// dereferenced — buildStudentRows guards the same two cases.
-	withGaps := []*userModels.StudentWithGroupInfo{nil, {}, {Student: &userModels.Student{GroupID: &a}}}
+	withGaps := []*ReportStudent{nil, {}, {GroupID: &a, EnrolledOn: enrolledEveryDay}}
 	assert.Len(t, filterStudentsByGroup(withGaps, []int64{a}), 1)
 	assert.Empty(t, filterStudentsByGroup(withGaps, []int64{0}))
 }
@@ -202,11 +260,11 @@ func TestBuildStudentRows_OnlyCountsDaysInsideEnrollment(t *testing.T) {
 		first.AddDays(3): true,
 	}
 	enrolledFrom := first.AddDays(2)
-	student := &userModels.Student{EnrolledFrom: &enrolledFrom}
+	student := &ReportStudent{EnrolledOn: func(day, _ timezone.Date) bool { return !day.Before(enrolledFrom) }}
 	student.ID = 100
 
-	rows := buildStudentRows([]*userModels.StudentWithGroupInfo{{Student: student}}, care,
-		[]activeModels.AttendanceDayRow{{StudentID: student.ID, Date: enrolledFrom}}, nil,
+	rows := buildStudentRows([]*ReportStudent{student}, care,
+		[]AttendanceDay{{StudentID: student.ID, Date: enrolledFrom}}, nil,
 		timezone.DateFromTime(fixedNow()))
 
 	require.Len(t, rows, 1)
@@ -219,7 +277,7 @@ func TestBuildStudentRows_OnlyCountsDaysInsideEnrollment(t *testing.T) {
 
 func TestRoomRetentionDays_UsesLongestIndividualRetention(t *testing.T) {
 	t.Parallel()
-	svc := &service{cfg: Config{PrivacyConsents: retentionSettings{
+	svc := &service{cfg: Config{Retention: reportRetention{}, PrivacyConsents: retentionSettings{
 		{StudentID: 1, DataRetentionDays: 7},
 		{StudentID: 2, DataRetentionDays: 21},
 	}}}
@@ -236,7 +294,7 @@ func TestRoomRetentionDays_UsesLongestIndividualRetention(t *testing.T) {
 // clamps to.
 func TestRoomRetentionDays_ScopedToTheCoveredPopulation(t *testing.T) {
 	t.Parallel()
-	svc := &service{cfg: Config{PrivacyConsents: retentionSettings{
+	svc := &service{cfg: Config{Retention: reportRetention{}, PrivacyConsents: retentionSettings{
 		{StudentID: 1, DataRetentionDays: 7},
 		{StudentID: 1, DataRetentionDays: 90}, // same child, two consents
 		{StudentID: 2, DataRetentionDays: 21},
@@ -254,13 +312,13 @@ func TestRoomRetentionDays_ScopedToTheCoveredPopulation(t *testing.T) {
 	// The configured default is then the only statement left to make.
 	days, err = svc.roomRetentionDays(context.Background(), []StudentRow{{StudentID: 99}})
 	require.NoError(t, err)
-	assert.Equal(t, userModels.DefaultDataRetentionDays, days)
+	assert.Equal(t, 30, days)
 }
 
 // An immediately activated child (active, enrolled_from still ahead) is in
 // care from today on, so today counts in their denominator while the days
 // before it do not. The same child in status pending has no care day at all.
-func TestBuildStudentRows_CountsImmediateActivationFromTodayOn(t *testing.T) {
+func TestBuildStudentRows_UsesOwnerEnrollmentEligibility(t *testing.T) {
 	t.Parallel()
 	today := timezone.DateFromTime(fixedNow())
 	care := map[timezone.Date]bool{
@@ -270,15 +328,15 @@ func TestBuildStudentRows_CountsImmediateActivationFromTodayOn(t *testing.T) {
 	}
 	startsLater := today.AddDays(14)
 
-	activated := &userModels.Student{EnrolledFrom: &startsLater, Status: userModels.StudentStatusActive}
+	activated := &ReportStudent{EnrolledOn: func(day, reportToday timezone.Date) bool { return !day.Before(reportToday) }}
 	activated.ID = 100
-	pending := &userModels.Student{EnrolledFrom: &startsLater, Status: userModels.StudentStatusPending}
+	pending := &ReportStudent{EnrolledOn: func(day, _ timezone.Date) bool { return !day.Before(startsLater) }}
 	pending.ID = 101
 
 	rows := buildStudentRows(
-		[]*userModels.StudentWithGroupInfo{{Student: activated}, {Student: pending}},
+		[]*ReportStudent{activated, pending},
 		care,
-		[]activeModels.AttendanceDayRow{
+		[]AttendanceDay{
 			{StudentID: activated.ID, Date: today},
 			{StudentID: activated.ID, Date: today.AddDays(-1)}, // before care begins
 			{StudentID: pending.ID, Date: today},

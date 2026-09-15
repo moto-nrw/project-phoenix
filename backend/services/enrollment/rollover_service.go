@@ -8,6 +8,8 @@ import (
 	"slices"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
@@ -156,7 +158,7 @@ type CreatePhaseFromSourceRequest struct {
 // RolloverResult summarises what the rollover did so the admin UI can
 // confirm "you carried 27 children forward, 2 need review".
 type RolloverResult struct {
-	Phase               *enrollmentModels.Phase
+	Phase               *capability.Phase
 	SourceChildCount    int            // approved children scanned in the source phase
 	RolledCount         int            // child rows created in renewal state
 	ClonedOfferingCount int            // care offerings cloned into the new phase (#2249)
@@ -185,9 +187,9 @@ type RolloverPreview struct {
 // by the admin to see "this is Lina, last year she was in 4a, now
 // she'd be in 5a which is above the cap".
 type ReviewQueueItem struct {
-	Child       *enrollmentModels.RequestChild
+	Child       *RequestChild
 	Request     *enrollmentModels.Request
-	SourceChild *enrollmentModels.RequestChild
+	SourceChild *RequestChild
 }
 
 // ReviewDecision values the admin can pick on a queued review row.
@@ -216,10 +218,10 @@ type rolloverService struct {
 
 type rolloverRequestInput struct {
 	tenantID          int64
-	sourcePhase       *enrollmentModels.Phase
-	newPhase          *enrollmentModels.Phase
+	sourcePhase       *capability.Phase
+	newPhase          *capability.Phase
 	sourceRequest     *enrollmentModels.Request
-	sourceChildren    []*enrollmentModels.RequestChild
+	sourceChildren    []*RequestChild
 	maxGrade          int
 	collectGradeLevel bool
 	// offeringIDMap translates source-phase care offering IDs to their
@@ -239,10 +241,10 @@ type rolloverChildAttributes struct {
 
 // RolloverServiceConfig is the dependency-injection bundle.
 type RolloverServiceConfig struct {
-	PhaseRepo                enrollmentModels.PhaseRepository
-	RequestRepo              enrollmentModels.RequestRepository
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
+	Bookings CareBookingCommands
+	Phases   RolloverPhases
+	Requests RolloverRequests
+	Children RolloverChildren
 	// OfferingCatalogCloner clones the source phase's care-offering
 	// catalog into the follow-up phase (#2249). Production always wires
 	// the care-offering service; when nil (lightweight tests without
@@ -371,16 +373,18 @@ func (s *rolloverService) cloneOfferingCatalog(ctx context.Context, sourcePhaseI
 	return mapping, nil
 }
 
-func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *enrollmentModels.Phase, children []*enrollmentModels.RequestChild) ([]int64, error) {
+func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhase *capability.Phase, children []*RequestChild) ([]int64, error) {
 	ids := make(map[int64]struct{})
+	childIDs := make([]int64, 0, len(children))
 	for _, child := range children {
-		offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, child.ID, sourcePhase.ServiceEndDate)
-		if err != nil {
-			return nil, fmt.Errorf("rollover: list source offerings for child %d: %w", child.ID, err)
-		}
-		for _, offering := range offerings {
-			ids[offering.CareOfferingID] = struct{}{}
-		}
+		childIDs = append(childIDs, child.ID)
+	}
+	offerings, err := s.Children.RequestChildOfferingsForChildrenAtDate(ctx, childIDs, sourcePhase.ServiceEndDate)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: list source offerings: %w", err)
+	}
+	for _, offering := range offerings {
+		ids[offering.CareOfferingID] = struct{}{}
 	}
 	result := make([]int64, 0, len(ids))
 	for id := range ids {
@@ -390,15 +394,15 @@ func (s *rolloverService) listCarriedOfferingIDs(ctx context.Context, sourcePhas
 	return result, nil
 }
 
-func (s *rolloverService) loadRolloverSourcePhase(ctx context.Context, tenantID, sourcePhaseID int64) (*enrollmentModels.Phase, error) {
-	source, err := s.PhaseRepo.FindByID(ctx, sourcePhaseID)
+func (s *rolloverService) loadRolloverSourcePhase(ctx context.Context, tenantID, sourcePhaseID int64) (*capability.Phase, error) {
+	source, err := s.Phases.Phase(ctx, sourcePhaseID)
 	if err != nil || source == nil {
 		return nil, fmt.Errorf("%w: %d", ErrRolloverSourceNotFound, sourcePhaseID)
 	}
 	if source.TenantID != tenantID {
 		return nil, fmt.Errorf("%w: source phase belongs to another tenant", ErrRolloverSourceNotFound)
 	}
-	exists, err := s.PhaseRepo.ExistsByRolloverSourcePhaseID(ctx, source.ID)
+	exists, err := s.Phases.HasRolloverSuccessor(ctx, source.ID)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: check existing follow-up: %w", err)
 	}
@@ -408,18 +412,18 @@ func (s *rolloverService) loadRolloverSourcePhase(ctx context.Context, tenantID,
 	return source, nil
 }
 
-func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int64, req CreatePhaseFromSourceRequest, source *enrollmentModels.Phase) (*enrollmentModels.Phase, error) {
+func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int64, req CreatePhaseFromSourceRequest, source *capability.Phase) (*capability.Phase, error) {
 	formSchemaID := req.FormSchemaID
 	if formSchemaID == nil {
 		formSchemaID = source.FormSchemaID
 	}
 	mode := req.RolloverMode
 	deadline := req.RolloverDeadline
-	phase := &enrollmentModels.Phase{
+	phase := &capability.Phase{
 		Name:                      req.Name,
 		Kind:                      req.Kind,
-		ServiceStartDate:          req.ServiceStartDate,
-		ServiceEndDate:            req.ServiceEndDate,
+		ServiceStartDate:          capability.Date(req.ServiceStartDate),
+		ServiceEndDate:            capability.Date(req.ServiceEndDate),
 		EnrollmentOpenAt:          req.EnrollmentOpenAt,
 		EnrollmentCloseAt:         req.EnrollmentCloseAt,
 		FormSchemaID:              formSchemaID,
@@ -449,7 +453,7 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 		RolloverDeadline:      &deadline,
 		RolloverBumpsGrade:    req.RolloverBumpsGrade,
 	}
-	phase.SetTenantID(tenantID)
+	phase.TenantID = tenantID
 	if err := phase.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
@@ -467,7 +471,7 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 	if err := ensureEligibleClassesCollectable(ctx, s.Settings, phase.EligibleSchoolClasses); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrRolloverInvalidRequest, err)
 	}
-	if err := s.PhaseRepo.Create(ctx, phase); err != nil {
+	if err := s.Phases.InsertPhase(ctx, phase); err != nil {
 		if isPhaseDuplicateName(err) {
 			return nil, fmt.Errorf("%w: %q", ErrRolloverDuplicateName, req.Name)
 		}
@@ -476,8 +480,8 @@ func (s *rolloverService) createRolloverPhase(ctx context.Context, tenantID int6
 	return phase, nil
 }
 
-func (s *rolloverService) loadRolloverSourceChildren(ctx context.Context, sourcePhaseID int64) ([]*enrollmentModels.RequestChild, error) {
-	children, err := s.RequestChildRepo.ListByPhaseAndStatuses(ctx, sourcePhaseID, []string{enrollmentModels.ChildStatusApproved})
+func (s *rolloverService) loadRolloverSourceChildren(ctx context.Context, sourcePhaseID int64) ([]*RequestChild, error) {
+	children, err := rolloverChildrenByStatuses(ctx, s.Children, sourcePhaseID, []string{enrollmentModels.ChildStatusApproved})
 	if err != nil {
 		return nil, fmt.Errorf("rollover: list source children: %w", err)
 	}
@@ -486,10 +490,18 @@ func (s *rolloverService) loadRolloverSourceChildren(ctx context.Context, source
 
 func (s *rolloverService) rollSourceRequests(ctx context.Context, input rolloverRequestInput) error {
 	requestOrder, childrenByRequest := groupRolloverChildrenByRequest(input.sourceChildren)
+	requests, err := intakeRequestsByID(ctx, s.Requests, requestOrder)
+	if err != nil {
+		return fmt.Errorf("rollover: load source requests: %w", err)
+	}
+	requestsByID := make(map[int64]*enrollmentModels.Request, len(requests))
+	for _, request := range requests {
+		requestsByID[request.ID] = request
+	}
 	for _, sourceRequestID := range requestOrder {
-		sourceRequest, err := s.RequestRepo.FindByID(ctx, sourceRequestID)
-		if err != nil {
-			return fmt.Errorf("rollover: load source request %d: %w", sourceRequestID, err)
+		sourceRequest := requestsByID[sourceRequestID]
+		if sourceRequest == nil {
+			return fmt.Errorf("rollover: source request %d not found", sourceRequestID)
 		}
 		requestInput := input
 		requestInput.sourceRequest = sourceRequest
@@ -502,8 +514,8 @@ func (s *rolloverService) rollSourceRequests(ctx context.Context, input rollover
 	return nil
 }
 
-func groupRolloverChildrenByRequest(sourceChildren []*enrollmentModels.RequestChild) ([]int64, map[int64][]*enrollmentModels.RequestChild) {
-	childrenByRequest := make(map[int64][]*enrollmentModels.RequestChild, len(sourceChildren))
+func groupRolloverChildrenByRequest(sourceChildren []*RequestChild) ([]int64, map[int64][]*RequestChild) {
+	childrenByRequest := make(map[int64][]*RequestChild, len(sourceChildren))
 	requestOrder := make([]int64, 0)
 	for _, child := range sourceChildren {
 		if _, seen := childrenByRequest[child.RequestID]; !seen {
@@ -552,17 +564,17 @@ func (s *rolloverService) createRolloverRequest(ctx context.Context, input rollo
 		StatusToken:       statusToken,
 		SubmittedAt:       time.Now(),
 	}
-	request.SetTenantID(input.tenantID)
-	if err := s.RequestRepo.Create(ctx, request); err != nil {
+	request.TenantID = input.tenantID
+	if err := createIntakeRequest(ctx, s.Requests, request); err != nil {
 		return nil, fmt.Errorf("rollover: create request: %w", err)
 	}
 	return request, nil
 }
 
-func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *enrollmentModels.Request, source *enrollmentModels.RequestChild) (string, error) {
+func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverRequestInput, newRequest *enrollmentModels.Request, source *RequestChild) (string, error) {
 	attributes := rolloverAttributesForSource(input, source)
 	sourceID := source.ID
-	child := &enrollmentModels.RequestChild{
+	child := &RequestChild{
 		RequestID:             newRequest.ID,
 		FirstName:             source.FirstName,
 		LastName:              source.LastName,
@@ -576,8 +588,8 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 		RolloverSourceChildID: &sourceID,
 		ReviewReason:          attributes.reviewReason,
 	}
-	child.SetTenantID(input.tenantID)
-	if err := s.RequestChildRepo.Create(ctx, child); err != nil {
+	child.TenantID = input.tenantID
+	if err := createIntakeChild(ctx, s.Children, child); err != nil {
 		if isRolloverSourceAlreadyRolled(err) {
 			return "", fmt.Errorf("%w: source child %d", ErrRolloverSourceAlreadyRolled, source.ID)
 		}
@@ -589,7 +601,7 @@ func (s *rolloverService) rollSourceChild(ctx context.Context, input rolloverReq
 	return fmt.Sprintf("%s %s", source.FirstName, source.LastName), nil
 }
 
-func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentModels.RequestChild) rolloverChildAttributes {
+func rolloverAttributesForSource(input rolloverRequestInput, source *RequestChild) rolloverChildAttributes {
 	grade, reviewReason := classifyRolloverGrade(
 		source.TargetGradeLevel,
 		input.newPhase.RolloverBumpsGrade,
@@ -615,15 +627,23 @@ func rolloverAttributesForSource(input rolloverRequestInput, source *enrollmentM
 // copyRolloverOfferings carries the booking effective at the END of the
 // source phase into the new child: the offering reference is remapped to
 // the target phase's clone, the effective weekday selection (parent-
-// selected, manual, and automatically derived days) plus notes travel
-// verbatim, and the validity interval is deliberately left nil — the
-// repository pins it to the NEW phase's service window on insert, so
-// historical source-phase intervals never carry over (#2249).
+// selected, manual, and automatically derived days) plus notes seed the new
+// submission. Effective bookings use the new phase's service window, never
+// the historical source intervals (#2249).
 func (s *rolloverService) copyRolloverOfferings(ctx context.Context, input rolloverRequestInput, sourceChildID, newChildID int64) error {
-	offerings, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(ctx, sourceChildID, input.sourcePhase.ServiceEndDate)
+	offerings, err := s.Children.RequestChildOfferingsAtDate(ctx, sourceChildID, input.sourcePhase.ServiceEndDate)
 	if err != nil {
 		return fmt.Errorf("rollover: list source offerings: %w", err)
 	}
+	if len(offerings) == 0 {
+		return nil
+	}
+	if s.Bookings == nil {
+		return fmt.Errorf("rollover requires Care Plan booking commands")
+	}
+	start, until := timezone.Date(input.newPhase.ServiceStartDate), timezone.Date(input.newPhase.ServiceEndDate).AddDays(1)
+	choices := make([]capability.SubmittedOfferingChoice, 0, len(offerings))
+	bookings := make([]CareBookingInput, 0, len(offerings))
 	for _, offering := range offerings {
 		targetOfferingID, ok := input.offeringIDMap[offering.CareOfferingID]
 		if !ok {
@@ -632,23 +652,28 @@ func (s *rolloverService) copyRolloverOfferings(ctx context.Context, input rollo
 				offering.CareOfferingID, sourceChildID,
 			)
 		}
-		copyRow := &enrollmentModels.RequestChildOffering{
-			RequestChildID:        newChildID,
-			CareOfferingID:        targetOfferingID,
-			SelectedDays:          offering.SelectedDays,
-			ManualSelectedDays:    offering.ManualSelectedDays,
-			AutomaticSelectedDays: offering.AutomaticSelectedDays,
-			Notes:                 offering.Notes,
+		manual := offering.ManualSelectedDays
+		if len(manual) == 0 && len(offering.AutomaticSelectedDays) == 0 {
+			manual = offering.SelectedDays
 		}
-		copyRow.SetTenantID(input.tenantID)
-		if err := s.RequestChildOfferingRepo.Create(ctx, copyRow); err != nil {
-			return fmt.Errorf("rollover: copy offering: %w", err)
-		}
+		choices = append(choices, capability.SubmittedOfferingChoice{
+			CareOfferingID: targetOfferingID, SelectedDays: manual, Notes: offering.Notes,
+		})
+		bookings = append(bookings, CareBookingInput{
+			CareOfferingID: targetOfferingID, ManualSelectedDays: manual, AutomaticSelectedDays: offering.AutomaticSelectedDays,
+			ValidFrom: &start, ValidUntil: &until,
+		})
+	}
+	if err := s.Children.RecordSubmittedOfferingChoices(ctx, newChildID, choices); err != nil {
+		return fmt.Errorf("rollover: record submitted offerings: %w", err)
+	}
+	if err := s.Bookings.RecordCareBookings(ctx, newChildID, bookings); err != nil {
+		return fmt.Errorf("rollover: record effective bookings: %w", err)
 	}
 	return nil
 }
 
-func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmentModels.Phase, req *enrollmentModels.Request, childNames []string, result *RolloverResult) {
+func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *capability.Phase, req *enrollmentModels.Request, childNames []string, result *RolloverResult) {
 	if s.OutboxEnqueuer == nil {
 		return
 	}
@@ -658,7 +683,7 @@ func (s *rolloverService) enqueueRenewalEmail(ctx context.Context, newPhase *enr
 	}
 
 	kind := platformModels.EmailKindEnrollmentRolloverOptOut
-	if *newPhase.RolloverMode == enrollmentModels.PhaseRolloverModeOptIn {
+	if *newPhase.RolloverMode == capability.PhaseRolloverModeOptIn {
 		kind = platformModels.EmailKindEnrollmentRolloverOptIn
 	}
 
@@ -714,8 +739,8 @@ func (s *rolloverService) validateCreateRequest(req CreatePhaseFromSourceRequest
 	if req.RolloverDeadline.IsZero() {
 		return fmt.Errorf("%w: rollover_deadline is required", ErrRolloverInvalidRequest)
 	}
-	if req.RolloverMode != enrollmentModels.PhaseRolloverModeOptIn &&
-		req.RolloverMode != enrollmentModels.PhaseRolloverModeOptOut {
+	if req.RolloverMode != capability.PhaseRolloverModeOptIn &&
+		req.RolloverMode != capability.PhaseRolloverModeOptOut {
 		return fmt.Errorf("%w: rollover_mode must be opt_in or opt_out", ErrRolloverInvalidRequest)
 	}
 	return nil
@@ -779,7 +804,7 @@ func (s *rolloverService) PreviewPhaseFromSource(ctx context.Context, sourcePhas
 		enrollmentModels.ChildStatusAutoRenewed,
 		enrollmentModels.ChildStatusPendingAdminReview,
 	}
-	children, err := s.RequestChildRepo.ListByPhaseAndStatuses(ctx, sourcePhaseID, allStatuses)
+	children, err := rolloverChildrenByStatuses(ctx, s.Children, sourcePhaseID, allStatuses)
 	if err != nil {
 		return nil, fmt.Errorf("rollover preview: list source children: %w", err)
 	}
@@ -815,20 +840,37 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("%w: phase_id is required", ErrRolloverInvalidRequest)
 	}
-	children, err := s.RequestChildRepo.ListByPhaseAndStatuses(
-		ctx, phaseID,
+	children, err := rolloverChildrenByStatuses(ctx, s.Children, phaseID,
 		[]string{enrollmentModels.ChildStatusPendingAdminReview},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: list review queue: %w", err)
 	}
+	requestIDs := make([]int64, 0, len(children))
+	sourceChildIDs := make([]int64, 0, len(children))
+	for _, child := range children {
+		requestIDs = append(requestIDs, child.RequestID)
+		if child.RolloverSourceChildID != nil {
+			sourceChildIDs = append(sourceChildIDs, *child.RolloverSourceChildID)
+		}
+	}
+	requests, err := intakeRequestsByID(ctx, s.Requests, requestIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: load review queue requests: %w", err)
+	}
+	sourceChildren, err := rolloverChildrenByID(ctx, s.Children, sourceChildIDs)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: load review queue source children: %w", err)
+	}
+	requestsByID := requestMap(requests)
+	sourceChildrenByID := requestChildMap(sourceChildren)
 	out := make([]*ReviewQueueItem, 0, len(children))
 	for _, c := range children {
-		req, reqErr := s.RequestRepo.FindByID(ctx, c.RequestID)
-		if reqErr != nil {
+		req := requestsByID[c.RequestID]
+		if req == nil {
 			s.Logger.Warn("rollover: review queue request lookup failed",
 				slog.Int64("request_child_id", c.ID),
-				slog.String("error", reqErr.Error()))
+				slog.Int64("request_id", c.RequestID))
 			continue
 		}
 		item := &ReviewQueueItem{Child: c, Request: req}
@@ -837,13 +879,27 @@ func (s *rolloverService) ListReviewQueue(ctx context.Context, phaseID int64) ([
 			// the RLS-bypass admin tx the handler wraps lets us read
 			// it. If we can't, the admin still gets a useful row —
 			// just without the prior-year context.
-			if src, srcErr := s.RequestChildRepo.FindByID(ctx, *c.RolloverSourceChildID); srcErr == nil {
-				item.SourceChild = src
-			}
+			item.SourceChild = sourceChildrenByID[*c.RolloverSourceChildID]
 		}
 		out = append(out, item)
 	}
 	return out, nil
+}
+
+func requestMap(rows []*enrollmentModels.Request) map[int64]*enrollmentModels.Request {
+	result := make(map[int64]*enrollmentModels.Request, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row
+	}
+	return result
+}
+
+func requestChildMap(rows []*RequestChild) map[int64]*RequestChild {
+	result := make(map[int64]*RequestChild, len(rows))
+	for _, row := range rows {
+		result[row.ID] = row
+	}
+	return result
 }
 
 // DecideReview applies the admin's keep/drop/defer action.
@@ -862,7 +918,7 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		// worker will promote auto_renewed → submitted, then the
 		// admin's decision queue handles final approval. Class
 		// override (if any) is applied at the same time.
-		return s.RequestChildRepo.UpdateRolloverReview(
+		return s.Children.ReviewRolloverChild(
 			ctx,
 			req.RequestChildID,
 			enrollmentModels.ChildStatusAutoRenewed,
@@ -872,7 +928,7 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		)
 	case ReviewDecisionDrop:
 		reason := "rollover_drop"
-		return s.RequestChildRepo.UpdateRolloverReview(
+		return s.Children.ReviewRolloverChild(
 			ctx,
 			req.RequestChildID,
 			enrollmentModels.ChildStatusWithdrawn,
@@ -884,7 +940,7 @@ func (s *rolloverService) DecideReview(ctx context.Context, req DecideReviewRequ
 		// Defer means "I'll come back to it" — leave as-is. We still
 		// stamp reviewed_at via UpdateRolloverReview so the admin
 		// sees their last touch.
-		return s.RequestChildRepo.UpdateRolloverReview(
+		return s.Children.ReviewRolloverChild(
 			ctx,
 			req.RequestChildID,
 			enrollmentModels.ChildStatusPendingAdminReview,
@@ -936,7 +992,7 @@ func computeNewGrade(sourceGrade *int16, bumpsGrade bool, maxGrade int) (*int16,
 }
 
 func renewalInitialStatus(mode string) string {
-	if mode == enrollmentModels.PhaseRolloverModeOptIn {
+	if mode == capability.PhaseRolloverModeOptIn {
 		return enrollmentModels.ChildStatusPendingRenewal
 	}
 	return enrollmentModels.ChildStatusAutoRenewed
@@ -946,16 +1002,16 @@ func renewalInitialStatus(mode string) string {
 // or CLI) wraps in WithTenantTx so the bulk updates run as
 // phoenix_tenant with RLS scoping to the current tenant.
 func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time) (*DeadlineWorkerSummary, error) {
-	if s.PhaseRepo == nil || s.RequestChildRepo == nil {
+	if s.Phases == nil || s.Children == nil {
 		return nil, fmt.Errorf("rollover deadline: required repos not wired")
 	}
 
 	summary := &DeadlineWorkerSummary{}
-	phases, err := s.PhaseRepo.ListWithExpiredRolloverDeadline(ctx, asOf)
+	values, err := s.Phases.PhasesWithExpiredRolloverDeadline(ctx, asOf)
 	if err != nil {
 		return summary, fmt.Errorf("rollover deadline: list expired phases: %w", err)
 	}
-	for _, phase := range phases {
+	for _, phase := range values {
 		summary.PhasesProcessed++
 
 		// Opt-out side: auto_renewed transitions to either approved
@@ -972,7 +1028,7 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 
 		// Opt-in side: pending_renewal → withdrawn. The parent
 		// didn't act before the deadline, so the renewal lapses.
-		pendingCount, err := s.RequestChildRepo.BulkUpdateStatusByPhaseAndStatus(
+		pendingCount, err := s.Children.TransitionPhaseChildren(
 			ctx, phase.ID,
 			enrollmentModels.ChildStatusPendingRenewal,
 			enrollmentModels.ChildStatusWithdrawn,
@@ -1010,13 +1066,13 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 // environments that don't wire the full approval pipeline), we fall
 // back to the bulk-promotion-to-submitted path so the worker still
 // completes — logs a warning so the gap is visible.
-func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollmentModels.Phase) (approved, submitted, errs int, fatalErr error) {
+func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *capability.Phase) (approved, submitted, errs int, fatalErr error) {
 	if !phase.RolloverAutoApprove || s.DecisionService == nil {
 		if phase.RolloverAutoApprove && s.DecisionService == nil {
 			s.Logger.Warn("rollover deadline: auto_approve=true but DecisionService not wired, falling back to submitted",
 				slog.Int64("phase_id", phase.ID))
 		}
-		count, err := s.RequestChildRepo.BulkUpdateStatusByPhaseAndStatus(
+		count, err := s.Children.TransitionPhaseChildren(
 			ctx, phase.ID,
 			enrollmentModels.ChildStatusAutoRenewed,
 			enrollmentModels.ChildStatusSubmitted,
@@ -1033,8 +1089,7 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollm
 	// Auto-approve path: pull each auto_renewed row, call Decide so
 	// applyApprovalRollover runs (updates the existing student, fires
 	// the approval email, etc.).
-	rows, err := s.RequestChildRepo.ListByPhaseAndStatuses(
-		ctx, phase.ID,
+	rows, err := rolloverChildrenByStatuses(ctx, s.Children, phase.ID,
 		[]string{enrollmentModels.ChildStatusAutoRenewed},
 	)
 	if err != nil {
@@ -1071,7 +1126,7 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollm
 // savepoint and later rows can still proceed. Direct calls without a
 // transaction are retained for lightweight service tests; they do not claim
 // the production atomicity contract documented on RunDeadlineWorker.
-func (s *rolloverService) decideAutoRenewedRow(ctx context.Context, row *enrollmentModels.RequestChild) error {
+func (s *rolloverService) decideAutoRenewedRow(ctx context.Context, row *RequestChild) error {
 	decide := func(decideCtx context.Context) error {
 		_, err := s.DecisionService.Decide(decideCtx, DecideInput{
 			RequestID: row.RequestID,

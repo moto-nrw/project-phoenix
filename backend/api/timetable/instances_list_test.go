@@ -15,7 +15,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -47,6 +46,13 @@ func (s *stubOfferingSourceLister) CombinedOfferingSourceCounts(
 	_ []int64,
 	_ *int64,
 ) (*enrollmentSvc.OfferingSourceCombinedCounts, error) {
+	return nil, nil
+}
+
+func (s *stubOfferingSourceLister) TemplateRosterMaintenanceFeeds(
+	_ context.Context,
+	_ []enrollmentSvc.TemplateRosterFeedQuery,
+) (map[int64]enrollmentSvc.TemplateRosterFeeds, error) {
 	return nil, nil
 }
 
@@ -160,7 +166,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			instance := &schedule.ActivityInstance{Date: tt.date, CalendarPeriodID: &periodID}
+			instance := &schedule.ActivityInstance{Date: schedule.Date(tt.date), CalendarPeriodID: &periodID}
 			reason := resource.resolveEmptyRosterReason(
 				context.Background(), instance, meta, nil,
 				make(map[int64][]enrollmentSvc.OfferingSourceOption),
@@ -174,7 +180,7 @@ func TestResolveEmptyRosterReason_ExplainsOfferingDerivedEmptyOccurrence(t *test
 
 	populated := resource.resolveEmptyRosterReason(
 		context.Background(),
-		&schedule.ActivityInstance{Date: timezone.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
+		&schedule.ActivityInstance{Date: schedule.NewDate(2026, 8, 10), CalendarPeriodID: &periodID},
 		meta,
 		[]*schedule.InstanceStudent{{StudentID: sourceID + 2}},
 		make(map[int64][]enrollmentSvc.OfferingSourceOption),
@@ -204,7 +210,7 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 		SourceCareOfferingIDs: []int64{sourceID},
 	}
 	group.SetTenantID(testpkg.Tenant(t))
-	repoFactory := repositories.NewFactory(s.db)
+	repoFactory := mustTimetableTestRepositories(s.db)
 	require.NoError(t, repoFactory.ActivityGroup.Create(s.ctx, group))
 
 	date := timezone.NewDate(2026, 8, 10)
@@ -225,6 +231,8 @@ func TestListInstances_ReportsOfferingEmptyRosterReason(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	got := decodeTemplateData[weeklyInstancesResponse](t, w)
 	require.Len(t, got.Instances, 1)
+	require.NotNil(t, got.Instances[0].CalendarPeriodID)
+	assert.Equal(t, period.ID, *got.Instances[0].CalendarPeriodID)
 	require.NotNil(t, got.Instances[0].EmptyRosterReason)
 	assert.Equal(t, enrollmentSvc.EmptyOfferingRosterBeforeServiceStart, got.Instances[0].EmptyRosterReason.Kind)
 	assert.Equal(t, "2026-08-13", got.Instances[0].EmptyRosterReason.ServiceStartDate)
@@ -322,7 +330,7 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	sickRow := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	sickAbsenceID := sickRow.ID
 	sickRow.SickAbsenceID = &sickAbsenceID
-	require.NoError(t, repositories.NewFactory(s.db).InstanceStaff.Update(s.ctx, sickRow))
+	require.NoError(t, mustTimetableTestRepositories(s.db).InstanceStaff.Update(s.ctx, sickRow))
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
 	testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
 

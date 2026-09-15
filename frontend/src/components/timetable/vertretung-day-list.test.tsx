@@ -51,7 +51,7 @@ function makeGap(
   };
 }
 
-// Bedingung 1 (docs/07-vertretung.md 2.2): offene Lücke, unbesetzte
+// Bedingung 1: offene Lücke, unbesetzte
 // Position ohne Ersatz. 09:00, damit die Sortierung mit der nächsten Fixture
 // bei Gleichstand die Schwere prüft.
 const gapInstance = makeInstance({
@@ -265,9 +265,7 @@ describe("VertretungDayList", () => {
       />,
     );
 
-    expect(
-      screen.getByText("Keine Termine an diesem Tag."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Keine Termine an diesem Tag")).toBeInTheDocument();
   });
 
   it("zeigt Ersatzkräfte blockweit statt sie abwesenden Personen zuzuordnen", () => {

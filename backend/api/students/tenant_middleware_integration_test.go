@@ -30,7 +30,7 @@ func TestTenantTxMiddlewareMarkRollbackDiscardsWrite(t *testing.T) {
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewGuardianProfileTestRepository(db)
 	handler := common.TenantRuntimeMiddleware(runtime)(common.TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, repo.Create(r.Context(), profile))
 		require.Positive(t, profile.ID)
@@ -61,7 +61,7 @@ func TestTenantTxMiddlewareServerErrorDiscardsWrite(t *testing.T) {
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewGuardianProfileTestRepository(db)
 	handler := common.TenantRuntimeMiddleware(runtime)(common.TenantTxMiddleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, repo.Create(r.Context(), profile))
 		http.Error(w, "failed", http.StatusInternalServerError)

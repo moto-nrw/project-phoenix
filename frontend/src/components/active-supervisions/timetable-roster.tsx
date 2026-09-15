@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ChoiceModal } from "~/components/ui/choice-modal";
+import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import {
   clearOwnAttendanceMutation,
@@ -15,7 +17,9 @@ import {
   rosterPickupTimeLabel,
   upcomingArrivalTime,
 } from "~/lib/timetable-roster-helpers";
+import { saveStudentPartialAbsence } from "~/lib/student-partial-absences-api";
 import { canCompleteInstance } from "~/lib/timetable-lifecycle";
+import { TIMETABLE_VIEW_ONLY_NOTICE } from "~/lib/timetable-operation-access";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type {
   TimetableRoster,
@@ -89,9 +93,7 @@ function RosterSummaryStat({
   return (
     <div className="rounded-xl bg-white/80 px-3 py-2 shadow-[0_1px_0_rgba(17,24,39,0.04)]">
       <span className="block text-sm font-semibold text-gray-900">{value}</span>
-      <span className="block text-[11px] font-medium text-gray-500">
-        {label}
-      </span>
+      <span className="block text-xs font-medium text-gray-500">{label}</span>
     </div>
   );
 }
@@ -132,7 +134,88 @@ export async function runRosterActionRequest(
   return null;
 }
 
+/** The block was excused, but the partial absence for the rest of the day
+ *  could not be written (conflict with another excusal, network error). */
+export class RestOfDayNotSavedError extends Error {
+  constructor(cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+    this.name = "RestOfDayNotSavedError";
+  }
+}
+
+/**
+ * „Rest des Tages“ (#3166): excuses this block by hand, then records a partial
+ * absence from the block's start through the existing partial-absence path.
+ * That path excuses every later block of the day that nobody decided by hand
+ * yet; earlier blocks start before the cutoff and stay untouched.
+ */
+export async function runRestOfDayExcusalRequest(
+  instance: Pick<TimetableRoster["instance"], "id" | "date" | "startTime">,
+  studentId: string,
+): Promise<void> {
+  await runRosterActionRequest("excused", instance.id, studentId);
+  try {
+    await saveStudentPartialAbsence(
+      studentId,
+      null,
+      instance.date,
+      instance.startTime,
+    );
+  } catch (error) {
+    throw new RestOfDayNotSavedError(error);
+  }
+}
+
+const EXCUSE_SCOPE_BLOCK = "block";
+const EXCUSE_SCOPE_REST_OF_DAY = "rest-of-day";
+
+interface ExcuseScopeModalProps {
+  readonly instance: TimetableRoster["instance"];
+  readonly row: TimetableRosterRow | null;
+  readonly isBusy: boolean;
+  readonly onClose: () => void;
+  readonly onSelect: (scope: string) => void;
+}
+
+function ExcuseScopeModal({
+  instance,
+  row,
+  isBusy,
+  onClose,
+  onSelect,
+}: ExcuseScopeModalProps) {
+  const name = row?.studentName || `Kind ${row?.studentId ?? ""}`;
+  return (
+    <ChoiceModal
+      isOpen={row !== null}
+      onClose={onClose}
+      title={`${name} entschuldigen`}
+      isBusy={isBusy}
+      onSelect={onSelect}
+      options={[
+        {
+          value: EXCUSE_SCOPE_BLOCK,
+          label: "Nur dieser Block",
+          description: `${instance.title}, ${instance.startTime}–${instance.endTime} Uhr`,
+        },
+        {
+          value: EXCUSE_SCOPE_REST_OF_DAY,
+          label: "Rest des Tages",
+          description: `Ab ${instance.startTime} Uhr alle Blöcke heute.`,
+        },
+      ]}
+    />
+  );
+}
+
+interface RosterActionAccess {
+  readonly attendance: boolean;
+  readonly statuses: boolean;
+  readonly absence: boolean;
+}
+
 interface RosterRowActionsProps {
+  readonly access: RosterActionAccess;
   readonly row: TimetableRosterRow;
   readonly onAction: (
     action: RosterAction,
@@ -140,14 +223,17 @@ interface RosterRowActionsProps {
   ) => Promise<void>;
 }
 
-function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
+function RosterRowActions({ row, onAction, access }: RosterRowActionsProps) {
+  if (!access.attendance && !access.statuses && !access.absence) return null;
   const runAction = async (action: RosterAction) => {
     await onAction(action, row);
   };
 
   return (
     <div className="flex flex-wrap gap-2">
-      {!row.currentlyPresent && row.status === "expected" ? (
+      {access.attendance &&
+      !row.currentlyPresent &&
+      row.status === "expected" ? (
         <Button
           type="button"
           onClick={() => runAction("check-in")}
@@ -157,7 +243,9 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
           Einchecken
         </Button>
       ) : null}
-      {!row.currentlyPresent && row.status !== "expected" ? (
+      {access.attendance &&
+      !row.currentlyPresent &&
+      row.status !== "expected" ? (
         <Button
           type="button"
           onClick={() => runAction("check-in")}
@@ -167,7 +255,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
           Wieder einchecken
         </Button>
       ) : null}
-      {row.currentlyPresent ? (
+      {access.attendance && row.currentlyPresent ? (
         <Button
           type="button"
           onClick={() => runAction("check-out")}
@@ -181,26 +269,35 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
       row.status === "expected" &&
       isCareDayExpected(row.careDayStatus) ? (
         <>
-          <Button
-            type="button"
-            onClick={() => runAction("excused")}
-            variant="outline"
-            size="md"
-            className="text-moto-purple-strong !ring-moto-purple"
-          >
-            Entschuldigt
-          </Button>
-          <Button
-            type="button"
-            onClick={() => runAction("absent")}
-            variant="outline"
-            size="md"
-          >
-            Abwesend
-          </Button>
+          {access.absence ? (
+            <Button
+              type="button"
+              onClick={() => runAction("excused")}
+              variant="outline"
+              size="md"
+              className="text-moto-purple-strong !ring-moto-purple"
+            >
+              Entschuldigt
+            </Button>
+          ) : null}
+          {access.statuses ? (
+            <Button
+              type="button"
+              onClick={() => runAction("absent")}
+              variant="outline"
+              size="md"
+            >
+              Abwesend
+            </Button>
+          ) : null}
         </>
       ) : null}
-      {row.planned && !row.currentlyPresent && row.status === "absent" ? (
+      {(row.substatus === "sick" || row.substatus === "excused"
+        ? access.absence
+        : access.statuses) &&
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "absent" ? (
         <Button
           type="button"
           onClick={() => runAction("expected")}
@@ -215,7 +312,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
 }
 
 interface TimetableRosterRowProps {
-  readonly attendanceWebEnabled: boolean;
+  readonly actionAccess: RosterActionAccess;
   readonly instanceIsSpontaneous: boolean;
   /** Minute clock of the page — decides whether an expected arrival is still ahead. */
   readonly now: Date;
@@ -233,7 +330,7 @@ interface TimetableRosterRowProps {
 }
 
 function TimetableRosterStudentRow({
-  attendanceWebEnabled,
+  actionAccess,
   instanceIsSpontaneous,
   now,
   rosterDate,
@@ -262,16 +359,24 @@ function TimetableRosterStudentRow({
   // other planning warning keeps its message — the preview showed it, so the
   // started view must not lose it. An arrival warning without a time cannot be
   // replaced by a time, so its message stays too.
-  const arrivalTime =
+  const expectsArrival =
     row.planned &&
     !row.currentlyPresent &&
     row.status === "expected" &&
-    isCareDayExpected(row.careDayStatus)
-      ? upcomingArrivalTime(row.warnings, now, rosterDate)
-      : null;
+    isCareDayExpected(row.careDayStatus);
+  const arrivalTime = expectsArrival
+    ? upcomingArrivalTime(row.warnings, now, rosterDate)
+    : null;
   const planningNotes = (row.warnings ?? []).filter(
     (warning) =>
-      warning.kind !== "arrival_after_slot_start" || !warning.expectedArrival,
+      (warning.kind !== "arrival_after_slot_start" ||
+        !warning.expectedArrival) &&
+      warning.kind !== "class_arrival_exception",
+  );
+  // A class-wide day exception (#2962) is plain information, not a warning:
+  // the whole class arrives at another time today and the line says why.
+  const classException = (row.warnings ?? []).find(
+    (warning) => warning.kind === "class_arrival_exception",
   );
 
   return (
@@ -303,6 +408,11 @@ function TimetableRosterStudentRow({
             Kommt um {arrivalTime} Uhr
           </div>
         ) : null}
+        {classException && expectsArrival ? (
+          <div className="mt-1 text-sm text-gray-700">
+            {classException.message}
+          </div>
+        ) : null}
         {planningNotes.map((warning) => (
           <div
             key={`${warning.kind}:${warning.message}`}
@@ -322,15 +432,13 @@ function TimetableRosterStudentRow({
           </div>
         ) : null}
       </div>
-      {attendanceWebEnabled ? (
-        <RosterRowActions row={row} onAction={onAction} />
-      ) : null}
+      <RosterRowActions row={row} onAction={onAction} access={actionAccess} />
     </div>
   );
 }
 
 interface TimetableRosterSectionProps {
-  readonly attendanceWebEnabled: boolean;
+  readonly actionAccess: RosterActionAccess;
   /** One line under the section title — for a precondition the rows share. */
   readonly description?: string;
   readonly instanceIsSpontaneous: boolean;
@@ -346,7 +454,7 @@ interface TimetableRosterSectionProps {
 }
 
 function TimetableRosterSection({
-  attendanceWebEnabled,
+  actionAccess,
   description,
   instanceIsSpontaneous,
   now,
@@ -378,7 +486,7 @@ function TimetableRosterSection({
       {rows.map((row) => (
         <TimetableRosterStudentRow
           key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
-          attendanceWebEnabled={attendanceWebEnabled}
+          actionAccess={actionAccess}
           instanceIsSpontaneous={instanceIsSpontaneous}
           now={now}
           rosterDate={rosterDate}
@@ -405,6 +513,7 @@ function confirmExpectedLabel(
 
 interface TimetableRosterHeaderProps {
   readonly attendanceWebEnabled: boolean;
+  readonly lifecycleEnabled: boolean;
   readonly confirmableExpectedRows: TimetableRosterRow[];
   readonly isCompletingInstance: boolean;
   readonly isConfirmingExpected: boolean;
@@ -420,12 +529,15 @@ interface TimetableRosterHeaderProps {
     readonly unplanned: number;
   };
   readonly note?: string;
+  /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
+  readonly onAddStudent?: () => void;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
 }
 
 function TimetableRosterHeader({
   attendanceWebEnabled,
+  lifecycleEnabled,
   confirmableExpectedRows,
   isCompletingInstance,
   isConfirmingExpected,
@@ -434,6 +546,7 @@ function TimetableRosterHeader({
   showTimetableCounts,
   summary,
   note,
+  onAddStudent,
   onComplete,
   onConfirmExpected,
 }: TimetableRosterHeaderProps) {
@@ -485,6 +598,18 @@ function TimetableRosterHeader({
           </div>
         </div>
         <div className="flex flex-wrap gap-2 sm:justify-end">
+          {attendanceWebEnabled && onAddStudent ? (
+            <Button
+              type="button"
+              onClick={onAddStudent}
+              variant="outline"
+              size="md"
+              className="bg-white"
+            >
+              <UserPlus className="h-4 w-4" aria-hidden="true" />
+              Kind hinzufügen
+            </Button>
+          ) : null}
           {attendanceWebEnabled ? (
             <Button
               type="button"
@@ -499,7 +624,7 @@ function TimetableRosterHeader({
               {confirmLabel}
             </Button>
           ) : null}
-          {attendanceWebEnabled ? (
+          {lifecycleEnabled ? (
             <Button
               type="button"
               disabled={isCompletingInstance || !completeEnabled}
@@ -542,122 +667,154 @@ function TimetableRosterHeader({
   );
 }
 
-interface AddUnplannedStudentFormProps {
+interface AddUnplannedStudentModalProps {
+  readonly isOpen: boolean;
+  readonly instanceId: string;
   readonly isAddingStudent: boolean;
   readonly results: Student[];
   readonly search: string;
+  readonly error: string | null;
   readonly onAdd: (studentId: string) => Promise<boolean>;
+  readonly onClose: () => void;
   readonly onSearchChange: (value: string) => void;
 }
 
-function AddUnplannedStudentForm({
+// Das Nachtragen eines Kindes ist eine Kopf-Aktion mit Dialog, kein
+// Formular im Listenkörper (#3112, Bauart 1 Regel 3): die Liste bleibt eine
+// Liste, und „Hinzufügen“ steht unten im Dialog, wo eine Aktion hingehört.
+function AddUnplannedStudentModal({
+  isOpen,
+  instanceId,
   isAddingStudent,
   results,
   search,
+  error,
   onAdd,
+  onClose,
   onSearchChange,
-}: AddUnplannedStudentFormProps) {
+}: AddUnplannedStudentModalProps) {
+  const formId = useId();
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Ein Termin-Wechsel bei offenem Dialog verwirft die Auswahl: eine alte
+  // Auswahl darf nie in den neuen Termin geschrieben werden.
+  const [selectionInstanceId, setSelectionInstanceId] = useState(instanceId);
+  if (selectionInstanceId !== instanceId) {
+    setSelectionInstanceId(instanceId);
+    setSelectedId(null);
+  }
   // Derived against the current results so a stale selection from a previous
   // search can never add the wrong child.
   const selectedStudent =
     results.find((student) => student.id.toString() === selectedId) ?? null;
   const targetStudent =
     selectedStudent ?? (results.length === 1 ? (results[0] ?? null) : null);
-  const addStudent = async (studentId: string) => {
-    if (await onAdd(studentId)) {
-      setSelectedId(null);
-    }
+  const handleClose = () => {
+    setSelectedId(null);
+    onClose();
   };
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (targetStudent && !isAddingStudent) {
-      await addStudent(targetStudent.id.toString());
+      if (await onAdd(targetStudent.id.toString())) {
+        handleClose();
+      }
     }
   };
 
   return (
-    <form
-      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
-      onSubmit={handleSubmit}
+    <FormModal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Kind ungeplant hinzufügen"
+      size="md"
+      closeDisabled={isAddingStudent}
+      footer={
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={handleClose}
+            disabled={isAddingStudent}
+          >
+            Abbrechen
+          </Button>
+          <Button
+            type="submit"
+            form={formId}
+            disabled={isAddingStudent || !targetStudent}
+            variant="success"
+            size="md"
+          >
+            {isAddingStudent ? "Wird hinzugefügt…" : "Hinzufügen"}
+          </Button>
+        </div>
+      }
     >
-      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-        <UserPlus
-          className="text-moto-green-vivid h-4 w-4"
-          aria-hidden="true"
-        />
-        Kind ungeplant hinzufügen
-      </div>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <div className="flex-1">
-          <Input
-            type="search"
-            name="unplanned-student-search"
-            aria-label="Kind ungeplant suchen"
-            controlSize="compact"
-            value={search}
-            onChange={(event) => {
-              setSelectedId(null);
-              onSearchChange(event.target.value);
-            }}
-            placeholder="Weiteres Kind suchen..."
-          />
-        </div>
-        <Button
-          type="submit"
-          disabled={isAddingStudent || !targetStudent}
-          variant="success"
-          size="md"
-        >
-          Hinzufügen
-        </Button>
-      </div>
-      {results.length > 0 ? (
-        <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          {results.map((student) => {
-            const studentId = student.id.toString();
-            const isSelected = selectedStudent?.id.toString() === studentId;
-            return (
-              <Button
-                key={student.id}
-                type="button"
-                variant="ghost"
-                size="md"
-                disabled={isAddingStudent}
-                aria-pressed={isSelected}
-                onClick={() =>
-                  setSelectedId((prev) =>
-                    prev === studentId ? null : studentId,
-                  )
-                }
-                className={`min-h-11 w-full !justify-start border px-3 text-left !shadow-none ${
-                  isSelected
-                    ? "!border-moto-green !bg-moto-green/10 hover:!bg-moto-green/15"
-                    : "hover:!border-moto-green !border-gray-200 !bg-transparent hover:!bg-gray-100"
-                }`}
-              >
-                <span className="font-medium text-gray-900">
-                  {student.name ||
-                    [student.first_name, student.second_name]
-                      .filter(Boolean)
-                      .join(" ")}
-                </span>
-                <span className="ml-2 text-gray-500">
-                  {[student.school_class, student.group_name]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-              </Button>
-            );
-          })}
-        </div>
-      ) : null}
-      {results.length > 1 && !selectedStudent ? (
-        <p className="mt-2 text-sm text-gray-500">
-          Bitte ein Kind aus der Liste antippen.
+      <form id={formId} onSubmit={handleSubmit} className="space-y-3">
+        {error ? <Alert type="error" message={error} /> : null}
+        <p className="text-sm text-gray-600">
+          Das Kind wird sofort als anwesend in dieser Aktivität eingetragen.
         </p>
-      ) : null}
-    </form>
+        <Input
+          type="search"
+          name="unplanned-student-search"
+          aria-label="Kind ungeplant suchen"
+          controlSize="compact"
+          value={search}
+          onChange={(event) => {
+            setSelectedId(null);
+            onSearchChange(event.target.value);
+          }}
+          placeholder="Weiteres Kind suchen..."
+        />
+        {results.length > 0 ? (
+          <div className="mt-2 grid gap-2">
+            {results.map((student) => {
+              const studentId = student.id.toString();
+              const isSelected = selectedStudent?.id.toString() === studentId;
+              return (
+                <Button
+                  key={student.id}
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  disabled={isAddingStudent}
+                  aria-pressed={isSelected}
+                  onClick={() =>
+                    setSelectedId((prev) =>
+                      prev === studentId ? null : studentId,
+                    )
+                  }
+                  className={`min-h-11 w-full !justify-start border px-3 text-left !shadow-none ${
+                    isSelected
+                      ? "!border-moto-green !bg-moto-green/10 hover:!bg-moto-green/15"
+                      : "hover:!border-moto-green !border-gray-200 !bg-transparent hover:!bg-gray-100"
+                  }`}
+                >
+                  <span className="font-medium text-gray-900">
+                    {student.name ||
+                      [student.first_name, student.second_name]
+                        .filter(Boolean)
+                        .join(" ")}
+                  </span>
+                  <span className="ml-2 text-gray-500">
+                    {[student.school_class, student.group_name]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        ) : null}
+        {results.length > 1 && !selectedStudent ? (
+          <p className="mt-2 text-sm text-gray-500">
+            Bitte ein Kind aus der Liste antippen.
+          </p>
+        ) : null}
+      </form>
+    </FormModal>
   );
 }
 
@@ -687,8 +844,18 @@ interface TimetableRosterContentProps {
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
   readonly onRosterAction: RosterRowActionsProps["onAction"];
+  /**
+   * Entschuldigt das Kind für diesen Block und den Rest des Tages (#3166).
+   * Nur wer Teilabwesenheiten anlegen darf (`users:update`), bekommt ihn;
+   * ohne ihn entschuldigt „Entschuldigt“ sofort nur diesen Block. Das
+   * Schul-Portal reicht ihn bewusst nicht durch: eine Lehrkraft entscheidet
+   * nur über die eigene Aufsicht.
+   */
+  readonly onExcuseRestOfDay?: (row: TimetableRosterRow) => Promise<void>;
   readonly onOpenStudent?: (row: TimetableRosterRow) => void;
   readonly onSearchChange: (value: string) => void;
+  /** Fehler des Nachtragens; steht im Dialog „Kind ungeplant hinzufügen“. */
+  readonly addStudentError?: string | null;
 }
 
 export function TimetableRosterContent({
@@ -706,10 +873,68 @@ export function TimetableRosterContent({
   onComplete,
   onConfirmExpected,
   onRosterAction,
+  onExcuseRestOfDay,
   onOpenStudent,
   onSearchChange,
+  addStudentError,
 }: TimetableRosterContentProps) {
   const now = useMinuteClock();
+  // Seeing a running block does not mean acting on it (#3167): staff who only
+  // see it through the all_staff overview get the list without actions and a
+  // line that says why. Older backends omit the flag and keep the actions.
+  const lifecycleEnabled = attendanceWebEnabled && roster.canOperate !== false;
+  const actionsEnabled =
+    attendanceWebEnabled &&
+    (roster.canEditAttendance ?? roster.canOperate ?? true);
+  const actionAccess: RosterActionAccess = {
+    attendance: actionsEnabled,
+    statuses: lifecycleEnabled,
+    absence:
+      attendanceWebEnabled && (roster.canReportAbsence ?? lifecycleEnabled),
+  };
+  const viewOnly =
+    attendanceWebEnabled &&
+    !actionsEnabled &&
+    !lifecycleEnabled &&
+    !actionAccess.absence;
+  const note = viewOnly
+    ? [TIMETABLE_VIEW_ONLY_NOTICE, headerNote].filter(Boolean).join(" ")
+    : headerNote;
+  const [addStudentOpen, setAddStudentOpen] = useState(false);
+  const [excuseRow, setExcuseRow] = useState<TimetableRosterRow | null>(null);
+  const [isExcusing, setIsExcusing] = useState(false);
+  // Mit dem Recht für Teilabwesenheiten fragt „Entschuldigt“ zuerst, ob nur
+  // dieser Block oder der Rest des Tages gemeint ist (#3166).
+  const handleRosterAction: RosterRowActionsProps["onAction"] = async (
+    action,
+    row,
+  ) => {
+    if (action === "excused" && onExcuseRestOfDay) {
+      setExcuseRow(row);
+      return;
+    }
+    await onRosterAction(action, row);
+  };
+  const handleExcuseScope = async (scope: string) => {
+    if (!excuseRow) return;
+    setIsExcusing(true);
+    try {
+      if (scope === EXCUSE_SCOPE_REST_OF_DAY && onExcuseRestOfDay) {
+        await onExcuseRestOfDay(excuseRow);
+      } else {
+        await onRosterAction("excused", excuseRow);
+      }
+    } finally {
+      setIsExcusing(false);
+      setExcuseRow(null);
+    }
+  };
+  const closeAddStudent = () => {
+    setAddStudentOpen(false);
+    // Der nächste Dialog startet ohne Suche und ohne Fehlermeldung; beides
+    // wird vom gemeinsamen Such-Handler zurückgesetzt.
+    onSearchChange("");
+  };
   const present = roster.rows.filter(
     (row) => row.currentlyPresent && row.planned,
   );
@@ -768,13 +993,13 @@ export function TimetableRosterContent({
   const instanceIsSpontaneous = roster.instance.isSpontaneous;
   const unplannedTitle = instanceIsSpontaneous ? "Teilnehmende" : "Ungeplant";
   const sectionProps = {
-    attendanceWebEnabled,
+    actionAccess,
     instanceIsSpontaneous,
     now,
     rosterDate: roster.instance.date,
     pickupTimesLoaded: roster.pickupTimesLoaded,
     pickupTimesRedacted: roster.pickupTimesRedacted,
-    onAction: onRosterAction,
+    onAction: handleRosterAction,
     onOpenStudent,
     showTimetableCounts,
   };
@@ -782,14 +1007,18 @@ export function TimetableRosterContent({
   return (
     <div className="space-y-4">
       <TimetableRosterHeader
-        attendanceWebEnabled={attendanceWebEnabled}
+        attendanceWebEnabled={actionsEnabled}
+        lifecycleEnabled={lifecycleEnabled}
         confirmableExpectedRows={confirmableExpectedRows}
         isCompletingInstance={isCompletingInstance}
         isConfirmingExpected={isConfirmingExpected}
         now={now}
         roster={roster}
         showTimetableCounts={showTimetableCounts}
-        note={headerNote}
+        note={note}
+        onAddStudent={
+          canAddUnplanned ? () => setAddStudentOpen(true) : undefined
+        }
         summary={{
           absent: absent.length,
           arrivingLater: arrivingLater.length,
@@ -808,14 +1037,26 @@ export function TimetableRosterContent({
           message="Die Gehzeiten konnten nicht geladen werden. Die Anwesenheitsliste bleibt verfügbar."
         />
       ) : null}
-      {attendanceWebEnabled && canAddUnplanned ? (
-        <AddUnplannedStudentForm
-          key={roster.instance.id}
+      {actionsEnabled && canAddUnplanned ? (
+        <AddUnplannedStudentModal
+          isOpen={addStudentOpen}
+          instanceId={roster.instance.id}
           isAddingStudent={isAddingStudent}
           results={addStudentResults}
           search={addStudentSearch}
+          error={addStudentError ?? null}
           onAdd={onAddStudent}
+          onClose={closeAddStudent}
           onSearchChange={onSearchChange}
+        />
+      ) : null}
+      {actionAccess.absence && onExcuseRestOfDay ? (
+        <ExcuseScopeModal
+          instance={roster.instance}
+          row={excuseRow}
+          isBusy={isExcusing}
+          onClose={() => setExcuseRow(null)}
+          onSelect={(scope) => void handleExcuseScope(scope)}
         />
       ) : null}
       <TimetableRosterSection
@@ -831,8 +1072,8 @@ export function TimetableRosterContent({
       <TimetableRosterSection
         title="Kommt später"
         description={
-          attendanceWebEnabled
-            ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei."
+          actionsEnabled
+            ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei. Kommt ein Kind früher, checken Sie es hier einzeln ein."
             : "Diese Kinder kommen laut Plan später."
         }
         rows={arrivingLater}

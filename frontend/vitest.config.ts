@@ -35,6 +35,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "api-node",
+          server: { deps: { inline: ["next-auth"] } },
           include: apiTestFiles,
           exclude: baseTestExcludes,
           environment: "node",
@@ -80,6 +81,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
+      "@testing-library/jest-dom/vitest": path.resolve(
+        import.meta.dirname,
+        "./src/test/setup-jest-dom.ts",
+      ),
       "~": path.resolve(import.meta.dirname, "./src"),
       "@": path.resolve(import.meta.dirname, "./src"),
     },

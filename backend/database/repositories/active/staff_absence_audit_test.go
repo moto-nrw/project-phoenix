@@ -16,7 +16,7 @@ func TestStaffAbsenceAuditRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.TenantContext(staff.TenantID)
 	today := timezone.TodayDate()

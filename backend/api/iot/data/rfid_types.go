@@ -3,7 +3,11 @@ package data
 import (
 	"errors"
 	"net/http"
+
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
+
+const invalidStaffIDMessage = "invalid staff ID"
 
 // RFIDAssignmentRequest represents an RFID tag assignment request
 type RFIDAssignmentRequest struct {
@@ -25,11 +29,4 @@ func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
 }
 
 // RFIDAssignmentResponse represents an RFID tag assignment response (for students and staff)
-type RFIDAssignmentResponse struct {
-	Success     bool    `json:"success"`
-	StudentID   int64   `json:"student_id"`   // For students: student_id, for staff: staff_id
-	StudentName string  `json:"student_name"` // For students: student name, for staff: staff name
-	RFIDTag     string  `json:"rfid_tag"`
-	PreviousTag *string `json:"previous_tag,omitempty"`
-	Message     string  `json:"message"`
-}
+type RFIDAssignmentResponse = devicescan.TagAssignmentChange

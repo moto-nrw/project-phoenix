@@ -4,11 +4,10 @@ import { useState, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import RolesPage from "./page";
 
+const mockUseSession = vi.hoisted(() => vi.fn());
+
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
-    status: "authenticated",
-  })),
+  useSession: mockUseSession,
 }));
 
 let currentSearch = new URLSearchParams();
@@ -58,16 +57,71 @@ vi.mock("~/contexts/ToastContext", () => ({
   })),
 }));
 
+vi.mock("~/components/ui/confirm-delete-modal", () => ({
+  ConfirmDeleteModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
+}));
+
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
+    intro,
+    search,
+    error,
+    empty,
+    overlays,
   }: {
     children: ReactNode;
     loading: boolean;
+    intro?: { title: string; description?: ReactNode; actions?: ReactNode };
+    search?: ReactNode;
+    error?: string | null;
+    empty?: {
+      title: string;
+      description?: string;
+      icon?: ReactNode;
+      action?: ReactNode;
+    } | null;
+    overlays?: ReactNode;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
-      {children}
+      {intro ? (
+        <div data-testid="page-intro">
+          <h1>{intro.title}</h1>
+          {intro.description}
+          {intro.actions}
+          {search}
+        </div>
+      ) : null}
+      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+      {error ? <div data-testid="page-error">{error}</div> : null}
+      {!error && empty ? (
+        <div data-testid="page-empty">
+          <p>{empty.title}</p>
+          {empty.description ? <p>{empty.description}</p> : null}
+          {empty.action}
+        </div>
+      ) : null}
+      {!error && !empty ? children : null}
+      {overlays}
     </div>
   ),
 }));
@@ -126,7 +180,7 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
     };
     if (!isOpen) return null;
     return isEdit ? (
-      <div data-testid="role-edit-modal">
+      <div data-testid="role-edit-form">
         {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
           type="button"
@@ -135,7 +189,7 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
         >
           Save
         </button>
-        <button type="button" data-testid="close-edit-modal" onClick={onClose}>
+        <button type="button" data-testid="cancel-edit" onClick={onClose}>
           Close
         </button>
       </div>
@@ -162,99 +216,111 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
 }));
 
 vi.mock("@/components/roles/roles-master-detail", () => ({
+  // Bearbeitet wird jetzt im Detailbereich (BAUARTEN-SPEC Bauart 2 Regel 3).
+  // Der Doppel steht fuer die eingebettete DatabaseForm: sie faengt die
+  // Ablehnung von onSaveRole ab und zeigt die Meldung im Formular.
   RolesMasterDetail: ({
     roles,
     selectedId,
     selectedRole,
     onSelect,
-    onEditClick,
+    onSaveRole,
     onDeleteClick,
-    onManagePermissions,
+    onPermissionsSaved,
+    canManagePermissions,
   }: {
     roles: Array<{ id: string; name: string }>;
     selectedId: string | null;
     selectedRole?: { name: string } | null;
     onSelect: (id: string | null) => void;
-    onEditClick: () => void;
+    onSaveRole: (data: { name: string }) => Promise<void>;
     onDeleteClick: () => void;
-    onManagePermissions: () => void;
-  }) => (
-    <div data-testid="roles-master-detail">
-      {roles.map((role) => (
-        <button
-          type="button"
-          key={role.id}
-          data-testid={`role-row-${role.id}`}
-          onClick={() => onSelect(role.id)}
-        >
-          {role.name}
-        </button>
-      ))}
-      {selectedId ? (
-        <div data-testid="role-detail-panel">
-          <span data-testid="detail-selected-id">{selectedId}</span>
-          <span data-testid="detail-role-name">
-            {selectedRole?.name ?? "unbekannt"}
-          </span>
+    onPermissionsSaved: () => void | Promise<void>;
+    canManagePermissions?: boolean;
+  }) => {
+    const [editing, setEditing] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const submit = () => {
+      setError(null);
+      void onSaveRole({ name: "Updated" })
+        .then(() => setEditing(false))
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : String(err));
+        });
+    };
+    return (
+      <div
+        data-testid="roles-master-detail"
+        data-can-manage-permissions={canManagePermissions}
+      >
+        {roles.map((role) => (
           <button
             type="button"
-            data-testid="trigger-edit"
-            onClick={onEditClick}
+            key={role.id}
+            data-testid={`role-row-${role.id}`}
+            onClick={() => onSelect(role.id)}
           >
-            Edit
+            {role.name}
           </button>
-          <button
-            type="button"
-            data-testid="trigger-delete"
-            onClick={onDeleteClick}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-permissions"
-            onClick={onManagePermissions}
-          >
-            Permissions
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-deselect"
-            onClick={() => onSelect(null)}
-          >
-            Close
-          </button>
-        </div>
-      ) : null}
-    </div>
-  ),
-}));
-
-vi.mock("@/components/auth/role-permission-management-modal", () => ({
-  RolePermissionManagementModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="role-permission-modal" /> : null,
-}));
-
-vi.mock("~/components/ui/modal", () => ({
-  ConfirmationModal: ({
-    isOpen,
-    onConfirm,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onConfirm?: () => void;
-    onClose?: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="confirmation-modal">
-        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
-          Confirm
-        </button>
-        <button type="button" data-testid="cancel-delete" onClick={onClose}>
-          Cancel
-        </button>
+        ))}
+        {selectedId ? (
+          <div data-testid="role-detail-panel">
+            <span data-testid="detail-selected-id">{selectedId}</span>
+            <span data-testid="detail-role-name">
+              {selectedRole?.name ?? "unbekannt"}
+            </span>
+            <button
+              type="button"
+              data-testid="trigger-edit"
+              onClick={() => setEditing(true)}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              data-testid="trigger-delete"
+              onClick={onDeleteClick}
+            >
+              Delete
+            </button>
+            <button
+              type="button"
+              data-testid="trigger-permissions-saved"
+              onClick={() => void onPermissionsSaved()}
+            >
+              Permissions saved
+            </button>
+            <button
+              type="button"
+              data-testid="trigger-deselect"
+              onClick={() => onSelect(null)}
+            >
+              Close
+            </button>
+            {editing ? (
+              <div data-testid="role-edit-form">
+                {error ? <span data-testid="edit-error">{error}</span> : null}
+                <button
+                  type="button"
+                  data-testid="submit-edit"
+                  onClick={submit}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  data-testid="cancel-edit"
+                  onClick={() => setEditing(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
       </div>
-    ) : null,
+    );
+  },
 }));
 
 const mockRoles = [
@@ -282,6 +348,10 @@ const mockRoles = [
 describe("RolesPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1", token: "test-token" }, expires: "2099-01-01" },
+      status: "authenticated",
+    });
     currentSearch = new URLSearchParams();
 
     mockGetList.mockResolvedValue({ data: mockRoles });
@@ -296,6 +366,75 @@ describe("RolesPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Vertretungslehrkraft")).toBeInTheDocument();
       // System role label is mapped via getRoleDisplayName; "admin" will map.
+    });
+  });
+
+  it("does not enable permission editing with roles:manage alone", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["roles:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
+    });
+  });
+
+  it("does not enable permission editing without roles:read", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["roles:manage", "permissions:read"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
+    });
+  });
+
+  it("does not expose permissions to users who only create accounts", async () => {
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+    });
+
+    render(<RolesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("roles-master-detail")).toHaveAttribute(
+        "data-can-manage-permissions",
+        "false",
+      );
     });
   });
 
@@ -497,7 +636,7 @@ describe("RolesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -521,7 +660,7 @@ describe("RolesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -531,7 +670,7 @@ describe("RolesPage", () => {
         "server timeout",
       );
     });
-    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 
@@ -550,7 +689,7 @@ describe("RolesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -593,7 +732,7 @@ describe("RolesPage", () => {
     });
   });
 
-  it("opens the edit modal when the detail panel edit button is clicked", async () => {
+  it("opens the inline edit form when the detail panel edit button is clicked", async () => {
     setSelectedRole("1");
 
     render(<RolesPage />);
@@ -605,27 +744,37 @@ describe("RolesPage", () => {
     fireEvent.click(screen.getByTestId("trigger-edit"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     });
   });
 
-  it("opens the permission management modal from the detail panel", async () => {
+  // Berechtigungen werden im Reiter des Detailbereichs bearbeitet (#3116);
+  // die Seite lädt danach Liste und Detail neu, damit die Zahl in der Liste
+  // stimmt.
+  it("reloads the roles and the detail after the permissions were saved", async () => {
     setSelectedRole("1");
 
     render(<RolesPage />);
 
     await waitFor(() => {
       expect(screen.getByTestId("role-detail-panel")).toBeInTheDocument();
+      expect(mockGetOne).toHaveBeenCalledTimes(1);
     });
+    const listCallsBefore = mockGetList.mock.calls.length;
+    const detailCallsBefore = mockGetOne.mock.calls.length;
 
-    fireEvent.click(screen.getByTestId("trigger-permissions"));
+    fireEvent.click(screen.getByTestId("trigger-permissions-saved"));
 
     await waitFor(() => {
-      expect(screen.getByTestId("role-permission-modal")).toBeInTheDocument();
+      expect(mockGetList.mock.calls.length).toBe(listCallsBefore + 1);
     });
+    await waitFor(() => {
+      expect(mockGetOne.mock.calls.length).toBe(detailCallsBefore + 1);
+    });
+    expect(mockGetOne).toHaveBeenLastCalledWith("1");
   });
 
-  it("calls update service when saving the edit modal", async () => {
+  it("calls update service when saving the inline edit form", async () => {
     setSelectedRole("1");
     mockUpdate.mockResolvedValueOnce(undefined);
 
@@ -637,7 +786,7 @@ describe("RolesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -666,7 +815,7 @@ describe("RolesPage", () => {
 
     fireEvent.click(screen.getByTestId("trigger-edit"));
     await waitFor(() => {
-      expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+      expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByTestId("submit-edit"));
@@ -681,7 +830,7 @@ describe("RolesPage", () => {
       /duplicate key/,
     );
     // The modal must NOT close so the user can correct the name.
-    expect(screen.getByTestId("role-edit-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("role-edit-form")).toBeInTheDocument();
     expect(mockToastSuccess).not.toHaveBeenCalled();
   });
 

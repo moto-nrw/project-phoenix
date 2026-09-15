@@ -20,12 +20,13 @@
 //
 // Regenerate after an INTENTIONAL route change:
 //
-//	go test ./api/ -run 'TestRouteTableGolden|TestIoTAuthMatrixGolden' -update-goldens
+//	go test ./api/ -run TestFullProductionRouterGolden -update-goldens
 //
 // and justify the diff in the PR description.
 package api
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -38,7 +39,6 @@ import (
 	"runtime"
 	"sort"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -49,49 +49,8 @@ import (
 
 var updateGoldens = flag.Bool("update-goldens", false, "rewrite the route-table and IoT auth-matrix golden files")
 
-var (
-	goldenAPIOnce sync.Once
-	goldenAPI     *API
-	goldenAPIErr  error
-)
-
-// newGoldenAPI builds the production Serve root exactly once per test binary.
-// newRuntime is the builder owned by WithRuntime. It calls api.New, which
-// registers Prometheus collectors and DB stats
-// providers on global registries — a second construction in the same process
-// would panic on duplicate registration.
-func newGoldenAPI(t *testing.T) *API {
-	t.Helper()
-
-	// SetupTestDB loads the root .env (TEST_DB_DSN, PHOENIX_AUTH_PASSWORD),
-	// forces APP_ENV=test, and points viper's test_db_dsn at the
-	// package-isolated clone — api.New's DBConnForServe resolves through the
-	// same viper key, so the whole router builds against the clone. Its
-	// bootstrap also serializes the cluster-global phoenix_auth role setup.
-	testpkg.SetupTestDB(t)
-
-	goldenAPIOnce.Do(func() {
-		runtime, err := newRuntime(ServeConfig{
-			Port:   "0",
-			Logger: slog.Default(),
-		})
-		if err != nil {
-			goldenAPIErr = err
-			return
-		}
-		var ok bool
-		goldenAPI, ok = runtime.Handler().(*API)
-		if !ok {
-			goldenAPIErr = fmt.Errorf("Serve root handler has type %T, want *api.API", runtime.Handler())
-		}
-	})
-	require.NoError(t, goldenAPIErr, "api.WithRuntime builder failed — route goldens need the assembled production Serve root")
-	return goldenAPI
-}
-
-// Deliberately NOT parallel: mutates process-global configuration.
-func TestRouteTableGolden(t *testing.T) {
-	apiInstance := newGoldenAPI(t)
+func checkRouteTableGolden(t *testing.T, apiInstance *API) {
+	t.Parallel()
 
 	var routes, middlewareRoutes []string
 	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
@@ -139,6 +98,58 @@ func TestRouteTableGolden(t *testing.T) {
 			require.Equalf(t, http.StatusUnauthorized, rec.Code, "%s %s must be routed to the staff-notice resource", tc.method, tc.path)
 		}
 	})
+
+	// Pins the write block for admin staff-view preview tokens (#2893) to
+	// EVERY authenticated WRITE route, not just the ones the feature was built
+	// against. Each api sub-package assembles its own JWT chain, so a group
+	// that authenticates without ReadOnlyPreviewMiddleware would let a preview
+	// token write through calendar, import, enrollment, or any future router —
+	// silently, because the route still answers 200. Walking the assembled
+	// production router is the only place that sees all of them at once.
+	//
+	// Read-only methods are exempt: the middleware lets GET/HEAD/OPTIONS
+	// through anyway (minus its own denylist), so a purely reading group (the
+	// SSE streams, which may not import api/common under the architecture
+	// policy) needs nothing.
+	t.Run("every authenticated write route carries the read-only preview guard", func(t *testing.T) {
+		const (
+			authenticator = "auth/jwt.Authenticator"
+			readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
+		)
+		safeMethods := map[string]bool{
+			http.MethodGet:     true,
+			http.MethodHead:    true,
+			http.MethodOptions: true,
+		}
+
+		var unguarded []string
+		walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+			if safeMethods[method] {
+				return nil
+			}
+			var authenticated, guarded bool
+			for _, middleware := range middlewares {
+				name := runtime.FuncForPC(reflect.ValueOf(middleware).Pointer()).Name()
+				name = strings.TrimPrefix(name, "github.com/moto-nrw/project-phoenix/")
+				switch {
+				case strings.HasPrefix(name, authenticator):
+					authenticated = true
+				case strings.HasPrefix(name, readOnlyGuard):
+					guarded = true
+				}
+			}
+			if authenticated && !guarded {
+				unguarded = append(unguarded, method+" "+route)
+			}
+			return nil
+		})
+		require.NoError(t, walkErr)
+		sort.Strings(unguarded)
+
+		require.Emptyf(t, unguarded,
+			"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after jwt.Authenticator in the group that mounts them:\n%s",
+			strings.Join(unguarded, "\n"))
+	})
 }
 
 var compilerGeneratedNamePart = regexp.MustCompile(`func[0-9]+|\.[0-9]+`)
@@ -175,9 +186,8 @@ func stableMiddlewareTable(table string) string {
 // ones like {id:[0-9]+}) for probe-URL substitution.
 var chiParamPattern = regexp.MustCompile(`\{[^}]+\}`)
 
-// Deliberately NOT parallel: mutates process-global configuration.
-func TestIoTAuthMatrixGolden(t *testing.T) {
-	apiInstance := newGoldenAPI(t)
+func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *API) {
+	t.Parallel()
 
 	var iotRoutes []string
 	walkErr := chi.Walk(apiInstance.Router, func(method, route string, _ http.Handler, _ ...func(http.Handler) http.Handler) error {
@@ -260,4 +270,39 @@ func unifiedDiff(want, got string) string {
 		return "(same line sets — ordering or duplicate-count changed)"
 	}
 	return b.String()
+}
+
+// TestFullProductionRouterGolden is the only API test that composes the complete
+// production graph. Its subtests cover contracts of the assembled router.
+func TestFullProductionRouterGolden(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	called := false
+	err := WithRuntime(context.Background(), ServeConfig{
+		Port:         "127.0.0.1:0",
+		FrontendURL:  "http://localhost:3000",
+		PublicAPIURL: "http://api.invalid",
+		Logger:       slog.Default(),
+	}, func(runtime *Runtime) error {
+		called = true
+		require.NotNil(t, runtime.worker)
+		api, ok := runtime.Handler().(*API)
+		require.True(t, ok)
+		if *runtimeCheckpointOutput != "" {
+			measureRuntimeCheckpoint(t, runtime)
+		}
+		// Wait for parallel contract subtests before WithRuntime closes its resources.
+		t.Run("contracts", func(t *testing.T) {
+			t.Run("route table", func(t *testing.T) { checkRouteTableGolden(t, api) })
+			t.Run("IoT auth matrix", func(t *testing.T) { checkIoTAuthMatrixGolden(t, api) })
+			t.Run("school scope matrix", func(t *testing.T) { checkSchoolScopeMatrix(t, api) })
+			t.Run("caregiver wiring", func(t *testing.T) { checkCaregiverWiring(t, api) })
+			t.Run("enrollment submission", func(t *testing.T) { checkEnrollmentSubmissionGolden(t, api) })
+			t.Run("rate limited operator invitations", func(t *testing.T) { checkOperatorInvitationMount(t, api) })
+		})
+		return nil
+	})
+	require.NoError(t, err)
+	require.True(t, called)
+	t.Run("invalid runtime dependencies", checkRuntimeRejectsMissingDependencies)
 }

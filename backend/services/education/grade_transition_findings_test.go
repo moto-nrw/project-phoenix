@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -210,11 +208,10 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo: newGradeTransitionRepository(t, db),
 		StudentRepo:    usersRepo.NewStudentRepository(db),
 		PersonRepo:     usersRepo.NewPersonRepository(db),
-		VisitRepo:      activeRepo.NewVisitRepository(db),
-		AttendanceRepo: activeRepo.NewAttendanceRepository(db),
+		Presence:       graduationPresence(t, db),
 		DB:             db,
 	})
 
@@ -368,6 +365,10 @@ func (r *failingCountRepo) GetStudentCountByClass(_ context.Context, _ string) (
 	return 0, errCountUnavailable
 }
 
+func (r *failingCountRepo) GetStudentCountsByClasses(_ context.Context, _ []string) (map[string]int, error) {
+	return nil, errCountUnavailable
+}
+
 // TestGradeTransitionService_SuggestMappings_CountErrorPropagates covers the
 // #405 review fix: a failed GetStudentCountByClass must fail the whole
 // suggestion instead of silently dropping the class — an admin could otherwise
@@ -388,7 +389,7 @@ func TestGradeTransitionService_SuggestMappings_CountErrorPropagates(t *testing.
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
 		TransitionRepo: &failingCountRepo{
-			GradeTransitionRepository: educationRepo.NewGradeTransitionRepository(db),
+			GradeTransitionRepository: newGradeTransitionRepository(t, db),
 		},
 	})
 

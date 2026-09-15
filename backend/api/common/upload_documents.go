@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -167,6 +168,31 @@ func isOOXML(file io.ReadSeeker, kind ooxmlKind) bool {
 	_, hasContentTypes := parts["[Content_Types].xml"]
 	_, hasPart := parts[kind.part]
 	return hasContentTypes && hasPart
+}
+
+// GermanUploadError restates the size and shape rejections of
+// ParseDocumentWithLimits / ParseOfficeFileWithLimits in German, naming the
+// limit the caller ran into.
+//
+// The type rejections are already German and carry the allowed formats; the
+// two remaining ones ("file too large", "no file uploaded") come from the
+// multipart layer and would otherwise reach a parent or a school employee in
+// English. The message says the limit in MB, because "zu groß" without a
+// number leaves the person guessing what to try next.
+func GermanUploadError(err error, maxFileSize int64) error {
+	if err == nil {
+		return nil
+	}
+	switch err.Error() {
+	case "file too large":
+		//nolint:staticcheck // ST1005: user-facing German message
+		return fmt.Errorf("Diese Datei ist zu groß. Erlaubt sind bis zu %d MB.", maxFileSize/(1024*1024))
+	case "no file uploaded":
+		//nolint:staticcheck // ST1005: user-facing German message
+		return errors.New("Es wurde keine Datei ausgewählt.")
+	default:
+		return err
+	}
 }
 
 // DocumentFileExtension returns the canonical stored-file extension for a

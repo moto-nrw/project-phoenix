@@ -3,13 +3,7 @@
 import { useEffect } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
-import {
-  useOpenCareGroupMode,
-  usePresenceMode,
-  useTimetableEnabled,
-} from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface SmartRedirectProps {
@@ -23,24 +17,8 @@ interface SmartRedirectProps {
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   const tenantPath = useTenantAwarePath();
   const { data: session, status } = useSession();
-  const presenceMode = usePresenceMode();
-  const openCareGroupMode = useOpenCareGroupMode();
-  const timetableEnabled = useTimetableEnabled();
-  const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
-    useSupervision();
 
-  const { redirectPath, isReady } = useSmartRedirectPath(
-    session,
-    {
-      hasGroups,
-      isLoadingGroups,
-      isSupervising,
-      isLoadingSupervision,
-    },
-    presenceMode,
-    openCareGroupMode,
-    timetableEnabled,
-  );
+  const { redirectPath, isReady } = useSmartRedirectPath(session);
 
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready

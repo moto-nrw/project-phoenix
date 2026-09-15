@@ -27,7 +27,7 @@ export function useRequireAdmin(): UseRequireAdminReturn {
   const userIsAdmin = hasEffectiveAdminScope(session);
 
   if (status === "authenticated" && !userIsAdmin) {
-    redirect(tenantPath("/dashboard"));
+    redirect(tenantPath("/home"));
   }
 
   return {

@@ -3,11 +3,9 @@
 import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 
 /**
- * PlanBlock is the shift/occupancy card of the planning redesign — the
- * single place the "Block-Rezeptur" from
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 4/6.2 lives:
- * white surface, a 3px colored left edge, at most a 10% tint of that same
- * color, at most one status icon, and exactly the content described there.
+ * PlanBlock is the shared shift/occupancy card: white surface, a 3px
+ * colored left edge, at most a 10% tint of that same color, and at most
+ * one status icon.
  * Nothing else in the kit is allowed to reproduce this recipe or the
  * `repeating-linear-gradient` hatch below — see plan-design-guards.test.ts.
  */
@@ -62,7 +60,7 @@ const CANCELLED_EDGE_COLOR = "#9CA3AF";
 
 /**
  * The single sanctioned repeating-linear-gradient in the entire kit
- * (docs/04-designsprache.md Abschnitt 5, Verbot 1): a hard-edged hatch for
+ *: a hard-edged hatch for
  * abwesenheitsgestörte Blöcke, never a soft gradient. Do not copy this
  * pattern into another file — plan-design-guards.test.ts enforces that only
  * this file may reference `repeating-linear-gradient`.

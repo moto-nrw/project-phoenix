@@ -8,18 +8,19 @@ import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
 import type { BulkArrivalTime } from "~/lib/student-arrival-api";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
+import { useTenantRouter } from "~/lib/tenant-router";
 import {
-  SCHULHOF_ROOM_NAME,
-  SCHULHOF_TAB_ID,
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  openRoomSessionSelection,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
 import type {
   ActiveSupervisionRoom,
   ActiveSupervisionStudent,
   MinimalActiveGroup,
+  OpenRoomView,
   SchulhofStatusResponse,
   SupervisionSessionInfo,
 } from "~/components/active-supervisions/view-model";
@@ -74,6 +75,10 @@ interface BFFDashboardResponse {
   }>;
   firstRoomId: string | null;
   schulhofStatus: SchulhofStatusResponse | null;
+  // Every permanently released room with its full occupancy (#3065). Optional
+  // so a cached payload from an older backend degrades to "no shared rooms"
+  // instead of breaking the page.
+  openRooms?: OpenRoomView[];
   capabilities?: {
     webSpontaneousActivitiesEnabled: boolean;
   };
@@ -123,6 +128,25 @@ export interface SupervisionDashboardOptions {
   readonly roomParam: string | null;
 }
 
+/**
+ * The shared room a URL addresses, if it names either the room directly or a
+ * session that runs in it. The session form is retained only for old links;
+ * its destination is still the room's merged occupancy.
+ */
+export function releasedRoomTargetedByUrl(options: {
+  readonly sessionParam: string | null;
+  readonly roomParam: string | null;
+  readonly rooms: readonly Pick<ActiveSupervisionRoom, "id" | "room_id">[];
+  readonly openRoomIds: ReadonlySet<string>;
+}): string | null {
+  const { sessionParam, roomParam, rooms, openRoomIds } = options;
+  if (sessionParam) {
+    const roomId = rooms.find((room) => room.id === sessionParam)?.room_id;
+    return roomId && openRoomIds.has(roomId) ? roomId : null;
+  }
+  return roomParam && openRoomIds.has(roomParam) ? roomParam : null;
+}
+
 export interface SupervisionDashboard {
   // Fetch surface
   readonly dashboardError: Error | undefined;
@@ -139,8 +163,11 @@ export interface SupervisionDashboard {
   readonly groupNameToIdMap: Map<string, string>;
   readonly cachedActiveGroups: MinimalActiveGroup[];
   readonly schulhofStatus: SchulhofStatusResponse | null;
-  readonly schulhofTabEnabled: boolean;
-  readonly schulhofTabAvailable: boolean;
+  /**
+   * Every permanently released room, in the order the backend reports them.
+   * Independent of who supervises what and of whether anything runs there.
+   */
+  readonly openRooms: OpenRoomView[];
   readonly webSpontaneousActivitiesEnabled: boolean;
   readonly businessDay: string | undefined;
   readonly spontaneousStartAvailability:
@@ -153,21 +180,30 @@ export interface SupervisionDashboard {
 
   // Selection
   readonly selectedRoomId: string | null;
-  readonly isSchulhofTabSelected: boolean;
+  /** Room id of the released room being viewed, or null for an own session. */
+  readonly selectedOpenRoomId: string | null;
   readonly selectedTimetableInstanceId: string | null;
+  /** The caller's own selected session; null while a shared room is open. */
   readonly currentRoom: ActiveSupervisionRoom | null;
+  /** The selected released room; null while an own session is selected. */
+  readonly currentOpenRoom: OpenRoomView | null;
   readonly setSelectedTimetableInstanceId: (id: string | null) => void;
   /**
    * Switch to another supervised session. Awaitable: resolves after the
    * aggregate re-ran for the target; a rejection surfaces as `error`.
    */
   readonly switchToRoom: (sessionId: string) => Promise<void>;
-  /** Select the permanent Schulhof tab (state only — no navigation). */
-  readonly selectSchulhof: (options?: {
-    clearTimetableInstance?: boolean;
-  }) => void;
-  /** Leave the Schulhof tab (before switching to a normal session). */
-  readonly deselectSchulhof: () => void;
+  /**
+   * Open one released room's shared view (state only — no navigation). Needs
+   * no refetch: the room arrives complete with every dashboard response, which
+   * is what lets an empty or foreign room open immediately.
+   */
+  readonly selectOpenRoom: (
+    roomId: string,
+    preferredSessionId?: string,
+  ) => void;
+  /** Leave the shared room view (before switching to an own session). */
+  readonly clearOpenRoom: () => void;
   /**
    * Adopt a session this client just started (planned/spontaneous start):
    * selects it and pre-seeds the fetch parameter so the follow-up
@@ -205,13 +241,14 @@ export interface SupervisionDashboard {
  *   Browser time does not choose a school day or a spontaneous start window.
  * - A fetched aggregate is retained as a snapshot until the next one
  *   arrives (mirroring SWR's `keepPreviousData` across key changes), so
- *   values that must survive refetch gaps — e.g. the Schulhof tab
- *   capability — never flicker off.
+ *   values that must survive refetch gaps — e.g. the released rooms of
+ *   the navigation — never flicker off.
  */
 export function useSupervisionDashboard(
   options: SupervisionDashboardOptions,
 ): SupervisionDashboard {
   const { sessionToken, sessionParam, roomParam } = options;
+  const router = useTenantRouter();
   const { data: session } = useSession();
   const accountId = session?.user.id;
 
@@ -220,7 +257,9 @@ export function useSupervisionDashboard(
 
   // Selection state — genuine UI state, not a copy of server data.
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
-  const [isSchulhofTabSelected, setIsSchulhofTabSelected] = useState(false);
+  const [selectedOpenRoomId, setSelectedOpenRoomId] = useState<string | null>(
+    null,
+  );
   const [selectedTimetableInstanceId, setSelectedTimetableInstanceId] =
     useState<string | null>(null);
   const [isSwitchingSession, setIsSwitchingSession] = useState(false);
@@ -394,18 +433,26 @@ export function useSupervisionDashboard(
     [dashboardError, snapshot],
   );
 
-  // #2161: the permanent Schulhof tab (one-tap "Beaufsichtigen") rides on
-  // the generic spontaneous-start flow, so it is gated on the same
-  // capability. Tenants without it see the yard as a normal room tab while
-  // a planned or spontaneous session runs there. Read from the retained
-  // snapshot so transient dashboard refetches don't drop the tab.
+  // Released rooms (#3065). Read from the retained snapshot so a transient
+  // dashboard refetch does not make shared rooms flicker out of the
+  // navigation. A failed revalidation clears them for the same reason the
+  // Schulhof workflow fails closed above: an unreachable room must not look
+  // like a reachable empty one.
+  const openRooms = useMemo(
+    () => (dashboardError ? [] : (snapshot?.openRooms ?? [])),
+    [dashboardError, snapshot],
+  );
+  const openRoomIds = useMemo(
+    () => new Set(openRooms.map((room) => room.roomId)),
+    [openRooms],
+  );
+
+  // #2161: the one-tap "Beaufsichtigen" on the Schulhof rides on the generic
+  // spontaneous-start flow, so it is gated on the same capability.
   const webSpontaneousActivitiesEnabled =
     snapshot?.capabilities?.webSpontaneousActivitiesEnabled === true;
   const businessDay = snapshot?.businessDay;
   const spontaneousStartAvailability = snapshot?.spontaneousStartAvailability;
-  const schulhofTabEnabled = webSpontaneousActivitiesEnabled;
-  const schulhofTabAvailable =
-    schulhofTabEnabled && schulhofStatus?.exists === true;
 
   // Title + plan window per running session, so tab labels can show
   // "Aktivitätsname · Planzeit" (#2265). Sessions without a timetable
@@ -477,35 +524,49 @@ export function useSupervisionDashboard(
   // effect below is still switching (#2096).
   const isUrlTargetingDifferentRoom = useMemo(() => {
     const firstRoom = allRoomsBase[0];
-    return sessionParam
-      ? sessionParam !== SCHULHOF_TAB_ID &&
-          allRoomsBase.some((room) => room.id === sessionParam) &&
-          firstRoom?.id !== sessionParam
-      : !!roomParam &&
-          roomParam !== SCHULHOF_TAB_ID &&
-          allRoomsBase.some((room) => room.room_id === roomParam) &&
-          firstRoom?.room_id !== roomParam;
-  }, [allRoomsBase, sessionParam, roomParam]);
+    const releasedRoomId = releasedRoomTargetedByUrl({
+      sessionParam,
+      roomParam,
+      rooms: allRoomsBase,
+      openRoomIds,
+    });
+    if (releasedRoomId) return selectedOpenRoomId !== releasedRoomId;
+    if (sessionParam) {
+      return (
+        allRoomsBase.some((room) => room.id === sessionParam) &&
+        firstRoom?.id !== sessionParam
+      );
+    }
+    if (!roomParam) return false;
+    return (
+      allRoomsBase.some((room) => room.room_id === roomParam) &&
+      firstRoom?.room_id !== roomParam
+    );
+  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, selectedOpenRoomId]);
 
   // The visits of the selected session, derived instead of copied: shown
   // only when the aggregate's resolved session IS the one the user is
   // looking at — an SSE revalidation while the user views another session
   // must not surface foreign visits, and a pending switch shows nothing.
+  // The released room being viewed, if any. It carries its own occupancy, so
+  // opening it costs no request — that is what makes an empty room and a room
+  // somebody else supervises reachable at all (#3065).
+  const currentOpenRoom = useMemo(
+    () => openRooms.find((room) => room.roomId === selectedOpenRoomId) ?? null,
+    [openRooms, selectedOpenRoomId],
+  );
+
   const students = useMemo<ActiveSupervisionStudent[]>(() => {
-    if (!snapshot) return [];
-    if (isSchulhofTabSelected) {
-      if (
-        snapshot.selectedGroupId &&
-        schulhofStatus?.isUserSupervising &&
-        schulhofStatus.activeGroupId === snapshot.selectedGroupId
-      ) {
-        return mapVisitsToSupervisionStudents(snapshot.firstRoomVisits, {
-          roomName: SCHULHOF_ROOM_NAME,
-          groupNameToId: groupNameToIdMap,
-        });
-      }
-      return [];
+    if (currentOpenRoom) {
+      // Everyone the room currently holds, from every session running in it,
+      // each child once — the aggregation the backend already performed.
+      return mapVisitsToSupervisionStudents(currentOpenRoom.students, {
+        roomName: currentOpenRoom.name,
+        groupNameToId: groupNameToIdMap,
+      });
     }
+    if (!snapshot) return [];
+    if (selectedOpenRoomId) return [];
     if (isUrlTargetingDifferentRoom) return [];
     if (!resolvedRoom) return [];
     if (selectedRoomId && selectedRoomId !== resolvedRoom.id) return [];
@@ -516,8 +577,8 @@ export function useSupervisionDashboard(
     });
   }, [
     snapshot,
-    isSchulhofTabSelected,
-    schulhofStatus,
+    currentOpenRoom,
+    selectedOpenRoomId,
     groupNameToIdMap,
     isUrlTargetingDifferentRoom,
     resolvedRoom,
@@ -526,7 +587,7 @@ export function useSupervisionDashboard(
 
   // Stamp the resolved session's live count onto its room entry (badge).
   const allRooms = useMemo(() => {
-    if (!resolvedRoom || isSchulhofTabSelected || isUrlTargetingDifferentRoom)
+    if (!resolvedRoom || selectedOpenRoomId || isUrlTargetingDifferentRoom)
       return allRoomsBase;
     if (selectedRoomId && selectedRoomId !== resolvedRoom.id)
       return allRoomsBase;
@@ -538,30 +599,22 @@ export function useSupervisionDashboard(
   }, [
     allRoomsBase,
     resolvedRoom,
-    isSchulhofTabSelected,
+    selectedOpenRoomId,
     isUrlTargetingDifferentRoom,
     selectedRoomId,
     students.length,
   ]);
 
-  // Current selected session (null if Schulhof tab is selected but the user
-  // isn't supervising).
+  // The caller's own selected session. A shared room is not one of them, so
+  // while one is open this stays null and `currentOpenRoom` carries the view.
   const currentRoom = useMemo(
     () =>
-      isSchulhofTabSelected
-        ? schulhofStatus?.isUserSupervising && schulhofStatus?.activeGroupId
-          ? {
-              id: schulhofStatus.activeGroupId,
-              name: SCHULHOF_ROOM_NAME,
-              room_name: SCHULHOF_ROOM_NAME,
-              room_id: schulhofStatus.roomId ?? undefined,
-              student_count: schulhofStatus.studentCount,
-            }
-          : null
+      selectedOpenRoomId
+        ? null
         : (allRooms.find((r) => r.id === selectedRoomId) ??
           allRooms[0] ??
           null),
-    [isSchulhofTabSelected, schulhofStatus, allRooms, selectedRoomId],
+    [selectedOpenRoomId, allRooms, selectedRoomId],
   );
 
   const hasAccess: boolean | null = dashboardError?.message.includes("403")
@@ -572,16 +625,28 @@ export function useSupervisionDashboard(
 
   const isInitialLoading = !snapshot && !dashboardError;
 
-  const isWaitingForUrlRoomSelection = sessionParam
-    ? sessionParam !== SCHULHOF_TAB_ID &&
-      allRooms.some((room) => room.id === sessionParam) &&
-      currentRoom?.id !== sessionParam
-    : !!roomParam &&
-      roomParam !== SCHULHOF_TAB_ID &&
+  const isWaitingForUrlRoomSelection = (() => {
+    const releasedRoomId = releasedRoomTargetedByUrl({
+      sessionParam,
+      roomParam,
+      rooms: allRooms,
+      openRoomIds,
+    });
+    if (releasedRoomId) return selectedOpenRoomId !== releasedRoomId;
+    if (sessionParam) {
+      return (
+        allRooms.some((room) => room.id === sessionParam) &&
+        currentRoom?.id !== sessionParam
+      );
+    }
+    if (!roomParam) return false;
+    return (
       allRooms.some((room) => room.room_id === roomParam) &&
       // A selected session inside the named room settles a room-keyed URL —
       // parallel sessions share the room, so never wait for a "better" match.
-      currentRoom?.room_id !== roomParam;
+      currentRoom?.room_id !== roomParam
+    );
+  })();
 
   // ---- Selection adjustments (state follows the refreshed aggregate) ----
 
@@ -596,7 +661,7 @@ export function useSupervisionDashboard(
       return;
     }
     if (
-      !isSchulhofTabSelected &&
+      !selectedOpenRoomId &&
       !selectedRoomId &&
       !isUrlTargetingDifferentRoom &&
       resolvedRoom
@@ -608,45 +673,44 @@ export function useSupervisionDashboard(
     allRoomsBase,
     resolvedRoom,
     selectedRoomId,
-    isSchulhofTabSelected,
+    selectedOpenRoomId,
     isUrlTargetingDifferentRoom,
   ]);
 
-  // Leave the Schulhof tab when its capability or provisioning disappears.
+  // Leave a shared room whose release was withdrawn. The stays recorded in it
+  // are unaffected — they stay reachable through their own session — but the
+  // permanent shared entry is gone, so the page must not keep showing one.
   useEffect(() => {
-    if (schulhofTabAvailable || !isSchulhofTabSelected) return;
-    setIsSchulhofTabSelected(false);
+    if (!selectedOpenRoomId || openRoomIds.has(selectedOpenRoomId)) return;
+    setSelectedOpenRoomId(null);
     setSelectedRoomId(allRoomsBase[0]?.id ?? null);
     setSelectedTimetableInstanceId(null);
-  }, [allRoomsBase, isSchulhofTabSelected, schulhofTabAvailable]);
+  }, [allRoomsBase, selectedOpenRoomId, openRoomIds]);
 
-  // Auto-select the Schulhof tab when it's the only available option.
+  // With no own supervision at all, open the first shared room rather than
+  // leaving the page empty: released rooms are reachable for everyone, and
+  // that is exactly the caller who has nothing else to show.
   useEffect(() => {
-    if (
-      allRoomsBase.length === 0 &&
-      schulhofTabAvailable &&
-      !isSchulhofTabSelected
-    ) {
-      setIsSchulhofTabSelected(true);
-    }
-  }, [allRoomsBase.length, schulhofTabAvailable, isSchulhofTabSelected]);
+    if (allRoomsBase.length > 0 || selectedOpenRoomId) return;
+    const first = openRooms[0];
+    if (first) setSelectedOpenRoomId(first.roomId);
+  }, [allRoomsBase.length, openRooms, selectedOpenRoomId]);
 
   // ---- Selection → fetch reconciliation ----
 
   // The session the UI explicitly wants from the aggregate. Null while the
   // backend's default (first supervised session) is fine — a fetch without
   // group_id resolves exactly that, so no reconciliation is needed then.
-  const explicitDesiredGroupId = isSchulhofTabSelected
-    ? schulhofStatus?.isUserSupervising && schulhofStatus.activeGroupId
-      ? schulhofStatus.activeGroupId
-      : null
-    : selectedRoomId;
+  // A shared room asks the aggregate for nothing: it arrives complete with
+  // every response, so opening one leaves the caller's own selection alone
+  // instead of re-running the request for a session it does not have.
+  const explicitDesiredGroupId = selectedOpenRoomId ? null : selectedRoomId;
   const resolvedGroupId = resolvedRoom?.id ?? null;
   const hasSnapshot = snapshot !== null;
 
   // Re-run the aggregate when the explicitly selected session changes and
   // the cached aggregate belongs to another one — the data-driven paths
-  // (Schulhof toggle materializing a session, localStorage restore) that
+  // (a toggle materializing a session, localStorage restore) that
   // never go through switchToRoom. Loop-safe without a comparison ref: the
   // effect fires on VALUE changes of desired/resolved only, so a response
   // that keeps resolving another session cannot re-trigger it.
@@ -696,19 +760,25 @@ export function useSupervisionDashboard(
     [selectedRoomId, allRoomsBase, mutateDashboard],
   );
 
-  const selectSchulhof = useCallback(
-    (opts?: { clearTimetableInstance?: boolean }) => {
-      setIsSchulhofTabSelected(true);
-      setSelectedRoomId(null);
-      if (opts?.clearTimetableInstance) {
+  const selectOpenRoom = useCallback(
+    (roomId: string, preferredSessionId?: string) => {
+      const selection = openRoomSessionSelection({
+        roomId,
+        preferredSessionId,
+        selectedSessionId: selectedRoomId,
+        rooms: allRoomsBase,
+      });
+      setSelectedOpenRoomId(roomId);
+      setSelectedRoomId(selection.sessionId);
+      if (!selection.keepsTimetableInstance) {
         setSelectedTimetableInstanceId(null);
       }
     },
-    [],
+    [allRoomsBase, selectedRoomId],
   );
 
-  const deselectSchulhof = useCallback(() => {
-    setIsSchulhofTabSelected(false);
+  const clearOpenRoom = useCallback(() => {
+    setSelectedOpenRoomId(null);
   }, []);
 
   const adoptSession = useCallback(
@@ -718,7 +788,7 @@ export function useSupervisionDashboard(
       requestedGroupIdRef.current = activeGroupId;
       setSelectedTimetableInstanceId(timetableInstanceId);
       setSelectedRoomId(activeGroupId);
-      setIsSchulhofTabSelected(false);
+      setSelectedOpenRoomId(null);
     },
     [],
   );
@@ -730,26 +800,40 @@ export function useSupervisionDashboard(
   // resolver never switches between parallel sessions in the same room
   // just because a refresh re-resolved a room-keyed URL (#2265).
   useEffect(() => {
+    const savedSessionId = localStorage.getItem("supervision-last-session");
     const target = resolveSupervisionSelection({
       sessionParam,
       roomParam,
-      savedSessionId: localStorage.getItem("supervision-last-session"),
+      savedSessionId,
       savedRoomId: localStorage.getItem("sidebar-last-room"),
       rooms: allRoomsBase,
       currentSessionId: selectedRoomId,
-      schulhofAvailable: schulhofTabAvailable,
+      currentOpenRoomId: selectedOpenRoomId,
+      openRoomIds,
     });
 
-    if (target.kind === "schulhof") {
-      if (!isSchulhofTabSelected) {
-        selectSchulhof();
+    if (target.kind === "open-room") {
+      const preferredSessionId = sessionParam ?? savedSessionId;
+      const sessionId =
+        preferredSessionId &&
+        allRoomsBase.some(
+          (room) =>
+            room.id === preferredSessionId && room.room_id === target.roomId,
+        )
+          ? preferredSessionId
+          : undefined;
+      selectOpenRoom(target.roomId, sessionId);
+      localStorage.removeItem("supervision-last-session");
+      localStorage.setItem("sidebar-last-room", target.roomId);
+      if (!roomParam) {
+        router.replace(`/active-supervisions?room=${target.roomId}`);
       }
       return;
     }
     if (allRoomsBase.length === 0) return;
     if (target.kind === "session") {
-      if (isSchulhofTabSelected) {
-        setIsSchulhofTabSelected(false);
+      if (selectedOpenRoomId) {
+        setSelectedOpenRoomId(null);
       }
       localStorage.setItem("supervision-last-session", target.sessionId);
       void switchToRoom(target.sessionId);
@@ -768,14 +852,7 @@ export function useSupervisionDashboard(
     }
     // "none": already in sync
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    allRoomsBase,
-    sessionParam,
-    roomParam,
-    schulhofTabAvailable,
-    schulhofStatus?.activeGroupId,
-    schulhofStatus?.isUserSupervising,
-  ]);
+  }, [allRoomsBase, sessionParam, roomParam, openRoomIds, router]);
 
   return {
     dashboardError: dashboardError ?? undefined,
@@ -789,8 +866,7 @@ export function useSupervisionDashboard(
     groupNameToIdMap,
     cachedActiveGroups,
     schulhofStatus,
-    schulhofTabEnabled,
-    schulhofTabAvailable,
+    openRooms,
     webSpontaneousActivitiesEnabled,
     businessDay,
     spontaneousStartAvailability,
@@ -800,13 +876,14 @@ export function useSupervisionDashboard(
     arrivalTimesData,
     students,
     selectedRoomId,
-    isSchulhofTabSelected,
+    selectedOpenRoomId,
     selectedTimetableInstanceId,
     currentRoom,
+    currentOpenRoom,
     setSelectedTimetableInstanceId,
     switchToRoom,
-    selectSchulhof,
-    deselectSchulhof,
+    selectOpenRoom,
+    clearOpenRoom,
     adoptSession,
     hasAccess,
     isInitialLoading,

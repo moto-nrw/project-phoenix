@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -48,6 +49,13 @@ type weekdayRosterScenario struct {
 	periodID    int64
 	templateIDs []int64
 	cleanup     []func()
+}
+
+func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) activitiesModels.StudentEnrollmentRepository {
+	t.Helper()
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
+	return repos.StudentEnrollment
 }
 
 func TestCreateTemplate_PerWeekdayRoster_MaterializesTheWeekdaysOwnPeople(t *testing.T) {
@@ -234,19 +242,20 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
 	weekday := activitiesModels.WeekdayMonday
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	repos.BindTimetable(timetabletest.New(t, s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
 		IsPrimary: true,
-		ValidFrom: monday.AddDays(-30),
+		ValidFrom: activitiesModels.Date(monday.AddDays(-30)),
 		Weekday:   &weekday,
 	}))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
 		IsPrimary:        true,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &s.periodID,
 		Weekday:          &weekday,
 	}))
@@ -554,10 +563,10 @@ func TestUpdateTemplate_ProtectedWeekdayDoesNotSuppressManualOtherWeekday(t *tes
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
 	update := scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
@@ -627,10 +636,10 @@ func TestUpdateTemplate_SharedRosterDoesNotBroadenProtectedWeekdays(t *testing.T
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
 	update := scheduleSvc.TemplateUpdateInput{
 		TemplateID: result.TemplateID,
@@ -723,21 +732,21 @@ func TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments(t *
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 	inconsistentWeekday := activitiesModels.WeekdayTuesday
 	inconsistentProtected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 		Weekday:          &inconsistentWeekday,
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, inconsistentProtected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, inconsistentProtected))
 
-	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 
 	type rosterKey struct {
@@ -797,17 +806,18 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 	require.NoError(t, err)
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	repos.BindTimetable(timetabletest.New(t, s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
 		IsPrimary: true,
-		ValidFrom: monday.AddDays(-30),
+		ValidFrom: activitiesModels.Date(monday.AddDays(-30)),
 	}))
 	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
 		StudentID:       s.studentA,
 		ActivityGroupID: result.TemplateID,
-		ValidFrom:       monday.AddDays(-30),
+		ValidFrom:       activitiesModels.Date(monday.AddDays(-30)),
 	}))
 
 	rows, err := repos.ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, &s.periodID)
@@ -883,12 +893,12 @@ func TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster(t *te
 	protected := &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentA,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		SelectedWeekdays: []int{activitiesModels.WeekdayMonday},
 	}
-	require.NoError(t, repositories.NewFactory(s.db).StudentEnrollment.Create(s.ctx, protected))
+	require.NoError(t, ownedStudentEnrollmentRepository(t, s.db).Create(s.ctx, protected))
 
-	rows, err := repositories.NewFactory(s.db).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
+	rows, err := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).ActivityGroup.ListTemplateWeekdayRoster(s.ctx, &result.TemplateID, nil)
 	require.NoError(t, err)
 	protectedWeekdays := make([]int, 0)
 	for _, row := range rows {
@@ -930,8 +940,8 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	periodB := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Roster-B-%d", time.Now().UnixNano()),
 		PeriodType:      scheduleModels.PeriodTypeCustom,
-		StartDate:       timezone.NewDate(2026, 1, 1),
-		EndDate:         timezone.NewDate(2026, 12, 31),
+		StartDate:       scheduleModels.NewDate(2026, 1, 1),
+		EndDate:         scheduleModels.NewDate(2026, 12, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -955,18 +965,19 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 	require.NoError(t, err)
 
 	weekday := activitiesModels.WeekdayMonday
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
+	repos.BindTimetable(timetabletest.New(t, s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &periodB.ID,
 		Weekday:          &weekday,
 	}))
 	require.NoError(t, repos.StudentEnrollment.Create(s.ctx, &activitiesModels.StudentEnrollment{
 		StudentID:        s.studentB,
 		ActivityGroupID:  result.TemplateID,
-		ValidFrom:        monday.AddDays(-30),
+		ValidFrom:        activitiesModels.Date(monday.AddDays(-30)),
 		CalendarPeriodID: &periodB.ID,
 		Weekday:          &weekday,
 	}))
@@ -1015,7 +1026,7 @@ func makeWeekdayRosterScenario(t *testing.T, anchor timezone.Date) *weekdayRoste
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err)
 
@@ -1027,8 +1038,8 @@ func makeWeekdayRosterScenario(t *testing.T, anchor timezone.Date) *weekdayRoste
 	period := &scheduleModels.CalendarPeriod{
 		Name:            fmt.Sprintf("Schuljahr-%d", suffix),
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
+		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}

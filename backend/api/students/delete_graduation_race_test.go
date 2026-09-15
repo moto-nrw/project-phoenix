@@ -12,7 +12,6 @@ package students_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,9 +31,12 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Race", "Graduate", "4a")
 
 	// The snapshot the handler's pre-transaction gate read: still active, because
-	// the transition had not committed when the request arrived.
+	// the transition had not committed when the request arrived. The preview
+	// the confirmation quotes back was taken at the same moment.
 	snapshot := *student
 	require.NotEqual(t, usersModels.StudentStatusAlumnus, snapshot.Status)
+	claims := testutil.AdminTestClaims(1)
+	preview := previewStudentDeletion(t, tc, claims, student.ID)
 
 	// The transition commits: the stored row is a graduate from here on.
 	_, err := tc.db.NewUpdate().
@@ -59,8 +61,7 @@ func TestDeleteStudent_GraduatedBetweenSnapshotAndLock(t *testing.T) {
 	}
 	t.Cleanup(func() { tc.resource.PersonService = realPersons })
 
-	req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := confirmStudentDeletion(t, tc, claims, student.ID, preview)
 
 	// The same 404 the ordinary alumnus gate returns — the outcome must not
 	// depend on which transaction won.

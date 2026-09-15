@@ -13,6 +13,7 @@ import (
 )
 
 func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalUpgrade")
@@ -69,15 +70,16 @@ func TestActivityCategoryArchivalUpDisambiguatesExistingCaseVariants(t *testing.
 }
 
 func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
 	variantTenantID := testpkg.UniqueTestTenantID(t)
 	duplicateTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, variantTenantID)
+	testpkg.OwnTenantRows(t, db, variantTenantID)
 	testpkg.EnsureTestTenant(t, db, duplicateTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, variantTenantID)
-	defer testpkg.CleanupTenantTestData(t, db, duplicateTenantID)
+	testpkg.OwnTenantRows(t, db, duplicateTenantID)
 
 	restored := false
 	require.NoError(t, activityCategoryArchivalDown(ctx, db))
@@ -134,6 +136,7 @@ func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.
 }
 
 func TestActivityCategoryArchivalDownPreservesReferencedNameConflict(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	group := testpkg.CreateTestActivityGroup(t, db, "ArchivalRollback")

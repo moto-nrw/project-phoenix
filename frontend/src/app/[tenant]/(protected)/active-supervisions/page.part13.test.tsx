@@ -35,6 +35,7 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
+  hasPermission: () => false,
 }));
 
 // Mock next-auth/react
@@ -49,7 +50,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room" ? navigationMockState.roomParam : null,
@@ -95,13 +96,28 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -222,6 +238,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -592,6 +609,51 @@ describe("MeinRaumPage roster actions", () => {
     expect(mockRosterMutate).not.toHaveBeenCalled();
   });
 
+  it("names the missing planning when the server forbids the action", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
+      Object.assign(new Error("timetable operation forbidden"), {
+        httpStatus: 403,
+      }),
+    );
+
+    render(<MeinRaumPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Einchecken" }));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Sie sind für diese Aktivität nicht eingeplant.",
+      );
+    });
+    expect(screen.getByTestId("alert-error")).not.toHaveTextContent(
+      "Aktion im Betreuungsplan konnte nicht ausgeführt werden.",
+    );
+    // The planning changed under the open list: reload it so the actions go.
+    expect(mockRosterMutate).toHaveBeenCalledWith();
+  });
+
+  it("names the missing planning when the bulk confirm is forbidden", async () => {
+    vi.mocked(timetableOperationsApi.checkIn).mockRejectedValue(
+      Object.assign(new Error("timetable operation forbidden"), {
+        httpStatus: 403,
+      }),
+    );
+
+    render(<MeinRaumPage />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: /erwartete bestätigen/i }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("alert-error")).toHaveTextContent(
+        "Sie sind für diese Aktivität nicht eingeplant.",
+      );
+    });
+    expect(screen.getByTestId("alert-error")).not.toHaveTextContent(
+      "Erwartete Kinder konnten nicht bestätigt werden.",
+    );
+    expect(mockRosterMutate).toHaveBeenCalledWith();
+  });
+
   it("shows the origin notice when an unplanned child is added", async () => {
     vi.mocked(timetableOperationsApi.checkIn).mockResolvedValue({
       instance: rosterInstance,
@@ -613,6 +675,9 @@ describe("MeinRaumPage roster actions", () => {
 
     render(<MeinRaumPage />);
 
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kind hinzufügen" }),
+    );
     const search = await screen.findByRole("searchbox", {
       name: "Kind ungeplant suchen",
     });
@@ -688,6 +753,9 @@ describe("MeinRaumPage roster actions", () => {
           }),
         );
       } else {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Kind hinzufügen" }),
+        );
         fireEvent.change(
           await screen.findByRole("searchbox", {
             name: "Kind ungeplant suchen",
@@ -701,7 +769,7 @@ describe("MeinRaumPage roster actions", () => {
       await waitFor(() => {
         expect(timetableOperationsApi.checkIn).toHaveBeenCalled();
       });
-      fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+      fireEvent.click(await screen.findByRole("tab", { name: "Raum 202" }));
       await screen.findByText("Nora Neu");
 
       await act(async () => {
@@ -755,7 +823,7 @@ describe("MeinRaumPage roster actions", () => {
       expect(timetableOperationsApi.checkIn).toHaveBeenCalledWith("99", "100");
     });
 
-    fireEvent.click(await screen.findByRole("button", { name: "Raum 202" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Raum 202" }));
     await screen.findByText("Nora Neu");
 
     await act(async () => {

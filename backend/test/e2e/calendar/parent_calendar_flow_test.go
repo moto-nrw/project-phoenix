@@ -9,11 +9,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -26,16 +26,11 @@ import (
 // router, so a single test can drive the full staff→parent flow over HTTP.
 func setupParentCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
-	db, factory := testutil.SetupAPITest(t)
+	db, factory := testutil.SetupCalendarModule(t)
 
-	staffResource := calendarAPI.NewResource(factory.Calendar, db, slog.Default())
+	staffResource := calendarAPI.NewResource(factory.Calendar, slog.Default())
 	parentResource := parentAPI.NewResource(
-		factory.Auth,
-		factory.Parent,
-		factory.EnrollmentRequest,
-		factory.GuardianProfileLoader,
-		factory.Schools,
+		nil, nil, nil, nil, nil,
 		db,
 	)
 	parentResource.SetCalendarService(factory.Calendar)
@@ -68,10 +63,8 @@ type feedE2EResponse struct {
 // a staff member creates an appointment for a guardian, then the guardian views
 // it, downloads its .ics, and fetches their subscription feed URL — all through
 // the real routers with a parent-scope JWT.
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestParentCalendarHTTPFlow_ViewICSAndFeed(t *testing.T) {
+	t.Parallel()
 	db, router := setupParentCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "ParentFlowOrg")

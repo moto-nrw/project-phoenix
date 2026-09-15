@@ -21,7 +21,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -61,13 +61,26 @@ type fakeParentService struct {
 	gotCarePickup    *time.Time
 	gotCareReason    string
 
+	childFeatures parentService.ChildFeatureFlags
+
 	todayStatus     *parentService.TodayStatus
 	todayStatusErr  error
 	gotTodayAccount int64
 	gotTodayStudent int64
 
-	mealPlanRows []mealplanModule.Entry
-	mealPlanErr  error
+	mealPlanRows         []parentService.MealPlanEntry
+	mealPlanErr          error
+	mealParticipation    parentService.MealParticipationPlan
+	mealParticipationErr error
+
+	consents           []parentService.ChildConsent
+	consentsErr        error
+	withdrawConsents   []parentService.ChildConsent
+	withdrawConsentErr error
+	grantConsents      []parentService.ChildConsent
+	grantConsentErr    error
+	gotConsentAccount  int64
+	gotConsentStudent  int64
 }
 
 // GetChildTodayStatus haelt das Double am Service-Interface. Ohne gesetzten
@@ -98,6 +111,12 @@ func (f *fakeParentService) UpdatePortalLocale(_ context.Context, _ int64, local
 func (f *fakeParentService) ListChildrenForAccount(context.Context, int64) ([]*parentModels.ChildSummary, error) {
 	return nil, nil
 }
+
+// GuardianAnnouncementTenant is the attachment audience port (#2890). 0 means
+// "not in the audience", which is what these enrollment tests want.
+func (f *fakeParentService) GuardianAnnouncementTenant(context.Context, int64, int64) (int64, error) {
+	return 0, nil
+}
 func (f *fakeParentService) ListEnrollableForAccount(context.Context, int64) ([]*parentModels.EnrollablePhase, error) {
 	return nil, nil
 }
@@ -110,16 +129,31 @@ func (f *fakeParentService) GetEnrollmentSubmitStatus(context.Context, int64, in
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentModels.EnrollmentRequestSummary, error) {
 	return nil, nil
 }
+func (f *fakeParentService) GetChildConsents(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.consents, f.consentsErr
+}
+func (f *fakeParentService) WithdrawPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.withdrawConsents, f.withdrawConsentErr
+}
+func (f *fakeParentService) GrantPhotoConsent(_ context.Context, accountID, studentID int64) ([]parentService.ChildConsent, error) {
+	f.gotConsentAccount = accountID
+	f.gotConsentStudent = studentID
+	return f.grantConsents, f.grantConsentErr
+}
 func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil
 }
 func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error) {
 	return nil, nil
 }
-func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*activeModels.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*careplan.ExcusedAbsenceRequest, error) {
 	return nil, nil
 }
 func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string) (*scheduleModels.CareScheduleChangeRequest, error) {
@@ -138,10 +172,22 @@ func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, str
 	return nil, nil
 }
 func (f *fakeParentService) ChildFeatures(context.Context, int64, int64) (parentService.ChildFeatureFlags, error) {
-	return parentService.ChildFeatureFlags{}, nil
+	return f.childFeatures, nil
 }
-func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]mealplanModule.Entry, error) {
+func (f *fakeParentService) MealPlanWeek(context.Context, int64, int64, timezone.Date) ([]parentService.MealPlanEntry, error) {
 	return f.mealPlanRows, f.mealPlanErr
+}
+func (f *fakeParentService) MealParticipation(context.Context, int64, int64, timezone.Date, timezone.Date) (parentService.MealParticipationPlan, error) {
+	return f.mealParticipation, f.mealParticipationErr
+}
+func (f *fakeParentService) ReplaceMealParticipationSchedule(context.Context, int64, int64, []parentService.MealWeekday) (string, error) {
+	return "2026-09-07", nil
+}
+func (f *fakeParentService) SetMealParticipationDay(context.Context, int64, int64, timezone.Date, bool) error {
+	return nil
+}
+func (f *fakeParentService) ClearMealParticipationDay(context.Context, int64, int64, timezone.Date) error {
+	return nil
 }
 func (f *fakeParentService) ListRelatedAccounts(context.Context, int64, int64) ([]*parentService.RelatedAccount, error) {
 	return nil, nil
@@ -184,6 +230,20 @@ func (f *fakeParentService) CreateCareScheduleRequest(context.Context, int64, in
 // Offering change requests (#1665). Zero-value stubs: these handlers have their
 // own tests; the fake only has to satisfy the interface.
 func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64) (*parentService.ChildCareOfferings, error) {
+	return nil, nil
+}
+
+// Kurse (#3075). Zero-value stubs for the same reason: the course handlers
+// have their own tests, the fake only has to satisfy the interface.
+func (f *fakeParentService) GetChildCourses(context.Context, int64, int64) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) RequestChildCourse(context.Context, int64, int64, int64, string) (*enrollmentService.CourseCatalog, error) {
+	return nil, nil
+}
+
+func (f *fakeParentService) WithdrawChildCourseRequest(context.Context, int64, int64, int64) (*enrollmentService.CourseCatalog, error) {
 	return nil, nil
 }
 
@@ -323,11 +383,19 @@ func mealPlanRequest() *http.Request {
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
 }
 
+func mealParticipationRequest() *http.Request {
+	req := withClaims(httptest.NewRequest(http.MethodGet,
+		"/me/children/77/meal-participation?from=2026-08-24&to=2026-09-04", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+}
+
 func TestGetChildMealPlan_ResponseContract(t *testing.T) {
 	t.Parallel()
 
-	service := &fakeParentService{mealPlanRows: []mealplanModule.Entry{{
-		Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti",
+	service := &fakeParentService{mealPlanRows: []parentService.MealPlanEntry{{
+		Date: "2026-08-24", Position: 0, Dish: "Spaghetti",
 	}}}
 	rs := &Resource{ParentService: service}
 	w := httptest.NewRecorder()
@@ -356,6 +424,20 @@ func TestGetChildMealPlan_DisabledContract(t *testing.T) {
 		"error":"parent: meal plan disabled for this school",
 		"code":"meal_plan_disabled"
 	}`, w.Body.String())
+}
+
+func TestGetMealParticipation_ResponseContract(t *testing.T) {
+	t.Parallel()
+	rs := &Resource{ParentService: &fakeParentService{mealParticipation: parentService.MealParticipationPlan{
+		Weekdays: []parentService.MealWeekday{1, 3}, EffectiveFrom: "2026-08-24", CutoffTime: "09:00",
+		Days: []parentService.MealParticipationDay{{Date: "2026-08-24", Participating: true, Source: "regular", Changeable: false}},
+	}}}
+	w := httptest.NewRecorder()
+
+	rs.getMealParticipation(w, mealParticipationRequest())
+
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"status":"success","data":{"weekdays":[1,3],"effective_from":"2026-08-24","cutoff_time":"09:00","days":[{"date":"2026-08-24","participating":true,"source":"regular","changeable":false}]},"message":"Meal participation retrieved"}`, w.Body.String())
 }
 
 func TestSubmitCareException_PassesRequiredReasonAndReturnsIt(t *testing.T) {
@@ -413,6 +495,45 @@ func TestSubmitCareException_MapsMissingReasonToStableCode(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"care_exception_reason_required"`)
+}
+
+// #3163: after the same-day cutoff the submit answers 409 with its own code,
+// so the portal can explain the lock instead of a generic failure.
+func TestSubmitCareException_MapsCutoffPassedToConflictCode(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{careExceptionErr: parentService.ErrPickupChangeCutoffPassed}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"14:30","reason":"Arzttermin"}`))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"pickup_change_cutoff_passed"`)
+}
+
+// The features response carries the cutoff and today's lock state to the
+// portal before anyone types (#3163).
+func TestGetChildFeatures_ReportsPickupChangeCutoff(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{
+		PickupChangeEnabled:     true,
+		PickupChangeCutoffTime:  "11:00",
+		PickupChangeTodayClosed: true,
+	}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"pickup_change_cutoff_time":"11:00"`)
+	assert.Contains(t, w.Body.String(), `"pickup_change_today_closed":true`)
 }
 
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {

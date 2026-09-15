@@ -17,6 +17,7 @@ import {
 
 // Mock next/link
 vi.mock("next/link", () => ({
+  useLinkStatus: () => ({ pending: false }),
   default: ({
     children,
     href,
@@ -47,17 +48,9 @@ describe("PageTitleDisplay", () => {
     expect(screen.getByText("Test Page")).toBeInTheDocument();
   });
 
-  it("uses text-base when not scrolled", () => {
-    render(<PageTitleDisplay title="Dashboard" isScrolled={false} />);
-    const el = screen.getByText("Dashboard");
-    expect(el.className).toContain("text-base");
-  });
-
-  it("applies smaller text when scrolled", () => {
-    render(<PageTitleDisplay title="Test Page" isScrolled={true} />);
-
-    const title = screen.getByText("Test Page");
-    expect(title).toHaveClass("text-sm");
+  it("uses the compact text size of the 48px topbar", () => {
+    render(<PageTitleDisplay title="Dashboard" />);
+    expect(screen.getByText("Dashboard")).toHaveClass("text-sm");
   });
 
   it("is hidden on mobile", () => {
@@ -170,18 +163,14 @@ describe("OgsGroupsBreadcrumb", () => {
     expect(screen.getByText("Eulen")).toBeInTheDocument();
   });
 
-  it("shrinks with the header when scrolled", () => {
-    // Diese Breadcrumb reichte isScrolled als einzige nicht durch und blieb
-    // beim Scrollen groß, während der Rest der Kopfzeile schrumpfte.
-    const { container } = render(
-      <OgsGroupsBreadcrumb groupName="Eulen" isScrolled />,
-    );
+  it("uses the same compact text size as the rest of the topbar", () => {
+    const { container } = render(<OgsGroupsBreadcrumb groupName="Eulen" />);
 
     expect(container.querySelector("nav")).toHaveClass("text-sm");
   });
 
-  it("shrinks the plain title when scrolled without a group", () => {
-    render(<OgsGroupsBreadcrumb isScrolled />);
+  it("uses the compact text size for the plain title without a group", () => {
+    render(<OgsGroupsBreadcrumb />);
 
     expect(screen.getByText("Meine Gruppe")).toHaveClass("text-sm");
   });
@@ -201,9 +190,9 @@ describe("ActiveSupervisionsBreadcrumb", () => {
     expect(screen.getByText("Raum 1.2")).toBeInTheDocument();
   });
 
-  it("shrinks with the header when scrolled", () => {
+  it("uses the same compact text size as the rest of the topbar", () => {
     const { container } = render(
-      <ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" isScrolled />,
+      <ActiveSupervisionsBreadcrumb supervisionName="Raum 1.2" />,
     );
 
     expect(container.querySelector("nav")).toHaveClass("text-sm");
@@ -316,13 +305,12 @@ describe("StudentDetailBreadcrumb", () => {
     expect(screen.getByText("Max")).toBeInTheDocument();
   });
 
-  it("applies smaller text when scrolled", () => {
+  it("uses the compact text size of the 48px topbar", () => {
     const { container } = render(
       <StudentDetailBreadcrumb
         referrer="/database/students"
         breadcrumbLabel="Kinder"
         studentName="Max Mustermann"
-        isScrolled={true}
       />,
     );
 

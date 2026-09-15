@@ -10,7 +10,8 @@ import type { RequestDiffEntry } from "~/lib/messaging-status";
 
 const logger = createLogger({ component: "CareRequestReviewAPI" });
 
-type CareRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
+type CareRequestStatus =
+  "pending" | "approved" | "rejected" | "withdrawn" | "done" | "care_ended";
 
 // One care-schedule change request in the staff queue. Mirrors
 // api/students.CareRequestResponse.
@@ -58,10 +59,13 @@ function unwrap<T>(json: Envelope<T>): T {
  */
 export class CareRequestApiError extends Error {
   readonly code?: string;
-  constructor(message: string, code?: string) {
+  /** HTTP status of the failed response, so a reader can tell "weg" from "kein Zugriff". */
+  readonly status?: number;
+  constructor(message: string, code?: string, status?: number) {
     super(message);
     this.name = "CareRequestApiError";
     this.code = code;
+    this.status = status;
   }
 }
 
@@ -83,7 +87,7 @@ async function readError(
     message,
     ...(code ? { code } : {}),
   });
-  return new CareRequestApiError(message, code);
+  return new CareRequestApiError(message, code, response.status);
 }
 
 /** Approves (applies the weekly plan) or rejects one care-schedule request. */
@@ -138,4 +142,54 @@ export interface StaffCareRequestHistoryEntry {
   readonly decided_at: string;
   /** Absent for withdrawn rows (no reviewer). */
   readonly decided_by_name?: string;
+}
+
+/**
+ * One care-schedule request of ANY status, read from a message-thread pill
+ * (#3135). Mirrors api/students.CareRequestDetailResponse: the history
+ * projection plus the guardian's reason; a pending row carries no decision.
+ */
+export interface StaffCareRequestDetail {
+  readonly id: string;
+  readonly student_id: string;
+  readonly first_name: string;
+  readonly last_name: string;
+  readonly status: CareRequestStatus;
+  readonly request_kind: "weekly_schedule" | "pickup_change";
+  readonly requested: readonly RequestDiffEntry[];
+  /** Frozen decision-time diff; absent without a snapshot. */
+  readonly diff?: readonly RequestDiffEntry[];
+  readonly request_reason?: string;
+  readonly decision_reason?: string;
+  readonly created_at: string;
+  /** Absent while the request is still pending. */
+  readonly decided_at?: string;
+  readonly decided_by_name?: string;
+  /**
+   * The stored ask of a pickup-change row: calendar day ("YYYY-MM-DD"),
+   * requested time ("HH:MM") and the time recorded at submission, if any.
+   * Absent for weekly-plan rows.
+   */
+  readonly pickup_change?: {
+    readonly date: string;
+    readonly pickup_time: string;
+    readonly previous_pickup_time?: string;
+  };
+}
+
+/**
+ * Loads one care-schedule request by its row id, whatever its status. The
+ * backend answers 404 for a removed or foreign row and 403 for a child the
+ * reader may not review; both arrive as CareRequestApiError with `status`.
+ */
+export async function fetchCareScheduleChangeRequest(
+  requestId: string,
+): Promise<StaffCareRequestDetail> {
+  const response = await fetch(
+    `/api/students/care-schedule-change-requests/${encodeURIComponent(requestId)}`,
+  );
+  if (!response.ok) {
+    throw await readError(response, "Anfrage konnte nicht geladen werden");
+  }
+  return unwrap((await response.json()) as Envelope<StaffCareRequestDetail>);
 }

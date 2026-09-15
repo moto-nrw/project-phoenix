@@ -3,7 +3,6 @@ package jwt
 import (
 	"errors"
 	"fmt"
-	"time"
 )
 
 // mfaPendingClaimsSpec parameterizes parseMFAPendingClaims for the two
@@ -51,15 +50,6 @@ func parseMFAPendingClaims(claims map[string]any, spec mfaPendingClaimsSpec, com
 		return 0, 0, "", errors.New(spec.notPendingErr)
 	}
 
-	if exp, ok := claims["exp"]; ok {
-		switch v := exp.(type) {
-		case float64:
-			common.ExpiresAt = int64(v)
-		case int64:
-			common.ExpiresAt = v
-		case time.Time:
-			common.ExpiresAt = v.Unix()
-		}
-	}
+	common.ExpiresAt = expiryFromClaims(claims)
 	return accountID, tenantID, scope, nil
 }

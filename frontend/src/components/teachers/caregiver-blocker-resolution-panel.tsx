@@ -1,0 +1,755 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { ArrowRightLeft, Trash2 } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { CustomSelect } from "~/components/ui/custom-select";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { InfoSection } from "~/components/ui/detail-modal-components";
+import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
+import { useToast } from "~/contexts/ToastContext";
+import type {
+  BlockerActivity,
+  BlockerGroup,
+  BlockerSubstitution,
+  BlockerSupervision,
+  CaregiverCapabilityState,
+} from "~/lib/caregiver-capability-api";
+import {
+  fetchGroupLeaderCandidates,
+  type StaffGroupLeaderCandidate,
+} from "~/lib/staff-role-api";
+import { createLogger } from "~/lib/logger";
+import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
+
+const logger = createLogger({ component: "CaregiverBlockerResolution" });
+
+interface CaregiverBlockerResolutionPanelProps {
+  /** Der Schritt ist sichtbar; beim Aktivieren wird die Vertretungsliste geladen. */
+  readonly active: boolean;
+  readonly state: CaregiverCapabilityState;
+  readonly onConfirmationVisibilityChange?: (visible: boolean) => void;
+}
+
+async function endActiveSupervision(id: string): Promise<void> {
+  const response = await fetch(
+    `/api/active/supervisors/${encodeURIComponent(id)}/end`,
+    {
+      method: "POST",
+      credentials: "include",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      `Gruppenaufsicht konnte nicht beendet werden (${response.status})`,
+    );
+  }
+}
+
+async function endGroupHandover(id: string): Promise<void> {
+  const response = await fetch("/api/substitutions/end", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ type: "group_handover", id: Number(id) }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Gruppenübergabe konnte nicht beendet werden (${response.status})`,
+    );
+  }
+}
+
+async function removeActivitySupervisor(
+  activityId: string,
+  supervisorId: string,
+  replacementStaffId?: string,
+): Promise<void> {
+  const searchParams = new URLSearchParams();
+  if (replacementStaffId) {
+    searchParams.set("replacement_staff_id", replacementStaffId);
+  }
+
+  const response = await fetch(
+    `/api/activities/${encodeURIComponent(activityId)}/supervisors/${encodeURIComponent(supervisorId)}${searchParams.size > 0 ? `?${searchParams.toString()}` : ""}`,
+    { method: "DELETE", credentials: "include" },
+  );
+  if (!response.ok) {
+    let errorMessage = replacementStaffId
+      ? `Aktivitätsleitung konnte nicht übertragen werden (${response.status})`
+      : `Aktivitätsleitung konnte nicht entfernt werden (${response.status})`;
+    let errorCode: string | undefined;
+
+    try {
+      const payload = (await response.json()) as {
+        error?: string;
+        message?: string;
+        code?: string;
+      };
+      errorMessage = payload.message ?? payload.error ?? errorMessage;
+      errorCode = payload.code;
+    } catch {
+      // Fall back to the generic status-based message when the proxy did not
+      // return structured JSON.
+    }
+
+    const error = new Error(errorMessage) as Error & { code?: string };
+    error.code = errorCode;
+    throw error;
+  }
+}
+
+async function updateGroupTeachers(
+  groupId: string,
+  groupName: string,
+  teacherIds: number[],
+): Promise<void> {
+  const response = await fetch(`/api/groups/${encodeURIComponent(groupId)}`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: groupName, teacher_ids: teacherIds }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Gruppenleitung konnte nicht aktualisiert werden (${response.status})`,
+    );
+  }
+}
+
+function buildUpdatedTeacherIds(
+  group: BlockerGroup,
+  replacementTeacherId?: string,
+): number[] {
+  const currentTeacherIds =
+    group.teacherIds.length > 0 ? group.teacherIds : [group.teacherId];
+  const nextTeacherIds = currentTeacherIds.filter(
+    (id) => id !== group.teacherId,
+  );
+
+  if (replacementTeacherId && !nextTeacherIds.includes(replacementTeacherId)) {
+    nextTeacherIds.push(replacementTeacherId);
+  }
+
+  return nextTeacherIds.map((teacherId) => {
+    const parsedTeacherId = Number.parseInt(teacherId, 10);
+    if (Number.isNaN(parsedTeacherId)) {
+      throw new Error(
+        `Gruppenleitung für "${group.groupName}" enthält eine ungültige Lehrkraft-ID.`,
+      );
+    }
+    return parsedTeacherId;
+  });
+}
+
+/**
+ * Zweiter Schritt IM Dialog „Betreuung verwalten" — kein eigener Dialog:
+ * ein Modal über einem Modal ist portalweit verboten (Bauart 2, Regel 3).
+ */
+export function CaregiverBlockerResolutionPanel({
+  active,
+  state,
+  onConfirmationVisibilityChange,
+}: CaregiverBlockerResolutionPanelProps) {
+  const { success: toastSuccess } = useToast();
+  const [availableStaff, setAvailableStaff] = useState<
+    StaffGroupLeaderCandidate[]
+  >([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffLoadError, setStaffLoadError] = useState("");
+
+  const [supervisions, setSupervisions] = useState<BlockerSupervision[]>([]);
+  const [substitutions, setSubstitutions] = useState<BlockerSubstitution[]>([]);
+  const [activities, setActivities] = useState<BlockerActivity[]>([]);
+  const [groups, setGroups] = useState<BlockerGroup[]>([]);
+
+  const [activityReplacements, setActivityReplacements] = useState<
+    Record<string, string>
+  >({});
+  const [groupReplacements, setGroupReplacements] = useState<
+    Record<string, string>
+  >({});
+
+  const [processing, setProcessing] = useState<Record<string, boolean>>({});
+  const [errorMessage, setErrorMessage] = useState("");
+  // Entfernen ohne Ersatz und das Beenden einer Übergabe laufen erst nach der
+  // Rückfrage (Bauart 2 Regel 6, #3109). Ein Übertragen an eine Ersatzkraft
+  // läuft direkt: die Zuordnung bleibt bestehen, nur die Person wechselt.
+  const [pendingRemoval, setPendingRemoval] = useState<
+    | { readonly kind: "supervision"; readonly item: BlockerSupervision }
+    | { readonly kind: "substitution"; readonly item: BlockerSubstitution }
+    | { readonly kind: "activity"; readonly item: BlockerActivity }
+    | { readonly kind: "group"; readonly item: BlockerGroup }
+    | null
+  >(null);
+  const pendingKey =
+    pendingRemoval === null
+      ? null
+      : pendingRemoval.kind === "supervision"
+        ? `sup-${pendingRemoval.item.id}`
+        : pendingRemoval.kind === "substitution"
+          ? `sub-${pendingRemoval.item.id}`
+          : pendingRemoval.kind === "activity"
+            ? `act-${pendingRemoval.item.id}`
+            : `grp-${pendingRemoval.item.id}`;
+  const pendingProcessing =
+    pendingKey !== null && processing[pendingKey] === true;
+
+  const openConfirmation = (
+    nextPendingRemoval: Exclude<typeof pendingRemoval, null>,
+  ) => {
+    onConfirmationVisibilityChange?.(true);
+    setPendingRemoval(nextPendingRemoval);
+  };
+
+  const closeConfirmation = () => {
+    onConfirmationVisibilityChange?.(false);
+    setPendingRemoval(null);
+  };
+
+  const resolveActivity = (item: BlockerActivity) => {
+    if (activityReplacements[item.id]) {
+      void handleResolveActivity(item);
+      return;
+    }
+    openConfirmation({ kind: "activity", item });
+  };
+
+  // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1 Regel 4).
+  // Übertragen braucht eine gewählte Ersatzkraft, Entfernen setzt „Ohne
+  // Ersatz entfernen" in der Auswahl voraus: die Handler lesen die Auswahl,
+  // deshalb ist je nach Auswahl genau ein Eintrag verfügbar. Entfernen fragt
+  // weiter im ConfirmDeleteModal nach.
+  const buildResolutionMenu = (
+    hasReplacement: boolean,
+    busy: boolean,
+    resolve: () => void,
+  ): OverflowMenuEntry[] =>
+    hasReplacement
+      ? [
+          {
+            label: "Übertragen",
+            icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
+            disabled: busy,
+            onClick: resolve,
+          },
+        ]
+      : [
+          {
+            label: "Entfernen",
+            icon: <Trash2 className="h-4 w-4" aria-hidden />,
+            destructive: true,
+            disabled: busy,
+            onClick: resolve,
+          },
+        ];
+
+  const resolveGroup = (item: BlockerGroup) => {
+    if (groupReplacements[item.id]) {
+      void handleResolveGroup(item);
+      return;
+    }
+    openConfirmation({ kind: "group", item });
+  };
+
+  const confirmPendingRemoval = async () => {
+    if (!pendingRemoval) return;
+    if (pendingRemoval.kind === "supervision") {
+      await handleEndSupervision(pendingRemoval.item);
+    } else if (pendingRemoval.kind === "substitution") {
+      await handleEndSubstitution(pendingRemoval.item);
+    } else if (pendingRemoval.kind === "activity") {
+      await handleResolveActivity(pendingRemoval.item);
+    } else {
+      await handleResolveGroup(pendingRemoval.item);
+    }
+    // Fehler stehen im Alert des Panels; der Dialog schließt in beiden Fällen.
+    closeConfirmation();
+  };
+
+  const totalRemaining =
+    supervisions.length +
+    substitutions.length +
+    activities.length +
+    groups.length;
+
+  const loadStaff = useCallback(async () => {
+    try {
+      setLoadingStaff(true);
+      const staff = await fetchGroupLeaderCandidates();
+      setAvailableStaff(staff.filter((s) => s.id !== state.staffId));
+      setStaffLoadError("");
+    } catch (error) {
+      logger.error("failed to load available staff", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      setStaffLoadError(
+        "Ersatzkräfte konnten nicht geladen werden. Bitte versuchen Sie es noch einmal.",
+      );
+    } finally {
+      setLoadingStaff(false);
+    }
+  }, [state.staffId]);
+
+  useEffect(() => {
+    if (!active) return;
+    setSupervisions(state.activeSupervisions);
+    setSubstitutions(state.activeSubstitutions);
+    setActivities(state.activitySupervisions);
+    setGroups(state.groupAssignments);
+    setActivityReplacements({});
+    setGroupReplacements({});
+    setErrorMessage("");
+    void loadStaff();
+  }, [active, state, loadStaff]);
+
+  function setItemProcessing(key: string, value: boolean) {
+    setProcessing((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function handleEndSupervision(item: BlockerSupervision) {
+    const key = `sup-${item.id}`;
+    try {
+      setItemProcessing(key, true);
+      setErrorMessage("");
+      await endActiveSupervision(item.id);
+      setSupervisions((prev) => prev.filter((s) => s.id !== item.id));
+      toastSuccess(`Gruppenaufsicht für "${item.groupName}" beendet.`);
+    } catch (error) {
+      logger.error("failed to end supervision", {
+        id: item.id,
+        error: String(error),
+      });
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Fehler beim Beenden der Aufsicht.",
+      );
+    } finally {
+      setItemProcessing(key, false);
+    }
+  }
+
+  async function handleEndSubstitution(item: BlockerSubstitution) {
+    const key = `sub-${item.id}`;
+    try {
+      setItemProcessing(key, true);
+      setErrorMessage("");
+      await endGroupHandover(item.id);
+      setSubstitutions((prev) => prev.filter((s) => s.id !== item.id));
+      toastSuccess(`Gruppenübergabe für "${item.groupName}" beendet.`);
+    } catch (error) {
+      logger.error("failed to end substitution", {
+        id: item.id,
+        error: String(error),
+      });
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Fehler beim Beenden der Gruppenübergabe.",
+      );
+    } finally {
+      setItemProcessing(key, false);
+    }
+  }
+
+  async function handleResolveActivity(item: BlockerActivity) {
+    const replacementStaffId = activityReplacements[item.id];
+    const key = `act-${item.id}`;
+    try {
+      setItemProcessing(key, true);
+      setErrorMessage("");
+      await removeActivitySupervisor(
+        item.activityId,
+        item.id,
+        replacementStaffId,
+      );
+      setActivities((prev) => prev.filter((a) => a.id !== item.id));
+      toastSuccess(
+        replacementStaffId
+          ? `Aktivitätsleitung für "${item.activityName}" übertragen.`
+          : `Aktivitätsleitung für "${item.activityName}" entfernt.`,
+      );
+    } catch (error) {
+      const errorCode =
+        error instanceof Error && "code" in error
+          ? (error as Error & { code?: string }).code
+          : undefined;
+      logger.error("failed to resolve activity", {
+        id: item.id,
+        error: String(error),
+        errorCode,
+      });
+      setErrorMessage(
+        errorCode === "ONLY_SUPERVISOR_REPLACEMENT_REQUIRED"
+          ? `"${item.activityName}": Einzige Leitung — bitte Ersatzkraft auswählen.`
+          : error instanceof Error
+            ? error.message
+            : "Fehler bei der Aktivitätsleitung.",
+      );
+    } finally {
+      setItemProcessing(key, false);
+    }
+  }
+
+  async function handleResolveGroup(item: BlockerGroup) {
+    const replacementStaffId = groupReplacements[item.id];
+    const key = `grp-${item.id}`;
+    try {
+      setItemProcessing(key, true);
+      setErrorMessage("");
+      const replacementTeacherId = replacementStaffId
+        ? availableStaff.find((staff) => staff.id === replacementStaffId)
+            ?.teacherId
+        : undefined;
+      if (replacementStaffId && !replacementTeacherId) {
+        throw new Error(
+          "Die ausgewählte Ersatzkraft kann keiner Stammgruppe zugeordnet werden.",
+        );
+      }
+      const newTeacherIds = buildUpdatedTeacherIds(item, replacementTeacherId);
+      await updateGroupTeachers(item.groupId, item.groupName, newTeacherIds);
+      setGroups((prev) => prev.filter((g) => g.id !== item.id));
+      toastSuccess(
+        replacementStaffId
+          ? `Gruppenleitung für "${item.groupName}" übertragen.`
+          : `Gruppenleitung für "${item.groupName}" entfernt.`,
+      );
+    } catch (error) {
+      logger.error("failed to resolve group", {
+        id: item.id,
+        error: String(error),
+      });
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Fehler bei der Gruppenleitung.",
+      );
+    } finally {
+      setItemProcessing(key, false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {totalRemaining === 0 ? (
+        <Alert
+          type="success"
+          message="Alle Zuordnungen wurden aufgelöst. Gehen Sie zurück zur Übersicht, um die Betreuung zu deaktivieren."
+        />
+      ) : (
+        <p className="text-sm text-gray-600">
+          Lösen Sie die folgenden Zuordnungen auf, um die Betreuung deaktivieren
+          zu können. Sie können Zuordnungen entfernen oder an andere
+          Betreuungskräfte übertragen.
+        </p>
+      )}
+
+      {/* Active supervisions */}
+      {supervisions.length > 0 ? (
+        <InfoSection
+          title={`Aktive Gruppenaufsichten (${supervisions.length})`}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.supervision.icon}
+              tone={MOTO_CONCEPTS.supervision.tone}
+              size={18}
+            />
+          }
+          accentColor="purple"
+        >
+          <div className="space-y-2">
+            {supervisions.map((item) => {
+              const key = `sup-${item.id}`;
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {item.groupName}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-500">
+                      seit {item.startDate}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline_danger"
+                    size="compact"
+                    onClick={() =>
+                      openConfirmation({ kind: "supervision", item })
+                    }
+                    isLoading={processing[key]}
+                    loadingText="Wird beendet…"
+                  >
+                    Beenden
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </InfoSection>
+      ) : null}
+
+      {/* Active group handovers */}
+      {substitutions.length > 0 ? (
+        <InfoSection
+          title={`Aktive Gruppenübergaben (${substitutions.length})`}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.groupAccess.icon}
+              tone={MOTO_CONCEPTS.groupAccess.tone}
+              size={18}
+            />
+          }
+          accentColor="indigo"
+        >
+          <div className="space-y-2">
+            {substitutions.map((item) => {
+              const key = `sub-${item.id}`;
+              return (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between rounded-lg border border-gray-100 bg-white px-3 py-2"
+                >
+                  <div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {item.groupName}
+                    </span>
+                    <span className="ml-2 text-xs text-gray-500">
+                      {item.startDate} — {item.endDate}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline_danger"
+                    size="compact"
+                    onClick={() =>
+                      openConfirmation({ kind: "substitution", item })
+                    }
+                    isLoading={processing[key]}
+                    loadingText="Wird beendet…"
+                  >
+                    Beenden
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </InfoSection>
+      ) : null}
+
+      {/* Activity supervisions */}
+      {activities.length > 0 ? (
+        <InfoSection
+          title={`Aktivitätsleitungen (${activities.length})`}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.activities.icon}
+              tone={MOTO_CONCEPTS.activities.tone}
+              size={18}
+            />
+          }
+          accentColor="orange"
+        >
+          <div className="space-y-2">
+            {activities.map((item) => {
+              const key = `act-${item.id}`;
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium text-gray-900">
+                      {item.activityName}
+                    </span>
+                    {item.isPrimary ? (
+                      <span className="bg-moto-orange/20 text-moto-orange-hover ml-2 inline-flex rounded-full px-2 py-0.5 text-xs font-medium">
+                        Hauptleitung
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <CustomSelect
+                      ariaLabel={`Ersatz für ${item.activityName}`}
+                      value={activityReplacements[item.id] ?? ""}
+                      onChange={(next) =>
+                        setActivityReplacements((prev) => ({
+                          ...prev,
+                          [item.id]: next,
+                        }))
+                      }
+                      options={[
+                        { value: "", label: "Ohne Ersatz entfernen" },
+                        ...availableStaff.map((staff) => ({
+                          value: staff.id,
+                          label: staff.fullName,
+                        })),
+                      ]}
+                      disabled={loadingStaff || processing[key]}
+                    />
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${item.activityName}`}
+                      items={buildResolutionMenu(
+                        Boolean(activityReplacements[item.id]),
+                        processing[key] === true,
+                        () => resolveActivity(item),
+                      )}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </InfoSection>
+      ) : null}
+
+      {/* Group-teacher assignments */}
+      {groups.length > 0 ? (
+        <InfoSection
+          title={`Stammgruppen-Zuordnungen (${groups.length})`}
+          icon={
+            <MotoDuotoneIcon
+              icon={MOTO_CONCEPTS.groups.icon}
+              tone={MOTO_CONCEPTS.groups.tone}
+              size={18}
+            />
+          }
+          accentColor="green"
+        >
+          <div className="space-y-2">
+            {groups.map((item) => {
+              const key = `grp-${item.id}`;
+              return (
+                <div
+                  key={item.id}
+                  className="flex flex-col gap-2 rounded-lg border border-gray-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <span className="text-sm font-medium text-gray-900">
+                    {item.groupName}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <CustomSelect
+                      ariaLabel={`Ersatz für ${item.groupName}`}
+                      value={groupReplacements[item.id] ?? ""}
+                      onChange={(next) =>
+                        setGroupReplacements((prev) => ({
+                          ...prev,
+                          [item.id]: next,
+                        }))
+                      }
+                      options={[
+                        { value: "", label: "Ohne Ersatz entfernen" },
+                        ...availableStaff.map((staff) => ({
+                          value: staff.id,
+                          label: staff.fullName,
+                        })),
+                      ]}
+                      disabled={loadingStaff || processing[key]}
+                    />
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${item.groupName}`}
+                      items={buildResolutionMenu(
+                        Boolean(groupReplacements[item.id]),
+                        processing[key] === true,
+                        () => resolveGroup(item),
+                      )}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </InfoSection>
+      ) : null}
+
+      <Alert type="error" message={errorMessage || staffLoadError} />
+
+      <ConfirmationModal
+        isOpen={
+          pendingRemoval?.kind === "supervision" ||
+          pendingRemoval?.kind === "substitution"
+        }
+        title={
+          pendingRemoval?.kind === "supervision"
+            ? "Gruppenaufsicht beenden?"
+            : "Gruppenübergabe beenden?"
+        }
+        confirmText={
+          pendingRemoval?.kind === "supervision"
+            ? "Aufsicht beenden"
+            : "Übergabe beenden"
+        }
+        cancelText="Abbrechen"
+        isConfirmLoading={pendingProcessing}
+        isDismissDisabled={pendingProcessing}
+        onConfirm={() => void confirmPendingRemoval()}
+        onClose={closeConfirmation}
+      >
+        <p className="text-sm text-gray-700">
+          {pendingRemoval?.kind === "supervision"
+            ? "Die Gruppenaufsicht für "
+            : "Die Übergabe der Gruppe "}
+          <strong>
+            {pendingRemoval?.kind === "supervision" ||
+            pendingRemoval?.kind === "substitution"
+              ? pendingRemoval.item.groupName
+              : ""}
+          </strong>{" "}
+          wird beendet.
+          {pendingRemoval?.kind === "substitution"
+            ? " Die Gruppe liegt danach wieder bei ihrer regulären Leitung."
+            : ""}
+        </p>
+      </ConfirmationModal>
+      <ConfirmDeleteModal
+        isOpen={
+          pendingRemoval?.kind === "activity" ||
+          pendingRemoval?.kind === "group"
+        }
+        title={
+          pendingRemoval?.kind === "group"
+            ? "Gruppenleitung entfernen?"
+            : "Aktivitätsleitung entfernen?"
+        }
+        description={
+          pendingRemoval?.kind === "activity" ? (
+            <p>
+              Die Leitung der Aktivität{" "}
+              <span className="font-medium text-gray-900">
+                {pendingRemoval.item.activityName}
+              </span>{" "}
+              wird ohne Ersatz entfernt. Wählen Sie eine Ersatzkraft, um sie
+              stattdessen zu übertragen.
+            </p>
+          ) : pendingRemoval?.kind === "group" ? (
+            <p>
+              Die Leitung der Gruppe{" "}
+              <span className="font-medium text-gray-900">
+                {pendingRemoval.item.groupName}
+              </span>{" "}
+              wird ohne Ersatz entfernt. Wählen Sie eine Ersatzkraft, um sie
+              stattdessen zu übertragen.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
+        confirmLabel="Ohne Ersatz entfernen"
+        loadingLabel="Wird entfernt…"
+        loading={pendingProcessing}
+        error=""
+        onConfirm={() => void confirmPendingRemoval()}
+        onClose={closeConfirmation}
+      />
+    </div>
+  );
+}

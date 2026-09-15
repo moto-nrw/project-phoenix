@@ -4,9 +4,10 @@ import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -23,23 +24,17 @@ import { createCrudService } from "@/lib/database/service-factory";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { formatFloor, type Room } from "@/lib/room-helpers";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { RoomsList } from "@/components/rooms/rooms-list";
 import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import {
-  useSWRAuth,
-  useTenantMutate,
-  useTenantMutateMatching,
-} from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import {
   DATABASE_ROOMS_LIST_CACHE_KEY,
-  ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
   ROOM_LIST_CACHE_KEYS,
 } from "~/lib/swr/room-derived-caches";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseRoomsPage" });
 
@@ -52,6 +47,9 @@ const ROOMS_GROUPING_OPTIONS: { value: RoomsGroupingMode; label: string }[] = [
   { value: "floor", label: "Etage" },
   { value: "none", label: "Keine" },
 ];
+
+/** Die Sammlung dieser Seite, für den Rückweg aus der Raumseite (`?from=`). */
+const COLLECTION_PATH = "/database/rooms";
 
 function parseRoomsGrouping(value: string | null): RoomsGroupingMode {
   if (value === "floor" || value === "none") return value;
@@ -66,26 +64,29 @@ export default function RoomsPage() {
   );
 }
 
+/**
+ * Räume (BAUARTEN-SPEC Bauart 1): die Sammlung mit Anlegen, Gruppierung,
+ * Suche und Filter. Jede Zeile führt auf die Raumseite `/rooms/[id]`, die
+ * einzige Objektansicht eines Raums (#3115); Stammdaten und Löschen liegen
+ * dort.
+ */
 function RoomsPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
-  const selectedId = searchParams.get("room");
   const grouping = parseRoomsGrouping(searchParams.get("groupBy"));
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
+  const [categoryFilter, setCategoryFilter] = useState<string>(
+    () => searchParams.get("category") ?? "all",
+  );
   const isMobile = useIsMobile();
 
   const [showCreateModal, setShowCreateModal] = useState(false);
 
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation();
-
-  const { success: toastSuccess, error: toastError } = useToast();
+  const { success: toastSuccess } = useToast();
 
   const { status } = useSession({
     required: true,
@@ -96,15 +97,6 @@ function RoomsPageContent() {
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
   const tenantMutate = useTenantMutate();
-  // Other pages stamp room data (colour, name) into their cached student/
-  // visit rows, so a Room save has to invalidate them too — otherwise the
-  // badge colours stay stale until the user navigates away and back. The
-  // list of affected cache substrings lives in lib/swr/room-derived-caches.ts
-  // as a single source of truth — keep it there, not inline here, so future
-  // SWR consumers see the doc comment when they touch the file.
-  const refreshRoomConsumers = useTenantMutateMatching(
-    ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
-  );
   const refreshRoomLists = useCallback(
     () => Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key))),
     [tenantMutate],
@@ -122,6 +114,13 @@ function RoomsPageContent() {
   const error = roomsError
     ? "Fehler beim Laden der Räume. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Raumliste.
+  const statusLine = useMemo(() => {
+    const rooms = roomsData ?? [];
+    const occupied = rooms.filter((r) => r.isOccupied).length;
+    return `${formatCount(rooms.length)} ${rooms.length === 1 ? "Raum" : "Räume"} · ${formatCount(occupied)} belegt`;
+  }, [roomsData]);
 
   const uniqueCategories = useMemo(() => {
     const rooms = roomsData ?? [];
@@ -187,21 +186,25 @@ function RoomsPageContent() {
     return arr;
   }, [roomsData, searchTerm, categoryFilter]);
 
-  // Resolve against the unfiltered list so the detail panel survives a search
-  // narrowing the visible rows.
-  const selectedRoom = useMemo(
-    () =>
-      selectedId
-        ? ((roomsData ?? []).find((room) => room.id === selectedId) ?? null)
-        : null,
-    [roomsData, selectedId],
-  );
-
-  const handleSelectRoom = useCallback(
-    (id: string | null) => {
-      updateUrlParams({ room: id });
+  // Der Rückweg trägt den tatsächlichen Such- und Filterzustand mit. Die
+  // Werte stehen beim Zurückkehren wieder in der Adresse und werden oben als
+  // Anfangszustand gelesen.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    if (categoryFilter !== "all") query.set("category", categoryFilter);
+    else query.delete("category");
+    const serialized = query.toString();
+    return serialized ? `${COLLECTION_PATH}?${serialized}` : COLLECTION_PATH;
+  }, [categoryFilter, searchParams, searchTerm]);
+  const objectHref = useCallback(
+    (room: Room) => {
+      return tenantPath(
+        `/rooms/${room.id}?tab=stammdaten&from=${encodeURIComponent(collectionReferrer)}`,
+      );
     },
-    [updateUrlParams],
+    [collectionReferrer, tenantPath],
   );
 
   const handleGroupingChange = useCallback(
@@ -271,84 +274,76 @@ function RoomsPageContent() {
     [service, refreshRoomLists, toastSuccess],
   );
 
-  const handleUpdateRoom = useCallback(
-    async (data: Partial<Room>) => {
-      if (!selectedRoom) return;
-      try {
-        if (roomsConfig.form.transformBeforeSubmit) {
-          data = roomsConfig.form.transformBeforeSubmit(data);
-        }
-        await service.update(selectedRoom.id, data);
-        toastSuccess(
-          getDbOperationMessage(
-            "update",
-            roomsConfig.name.singular,
-            selectedRoom.name,
-          ),
-        );
-        await Promise.all([
-          refreshRoomLists(),
-          // Refetch every consumer that holds room-stamped data so badges
-          // pick up the new color without a manual reload.
-          refreshRoomConsumers(),
-        ]);
-      } catch (updateError) {
-        logger.error("failed to update room", {
-          room_id: selectedRoom.id,
-          error:
-            updateError instanceof Error
-              ? updateError.message
-              : String(updateError),
-        });
-        throw updateError;
-      }
-    },
-    [
-      selectedRoom,
-      service,
-      refreshRoomLists,
-      refreshRoomConsumers,
-      toastSuccess,
-    ],
-  );
-
-  const handleDeleteRoom = useCallback(async () => {
-    if (!selectedRoom) return;
-    const deleteError = await service.delete(selectedRoom.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
-    }
-    toastSuccess(
-      getDbOperationMessage(
-        "delete",
-        roomsConfig.name.singular,
-        selectedRoom.name,
-      ),
-    );
-    handleSelectRoom(null);
-    await refreshRoomLists();
-  }, [
-    selectedRoom,
-    service,
-    toastError,
-    toastSuccess,
-    handleSelectRoom,
-    refreshRoomLists,
-  ]);
-
-  const canShowDetail =
-    !loading && (filteredRooms.length > 0 || selectedRoom !== null);
+  const canShowList = !loading && filteredRooms.length > 0;
 
   return (
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      empty={
+        filteredRooms.length === 0
+          ? {
+              title:
+                searchTerm || categoryFilter !== "all"
+                  ? "Keine Räume gefunden"
+                  : "Keine Räume vorhanden",
+              description:
+                searchTerm || categoryFilter !== "all"
+                  ? "Versuchen Sie andere Suchkriterien oder Filter."
+                  : "Legen Sie den ersten Raum an, damit Gruppen einen Ort haben.",
+              icon: (
+                <MotoDuotoneIcon
+                  icon={MOTO_CONCEPTS.rooms.icon}
+                  tone={MOTO_CONCEPTS.rooms.tone}
+                  size={48}
+                />
+              ),
+              action:
+                searchTerm || categoryFilter !== "all" ? undefined : (
+                  <DatabaseCreateAction
+                    label="Raum"
+                    ariaLabel="Raum erstellen"
+                    onClick={() => setShowCreateModal(true)}
+                  />
+                ),
+            }
+          : null
+      }
+      overlays={
+        <DatabaseFormModal<Room>
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          mode="create"
+          config={roomsConfig}
+          onSubmit={handleCreateRoom}
+        />
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Räume",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <DatabaseGroupingToggle
+                value={grouping}
+                options={ROOMS_GROUPING_OPTIONS}
+                onChange={handleGroupingChange}
+              />
+            ) : null}
+            <DatabaseCreateAction
+              label="Raum"
+              ariaLabel="Raum erstellen"
+              onClick={() => setShowCreateModal(true)}
+            />
+          </div>
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Räume" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -363,7 +358,7 @@ function RoomsPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Räume suchen...",
+            placeholder: "Räume suchen…",
           }}
           filters={filters}
           activeFilters={activeFilters}
@@ -371,90 +366,17 @@ function RoomsPageContent() {
             setSearchTerm("");
             setCategoryFilter("all");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <DatabaseGroupingToggle
-                  value={grouping}
-                  options={ROOMS_GROUPING_OPTIONS}
-                  onChange={handleGroupingChange}
-                />
-              ) : null}
-              <DatabaseCreateAction
-                label="Raum"
-                ariaLabel="Raum erstellen"
-                onClick={() => setShowCreateModal(true)}
-              />
-            </div>
-          }
         />
-      </div>
-
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-
-      {canShowDetail ? (
+      }
+    >
+      {canShowList ? (
         <div className="min-h-0 flex-1 pb-4">
-          <RoomsMasterDetail
+          <RoomsList
             groupDefinitions={groupDefinitions}
-            selectedId={selectedId}
-            selectedRoom={selectedRoom}
-            onSelect={handleSelectRoom}
-            onSaveRoom={handleUpdateRoom}
-            onDeleteClick={handleDeleteClick}
+            objectHref={objectHref}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.rooms.icon}
-              tone={MOTO_CONCEPTS.rooms.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm || categoryFilter !== "all"
-              ? "Keine Räume gefunden"
-              : "Keine Räume vorhanden"
-          }
-          description={
-            searchTerm || categoryFilter !== "all"
-              ? "Versuchen Sie andere Suchkriterien oder Filter."
-              : "Es wurden noch keine Räume erstellt."
-          }
-        />
       ) : null}
-
-      <DatabaseFormModal<Room>
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        mode="create"
-        config={roomsConfig}
-        onSubmit={handleCreateRoom}
-      />
-
-      {selectedRoom && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteRoom())}
-          title="Raum löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie den Raum{" "}
-            <span className="font-medium">{selectedRoom.name}</span> wirklich
-            löschen? Diese Aktion kann nicht rückgängig gemacht werden.
-          </p>
-        </ConfirmationModal>
-      )}
     </DatabasePageLayout>
   );
 }

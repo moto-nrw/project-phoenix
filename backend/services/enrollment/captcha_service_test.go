@@ -24,10 +24,8 @@ func (s captchaSettingsStub) ResolveString(context.Context, string) (string, err
 	return "", nil
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_REQUIRE_CAPTCHA.
 func TestCaptchaServiceIsEnabledDefaultsToFalseWithoutTenantOverride(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 
 	svc := NewCaptchaService(CaptchaServiceConfig{
 		Settings: captchaSettingsStub{hasOverride: false},
@@ -37,10 +35,8 @@ func TestCaptchaServiceIsEnabledDefaultsToFalseWithoutTenantOverride(t *testing.
 	require.NoError(t, svc.Verify(context.Background(), "", ""))
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_REQUIRE_CAPTCHA.
 func TestCaptchaServiceIsEnabledHonorsTenantOverride(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "")
+	t.Parallel()
 
 	svc := NewCaptchaService(CaptchaServiceConfig{
 		Settings: captchaSettingsStub{hasOverride: true, value: true},
@@ -51,13 +47,12 @@ func TestCaptchaServiceIsEnabledHonorsTenantOverride(t *testing.T) {
 	require.ErrorContains(t, err, "captcha secret key not configured")
 }
 
-// Deliberately NOT parallel: process-global state — t.Setenv on
-// ENROLLMENT_REQUIRE_CAPTCHA.
 func TestCaptchaServiceIsEnabledFallsBackToEnvWhenNoTenantOverride(t *testing.T) {
-	t.Setenv("ENROLLMENT_REQUIRE_CAPTCHA", "true")
+	t.Parallel()
 
 	svc := NewCaptchaService(CaptchaServiceConfig{
-		Settings: captchaSettingsStub{hasOverride: false},
+		Settings:       captchaSettingsStub{hasOverride: false},
+		RequireCaptcha: true,
 	})
 
 	require.True(t, svc.IsEnabled(context.Background()))

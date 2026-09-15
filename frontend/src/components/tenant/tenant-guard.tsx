@@ -5,6 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { clearSessionCache } from "~/lib/session-cache";
 import { TenantSwitchError, performTenantSwitch } from "~/lib/tenant-api";
+import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { useTenant } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 
@@ -165,6 +166,12 @@ export function TenantGuard({
 
     void (async () => {
       try {
+        // Ein Schulwechsel beendet die Mitarbeiter-Vorschau (#2893): erst
+        // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
+        // — das Vorschau-Token selbst darf den Wechsel nicht ausführen.
+        if (session?.user?.isPreview) {
+          await performEndStaffPreview(session.user.token, update, mutate);
+        }
         await performTenantSwitch(urlSubdomain!, signIn, mutate);
 
         // Refetch session to trigger re-render with new tenant
@@ -188,6 +195,7 @@ export function TenantGuard({
   }, [
     status,
     tenant,
+    session,
     sessionScope,
     sessionTenantId,
     urlTenantId,

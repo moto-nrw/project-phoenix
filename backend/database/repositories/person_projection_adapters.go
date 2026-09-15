@@ -1,0 +1,99 @@
+package repositories
+
+import (
+	"context"
+	"fmt"
+
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+)
+
+// bindPersonProjections wraps every legacy repository that used to read or
+// write users.persons through a foreign join. The wrapped repositories keep
+// their interfaces; the person columns are resolved through the owner query
+// afterwards and the tag writes go through the owner command.
+func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
+	if projection, ok := f.CrossTenant.(*visitorProjection); ok {
+		projection.persons = persons
+	}
+	if f.GroupSupervisor != nil {
+		f.GroupSupervisor = personGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, persons: persons}
+	}
+	if f.StaffAbsence != nil {
+		f.StaffAbsence = personStaffAbsenceRepository{StaffAbsenceRepository: f.StaffAbsence, persons: persons}
+	}
+	if f.ActivityGroup != nil {
+		f.ActivityGroup = newPersonActivityGroupRepository(f.ActivityGroup, persons)
+	}
+	if f.ActivitySupervisor != nil {
+		f.ActivitySupervisor = personSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, persons: persons}
+	}
+	if f.GradeTransition != nil {
+		f.GradeTransition = personGradeTransitionRepository{GradeTransitionRepository: f.GradeTransition, persons: persons}
+	}
+	if f.ParentChild != nil {
+		f.ParentChild = personChildRepository{ChildRepository: f.ParentChild, persons: persons}
+	}
+	if f.ParentEnrollablePhase != nil {
+		f.ParentEnrollablePhase = personEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, persons: persons}
+	}
+	if f.OperatorSummaries != nil {
+		f.OperatorSummaries = personOperatorSummariesRepository{
+			OperatorSummariesRepository: f.OperatorSummaries, persons: persons,
+			schools:    func() platformModels.SchoolRepository { return f.School },
+			accounts:   func() authModels.AccountRepository { return f.Account },
+			membership: func() schoolmembership.Capability { return f.schoolMembership },
+			db:         f.db,
+		}
+	}
+	if f.AccountTenant != nil {
+		f.AccountTenant = newPersonAccountTenantRepository(f.AccountTenant, persons)
+	}
+}
+
+// personsByID resolves the non-deleted persons for ids through the owner
+// query, keyed by person ID. Duplicates are collapsed before the lookup.
+func personsByID(ctx context.Context, query peopledirectory.Query, ids []int64) (map[int64]peopledirectory.Person, error) {
+	unique := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, found := seen[id]; !found {
+			seen[id] = struct{}{}
+			unique = append(unique, id)
+		}
+	}
+	if len(unique) == 0 {
+		return map[int64]peopledirectory.Person{}, nil
+	}
+	values, err := query.ListPersonsByID(ctx, unique)
+	if err != nil {
+		return nil, fmt.Errorf("load persons: %w", err)
+	}
+	result := make(map[int64]peopledirectory.Person, len(values))
+	for _, value := range values {
+		result[value.ID] = value
+	}
+	return result, nil
+}
+
+// toLegacyPerson projects an owner value onto the legacy model that the
+// wrapped repositories still hand to their callers. The projection carries
+// the display and link fields those callers read; the birthday stays with
+// the owner (no wrapped caller renders it).
+func toLegacyPerson(value peopledirectory.Person) *usersModels.Person {
+	person := &usersModels.Person{
+		FirstName: value.FirstName, LastName: value.LastName,
+		TagID: value.TagID, AccountID: value.AccountID, DeletedAt: value.DeletedAt,
+	}
+	person.ID = value.ID
+	person.CreatedAt = value.CreatedAt
+	person.UpdatedAt = value.UpdatedAt
+	person.SetTenantID(value.TenantID)
+	return person
+}

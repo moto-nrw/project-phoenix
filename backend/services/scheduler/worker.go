@@ -10,14 +10,14 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	pwaSvc "github.com/moto-nrw/project-phoenix/services/pwa"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	staffMessagingSvc "github.com/moto-nrw/project-phoenix/services/staffmessaging"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/uptrace/bun"
 )
 
@@ -25,6 +25,7 @@ import (
 // Construction replaces the former post-construction Set* graph.
 type WorkerDependencies struct {
 	Logger                    *slog.Logger
+	Getenv                    func(string) string
 	DB                        *bun.DB
 	SchoolRepo                platform.SchoolRepository
 	TenantRuntime             *tenant.UnitOfWork
@@ -52,7 +53,7 @@ type WorkerDependencies struct {
 	TimeTrackingCleanup       active.TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
-	StaffMessageCleanup       staffMessagingSvc.CleanupService
+	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
 	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
 	AutoStart                 scheduleSvc.AutoStartService
@@ -69,7 +70,10 @@ type WorkerDependencies struct {
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
-	AppointmentReminders      AppointmentReminderQueuer
+	// AppointmentReminders is the established reminder capability consumed by
+	// the scheduler. It also exposes scheduled parent-announcement delivery,
+	// avoiding a second dependency in this shrink-only worker composition.
+	AppointmentReminders reminder.Capability
 }
 
 // NewWorker constructs and validates the complete embedded worker before the
@@ -139,6 +143,7 @@ func requiredWorkerJobIDs() []JobID {
 		"email-outbox",
 		"rollover-deadline",
 		"appointment-reminders",
+		"announcement-reminders",
 	}
 }
 
@@ -174,6 +179,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.outboxWorker), "email-outbox", s.scheduleOutboxWorkerTask)
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
+	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
 	return jobs
 }
 

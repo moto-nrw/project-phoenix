@@ -42,13 +42,13 @@ func snapshotFromContext(ctx context.Context, tenantID int64, keys []string) *Se
 	return snapshot
 }
 
-func newSettingsSnapshot(tenantID int64, keys []string, stored []*configModel.SettingValue) (*SettingsSnapshot, error) {
+func newSettingsSnapshot(registry *configModel.Registry, tenantID int64, keys []string, stored []*configModel.SettingValue) (*SettingsSnapshot, error) {
 	values := make(map[string]snapshotValue, len(keys))
 	for _, key := range keys {
 		if _, exists := values[key]; exists {
 			continue
 		}
-		def := configModel.GetDefinition(key)
+		def := registry.GetDefinition(key)
 		if def == nil {
 			return nil, &SettingsError{
 				Op:  "resolve_many",

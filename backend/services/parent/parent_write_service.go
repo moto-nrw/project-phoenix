@@ -21,11 +21,12 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -59,7 +60,11 @@ var (
 	// arbitrary future weeks on the staff page, but those are drafts; the
 	// parents portal only ever exposes this week and next, so a request for any
 	// other week is refused rather than leaking an unpublished menu.
-	ErrMealPlanWeekOutOfRange = errors.New("parent: meal plan week is outside the viewable range")
+	ErrMealPlanWeekOutOfRange      = errors.New("parent: meal plan week is outside the viewable range")
+	ErrMealRegistrationDisabled    = errors.New("parent: meal registration disabled for this school")
+	ErrMealParticipationOutOfRange = errors.New("parent: meal participation date is outside the changeable range")
+	ErrMealParticipationCutoff     = errors.New("parent: meal participation cutoff has passed")
+	ErrInvalidMealParticipation    = errors.New("parent: invalid meal participation")
 	// ErrNoDates means the sick-note request carried no dates.
 	ErrNoDates = errors.New("parent: at least one date is required")
 	// ErrInvalidStatus means the absence status was neither sick nor excused.
@@ -71,6 +76,10 @@ var (
 	// ErrPickupChangeDisabled means operations.parent_pickup_change_enabled is
 	// off for the child's tenant.
 	ErrPickupChangeDisabled = errors.New("parent: pickup-time change disabled for this school")
+	// ErrPickupChangeCutoffPassed means the school's same-day cutoff
+	// (operations.parent_pickup_change_cutoff_time) has passed, so today's
+	// pickup time is closed for guardians (#3163). Later days stay open.
+	ErrPickupChangeCutoffPassed = errors.New("parent: same-day pickup change cutoff has passed")
 	// ErrNoCareException means the request carried neither a pickup nor an
 	// arrival time.
 	ErrNoCareException = errors.New("parent: at least one of pickup or arrival time is required")
@@ -155,7 +164,7 @@ func (s *service) resolvePermittedChild(ctx context.Context, accountID, studentI
 			guardianPermissions: child.GuardianPermissions,
 			studentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			schoolName:          child.SchoolName,
-			careEnded:           child.CareEnded(s.todayDate()),
+			careEnded:           child.CareEnded(careplan.Date(s.todayDate().String())),
 		}
 		return nil
 	})
@@ -214,7 +223,7 @@ func (c *parentChild) hasPermission(permission string) bool {
 // the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
 	StatusDays     []*activeModels.StudentStatusDay
-	PendingRequest *activeModels.ExcusedAbsenceRequest
+	PendingRequest *careplan.ExcusedAbsenceRequest
 }
 
 // SubmitSickNote reports the child absent for the given dates with the chosen
@@ -247,6 +256,17 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentSickNoteEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve sick-note setting: %w", err)
+	}
+	if !enabled {
+		return nil, ErrSickNoteDisabled
+	}
+	reportKey := configModels.KeyParentSickReportsEnabled
+	if status == activeModels.StudentStatusDayExcused {
+		reportKey = configModels.KeyParentExcusedReportsEnabled
+	}
+	enabled, err = s.Settings.ResolveBoolForTenant(ctx, child.tenantID, reportKey)
+	if err != nil {
+		return nil, fmt.Errorf("parent: resolve report setting %s: %w", reportKey, err)
 	}
 	if !enabled {
 		return nil, ErrSickNoteDisabled
@@ -360,6 +380,14 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		capturedTenant := child.tenantID
 		pillBody := sickNoteEventBody(status, dates)
 		pillRefID := firstStatusID(filtered)
+		if notifyAbsence && s.AbsenceNotifier != nil {
+			if err := s.AbsenceNotifier.NotifyAbsenceReported(txCtx, notificationsSvc.AbsenceReport{
+				TenantID: capturedTenant, StudentIDs: []int64{studentID}, Status: status, Dates: dates,
+				FromParent: true, ActorAccountID: accountID,
+			}); err != nil {
+				return err
+			}
+		}
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.emitSelfServicePill(capturedTenant, studentID, accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
@@ -367,21 +395,6 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 			// just the acting guardian's thread; fan out to EVERY guardian so a
 			// co-guardian's open tab drops the stale presence too (#1725 review).
 			s.wakeChildGuardians(capturedTenant, studentID)
-			// The child's group and the office learn that the family reported
-			// an absence. Hooked here rather than in the repository: the
-			// check-in path also writes a status row before immediately
-			// clearing it, and a repository hook would announce a sick note
-			// exactly when the child walks in.
-			if notifyAbsence && s.AbsenceNotifier != nil {
-				s.AbsenceNotifier.NotifyAbsenceReported(context.Background(), notificationsSvc.AbsenceReport{
-					TenantID:       capturedTenant,
-					StudentIDs:     []int64{studentID},
-					Status:         status,
-					Dates:          dates,
-					FromParent:     true,
-					ActorAccountID: accountID,
-				})
-			}
 		})
 		return nil
 	})
@@ -422,7 +435,7 @@ func (s *service) ensureNoPartialAbsenceForStatusWrite(
 	}
 
 	rows, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(
-		ctx, studentID, sortedDates[0], sortedDates[len(sortedDates)-1],
+		ctx, studentID, scheduleModels.Date(sortedDates[0]), scheduleModels.Date(sortedDates[len(sortedDates)-1]),
 	)
 	if err != nil {
 		return err
@@ -434,7 +447,7 @@ func (s *service) ensureNoPartialAbsenceForStatusWrite(
 	for _, row := range rows {
 		// Only manual partial absences conflict; auto-derived excusals
 		// (pulled-forward pickup time, #2360) coexist with a full-day status.
-		if _, ok := requested[row.ExceptionDate]; ok && row.HasManualPartialAbsence() {
+		if _, ok := requested[timezone.Date(row.ExceptionDate)]; ok && row.HasManualPartialAbsence() {
 			return ErrCareExceptionConflict
 		}
 	}
@@ -458,7 +471,7 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 	if s.ExcusedRequests == nil {
 		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
-	var req *activeModels.ExcusedAbsenceRequest
+	var req *careplan.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
 		// Lock and re-read the child before creating a pending request so both
@@ -472,10 +485,10 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 		}
 		// The note is mandatory only while the school's reason policy asks the
 		// family for one (#2267, story 28).
-		created, err := s.ExcusedRequests.Create(txCtx, absenceSvc.ExcusedRequestCreateInput{
+		created, err := s.ExcusedRequests.Submit(txCtx, careplan.ExcusedRequestCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
-			Dates:             dates,
+			Dates:             carePlanDates(dates),
 			Note:              note,
 			AbsenceStatus:     status,
 			NoteRequired:      s.guardianReasonRequired(ctx, child.tenantID),
@@ -495,24 +508,7 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 		return nil
 	})
 	if txErr != nil {
-		switch {
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestNoDates):
-			return nil, ErrNoDates
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestEmptyNote):
-			return nil, ErrEmptyNote
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestNoteTooLong):
-			return nil, ErrNoteTooLong
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestOverlap):
-			return nil, ErrExcusedRequestOverlap
-		// A planned partial-day excusal already owns one of the requested dates
-		// (same refusal as a direct parent status write that hits
-		// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
-		// conflict so the handler returns HTTP 409, not 500.
-		case errors.Is(txErr, absenceSvc.ErrExcusedRequestStatusConflict):
-			return nil, ErrCareExceptionConflict
-		default:
-			return nil, fmt.Errorf("parent: submit absence request: %w", txErr)
-		}
+		return nil, mapExcusedRequestError(txErr, "submit absence request")
 	}
 	s.Logger.Info("parent submitted absence request",
 		slog.Int64("account_id", accountID),
@@ -529,18 +525,18 @@ func (s *service) submitAbsenceRequest(ctx context.Context, child *parentChild, 
 // recently decided absence requests submitted by the calling guardian. The
 // child's effective absence state is shared separately; request notes and
 // decision reasons remain private to their submitter.
-func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
 	if s.ExcusedRequests == nil {
-		return []*activeModels.ExcusedAbsenceRequest{}, nil
+		return []*careplan.ExcusedAbsenceRequest{}, nil
 	}
 	// Show rejected/withdrawn requests for two weeks so a parent learns the
 	// outcome, while pending ones show regardless of age.
 	recentSince := time.Now().AddDate(0, 0, -14)
-	var out []*activeModels.ExcusedAbsenceRequest
+	var out []*careplan.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		rows, err := s.ExcusedRequests.ListForStudent(txCtx, studentID, recentSince)
 		if err != nil {
@@ -559,10 +555,20 @@ func (s *service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
+// carePlanDates hands the calendar days to the Care Plan owner in its own
+// canonical form; both types carry YYYY-MM-DD.
+func carePlanDates(dates []timezone.Date) []careplan.Date {
+	result := make([]careplan.Date, len(dates))
+	for i := range dates {
+		result[i] = careplan.Date(dates[i])
+	}
+	return result
+}
+
 func visibleExcusedRequests(
-	rows []*activeModels.ExcusedAbsenceRequest, accountID int64, visibility *requestShareVisibility,
-) []*activeModels.ExcusedAbsenceRequest {
-	out := make([]*activeModels.ExcusedAbsenceRequest, 0, len(rows))
+	rows []*careplan.ExcusedAbsenceRequest, accountID int64, visibility *requestShareVisibility,
+) []*careplan.ExcusedAbsenceRequest {
+	out := make([]*careplan.ExcusedAbsenceRequest, 0, len(rows))
 	for _, row := range rows {
 		if row != nil && visibility.allows(RequestShareExcused, row.ID, accountID, row.SubmittedBy) {
 			out = append(out, row)
@@ -597,9 +603,23 @@ func (s *service) guardianReasonRequired(ctx context.Context, tenantID int64) bo
 // (stale, reason required).
 func mapExcusedRequestError(err error, op string) error {
 	switch {
-	case errors.Is(err, activeModels.ErrExcusedRequestNotFound):
+	case errors.Is(err, careplan.ErrExcusedRequestNoDates):
+		return ErrNoDates
+	case errors.Is(err, careplan.ErrExcusedRequestEmptyNote):
+		return ErrEmptyNote
+	case errors.Is(err, careplan.ErrExcusedRequestNoteTooLong):
+		return ErrNoteTooLong
+	case errors.Is(err, careplan.ErrExcusedRequestOverlap):
+		return ErrExcusedRequestOverlap
+	// A planned partial-day excusal already owns one of the requested dates
+	// (same refusal as a direct parent status write that hits
+	// ensureNoPartialAbsenceForStatusWrite). Surface as the existing care
+	// conflict so the handler returns HTTP 409, not 500.
+	case errors.Is(err, careplan.ErrExcusedRequestStatusConflict):
+		return ErrCareExceptionConflict
+	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
 		return ErrExcusedRequestNotFound
-	case errors.Is(err, activeModels.ErrExcusedRequestNotPending):
+	case errors.Is(err, careplan.ErrExcusedRequestNotPending):
 		return ErrExcusedRequestNotPending
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)
@@ -615,7 +635,7 @@ func mapExcusedRequestError(err error, op string) error {
 func (s *service) EditExcusedRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	dates []timezone.Date, note, expectedVersion string,
-) (*activeModels.ExcusedAbsenceRequest, error) {
+) (*careplan.ExcusedAbsenceRequest, error) {
 	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -626,7 +646,7 @@ func (s *service) EditExcusedRequest(
 	if s.ExcusedRequests == nil {
 		return nil, ErrExcusedRequestNotFound
 	}
-	var out *activeModels.ExcusedAbsenceRequest
+	var out *careplan.ExcusedAbsenceRequest
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -635,12 +655,12 @@ func (s *service) EditExcusedRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		req, editErr := s.ExcusedRequests.EditRequest(txCtx, absenceSvc.ExcusedRequestEditInput{
+		req, editErr := s.ExcusedRequests.EditRequest(txCtx, careplan.ExcusedRequestEditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			ExpectedVersion:   expectedVersion,
-			Dates:             dates,
+			Dates:             carePlanDates(dates),
 			Note:              note,
 			NoteRequired:      s.guardianReasonRequired(ctx, child.tenantID),
 		})
@@ -681,6 +701,10 @@ func (s *service) EditPickupChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
+		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
+		}
 		req, editErr := s.CareRequests.EditRequest(txCtx, scheduleService.CareRequestEditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
@@ -692,6 +716,7 @@ func (s *service) EditPickupChangeRequest(
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
 			ReasonRequired: s.guardianReasonRequired(ctx, child.tenantID),
+			Cutoff:         cutoff,
 		})
 		if editErr != nil {
 			return editErr
@@ -714,10 +739,13 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	}
 	keys := []string{
 		configModels.KeyParentSickNoteEnabled,
+		configModels.KeyParentSickReportsEnabled,
+		configModels.KeyParentExcusedReportsEnabled,
 		configModels.KeyParentSickRequiresApproval,
 		configModels.KeyParentExcusedRequiresApproval,
 		configModels.KeyParentNotesEnabled,
 		configModels.KeyParentPickupChangeEnabled,
+		configModels.KeyParentPickupChangeCutoffTime,
 		configModels.KeyGuardianParentInviteMode,
 		configModels.KeyGuardianParentCanRemove,
 		configModels.KeyParentMasterDataEditEnabled,
@@ -756,6 +784,14 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick-approval setting: %w", err)
 	}
+	sickReports, err := resolveBool(configModels.KeyParentSickReportsEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve sick reports: %w", err)
+	}
+	excusedReports, err := resolveBool(configModels.KeyParentExcusedReportsEnabled)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve excused reports: %w", err)
+	}
 	excusedApproval, err := resolveBool(configModels.KeyParentExcusedRequiresApproval)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve excused-approval setting: %w", err)
@@ -767,6 +803,17 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	pickupChange, err := resolveBool(configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
+	}
+	pickupCutoffClock, err := resolveString(configModels.KeyParentPickupChangeCutoffTime)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
+	}
+	if !pickupChange {
+		pickupCutoffClock = ""
+	}
+	pickupCutoff, err := scheduleService.NewSameDayCutoff(pickupCutoffClock, s.now())
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: %w", err)
 	}
 	inviteMode, err := resolveString(configModels.KeyGuardianParentInviteMode)
 	if err != nil {
@@ -787,6 +834,10 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 	mealPlan, err := s.mealPlanAvailableForTenant(ctx, child.tenantID)
 	if err != nil {
 		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-plan setting: %w", err)
+	}
+	mealRegistration, err := s.mealRegistrationAvailableForTenant(ctx, child.tenantID)
+	if err != nil {
+		return ChildFeatureFlags{}, fmt.Errorf("parent: resolve meal-registration setting: %w", err)
 	}
 	news, err := resolveBool(configModels.KeyParentNewsEnabled)
 	if err != nil {
@@ -816,18 +867,22 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 			SickRequiresApproval:    sickApproval,
 			ExcusedRequiresApproval: excusedApproval,
 			MealPlanEnabled:         mealPlan,
+			MealRegistrationEnabled: false,
 			NewsEnabled:             news,
 		}, nil
 	}
 
 	return ChildFeatureFlags{
 		HasOpenChangeRequest:         s.hasOpenChangeRequest(ctx, child.tenantID, accountID, studentID),
-		SickNoteEnabled:              sick && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		SickNoteEnabled:              sick && sickReports && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
+		ExcusedNoteEnabled:           sick && excusedReports && child.hasPermission(authorize.GuardianPermissionSickNoteSubmit),
 		SickRequiresApproval:         sickApproval,
 		ExcusedRequiresApproval:      excusedApproval,
 		NotesEnabled:                 notes && child.hasPermission(authorize.GuardianPermissionNotesWrite),
 		RequestSubmitEnabled:         notes && child.hasPermission(authorize.GuardianPermissionRequestSubmit),
 		PickupChangeEnabled:          pickupChange && canManagePickup,
+		PickupChangeCutoffTime:       pickupCutoff.Clock,
+		PickupChangeTodayClosed:      pickupCutoff.Closed(timezone.DateFromTime(pickupCutoff.Now)),
 		PickupManageAllowed:          guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: guardianManagement && canManageGuardianContacts,
 		RelatedAccountsInviteEnabled: inviteMode != configModels.ParentInviteModeDisabled,
@@ -836,6 +891,7 @@ func (s *service) ChildFeatures(ctx context.Context, accountID, studentID int64)
 		MasterDataContactEditEnabled: canEditMasterData && guardianManagement,
 		MasterDataRequestEnabled:     masterRequest && child.hasPermission(authorize.GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              mealPlan,
+		MealRegistrationEnabled:      mealRegistration && child.hasPermission(authorize.GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  news,
 		ReasonRequired:               usersSvc.ReasonRequiredFor(reasonPolicy, false),
 	}, nil
@@ -946,7 +1002,7 @@ func parentVisibleStatusDay(row *activeModels.StudentStatusDay, accountID int64)
 // containing weekStart. Unlike ListSickDays this is gated by the
 // operations.meal_plan_enabled toggle: if the school does not run a meal plan
 // the parent must not see one, so a disabled tenant yields ErrMealPlanDisabled.
-func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error) {
+func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]MealPlanEntry, error) {
 	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
@@ -966,13 +1022,16 @@ func (s *service) MealPlanWeek(ctx context.Context, accountID, studentID int64, 
 	if s.MealPlan == nil {
 		return nil, errors.New("parent: meal plan capability is required")
 	}
-	var out []mealplanModule.Entry
+	var out []MealPlanEntry
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		rows, findErr := s.MealPlan.Week(txCtx, mealplanModule.Date(monday.String()))
 		if findErr != nil {
 			return findErr
 		}
-		out = rows
+		out = make([]MealPlanEntry, 0, len(rows))
+		for _, row := range rows {
+			out = append(out, MealPlanEntry{Date: string(row.Date), Position: row.Position, Dish: row.Dish, Note: row.Note})
+		}
 		return nil
 	})
 	if txErr != nil {
@@ -995,6 +1054,130 @@ func (s *service) mealPlanAvailableForTenant(ctx context.Context, tenantID int64
 		return resolveErr
 	})
 	return available, err
+}
+
+func (s *service) mealRegistrationAvailableForTenant(ctx context.Context, tenantID int64) (bool, error) {
+	if s.MealPlan == nil {
+		return false, errors.New("parent: meal plan capability is required")
+	}
+	var available bool
+	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var resolveErr error
+		available, resolveErr = s.MealPlan.RegistrationAvailable(txCtx)
+		return resolveErr
+	})
+	if errors.Is(err, mealplanModule.ErrDisabled) {
+		return false, nil
+	}
+	return available, err
+}
+
+func (s *service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (MealParticipationPlan, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	if err != nil {
+		return MealParticipationPlan{}, err
+	}
+	currentMonday := s.todayDate().StartOfISOWeek()
+	if from.Before(currentMonday) || to.After(currentMonday.AddDays(11)) || to.Before(from) {
+		return MealParticipationPlan{}, ErrMealParticipationOutOfRange
+	}
+	var plan mealplanModule.ParticipationPlan
+	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var readErr error
+		plan, readErr = s.MealPlan.Participation(txCtx, studentID, mealplanModule.Date(from.String()), mealplanModule.Date(to.String()))
+		return readErr
+	})
+	if err != nil {
+		return MealParticipationPlan{}, mapMealParticipationError(err)
+	}
+	out := MealParticipationPlan{
+		EffectiveFrom: string(plan.EffectiveFrom),
+		CutoffTime:    plan.CutoffTime,
+		Weekdays:      make([]MealWeekday, 0, len(plan.Weekdays)),
+		Days:          make([]MealParticipationDay, 0, len(plan.Days)),
+	}
+	for _, weekday := range plan.Weekdays {
+		out.Weekdays = append(out.Weekdays, MealWeekday(weekday))
+	}
+	for _, day := range plan.Days {
+		out.Days = append(out.Days, MealParticipationDay{Date: string(day.Date), Participating: day.Participating, Source: string(day.Source), Changeable: day.Changeable})
+	}
+	return out, nil
+}
+
+func (s *service) ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error) {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
+	if err != nil {
+		return "", err
+	}
+	if err := child.requireCareRunning(); err != nil {
+		return "", err
+	}
+	moduleWeekdays := make([]mealplanModule.Weekday, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		moduleWeekdays = append(moduleWeekdays, mealplanModule.Weekday(weekday))
+	}
+	var effectiveFrom mealplanModule.Date
+	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
+		var writeErr error
+		effectiveFrom, writeErr = s.MealPlan.ReplaceParticipationSchedule(txCtx, mealplanModule.ReplaceParticipationSchedule{StudentID: studentID, GuardianAccountID: accountID, Weekdays: moduleWeekdays})
+		return writeErr
+	})
+	if err != nil {
+		return "", mapMealParticipationError(err)
+	}
+	return string(effectiveFrom), nil
+}
+
+func (s *service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error {
+	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
+		return s.MealPlan.SetParticipationForDay(txCtx, mealplanModule.SetParticipationDay{StudentID: studentID, GuardianAccountID: accountID, Date: mealplanModule.Date(date.String()), Participating: participating})
+	})
+}
+
+func (s *service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error {
+	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
+		return s.MealPlan.ClearParticipationForDay(txCtx, mealplanModule.SetParticipationDay{StudentID: studentID, GuardianAccountID: accountID, Date: mealplanModule.Date(date.String())})
+	})
+}
+
+func (s *service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, change func(context.Context) error) error {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
+	if err != nil {
+		return err
+	}
+	if err := child.requireCareRunning(); err != nil {
+		return err
+	}
+	today := s.todayDate()
+	if date.Before(today) || date.After(today.StartOfISOWeek().AddDays(11)) {
+		return ErrMealParticipationOutOfRange
+	}
+	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
+			return err
+		}
+		return change(txCtx)
+	})
+	return mapMealParticipationError(err)
+}
+
+func mapMealParticipationError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, mealplanModule.ErrDisabled), errors.Is(err, mealplanModule.ErrRegistrationDisabled):
+		return ErrMealRegistrationDisabled
+	case errors.Is(err, mealplanModule.ErrParticipationCutoff):
+		return ErrMealParticipationCutoff
+	case errors.Is(err, mealplanModule.ErrInvalidParticipation):
+		return ErrInvalidMealParticipation
+	default:
+		return err
+	}
 }
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override
@@ -1067,7 +1250,6 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if s.CareRequests == nil {
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
-
 	var result *scheduleModels.CareScheduleChangeRequest
 	err = tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -1094,6 +1276,13 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
 		}
+		policy, err := s.pickupChangePolicyInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
+		}
+		if !policy.enabled {
+			return ErrPickupChangeDisabled
+		}
 		created, createErr := s.CareRequests.CreatePickupChange(txCtx, scheduleService.PickupChangeCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
@@ -1103,6 +1292,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
 			ReasonRequired: reasonRequired,
+			Cutoff:         policy.cutoff,
 		})
 		if createErr != nil {
 			return createErr
@@ -1233,7 +1423,6 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 	if date.After(maxDate) {
 		return nil, ErrCareDateTooFar
 	}
-
 	guardianID := accountID
 	var result *CareException
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -1263,6 +1452,16 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		if staffOwned {
 			return ErrCareExceptionConflict
 		}
+		policy, err := s.pickupChangePolicyInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
+		}
+		if !policy.enabled {
+			return ErrPickupChangeDisabled
+		}
+		if policy.cutoff.Closed(date) {
+			return ErrPickupChangeCutoffPassed
+		}
 
 		if err := s.applyGuardianPickupException(txCtx, studentID, child.tenantID, date, pickupTime, reason, guardianID); err != nil {
 			return err
@@ -1273,7 +1472,7 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		// weekly baseline excuses the blocks after the new time; moving it
 		// back (or clearing it) releases them again.
 		if s.PickupAutoExcusal != nil {
-			if row, findErr := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date); findErr != nil {
+			if row, findErr := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date)); findErr != nil {
 				return findErr
 			} else if row != nil {
 				if _, err := s.PickupAutoExcusal.Sync(txCtx, row.ID); err != nil {
@@ -1324,10 +1523,10 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 }
 
 func (s *service) childAlreadyLeftToday(ctx context.Context, studentID int64, date, today timezone.Date) (bool, error) {
-	if date != today || s.AttendanceRepo == nil {
+	if date != today || s.Attendance == nil {
 		return false, nil
 	}
-	rows, err := s.AttendanceRepo.FindByStudentAndDate(ctx, studentID, date)
+	rows, err := s.Attendance.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String()})
 	if err != nil {
 		return false, err
 	}
@@ -1343,7 +1542,7 @@ func (s *service) childAlreadyLeftToday(ctx context.Context, studentID int64, da
 // An AUTO-derived partial absence is the school's own bookkeeping, not a
 // decision, so only a manual one counts (#2360).
 func (s *service) pickupHasStaffException(ctx context.Context, studentID int64, date timezone.Date) (bool, error) {
-	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
 	if err != nil {
 		return false, err
 	}
@@ -1360,7 +1559,7 @@ func (s *service) pickupHasStaffException(ctx context.Context, studentID int64, 
 func (s *service) applyGuardianPickupException(ctx context.Context, studentID, tenantID int64, date timezone.Date, pickupTime *time.Time, reason *string, guardianID int64) error {
 	return applyGuardianTimeException(ctx, pickupTime,
 		func(ctx context.Context) (*scheduleModels.StudentPickupException, error) {
-			return s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+			return s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
 		},
 		func(e *scheduleModels.StudentPickupException) string { return e.Source },
 		func(ctx context.Context, e *scheduleModels.StudentPickupException) error {
@@ -1388,7 +1587,7 @@ func (s *service) applyGuardianPickupException(ctx context.Context, studentID, t
 		func(ctx context.Context) error {
 			entity := &scheduleModels.StudentPickupException{
 				StudentID:         studentID,
-				ExceptionDate:     date,
+				ExceptionDate:     scheduleModels.Date(date),
 				PickupTime:        pickupTime,
 				Reason:            reason,
 				Source:            scheduleModels.ExceptionSourceGuardian,
@@ -1433,11 +1632,11 @@ func applyGuardianTimeException[P any, E *P](ctx context.Context, t *time.Time,
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
 func (s *service) loadCareException(ctx context.Context, studentID int64, date timezone.Date) (*CareException, error) {
-	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
 	if err != nil {
 		return nil, err
 	}
-	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, scheduleModels.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -1490,11 +1689,11 @@ func (s *service) ListCareExceptions(ctx context.Context, accountID, studentID i
 
 	var out []*CareException
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		pickups, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, from, to)
+		pickups, err := s.PickupExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
 		if err != nil {
 			return err
 		}
-		arrivals, err := s.ArrivalExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, from, to)
+		arrivals, err := s.ArrivalExceptionRepo.FindByStudentIDAndDateRange(txCtx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
 		if err != nil {
 			return err
 		}
@@ -1527,7 +1726,9 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 	if date.Before(today) {
 		return ErrPastCareDate
 	}
-
+	// Removing an approved exception takes effect at once, without a staff
+	// decision, so after the school's cutoff it is closed for today like every
+	// other guardian pickup write (#3163).
 	pickupDeleted := false
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -1547,28 +1748,39 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
 		}
-
-		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, date)
+		pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(txCtx, studentID, scheduleModels.Date(date))
 		if err != nil {
 			return err
 		}
-		if pickup != nil && pickup.HasManualPartialAbsence() {
+		if pickup == nil {
+			return nil
+		}
+		if pickup.HasManualPartialAbsence() {
 			return ErrCareExceptionConflict
 		}
-		if pickup != nil && pickup.Source == scheduleModels.ExceptionSourceGuardian {
-			// An auto-derived excusal follows the pickup time: withdrawing the
-			// override releases the excused blocks before the row is removed
-			// (#2360).
-			if s.PickupAutoExcusal != nil {
-				if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, pickup); err != nil {
-					return err
-				}
-			}
-			if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
+		if pickup.Source != scheduleModels.ExceptionSourceGuardian {
+			return nil
+		}
+		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		if err != nil {
+			return err
+		}
+		if cutoff.Closed(date) {
+			return ErrPickupChangeCutoffPassed
+		}
+
+		// An auto-derived excusal follows the pickup time: withdrawing the
+		// override releases the excused blocks before the row is removed
+		// (#2360).
+		if s.PickupAutoExcusal != nil {
+			if err := s.PickupAutoExcusal.ReleaseBeforeDelete(txCtx, pickup); err != nil {
 				return err
 			}
-			pickupDeleted = true
 		}
+		if err := s.PickupExceptionRepo.Delete(txCtx, pickup.ID); err != nil {
+			return err
+		}
+		pickupDeleted = true
 		if pickupDeleted {
 			capturedTenant := child.tenantID
 			pillBody := "Korrektur: Abholung " + date.Format("02.01.") + " zurückgezogen"
@@ -1603,7 +1815,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		return ce
 	}
 	for _, p := range pickups {
-		ce := get(p.ExceptionDate)
+		ce := get(timezone.Date(p.ExceptionDate))
 		ce.PickupTime = p.PickupTime
 		ce.PickupSource = p.Source
 		if p.Source == scheduleModels.ExceptionSourceGuardian && guardianAuthoredBy(p.CreatedByGuardian, accountID) {
@@ -1621,7 +1833,7 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 		}
 	}
 	for _, a := range arrivals {
-		ce := get(a.ExceptionDate)
+		ce := get(timezone.Date(a.ExceptionDate))
 		ce.ArrivalTime = a.ExpectedArrival
 		if ce.Reason == nil && a.Source == scheduleModels.ExceptionSourceGuardian && guardianAuthoredBy(a.CreatedByGuardian, accountID) {
 			ce.Reason = a.Reason

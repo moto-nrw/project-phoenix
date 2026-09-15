@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -310,34 +311,47 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 // write only attendance (no room visit), so falling through to
 // presentOrTransit() would always yield "Unterwegs", contradicting the
 // simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
-func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, activeService activeService.Service) common.StudentLocationInfo {
-	attendanceStatus, err := activeService.GetStudentAttendanceStatus(ctx, studentID)
-	if err != nil || attendanceStatus == nil {
-		return common.StudentLocationInfo{Location: "Abwesend"}
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc activeService.Service) (common.StudentLocationInfo, error) {
+	mode, err := svc.GetPresenceMode(ctx)
+	if err != nil {
+		return common.StudentLocationInfo{}, err
+	}
+	attendanceStatus, err := svc.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil {
+		return common.StudentLocationInfo{}, err
+	}
+	if attendanceStatus == nil {
+		return common.StudentLocationInfo{Location: "Abwesend"}, nil
 	}
 
-	if activeService.GetPresenceMode(ctx) == common.PresenceModeBinary {
+	if mode == common.PresenceModeBinary {
 		info := common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
 		if info.Location == common.YardLocationLabel {
-			info.RoomColor = common.ResolveYardRoomColor(ctx, activeService)
+			info.RoomColor = common.ResolveYardRoomColor(ctx, svc)
 		}
-		return info
+		return info, nil
 	}
 
 	// Handle non-checked-in states (checked_out or other)
 	if attendanceStatus.Status != "checked_in" {
-		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime)
+		return absentInfo(hasFullAccess, attendanceStatus.CheckOutTime), nil
 	}
 
 	// Student is checked in - get current visit to check room assignment
-	currentVisit, err := activeService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
-		return presentOrTransit(hasFullAccess)
+	currentVisit, err := svc.GetStudentCurrentVisit(ctx, studentID)
+	if err != nil && !errors.Is(err, activeService.ErrVisitNotFound) {
+		return common.StudentLocationInfo{}, err
+	}
+	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
+		return presentOrTransit(hasFullAccess), nil
 	}
 
-	activeGroup, err := activeService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil {
-		return presentOrTransit(hasFullAccess)
+	activeGroup, err := svc.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
+	if err != nil {
+		return common.StudentLocationInfo{}, err
+	}
+	if activeGroup == nil {
+		return presentOrTransit(hasFullAccess), nil
 	}
 
 	// Include room name for all authenticated staff (needed for supervised room checkout)
@@ -346,14 +360,14 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 			Location:  fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
 			Since:     &currentVisit.EntryTime,
 			RoomColor: activeGroup.Room.Color,
-		}
+		}, nil
 	}
 
-	return presentOrTransit(hasFullAccess)
+	return presentOrTransit(hasFullAccess), nil
 }
 
 // newStudentResponseWithOpts creates a student response using options structs
-func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, services StudentResponseServices) StudentResponse {
+func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, services StudentResponseServices) (StudentResponse, error) {
 	student := opts.Student
 	person := opts.Person
 	group := opts.Group
@@ -383,7 +397,10 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	if locationOverride != nil {
 		response.Location = *locationOverride
 	} else {
-		locationInfo := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
+		locationInfo, err := resolveStudentLocationWithTime(ctx, student.ID, hasFullAccess, services.ActiveService)
+		if err != nil {
+			return StudentResponse{}, err
+		}
 		response.Location = locationInfo.Location
 		response.LocationSince = locationInfo.Since
 		response.RoomColor = locationInfo.RoomColor
@@ -407,7 +424,7 @@ func newStudentResponseWithOpts(ctx context.Context, opts StudentResponseOpts, s
 	// of the photo feature flag — see populateEnrollmentConsents.
 	populateEnrollmentConsents(&response, student)
 
-	return response
+	return response, nil
 }
 
 // newStudentResponseFromSnapshot creates a student response using pre-loaded snapshot data

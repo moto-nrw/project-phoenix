@@ -770,7 +770,7 @@ func TestPasskeyRepositories(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 
 	ctx := context.Background()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 
 	account := &authModel.Account{

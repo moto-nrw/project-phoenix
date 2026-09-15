@@ -117,7 +117,12 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve care days failed", err))
 		return
 	}
-	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
+	rows, err := rs.TimetableData.GetInstanceRows(r.Context(), []*scheduleModel.ActivityInstance{inst})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance rows failed", err))
+		return
+	}
+	enriched, _, _, err := rs.enrichInstance(r.Context(), inst, rows, roomCache, typeCache, make(map[int64]*scheduleModel.PlanningTrack), make(map[int64][]enrollmentSvc.OfferingSourceOption), rs.childrenPerStaffRatio(r.Context()), careDays)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return

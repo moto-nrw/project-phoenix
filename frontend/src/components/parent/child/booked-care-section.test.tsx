@@ -249,6 +249,107 @@ describe("BookedCareSection", () => {
     expect(screen.getByText("In Prüfung")).toBeInTheDocument();
   });
 
+  it("zeigt eine gemischte Kurs- und Betreuungsanfrage bei der Betreuung", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "o1",
+          name: "Ganztag bis 16 Uhr",
+          weekdays: [1, 2, 3, 4, 5],
+          includes_lunch: true,
+          includes_holiday_care: false,
+        },
+      ],
+      groups: [],
+      can_request: false,
+      pending_request: {
+        id: "p1",
+        created_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        submitted_by_self: true,
+        diff: [
+          {
+            label: "Fußball-AG",
+            old_state: "not_booked",
+            old_days: [],
+            new_state: "booked",
+            new_days: ["wed"],
+            is_course: true,
+          },
+          {
+            label: "Ganztag bis 16 Uhr",
+            old_state: "booked",
+            old_days: ["mon", "tue", "wed", "thu", "fri"],
+            new_state: "booked",
+            new_days: ["mon", "tue", "wed"],
+            is_course: false,
+          },
+        ],
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection();
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Beantragte Änderung",
+        level: 3,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Fußball-AG")).toBeInTheDocument();
+    expect(screen.getAllByText("Ganztag bis 16 Uhr")).not.toHaveLength(0);
+  });
+
+  it("zeigt eine reine Kursanfrage mit automatisch abgeleitetem Angebot nicht doppelt", async () => {
+    mockedOfferings.mockResolvedValue({
+      offerings: [
+        {
+          id: "o1",
+          name: "Ganztag bis 16 Uhr",
+          weekdays: [1, 2, 3, 4, 5],
+          includes_lunch: true,
+          includes_holiday_care: false,
+        },
+      ],
+      groups: [],
+      can_request: false,
+      pending_request: {
+        id: "p1",
+        created_at: "2026-08-16T08:00:00Z",
+        effective_from: "2026-09-01",
+        submitted_by_self: true,
+        diff: [
+          {
+            label: "Fußball-AG",
+            old_state: "not_booked",
+            old_days: [],
+            new_state: "booked",
+            new_days: ["wed"],
+            is_course: true,
+          },
+          {
+            label: "Mittagessen",
+            old_state: "not_booked",
+            old_days: [],
+            new_state: "booked",
+            new_days: ["wed"],
+            new_automatic_days: ["wed"],
+          },
+        ],
+      },
+    } as unknown as Awaited<ReturnType<typeof getChildCareOfferings>>);
+
+    renderSection();
+
+    await screen.findByRole("heading", { name: "Gebuchte Betreuung" });
+    expect(
+      screen.queryByRole("heading", {
+        name: "Beantragte Änderung",
+        level: 3,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("zeigt nach dem Betreuungsende keine Angebotsaktionen", async () => {
     mockedOfferings.mockResolvedValue({
       offerings: [

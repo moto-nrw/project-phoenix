@@ -10,6 +10,12 @@ func RequireConfigRead() Middleware {
 	return RequiresPermission(permissions.ConfigRead)
 }
 
+// RequireMealParticipantsRead protects the kitchen list, which combines
+// configuration-owned meal settings with student directory data.
+func RequireMealParticipantsRead() Middleware {
+	return RequiresAllPermissions(permissions.ConfigRead, permissions.UsersRead)
+}
+
 func RequireConfigWrite() Middleware {
 	return RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 }

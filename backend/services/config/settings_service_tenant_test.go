@@ -113,10 +113,10 @@ func (noopAuditRepo) Create(_ context.Context, _ *config.SettingAuditEntry) erro
 // --- Tests ---
 
 func TestResolveBoolForTenant_RegistryDefault_NoOverride(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(func() { config.ResetRegistry() })
+	t.Parallel()
+	registry := config.NewRegistry()
 
-	config.Register(config.Definition{
+	registry.Register(config.Definition{
 		Key:      "test.tenant_bool",
 		Type:     config.FieldBoolean,
 		Default:  true,
@@ -129,7 +129,7 @@ func TestResolveBoolForTenant_RegistryDefault_NoOverride(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	svc := NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	svc := NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveBoolForTenant(context.Background(), tenantID, "test.tenant_bool")
 	require.NoError(t, err)
@@ -137,9 +137,9 @@ func TestResolveBoolForTenant_RegistryDefault_NoOverride(t *testing.T) {
 }
 
 func TestResolveBoolForTenant_TenantOverrideWins(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(func() { config.ResetRegistry() })
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := config.NewRegistry()
+	registry.Register(config.Definition{
 		Key: "test.tenant_bool_override", Type: config.FieldBoolean,
 		Default: true, Tab: "test", Category: "test",
 	})
@@ -157,7 +157,7 @@ func TestResolveBoolForTenant_TenantOverrideWins(t *testing.T) {
 	sv.SetTenantID(tenantID)
 	require.NoError(t, repo.Upsert(context.Background(), sv))
 
-	svc := NewSettingsService(repo, noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	svc := NewSettingsService(repo, noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveBoolForTenant(context.Background(), tenantID, "test.tenant_bool_override")
 	require.NoError(t, err)
@@ -165,9 +165,9 @@ func TestResolveBoolForTenant_TenantOverrideWins(t *testing.T) {
 }
 
 func TestResolveIntForTenant_RegistryDefault_NoOverride(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(func() { config.ResetRegistry() })
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := config.NewRegistry()
+	registry.Register(config.Definition{
 		Key: "test.tenant_int", Type: config.FieldNumber,
 		Default: 17, Tab: "test", Category: "test",
 	})
@@ -177,7 +177,7 @@ func TestResolveIntForTenant_RegistryDefault_NoOverride(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	svc := NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	svc := NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveIntForTenant(context.Background(), tenantID, "test.tenant_int")
 	require.NoError(t, err)
@@ -185,9 +185,9 @@ func TestResolveIntForTenant_RegistryDefault_NoOverride(t *testing.T) {
 }
 
 func TestResolveIntForTenant_TenantOverrideWins(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(func() { config.ResetRegistry() })
-	config.Register(config.Definition{
+	t.Parallel()
+	registry := config.NewRegistry()
+	registry.Register(config.Definition{
 		Key: "test.tenant_int_override", Type: config.FieldNumber,
 		Default: 17, Tab: "test", Category: "test",
 	})
@@ -205,7 +205,7 @@ func TestResolveIntForTenant_TenantOverrideWins(t *testing.T) {
 	sv.SetTenantID(tenantID)
 	require.NoError(t, repo.Upsert(context.Background(), sv))
 
-	svc := NewSettingsService(repo, noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	svc := NewSettingsService(repo, noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, svc, db)
 	val, err := svc.ResolveIntForTenant(context.Background(), tenantID, "test.tenant_int_override")
 	require.NoError(t, err)
@@ -213,15 +213,15 @@ func TestResolveIntForTenant_TenantOverrideWins(t *testing.T) {
 }
 
 func TestResolveIntForTenant_UnknownKey_ReturnsError(t *testing.T) {
-	config.ResetRegistry()
-	t.Cleanup(func() { config.ResetRegistry() })
+	t.Parallel()
+	registry := config.NewRegistry()
 
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	svc := NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
+	svc := NewSettingsService(newInMemoryValueRepo(), noopAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default(), registry)
 	testpkg.SetTenantRuntime(t, svc, db)
 	_, err := svc.ResolveIntForTenant(context.Background(), tenantID, "unregistered.key")
 	require.Error(t, err, "an unknown setting must propagate as an error even through the tenant-tx wrapper")

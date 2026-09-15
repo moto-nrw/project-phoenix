@@ -44,6 +44,12 @@ export const Danger: Story = {
   },
 };
 
+export const Warning: Story = {
+  args: {
+    variant: "warning",
+  },
+};
+
 export const Success: Story = {
   args: {
     variant: "success",

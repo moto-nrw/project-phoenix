@@ -1,10 +1,20 @@
 #!/usr/bin/env bash
 # Prints changed backend packages. Production changes also select every package
 # whose production or test graph depends on them. Output is one import per line.
+#
+# --direct limits the selection to depth 1: only direct importers instead of
+# the transitive closure, and without the always-appended repo-wide ./test
+# ratchet package. For the fast local fix loop (scripts/test-changed.sh
+# --fast); gates keep using the default full closure.
 set -euo pipefail
 
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
+direct=false
+if [ "${1:-}" = --direct ]; then
+  direct=true
+  shift
+fi
 base=${1:-origin/development}
 merge_base=$(git merge-base HEAD "$base")
 
@@ -106,16 +116,26 @@ production_changed=$(printf '%s\n' "$changed_dirs" | awk -v module="$module" '
   }
 ')
 
+# Depth of the importer expansion: .Deps is the transitive closure, .Imports
+# only the direct edges (--direct).
+deps_field=Deps
+if [ "$direct" = true ]; then
+  deps_field=Imports
+fi
+
 {
   printf '%s\n' "$changed"
   # The test package contains repository-wide source scanners and ratchets.
   # Import-graph selection cannot discover that dependency, so every non-empty
-  # backend selection must include it explicitly.
-  printf '%s/test\n' "$module"
+  # backend selection must include it explicitly. --direct skips it on
+  # purpose: the fast loop trades the repo-wide ratchets for iteration speed.
+  if [ "$direct" != true ]; then
+    printf '%s/test\n' "$module"
+  fi
   if [ -n "$production_changed" ]; then
     {
-      go list -f '{{.ImportPath}}{{range .Deps}} {{.}}{{end}}' ./...
-      go list -test -f '{{if .ForTest}}{{.ForTest}}{{range .Deps}} {{.}}{{end}}{{end}}' ./...
+      go list -f "{{.ImportPath}}{{range .$deps_field}} {{.}}{{end}}" ./...
+      go list -test -f "{{if .ForTest}}{{.ForTest}}{{range .$deps_field}} {{.}}{{end}}{{end}}" ./...
     } |
       awk 'NR == FNR { changed[$0] = 1; next }
         {

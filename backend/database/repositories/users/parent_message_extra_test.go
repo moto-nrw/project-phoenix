@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -26,8 +25,8 @@ func TestParentMessage_FindByIDAndTail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
-	msgRepo := usersRepo.NewParentMessageRepository(db)
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
@@ -70,8 +69,8 @@ func TestParentMessage_FindEventByRef(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
-	msgRepo := usersRepo.NewParentMessageRepository(db)
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)
@@ -129,9 +128,9 @@ func TestListInboxForStaff_ScopeFlag(t *testing.T) {
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")
 
-	threadRepo := usersRepo.NewParentMessageThreadRepository(db)
-	msgRepo := usersRepo.NewParentMessageRepository(db)
-	readRepo := usersRepo.NewParentMessageReadRepository(db)
+	threadRepo := parentRepos(t, db).Thread
+	msgRepo := parentRepos(t, db).Message
+	readRepo := parentRepos(t, db).Read
 	ctx := tenantCtx(t)
 
 	thread := newThread(t, chain.StudentID, chain.AccountID)

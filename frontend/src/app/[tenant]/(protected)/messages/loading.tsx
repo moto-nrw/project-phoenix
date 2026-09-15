@@ -1,26 +1,17 @@
 "use client";
 
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { MessagesSkeleton } from "./page-skeleton";
 
 /**
- * Route-level loading UI: renders the real header immediately (Polaris: real
- * chrome first, skeletonize only the data region) with a disabled no-op
- * search field — this component has no page state yet — followed by the
- * thread-list skeleton.
+ * Route-level loading UI: das Seitengerüst mit Titel rendert sofort, nur die
+ * Statuszeile und die Liste skelettieren. Suche und Filter fehlen hier
+ * bewusst, es gibt noch keinen Seitenzustand, den sie bedienen könnten.
  */
 export default function MessagesLoading() {
   return (
-    <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch
-        title="Nachrichten"
-        search={{
-          value: "",
-          onChange: () => {},
-          inputProps: { disabled: true },
-        }}
-      />
+    <TenantPage title="Nachrichten" statsLoading>
       <MessagesSkeleton />
-    </div>
+    </TenantPage>
   );
 }

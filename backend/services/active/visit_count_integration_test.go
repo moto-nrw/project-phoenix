@@ -1,7 +1,6 @@
 package active_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -12,21 +11,21 @@ import (
 )
 
 // =============================================================================
-// CountActiveVisitsByRoomID Integration Tests
+// CountOpenVisitsInRoom Integration Tests
 // =============================================================================
 
-func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
+func TestPresence_CountOpenVisitsInRoom(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
-	ctx := context.Background()
+	service := testSchoolPresence(t, db)
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns zero for empty room", func(t *testing.T) {
 		room := testpkg.CreateTestRoom(t, db, "CountEmptyRoom")
 
-		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
+		count, err := service.CountOpenVisitsInRoom(ctx, room.ID)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
@@ -41,7 +40,7 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
 		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, time.Now(), nil)
 
-		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
+		count, err := service.CountOpenVisitsInRoom(ctx, room.ID)
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
@@ -58,7 +57,7 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup.ID, time.Now(), nil)
 		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup.ID, entryTime, &exitTime)
 
-		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
+		count, err := service.CountOpenVisitsInRoom(ctx, room.ID)
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
@@ -75,14 +74,14 @@ func TestActiveService_CountActiveVisitsByRoomID(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student1.ID, activeGroup1.ID, time.Now(), nil)
 		testpkg.CreateTestVisit(t, db, student2.ID, activeGroup2.ID, time.Now(), nil)
 
-		count, err := service.CountActiveVisitsByRoomID(ctx, room.ID)
+		count, err := service.CountOpenVisitsInRoom(ctx, room.ID)
 
 		require.NoError(t, err)
 		assert.Equal(t, 2, count)
 	})
 
 	t.Run("returns zero for non-existent room", func(t *testing.T) {
-		count, err := service.CountActiveVisitsByRoomID(ctx, 999999)
+		count, err := service.CountOpenVisitsInRoom(ctx, 999999)
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
@@ -99,7 +98,7 @@ func TestActiveService_CountActiveVisitsByActiveGroupID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns zero for empty group", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "count-empty-group")
@@ -157,7 +156,7 @@ func TestActiveService_GetStudentCurrentVisitWithRoom(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visit with room loaded", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "visit-with-room")
@@ -208,7 +207,7 @@ func TestActiveService_GetStudentCurrentVisit_Refactored(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupActiveService(t, db)
-	ctx := context.Background()
+	ctx := testpkg.Ctx(t)
 
 	t.Run("returns current visit", func(t *testing.T) {
 		activity := testpkg.CreateTestActivityGroup(t, db, "current-visit-ref")

@@ -89,9 +89,13 @@ type PickupBaselineReader interface {
 	HasBookedOfferingPickupForWeekday(ctx context.Context, studentID int64, weekday int) (bool, error)
 }
 
+type ApprovedBookingReader interface {
+	ListApprovedByStudentIDsInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*ApprovedBooking, error)
+}
+
 type pickupBaselineService struct {
 	weekly    scheduleModel.StudentPickupScheduleRepository
-	links     enrollmentModel.RequestChildOfferingRepository
+	links     ApprovedBookingReader
 	offerings enrollmentModel.CareOfferingRepository
 	settings  config.SettingsService
 }
@@ -100,7 +104,7 @@ type pickupBaselineService struct {
 // at the pickup projection boundary.
 func NewPickupBaselineServiceWithSettings(
 	weekly scheduleModel.StudentPickupScheduleRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) PickupBaselineReader {
@@ -112,7 +116,7 @@ func NewPickupBaselineServiceWithSettings(
 
 func newPickupBaselineService(
 	weekly scheduleModel.StudentPickupScheduleRepository,
-	links enrollmentModel.RequestChildOfferingRepository,
+	links ApprovedBookingReader,
 	offerings enrollmentModel.CareOfferingRepository,
 	settings config.SettingsService,
 ) PickupBaselineReader {
@@ -280,7 +284,7 @@ func (s *pickupBaselineService) bookingsAuthoritative(ctx context.Context) (bool
 
 func (s *pickupBaselineService) loadOfferingsByID(
 	ctx context.Context,
-	links []*enrollmentModel.ApprovedOfferingChild,
+	links []*ApprovedBooking,
 ) (map[int64]*enrollmentModel.CareOffering, error) {
 	offeringIDs := make([]int64, 0, len(links))
 	for _, entry := range links {
@@ -302,7 +306,7 @@ func (s *pickupBaselineService) loadOfferingsByID(
 }
 
 func projectOfferingLinks(
-	links []*enrollmentModel.ApprovedOfferingChild,
+	links []*ApprovedBooking,
 	offeringByID map[int64]*enrollmentModel.CareOffering,
 	from, to timezone.Date,
 ) (PickupPlansByStudent, error) {
@@ -331,7 +335,7 @@ func projectOfferingWeek(
 	out PickupPlansByStudent,
 	studentID int64,
 	date timezone.Date,
-	link *enrollmentModel.RequestChildOffering,
+	link *BookingSelection,
 	offering *enrollmentModel.CareOffering,
 ) error {
 	for _, day := range offeringPickupDays(link, offering) {
@@ -358,7 +362,7 @@ func projectOfferingWeek(
 }
 
 func offeringPickupDays(
-	link *enrollmentModel.RequestChildOffering,
+	link *BookingSelection,
 	offering *enrollmentModel.CareOffering,
 ) []string {
 	if len(link.SelectedDays) > 0 || offering.DaysOfWeekMode != enrollmentModel.DaysOfWeekModeFixed {
@@ -390,10 +394,10 @@ func projectedOfferingPickup(
 	}, true, nil
 }
 
-func offeringLinkCovers(link *enrollmentModel.RequestChildOffering, date timezone.Date) bool {
+func offeringLinkCovers(link *BookingSelection, date timezone.Date) bool {
 	return link != nil &&
-		(link.ValidFrom == nil || !date.Before(*link.ValidFrom)) &&
-		(link.ValidUntil == nil || date.Before(*link.ValidUntil))
+		(link.ValidFrom == nil || !date.Before(timezone.Date(*link.ValidFrom))) &&
+		(link.ValidUntil == nil || date.Before(timezone.Date(*link.ValidUntil)))
 }
 
 func uniquePositiveStudentIDs(ids []int64) []int64 {

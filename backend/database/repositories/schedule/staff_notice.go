@@ -56,15 +56,23 @@ func (r *StaffNoticeRepository) List(ctx context.Context, includeInactive bool) 
 }
 
 // ListValidOn grenzt auf die aktiven Hinweise ein, deren Zeitraum den Tag
-// enthält. Wochentag und Wochenmuster prüft der Service: der Wochentag ist eine
-// Array-Abfrage, die kein Index bedient, und das Wochenmuster braucht den
-// Kalenderzeitraum. Die Datenbank soll nur die Menge klein machen.
-func (r *StaffNoticeRepository) ListValidOn(ctx context.Context, date timezone.Date) ([]*users.StaffNotice, error) {
+// enthält und deren Zielgruppe die Leserart einschließt (#2208). Wochentag und
+// Wochenmuster prüft der Service: der Wochentag ist eine Array-Abfrage, die
+// kein Index bedient, und das Wochenmuster braucht den Kalenderzeitraum. Die
+// Datenbank soll nur die Menge klein machen.
+//
+// Eine unbekannte Leserart liefert nichts: ein Portal, das sich nicht
+// ausweist, bekommt keinen breiteren Verteiler geschenkt.
+func (r *StaffNoticeRepository) ListValidOn(ctx context.Context, date timezone.Date, reader string) ([]*users.StaffNotice, error) {
+	if !users.ValidStaffNoticeReader(reader) {
+		return []*users.StaffNotice{}, nil
+	}
 	var rows []*users.StaffNotice
 	query := base.GetDB(ctx, r.DB).NewSelect().
 		Model(&rows).
 		ModelTableExpr(`users.staff_notices AS "staff_notice"`).
 		Where(`"staff_notice".active`).
+		Where(`"staff_notice".audience IN (?, ?)`, users.StaffNoticeAudienceAll, reader).
 		Where(`"staff_notice".valid_from <= ?`, date).
 		Where(`("staff_notice".valid_until IS NULL OR "staff_notice".valid_until >= ?)`, date).
 		// Wichtiges zuerst. Nicht nach der Spalte sortieren: alphabetisch käme
@@ -122,6 +130,12 @@ func (r *StaffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID
 
 // AcknowledgedCounts gibt je Hinweis-Id die Zahl der Kenntnisnahmen zurück —
 // die Antwort auf "ist der Hinweis angekommen".
+//
+// Die Verfasserin zählt nicht mit. Ihre Kenntnisnahme wird beim Anlegen
+// gestempelt, damit der eigene Hinweis sie nicht nach einer Bestätigung fragt;
+// als Leserin des Hinweises ist sie damit aber nicht gemeint. Ohne diesen
+// Ausschluss stünde bei einem frisch geschriebenen Hinweis „1 Person hat
+// bestätigt", und die Leitung liest darin ein Teammitglied.
 func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeIDs []int64) (map[int64]int, error) {
 	result := make(map[int64]int, len(noticeIDs))
 	if len(noticeIDs) == 0 {
@@ -136,7 +150,9 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
 		ColumnExpr(`"sna".notice_id AS notice_id`).
 		ColumnExpr("COUNT(*) AS count").
+		Join(`JOIN users.staff_notices AS "n" ON "n".id = "sna".notice_id`).
 		Where(`"sna".notice_id IN (?)`, bun.List(noticeIDs)).
+		Where(`"sna".account_id <> "n".created_by`).
 		GroupExpr(`"sna".notice_id`)
 	query = base.WithTenantFilter(ctx, query, "sna")
 	if err := query.Scan(ctx, &rows); err != nil {
@@ -146,4 +162,30 @@ func (r *StaffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeID
 		result[row.NoticeID] = row.Count
 	}
 	return result, nil
+}
+
+// Acknowledgements gibt alle Kenntnisnahmen eines Hinweises zurück, neueste
+// zuerst — die Bestätigungsliste der Leitung (#2208). Nur Konto und Zeitpunkt:
+// die Namen gehören dem Personenverzeichnis, der Service holt sie dort.
+//
+// Die Verfasserin fehlt in der Liste aus demselben Grund wie im Zähler
+// (AcknowledgedCounts): ihre Kenntnisnahme ist beim Anlegen gestempelt, damit
+// der eigene Hinweis sie nicht fragt, aber gelesen hat sie ihn nicht.
+func (r *StaffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*users.StaffNoticeAck, error) {
+	var rows []*users.StaffNoticeAck
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`users.staff_notice_acks AS "sna"`).
+		Join(`JOIN users.staff_notices AS "n" ON "n".id = "sna".notice_id`).
+		Where(`"sna".notice_id = ?`, noticeID).
+		Where(`"sna".account_id <> "n".created_by`).
+		OrderExpr(`"sna".acknowledged_at DESC, "sna".account_id ASC`)
+	query = base.WithTenantFilter(ctx, query, "sna")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "list staff notice acknowledgements", Err: base.TranslateNotFound(err)}
+	}
+	if rows == nil {
+		rows = []*users.StaffNoticeAck{}
+	}
+	return rows, nil
 }

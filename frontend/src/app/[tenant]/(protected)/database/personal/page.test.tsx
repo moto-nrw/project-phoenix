@@ -11,7 +11,7 @@ vi.mock("next-auth/react", () => ({
       user: {
         id: "1",
         token: "test-token",
-        permissions: ["users:manage"],
+        permissions: ["users:manage", "users:delete", "staff:manage"],
       },
       expires: "2099-01-01",
     },
@@ -24,12 +24,6 @@ const mockReplace = vi.fn((url: string) => {
   const query = url.includes("?") ? (url.split("?")[1] ?? "") : "";
   currentSearch = new URLSearchParams(query);
 });
-const setSelectedStaff = (id: string | null) => {
-  currentSearch = new URLSearchParams();
-  if (id) {
-    currentSearch.set("staff", id);
-  }
-};
 
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
@@ -71,16 +65,71 @@ vi.mock("~/contexts/ToastContext", () => ({
   })),
 }));
 
+vi.mock("~/components/ui/confirm-delete-modal", () => ({
+  ConfirmDeleteModal: ({
+    isOpen,
+    onConfirm,
+    onClose,
+  }: {
+    isOpen: boolean;
+    onConfirm?: () => void;
+    onClose?: () => void;
+  }) =>
+    isOpen ? (
+      <div data-testid="confirmation-modal">
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
+          Cancel
+        </button>
+      </div>
+    ) : null,
+}));
+
 vi.mock("~/components/database/database-page-layout", () => ({
   DatabasePageLayout: ({
     children,
     loading,
+    intro,
+    search,
+    error,
+    empty,
+    overlays,
   }: {
     children: ReactNode;
     loading: boolean;
+    intro?: { title: string; description?: ReactNode; actions?: ReactNode };
+    search?: ReactNode;
+    error?: string | null;
+    empty?: {
+      title: string;
+      description?: string;
+      icon?: ReactNode;
+      action?: ReactNode;
+    } | null;
+    overlays?: ReactNode;
   }) => (
     <div data-testid="database-layout" data-loading={loading}>
-      {children}
+      {intro ? (
+        <div data-testid="page-intro">
+          <h1>{intro.title}</h1>
+          {intro.description}
+          {intro.actions}
+          {search}
+        </div>
+      ) : null}
+      {/* Fehler und Leerzustand liefert das Geruest, nicht die Seite. */}
+      {error ? <div data-testid="page-error">{error}</div> : null}
+      {!error && empty ? (
+        <div data-testid="page-empty">
+          <p>{empty.title}</p>
+          {empty.description ? <p>{empty.description}</p> : null}
+          {empty.action}
+        </div>
+      ) : null}
+      {!error && !empty ? children : null}
+      {overlays}
     </div>
   ),
 }));
@@ -113,124 +162,37 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
   ),
 }));
 
-vi.mock("@/components/teachers/staff-master-detail", () => ({
-  StaffMasterDetail: ({
+// Test double for the collection list (#3115): one link per person, the
+// object route the page computes via `objectHref`.
+vi.mock("@/components/teachers/staff-list", () => ({
+  StaffList: ({
     groupDefinitions,
-    selectedId,
-    selectedTeacher,
-    onSelect,
-    onEditClick,
-    onDeleteClick,
-    onUpdateNotes,
-    onManageCaregiver,
+    objectHref,
   }: {
     groupDefinitions: Array<{
       id: string;
       title: string;
       items: Array<{ id: string; name: string }>;
     }>;
-    selectedId: string | null;
-    selectedTeacher?: { name: string } | null;
-    onSelect: (id: string | null) => void;
-    onEditClick: () => void;
-    onDeleteClick: () => void;
-    onUpdateNotes: (notes: string) => Promise<void>;
-    onManageCaregiver?: () => void;
+    objectHref: (teacher: { id: string }) => string;
   }) => (
-    <div data-testid="staff-master-detail">
+    <div data-testid="staff-list">
       {groupDefinitions.map((group) => (
         <div key={group.id} data-testid={`group-${group.id}`}>
           <span data-testid={`group-title-${group.id}`}>{group.title}</span>
           {group.items.map((teacher) => (
-            <button
-              type="button"
+            <a
               key={teacher.id}
               data-testid={`staff-row-${teacher.id}`}
-              onClick={() => onSelect(teacher.id)}
+              href={objectHref(teacher)}
             >
               {teacher.name}
-            </button>
+            </a>
           ))}
         </div>
       ))}
-      {selectedId ? (
-        <div data-testid="staff-detail-panel">
-          <span data-testid="detail-selected-id">{selectedId}</span>
-          <span data-testid="detail-staff-name">
-            {selectedTeacher?.name ?? "unbekannt"}
-          </span>
-          <button
-            type="button"
-            data-testid="trigger-edit"
-            onClick={onEditClick}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-delete"
-            onClick={onDeleteClick}
-          >
-            Delete
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-deselect"
-            onClick={() => onSelect(null)}
-          >
-            Close
-          </button>
-          <button
-            type="button"
-            data-testid="trigger-notes"
-            onClick={() => void onUpdateNotes("Updated note")}
-          >
-            Save Notes
-          </button>
-          {onManageCaregiver ? (
-            <button
-              type="button"
-              data-testid="trigger-caregiver"
-              onClick={onManageCaregiver}
-            >
-              Caregiver
-            </button>
-          ) : null}
-        </div>
-      ) : null}
     </div>
   ),
-}));
-
-vi.mock("@/components/teachers/caregiver-capability-modal", () => ({
-  CaregiverCapabilityModal: ({ isOpen }: { isOpen: boolean }) =>
-    isOpen ? <div data-testid="caregiver-modal" /> : null,
-}));
-
-vi.mock("@/components/teachers/teacher-edit-modal", () => ({
-  TeacherEditModal: ({
-    isOpen,
-    onClose,
-    onSave,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: { first_name: string }) => Promise<void>;
-  }) =>
-    isOpen ? (
-      <div data-testid="teacher-edit-modal">
-        <button
-          type="button"
-          data-testid="submit-edit"
-          onClick={() => void onSave({ first_name: "Updated" })}
-        >
-          Save
-        </button>
-        <button type="button" data-testid="close-edit" onClick={onClose}>
-          Close
-        </button>
-      </div>
-    ) : null,
 }));
 
 vi.mock("~/components/admin/invitation-form", () => ({
@@ -275,25 +237,6 @@ vi.mock("~/components/ui/modal", () => ({
         {children}
       </div>
     ) : null,
-  ConfirmationModal: ({
-    isOpen,
-    onConfirm,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onConfirm?: () => void;
-    onClose?: () => void;
-  }) =>
-    isOpen ? (
-      <div data-testid="confirmation-modal">
-        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
-          Confirm
-        </button>
-        <button type="button" data-testid="cancel-delete" onClick={onClose}>
-          Cancel
-        </button>
-      </div>
-    ) : null,
 }));
 
 import { useSWRAuth } from "~/lib/swr";
@@ -332,7 +275,7 @@ describe("TeachersPage", () => {
         user: {
           id: "1",
           token: "test-token",
-          permissions: ["users:manage"],
+          permissions: ["users:manage", "users:delete", "staff:manage"],
         },
         expires: "2099-01-01",
       },
@@ -467,6 +410,52 @@ describe("TeachersPage", () => {
     });
   });
 
+  // #2906: Personalnotizen gehören zum Mitarbeiter-Datensatz und brauchen
+  // staff:manage. Ohne die Berechtigung darf die Oberfläche die Aktion nicht
+  // anbieten — das Backend antwortet dort mit 403.
+  it("shows the staff import link with users:create", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["staff:manage", "users:create"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(screen.getByRole("link", { name: "Importieren" })).toHaveAttribute(
+      "href",
+      "/test-tenant/database/personal/import",
+    );
+  });
+
+  it("hides the staff import link without users:create", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "1",
+          token: "test-token",
+          permissions: ["staff:manage", "users:manage"],
+        },
+        expires: "2099-01-01",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<TeachersPage />);
+
+    expect(
+      screen.queryByRole("link", { name: "Importieren" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("hides invitation controls without users:manage", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
@@ -499,176 +488,22 @@ describe("TeachersPage", () => {
     });
   });
 
-  it("syncs staff selection into the URL when a row is clicked", async () => {
+  it("links every row to the person's record with the register as referrer", async () => {
+    currentSearch = new URLSearchParams({ groupBy: "none" });
+
     render(<TeachersPage />);
 
-    fireEvent.click(screen.getByTestId("staff-row-1"));
+    fireEvent.change(screen.getByTestId("search-input"), {
+      target: { value: "Anna" },
+    });
 
     await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith(
-        "/tenant/database/personal?staff=1",
-        { scroll: false },
+      // Path routing in the test tenant context: the link carries the slug,
+      // the `from` referrer stays slug-free (the record prefixes it itself).
+      expect(screen.getByTestId("staff-row-1")).toHaveAttribute(
+        "href",
+        `/test-tenant/staff/1?tab=konto&from=${encodeURIComponent("/database/personal?groupBy=none&search=Anna")}`,
       );
-    });
-  });
-
-  it("hydrates the detail panel from the staff URL param using the cached list", async () => {
-    setSelectedStaff("1");
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-      expect(screen.getByTestId("detail-selected-id")).toHaveTextContent("1");
-      expect(screen.getByTestId("detail-staff-name")).toHaveTextContent(
-        "Anna Müller",
-      );
-    });
-    // No per-selection refetch — list DTO already carries every detail field.
-    expect(mockGetOne).not.toHaveBeenCalled();
-  });
-
-  it("removes the staff URL param when the detail panel is closed", async () => {
-    setSelectedStaff("1");
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-deselect"));
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/personal", {
-        scroll: false,
-      });
-    });
-  });
-
-  it("opens the edit modal when the detail panel edit button is clicked", async () => {
-    setSelectedStaff("1");
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-edit"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("teacher-edit-modal")).toBeInTheDocument();
-    });
-  });
-
-  it("calls update service when saving from the edit modal", async () => {
-    setSelectedStaff("1");
-    mockUpdate.mockResolvedValueOnce(undefined);
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-edit"));
-    await waitFor(() => {
-      expect(screen.getByTestId("teacher-edit-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("submit-edit"));
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith(
-        "1",
-        expect.objectContaining({ first_name: "Updated" }),
-      );
-    });
-  });
-
-  it("calls update service when notes are saved from the detail panel", async () => {
-    setSelectedStaff("1");
-    mockUpdate.mockResolvedValueOnce(undefined);
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-notes"));
-
-    await waitFor(() => {
-      expect(mockUpdate).toHaveBeenCalledWith("1", {
-        staff_notes: "Updated note",
-      });
-    });
-  });
-
-  it("calls delete service after confirming deletion from the detail panel", async () => {
-    setSelectedStaff("1");
-    mockDelete.mockResolvedValueOnce(null);
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-delete"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("confirm-delete"));
-
-    await waitFor(() => {
-      expect(mockDelete).toHaveBeenCalledWith("1");
-      expect(mockReplace).toHaveBeenCalledWith("/tenant/database/personal", {
-        scroll: false,
-      });
-    });
-  });
-
-  it("shows an error toast when delete returns an error", async () => {
-    setSelectedStaff("1");
-    mockDelete.mockResolvedValueOnce("Personal kann nicht gelöscht werden");
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-delete"));
-    await waitFor(() => {
-      expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("confirm-delete"));
-
-    await waitFor(() => {
-      expect(mockToastError).toHaveBeenCalledWith(
-        "Personal kann nicht gelöscht werden",
-      );
-    });
-  });
-
-  it("opens the caregiver modal when the detail panel surfaces it", async () => {
-    setSelectedStaff("1");
-
-    render(<TeachersPage />);
-
-    await waitFor(() => {
-      expect(screen.getByTestId("staff-detail-panel")).toBeInTheDocument();
-    });
-
-    fireEvent.click(screen.getByTestId("trigger-caregiver"));
-
-    await waitFor(() => {
-      expect(screen.getByTestId("caregiver-modal")).toBeInTheDocument();
     });
   });
 });

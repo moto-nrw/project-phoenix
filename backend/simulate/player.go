@@ -34,14 +34,15 @@ func buildClient(factory ClientFactory, baseURL string, verbose bool) (Client, e
 }
 
 type Runtime struct {
-	State         *SeedState
-	Client        Client
-	Options       FullDayOptions
-	RFIDTags      map[int64]string
-	ActiveRoomIDs []int64
-	DeviceKeys    []string
-	ActivityNames []string
-	Counts        RuntimeCounts
+	State                   *SeedState
+	Client                  Client
+	Options                 FullDayOptions
+	RFIDTags                map[int64]string
+	ActiveRoomIDs           []int64
+	ActiveSessionDeviceKeys []string
+	DeviceKeys              []string
+	ActivityNames           []string
+	Counts                  RuntimeCounts
 }
 
 type RuntimeCounts struct {

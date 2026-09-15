@@ -30,7 +30,8 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { TIMETABLE_UNTYPED_EDGE_COLOR } from "~/components/timetable/timetable-style";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { berlinTodayISO, formatDate, isValidISODate } from "~/lib/date-helpers";
 import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
@@ -142,7 +143,7 @@ function NowDivider({ nowHHMM }: Readonly<{ nowHHMM: string }>) {
         style={{ backgroundColor: LOCATION_COLORS.GROUP_ROOM }}
       />
       <span
-        className="text-[11px] font-semibold tabular-nums"
+        className="text-xs font-semibold tabular-nums"
         style={{ color: GROUP_ROOM_SHADES.text }}
       >
         Jetzt · {nowHHMM} Uhr
@@ -241,7 +242,7 @@ function TagesplanRow({
       </span>
       {running ? (
         <span className="shrink-0">
-          <StatusDotBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
+          <StatusColorBadge label="Läuft" color={LOCATION_COLORS.GROUP_ROOM} />
         </span>
       ) : null}
     </>
@@ -250,7 +251,7 @@ function TagesplanRow({
   const edgeStyle = {
     borderLeftColor: cancelled
       ? LOCATION_COLORS.DANGER
-      : (instance.planningTrackColor ?? "#E5E7EB"),
+      : (instance.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR),
     ...(over ? { opacity: 0.9 } : {}),
   };
 
@@ -416,7 +417,6 @@ export function TagesplanView() {
       {actionError ? <Alert type="error" message={actionError} /> : null}
 
       <SectionCard
-        kicker="Betreuungsplan"
         title={isToday ? "Heute" : formatDate(day)}
         description={description}
         headingLevel={1}
@@ -504,7 +504,7 @@ export function TagesplanView() {
         ) : null}
 
         {!isLoading && !listError && sorted.length > 0 ? (
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+          <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
             <ul>
               {sorted.map((instance, index) => (
                 <Fragment key={instance.id}>

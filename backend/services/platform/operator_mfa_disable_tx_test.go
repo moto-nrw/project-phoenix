@@ -112,7 +112,7 @@ func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
 	// cascade targets have non-trivial state.
 	_, _, err := svc.IssueTrustedDevice(ctx, op.ID, "ua-test", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
-	_, err = repositories.NewFactory(db).Operator.IncrementMFAAttempts(ctx, op.ID, 5, 15*time.Minute)
+	_, err = repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Operator.IncrementMFAAttempts(ctx, op.ID, 5, 15*time.Minute)
 	require.NoError(t, err)
 
 	require.NoError(t, svc.Disable(ctx, op.ID))

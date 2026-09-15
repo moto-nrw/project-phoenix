@@ -27,6 +27,14 @@ export function getApiErrorMessage(
   ) {
     return `Sie können diese ${entityType} nicht ${action}, da Sie sie nicht erstellt haben und kein Betreuer sind.`;
   }
+  // Mitarbeiter-Vorschau (#2893): das Backend blockt jede Schreibaktion
+  // eines Vorschau-Tokens mit diesem Code bzw. Text.
+  if (
+    message.includes("read_only_preview") ||
+    message.includes("In der Vorschau können Sie nur lesen")
+  ) {
+    return "In der Vorschau können Sie nur lesen. Beenden Sie die Vorschau, um etwas zu ändern.";
+  }
   if (message.includes("403")) {
     return `Sie haben keine Berechtigung, diese ${entityType} zu ${action}.`;
   }

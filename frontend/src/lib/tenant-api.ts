@@ -5,6 +5,7 @@
  */
 
 import { clearSessionCache, sessionFetch } from "./session-cache";
+import { mapAccountTenant, type AccountTenantBackend } from "./account-tenants";
 
 const TENANT_ACCESS_DENIED_MESSAGE =
   "account does not have access to this tenant";
@@ -74,6 +75,8 @@ export interface TenantInfo {
    * admin page must stay hidden until a school explicitly enables it.
    */
   displayEnabled: boolean;
+  /** Whether staff may connect their personal calendar through CalDAV. */
+  caldavEnabled?: boolean;
   /**
    * Whether staff may correct care offerings on approved enrollments. Missing
    * metadata is treated as enabled for compatibility with older backends.
@@ -150,6 +153,7 @@ interface TenantResolveResponse {
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  caldav_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
@@ -242,6 +246,7 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       messagingEnabled: data.parent_messaging_enabled === true,
       staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
+      caldavEnabled: data.caldav_enabled === true,
       careOfferingsEnabled: data.care_offerings_enabled !== false,
       attendanceWebEnabled: data.attendance_web_enabled === true,
       attendanceLogEnabled: data.attendance_log_enabled === true,
@@ -338,15 +343,6 @@ function delay(ms: number): Promise<void> {
 }
 
 /** Backend response shape for account tenants (snake_case) */
-interface AccountTenantBackend {
-  tenant_id: number;
-  slug: string;
-  name: string;
-  subdomain: string;
-  organization_id: number;
-  organization_name: string;
-}
-
 /**
  * List tenants the current user has access to.
  * Requires an authenticated session.
@@ -357,15 +353,7 @@ export async function listAvailableTenants(): Promise<TenantSummary[]> {
     return [];
   }
   const json = (await response.json()) as { data?: AccountTenantBackend[] };
-  const items = json.data ?? [];
-  return items.map((t) => ({
-    tenantId: t.tenant_id,
-    slug: t.slug,
-    name: t.name,
-    subdomain: t.subdomain,
-    organizationId: t.organization_id,
-    organizationName: t.organization_name,
-  }));
+  return (json.data ?? []).map(mapAccountTenant);
 }
 
 /** Response shape from the switch-tenant endpoint */

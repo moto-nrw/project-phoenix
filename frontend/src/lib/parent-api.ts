@@ -8,8 +8,9 @@
  * arrive as strings per the project's frontend convention.
  */
 
-import { createLogger } from "~/lib/logger";
 import type { AppLocale } from "~/i18n/locales";
+import type { ConsentRecord, ConsentState } from "~/lib/consent-types";
+import { createLogger } from "~/lib/logger";
 import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-error-messages";
 import type {
@@ -33,6 +34,13 @@ export interface Child {
   readonly enrolled_until?: string; // ISO date
   readonly school_name: string;
   readonly school_slug: string;
+}
+
+export type ChildConsentState = ConsentState;
+
+export interface ChildConsent extends ConsentRecord {
+  readonly can_withdraw: boolean;
+  readonly can_grant: boolean;
 }
 
 // Per-child status values exposed on the enrollment-requests list.
@@ -236,6 +244,7 @@ export interface ChildFeatures {
   // scheitern würden.
   readonly care_ended?: boolean;
   readonly sick_note_enabled: boolean;
+  readonly excused_note_enabled?: boolean;
   // Whether a Krankmeldung stays pending until the OGS confirms it.
   readonly sick_requires_approval?: boolean;
   readonly notes_enabled: boolean;
@@ -248,6 +257,12 @@ export interface ChildFeatures {
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
   readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
+  // Die Schule kann eine Uhrzeit festlegen, bis zu der Eltern die Abholzeit
+  // für heute ändern dürfen (operations.parent_pickup_change_cutoff_time,
+  // #3163). Leer oder fehlend heißt: keine Frist. today_closed sagt, dass die
+  // Frist vorbei ist; der Server entscheidet das, der Client rechnet nicht nach.
+  readonly pickup_change_cutoff_time?: string;
+  readonly pickup_change_today_closed?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
   readonly related_accounts_invite_enabled: boolean;
@@ -260,6 +275,7 @@ export interface ChildFeatures {
   // Missing = the strictest reading, see lib/parent-request-reason.ts.
   readonly reason_required?: boolean;
   readonly meal_plan_enabled: boolean;
+  readonly meal_registration_enabled: boolean;
   // STATE, not a capability: the child has a pending change request (master data
   // or care schedule) awaiting an OGS decision. Lets the overview badge the
   // Stammdaten entry without fetching the full request payloads.
@@ -526,6 +542,34 @@ export async function listMyChildren(): Promise<Child[]> {
   return getJson<Child[]>("/api/parent/me/children");
 }
 
+/** Reads the four current consent and acknowledgement states for one child. */
+export async function getChildConsents(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return getJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents`,
+  );
+}
+
+/** Withdraws the voluntary photo consent and returns all updated states. */
+export async function withdrawChildPhotoConsent(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return deleteJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+  );
+}
+
+/** Records a new voluntary photo consent and returns all updated states. */
+export async function grantChildPhotoConsent(
+  studentId: string,
+): Promise<ChildConsent[]> {
+  return putJson<ChildConsent[]>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/consents/photo`,
+    {},
+  );
+}
+
 /**
  * Fetches every enrollment.requests row owned by the calling parent's
  * account, joined to phase + school + child summaries. Newest first.
@@ -540,7 +584,7 @@ export async function listMyEnrollments(): Promise<EnrollmentRequest[]> {
  * across every school (linked or not). The backend pre-filters by eligibility
  * and pre-sorts (already-linked schools first, then by school name and service
  * start), so the picker renders the list as-is. Powers the "Neue Anmeldung"
- * picker at /parents/enroll.
+ * picker at /parents/anmeldung.
  */
 export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
   return getJson<EnrollablePhase[]>("/api/parent/me/enrollable-schools");
@@ -805,6 +849,62 @@ export async function getChildMealPlan(
   );
 }
 
+type MealParticipationSource = "none" | "regular" | "override" | "sick";
+
+interface MealParticipationDay {
+  readonly date: string;
+  readonly participating: boolean;
+  readonly source: MealParticipationSource;
+  readonly changeable: boolean;
+}
+
+export interface MealParticipation {
+  readonly weekdays: number[];
+  readonly effective_from?: string;
+  readonly cutoff_time: string;
+  readonly days: MealParticipationDay[];
+}
+
+export async function getMealParticipation(
+  studentId: string,
+  from: string,
+  to: string,
+): Promise<MealParticipation> {
+  return getJson<MealParticipation>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  );
+}
+
+export async function replaceMealParticipationSchedule(
+  studentId: string,
+  weekdays: number[],
+): Promise<{ effective_from: string }> {
+  return putJson<{ effective_from: string }>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation`,
+    { weekdays },
+  );
+}
+
+export async function setMealParticipationDay(
+  studentId: string,
+  date: string,
+  participating: boolean,
+): Promise<void> {
+  await putJson<unknown>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/${encodeURIComponent(date)}`,
+    { participating },
+  );
+}
+
+export async function clearMealParticipationDay(
+  studentId: string,
+  date: string,
+): Promise<void> {
+  await deleteJson<unknown>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/meal-participation/${encodeURIComponent(date)}`,
+  );
+}
+
 /**
  * Fetches the child's active sick days (today .. +2 months by default).
  * Used to show already-reported days on the child page.
@@ -883,6 +983,11 @@ export interface ParentAnnouncement {
   // Set on rows the system wrote on the school's behalf (#2601). A
   // cancellation notice is labelled as such instead of "Elternbrief".
   readonly system_kind?: "care_cancellation";
+
+  // Scheduled reminder (#3162): set once the school's reminder went out. The
+  // feed sorts the item back to the top; read/acknowledged stay as they were.
+  readonly reminder_sent_at?: string; // ISO timestamp
+  readonly reminder_text?: string;
 }
 
 interface ParentAnnouncementOption {
@@ -958,6 +1063,41 @@ export async function fetchAnnouncementsUnreadCount(): Promise<number> {
     "/api/parent/me/news/unread-count",
   );
   return result.unread_count ?? 0;
+}
+
+/** One file attached to an announcement (#2890). */
+export interface ParentAnnouncementAttachment {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+/**
+ * Attachments of one announcement. Loaded when the guardian opens the message,
+ * not with the feed: the file only matters once the message is being read, and
+ * the audience check runs per announcement.
+ *
+ * Returns an empty list for an announcement outside the guardian's audience —
+ * the backend answers 404 there, which is the same answer it gives for an
+ * announcement that does not exist.
+ */
+export async function listAnnouncementAttachments(
+  announcementId: string,
+): Promise<ParentAnnouncementAttachment[]> {
+  const result = await getJson<{
+    attachments: ParentAnnouncementAttachment[];
+  }>(`/api/parent/me/news/${encodeURIComponent(announcementId)}/attachments`);
+  return result.attachments ?? [];
+}
+
+/** Address a guardian downloads an attachment from. */
+export function announcementAttachmentDownloadUrl(
+  announcementId: string,
+  attachmentId: string,
+): string {
+  return `/api/parent/me/news/${encodeURIComponent(announcementId)}/attachments/${encodeURIComponent(attachmentId)}/download`;
 }
 
 /**
@@ -1326,6 +1466,8 @@ interface OfferingDiffLine {
   readonly new_rule_days?: string[];
   /** Names of the selected offerings whose rule added new_rule_days. */
   readonly auto_trigger_names?: string[];
+  /** True for a Kurs. The Kurse section owns those lines (#3075). */
+  readonly is_course?: boolean;
 }
 
 /** The child's open offering change request. */
@@ -1493,6 +1635,78 @@ export async function updateOfferingChangeRequest(
   return putJson<ChildCareOfferings>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/care-offerings/requests/${encodeURIComponent(requestId)}`,
     { ...body, expected_version: expectedVersion },
+  );
+}
+
+// --- Kurse (AG requests through the offering path, #3075) ---
+
+/** Why a school shows no courses. Mirrors the backend identifiers. */
+type CoursesDisabledReason =
+  "school_disabled" | "no_enrollment" | "no_courses" | "no_permission";
+
+/** One course a family can see for their child. */
+export interface CourseItem {
+  readonly id: string;
+  readonly activity_group_id: string;
+  readonly name: string;
+  readonly description?: string;
+  /** Canonical day keys ("mon" … "sun") the course runs on. */
+  readonly available_days: string[];
+  /** Effective participant limit; absent means unlimited. */
+  readonly capacity?: number;
+  readonly free_slots?: number;
+  readonly booked: boolean;
+  readonly requested: boolean;
+  /** A requested course that was full when it was asked for. */
+  readonly waitlisted: boolean;
+  readonly waitlist_position?: number;
+}
+
+/** The Kurse section of a child. Empty with a reason when switched off. */
+export interface ChildCourses {
+  readonly enabled: boolean;
+  readonly can_request?: boolean;
+  readonly reason_required?: boolean;
+  readonly disabled_reason?: CoursesDisabledReason;
+  readonly phase_name?: string;
+  /** Date a new request would take effect on (YYYY-MM-DD). */
+  readonly effective_from?: string;
+  readonly pending_request_id?: string;
+  readonly pending_submitted_by_self: boolean;
+  /** An open care-offering request blocks a new course request. */
+  readonly other_request_pending: boolean;
+  readonly items: CourseItem[];
+}
+
+/** Returns the school's courses with this child's state. */
+export async function getChildCourses(
+  studentId: string,
+): Promise<ChildCourses> {
+  return getJson<ChildCourses>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/courses`,
+  );
+}
+
+/** Asks the OGS for one course. It takes effect only after their approval. */
+export async function requestChildCourse(
+  studentId: string,
+  courseId: string,
+  note?: string,
+): Promise<ChildCourses> {
+  return postJson<ChildCourses>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/courses/requests`,
+    { course_id: courseId, note: note ?? "" },
+  );
+}
+
+/** Takes back the guardian's own open course request. */
+export async function withdrawChildCourseRequest(
+  studentId: string,
+  requestId: string,
+): Promise<ChildCourses> {
+  return postJson<ChildCourses>(
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/courses/requests/${encodeURIComponent(requestId)}/withdraw`,
+    {},
   );
 }
 

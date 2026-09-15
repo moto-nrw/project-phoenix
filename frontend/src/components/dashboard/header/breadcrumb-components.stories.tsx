@@ -24,10 +24,6 @@ export const PageTitle: Story = {
   render: () => <PageTitleDisplay title="Meine Gruppe" />,
 };
 
-export const PageTitleScrolled: Story = {
-  render: () => <PageTitleDisplay title="Meine Gruppe" isScrolled />,
-};
-
 export const SectionDatabase: Story = {
   render: () => (
     <SectionBreadcrumb
@@ -58,11 +54,7 @@ export const SectionPlanungWithoutHub: Story = {
 
 export const SectionEltern: Story = {
   render: () => (
-    <SectionBreadcrumb
-      sectionLabel="Eltern"
-      sectionHref="/eltern"
-      pageLabel="Nachrichten"
-    />
+    <SectionBreadcrumb sectionLabel="Eltern" pageLabel="Nachrichten" />
   ),
 };
 

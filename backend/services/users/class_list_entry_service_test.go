@@ -18,7 +18,7 @@ import (
 
 func setupClassListEntryService(t *testing.T, db *bun.DB) (usersService.ClassListEntryService, *repositories.Factory) {
 	t.Helper()
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := usersService.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange)
 	return svc, repos
 }

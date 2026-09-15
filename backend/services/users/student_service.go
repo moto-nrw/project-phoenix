@@ -135,7 +135,7 @@ type StudentService interface {
 
 type studentService struct {
 	studentRepo        userModels.StudentRepository
-	privacyConsentRepo userModels.PrivacyConsentRepository
+	privacyConsentRepo PrivacyConsentStore
 	companionRepo      userModels.StudentCompanionRepository
 	studentAudit       StudentChangeRecorder
 }
@@ -144,7 +144,7 @@ type studentService struct {
 // repositories.
 func NewStudentService(
 	studentRepo userModels.StudentRepository,
-	privacyConsentRepo userModels.PrivacyConsentRepository,
+	privacyConsentRepo PrivacyConsentStore,
 	companionRepo userModels.StudentCompanionRepository,
 	studentAudit StudentChangeRecorder,
 ) StudentService {
@@ -336,15 +336,14 @@ func (s *studentService) VerifyCompanionStrandingBatch(ctx context.Context) erro
 // subjects, duplicates included — LockCompanionGraph folds them.
 func (s *studentService) companionIDsOfMany(ctx context.Context, subjectIDs []int64) ([]int64, error) {
 	out := make([]int64, 0, len(subjectIDs))
+	links, err := s.ListCompanionsForStudents(ctx, subjectIDs)
+	if err != nil {
+		return nil, err
+	}
 	for _, subjectID := range subjectIDs {
-		if subjectID <= 0 {
-			continue
+		for _, link := range links[subjectID] {
+			out = append(out, link.CompanionStudentID)
 		}
-		ids, err := s.ListCompanionIDs(ctx, subjectID)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, ids...)
 	}
 	return out, nil
 }
@@ -1011,4 +1010,10 @@ func (s *studentService) extendAccompaniedDays(
 
 func (s *studentService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	return s.companionRepo.CompanionIDsForWeekday(ctx, studentIDs, weekday)
+}
+
+type PrivacyConsentStore interface {
+	FindByStudentID(context.Context, int64) ([]*userModels.PrivacyConsent, error)
+	Create(context.Context, *userModels.PrivacyConsent) error
+	Update(context.Context, *userModels.PrivacyConsent) error
 }

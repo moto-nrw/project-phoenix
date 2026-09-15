@@ -71,19 +71,6 @@ func TestPrivacyConsentService_Accept_NoDuration(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsentService_Revoke(t *testing.T) {
-	t.Parallel()
-
-	now := time.Now()
-	svc := NewPrivacyConsentService(nil, nil)
-	consent := &userModels.PrivacyConsent{Accepted: true, AcceptedAt: &now}
-
-	svc.Revoke(consent)
-	if consent.Accepted {
-		t.Errorf("Revoke() failed to set Accepted to false")
-	}
-}
-
 func TestPrivacyConsentService_DeriveExpiry(t *testing.T) {
 	t.Parallel()
 
@@ -117,140 +104,39 @@ func TestPrivacyConsentService_DeriveExpiry(t *testing.T) {
 	})
 }
 
-func TestPrivacyConsentService_IsValid(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
-	future := now.AddDate(0, 0, 30)
-	past := now.AddDate(0, 0, -30)
-	svc := NewPrivacyConsentService(nil, nil)
-
-	tests := []struct {
-		name     string
-		pc       *userModels.PrivacyConsent
-		expected bool
-	}{
-		{"valid", &userModels.PrivacyConsent{Accepted: true, AcceptedAt: &now, ExpiresAt: &future}, true},
-		{"not accepted", &userModels.PrivacyConsent{Accepted: false, ExpiresAt: &future}, false},
-		{"expired", &userModels.PrivacyConsent{Accepted: true, ExpiresAt: &past}, false},
-		{"no expiration", &userModels.PrivacyConsent{Accepted: true, AcceptedAt: &now}, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := svc.IsValid(tt.pc, now); got != tt.expected {
-				t.Errorf("IsValid() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestPrivacyConsentService_IsExpired(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
-	future := now.AddDate(0, 0, 30)
-	past := now.AddDate(0, 0, -30)
-	svc := NewPrivacyConsentService(nil, nil)
-
-	tests := []struct {
-		name     string
-		pc       *userModels.PrivacyConsent
-		expected bool
-	}{
-		{"not expired", &userModels.PrivacyConsent{ExpiresAt: &future}, false},
-		{"expired", &userModels.PrivacyConsent{ExpiresAt: &past}, true},
-		{"no expiration", &userModels.PrivacyConsent{ExpiresAt: nil}, false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := svc.IsExpired(tt.pc, now); got != tt.expected {
-				t.Errorf("IsExpired() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestPrivacyConsentService_GetTimeToExpiry(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
-	future := now.AddDate(0, 0, 30)
-	past := now.AddDate(0, 0, -30)
-	svc := NewPrivacyConsentService(nil, nil)
-
-	t.Run("future expiry returns positive", func(t *testing.T) {
-		got := svc.GetTimeToExpiry(&userModels.PrivacyConsent{ExpiresAt: &future}, now)
-		if got == nil || *got <= 0 {
-			t.Errorf("GetTimeToExpiry() = %v, want > 0", got)
-		}
-	})
-
-	t.Run("past expiry returns zero", func(t *testing.T) {
-		got := svc.GetTimeToExpiry(&userModels.PrivacyConsent{ExpiresAt: &past}, now)
-		if got == nil || *got != 0 {
-			t.Errorf("GetTimeToExpiry() = %v, want 0", got)
-		}
-	})
-
-	t.Run("no expiry returns nil", func(t *testing.T) {
-		if got := svc.GetTimeToExpiry(&userModels.PrivacyConsent{ExpiresAt: nil}, now); got != nil {
-			t.Errorf("GetTimeToExpiry() = %v, want nil", got)
-		}
-	})
-}
-
-func TestPrivacyConsentService_ResolveDataRetentionDays(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-
-	t.Run("consent value wins when set", func(t *testing.T) {
-		svc := NewPrivacyConsentService(fakeConsentSettings{hasOverride: true, overrideVal: 7}, nil)
-		got := svc.ResolveDataRetentionDays(ctx, &userModels.PrivacyConsent{DataRetentionDays: 15})
-		if got != 15 {
-			t.Errorf("ResolveDataRetentionDays() = %v, want 15", got)
-		}
-	})
-
-	t.Run("nil settings falls back to constant default", func(t *testing.T) {
-		svc := NewPrivacyConsentService(nil, nil)
-		got := svc.ResolveDataRetentionDays(ctx, &userModels.PrivacyConsent{DataRetentionDays: 0})
-		if got != userModels.DefaultDataRetentionDays {
-			t.Errorf("ResolveDataRetentionDays() = %v, want %v", got, userModels.DefaultDataRetentionDays)
-		}
-	})
-
-	t.Run("no override falls back to constant default", func(t *testing.T) {
-		svc := NewPrivacyConsentService(fakeConsentSettings{hasOverride: false}, nil)
-		got := svc.ResolveDataRetentionDays(ctx, &userModels.PrivacyConsent{DataRetentionDays: 0})
-		if got != userModels.DefaultDataRetentionDays {
-			t.Errorf("ResolveDataRetentionDays() = %v, want %v", got, userModels.DefaultDataRetentionDays)
-		}
-	})
-
-	t.Run("tenant override applied", func(t *testing.T) {
-		svc := NewPrivacyConsentService(fakeConsentSettings{hasOverride: true, overrideVal: 21}, nil)
-		got := svc.ResolveDataRetentionDays(ctx, &userModels.PrivacyConsent{DataRetentionDays: 0})
-		if got != 21 {
-			t.Errorf("ResolveDataRetentionDays() = %v, want 21", got)
-		}
-	})
-
-	t.Run("nil consent uses default", func(t *testing.T) {
-		svc := NewPrivacyConsentService(fakeConsentSettings{hasOverride: false}, nil)
-		got := svc.ResolveDataRetentionDays(ctx, nil)
-		if got != userModels.DefaultDataRetentionDays {
-			t.Errorf("ResolveDataRetentionDays(nil) = %v, want %v", got, userModels.DefaultDataRetentionDays)
-		}
-	})
-}
-
 func TestPrivacyConsentService_KeyConstant(t *testing.T) {
 	t.Parallel()
 
 	if configModel.KeyPrivacyConsentRetentionDays != "gdpr.privacy_consent_retention_days" {
 		t.Errorf("unexpected setting key: %s", configModel.KeyPrivacyConsentRetentionDays)
 	}
+}
+
+// The tenant default is what the student privacy response falls back to when a
+// consent carries no retention window of its own.
+func TestPrivacyConsentService_DefaultDataRetentionDays(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	t.Run("nil settings falls back to constant default", func(t *testing.T) {
+		svc := NewPrivacyConsentService(nil, nil)
+		if got := svc.DefaultDataRetentionDays(ctx); got != userModels.DefaultDataRetentionDays {
+			t.Errorf("DefaultDataRetentionDays() = %v, want %v", got, userModels.DefaultDataRetentionDays)
+		}
+	})
+
+	t.Run("no override falls back to constant default", func(t *testing.T) {
+		svc := NewPrivacyConsentService(fakeConsentSettings{hasOverride: false}, nil)
+		if got := svc.DefaultDataRetentionDays(ctx); got != userModels.DefaultDataRetentionDays {
+			t.Errorf("DefaultDataRetentionDays() = %v, want %v", got, userModels.DefaultDataRetentionDays)
+		}
+	})
+
+	t.Run("tenant override applied", func(t *testing.T) {
+		svc := NewPrivacyConsentService(fakeConsentSettings{hasOverride: true, overrideVal: 21}, nil)
+		if got := svc.DefaultDataRetentionDays(ctx); got != 21 {
+			t.Errorf("DefaultDataRetentionDays() = %v, want 21", got)
+		}
+	})
 }

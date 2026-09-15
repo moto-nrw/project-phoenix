@@ -40,6 +40,7 @@ func insertMensaTestCategory(t *testing.T, db *testpkg.DB, tenantID int64, name 
 }
 
 func TestBackfillMensaCategory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -51,8 +52,10 @@ func TestBackfillMensaCategory(t *testing.T) {
 	withMensa := testpkg.UniqueTestTenantID(t)
 
 	testpkg.EnsureTestTenant(t, db, withoutMensa)
+
+	testpkg.OwnTenantRows(t, db, withoutMensa)
 	testpkg.EnsureTestTenant(t, db, withMensa)
-	defer testpkg.CleanupTenantTestData(t, db, withoutMensa, withMensa)
+	testpkg.OwnTenantRows(t, db, withMensa)
 
 	insertMensaTestCategory(t, db, withoutMensa, "Sport")
 	insertMensaTestCategory(t, db, withMensa, "mensa")
@@ -71,12 +74,13 @@ func TestBackfillMensaCategory(t *testing.T) {
 }
 
 func TestBackfillMensaCategoryDownPreservesPreexistingCategory(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	insertMensaTestCategory(t, db, tenantID, "Mensa")
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
 
 	require.NoError(t, backfillMensaCategoryDown(ctx, db))
 	assert.Equal(t, 1, countCategoriesNamed(t, db, tenantID, "Mensa"))

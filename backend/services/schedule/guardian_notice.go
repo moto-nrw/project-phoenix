@@ -8,17 +8,16 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services/announcement"
+	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Guardian notice on cancellation (#2601).
 //
 // Cancelling a block can inform the families of the booked children in the
-// same request. The notice is a system-authored parent announcement (see
-// services/announcement/care_cancellation.go); this file owns the schedule
-// side: which children count, when a notice is refused, and that the
-// cancellation and the notice commit together.
+// same request. The notice is a system-authored parent announcement; this file
+// owns the schedule side: which children count, when a notice is refused, and
+// that the cancellation and the notice commit together.
 
 // ErrGuardianNoticeInvalid marks a notice request the service refuses before
 // anything is written: empty text, no actor, or a block in the past.
@@ -190,16 +189,16 @@ func (s *instanceService) publishGuardianNotice(ctx context.Context, instance *s
 		if errors.Is(err, announcement.ErrCareCancellationDisabled) {
 			return nil, fmt.Errorf("%w: %w", ErrGuardianNoticeDisabled, err)
 		}
-		if errors.Is(err, announcement.ErrValidation) {
+		if errors.Is(err, announcement.ErrParentAnnouncementValidation) {
 			return nil, fmt.Errorf("%w: %w", ErrGuardianNoticeInvalid, err)
 		}
 		return nil, &ScheduleError{Op: "publish guardian notice", Err: err}
 	}
-	result.AnnouncementID = published.Announcement.ID
+	result.AnnouncementID = published.AnnouncementID
 	result.FamilyCount = published.RecipientCount
 	s.getLogger().Info("guardian notice published for cancelled block",
 		slog.Int64("instance_id", instance.ID),
-		slog.Int64("announcement_id", published.Announcement.ID),
+		slog.Int64("announcement_id", published.AnnouncementID),
 		slog.Int("child_count", len(studentIDs)),
 		slog.Int("family_count", published.RecipientCount),
 	)

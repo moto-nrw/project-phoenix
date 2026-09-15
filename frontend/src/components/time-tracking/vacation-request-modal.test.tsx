@@ -7,7 +7,8 @@ import {
 } from "@testing-library/react";
 import type { ReactNode } from "react";
 import type { DateRange, Matcher } from "react-day-picker";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import { ABSENCES_REFRESH_EVENT } from "~/lib/absence-helpers";
 import type { StaffAbsence } from "~/lib/time-tracking-helpers";
@@ -104,16 +105,11 @@ function questionedVacation(): StaffAbsence {
 
 describe("VacationRequestModal questioned absences", () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date(2027, 6, 1, 10, 0, 0));
+    setTestClock(new Date(2027, 6, 1, 10, 0, 0));
     mocks.calendarProps = null;
     mocks.requestVacation.mockReset();
     mocks.toastError.mockReset();
     mocks.toastSuccess.mockReset();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it("marks questioned vacation dates with their own calendar modifier", () => {

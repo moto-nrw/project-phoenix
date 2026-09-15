@@ -135,27 +135,13 @@ export function getDeviceStatusDisplayName(status: string): string {
  */
 export function getDeviceStatusColor(status: string): string {
   const colorMap: Record<string, string> = {
-    active: "bg-green-100 text-green-800",
+    active: "bg-moto-green-soft text-moto-green-strong",
     inactive: "bg-gray-100 text-gray-800",
-    maintenance: "bg-yellow-100 text-yellow-800",
-    offline: "bg-red-100 text-red-800",
+    maintenance: "bg-moto-amber-soft text-moto-amber-strong",
+    offline: "bg-moto-red-soft text-moto-red-strong",
   };
 
   return colorMap[status] ?? "bg-gray-100 text-gray-800";
-}
-
-/**
- * Get color classes for online devices
- */
-export function getOnlineDeviceColor(): string {
-  return "bg-green-100 text-green-800";
-}
-
-/**
- * Get color classes for offline devices
- */
-export function getOfflineDeviceColor(): string {
-  return "bg-red-100 text-red-800";
 }
 
 /**

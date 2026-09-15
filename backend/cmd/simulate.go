@@ -84,9 +84,9 @@ var defaultSimulateRoot = simulateRoot{
 var simulateCmd = &cobra.Command{
 	Use:   "simulate",
 	Short: "Run simulation commands against a seeded local stack",
-	Long: `Groups the simulation subcommands. All of them read .seed-state.json (written by the seed command)
-and drive the API of a seeded local stack: full-day runs a one-shot day, status prints the current
-state, and live generates continuous random events.`,
+	Long: `Groups the simulation subcommands. All of them read the versioned profiles in
+.seed-state.json (written by the seed command) and drive the API of a seeded local stack.
+The default profile is vollbetrieb; --profile selects another semantic profile key.`,
 }
 
 var simulateFullDayCmd = &cobra.Command{
@@ -97,11 +97,13 @@ var simulateFullDayCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		statePath, _ := cmd.Flags().GetString("state")
+		profile, _ := cmd.Flags().GetString("profile")
 		closeSessions, _ := cmd.Flags().GetBool("close")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
 		opts := simulate.FullDayOptions{
 			StatePath: statePath,
+			Profile:   profile,
 			Close:     closeSessions,
 			Verbose:   verbose,
 		}
@@ -117,10 +119,12 @@ var simulateStatusCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		statePath, _ := cmd.Flags().GetString("state")
+		profile, _ := cmd.Flags().GetString("profile")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
 		opts := simulate.StatusOptions{
 			StatePath: statePath,
+			Profile:   profile,
 			Verbose:   verbose,
 		}
 		return defaultSimulateRoot.runStatus(ctx, opts)
@@ -135,11 +139,13 @@ var simulateLiveCmd = &cobra.Command{
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		statePath, _ := cmd.Flags().GetString("state")
+		profile, _ := cmd.Flags().GetString("profile")
 		interval, _ := cmd.Flags().GetDuration("interval")
 		verbose, _ := cmd.Flags().GetBool("verbose")
 
 		opts := simulate.LiveOptions{
 			StatePath: statePath,
+			Profile:   profile,
 			Interval:  interval,
 			Verbose:   verbose,
 		}
@@ -155,15 +161,18 @@ func init() {
 
 	// full-day flags
 	simulateFullDayCmd.Flags().String("state", ".seed-state.json", "Path to .seed-state.json")
+	simulateFullDayCmd.Flags().String("profile", simulate.DefaultProfileKey, "Semantic demo school profile key")
 	simulateFullDayCmd.Flags().Bool("close", false, "End sessions and checkout all students at the end")
 	simulateFullDayCmd.Flags().Bool("verbose", false, "Verbose output")
 
 	// status flags
 	simulateStatusCmd.Flags().String("state", ".seed-state.json", "Path to .seed-state.json")
+	simulateStatusCmd.Flags().String("profile", simulate.DefaultProfileKey, "Semantic demo school profile key")
 	simulateStatusCmd.Flags().Bool("verbose", false, "Verbose output")
 
 	// live flags
 	simulateLiveCmd.Flags().String("state", ".seed-state.json", "Path to .seed-state.json")
+	simulateLiveCmd.Flags().String("profile", simulate.DefaultProfileKey, "Semantic demo school profile key")
 	simulateLiveCmd.Flags().Duration("interval", 10*time.Second, "Time between actions")
 	simulateLiveCmd.Flags().Bool("verbose", false, "Verbose output")
 }

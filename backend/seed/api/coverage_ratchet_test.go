@@ -28,14 +28,26 @@ import (
 // limited to security/session artifacts, one-time migration backups, legacy
 // compatibility tables, and transient lifecycle state.
 var seedCoverageExemptions = map[string]string{
-	"active.combined_groups":               "empty in prod too",
-	"active.group_mappings":                "empty in prod too",
-	"active.scheduled_checkouts":           "empty in prod too",
-	"active.staff_month_balance_snapshots": "empty in prod too",
-	"active.staff_vacation_openings":       "empty in prod too",
+	"active.presence_backfill_checkpoints": "one-time migration ledger (#2761); only the explicit backfill CLI writes checkpoints, never seed/API traffic",
+	"active.presence_backfill_batches":     "one-time migration evidence (#2761); empty unless an operator explicitly runs the backfill",
+	// Expand #2718 explicitly requires empty targets and forbids dual writes.
+	// Remove these exemptions when #2762 switches the real seed/API callers.
+	"active.activity_sessions":           "empty Expand target (#2718); old timetable rows remain authoritative until #2762",
+	"active.activity_session_attendance": "empty Expand target (#2718); old participant rows remain authoritative until #2762",
+	// Expand #2716 explicitly requires empty targets and forbids dual writes.
+	// Remove these exemptions when the guardian Cutover switches the real seed/API callers.
+	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
+	"active.combined_groups":                    "empty in prod too",
+	"active.group_mappings":                     "empty in prod too",
+	"active.scheduled_checkouts":                "empty in prod too",
+	"active.staff_month_balance_snapshots":      "empty in prod too",
+	"active.staff_vacation_openings":            "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",
+	"audit.export_transfers":            "only a real SFTP transfer to an external counterpart writes here; the address policy refuses the loopback target a seeder could offer",
 	"audit.personnel_number_changes":    "empty in prod too",
 	"audit.room_color_migration_backup": "one-time migration snapshot; only installations with legacy reserved room colors can contain rows",
 	"audit.wc_alias_migration_backup":   "empty in prod too",
@@ -67,14 +79,17 @@ var seedCoverageExemptions = map[string]string{
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
 
-	"enrollment.care_offering_auto_triggers": "empty in prod too",
+	"enrollment.care_offering_auto_triggers":    "empty in prod too",
+	"enrollment.request_child_offerings_legacy": "rollback archive retained by Cutover #2714; populated only from pre-cutover data or previous-image compatibility writes, never current seed/API traffic",
 
 	"feedback.entries": "empty in prod too",
 
 	"iot.push_subscriptions":   "browser/VAPID-bound state; a server-side seed cannot create an honest browser subscription",
 	"iot.pwa_standalone_usage": "not in prod yet (migration newer than the deployed image)",
 
-	"meta.migration_metadata": "empty in prod too",
+	"meta.meal_participation_permission_grants":     "one-time migration ledger; only upgrades with pre-existing guardian relationships can contain rows",
+	"meta.migration_metadata":                       "empty in prod too",
+	"meta.parent_student_consent_permission_grants": "one-time migration ledger; only upgrades with pre-existing guardian relationships can contain rows",
 
 	"platform.operator_email_change_tokens": "empty in prod too",
 	"platform.operator_invitation_tokens":   "empty in prod too",
@@ -93,10 +108,13 @@ var seedCoverageExemptions = map[string]string{
 	"users.guests":                            "empty in prod too",
 	"users.parent_announcement_options":       "empty in prod too",
 	"users.parent_announcement_responses":     "empty in prod too",
+	"users.parent_request_rss_feeds":          "user-created capability credential; seeding only its hash would create an unusable subscription",
 	"users.persons_guardians":                 "empty in prod too",
 	"users.profiles":                          "legacy compatibility table; current account provisioning uses persons plus typed staff/guardian records",
 	"users.staff_document_file_cleanup":       "empty in prod too",
 	"users.staff_documents":                   "empty in prod too",
+	"users.staff_school_memberships":          "Expand #2715 requires empty target storage until Cutover; users.staff remains authoritative",
+	"users.staff_employment_profiles":         "Expand #2715 requires empty target storage until Cutover; users.staff remains authoritative",
 	"users.staff_financial_data":              "empty in prod too",
 	"users.staff_qualifications":              "empty in prod too",
 	"users.student_companions":                "empty in prod too",
@@ -115,6 +133,7 @@ var seedCoverageDebt = map[string]string{}
 // is not stale classification debt.
 var seedCoverageTransient = map[string]string{
 	"auth.invitation_tokens": "short-lived invitation state; successful acceptance consumes the seeded tokens",
+	"platform.push_outbox":   "transient delivery state that requires an honest browser/VAPID-bound push subscription, which the server-side seed cannot create",
 }
 
 var seedCoverageAllowlist = mergeCoverageClassifications(seedCoverageExemptions, seedCoverageTransient, seedCoverageDebt)

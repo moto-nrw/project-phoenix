@@ -2,24 +2,30 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
-import { isPlanningPath } from "~/lib/planning-navigation";
-import {
-  isCommunicationPath,
-  isElternPath,
-  isEnrollmentPath,
-} from "~/lib/section-navigation";
+import { isEnrollmentPath } from "~/lib/section-navigation";
 
+/**
+ * Die Akkordeon-Bereiche innerhalb der Gruppen (#2826): Gruppen und
+ * Aufsichten kommen aus der Sitzung, Datenverwaltung und Anmeldungen haben
+ * eine Hub-Seite mit festen Unterseiten. Eltern, Team und Planung sind
+ * keine Akkordeons mehr, sondern Gruppen der Seitenleiste
+ * (use-sidebar-groups.ts).
+ */
 type AccordionSection =
-  | "groups"
-  | "supervisions"
-  | "database"
-  | "planning"
-  | "enrollments"
-  | "eltern"
-  | "kommunikation"
-  | null;
+  "groups" | "supervisions" | "database" | "enrollments" | null;
 
 const STORAGE_KEY = "sidebar-accordion-expanded";
+
+const KNOWN_SECTIONS = new Set<string>([
+  "groups",
+  "supervisions",
+  "database",
+  "enrollments",
+]);
+
+function isAccordionSection(value: string | null): value is AccordionSection {
+  return value !== null && KNOWN_SECTIONS.has(value);
+}
 
 /**
  * Derives which accordion section should be expanded based on the current pathname.
@@ -33,20 +39,14 @@ function sectionFromPathname(
   if (pathname.startsWith("/ogs-groups")) return "groups";
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
-  if (isPlanningPath(pathname)) return "planning";
   if (isEnrollmentPath(pathname)) return "enrollments";
-  if (isElternPath(pathname)) return "eltern";
-  if (isCommunicationPath(pathname)) return "kommunikation";
 
   // Child pages: keep the originating accordion section open
   if (fromParam) {
     if (fromParam.startsWith("/ogs-groups")) return "groups";
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
-    if (isPlanningPath(fromParam)) return "planning";
     if (isEnrollmentPath(fromParam)) return "enrollments";
-    if (isElternPath(fromParam)) return "eltern";
-    if (isCommunicationPath(fromParam)) return "kommunikation";
   }
 
   return null;
@@ -77,15 +77,9 @@ export function useSidebarAccordion(
   useEffect(() => {
     if (sectionFromPathname(pathname, fromParam)) return; // pathname already decided
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (
-      stored === "groups" ||
-      stored === "supervisions" ||
-      stored === "database" ||
-      stored === "planning" ||
-      stored === "enrollments" ||
-      stored === "eltern" ||
-      stored === "kommunikation"
-    ) {
+    // Alte Werte aus der Zeit vor #2826 ("planning", "eltern",
+    // "kommunikation") fallen hier durch: die Bereiche sind jetzt Gruppen.
+    if (isAccordionSection(stored)) {
       setExpanded(stored);
     }
     // Only run on mount

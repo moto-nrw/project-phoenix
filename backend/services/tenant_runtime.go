@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -43,6 +44,10 @@ func BindTenantRuntime(
 	}); ok {
 		runtime = runtime.WithContextAdapters(adapter.ContextWithTenant, adapter.ContextWithTransaction)
 	}
+	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context {
+		return auditModels.WithTransaction(ctx, nil)
+	})
+	runtime = runtime.WithContextAdapters(auditModels.WithTenantID, auditModels.WithTransaction)
 	return runtime, nil
 }
 
@@ -55,6 +60,11 @@ func ObserveUnitOfWorkPoolWait(ctx context.Context, duration time.Duration) {
 func ObserveUnitOfWorkLockWait(ctx context.Context, duration time.Duration) {
 	tenant.ObserveLockWait(ctx, duration)
 }
+
+// TenantRuntime is the unit of work composed services run tenant work under.
+// Package-local callers name it through this alias so composition tests stay
+// free of the runtime package.
+type TenantRuntime = tenant.UnitOfWork
 
 type tenantRuntimeSetter interface {
 	SetTenantRuntime(tenant.UnitOfWork)

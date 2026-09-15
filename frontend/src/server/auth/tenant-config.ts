@@ -6,6 +6,7 @@
  * SignIn page: "/" (tenant login, resolved by subdomain proxy)
  */
 
+import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import DiscordProvider from "next-auth/providers/discord";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -50,7 +51,11 @@ export const tenantAuthConfig = {
             logger.debug("handling internal token refresh", {});
           }
 
-          const payload = parseJwtPayload(creds.token);
+          const payload = await validateSessionToken(
+            creds.token,
+            "tenant",
+            creds.refreshToken,
+          );
           if (!payload) return null;
 
           const email = payload.email ?? payload.sub ?? "";

@@ -59,7 +59,12 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/tenant-context", () => ({
   useCareOfferingsEnabled: mocks.useCareOfferingsEnabled,
+  useTenantRoutingModeSafe: () => "path",
   useTenantSlugSafe: () => "demo",
+}));
+
+vi.mock("~/components/ui/mobile-back-button", () => ({
+  MobileBackButton: () => null,
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -74,7 +79,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 }));
 
 vi.mock("~/lib/enrollment-public-url", () => ({
-  useEnrollmentPublicUrl: () => "http://demo.localhost:3000/enroll/1",
+  useEnrollmentPublicUrl: () => "http://demo.localhost:3000/anmeldung/1",
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -216,8 +221,12 @@ function report(overrides: Record<string, unknown> = {}) {
 
 async function renderPhase() {
   render(<AdminEnrollmentPhaseDetail phaseId="1" />);
+  // Die Filter sitzen seit der UI-Vereinheitlichung in der Kopfkarte des
+  // Seitengerüsts; der Angebotsfilter steht, sobald die Phase geladen ist.
   await waitFor(() => {
-    expect(screen.getByText("Anmeldungen prüfen und auswerten")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
+    ).toBeVisible();
   });
 }
 
@@ -238,6 +247,14 @@ beforeEach(() => {
 });
 
 describe("AdminEnrollmentPhaseDetail", () => {
+  it("keeps the tenant in the parent enrollment link in path routing", async () => {
+    await renderPhase();
+
+    expect(
+      screen.getByRole("link", { name: "Elternansicht öffnen" }),
+    ).toHaveAttribute("href", "/demo/anmeldung/1");
+  });
+
   it("renders care offerings and starts with all statuses", async () => {
     await renderPhase();
 
@@ -247,9 +264,7 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(mocks.getCareUsageReport.mock.calls[0]?.[0]).not.toHaveProperty(
       "care_offering_ids",
     );
-    expect(screen.getByRole("combobox", { name: "Status" })).toHaveTextContent(
-      "Alle",
-    );
+    expect(screen.getByRole("button", { name: "Alle Status" })).toBeVisible();
     expect(
       screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
     ).toHaveTextContent("2 Angebote");
@@ -330,9 +345,8 @@ describe("AdminEnrollmentPhaseDetail", () => {
       );
     });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Berücksichtigte Angebote/ }),
-    );
+    // Das Menü bleibt nach einer Auswahl offen; ein zweiter Klick auf den
+    // Auslöser würde es schließen.
     fireEvent.click(screen.getByRole("checkbox", { name: /Kurzbetreuung/ }));
 
     await waitFor(() => {
@@ -477,15 +491,15 @@ describe("AdminEnrollmentPhaseDetail", () => {
     expect(screen.queryByText("7 Tage")).not.toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("combobox", { name: "Anzahl Betreuungstage" }),
+      screen.getByRole("button", { name: "Alle Betreuungstage" }),
     );
     expect(
-      screen.queryByRole("option", { name: "6 Tage" }),
+      screen.queryByRole("button", { name: "6 Tage" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("option", { name: "7 Tage" }),
+      screen.queryByRole("button", { name: "7 Tage" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("option", { name: "0 Tage" }));
+    fireEvent.click(screen.getByRole("button", { name: "0 Tage" }));
 
     await waitFor(() => {
       expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(

@@ -2,12 +2,11 @@ package audit
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
 
@@ -19,58 +18,51 @@ const (
 
 // DataDeletionRepository implements audit.DataDeletionRepository interface
 type DataDeletionRepository struct {
-	*base.Repository[*audit.DataDeletion]
-	db *bun.DB
+	runtime Runtime
 }
 
 // NewDataDeletionRepository creates a new DataDeletionRepository
-func NewDataDeletionRepository(db *bun.DB) audit.DataDeletionRepository {
-	repo := base.NewRepository[*audit.DataDeletion](db, "audit.data_deletions", "DataDeletion")
-	repo.TenantScoped = true
-	return &DataDeletionRepository{
-		Repository: repo,
-		db:         db,
-	}
+func NewDataDeletionRepository(runtime Runtime) *DataDeletionRepository {
+	return &DataDeletionRepository{runtime: requireRuntime(runtime)}
 }
 
 // Create overrides base Create to handle validation
 func (r *DataDeletionRepository) Create(ctx context.Context, deletion *audit.DataDeletion) error {
 	if deletion == nil {
-		return &modelBase.DatabaseError{
-			Op:  "create",
-			Err: errors.New("deletion cannot be nil"),
-		}
+		return errors.New("data deletion cannot be nil")
 	}
+	return NewAppender(r.runtime).Append(ctx, deletion)
+}
 
-	// Validate the deletion record
-	if err := deletion.Validate(); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "validate",
-			Err: base.TranslateNotFound(err),
+func (r *DataDeletionRepository) FindByID(ctx context.Context, id interface{}) (*audit.DataDeletion, error) {
+	var deletion audit.DataDeletion
+	query := runtimeDB(ctx, r.runtime).NewSelect().Model(&deletion).
+		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
+		Where(`"data_deletion".id = ?`, id)
+	query = withDataDeletionTenant(ctx, r.runtime, query)
+	if err := query.Scan(ctx); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("data deletion not found")
 		}
+		return nil, wrapDatabase("find data deletion", err)
 	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, deletion)
+	return &deletion, nil
 }
 
 // FindByStudentID finds all deletion records for a specific student
 func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where("student_id = ?", studentID)
 
-	query = base.WithTenantFilter(ctx, query, "data_deletion")
+	query = withDataDeletionTenant(ctx, r.runtime, query)
 
 	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by student ID",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("find data deletions by student ID", err)
 	}
 
 	return deletions, nil
@@ -79,21 +71,18 @@ func (r *DataDeletionRepository) FindByStudentID(ctx context.Context, studentID 
 // FindByDateRange finds all deletion records within a date range
 func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate, endDate time.Time) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where("deleted_at >= ?", startDate).
 		Where("deleted_at <= ?", endDate)
 
-	query = base.WithTenantFilter(ctx, query, "data_deletion")
+	query = withDataDeletionTenant(ctx, r.runtime, query)
 
 	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by date range",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("find data deletions by date range", err)
 	}
 
 	return deletions, nil
@@ -102,20 +91,17 @@ func (r *DataDeletionRepository) FindByDateRange(ctx context.Context, startDate,
 // FindByType finds all deletion records of a specific type
 func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType string) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`).
 		Where(whereDeletionTypeEquals, deletionType)
 
-	query = base.WithTenantFilter(ctx, query, "data_deletion")
+	query = withDataDeletionTenant(ctx, r.runtime, query)
 
 	err := query.Order(orderByDeletedAtDesc).Scan(ctx)
 
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by type",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("find data deletions by type", err)
 	}
 
 	return deletions, nil
@@ -124,11 +110,11 @@ func (r *DataDeletionRepository) FindByType(ctx context.Context, deletionType st
 // List overrides the base List method to apply proper filtering
 func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]interface{}) ([]*audit.DataDeletion, error) {
 	var deletions []*audit.DataDeletion
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query := runtimeDB(ctx, r.runtime).NewSelect().
 		Model(&deletions).
 		ModelTableExpr(`audit.data_deletions AS "data_deletion"`)
 
-	query = base.WithTenantFilter(ctx, query, "data_deletion")
+	query = withDataDeletionTenant(ctx, r.runtime, query)
 
 	query = query.Order(orderByDeletedAtDesc)
 
@@ -150,11 +136,41 @@ func (r *DataDeletionRepository) List(ctx context.Context, filters map[string]in
 
 	err := query.Scan(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: base.TranslateNotFound(err),
-		}
+		return nil, wrapDatabase("list data deletions", err)
 	}
 
 	return deletions, nil
+}
+
+func (r *DataDeletionRepository) ListRecentRetentionSummaries(
+	ctx context.Context,
+	since time.Time,
+	limit int,
+) ([]audit.RecentDeletionSummary, error) {
+	if limit <= 0 {
+		return nil, errors.New("recent deletion summary limit must be positive")
+	}
+	var summaries []audit.RecentDeletionSummary
+	query := runtimeDB(ctx, r.runtime).NewSelect().
+		TableExpr(`audit.data_deletions AS "data_deletion"`).
+		ColumnExpr(`TO_CHAR("data_deletion".deleted_at, 'YYYY-MM-DD') AS date`).
+		ColumnExpr(`SUM("data_deletion".records_deleted) AS records_deleted`).
+		ColumnExpr(`COUNT(DISTINCT "data_deletion".student_id) AS student_count`).
+		Where(`"data_deletion".deletion_type = ?`, audit.DeletionTypeVisitRetention).
+		Where(`"data_deletion".deleted_at >= ?`, since).
+		GroupExpr(`TO_CHAR("data_deletion".deleted_at, 'YYYY-MM-DD')`).
+		OrderExpr(`date DESC`).
+		Limit(limit)
+	query = withDataDeletionTenant(ctx, r.runtime, query)
+	if err := query.Scan(ctx, &summaries); err != nil {
+		return nil, wrapDatabase("list recent retention deletion summaries", err)
+	}
+	return summaries, nil
+}
+
+func withDataDeletionTenant(ctx context.Context, runtime Runtime, query *bun.SelectQuery) *bun.SelectQuery {
+	if tenantID := runtimeTenantID(ctx, runtime); tenantID > 0 {
+		return query.Where(`"data_deletion".tenant_id = ?`, tenantID)
+	}
+	return query
 }

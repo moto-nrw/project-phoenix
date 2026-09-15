@@ -130,13 +130,26 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			wantErr:           "student_ids must be empty",
 		},
 		{
-			name:              "per-weekday roster next to a source is rejected",
+			// #3165: the source owns the child list, the planner still owns
+			// who supervises which weekday.
+			name:              "per-weekday staff next to a source is valid",
 			sourceOfferingIDs: []int64{12},
 			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
-			weekdayAssignments: []WeekdayRosterAssignment{{
-				Weekday: activitiesModel.WeekdayMonday,
-			}},
-			wantErr: "weekday_assignments must be empty",
+			weekdayAssignments: []WeekdayRosterAssignment{
+				{Weekday: activitiesModel.WeekdayMonday, StaffIDs: []int64{31}, PrimaryStaffID: int64Ptr(31)},
+				{Weekday: activitiesModel.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{}},
+				{Weekday: activitiesModel.WeekdayWednesday},
+			},
+		},
+		{
+			name:              "per-weekday child list next to a source is rejected",
+			sourceOfferingIDs: []int64{12},
+			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
+			weekdayAssignments: []WeekdayRosterAssignment{
+				{Weekday: activitiesModel.WeekdayMonday, StaffIDs: []int64{31}},
+				{Weekday: activitiesModel.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{21}},
+			},
+			wantErr: "weekday_assignments must not contain student_ids when an offering source is set",
 		},
 	}
 

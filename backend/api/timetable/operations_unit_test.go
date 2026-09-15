@@ -13,11 +13,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -378,7 +381,7 @@ func TestOperationsCreateAndStartSpontaneousRollsBackNon5xxFailures(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	guardianRepo := repositories.NewFactory(db).GuardianProfile
+	guardianRepo := repositories.NewGuardianProfileTestRepository(db)
 	email := fmt.Sprintf("spontaneous-start-rollback-%d@test.local", time.Now().UnixNano())
 	probe := &userModels.GuardianProfile{
 		FirstName:              "Spontaneous",
@@ -1089,7 +1092,7 @@ type stubOpInstanceStudentRepo struct {
 type stubOpSupervisorRepo struct {
 	activeModels.GroupSupervisorRepository
 }
-type stubOpVisitRepo struct{ activeModels.VisitRepository }
+type stubOpPresence struct{ scheduleSvc.StudentVisitReader }
 type stubOpStudentRepo struct{ userModels.StudentRepository }
 type stubOpEducationGroupRepo struct {
 	educationModels.GroupRepository
@@ -1097,8 +1100,8 @@ type stubOpEducationGroupRepo struct {
 
 type stubOpActiveService struct{}
 
-func (stubOpActiveService) CreateVisit(context.Context, *activeModels.Visit) error { return nil }
-func (stubOpActiveService) EndVisit(context.Context, int64) error                  { return nil }
+func (stubOpActiveService) CreateVisit(context.Context, *studentpresence.Visit) error { return nil }
+func (stubOpActiveService) EndVisit(context.Context, int64) error                     { return nil }
 func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, studentIDs []int64, activeGroupID int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
 	return &activeSvc.StudentMoveResult{Moved: studentIDs, ActiveGroupID: &activeGroupID}, nil
 }
@@ -1144,7 +1147,7 @@ func newRealSpontaneousOpsService(db *bun.DB, instanceSvc scheduleSvc.InstanceSe
 		PickupService:      stubOpPickupService{},
 		CareDayService:     stubOpCareDayService{},
 		SupervisorRepo:     stubOpSupervisorRepo{},
-		VisitRepo:          stubOpVisitRepo{},
+		Presence:           stubOpPresence{},
 		StudentRepo:        stubOpStudentRepo{},
 		EducationGroupRepo: stubOpEducationGroupRepo{},
 		RoomRepo:           &fakeOperationRoomRepo{room: &facilitiesModels.Room{Name: "Lernraum"}},
@@ -1351,6 +1354,12 @@ func (s *fakeOperationsService) PatchAttendance(_ context.Context, accountID int
 	s.lastStudentID = studentID
 	s.lastPatch = patch
 	return s.patchRow, s.err
+}
+
+// EarliestPlannedBlockStartForClass exists only to satisfy the interface
+// (#2970); no handler in this package calls it.
+func (s *fakeOperationsService) EarliestPlannedBlockStartForClass(context.Context, string, timezone.Date) (string, error) {
+	return "", s.err
 }
 
 func operationRouter(method, path string, handler http.HandlerFunc) chi.Router {

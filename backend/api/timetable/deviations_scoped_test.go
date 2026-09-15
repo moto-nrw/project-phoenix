@@ -46,7 +46,7 @@ type scopedApplyResponse struct {
 
 func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 	t.Helper()
-	db, serviceFactory := apiTest.SetupAPITest(t)
+	db, serviceFactory := apiTest.SetupTimetableModule(t)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Scoped-Dev-Room-%d", suffix))

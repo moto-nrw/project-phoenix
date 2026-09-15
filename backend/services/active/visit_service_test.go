@@ -2,14 +2,14 @@
 package active_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/services"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,12 +20,11 @@ import (
 // GetVisit Tests
 // =============================================================================
 
-func TestActiveService_GetVisit(t *testing.T) {
+func TestPresence_FindVisit(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visit when found", func(t *testing.T) {
@@ -37,7 +36,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
-		result, err := service.GetVisit(ctx, visit.ID)
+		result, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -48,7 +47,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetVisit(ctx, 99999999)
+		result, err := testSchoolPresence(t, db).FindVisit(ctx, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -57,7 +56,7 @@ func TestActiveService_GetVisit(t *testing.T) {
 
 	t.Run("returns error for invalid ID", func(t *testing.T) {
 		// ACT
-		result, err := service.GetVisit(ctx, 0)
+		result, err := testSchoolPresence(t, db).FindVisit(ctx, 0)
 
 		// ASSERT
 		require.Error(t, err)
@@ -87,10 +86,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "create-visit-device")
 
 		// CreateVisit requires staff and device context for attendance FK constraints
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -121,10 +120,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "invalid-student-device")
 
 		// CreateVisit requires staff and device context for attendance FK constraints
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     99999999, // invalid
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -146,9 +145,9 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "ended-group-visit-device")
 
 		require.NoError(t, service.EndActiveGroupSession(ctx, activeGroup.ID))
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
-		visit := &activeModels.Visit{
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -176,10 +175,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "dup-visit-device")
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-5*time.Minute), nil)
 
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
-		duplicate := &activeModels.Visit{
+		duplicate := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -211,9 +210,9 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "capacity-device")
 		testpkg.CreateTestVisit(t, db, existingStudent.ID, sourceGroup.ID, time.Now().Add(-time.Minute), nil)
 
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
-		visit := &activeModels.Visit{
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
+		visit := &studentpresence.Visit{
 			StudentID:     incomingStudent.ID,
 			ActiveGroupID: targetGroup.ID,
 			EntryTime:     time.Now(),
@@ -244,10 +243,10 @@ func TestActiveService_CreateVisit(t *testing.T) {
 		iotDevice := testpkg.CreateTestDevice(t, db, "historical-capacity-device")
 		testpkg.CreateTestVisit(t, db, presentStudent.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
 
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 		exitTime := time.Now().Add(-30 * time.Minute)
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     historicalStudent.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     exitTime.Add(-time.Hour),
@@ -292,7 +291,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify update persisted
-		updated, err := service.GetVisit(ctx, visit.ID)
+		updated, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, updated.ExitTime)
 	})
@@ -320,7 +319,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		err = service.UpdateVisit(ctx, movingVisit)
 
 		require.NoError(t, err)
-		updated, err := service.GetVisit(ctx, movingVisit.ID)
+		updated, err := testSchoolPresence(t, db).FindVisit(ctx, movingVisit.ID)
 		require.NoError(t, err)
 		assert.Equal(t, targetGroup.ID, updated.ActiveGroupID)
 		assert.Equal(t, checkoutAt.Unix(), updated.ExitTime.Unix())
@@ -344,7 +343,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		err = service.UpdateVisit(ctx, closedVisit)
 
 		require.ErrorIs(t, err, active.ErrRoomCapacityExceeded)
-		persisted, findErr := service.GetVisit(ctx, closedVisit.ID)
+		persisted, findErr := testSchoolPresence(t, db).FindVisit(ctx, closedVisit.ID)
 		require.NoError(t, findErr)
 		require.NotNil(t, persisted.ExitTime)
 		assert.Equal(t, closedAt.Unix(), persisted.ExitTime.Unix())
@@ -360,7 +359,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 
 	t.Run("returns error for visit with zero ID", func(t *testing.T) {
 		// ARRANGE
-		visit := &activeModels.Visit{}
+		visit := &studentpresence.Visit{}
 		visit.ID = 0 // Set ID via embedded base.Model
 
 		// ACT
@@ -375,7 +374,7 @@ func TestActiveService_UpdateVisit(t *testing.T) {
 		failingDB := testpkg.SetupClosableTestDB(t)
 		serviceWithClosedDB := setupActiveService(t, failingDB)
 		require.NoError(t, failingDB.Close())
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     99999998,
 			ActiveGroupID: 99999997,
 			EntryTime:     time.Now(),
@@ -418,7 +417,7 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetVisit(ctx, visit.ID)
+		_, err = testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 		require.Error(t, err)
 	})
 
@@ -443,12 +442,12 @@ func TestActiveService_DeleteVisit(t *testing.T) {
 // ListVisits Tests
 // =============================================================================
 
-func TestActiveService_ListVisits(t *testing.T) {
+func TestPresence_ListVisits(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	service := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits with no options", func(t *testing.T) {
@@ -460,7 +459,7 @@ func TestActiveService_ListVisits(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
-		result, err := service.ListVisits(ctx, nil)
+		result, err := service.ListVisits(ctx, studentpresence.VisitFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -470,11 +469,10 @@ func TestActiveService_ListVisits(t *testing.T) {
 
 	t.Run("returns visits with pagination", func(t *testing.T) {
 		// ARRANGE
-		options := base.NewQueryOptions()
-		options.WithPagination(1, 5)
+		filter := studentpresence.VisitFilter{Limit: 5}
 
 		// ACT
-		result, err := service.ListVisits(ctx, options)
+		result, err := service.ListVisits(ctx, filter)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -531,12 +529,12 @@ func TestActiveService_FindVisitsByStudentID(t *testing.T) {
 // FindVisitsByActiveGroupID Tests
 // =============================================================================
 
-func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
+func TestPresence_ListVisitsBySession(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupActiveService(t, db)
+	presence := testSchoolPresence(t, db)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns visits for active group", func(t *testing.T) {
@@ -548,7 +546,7 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 		testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
 
 		// ACT
-		result, err := service.FindVisitsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -566,7 +564,7 @@ func TestActiveService_FindVisitsByActiveGroupID(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := service.FindVisitsByActiveGroupID(ctx, activeGroup.ID)
+		result, err := presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroup.ID}})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -601,7 +599,7 @@ func TestActiveService_EndVisit(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify exit time set
-		ended, err := service.GetVisit(ctx, visit.ID)
+		ended, err := testSchoolPresence(t, db).FindVisit(ctx, visit.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, ended.ExitTime)
 	})
@@ -754,44 +752,6 @@ func TestActiveService_GetStudentsCurrentVisits(t *testing.T) {
 	})
 }
 
-// =============================================================================
-// CheckTeacherStudentAccess Tests
-// =============================================================================
-
-func TestActiveService_CheckTeacherStudentAccess(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupActiveService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns false when teacher has no access", func(t *testing.T) {
-		// ARRANGE - teacher and student not related
-		teacher := testpkg.CreateTestTeacher(t, db, "No", "Access")
-		student := testpkg.CreateTestStudent(t, db, "Unrelated", "Student", "1a")
-
-		// ACT - use staff ID as first parameter (service expects staffID)
-		hasAccess, err := service.CheckTeacherStudentAccess(ctx, teacher.Staff.ID, student.ID)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.False(t, hasAccess)
-	})
-
-	t.Run("returns error for invalid teacher ID", func(t *testing.T) {
-		// ARRANGE
-		student := testpkg.CreateTestStudent(t, db, "Valid", "Student", "1a")
-
-		// ACT
-		_, _ = service.CheckTeacherStudentAccess(ctx, 99999999, student.ID)
-
-		// ASSERT
-		// May or may not error depending on implementation
-		// Just verify no panic
-	})
-}
-
 // TestActiveService_CheckIn_RejectsAlumnus covers the #405 P1 write-path guard:
 // a graduated (alumnus) student must be rejected at the check-in write path
 // even if they reached it — the atomic backstop (FOR UPDATE lock + status
@@ -820,11 +780,11 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	t.Run("CreateVisit rejects alumnus", func(t *testing.T) {
-		visit := &activeModels.Visit{
+		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
 			ActiveGroupID: activeGroup.ID,
 			EntryTime:     time.Now(),
@@ -839,4 +799,11 @@ func TestActiveService_CheckIn_RejectsAlumnus(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorIs(t, err, active.ErrStudentGraduated)
 	})
+}
+
+func testSchoolPresence(t *testing.T, db *testpkg.DB) *studentpresence.Module {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

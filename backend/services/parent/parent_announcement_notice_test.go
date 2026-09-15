@@ -23,7 +23,7 @@ import (
 func buildNoticeFeedService(t *testing.T, newsEnabled, noticeEnabled bool) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:             repos.ParentChild,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,

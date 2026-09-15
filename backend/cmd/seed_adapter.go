@@ -54,7 +54,7 @@ func commandAPIAuth(auth seedapi.AuthRef) backendapi.AuthRef {
 func commandSeedError(err error) error {
 	var apiErr *backendapi.APIError
 	if errors.As(err, &apiErr) {
-		return &seedapi.APIError{Method: apiErr.Method, Path: apiErr.Path, StatusCode: apiErr.StatusCode, Message: apiErr.Message, Body: apiErr.Body}
+		return &seedapi.APIError{Method: apiErr.Method, Path: apiErr.Path, StatusCode: apiErr.StatusCode, Code: apiErr.Code, Message: apiErr.Message, Body: apiErr.Body}
 	}
 	return err
 }

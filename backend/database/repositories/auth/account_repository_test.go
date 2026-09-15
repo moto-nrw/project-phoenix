@@ -22,7 +22,7 @@ func TestAccountRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates account with valid data", func(t *testing.T) {
@@ -37,8 +37,7 @@ func TestAccountRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, account)
 		require.NoError(t, err)
 		assert.NotZero(t, account.ID)
-
-		cleanupAccountRecords(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	})
 
 	t.Run("creates account with username", func(t *testing.T) {
@@ -56,8 +55,7 @@ func TestAccountRepository_Create(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, account.ID)
 		assert.NotNil(t, account.Username)
-
-		cleanupAccountRecords(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	})
 }
 
@@ -66,12 +64,11 @@ func TestAccountRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing account", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyid")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		found, err := repo.FindByID(ctx, account.ID)
 		require.NoError(t, err)
@@ -90,12 +87,11 @@ func TestAccountRepository_FindByEmail(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds account by email", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyemail")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		found, err := repo.FindByEmail(ctx, account.Email)
 		require.NoError(t, err)
@@ -113,7 +109,7 @@ func TestAccountRepository_FindByUsername(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds account by username", func(t *testing.T) {
@@ -129,7 +125,7 @@ func TestAccountRepository_FindByUsername(t *testing.T) {
 		}
 		err := repo.Create(ctx, account)
 		require.NoError(t, err)
-		defer cleanupAccountRecords(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		found, err := repo.FindByUsername(ctx, uniqueUsername)
 		require.NoError(t, err)
@@ -147,12 +143,11 @@ func TestAccountRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates account email", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "update")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		newEmail := fmt.Sprintf("updated_%d@example.com", time.Now().UnixNano())
 		account.Email = newEmail
@@ -166,7 +161,6 @@ func TestAccountRepository_Update(t *testing.T) {
 
 	t.Run("updates account active status", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "deactivate")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		account.Active = false
 		err := repo.Update(ctx, account)
@@ -183,7 +177,7 @@ func TestAccountRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing account", func(t *testing.T) {
@@ -206,12 +200,11 @@ func TestAccountRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("lists all accounts", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "list")
-		defer cleanupAccountRecords(t, db, account.ID)
+		testpkg.CreateTestAccount(t, db, "list")
 
 		accounts, err := repo.List(ctx, nil)
 		require.NoError(t, err)
@@ -224,14 +217,12 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts by role name", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyrole")
 		role := testpkg.CreateTestRole(t, db, "FindByRoleTestRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		_, err := db.ExecContext(ctx,
 			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
@@ -255,8 +246,6 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 	t.Run("finds accounts by role name case insensitive", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "rolecase")
 		role := testpkg.CreateTestRole(t, db, "CaseSensitiveRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		_, err := db.ExecContext(ctx,
 			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
@@ -285,12 +274,11 @@ func TestAccountRepository_UpdateLastLogin(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates last login timestamp", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "lastlogin")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Get original last login
 		found, err := repo.FindByID(ctx, account.ID)
@@ -318,12 +306,11 @@ func TestAccountRepository_UpdatePassword(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates password hash", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "password")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		newHash := "$argon2id$v=19$m=65536,t=3,p=4$newpasswordhash"
 		err := repo.UpdatePassword(ctx, account.ID, newHash)
@@ -341,12 +328,11 @@ func TestAccountRepository_UpdateAvatar(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates global avatar path", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "avatar")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		newAvatar := "/uploads/avatars/global/avatar-test.jpg"
 		err := repo.UpdateAvatar(ctx, account.ID, newAvatar)
@@ -367,15 +353,13 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds accounts with their roles and permissions", func(t *testing.T) {
 		// Create account with role
 		account := testpkg.CreateTestAccount(t, db, "withperms")
 		role := testpkg.CreateTestRole(t, db, "WithPermsRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -399,12 +383,11 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("filters by email", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "emailfilter")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
 			"email": account.Email,
@@ -423,8 +406,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 	})
 
 	t.Run("filters by active status", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "activefilter")
-		defer cleanupAccountRecords(t, db, account.ID)
+		testpkg.CreateTestAccount(t, db, "activefilter")
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
 			"active": true,
@@ -434,8 +416,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 	})
 
 	t.Run("filters by email_like", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "likefilter")
-		defer cleanupAccountRecords(t, db, account.ID)
+		testpkg.CreateTestAccount(t, db, "likefilter")
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
 			"email_like": "likefilter",
@@ -456,7 +437,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 		}
 		err := repo.Create(ctx, account)
 		require.NoError(t, err)
-		defer cleanupAccountRecords(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
 			"username": uniqueUsername,
@@ -486,7 +467,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 		}
 		err := repo.Create(ctx, account)
 		require.NoError(t, err)
-		defer cleanupAccountRecords(t, db, account.ID)
+		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		accounts, err := repo.List(ctx, map[string]interface{}{
 			"username_like": "likeuser_",
@@ -498,8 +479,6 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 	t.Run("filters by role", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "rolefilter")
 		role := testpkg.CreateTestRole(t, db, "ListFilterRole")
-		defer cleanupAccountRecords(t, db, account.ID)
-		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -525,7 +504,6 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 
 	t.Run("filters by custom field", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "customfield")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		// Use a field that exists in the accounts table
 		accounts, err := repo.List(ctx, map[string]interface{}{
@@ -545,13 +523,12 @@ func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns emails for valid IDs", func(t *testing.T) {
 		account1 := testpkg.CreateTestAccount(t, db, "emails1")
 		account2 := testpkg.CreateTestAccount(t, db, "emails2")
-		defer cleanupAccountRecords(t, db, account1.ID, account2.ID)
 
 		result, err := repo.FindEmailsByAccountIDs(ctx, []int64{account1.ID, account2.ID})
 		require.NoError(t, err)
@@ -562,7 +539,6 @@ func TestAccountRepository_FindEmailsByAccountIDs(t *testing.T) {
 
 	t.Run("returns partial results for mixed valid and invalid IDs", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "emailspartial")
-		defer cleanupAccountRecords(t, db, account.ID)
 
 		result, err := repo.FindEmailsByAccountIDs(ctx, []int64{account.ID, int64(999999)})
 		require.NoError(t, err)
@@ -587,7 +563,7 @@ func TestAccountRepository_CreateValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil account", func(t *testing.T) {
@@ -602,7 +578,7 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	t.Run("rejects nil account", func(t *testing.T) {
@@ -617,11 +593,10 @@ func TestAccountRepository_CalendarFeedToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "feedtoken")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	t.Run("unknown token resolves to nil without error", func(t *testing.T) {
 		found, err := repo.FindByCalendarFeedToken(ctx, "does-not-exist")
@@ -656,11 +631,10 @@ func TestAccountRepository_EnsureCalendarFeedToken(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).Account
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "ensurefeedtoken")
-	defer cleanupAccountRecords(t, db, account.ID)
 
 	// First caller claims the token.
 	first, err := repo.EnsureCalendarFeedToken(ctx, account.ID, "ensure-token-1")

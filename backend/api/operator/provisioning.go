@@ -15,11 +15,11 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -34,6 +34,7 @@ type ProvisioningResource struct {
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	TenantMFAService           authSvc.MFAService
 	db                         *bun.DB
+	appEnv                     string
 }
 
 // NewProvisioningResource creates a new provisioning resource.
@@ -166,14 +167,14 @@ func (req *inviteSchoolAdminRequest) Bind(_ *http.Request) error {
 }
 
 type createSchoolAccountRequest struct {
-	Email            string `json:"email"`
-	FirstName        string `json:"first_name"`
-	LastName         string `json:"last_name"`
-	Password         string `json:"password"`
-	ConfirmPassword  string `json:"confirm_password"`
-	RoleID           *int64 `json:"role_id,omitempty"`
-	Position         string `json:"position,omitempty"`
-	CaregiverEnabled bool   `json:"caregiver_enabled,omitempty"`
+	Email            string         `json:"email"`
+	FirstName        string         `json:"first_name"`
+	LastName         string         `json:"last_name"`
+	Password         string         `json:"password"`
+	ConfirmPassword  string         `json:"confirm_password"`
+	RoleID           *common.JSONID `json:"role_id,omitempty"`
+	Position         string         `json:"position,omitempty"`
+	CaregiverEnabled bool           `json:"caregiver_enabled,omitempty"`
 }
 
 type updateCaregiverCapabilityRequest struct {
@@ -219,7 +220,7 @@ func (rs *ProvisioningResource) CreateOrganization(w http.ResponseWriter, r *htt
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	org := &platformModels.Organization{Name: req.Name, Slug: req.Slug, Active: true}
+	org := &organizationtenancy.CreateOrganization{Name: req.Name, Slug: req.Slug, Active: true}
 	created, err := rs.service.CreateOrganization(r.Context(), org, operatorID, getClientIP(r))
 	if err != nil {
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
@@ -432,7 +433,7 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 	if invitation.Role != nil {
 		resp.RoleName = invitation.Role.Name
 	}
-	if shouldExposeSeedInvitationToken(r) {
+	if shouldExposeSeedInvitationToken(r, rs.appEnv) {
 		resp.Token = &invitation.Token
 	}
 	if invitation.Creator != nil {
@@ -457,7 +458,7 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 		Password:         req.Password,
 		FirstName:        req.FirstName,
 		LastName:         req.LastName,
-		RoleID:           req.RoleID,
+		RoleID:           jsonIDPointer(req.RoleID),
 		Position:         req.Position,
 		CaregiverEnabled: req.CaregiverEnabled,
 	}
@@ -475,7 +476,15 @@ func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, roles, "System roles retrieved successfully")
+	common.Respond(w, r, http.StatusOK, platformSvc.OperatorRoleOptions(roles), "System roles retrieved successfully")
+}
+
+func jsonIDPointer(id *common.JSONID) *int64 {
+	if id == nil {
+		return nil
+	}
+	value := id.Int64()
+	return &value
 }
 
 func (rs *ProvisioningResource) ListSchoolAccounts(w http.ResponseWriter, r *http.Request) {
@@ -908,6 +917,6 @@ func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.
 	common.Respond(w, r, http.StatusOK, nil, "Person deleted successfully")
 }
 
-func shouldExposeSeedInvitationToken(r *http.Request) bool {
-	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, viper.GetString("app_env"))
+func shouldExposeSeedInvitationToken(r *http.Request, appEnv string) bool {
+	return seedtoken.ShouldExposeInvitationToken(r.Header.Get(seedtoken.Header), r.Host, appEnv)
 }

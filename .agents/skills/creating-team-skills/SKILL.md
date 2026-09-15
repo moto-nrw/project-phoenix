@@ -33,7 +33,7 @@ digraph create_skill {
     "Generalize the pattern" [shape=box];
     "Find authoritative sources" [shape=box];
     "Write dynamic skill" [shape=box];
-    "Create in .Codex/skills/" [shape=box];
+    "Create in .agents/skills/" [shape=box];
     "Commit to repo" [shape=box];
     "Skip" [shape=box];
 
@@ -42,8 +42,8 @@ digraph create_skill {
     "Ask user to share?" -> "Skip" [label="no"];
     "Generalize the pattern" -> "Find authoritative sources";
     "Find authoritative sources" -> "Write dynamic skill";
-    "Write dynamic skill" -> "Create in .Codex/skills/";
-    "Create in .Codex/skills/" -> "Commit to repo";
+    "Write dynamic skill" -> "Create in .agents/skills/";
+    "Create in .agents/skills/" -> "Commit to repo";
 }
 ```
 
@@ -89,7 +89,11 @@ Use WebSearch:
 
 ## Step 3: Write the Skill
 
-**Location:** `.Codex/skills/[skill-name]/SKILL.md`
+**Location:** `.agents/skills/[skill-name]/SKILL.md`
+
+Create the Claude mirror as a relative directory symlink to the canonical skill:
+`ln -s ../../.agents/skills/[skill-name] .claude/skills/[skill-name]`.
+Keep one body; do not rewrite paths for different agents.
 
 **Required structure:**
 ```yaml
@@ -111,7 +115,7 @@ metadata:
 ## Step 4: Commit
 
 ```bash
-git add .Codex/skills/[skill-name]/
+git add .agents/skills/[skill-name]/ .claude/skills/[skill-name]
 git commit -m "feat: add [skill-name] skill for team"
 ```
 
@@ -132,7 +136,7 @@ Before committing a new skill:
 - [ ] Would this help someone on a different project?
 - [ ] Are all patterns sourced dynamically (WebFetch/WebSearch)?
 - [ ] Is the description trigger-focused ("Use when...")?
-- [ ] Does it follow existing skill format in `.Codex/skills/`?
+- [ ] Does it follow existing skill format in `.agents/skills/`?
 - [ ] Is it under 100 lines? (concise > comprehensive)
 
 ## Example: Good vs Bad

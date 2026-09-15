@@ -186,9 +186,9 @@ func TestSeriesRoster_AddsChildAcrossCappedPredecessor(t *testing.T) {
 	predecessorRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, predecessorRows, 1, "one bounded row per scheduled weekday")
 	row := predecessorRows[0]
-	assert.Equal(t, c.anchor, row.ValidFrom, "the predecessor row starts at the anchor")
+	assert.Equal(t, activitiesModels.Date(c.anchor), row.ValidFrom, "the predecessor row starts at the anchor")
 	require.NotNil(t, row.ValidUntil)
-	assert.Equal(t, c.secondBoundary, *row.ValidUntil, "and ends with the predecessor segment")
+	assert.Equal(t, activitiesModels.Date(c.secondBoundary), *row.ValidUntil, "and ends with the predecessor segment")
 	require.NotNil(t, row.Weekday, "predecessor rows are written weekday-explicit")
 	assert.Equal(t, activitiesModels.WeekdayMonday, *row.Weekday)
 
@@ -221,9 +221,9 @@ func TestSeriesRoster_RemovesChildAcrossCappedPredecessor(t *testing.T) {
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
 	require.Len(t, rows, 1, "the carried row is closed, not duplicated")
-	assert.Equal(t, c.firstBoundary, rows[0].ValidFrom, "its start stays where it was")
+	assert.Equal(t, activitiesModels.Date(c.firstBoundary), rows[0].ValidFrom, "its start stays where it was")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, c.anchor, *rows[0].ValidUntil, "the row now ends at the anchor")
+	assert.Equal(t, activitiesModels.Date(c.anchor), *rows[0].ValidUntil, "the row now ends at the anchor")
 
 	assert.NotContains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), removed,
 		"the anchor occurrence loses the child")
@@ -259,7 +259,7 @@ func TestSeriesRoster_KeepsPredecessorOnlyChildOutsideScope(t *testing.T) {
 	removedRows := enrollmentsFor(t, c.scenarioSetup, c.middleID, removed)
 	require.Len(t, removedRows, 1)
 	require.NotNil(t, removedRows[0].ValidUntil)
-	assert.Equal(t, c.anchor, *removedRows[0].ValidUntil,
+	assert.Equal(t, activitiesModels.Date(c.anchor), *removedRows[0].ValidUntil,
 		"the child the edit did touch is still closed at the anchor")
 }
 
@@ -284,10 +284,10 @@ func TestSeriesRoster_PastAnchorClampsToTodayAndSegmentStart(t *testing.T) {
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1)
-	assert.Equal(t, c.firstBoundary, rows[0].ValidFrom,
+	assert.Equal(t, activitiesModels.Date(c.firstBoundary), rows[0].ValidFrom,
 		"the row starts with the segment, never before it and never in the past")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, c.secondBoundary, *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(c.secondBoundary), *rows[0].ValidUntil)
 
 	assert.Contains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.earlier), added,
 		"the whole predecessor window is covered from its own start")
@@ -427,11 +427,11 @@ func (c *seriesChain) insertPredecessorEnrollment(
 	mutate func(*activitiesModels.StudentEnrollment),
 ) *activitiesModels.StudentEnrollment {
 	t.Helper()
-	validUntil := c.secondBoundary
+	validUntil := activitiesModels.Date(c.secondBoundary)
 	row := &activitiesModels.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: c.middleID,
-		ValidFrom:       c.firstBoundary,
+		ValidFrom:       activitiesModels.Date(c.firstBoundary),
 		ValidUntil:      &validUntil,
 	}
 	mutate(row)
@@ -483,7 +483,7 @@ func TestSeriesRoster_PreservesHandRemovedChildOnPredecessorOccurrence(t *testin
 
 	rows := enrollmentsFor(t, c.scenarioSetup, c.middleID, added)
 	require.Len(t, rows, 1)
-	assert.Equal(t, c.firstBoundary, rows[0].ValidFrom, "the widened anchor moved the row start")
+	assert.Equal(t, activitiesModels.Date(c.firstBoundary), rows[0].ValidFrom, "the widened anchor moved the row start")
 
 	assert.NotContains(t, instanceStudentIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), added,
 		"a hand-removed occurrence row must not be resurrected")
@@ -578,7 +578,7 @@ func TestSeriesRoster_WeekdayScopedEditLeavesOtherWeekdaysAlone(t *testing.T) {
 		}
 	}
 	require.NotNil(t, mondayRow, "the edited weekday still gains its row")
-	assert.Equal(t, c.anchor, mondayRow.ValidFrom)
+	assert.Equal(t, activitiesModels.Date(c.anchor), mondayRow.ValidFrom)
 }
 
 // dropLivingScheduleWeekday narrows the LIVING segment's recurrence while the
@@ -763,9 +763,9 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 
 	rows := supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
 	require.Len(t, rows, 1)
-	assert.Equal(t, c.anchor, rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(c.anchor), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, c.secondBoundary, *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(c.secondBoundary), *rows[0].ValidUntil)
 	require.NotNil(t, rows[0].Weekday)
 	assert.Equal(t, activitiesModels.WeekdayMonday, *rows[0].Weekday)
 	assert.False(t, rows[0].IsPrimary, "the primary supervisor did not change")
@@ -787,7 +787,7 @@ func TestSeriesRoster_ReconcilesSupervisorsAcrossPredecessor(t *testing.T) {
 	rows = supervisorsFor(t, c.scenarioSetup, c.middleID, extraStaff)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, c.anchor, *rows[0].ValidUntil, "the predecessor supervision closes at the anchor")
+	assert.Equal(t, activitiesModels.Date(c.anchor), *rows[0].ValidUntil, "the predecessor supervision closes at the anchor")
 
 	assert.Contains(t, instanceStaffIDsOn(t, c.scenarioSetup, c.middleID, c.anchor), extraStaff,
 		"an absence row is a recorded decision and survives the removal")

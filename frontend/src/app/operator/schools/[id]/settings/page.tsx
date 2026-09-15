@@ -168,7 +168,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
     bookingAuthority.state.impact?.blockingChildren ?? [];
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="mx-auto w-full max-w-4xl min-w-0 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mb-6">
         <Link
           href={backHref}
@@ -207,7 +207,7 @@ function OperatorSchoolSettingsPageContent({ params }: PageProps) {
           {Array.from({ length: 2 }).map((_, idx) => (
             <div
               key={idx}
-              className="rounded-2xl border border-gray-100 bg-white/50 p-6"
+              className="moto-content-surface rounded-2xl border p-6 shadow-sm"
             >
               <Skeleton className="mb-4 h-5 w-32 rounded" />
               <Skeleton className="h-20 w-full rounded" />

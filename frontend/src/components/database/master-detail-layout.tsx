@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useModal } from "~/components/dashboard/modal-context";
 import { cn } from "~/lib/utils";
@@ -10,7 +10,15 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "~/components/ui/drawer";
+import { useFillHeight } from "./use-fill-height";
 
+/**
+ * Liste links, Objekt rechts. Zulässig nur, wo das Pane die EINZIGE Ansicht
+ * des Objekttyps ist und die Auswahl in der Adresse steht (BAUARTEN-SPEC
+ * Bauart 1 Regel 2, #3115). Hat der Typ eine Objektroute, ist die Sammlung
+ * einspaltig (`DatabaseListLayout`) und jede Zeile ein Link dorthin; die
+ * Ratsche `bauart/one-detail-per-type` hält die Liste der erlaubten Flächen.
+ */
 interface MasterDetailLayoutProps {
   list: ReactNode;
   detail: ReactNode;
@@ -42,28 +50,8 @@ export function MasterDetailLayout({
 }: MasterDetailLayoutProps) {
   const isMobile = useIsMobile();
   const { isModalOpen } = useModal();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [height, setHeight] = useState<string>("100dvh");
-
-  useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-
-    const measure = () => {
-      const top = Math.max(0, Math.round(node.getBoundingClientRect().top));
-      const next = `calc(100dvh - ${top + bottomOffset}px)`;
-      setHeight((prev) => (prev === next ? prev : next));
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(document.documentElement);
-    window.addEventListener("resize", measure);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", measure);
-    };
-  }, [bottomOffset]);
+  const { ref: containerRef, height } =
+    useFillHeight<HTMLDivElement>(bottomOffset);
 
   if (isMobile) {
     return (
@@ -72,7 +60,7 @@ export function MasterDetailLayout({
         style={{ height }}
         className={cn("flex w-full flex-col", className)}
       >
-        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        <div className="moto-content-surface min-h-0 flex-1 overflow-hidden rounded-2xl border shadow-sm">
           <div className="h-full overflow-auto">{list}</div>
         </div>
         <Drawer
@@ -89,10 +77,10 @@ export function MasterDetailLayout({
             // DismissableLayer treats every tap inside an open modal as an
             // outside-click and closes the drawer — which unmounts the modal
             // before the user can interact with it. See issue #1358.
-            onInteractOutside={(event) => {
+            onInteractOutside={(event: Event) => {
               if (isModalOpen) event.preventDefault();
             }}
-            onEscapeKeyDown={(event) => {
+            onEscapeKeyDown={(event: KeyboardEvent) => {
               if (isModalOpen) event.preventDefault();
             }}
           >
@@ -112,20 +100,37 @@ export function MasterDetailLayout({
   return (
     <div
       ref={containerRef}
-      style={{ height }}
+      // Die Richtung steht im style, nicht in einer Klasse: die Regel „der
+      // Rumpf füllt die Höhe" in globals.css macht jede Hülle auf dem Weg zur
+      // letzten Kartenfläche zur Flex-SPALTE, und weil sie ungeschichtet ist,
+      // schlägt sie jede Tailwind-Utility. Ohne diese Zeile lagen Liste und
+      // Objektansicht übereinander statt nebeneinander.
+      style={{ height, flexDirection: "row" }}
       className={cn("flex w-full gap-4", className)}
     >
       <div
         className={cn(
-          "overflow-hidden rounded-xl border border-gray-200 bg-white",
+          "moto-content-surface overflow-hidden rounded-2xl border shadow-sm",
           showDetail ? "shrink-0" : "flex-1",
         )}
-        style={showDetail ? { width: listWidth } : undefined}
+        style={
+          showDetail
+            ? { width: listWidth, flex: "0 0 auto" }
+            : { flex: "1 1 0%" }
+        }
       >
         <div className="flex h-full flex-col">{list}</div>
       </div>
       {showDetail ? (
-        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-gray-200 bg-white">
+        // `flex` ebenfalls im style: die Wachstumsregel aus globals.css gibt
+        // der letzten Kartenfläche `flex: 1 0 auto`, damit sie in einer
+        // Spalte bis zur Unterkante wächst. In dieser Zeile heißt dasselbe
+        // „nicht schrumpfen" — die Objektansicht lief dadurch über den
+        // rechten Rand hinaus.
+        <div
+          className="moto-content-surface min-w-0 flex-1 overflow-hidden rounded-2xl border shadow-sm"
+          style={{ flex: "1 1 0%" }}
+        >
           <div className="flex h-full flex-col">{detail}</div>
         </div>
       ) : null}

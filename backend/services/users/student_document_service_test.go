@@ -60,7 +60,7 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	assignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := usersSvc.NewStudentDocumentService(
 		db,
 		repos.StudentDocument,
@@ -107,7 +107,7 @@ func (s *studentDocumentScenario) input(category string) usersSvc.CreateStudentD
 		StudentID:       s.studentID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
-		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, time.Now().UnixNano()),
+		FilenameStored:  fmt.Sprintf("%s-%d.pdf", category, testpkg.UniqueSuffix()),
 		SizeBytes:       42,
 		ContentType:     "application/pdf",
 	}
@@ -327,42 +327,13 @@ func TestStudentDocumentService_UploadIntentIsSettledOnSuccess(t *testing.T) {
 	}
 }
 
-// TestStudentDocumentService_QueueCleanupForAllDocuments covers the child
-// deletion path. Documents cascade away with the child, so the intents queued
-// here are the only thing left that can get the bytes off disk.
-func TestStudentDocumentService_QueueCleanupForAllDocuments(t *testing.T) {
-	t.Parallel()
-
-	s := newStudentDocumentScenario(t)
-	office := s.actor("users:update")
-
-	first := s.create(t, userModels.StudentDocumentCategorySonstiges, office)
-	second := s.create(t, userModels.StudentDocumentCategoryAbholvollmacht, office)
-
-	require.NoError(t, s.svc.QueueCleanupForAllDocuments(s.ctx, s.studentID))
-
-	queued, err := s.svc.ListQueuedStudentDocumentFileCleanups(s.ctx)
-	require.NoError(t, err)
-	names := make([]string, 0, len(queued))
-	for _, cleanup := range queued {
-		names = append(names, cleanup.FilenameStored)
-	}
-	assert.Contains(t, names, first.FilenameStored)
-	assert.Contains(t, names, second.FilenameStored)
-}
-
-// TestStudentDocumentService_NonStaffCallerIsUnreachable covers the per-child
-// gate. The route permissions only say the caller may open documents at all;
-// whether the caller is staff of this tenant is a separate question, and
-// without this a guest or guardian account holding users:update could read and
-// delete the paperwork of every child in the school.
 func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 	t.Parallel()
 
 	s := newStudentDocumentScenario(t)
 
 	// Same permissions, but no staff record in the tenant.
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	outsider := usersSvc.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
@@ -447,7 +418,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 	t.Parallel()
 
 	s := newStudentDocumentScenario(t)
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	unaudited := usersSvc.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
@@ -721,7 +692,7 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, "erfundene_kategorie", office),
 		usersSvc.ErrStudentDocumentInvalid)
 
-	repos := repositories.NewFactory(s.db)
+	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	outsider := usersSvc.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,

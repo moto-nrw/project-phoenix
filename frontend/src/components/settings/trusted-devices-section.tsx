@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SectionCard } from "~/components/ui/section-card";
+import { EmptyState } from "~/components/ui/empty-state";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDeviceLabelFromUserAgent } from "~/lib/device-label";
 import { createLogger } from "~/lib/logger";
@@ -46,6 +50,12 @@ export function TrustedDevicesSection({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<number | null>(null);
+  // Entfernen läuft erst nach der Rückfrage (Bauart 2 Regel 6, #3109); ein
+  // Fehler bleibt im Dialog stehen.
+  const [revokeTarget, setRevokeTarget] = useState<TrustedDeviceDTO | null>(
+    null,
+  );
+  const [revokeError, setRevokeError] = useState("");
 
   const load = useCallback(async () => {
     if (!bearerToken) return;
@@ -78,8 +88,10 @@ export function TrustedDevicesSection({
     async (deviceId: number) => {
       if (!bearerToken) return;
       setRevokingId(deviceId);
+      setRevokeError("");
       try {
         await revokeTrustedDevice(scope, bearerToken, deviceId);
+        setRevokeTarget(null);
         toast.success("Gerät erfolgreich entfernt.");
         await load();
       } catch (err) {
@@ -91,7 +103,7 @@ export function TrustedDevicesSection({
           device_id: deviceId,
           error: msg,
         });
-        toast.error(msg);
+        setRevokeError(msg);
       } finally {
         setRevokingId(null);
       }
@@ -100,17 +112,11 @@ export function TrustedDevicesSection({
   );
 
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white/50 p-4 backdrop-blur-sm sm:p-6">
-      <div className="mb-4">
-        <h3 className="text-base font-semibold text-gray-900">
-          Meine vertrauten Geräte
-        </h3>
-        <p className="mt-1 text-sm text-gray-600">
-          Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die
-          Sie nicht mehr nutzen.
-        </p>
-      </div>
-
+    <SectionCard
+      headingLevel={3}
+      title="Meine vertrauten Geräte"
+      description="Gemerkte Geräte überspringen den 2FA-Code. Entfernen Sie Geräte, die Sie nicht mehr nutzen."
+    >
       {error && (
         <div className="mb-4">
           <Alert type="error" message={error} />
@@ -124,9 +130,11 @@ export function TrustedDevicesSection({
         </div>
       )}
       {!loading && (!devices || devices.length === 0) && (
-        <p className="py-4 text-sm text-gray-500">
-          Sie haben aktuell keine vertrauten Geräte gespeichert.
-        </p>
+        <EmptyState
+          variant="compact"
+          title="Sie haben aktuell keine vertrauten Geräte gespeichert."
+          description="Beim nächsten Login können Sie ein Gerät merken lassen, um den 2FA-Code dort zu überspringen."
+        />
       )}
       {!loading && devices && devices.length > 0 && (
         <ul className="divide-y divide-gray-100">
@@ -148,21 +156,59 @@ export function TrustedDevicesSection({
                   {d.ip_address && <> · IP: {d.ip_address}</>}
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="sm"
-                disabled={revokingId === d.id}
-                // void discards the promise from the async handler so the
-                // onClick signature returns void as expected.
-                onClick={() => void handleRevoke(d.id)} // NOSONAR typescript:S3735 fire-and-forget pattern matches project convention (10+ existing sites)
-              >
-                {revokingId === d.id ? "Entferne..." : "Entfernen"}
-              </Button>
+              {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
+                  Bauart 1 Regel 4); Entfernen fragt weiter im
+                  ConfirmDeleteModal nach. */}
+              <div className="flex shrink-0 justify-end">
+                <OverflowMenu
+                  ariaLabel={`Aktionen für ${formatDeviceLabelFromUserAgent(d.user_agent)}`}
+                  items={[
+                    {
+                      label: "Entfernen",
+                      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                      destructive: true,
+                      disabled: revokingId === d.id,
+                      onClick: () => {
+                        setRevokeError("");
+                        setRevokeTarget(d);
+                      },
+                    },
+                  ]}
+                />
+              </div>
             </li>
           ))}
         </ul>
       )}
-    </div>
+
+      <ConfirmDeleteModal
+        isOpen={revokeTarget !== null}
+        title="Gerät entfernen?"
+        description={
+          revokeTarget ? (
+            <p>
+              Das Gerät{" "}
+              <span className="font-medium text-gray-900">
+                {formatDeviceLabelFromUserAgent(revokeTarget.user_agent)}
+              </span>{" "}
+              wird entfernt. Beim nächsten Anmelden dort wird der 2FA-Code
+              wieder abgefragt.
+            </p>
+          ) : null
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
+        confirmLabel="Endgültig entfernen"
+        loadingLabel="Wird entfernt…"
+        loading={revokingId !== null}
+        error={revokeError}
+        onConfirm={() => {
+          if (revokeTarget) void handleRevoke(revokeTarget.id);
+        }}
+        onClose={() => {
+          setRevokeTarget(null);
+          setRevokeError("");
+        }}
+      />
+    </SectionCard>
   );
 }

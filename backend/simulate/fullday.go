@@ -13,12 +13,25 @@ import (
 
 var feedbackValues = []string{"positive", "neutral", "negative"}
 
+// Eight seeded sessions receive students round-robin. The 85th student would
+// become the 11th child in Leseecke, whose seeded capacity is 10.
+const fullDayCheckinLimit = 84
+
 // FullDayOptions configures a full-day simulation run.
 type FullDayOptions struct {
 	StatePath string
+	Profile   string
 	Close     bool // if true, do daily checkout + end sessions at the end
 	Verbose   bool
 	Client    ClientFactory
+	Now       func() time.Time // nil uses the system clock
+}
+
+func (o FullDayOptions) now() time.Time {
+	if o.Now != nil {
+		return o.Now()
+	}
+	return time.Now()
 }
 
 // RunFullDay runs a one-shot full-day simulation using seed state.
@@ -26,7 +39,7 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 	if opts.Client == nil {
 		return fmt.Errorf("simulation client factory is required")
 	}
-	state, err := LoadSeedState(opts.StatePath)
+	state, err := LoadSeedStateProfile(opts.StatePath, opts.Profile)
 	if err != nil {
 		return fmt.Errorf("load seed state: %w", err)
 	}
@@ -38,7 +51,21 @@ func RunFullDay(ctx context.Context, opts FullDayOptions) error {
 	runtime := newRuntime(state, client, opts)
 	scenario := fullDayScenario(opts.Close)
 	if err := scenario.Run(ctx, runtime); err != nil {
-		return err
+		profile := state.ProfileKey
+		if profile == "" {
+			profile = state.Bootstrap.TenantSlug
+		}
+		var failure error
+		var actionErr *ActionError
+		if errors.As(err, &actionErr) {
+			failure = fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, actionErr.Action, actionErr.Err)
+		} else {
+			failure = fmt.Errorf("demo school profile %q, workflow step %s failed: %w", profile, scenario.Name, err)
+		}
+		if cleanupErr := endActiveSessions(runtime); cleanupErr != nil {
+			return errors.Join(failure, fmt.Errorf("end started sessions after workflow failure: %w", cleanupErr))
+		}
+		return failure
 	}
 	return nil
 }
@@ -65,7 +92,7 @@ func (loginAdminAction) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("no admin accounts in seed state")
 	}
 	admin := rt.State.Accounts.Admin[0]
-	if err := rt.Client.Login(admin.Email, admin.Password); err != nil {
+	if err := rt.Client.Login(admin.Email, admin.Password, rt.State.Bootstrap.TenantSlug); err != nil {
 		return fmt.Errorf("admin login: %w", err)
 	}
 	fmt.Printf("  Logged in as %s\n", admin.Email)
@@ -82,6 +109,9 @@ func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 	if len(deviceKeysForRFID) == 0 {
 		return fmt.Errorf("no devices in seed state for RFID assignment")
 	}
+	if len(rt.State.Students) == 0 {
+		return fmt.Errorf("no students in seed state for RFID assignment")
+	}
 	rfidDevice := rt.State.Devices[deviceKeysForRFID[0]]
 
 	for _, student := range rt.State.Students {
@@ -91,9 +121,7 @@ func (assignRFIDsAction) Run(_ context.Context, rt *Runtime) error {
 		body := map[string]string{"rfid_tag": rfidTag}
 		_, err := rt.Client.DevicePost(fmt.Sprintf("/api/students/%d/rfid", student.ID), body, rfidDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			fmt.Printf("  WARNING: failed to assign RFID to student %d (%s %s): %v\n",
-				student.ID, student.FirstName, student.LastName, err)
-			continue
+			return fmt.Errorf("assign RFID to student %d: %w", student.ID, err)
 		}
 		rt.Counts.RFIDAssigned++
 	}
@@ -113,6 +141,9 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 	betreuer := rt.State.Accounts.Betreuer
 
 	sessionsToStart := min(len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
+	if sessionsToStart == 0 {
+		return fmt.Errorf("no sessions can start: %d staff accounts, %d devices, %d activities", len(betreuer), len(rt.DeviceKeys), len(rt.ActivityNames))
+	}
 	if sessionsToStart > 10 {
 		sessionsToStart = 10
 	}
@@ -136,9 +167,13 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 
 		_, err := rt.Client.DevicePost("/api/iot/session/start", body, device.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			fmt.Printf("  WARNING: failed to start session for %s: %v\n", actName, err)
-			continue
+			startErr := fmt.Errorf("start session for %s: %w", actName, err)
+			if cleanupErr := endActiveSessions(rt); cleanupErr != nil {
+				return errors.Join(startErr, fmt.Errorf("end previously started sessions: %w", cleanupErr))
+			}
+			return startErr
 		}
+		rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys, deviceKey)
 
 		if roomID != 0 {
 			rt.ActiveRoomIDs = append(rt.ActiveRoomIDs, roomID)
@@ -159,6 +194,177 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 }
 
 type recordAttendanceAction struct{}
+
+// isoDate is the wire layout of every calendar date in the moto API.
+const isoDate = "2006-01-02"
+
+// calendarPeriodWindow is the subset of a calendar period the demo
+// cancellation needs from the timetable periods API. The fields beyond the
+// window itself are what PUT /periods requires to echo a period back
+// unchanged except for is_active.
+type calendarPeriodWindow struct {
+	ID              int64   `json:"id"`
+	Name            string  `json:"name"`
+	PeriodType      string  `json:"period_type"`
+	StartDate       string  `json:"start_date"`
+	EndDate         string  `json:"end_date"`
+	WeekCycleLength int     `json:"week_cycle_length"`
+	WeekCycleAnchor *string `json:"week_cycle_anchor,omitempty"`
+	IsActive        bool    `json:"is_active"`
+}
+
+// firstFutureWeekday returns the earliest weekday after today that falls into
+// [start, end], or the zero time when the window holds none.
+func firstFutureWeekday(start, end, today time.Time) time.Time {
+	candidate := today.AddDate(0, 0, 1)
+	if start.After(candidate) {
+		candidate = start
+	}
+	for candidate.Weekday() == time.Saturday || candidate.Weekday() == time.Sunday {
+		candidate = candidate.AddDate(0, 0, 1)
+	}
+	if candidate.After(end) {
+		return time.Time{}
+	}
+	return candidate
+}
+
+// firstFutureWeekdayInPeriods returns the earliest weekday after today that
+// lies inside an active calendar period, or the zero time when no period
+// covers one. The server rejects instances outside every active period.
+func firstFutureWeekdayInPeriods(periods []calendarPeriodWindow, today time.Time, loc *time.Location) (time.Time, error) {
+	var date time.Time
+	for _, period := range periods {
+		if !period.IsActive {
+			continue
+		}
+		start, startErr := time.ParseInLocation(isoDate, period.StartDate, loc)
+		if startErr != nil {
+			return time.Time{}, fmt.Errorf("decode calendar period start date for demo cancellation: %w", startErr)
+		}
+		end, endErr := time.ParseInLocation(isoDate, period.EndDate, loc)
+		if endErr != nil {
+			return time.Time{}, fmt.Errorf("decode calendar period end date for demo cancellation: %w", endErr)
+		}
+		candidate := firstFutureWeekday(start, end, today)
+		if candidate.IsZero() || (!date.IsZero() && !candidate.Before(date)) {
+			continue
+		}
+		date = candidate
+	}
+	return date, nil
+}
+
+// schoolYearBounds mirrors defaultSchoolYearBounds in
+// backend/services/schedule/calendar_period_service.go: a German school year
+// runs from August 1st to July 31st of the following year. The simulate
+// package must not import internal/timezone (scripts/backend-architecture.sh),
+// so the bounds are recomputed here on plain time values.
+func schoolYearBounds(startYear int, loc *time.Location) (name string, start, end time.Time) {
+	return fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1),
+		time.Date(startYear, time.August, 1, 0, 0, 0, 0, loc),
+		time.Date(startYear+1, time.July, 31, 0, 0, 0, 0, loc)
+}
+
+// schoolYearStartYear returns the year whose August opened the school year
+// containing today.
+func schoolYearStartYear(today time.Time) int {
+	if today.Month() < time.August {
+		return today.Year() - 1
+	}
+	return today.Year()
+}
+
+// ensureSchoolYearWithFutureWeekday gives the tenant an active school year
+// that still holds a weekday after today and returns that weekday. Bootstrap
+// only ever creates a period for a tenant without any, so at the end of a
+// school year — and permanently after a school-year change on an already
+// seeded tenant — the demo cancellation would otherwise have no date left to
+// use (#3173). Depending on what the tenant already has, the school year is
+// created or merely activated.
+func (rt *Runtime) ensureSchoolYearWithFutureWeekday(existing []calendarPeriodWindow, today time.Time, loc *time.Location) (time.Time, error) {
+	startYear := schoolYearStartYear(today)
+	// The school year containing today is the first candidate: an existing
+	// tenant that has not rolled over yet is missing exactly that one. Later
+	// candidates cover a school year that is already there but unusable, plus
+	// the hand-edited calendars that make a create conflict.
+	for _, candidateYear := range []int{startYear, startYear + 1, startYear + 2} {
+		name, start, end := schoolYearBounds(candidateYear, loc)
+		date := firstFutureWeekday(start, end, today)
+		if date.IsZero() {
+			continue
+		}
+		index := slices.IndexFunc(existing, func(p calendarPeriodWindow) bool {
+			return p.StartDate == start.Format(isoDate) && p.EndDate == end.Format(isoDate)
+		})
+		switch {
+		case index < 0:
+			err := rt.createSchoolYearPeriod(name, start, end)
+			if isConflictError(err) {
+				// A hand-edited calendar holds this name or an active
+				// same-type period overlapping these bounds. Neither is
+				// something the simulation may rewrite; try the next year.
+				continue
+			}
+			if err != nil {
+				return time.Time{}, err
+			}
+		case existing[index].IsActive:
+			// Already considered above and rejected for want of a weekday.
+			continue
+		default:
+			if err := rt.activatePeriod(existing[index]); err != nil {
+				return time.Time{}, err
+			}
+		}
+		return date, nil
+	}
+	return time.Time{}, nil
+}
+
+// createSchoolYearPeriod adds one active school year through the regular
+// periods API.
+func (rt *Runtime) createSchoolYearPeriod(name string, start, end time.Time) error {
+	body := map[string]any{
+		"name":              name,
+		"period_type":       "school_year",
+		"start_date":        start.Format(isoDate),
+		"end_date":          end.Format(isoDate),
+		"week_cycle_length": 1,
+		"is_active":         true,
+	}
+	if _, err := rt.Client.Post("/api/timetable/periods", body); err != nil {
+		return fmt.Errorf("create %s for demo cancellation: %w", name, err)
+	}
+	return nil
+}
+
+// activatePeriod flips an existing period active, echoing every other field
+// back unchanged as PUT /periods requires.
+func (rt *Runtime) activatePeriod(period calendarPeriodWindow) error {
+	body := map[string]any{
+		"name":              period.Name,
+		"period_type":       period.PeriodType,
+		"start_date":        period.StartDate,
+		"end_date":          period.EndDate,
+		"week_cycle_length": period.WeekCycleLength,
+		"is_active":         true,
+	}
+	if period.WeekCycleAnchor != nil {
+		body["week_cycle_anchor"] = *period.WeekCycleAnchor
+	}
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/timetable/periods/%d", period.ID), body); err != nil {
+		return fmt.Errorf("activate %s for demo cancellation: %w", period.Name, err)
+	}
+	return nil
+}
+
+// isConflictError reports whether the API rejected a write with 409 — a name
+// clash or an overlapping active period of the same type.
+func isConflictError(err error) bool {
+	var httpErr interface{ HTTPStatusCode() int }
+	return errors.As(err, &httpErr) && httpErr.HTTPStatusCode() == 409
+}
 
 type seedStaffFeedTombstoneAction struct{}
 
@@ -183,50 +389,34 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 	}
 	var periodEnvelope struct {
 		Data struct {
-			Periods []struct {
-				StartDate string `json:"start_date"`
-				EndDate   string `json:"end_date"`
-				IsActive  bool   `json:"is_active"`
-			} `json:"periods"`
+			Periods []calendarPeriodWindow `json:"periods"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(periodResponse, &periodEnvelope); err != nil {
-		return fmt.Errorf("decode calendar periods for demo cancellation: %w", err)
+		return fmt.Errorf("decode POST /api/timetable/periods/bootstrap response: %w", err)
 	}
-	today, err := time.ParseInLocation("2006-01-02", time.Now().In(berlin).Format("2006-01-02"), berlin)
+	today, err := time.ParseInLocation(isoDate, rt.Options.now().In(berlin).Format(isoDate), berlin)
 	if err != nil {
 		return fmt.Errorf("normalize current date: %w", err)
 	}
-	var date time.Time
-	for _, period := range periodEnvelope.Data.Periods {
-		if !period.IsActive {
-			continue
+	date, err := firstFutureWeekdayInPeriods(periodEnvelope.Data.Periods, today, berlin)
+	if err != nil {
+		return err
+	}
+	if date.IsZero() {
+		// End of the school year, or a tenant whose only period already
+		// expired: the bootstrap endpoint returns existing periods unchanged,
+		// so the simulation rolls the calendar forward itself (#3173).
+		date, err = rt.ensureSchoolYearWithFutureWeekday(periodEnvelope.Data.Periods, today, berlin)
+		if err != nil {
+			return err
 		}
-		start, startErr := time.ParseInLocation("2006-01-02", period.StartDate, berlin)
-		if startErr != nil {
-			return fmt.Errorf("decode calendar period start date for demo cancellation: %w", startErr)
-		}
-		end, endErr := time.ParseInLocation("2006-01-02", period.EndDate, berlin)
-		if endErr != nil {
-			return fmt.Errorf("decode calendar period end date for demo cancellation: %w", endErr)
-		}
-		candidate := today.AddDate(0, 0, 1)
-		if start.After(candidate) {
-			candidate = start
-		}
-		for candidate.Weekday() == time.Saturday || candidate.Weekday() == time.Sunday {
-			candidate = candidate.AddDate(0, 0, 1)
-		}
-		if candidate.After(end) || (!date.IsZero() && !candidate.Before(date)) {
-			continue
-		}
-		date = candidate
 	}
 	if date.IsZero() {
 		return fmt.Errorf("no future weekday in an active calendar period for demo cancellation")
 	}
 	body := map[string]any{
-		"date":       date.Format("2006-01-02"),
+		"date":       date.Format(isoDate),
 		"start_time": "07:00",
 		"end_time":   "07:30",
 		"title":      "Abgesagter Demo-Termin",
@@ -243,7 +433,7 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(created, &envelope); err != nil {
-		return fmt.Errorf("decode demo cancellation: %w", err)
+		return fmt.Errorf("decode POST /api/timetable/instances response: %w", err)
 	}
 	if envelope.Data.ID <= 0 {
 		return fmt.Errorf("decode demo cancellation: response has no instance id")
@@ -268,9 +458,12 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 	_, err = rt.Client.DevicePost("/api/iot/checkin", map[string]any{
 		"student_rfid": "DEMO-UNREGISTERED-TAG", "action": "checkin",
 	}, primaryDevice.APIKey, rt.State.DevicePIN)
-	var statusErr interface{ HTTPStatusCode() int }
-	if !errors.As(err, &statusErr) || statusErr.HTTPStatusCode() != 404 {
-		return fmt.Errorf("record unregistered tag scan: expected 404, got %w", err)
+	var expectedErr interface {
+		HTTPStatusCode() int
+		HTTPErrorCode() string
+	}
+	if !errors.As(err, &expectedErr) || expectedErr.HTTPStatusCode() != 404 || expectedErr.HTTPErrorCode() != "rfid_tag_not_found" {
+		return fmt.Errorf("record unregistered tag scan: expected 404 (rfid_tag_not_found), got %w", err)
 	}
 
 	studentsToProcess := len(rt.State.Students)
@@ -282,7 +475,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {
-			continue
+			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
 		}
 
 		attendanceBody := map[string]string{
@@ -291,14 +484,11 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		_, err := rt.Client.DevicePost("/api/iot/attendance/toggle", attendanceBody, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: attendance toggle failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("record attendance for student %d: %w", student.ID, err)
 		}
 		rt.Counts.AttendanceRecords++
 
-		if i < 85 && len(rt.ActiveRoomIDs) > 0 {
+		if i < fullDayCheckinLimit && len(rt.ActiveRoomIDs) > 0 {
 			roomID := rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)]
 			checkinBody := map[string]any{
 				"student_rfid": rfidTag,
@@ -307,10 +497,7 @@ func (recordAttendanceAction) Run(_ context.Context, rt *Runtime) error {
 			}
 			_, err := rt.Client.DevicePost("/api/iot/checkin", checkinBody, primaryDevice.APIKey, rt.State.DevicePIN)
 			if err != nil {
-				if rt.Options.Verbose {
-					fmt.Printf("  WARNING: checkin failed for student %d: %v\n", student.ID, err)
-				}
-				continue
+				return fmt.Errorf("check in student %d: %w", student.ID, err)
 			}
 			rt.Counts.StudentsCheckedIn++
 		}
@@ -337,19 +524,16 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		body := map[string]any{"sick": true}
 		_, err := rt.Client.Put(fmt.Sprintf("/api/students/%d", student.ID), body)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: failed to mark student %d sick: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("mark student %d sick: %w", student.ID, err)
 		}
 		rt.Counts.StudentsSick++
 	}
 
-	for i := 75; i < 85 && i < len(rt.State.Students); i++ {
+	for i := 75; i < fullDayCheckinLimit && i < len(rt.State.Students); i++ {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {
-			continue
+			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
 		}
 		body := map[string]any{
 			"student_rfid": rfidTag,
@@ -357,10 +541,7 @@ func (middayActivityAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		_, err := rt.Client.DevicePost("/api/iot/checkin", body, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: checkout failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("check out student %d: %w", student.ID, err)
 		}
 		rt.Counts.StudentsCheckedOut++
 	}
@@ -385,24 +566,24 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 		student := rt.State.Students[i]
 		rfidTag, ok := rt.RFIDTags[student.ID]
 		if !ok {
-			continue
+			return fmt.Errorf("RFID assignment missing for student %d", student.ID)
 		}
 		// Query pickup info first (mirrors PyrePortal flow)
-		_, _ = rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
+		_, err := rt.Client.DevicePost("/api/iot/pickup-query", map[string]any{
 			"student_rfid": rfidTag,
 		}, primaryDevice.APIKey, rt.State.DevicePIN)
+		if err != nil {
+			return fmt.Errorf("query pickup for student %d: %w", student.ID, err)
+		}
 
 		body := map[string]any{
 			"rfid":        rfidTag,
 			"action":      "confirm_daily_checkout",
 			"destination": "zuhause",
 		}
-		_, err := rt.Client.DevicePost("/api/iot/attendance/toggle", body, primaryDevice.APIKey, rt.State.DevicePIN)
+		_, err = rt.Client.DevicePost("/api/iot/attendance/toggle", body, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: daily checkout failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("record daily checkout for student %d: %w", student.ID, err)
 		}
 		rt.Counts.DailyCheckouts++
 
@@ -413,28 +594,41 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 		}
 		_, err = rt.Client.DevicePost("/api/iot/feedback", feedbackBody, primaryDevice.APIKey, rt.State.DevicePIN)
 		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: feedback failed for student %d: %v\n", student.ID, err)
-			}
-			continue
+			return fmt.Errorf("submit feedback for student %d: %w", student.ID, err)
 		}
 		rt.Counts.FeedbackSubmitted++
 	}
 	fmt.Printf("  %d daily checkouts, %d feedback submitted\n", rt.Counts.DailyCheckouts, rt.Counts.FeedbackSubmitted)
 
-	for i := 0; i < rt.Counts.SessionsStarted && i < len(rt.DeviceKeys); i++ {
-		device := rt.State.Devices[rt.DeviceKeys[i]]
-		_, err := rt.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, rt.State.DevicePIN)
-		if err != nil {
-			if rt.Options.Verbose {
-				fmt.Printf("  WARNING: failed to end session on device %s: %v\n", rt.DeviceKeys[i], err)
-			}
-			continue
-		}
-		rt.Counts.SessionsEnded++
+	if err := endActiveSessions(rt); err != nil {
+		return err
 	}
 	fmt.Printf("  %d sessions ended\n", rt.Counts.SessionsEnded)
 	return nil
+}
+
+func endActiveSessions(rt *Runtime) error {
+	var errs []error
+	for _, deviceKey := range slices.Clone(rt.ActiveSessionDeviceKeys) {
+		device := rt.State.Devices[deviceKey]
+		_, err := rt.Client.DevicePost("/api/iot/session/end", nil, device.APIKey, rt.State.DevicePIN)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("end session on device %s: %w", deviceKey, err))
+			continue
+		}
+		rt.removeActiveSessionDevice(deviceKey)
+		rt.Counts.SessionsEnded++
+	}
+	return errors.Join(errs...)
+}
+
+func (rt *Runtime) removeActiveSessionDevice(deviceKey string) {
+	for i, activeDeviceKey := range rt.ActiveSessionDeviceKeys {
+		if activeDeviceKey == deviceKey {
+			rt.ActiveSessionDeviceKeys = append(rt.ActiveSessionDeviceKeys[:i], rt.ActiveSessionDeviceKeys[i+1:]...)
+			return
+		}
+	}
 }
 
 type printSummaryAction struct{}

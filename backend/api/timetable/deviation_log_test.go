@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -75,7 +77,7 @@ func TestApplyDeviations_WritesAbsenceAndSubstitutionEvents(t *testing.T) {
 	assert.Equal(t, s.staffX, *absence.SubjectStaffID)
 	require.NotNil(t, absence.Reason)
 	assert.Equal(t, "krank", *absence.Reason)
-	assert.Equal(t, date, absence.OccurrenceDate)
+	assert.Equal(t, auditModels.Date(date), absence.OccurrenceDate)
 
 	require.NotNil(t, substitution.SubjectStaffID)
 	assert.Equal(t, s.staffA, *substitution.SubjectStaffID)
@@ -143,7 +145,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
-	activeGroupRepo := activeRepo.NewGroupRepository(s.db)
+	activeGroupRepo := activeRepo.NewGroupRepository(nil, repositories.NewPresenceGroupRecords(s.db), nil)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	ag := &activeModel.Group{
 		StartTime:      now,
@@ -161,7 +163,7 @@ func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
 
 	testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
 
-	supervisorRepo := activeRepo.NewGroupSupervisorRepository(s.db)
+	supervisorRepo := activeRepo.NewGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(s.db))
 	absentSup := &activeModel.GroupSupervisor{
 		StaffID:   s.staffA,
 		GroupID:   ag.ID,

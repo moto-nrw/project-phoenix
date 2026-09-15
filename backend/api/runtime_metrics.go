@@ -58,7 +58,7 @@ func (m *httpMetrics) middleware(next http.Handler) http.Handler {
 		}
 
 		started := time.Now()
-		recorder := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		recorder := apiCommon.NewStatusRecorder(w)
 		observability.IncActiveHTTPRequests()
 		atomic.AddInt64(&m.activeRequests, 1)
 		defer func() {
@@ -66,10 +66,10 @@ func (m *httpMetrics) middleware(next http.Handler) http.Handler {
 			observability.DecActiveHTTPRequests()
 		}()
 
-		next.ServeHTTP(recorder, r)
+		next.ServeHTTP(recorder.Writer(), r)
 		duration := time.Since(started)
-		m.record(r.Method, apiCommon.RoutePattern(r), recorder.status, duration)
-		observability.ObserveHTTPRequest(r.Method, apiCommon.RoutePattern(r), recorder.status, duration)
+		m.record(r.Method, apiCommon.RoutePattern(r), recorder.Status(), duration)
+		observability.ObserveHTTPRequest(r.Method, apiCommon.RoutePattern(r), recorder.Status(), duration)
 	})
 }
 
@@ -122,22 +122,6 @@ func (m *httpMetrics) snapshot(limit int) (int64, []routeSnapshot) {
 		snapshots = snapshots[:limit]
 	}
 	return active, snapshots
-}
-
-type statusRecorder struct {
-	http.ResponseWriter
-	status int
-}
-
-func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
-func (r *statusRecorder) WriteHeader(status int) {
-	r.status = status
-	r.ResponseWriter.WriteHeader(status)
-}
-func (r *statusRecorder) Flush() {
-	if flusher, ok := r.ResponseWriter.(http.Flusher); ok {
-		flusher.Flush()
-	}
 }
 
 type dbCapacityStats struct {

@@ -2,7 +2,12 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"testing"
+
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -110,11 +115,9 @@ func TestOfferingChangeRequestService_GetForStudent_MarksAutomaticDiffEntries(t 
 	assert.Empty(t, manualEntry.AutoTriggerNames)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestOfferingChangeRequestService_ListPending_MarksAutomaticDiffEntries(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := offeringChangeAdminContext(t)
@@ -153,7 +156,7 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueUnchangedAuto")
 	auto := createAutoAddTarget(t, env, "QueueUnchangedAuto", fx.oldOffering.ID)
-	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        auto.ID,
 		SelectedDays:          []string{"mon", "tue"},
@@ -217,7 +220,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionSkipsAutoTargetAndRecordsO
 		ExcludedAutoOfferingIDs: []int64{auto.ID},
 	}))
 
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, capability.Date(fx.switchDate))
 	require.NoError(t, err)
 	linkedIDs := make([]int64, 0, len(links))
 	for _, link := range links {
@@ -276,7 +279,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "GrandfatheredSnapshot")
 	automatic := createAutoAddTarget(t, env, "GrandfatheredSnapshot", fx.oldOffering.ID)
-	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -304,7 +307,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 	require.NoError(t, svc.Decide(ctx, enrollmentService.DecideOfferingChangeInput{
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 	}))
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, capability.Date(fx.switchDate))
 	require.NoError(t, err)
 	applied := false
 	for _, link := range links {
@@ -369,7 +372,7 @@ func TestOfferingChangeRequestService_Decide_ExclusionKeepsManualAndRequiredLunc
 		RequestID: row.ID, Approve: true, ReviewedBy: env.creatorID,
 		ExcludedAutoOfferingIDs: []int64{lunch.ID},
 	}))
-	links, err := env.repos.RequestChildOffering.ListByRequestChildIDAtDate(ctx, fx.childID, fx.switchDate)
+	links, err := env.repos.Enrollment().RequestChildOfferingsAtDate(ctx, fx.childID, capability.Date(fx.switchDate))
 	require.NoError(t, err)
 	for _, link := range links {
 		if link.CareOfferingID == lunch.ID {
@@ -571,7 +574,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectSnapshotFailure")
 	auto := createAutoAddTarget(t, env, "RejectSnapshotFailure", fx.oldOffering.ID)
-	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, &enrollmentModels.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        auto.ID,
 		SelectedDays:          []string{"mon"},

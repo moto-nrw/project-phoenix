@@ -1,5 +1,6 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { useSSE } from "../use-sse";
 import type { SSEEvent } from "../../sse-types";
 
@@ -341,6 +342,83 @@ describe("useSSE Hook", () => {
   });
 
   describe("Reconnection Logic", () => {
+    it("clears connected state while replacing an EventSource for a reconnect key", async () => {
+      const { result, rerender } = renderHook(
+        ({ reconnectKey }) => useSSE("/api/sse/events", { reconnectKey }),
+        { initialProps: { reconnectKey: "before" } },
+      );
+
+      await waitForEventSource();
+      requireLatestEventSource().triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      rerender({ reconnectKey: "after" });
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(eventSourceInstances).toHaveLength(2);
+      });
+    });
+
+    it("ignores callbacks from a replaced EventSource", async () => {
+      const { result, rerender } = renderHook(
+        ({ reconnectKey }) => useSSE("/api/sse/events", { reconnectKey }),
+        { initialProps: { reconnectKey: "before" } },
+      );
+
+      await waitForEventSource();
+      const replacedEventSource = requireLatestEventSource();
+      replacedEventSource.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      rerender({ reconnectKey: "after" });
+      await waitFor(() => expect(eventSourceInstances).toHaveLength(2));
+      const activeEventSource = requireLatestEventSource();
+
+      replacedEventSource.triggerOpen();
+      replacedEventSource.triggerError();
+
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(result.current.error).toBeNull();
+        expect(result.current.reconnectAttempts).toBe(0);
+      });
+
+      activeEventSource.triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+    });
+
+    it("resets retry state when a reconnect key replaces a failed stream", async () => {
+      const { result, rerender } = renderHook(
+        ({ reconnectKey }) => useSSE("/api/sse/events", { reconnectKey }),
+        { initialProps: { reconnectKey: "before" } },
+      );
+
+      await waitForEventSource();
+      requireLatestEventSource().triggerOpen();
+      await waitFor(() => expect(result.current.isConnected).toBe(true), {
+        timeout: 500,
+      });
+
+      requireLatestEventSource().triggerError();
+      await waitFor(() => expect(result.current.reconnectAttempts).toBe(1), {
+        timeout: 500,
+      });
+
+      rerender({ reconnectKey: "after" });
+
+      await waitFor(() => {
+        expect(result.current.error).toBeNull();
+        expect(result.current.reconnectAttempts).toBe(0);
+      });
+    });
+
     it("should attempt reconnection on error", async () => {
       const { result } = renderHook(() =>
         useSSE("/api/sse/events", {
@@ -666,7 +744,7 @@ describe("useSSE Hook", () => {
       // Switch to fake timers and flush any pending timers
       vi.useFakeTimers();
       await vi.runAllTimersAsync();
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       // Old instance should remain closed, no new instance created
       expect(firstInstance.readyState).toBe(firstInstance.CLOSED);
@@ -867,6 +945,10 @@ describe("useSSE Hook", () => {
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
         timeout: 500,
       });
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(result.current.status).toBe("idle");
+      });
 
       const secondInstance = requireLatestEventSource();
       secondInstance.triggerOpen();
@@ -905,6 +987,10 @@ describe("useSSE Hook", () => {
       // Should create a new EventSource
       await waitFor(() => expect(eventSourceInstances.length).toBe(2), {
         timeout: 500,
+      });
+      await waitFor(() => {
+        expect(result.current.isConnected).toBe(false);
+        expect(result.current.status).toBe("idle");
       });
 
       const secondInstance = requireLatestEventSource();

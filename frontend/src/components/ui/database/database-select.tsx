@@ -141,7 +141,7 @@ export function DatabaseSelect({
 
       {/* Helper text or error message */}
       {displayError && (
-        <p className="mt-1 text-xs text-red-600 md:text-sm">{displayError}</p>
+        <p className="text-moto-red mt-1 text-xs md:text-sm">{displayError}</p>
       )}
       {!displayError && helperText && (
         <p className="mt-1 text-xs text-gray-500 md:text-sm">{helperText}</p>

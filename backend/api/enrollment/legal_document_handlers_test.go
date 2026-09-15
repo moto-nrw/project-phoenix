@@ -26,7 +26,7 @@ type fakeLegalDocumentReferenceRepository struct {
 	checkCtx   func(context.Context)
 }
 
-func (f fakeLegalDocumentReferenceRepository) HasLegalDocumentReference(ctx context.Context, _, _ string) (bool, error) {
+func (f fakeLegalDocumentReferenceRepository) SchemaReferencesLegalDocument(ctx context.Context, _, _ string) (bool, error) {
 	if f.checkCtx != nil {
 		f.checkCtx(ctx)
 	}

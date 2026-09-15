@@ -20,6 +20,7 @@ import (
 // that never existed, and the marker cannot be undone. A child with no plan at
 // all is the same problem in a louder form.
 func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -78,6 +79,7 @@ func TestBackfillCompletedAttendanceSplitsByCarePlan(t *testing.T) {
 // would either invent an absence or stamp a genuine expectation as a
 // non-booking — both irreversible. Such a row is left exactly as it is.
 func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -130,6 +132,7 @@ func TestBackfillCompletedAttendanceSkipsPlansWrittenAfterCompletion(t *testing.
 // deliberate decision, not a leftover of the old path. The migration may not
 // touch it — it cannot be rolled back.
 func TestBackfillCompletedAttendanceSkipsPostCompletionEdits(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

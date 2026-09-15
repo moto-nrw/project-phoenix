@@ -1,4 +1,6 @@
 export interface InvitationValidation {
+  targetPortal?: "tenant" | "school";
+  requiresAccountLogin?: boolean;
   email: string;
   roleName: string;
   firstName?: string | null;
@@ -8,6 +10,7 @@ export interface InvitationValidation {
 }
 
 export interface InvitationAcceptRequest {
+  existingAccount?: boolean;
   firstName: string;
   lastName: string;
   password: string;
@@ -16,7 +19,7 @@ export interface InvitationAcceptRequest {
 
 export interface CreateInvitationRequest {
   email: string;
-  roleId: number | undefined;
+  roleId: string | undefined;
   firstName?: string;
   lastName?: string;
   position?: string;
@@ -25,7 +28,7 @@ export interface CreateInvitationRequest {
 export interface PendingInvitation {
   id: number;
   email: string;
-  roleId: number;
+  roleId: string;
   roleName: string;
   createdBy: number;
   creatorEmail?: string;
@@ -37,6 +40,8 @@ export interface PendingInvitation {
 }
 
 export interface BackendInvitationValidation {
+  target_portal?: "tenant" | "school";
+  requires_account_login?: boolean;
   email: string;
   role_name: string;
   first_name?: string | null;
@@ -48,7 +53,7 @@ export interface BackendInvitationValidation {
 export interface BackendInvitation {
   id: number;
   email: string;
-  role_id: number;
+  role_id: string;
   role_name?: string; // Role name from backend
   token?: string;
   expires_at: string;
@@ -62,6 +67,8 @@ export interface BackendInvitation {
 export const mapInvitationValidationResponse = (
   data: BackendInvitationValidation,
 ): InvitationValidation => ({
+  targetPortal: data.target_portal,
+  requiresAccountLogin: data.requires_account_login,
   email: data.email,
   roleName: data.role_name,
   firstName: data.first_name,

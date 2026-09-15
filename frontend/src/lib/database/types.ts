@@ -131,7 +131,6 @@ interface DetailItem<T = Record<string, unknown>> {
 // Detail view section configuration
 interface DetailSection<T = Record<string, unknown>> {
   title: string;
-  titleColor?: string;
   items: DetailItem<T>[];
   columns?: 1 | 2;
 }
@@ -154,12 +153,6 @@ interface ListItemConfig<T = Record<string, unknown>> {
   title: (entity: T) => string;
   subtitle?: (entity: T) => string;
   description?: (entity: T) => string;
-  badges?: Array<{
-    field?: string;
-    label: string | ((entity: T) => string);
-    color: string;
-    showWhen?: (entity: T) => boolean;
-  }>;
   avatar?: {
     text: (entity: T) => string;
   };
@@ -218,11 +211,6 @@ export interface EntityConfig<T = Record<string, unknown>> {
         text: (entity: T) => string;
         size?: "sm" | "md" | "lg";
       };
-      badges?: Array<{
-        label: string | ((entity: T) => string);
-        color: string;
-        showWhen: (entity: T) => boolean;
-      }>;
     };
     sections: DetailSection<T>[];
     actions?: {

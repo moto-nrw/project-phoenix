@@ -1,15 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-import Link from "next/link";
 import {
-  ArrowLeft,
   CalendarClock,
   Check,
   ClipboardList,
   ExternalLink,
-  type LucideIcon,
   Mail,
   Pencil,
   Phone,
@@ -53,6 +49,15 @@ import {
   OfferingRowShell,
 } from "~/components/enrollment/offering-row-shell";
 import { StatusBadge } from "~/components/ui/status-badge";
+import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
+import { Textarea } from "~/components/ui/textarea";
 import { Checkbox } from "~/components/ui/checkbox";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { formatCalendarDate } from "~/lib/localized-date-format";
@@ -60,8 +65,13 @@ import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
+import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { EditActions } from "~/components/ui/edit-actions";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
@@ -211,13 +221,26 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   };
 
   if (loading) {
-    return <p className="text-sm text-gray-500">Wird geladen...</p>;
+    return (
+      <TenantPage
+        title="Anmeldung"
+        back
+        backHref="/admin/enrollments"
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        statsLoading
+        loading
+      />
+    );
   }
   if (!data) {
     return (
-      <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-2xl border p-4 text-sm">
-        {error ?? "Anmeldung nicht gefunden."}
-      </div>
+      <TenantPage
+        title="Anmeldung"
+        back
+        backHref="/admin/enrollments"
+        backLabel="Zurück zur Anmeldungs-Übersicht"
+        error={error ?? "Anmeldung nicht gefunden."}
+      />
     );
   }
 
@@ -246,8 +269,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     minute: "2-digit",
   });
   const childStats = summarizeChildren(data.children);
-  const phaseHref = tenantPath(`/admin/enrollments/phases/${data.phase_id}`);
-  const statusHref = tenantPath(`/enroll/status/${data.status_token}`);
+  const statusHref = tenantPath(`/anmeldung/status/${data.status_token}`);
   // The restore action shows whenever at least one child is withdrawn —
   // exactly the backend's restore precondition. Individual child withdraws
   // never stamp withdrawn_at, and RestoreWithdrawn restores the withdrawn
@@ -257,43 +279,90 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   ).length;
   const hasRestorableChildren = withdrawnChildCount > 0;
 
-  return (
-    <div className="space-y-5">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <Link
-            href={phaseHref}
-            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Zurück zur Anmeldephase
-          </Link>
-        </div>
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
-          <div className="space-y-6 p-5 sm:p-6">
-            <header>
-              <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                Anmeldung prüfen
-              </p>
-              <h1 className="mt-1 text-xl font-semibold text-gray-900">
-                {data.guardian_first_name} {data.guardian_last_name}
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                Prüfe die Angaben der Anmeldung, bevor du eine Entscheidung
-                speicherst. Die Entscheidung wird pro Kind gesetzt.
-              </p>
-            </header>
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Anmeldung.
+  const statusLine = [
+    `${data.children.length} ${data.children.length === 1 ? "Kind" : "Kinder"}`,
+    `${childStats.open} offen`,
+    `${childStats.approved} bestätigt`,
+    data.phase_name,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
-            {error && (
-              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-                {error}
-              </div>
-            )}
-            {info && (
-              <div className="border-moto-green/20 bg-moto-green/10 text-moto-green-strong rounded-lg border p-3 text-sm">
-                {info}
-              </div>
-            )}
+  return (
+    <TenantPage
+      title={`${data.guardian_first_name} ${data.guardian_last_name}`}
+      back
+      backHref={`/admin/enrollments/phases/${data.phase_id}`}
+      backLabel="Zurück zur Anmeldephase"
+      stats={statusLine}
+      leading={<ConceptIconTile concept="enrollments" variant="page" />}
+      overlays={
+        <>
+          <ConfirmationModal
+            isOpen={approvalWithoutOfferingChildId !== null}
+            onClose={() => setApprovalWithoutOfferingChildId(null)}
+            onConfirm={() => {
+              const childId = approvalWithoutOfferingChildId;
+              setApprovalWithoutOfferingChildId(null);
+              if (childId !== null) void handleDecide(childId, "approved");
+            }}
+            title="Anmeldung bestätigen"
+            confirmText="Trotzdem bestätigen"
+          >
+            <Alert
+              type="warning"
+              message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
+            />
+          </ConfirmationModal>
+          <ConfirmationModal
+            isOpen={restoreOpen}
+            onClose={() => setRestoreOpen(false)}
+            onConfirm={() => void handleRestore()}
+            title="Anmeldung wiederherstellen"
+            confirmText="Wiederherstellen"
+            isConfirmLoading={restoring}
+          >
+            <p className="text-sm text-gray-600">
+              {withdrawnChildCount === 1
+                ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
+                : `Alle ${withdrawnChildCount} zurückgezogenen Kinder werden wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet.`}{" "}
+              Bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes
+              Betreuungsangebot inzwischen voll, kommt das betroffene Kind
+              stattdessen auf die Warteliste.
+            </p>
+          </ConfirmationModal>
+          <AdminEnrollmentDeletionModal
+            isOpen={deletionTarget !== null}
+            requestId={data.id}
+            childId={
+              deletionTarget?.type === "child" ? deletionTarget.id : undefined
+            }
+            childLabel={
+              deletionTarget?.type === "child"
+                ? deletionTarget.label
+                : undefined
+            }
+            studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
+            onClose={() => setDeletionTarget(null)}
+            onDeleted={(impact) => {
+              setDeletionTarget(null);
+              if (impact.deletes_request) {
+                router.push(`/admin/enrollments/phases/${data.phase_id}`);
+                return;
+              }
+              setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
+              void load();
+            }}
+          />
+        </>
+      }
+    >
+      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
+          <div className="space-y-6 p-4 sm:p-6">
+            {error ? <Alert type="error" message={error} /> : null}
+            {info ? <Alert type="success" message={info} /> : null}
 
             {data.late_invite_email_mismatch === true &&
               data.late_invite_guardian_email && (
@@ -308,19 +377,11 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
 
             <RequestExtraSection request={data} />
 
-            <section className="space-y-3">
-              <div>
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                  Kinder
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-gray-900">
-                  Angaben der Kinder
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Zusatzfragen und Stammdaten-Antworten werden pro Kind
-                  angezeigt.
-                </p>
-              </div>
+            <SectionCard
+              title="Angaben der Kinder"
+              description="Zusatzfragen und Stammdaten-Antworten werden pro Kind angezeigt."
+              bodyClassName="mt-4 space-y-3"
+            >
               {data.children.map((child) => (
                 <ChildInformationCard
                   key={child.id}
@@ -347,10 +408,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   }
                 />
               ))}
-            </section>
+            </SectionCard>
           </div>
 
-          <aside className="border-t border-gray-100 bg-gray-50/70 p-5 sm:p-6 lg:border-t-0 lg:border-l">
+          <aside className="border-t border-gray-100 bg-gray-50/70 p-4 sm:p-6 lg:border-t-0 lg:border-l">
             <ReviewSidebar
               childStats={childStats}
               data={data}
@@ -364,61 +425,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
           </aside>
         </div>
       </section>
-      <ConfirmationModal
-        isOpen={approvalWithoutOfferingChildId !== null}
-        onClose={() => setApprovalWithoutOfferingChildId(null)}
-        onConfirm={() => {
-          const childId = approvalWithoutOfferingChildId;
-          setApprovalWithoutOfferingChildId(null);
-          if (childId !== null) void handleDecide(childId, "approved");
-        }}
-        title="Anmeldung bestätigen"
-        confirmText="Trotzdem bestätigen"
-      >
-        <Alert
-          type="warning"
-          message="Für dieses Kind ist kein Betreuungsangebot gebucht. Das Kind wird trotzdem in die OGS aufgenommen."
-        />
-      </ConfirmationModal>
-      <ConfirmationModal
-        isOpen={restoreOpen}
-        onClose={() => setRestoreOpen(false)}
-        onConfirm={() => void handleRestore()}
-        title="Anmeldung wiederherstellen"
-        confirmText="Wiederherstellen"
-        isConfirmLoading={restoring}
-      >
-        <p className="text-sm text-gray-600">
-          {withdrawnChildCount === 1
-            ? "Das zurückgezogene Kind wird wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet."
-            : `Alle ${withdrawnChildCount} zurückgezogenen Kinder werden wieder auf „Eingegangen“ gesetzt und die Anmeldung erneut zur Prüfung geöffnet.`}{" "}
-          Bereits entschiedene Kinder bleiben unverändert. Ist ein gewähltes
-          Betreuungsangebot inzwischen voll, kommt das betroffene Kind
-          stattdessen auf die Warteliste.
-        </p>
-      </ConfirmationModal>
-      <AdminEnrollmentDeletionModal
-        isOpen={deletionTarget !== null}
-        requestId={data.id}
-        childId={
-          deletionTarget?.type === "child" ? deletionTarget.id : undefined
-        }
-        childLabel={
-          deletionTarget?.type === "child" ? deletionTarget.label : undefined
-        }
-        studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
-        onClose={() => setDeletionTarget(null)}
-        onDeleted={(impact) => {
-          setDeletionTarget(null);
-          if (impact.deletes_request) {
-            router.push(`/admin/enrollments/phases/${data.phase_id}`);
-            return;
-          }
-          setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
-          void load();
-        }}
-      />
-    </div>
+    </TenantPage>
   );
 }
 
@@ -436,10 +443,7 @@ function EnrollmentSummary({
           <MotoConceptIcon concept="parents" size={16} />
         </span>
         <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Erziehungsberechtigte Person
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             {data.guardian_first_name} {data.guardian_last_name}
           </h2>
           <p className="mt-1 text-sm text-gray-600">
@@ -448,25 +452,21 @@ function EnrollmentSummary({
         </div>
       </div>
 
-      <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-        <InfoItem icon={Mail} label="E-Mail" value={data.guardian_email} />
-        <InfoItem
-          icon={Phone}
-          label="Telefon"
-          value={data.guardian_phone ?? "Nicht gesetzt"}
-        />
-        <InfoItem
-          icon={CalendarClock}
-          label="Eingegangen"
-          value={submittedAt}
-        />
-      </dl>
+      <div className="mt-4">
+        <DataGrid>
+          <DataField label="E-Mail">{data.guardian_email}</DataField>
+          <DataField label="Telefon">
+            {data.guardian_phone ?? "Nicht gesetzt"}
+          </DataField>
+          <DataField label="Eingegangen">{submittedAt}</DataField>
+        </DataGrid>
+      </div>
 
       {data.additional_guardians && data.additional_guardians.length > 0 && (
         <div className="mt-4 space-y-3">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          <h3 className="text-base font-semibold text-gray-900">
             Weitere erziehungsberechtigte Personen
-          </p>
+          </h3>
           {data.additional_guardians.map((g: AdminRequestGuardian) => (
             <div
               key={g.id}
@@ -490,32 +490,6 @@ function EnrollmentSummary({
         </div>
       )}
     </section>
-  );
-}
-
-function InfoItem({
-  icon: Icon,
-  label,
-  mono,
-  value,
-}: Readonly<{
-  icon: LucideIcon;
-  label: string;
-  mono?: boolean;
-  value: string;
-}>) {
-  return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3">
-      <dt className="flex items-center gap-2 text-xs font-medium text-gray-500 uppercase">
-        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-        {label}
-      </dt>
-      <dd
-        className={`mt-1 text-sm text-gray-900 ${mono ? "font-mono break-all" : ""}`}
-      >
-        {value}
-      </dd>
-    </div>
   );
 }
 
@@ -582,7 +556,27 @@ function ChildInformationCard({
             ) : null}
           </div>
         </div>
-        <ChildStatusBadge status={child.status} />
+        {/* Aktionen des Kindes rechts im Kartenkopf statt als eigene
+            Buttonzeile im Karteninhalt. */}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {child.status === "approved" && child.created_student_id ? (
+            <>
+              <NavigationLink
+                href={studentHref}
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                Kind &amp; Einladung verwalten
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </NavigationLink>
+              <AdminChildDataCorrection
+                requestId={requestId}
+                child={child}
+                onSaved={onDataCorrected}
+              />
+            </>
+          ) : null}
+          <ChildStatusBadge status={child.status} />
+        </div>
       </div>
       <div className="space-y-4 p-4">
         {child.status_reason ? (
@@ -597,22 +591,6 @@ function ChildInformationCard({
           <p className="text-xs text-gray-500">
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
-        ) : null}
-        {child.status === "approved" && child.created_student_id ? (
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href={studentHref}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            >
-              Kind &amp; Einladung verwalten
-              <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            </Link>
-            <AdminChildDataCorrection
-              requestId={requestId}
-              child={child}
-              onSaved={onDataCorrected}
-            />
-          </div>
         ) : null}
         <ChildOfferings
           offerings={child.offerings}
@@ -679,41 +657,25 @@ function ReviewSidebar({
 }>) {
   return (
     <div className="space-y-4 lg:sticky lg:top-6">
-      <section>
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Prüfung
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
-          Status der Anmeldung
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den
-          aktuellen Stand der Anmeldung.
-        </p>
-      </section>
-
-      <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
+      {/* Der Erklärtext stand vorher als eigener Block über der Karte und
+          gehört als description in ihren Kopf. */}
+      <SectionCard
+        title="Status der Anmeldung"
+        description="Alle Kinder werden einzeln geprüft. Die Statusseite zeigt Eltern den aktuellen Stand der Anmeldung."
+      >
         <div className="grid grid-cols-3 gap-2">
           <SidebarMetric label="Kinder" value={data.children.length} />
           <SidebarMetric label="Offen" value={childStats.open} />
           <SidebarMetric label="Bestätigt" value={childStats.approved} />
         </div>
-        <dl className="mt-4 space-y-3 text-sm">
-          <div>
-            <dt className="text-xs font-medium text-gray-500 uppercase">
-              Phase
-            </dt>
-            <dd className="mt-0.5 font-medium text-gray-900">
+        <div className="mt-4">
+          <DataGrid>
+            <DataField label="Phase">
               {data.phase_name || "Nicht zugeordnet"}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium text-gray-500 uppercase">
-              Eingegangen
-            </dt>
-            <dd className="mt-0.5 text-gray-900">{submittedAt}</dd>
-          </div>
-        </dl>
+            </DataField>
+            <DataField label="Eingegangen">{submittedAt}</DataField>
+          </DataGrid>
+        </div>
         <a
           href={statusHref}
           target="_blank"
@@ -745,7 +707,7 @@ function ReviewSidebar({
           <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
           Gesamte Anmeldung löschen
         </Button>
-      </section>
+      </SectionCard>
 
       {data.children.map((child) => {
         return (
@@ -828,31 +790,33 @@ function DecisionPanel({
         </div>
       </div>
 
-      <label className="mt-4 block">
-        <span className="text-xs font-medium text-gray-700">Begründung</span>
-        <textarea
+      <div className="mt-4">
+        <Textarea
+          id={`decision-reason-${child.id}`}
+          label="Begründung"
           value={reason}
           onChange={(event) => onReasonChange(event.target.value)}
           rows={2}
           placeholder="z. B. Geschwisterkind bevorzugt, voll ausgebucht"
-          className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         />
-      </label>
+      </div>
 
       <div className="mt-3 flex flex-wrap gap-2">
         {actions.map((action) => {
           const isCurrent = child.status === action.status;
           return (
-            <button
+            <Button
               key={action.status}
               type="button"
+              size="md"
+              variant={getDecisionButtonVariant(action.tone)}
               disabled={busy || isCurrent}
               onClick={() => onDecide(action.status)}
-              className={getDecisionButtonClass(action.tone)}
+              className="inline-flex items-center justify-center gap-2"
             >
               {getDecisionIcon(action.status)}
-              {busy ? "Speichert..." : action.label}
-            </button>
+              {busy ? "Speichert…" : action.label}
+            </Button>
           );
         })}
       </div>
@@ -860,19 +824,13 @@ function DecisionPanel({
   );
 }
 
-function getDecisionButtonClass(tone: ActionDef["tone"]): string {
-  const base =
-    "inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-45";
-  if (tone === "success") {
-    return `${base} border border-gray-200 bg-white text-gray-700 hover:border-moto-green/60 hover:bg-moto-green/10 hover:text-moto-green-strong`;
-  }
-  if (tone === "danger") {
-    return `${base} border border-moto-red/20 bg-white text-moto-red-strong hover:bg-moto-red/10`;
-  }
-  if (tone === "primary") {
-    return `${base} border border-gray-900 bg-gray-900 text-white hover:bg-gray-700`;
-  }
-  return `${base} border border-gray-200 bg-white text-gray-700 hover:bg-gray-50`;
+function getDecisionButtonVariant(
+  tone: ActionDef["tone"],
+): "success" | "outline_danger" | "primary" | "outline" {
+  if (tone === "success") return "success";
+  if (tone === "danger") return "outline_danger";
+  if (tone === "primary") return "primary";
+  return "outline";
 }
 
 function getDecisionIcon(status: DecisionStatus): React.ReactNode {
@@ -960,7 +918,7 @@ export function RequestExtraSection({
   if (!hasCustom && !hasConsents) return null;
 
   return (
-    <section className="moto-content-surface space-y-3 rounded-2xl border p-5 shadow-sm">
+    <section className="moto-content-surface space-y-3 rounded-2xl border p-4 shadow-sm sm:p-6">
       <h2 className="text-base font-semibold text-gray-900">
         Zusätzliche Angaben
       </h2>
@@ -995,11 +953,11 @@ export function RequestExtraSection({
       )}
 
       {hasCustom && (
-        <div>
-          <h3 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Zusatzfragen (Eltern)
-          </h3>
-          <dl className="mt-1.5 space-y-2 text-sm">
+        <InfoSection
+          title="Zusatzfragen (Eltern)"
+          icon={<MotoConceptIcon concept="parents" size={16} />}
+        >
+          <DataGrid>
             {guardianFields.map((f) => {
               const formatted = formatCustomValue(
                 request.custom_data?.[f.key],
@@ -1007,16 +965,13 @@ export function RequestExtraSection({
               );
               if (formatted === null) return null;
               return (
-                <div key={f.key}>
-                  <dt className="text-xs font-medium text-gray-600">
-                    {f.label}
-                  </dt>
-                  <dd className="mt-0.5 text-gray-900">{formatted}</dd>
-                </div>
+                <DataField key={f.key} label={f.label}>
+                  {formatted}
+                </DataField>
               );
             })}
-          </dl>
-        </div>
+          </DataGrid>
+        </InfoSection>
       )}
     </section>
   );
@@ -1057,11 +1012,11 @@ export function ChildOfferings({
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
   if (unavailable) {
     return (
-      <div className="mt-3 rounded-lg border border-[#F78C10]/30 bg-[#FFF4E6] p-3">
+      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
         <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
           Betreuungsangebote
         </h4>
-        <p className="mt-1.5 text-sm text-[#8A5600]">
+        <p className="text-moto-orange-strong mt-1.5 text-sm">
           Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
           neu laden, bevor Sie über dieses Kind entscheiden.
         </p>
@@ -1276,7 +1231,9 @@ export function ChildOfferingAdjustment({
   const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
     ? tenant.gradeLevelMax
     : null;
-  const [open, setOpen] = useState(false);
+  // Der Bearbeiten-Zustand der Fläche (Bauart 2 Regel 3, #3119): die
+  // Auswahl erscheint an Ort und Stelle, kein Modal.
+  const [editing, setEditing] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
   // Offerings the child's grade level rules out. Kept separate from `catalog`
   // so payload building and the auto-add preview keep operating on exactly
@@ -1298,7 +1255,8 @@ export function ChildOfferingAdjustment({
   const [loading, setLoading] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler stehen oben im Bearbeiten-Bereich (Bauart 2 Regel 5).
+  const [error, setError] = useFormError();
   const [withdrawalConfirmationOpen, setWithdrawalConfirmationOpen] =
     useState(false);
   const [pendingWithdrawalInput, setPendingWithdrawalInput] = useState<{
@@ -1306,14 +1264,8 @@ export function ChildOfferingAdjustment({
     offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   } | null>(null);
   const [withdrawalCreated, setWithdrawalCreated] = useState(false);
-  const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null);
-
   useEffect(() => {
-    setPortalRoot(document.body);
-  }, []);
-
-  useEffect(() => {
-    if (!careOfferingsEnabled) setOpen(false);
+    if (!careOfferingsEnabled) setEditing(false);
   }, [careOfferingsEnabled]);
 
   const loadHistory = useCallback(async () => {
@@ -1358,7 +1310,7 @@ export function ChildOfferingAdjustment({
 
   const openEditor = async () => {
     if (!careOfferingsEnabled) return;
-    setOpen(true);
+    setEditing(true);
     setError(null);
     setDays(initialManualOfferingDays(child.offerings));
     // Occupancy is advisory: without it a full offering only announces itself
@@ -1461,7 +1413,7 @@ export function ChildOfferingAdjustment({
   const finishSave = async () => {
     setWithdrawalConfirmationOpen(false);
     setPendingWithdrawalInput(null);
-    setOpen(false);
+    setEditing(false);
     setReason("");
     await loadHistory();
     onSaved();
@@ -1539,6 +1491,11 @@ export function ChildOfferingAdjustment({
     }
   };
 
+  const cancelEditing = () => {
+    setEditing(false);
+    setError(null);
+  };
+
   if (!careOfferingsEnabled && history.length === 0) return null;
 
   return (
@@ -1557,23 +1514,172 @@ export function ChildOfferingAdjustment({
             </h4>
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
-                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden - eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
-                : "Angebote können für dieses bestätigte Kind korrigiert werden."}
+                ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
+                : editing
+                  ? "Auswahl ändern und mit Begründung speichern. Automatisch verknüpfte Angebote werden beim Speichern neu berechnet."
+                  : "Angebote können für dieses bestätigte Kind korrigiert werden."}
             </p>
           </div>
           {/* Correcting on top of an unknown selection would replace the
               family's real bookings with whatever the empty editor holds
               (#2185), so the entry point disappears until the data is back. */}
-          {child.offerings_unavailable ? null : (
-            <button
+          {child.offerings_unavailable || editing ? null : (
+            <Button
               type="button"
+              variant="outline"
+              size="md"
               onClick={() => void openEditor()}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              className="inline-flex items-center justify-center gap-2"
             >
               <Pencil className="h-4 w-4" aria-hidden />
               Bearbeiten
-            </button>
+            </Button>
           )}
+        </div>
+      ) : null}
+
+      {/* Der Bearbeiten-Zustand an Ort und Stelle (Bauart 2 Regel 3 und 4,
+          #3119): Auswahl, Begründung und ein `EditActions` unten. Die
+          Abmelde-Rückfrage ist der einzige Dialog und liegt über dieser
+          Fläche; Auswahl und Begründung bleiben darunter erhalten. */}
+      {careOfferingsEnabled && editing ? (
+        <div className="mt-3 space-y-4 border-t border-gray-100 pt-3">
+          <FormErrorAlert message={error} />
+          {loading ? (
+            <p className="text-sm text-gray-500">Angebote werden geladen…</p>
+          ) : (
+            <div className="space-y-2">
+              {catalog.map((offering) => {
+                const checked = selected.has(offering.id);
+                const autoDays = preview.automaticDays[offering.id] ?? [];
+                const inputId = `offering-adjustment-${child.id}-${offering.id}`;
+                return (
+                  <OfferingRowShell
+                    key={offering.id}
+                    tone={
+                      checked
+                        ? "border-moto-green/40 bg-moto-green/10"
+                        : "border-gray-200 bg-white"
+                    }
+                  >
+                    {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
+                        sr-only, erst das <label> mit htmlFor macht den Klick
+                        auf den Kasten wirksam. */}
+                    <label
+                      htmlFor={inputId}
+                      className={`flex items-start gap-3 ${
+                        offering.is_required
+                          ? "cursor-default"
+                          : "cursor-pointer"
+                      }`}
+                    >
+                      <Checkbox
+                        id={inputId}
+                        className="mt-0.5"
+                        checked={checked}
+                        disabled={offering.is_required}
+                        onChange={() => handleToggle(offering)}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900">
+                            {offering.name}
+                          </span>
+                          {!offering.is_active ? (
+                            <StatusBadge tone="gray" label="Inaktiv" />
+                          ) : null}
+                          {offering.is_required ? (
+                            <StatusBadge tone="blue" label="Pflichtangebot" />
+                          ) : null}
+                          {autoDays.length > 0 ? (
+                            <StatusBadge
+                              tone="blue"
+                              label={`automatisch mitgebucht: ${formatAdminDays(autoDays)}`}
+                            />
+                          ) : null}
+                        </span>
+                        {offering.description ? (
+                          <span className="mt-1 block text-xs text-gray-500">
+                            {offering.description}
+                          </span>
+                        ) : null}
+                        <OfferingOccupancyLine
+                          stats={bookingStats[offering.id]}
+                        />
+                      </span>
+                    </label>
+
+                    {checked &&
+                    offering.days_of_week_mode === "parent_choice" ? (
+                      <div className="mt-3 flex flex-wrap gap-2 pl-8">
+                        {offering.available_days.map((day) => (
+                          <ToggleChip
+                            key={day}
+                            pressed={(days[offering.id] ?? []).includes(day)}
+                            onPressedChange={() =>
+                              handleDayToggle(offering, day)
+                            }
+                          >
+                            {DAY_LABEL_DE[day] ?? day}
+                          </ToggleChip>
+                        ))}
+                      </div>
+                    ) : null}
+                  </OfferingRowShell>
+                );
+              })}
+              {blockedCatalog.length > 0 ? (
+                <div className="space-y-2 pt-1">
+                  <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                    Für dieses Kind nicht wählbar
+                  </p>
+                  {blockedCatalog.map((offering) => (
+                    <BlockedOfferingRow
+                      key={offering.id}
+                      offering={offering}
+                      gradeLevel={child.target_grade_level}
+                      gradeLevelMax={gradeLevelMax}
+                      booked={selected.has(offering.id)}
+                      automaticDays={automaticDaysOnFile[offering.id] ?? []}
+                      stats={bookingStats[offering.id]}
+                      onRemove={() =>
+                        setSelected((prev) => {
+                          const next = new Set(prev);
+                          next.delete(offering.id);
+                          return next;
+                        })
+                      }
+                    />
+                  ))}
+                </div>
+              ) : null}
+              {hasSelectedCareDays ? (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={removeAllCareDays}
+                >
+                  Alle Betreuungstage entfernen
+                </Button>
+              ) : null}
+            </div>
+          )}
+
+          <Textarea
+            name="offering-adjustment-reason"
+            label="Begründung"
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            rows={3}
+            autoComplete="off"
+            placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
+          />
+          <EditActions
+            onCancel={cancelEditing}
+            onSave={() => void handleSave()}
+            saving={saving}
+            disabled={loading || !catalogLoaded}
+          />
         </div>
       ) : null}
 
@@ -1609,187 +1715,6 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
-      {/* Ausgeblendet, solange die Abmelde-Bestätigung offen ist — nie zwei
-          eigenständige Dialoge übereinander (#2774). Auswahl und Begründung
-          bleiben erhalten, der State liegt in dieser Komponente. */}
-      {careOfferingsEnabled && open && !withdrawalConfirmationOpen && portalRoot
-        ? createPortal(
-            <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/40 p-4">
-              <div className="mx-auto my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">
-                <div className="border-b border-gray-100 p-4">
-                  <h3 className="text-base font-semibold text-gray-900">
-                    Betreuungsangebote bearbeiten
-                  </h3>
-                  <p className="mt-1 text-sm text-gray-600">
-                    Manuelle Auswahl ändern; automatisch verknüpfte Angebote
-                    werden beim Speichern neu berechnet.
-                  </p>
-                </div>
-                <div className="space-y-4 p-4">
-                  {error ? (
-                    <div
-                      role="alert"
-                      className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm"
-                    >
-                      {error}
-                    </div>
-                  ) : null}
-                  {loading ? (
-                    <p className="text-sm text-gray-500">
-                      Angebote werden geladen…
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      {catalog.map((offering) => {
-                        const checked = selected.has(offering.id);
-                        const autoDays =
-                          preview.automaticDays[offering.id] ?? [];
-                        return (
-                          <div
-                            key={offering.id}
-                            className="rounded-lg border border-gray-200 p-3"
-                          >
-                            <label className="flex items-start gap-3">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                disabled={offering.is_required}
-                                onChange={() => handleToggle(offering)}
-                                className="text-moto-blue focus:ring-moto-blue mt-1 h-4 w-4 rounded border-gray-300"
-                              />
-                              <span className="min-w-0 flex-1">
-                                <span className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm font-medium text-gray-900">
-                                    {offering.name}
-                                  </span>
-                                  {!offering.is_active ? (
-                                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                                      Inaktiv
-                                    </span>
-                                  ) : null}
-                                  {offering.is_required ? (
-                                    <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
-                                      Pflichtangebot
-                                    </span>
-                                  ) : null}
-                                  {autoDays.length > 0 ? (
-                                    <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
-                                      automatisch mitgebucht:{" "}
-                                      {formatAdminDays(autoDays)}
-                                    </span>
-                                  ) : null}
-                                </span>
-                                {offering.description ? (
-                                  <span className="mt-1 block text-xs text-gray-500">
-                                    {offering.description}
-                                  </span>
-                                ) : null}
-                                <OfferingOccupancyLine
-                                  stats={bookingStats[offering.id]}
-                                />
-                              </span>
-                            </label>
-
-                            {checked &&
-                            offering.days_of_week_mode === "parent_choice" ? (
-                              <div className="mt-3 flex flex-wrap gap-2 pl-7">
-                                {offering.available_days.map((day) => (
-                                  <button
-                                    key={day}
-                                    type="button"
-                                    onClick={() =>
-                                      handleDayToggle(offering, day)
-                                    }
-                                    className={`h-8 rounded-lg border px-3 text-sm font-medium ${
-                                      (days[offering.id] ?? []).includes(day)
-                                        ? "border-moto-blue bg-moto-blue/10 text-moto-blue-strong"
-                                        : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                                    }`}
-                                  >
-                                    {DAY_LABEL_DE[day] ?? day}
-                                  </button>
-                                ))}
-                              </div>
-                            ) : null}
-                          </div>
-                        );
-                      })}
-                      {blockedCatalog.length > 0 ? (
-                        <div className="space-y-2 pt-1">
-                          <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-                            Für dieses Kind nicht wählbar
-                          </p>
-                          {blockedCatalog.map((offering) => (
-                            <BlockedOfferingRow
-                              key={offering.id}
-                              offering={offering}
-                              gradeLevel={child.target_grade_level}
-                              gradeLevelMax={gradeLevelMax}
-                              booked={selected.has(offering.id)}
-                              automaticDays={
-                                automaticDaysOnFile[offering.id] ?? []
-                              }
-                              stats={bookingStats[offering.id]}
-                              onRemove={() =>
-                                setSelected((prev) => {
-                                  const next = new Set(prev);
-                                  next.delete(offering.id);
-                                  return next;
-                                })
-                              }
-                            />
-                          ))}
-                        </div>
-                      ) : null}
-                      {hasSelectedCareDays ? (
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          onClick={removeAllCareDays}
-                        >
-                          Alle Betreuungstage entfernen
-                        </Button>
-                      ) : null}
-                    </div>
-                  )}
-
-                  <label className="block">
-                    <span className="text-xs font-medium text-gray-700">
-                      Begründung
-                    </span>
-                    <textarea
-                      name="offering-adjustment-reason"
-                      value={reason}
-                      onChange={(event) => setReason(event.target.value)}
-                      rows={3}
-                      autoComplete="off"
-                      placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    />
-                  </label>
-                </div>
-                <div className="flex justify-end gap-2 border-t border-gray-100 p-4">
-                  <button
-                    type="button"
-                    onClick={() => setOpen(false)}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Abbrechen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleSave()}
-                    disabled={saving || loading || !catalogLoaded}
-                    className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-900 bg-gray-900 px-3 text-sm font-medium text-white hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {saving ? "Speichert…" : "Speichern"}
-                  </button>
-                </div>
-              </div>
-            </div>,
-            portalRoot,
-          )
-        : null}
       <ConfirmationModal
         isOpen={withdrawalConfirmationOpen}
         onClose={() => setWithdrawalConfirmationOpen(false)}
@@ -2050,26 +1975,24 @@ export function ChildExtraFields({
   )?.trim();
   if (filled.length === 0 && !companionNote) return null;
   return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-      <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-        Zusätzliche Angaben zum Kind
-      </h4>
-      <dl className="mt-1.5 space-y-1.5 text-sm">
-        {filled.map(({ field, value }) => (
-          <div key={field.key}>
-            <dt className="text-xs font-medium text-gray-600">{field.label}</dt>
-            <dd className="mt-0.5 text-gray-900">{value}</dd>
-          </div>
-        ))}
-        {companionNote && (
-          <div key={DEPARTURE_COMPANION_KEY}>
-            <dt className="text-xs font-medium text-gray-600">
-              Mit welchem Kind?
-            </dt>
-            <dd className="mt-0.5 text-gray-900">{companionNote}</dd>
-          </div>
-        )}
-      </dl>
+    <div className="mt-3">
+      <InfoSection
+        title="Zusätzliche Angaben zum Kind"
+        icon={<MotoConceptIcon concept="children" size={16} />}
+      >
+        <DataGrid>
+          {filled.map(({ field, value }) => (
+            <DataField key={field.key} label={field.label}>
+              {value}
+            </DataField>
+          ))}
+          {companionNote && (
+            <DataField key={DEPARTURE_COMPANION_KEY} label="Mit welchem Kind?">
+              {companionNote}
+            </DataField>
+          )}
+        </DataGrid>
+      </InfoSection>
     </div>
   );
 }

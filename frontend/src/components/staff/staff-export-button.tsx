@@ -34,7 +34,11 @@ export function StaffExportButton({
   }, [formOpen]);
 
   return (
-    <div className="relative" ref={containerRef}>
+    // `data-icon-only`: in den Aktionen der Kopfkarte ist dieses Div das
+    // Kind, das die Kopfkarte unter sm sortiert -- ohne die Markierung
+    // hielte sie das Kebab für einen Textknopf und gäbe ihm eine eigene,
+    // volle Zeile unter der Statuszeile (Zeiterfassung).
+    <div className="relative" data-icon-only="" ref={containerRef}>
       <OverflowMenu
         ariaLabel="Menü öffnen"
         onOpen={() => setFormOpen(false)}
@@ -48,7 +52,7 @@ export function StaffExportButton({
       />
 
       {formOpen && (
-        <div className="fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-lg sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-1 sm:max-h-none sm:overflow-visible">
+        <div className="moto-popover-surface fixed inset-x-4 top-20 z-50 max-h-[calc(100vh-6rem)] overflow-y-auto rounded-xl border sm:absolute sm:inset-auto sm:top-full sm:right-0 sm:mt-1 sm:max-h-none sm:overflow-visible">
           <ExportRangeForm
             exportUrl={`/api/staff/${staffId}/time-tracking/export`}
             anchor={yearStart}

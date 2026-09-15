@@ -63,6 +63,11 @@ vi.mock("~/components/parent/child-master-data", () => ({
     );
   },
 }));
+vi.mock("~/components/parent/child/child-consents-section", () => ({
+  ChildConsentsSection: () => (
+    <div data-testid="section-consents">Einwilligungen</div>
+  ),
+}));
 vi.mock("~/components/parent/guardians-panel", () => ({
   default: () => <div data-testid="section-people">Eltern</div>,
 }));

@@ -1,12 +1,14 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
+import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
 import { isSchoolNavActive } from "./school-nav-active";
+import { schoolNavBadge } from "./school-nav-badge";
 import {
   SCHOOL_PRIMARY_NAV,
   SCHOOL_SECONDARY_NAV,
@@ -30,8 +32,11 @@ const ICON =
  */
 export function SchoolSidebar({
   teamChat,
+  notices,
 }: {
   readonly teamChat: SchoolTeamChatUnread;
+  /** Offene Tagesinformationen (#2208); ohne Wert steht keine Zahl. */
+  readonly notices?: SchoolStaffNoticesPending;
 }) {
   const pathname = usePathname();
 
@@ -42,9 +47,10 @@ export function SchoolSidebar({
       return null;
     }
     const active = isSchoolNavActive(item.href, pathname);
+    const badge = schoolNavBadge(item, { teamChat, notices });
     return (
       <li key={item.key}>
-        <Link
+        <NavLink
           href={item.portalPath ? schoolPath(item.href) : item.href}
           data-school-nav-item={item.key}
           data-active={active ? "true" : "false"}
@@ -61,23 +67,23 @@ export function SchoolSidebar({
           />
           <span className="flex flex-1 items-center">
             {item.label}
-            {item.badge === "teamChat" && (
+            {badge && (
               <NotificationBadge
-                count={teamChat.unreadCount}
+                count={badge.count}
                 tone="staff"
-                ariaLabel={`${teamChat.unreadCount} ungelesene Nachrichten`}
+                ariaLabel={badge.ariaLabel}
                 className="ml-2"
               />
             )}
           </span>
-        </Link>
+        </NavLink>
       </li>
     );
   };
 
   return (
     <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
-      <div className="sticky top-[73px] flex h-[calc(100vh-73px)] flex-col">
+      <div className="sticky top-[57px] flex h-[calc(100vh-57px)] flex-col">
         <nav
           aria-label="Hauptnavigation"
           className="flex-1 overflow-y-auto p-3 lg:p-4 xl:p-3"

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +22,9 @@ import (
 func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContextService {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 
 	repos := usercontextSvc.UserContextRepositories{
 		AccountRepo:        repoFactory.Account,
@@ -32,7 +35,7 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 		EducationGroupRepo: repoFactory.Group,
 		ActivityGroupRepo:  repoFactory.ActivityGroup,
 		ActiveGroupRepo:    repoFactory.ActiveGroup,
-		VisitsRepo:         repoFactory.ActiveVisit,
+		Presence:           presence,
 		SupervisorRepo:     repoFactory.GroupSupervisor,
 		ProfileRepo:        repoFactory.Profile,
 		SubstitutionRepo:   repoFactory.GroupSubstitution,
@@ -44,7 +47,10 @@ func setupUserContextService(t *testing.T, db *bun.DB) usercontextSvc.UserContex
 
 // contextWithClaims creates a context with JWT claims in this test's tenant.
 func contextWithClaims(tb testing.TB, userID int) context.Context {
-	return contextWithTenantClaims(userID, testpkg.Tenant(tb))
+	// WithTestTenantRuntime binds the runtime of tb's own database — the
+	// isolated clone when the test made one — so owner modules that open their
+	// own transaction read the same rows the fixtures were written to.
+	return testpkg.WithTestTenantRuntime(tb, contextWithTenantClaims(userID, testpkg.Tenant(tb)))
 }
 
 func contextWithTenantClaims(userID int, tenantID int64) context.Context {
@@ -65,6 +71,19 @@ func contextWithTenantClaimsAndRoles(userID int, tenantID int64, roles ...string
 }
 
 type fixedBoolResolver bool
+
+type fixedAbsenceReviewResolver struct {
+	fixedBoolResolver
+	scope string
+}
+
+func (r fixedAbsenceReviewResolver) ResolveString(context.Context, string) (string, error) {
+	return r.scope, nil
+}
+
+func (r fixedBoolResolver) ResolveString(context.Context, string) (string, error) {
+	return "inherit", nil
+}
 
 func (r fixedBoolResolver) ResolveBool(context.Context, string) (bool, error) {
 	return bool(r), nil
@@ -568,7 +587,7 @@ func TestUserContextService_UpdateAvatar(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, avatarURL, result["avatar"])
 
-		accountRecord, err := repositories.NewFactory(db).Account.FindByID(ctx, account.ID)
+		accountRecord, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account.FindByID(ctx, account.ID)
 		require.NoError(t, err)
 		assert.Equal(t, avatarURL, accountRecord.Avatar)
 	})
@@ -764,6 +783,8 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 
 		// Create an active visit (no exit time)
 		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now(), nil)
+		closedAt := time.Now().Add(-time.Hour)
+		_ = testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, closedAt.Add(-time.Hour), &closedAt)
 
 		ctx := contextWithClaims(t, int(account.ID))
 
@@ -793,6 +814,10 @@ func TestUserContextService_GetGroupVisits(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, visits)
 		assert.GreaterOrEqual(t, len(visits), 1, "Should have at least 1 active visit")
+		for _, visit := range visits {
+			assert.Nil(t, visit.ExitTime, "closed visits must not be exposed as active")
+			assert.Equal(t, activeGroup.ID, visit.ActiveGroupID)
+		}
 	})
 }
 
@@ -880,7 +905,7 @@ func TestParentRequestReviewPolicy_UsesRealTeacherGroupAssignments(t *testing.T)
 
 	ctx := contextWithClaims(t, int(account.ID))
 	policy := usercontextSvc.NewParentRequestReviewPolicy(
-		fixedBoolResolver(true), service, "parent_requests.group_leaders_can_decide",
+		fixedBoolResolver(true), service, "parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
 	)
 	filter, err := policy.StudentFilter(ctx, []string{"users:update"})
 	require.NoError(t, err)
@@ -892,11 +917,35 @@ func TestParentRequestReviewPolicy_UsesRealTeacherGroupAssignments(t *testing.T)
 	assert.False(t, filter(&users.Student{}))
 
 	disabled := usercontextSvc.NewParentRequestReviewPolicy(
-		fixedBoolResolver(false), service, "parent_requests.group_leaders_can_decide",
+		fixedBoolResolver(false), service, "parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
 	)
 	disabledFilter, err := disabled.StudentFilter(ctx, []string{"users:update"})
 	require.NoError(t, err)
 	assert.False(t, disabledFilter(&users.Student{GroupID: &ownGroup.ID}))
+
+	// The absence-only selection uses the same live group/substitution
+	// resolver, without granting access to the other request kinds.
+	absencePolicy := usercontextSvc.NewParentRequestReviewPolicy(
+		fixedAbsenceReviewResolver{scope: "group_leaders"}, service,
+		"parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
+	)
+	wide, ids, err := absencePolicy.AbsenceScope(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+	assert.ElementsMatch(t, []int64{ownGroup.ID, activeSubstitutionGroup.ID}, ids)
+	wide, ids, err = absencePolicy.Scope(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.False(t, wide)
+	assert.Empty(t, ids)
+
+	teamPolicy := usercontextSvc.NewParentRequestReviewPolicy(
+		fixedAbsenceReviewResolver{scope: "all_staff"}, service,
+		"parent_requests.group_leaders_can_decide", "parent_requests.absence_scope",
+	)
+	wide, ids, err = teamPolicy.AbsenceScope(ctx, []string{"users:update"})
+	require.NoError(t, err)
+	assert.True(t, wide)
+	assert.Empty(t, ids)
 }
 
 // ============================================================================

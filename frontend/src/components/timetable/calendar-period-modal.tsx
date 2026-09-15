@@ -13,12 +13,23 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { useFormError } from "~/components/ui/form-error";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceTile } from "~/components/ui/choice-tile";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { Input } from "~/components/ui/input";
-import { FormModal } from "~/components/ui/form-modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverBody,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { useToast } from "~/contexts/ToastContext";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -59,9 +70,11 @@ interface CalendarPeriodModalProps {
   /**
    * Enables the "Verknüpfte Anmeldephasen" section (edit mode only) so the
    * link can be managed from the period side too. The FK lives on the
-   * phase, so toggling writes through the phase API — onToggle persists
-   * immediately, independent of the period form's save button. Kept as a
-   * prop so the timetable page (which shares this modal) stays unchanged.
+   * phase, so the link writes through the phase API — but only with the
+   * modal's „Speichern“ (#3112, Bauart 2 Regel 4): the checkboxes edit a
+   * draft, and after the period itself saved, onToggle runs once per phase
+   * whose link changed. Kept as a prop so the timetable page (which shares
+   * this modal) stays unchanged.
    */
   phaseLink?: {
     phases: LinkablePhase[];
@@ -129,14 +142,17 @@ export function CalendarPeriodModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState(false);
-  const [togglingPhaseId, setTogglingPhaseId] = useState<string | null>(null);
-  const [validationError, setValidationError] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  // Entwurf der Phasen-Verknüpfungen: phase.id → gewünscht verknüpft. Leer
+  // heißt: keine Abweichung vom gespeicherten Stand.
+  const [phaseDraft, setPhaseDraft] = useState<Record<string, boolean>>({});
+  const [validationError, setValidationError] = useFormError();
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
   // Once a save succeeded in this modal session, further submits must update
   // that period — otherwise a corrected re-submit after an advisory warning
   // would create a duplicate in create mode.
   const [savedPeriod, setSavedPeriod] = useState<CalendarPeriod | null>(null);
+  const [periodSaveNotified, setPeriodSaveNotified] = useState(false);
 
   const isEdit = Boolean(initial);
   const persisted = initial ?? savedPeriod;
@@ -174,10 +190,12 @@ export function CalendarPeriodModal({
       initial ? formFromPeriod(initial) : { ...emptyForm(), ...createDefaults },
     );
     setValidationError(null);
-    setDeleteConfirm(false);
+    setDeleteConfirmOpen(false);
     setSaveWarnings([]);
     setSavedPeriod(null);
-  }, [isOpen, initial, createDefaults]);
+    setPeriodSaveNotified(false);
+    setPhaseDraft({});
+  }, [isOpen, initial, createDefaults, setValidationError]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -185,6 +203,7 @@ export function CalendarPeriodModal({
     // Editing after a warning-bearing save dismisses the warning state so the
     // footer returns to Abbrechen + Speichern and the correction can be saved.
     setSaveWarnings([]);
+    setPeriodSaveNotified(false);
   };
 
   const cycleLength = useMemo(() => {
@@ -220,38 +239,24 @@ export function CalendarPeriodModal({
     }
 
     setSubmitting(true);
+    const body = {
+      name: form.name.trim(),
+      period_type: form.periodType,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      week_cycle_length: cycleLength,
+      is_active: form.isActive,
+      ...(form.weekCycleAnchor
+        ? { week_cycle_anchor: form.weekCycleAnchor }
+        : {}),
+    };
+
+    let period: CalendarPeriod;
+    let warnings: CalendarPeriodWarning[];
     try {
-      const body = {
-        name: form.name.trim(),
-        period_type: form.periodType,
-        start_date: form.startDate,
-        end_date: form.endDate,
-        week_cycle_length: cycleLength,
-        is_active: form.isActive,
-        ...(form.weekCycleAnchor
-          ? { week_cycle_anchor: form.weekCycleAnchor }
-          : {}),
-      };
-
-      const { period, warnings } = persisted
+      ({ period, warnings } = persisted
         ? await calendarPeriodService.update(persisted.id, body)
-        : await calendarPeriodService.create(body);
-
-      toastSuccess(
-        persisted
-          ? `Kalenderzeitraum "${period.name}" aktualisiert`
-          : `Kalenderzeitraum "${period.name}" angelegt`,
-      );
-      setSavedPeriod(period);
-      onSaved(period);
-      if (warnings.length === 0) {
-        onClose();
-      } else {
-        // Advisory only: the save succeeded. Keep the modal open so the
-        // user reads the overlap warning, then closes it explicitly (or
-        // edits the form, which re-enables saving).
-        setSaveWarnings(warnings);
-      }
+        : await calendarPeriodService.create(body));
     } catch (err) {
       logger.error("period_save_failed", {
         mode: isEdit ? "edit" : "create",
@@ -262,30 +267,83 @@ export function CalendarPeriodModal({
           ? err.message
           : "Kalenderzeitraum konnte nicht gespeichert werden";
       setValidationError(msg);
-      toastError(msg);
-    } finally {
       setSubmitting(false);
+      return;
     }
+
+    setSavedPeriod(period);
+    if (!periodSaveNotified) {
+      onSaved(period);
+      setPeriodSaveNotified(true);
+    }
+    try {
+      await applyPhaseDraft();
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Verknüpfung konnte nicht gespeichert werden";
+      logger.error("period_phase_link_save_failed", {
+        period_id: period.id,
+        error: msg,
+      });
+      setValidationError(msg);
+      setSubmitting(false);
+      return;
+    }
+
+    toastSuccess(
+      persisted
+        ? `Kalenderzeitraum "${period.name}" aktualisiert`
+        : `Kalenderzeitraum "${period.name}" angelegt`,
+    );
+    if (warnings.length === 0) {
+      onClose();
+    } else {
+      // Advisory only: the save succeeded. Keep the modal open so the
+      // user reads the overlap warning, then closes it explicitly (or
+      // edits the form, which re-enables saving).
+      setSaveWarnings(warnings);
+    }
+    setSubmitting(false);
   };
 
-  const handlePhaseToggle = async (phase: LinkablePhase, link: boolean) => {
+  const isPhaseLinked = (phase: LinkablePhase) =>
+    initial != null && phase.calendar_period_id === initial.id;
+
+  const handlePhaseToggle = (phase: LinkablePhase, link: boolean) => {
+    setPhaseDraft((prev) => {
+      const next = { ...prev };
+      if (link === isPhaseLinked(phase)) {
+        delete next[phase.id];
+      } else {
+        next[phase.id] = link;
+      }
+      return next;
+    });
+    setValidationError(null);
+    setSaveWarnings([]);
+  };
+
+  // Schreibt die geänderten Verknüpfungen nach dem Speichern des Zeitraums,
+  // eine nach der anderen. Der Aufrufer lädt danach neu; Fehler bleiben hier
+  // im Modal, damit die betroffene Änderung erneut versucht werden kann.
+  const applyPhaseDraft = async () => {
     if (!phaseLink) return;
-    setTogglingPhaseId(phase.id);
-    try {
-      // Error handling (toast + reload) lives in the caller — the modal
-      // only tracks the busy state so checkboxes can't race each other.
-      await phaseLink.onToggle(phase, link);
-    } finally {
-      setTogglingPhaseId(null);
+    for (const phase of phaseLink.phases) {
+      const wanted = phaseDraft[phase.id];
+      if (wanted === undefined) continue;
+      await phaseLink.onToggle(phase, wanted);
+      setPhaseDraft((prev) => {
+        const next = { ...prev };
+        delete next[phase.id];
+        return next;
+      });
     }
   };
 
   const handleDelete = async () => {
     if (!initial) return;
-    if (!deleteConfirm) {
-      setDeleteConfirm(true);
-      return;
-    }
     setDeleting(true);
     try {
       await calendarPeriodService.delete(initial.id);
@@ -305,52 +363,203 @@ export function CalendarPeriodModal({
       toastError(msg);
     } finally {
       setDeleting(false);
+      setDeleteConfirmOpen(false);
     }
   };
 
   return (
-    <FormModal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="md"
-      title={
-        persisted ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
-      }
-      footer={
-        <div className="flex w-full flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <SlideOver
+      open={isOpen}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      <SlideOverContent widthClass="sm:w-[560px]">
+        <SlideOverHeader className="flex-row items-start justify-between gap-3">
+          <div className="min-w-0">
+            <SlideOverTitle>
+              {persisted
+                ? "Kalenderzeitraum bearbeiten"
+                : "Kalenderzeitraum anlegen"}
+            </SlideOverTitle>
+          </div>
+          <SlideOverCloseButton aria-label="Zeitraum schließen" />
+        </SlideOverHeader>
+        <SlideOverBody error={validationError}>
+          <form
+            id="calendar-period-form"
+            onSubmit={(e) => void handleSubmit(e)}
+            className="flex flex-col gap-4"
+          >
+            <Field label="Bezeichnung" htmlFor="name" required>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => update("name", e.target.value)}
+                placeholder="z. B. Schuljahr 2025/2026"
+                maxLength={255}
+                controlSize="compact"
+                required
+                autoFocus
+              />
+            </Field>
+
+            <Field label="Art" htmlFor="period_type" required>
+              <CustomSelect
+                id="period_type"
+                ariaLabel="Art"
+                value={form.periodType}
+                options={PERIOD_TYPES.map((t) => ({
+                  value: t,
+                  label: PERIOD_TYPE_LABELS[t],
+                }))}
+                onChange={(next) => update("periodType", next as PeriodType)}
+              />
+            </Field>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Startdatum" htmlFor="start_date" required>
+                <ISODatePicker
+                  id="start_date"
+                  controlSize="md"
+                  value={form.startDate}
+                  onChange={(next) => update("startDate", next)}
+                  calendarLayout="popover"
+                />
+              </Field>
+              <Field label="Enddatum" htmlFor="end_date" required>
+                <ISODatePicker
+                  id="end_date"
+                  controlSize="md"
+                  value={form.endDate}
+                  onChange={(next) => update("endDate", next)}
+                  calendarLayout="popover"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
+                <Input
+                  id="cycle_length"
+                  type="number"
+                  min={1}
+                  max={4}
+                  value={form.weekCycleLength}
+                  controlSize="compact"
+                  onChange={(e) => update("weekCycleLength", e.target.value)}
+                />
+                <span className="text-xs font-normal text-gray-500">
+                  1 = jede Woche, 2 = alle 2 Wochen
+                </span>
+              </Field>
+              <Field
+                label="Startdatum der Wiederholung"
+                htmlFor="cycle_anchor"
+                required={cycleLength > 1}
+              >
+                <ISODatePicker
+                  id="cycle_anchor"
+                  controlSize="md"
+                  value={form.weekCycleAnchor}
+                  onChange={(next) => update("weekCycleAnchor", next)}
+                  disabled={cycleLength <= 1}
+                  calendarLayout="popover"
+                />
+              </Field>
+            </div>
+
+            <ChoiceTile
+              htmlFor="period_active"
+              className="gap-2 px-3 py-2 font-normal shadow-sm"
+            >
+              <Checkbox
+                id="period_active"
+                checked={form.isActive}
+                onChange={(e) => update("isActive", e.target.checked)}
+              />
+              {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
+              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
+              <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                <span className="font-semibold text-gray-700">
+                  Zeitraum im Plan verwenden
+                </span>
+                <span className="text-xs text-gray-500">
+                  Nur aktive Zeiträume legen Termine aus Regelterminen an
+                </span>
+              </span>
+            </ChoiceTile>
+
+            {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
+              <fieldset className="rounded-xl border border-gray-200 p-3">
+                <legend className="px-1 text-xs font-semibold text-gray-700">
+                  Verknüpfte Anmeldephasen
+                </legend>
+                <div className="flex flex-col">
+                  {phaseLink.phases.map((phase) => {
+                    const linked = phaseDraft[phase.id] ?? isPhaseLinked(phase);
+                    const linkedElsewhere =
+                      !linked &&
+                      !!phase.calendar_period_id &&
+                      phase.calendar_period_id !== initial.id;
+                    return (
+                      <label
+                        key={phase.id}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
+                      >
+                        <Checkbox
+                          checked={linked}
+                          disabled={submitting}
+                          onChange={(e) =>
+                            handlePhaseToggle(phase, e.target.checked)
+                          }
+                        />
+                        <span className="min-w-0 flex-1 truncate text-gray-800">
+                          {phase.name}
+                        </span>
+                        {linkedElsewhere && (
+                          <span className="text-moto-orange shrink-0 text-xs">
+                            Mit anderem Zeitraum verknüpft
+                          </span>
+                        )}
+                        {!phase.is_active && (
+                          <span className="shrink-0 text-xs text-gray-400">
+                            Inaktiv
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
+            )}
+
+            {saveWarnings.map((warning) => (
+              <Alert
+                key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
+                type="warning"
+                message={warning.message}
+              />
+            ))}
+          </form>
+        </SlideOverBody>
+        <SlideOverFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="w-full sm:w-auto">
             {isEdit && (
-              <div className="flex max-w-sm flex-col gap-1">
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  size="md"
-                  onClick={() => void handleDelete()}
-                  isLoading={deleting}
-                  loadingText="Lösche …"
-                  disabled={submitting}
-                >
-                  {deleteConfirm ? "Löschen bestätigen" : "Löschen"}
-                </Button>
-                {deleteConfirm && !deleting && (
-                  <p className="text-moto-red-strong text-xs">
-                    {deleteWarning} {deleteConflictHint}
-                  </p>
-                )}
-              </div>
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                onClick={() => setDeleteConfirmOpen(true)}
+                isLoading={deleting}
+                loadingText="Lösche …"
+                disabled={submitting}
+              >
+                Löschen
+              </Button>
             )}
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center sm:justify-end">
-            {deleteConfirm && !deleting && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setDeleteConfirm(false)}
-              >
-                Löschen abbrechen
-              </Button>
-            )}
             {saveWarnings.length === 0 && (
               <Button
                 type="button"
@@ -385,165 +594,34 @@ export function CalendarPeriodModal({
               </Button>
             )}
           </div>
-        </div>
-      }
-    >
-      <form
-        id="calendar-period-form"
-        onSubmit={(e) => void handleSubmit(e)}
-        className="flex flex-col gap-4"
-      >
-        <Field label="Bezeichnung" htmlFor="name" required>
-          <Input
-            id="name"
-            value={form.name}
-            onChange={(e) => update("name", e.target.value)}
-            placeholder="z. B. Schuljahr 2025/2026"
-            maxLength={255}
-            controlSize="compact"
-            required
-            autoFocus
-          />
-        </Field>
-
-        <Field label="Art" htmlFor="period_type" required>
-          <CustomSelect
-            id="period_type"
-            ariaLabel="Art"
-            value={form.periodType}
-            options={PERIOD_TYPES.map((t) => ({
-              value: t,
-              label: PERIOD_TYPE_LABELS[t],
-            }))}
-            onChange={(next) => update("periodType", next as PeriodType)}
-          />
-        </Field>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Startdatum" htmlFor="start_date" required>
-            <ISODatePicker
-              id="start_date"
-              controlSize="md"
-              value={form.startDate}
-              onChange={(next) => update("startDate", next)}
-              calendarLayout="popover"
-            />
-          </Field>
-          <Field label="Enddatum" htmlFor="end_date" required>
-            <ISODatePicker
-              id="end_date"
-              controlSize="md"
-              value={form.endDate}
-              onChange={(next) => update("endDate", next)}
-              calendarLayout="popover"
-            />
-          </Field>
-        </div>
-
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label="Wiederholung in Wochen" htmlFor="cycle_length">
-            <Input
-              id="cycle_length"
-              type="number"
-              min={1}
-              max={4}
-              value={form.weekCycleLength}
-              controlSize="compact"
-              onChange={(e) => update("weekCycleLength", e.target.value)}
-            />
-            <span className="text-xs font-normal text-gray-500">
-              1 = jede Woche, 2 = alle 2 Wochen
-            </span>
-          </Field>
-          <Field
-            label="Startdatum der Wiederholung"
-            htmlFor="cycle_anchor"
-            required={cycleLength > 1}
-          >
-            <ISODatePicker
-              id="cycle_anchor"
-              controlSize="md"
-              value={form.weekCycleAnchor}
-              onChange={(next) => update("weekCycleAnchor", next)}
-              disabled={cycleLength <= 1}
-              calendarLayout="popover"
-            />
-          </Field>
-        </div>
-
-        <label
-          htmlFor="period_active"
-          className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-colors hover:bg-gray-50"
-        >
-          <Checkbox
-            id="period_active"
-            checked={form.isActive}
-            onChange={(e) => update("isActive", e.target.checked)}
-          />
-          {/* Label und Hinweis stapeln auf schmalen Screens, nebeneinander
-              bricht die Beschriftung sonst über drei Zeilen (#2033). */}
-          <span className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
-            <span className="font-semibold text-gray-700">
-              Zeitraum im Plan verwenden
-            </span>
-            <span className="text-xs text-gray-500">
-              Nur aktive Zeiträume legen Termine aus Regelterminen an
-            </span>
-          </span>
-        </label>
-
-        {isEdit && initial && phaseLink && phaseLink.phases.length > 0 && (
-          <fieldset className="rounded-xl border border-gray-200 p-3">
-            <legend className="px-1 text-xs font-semibold text-gray-700">
-              Verknüpfte Anmeldephasen
-            </legend>
-            <div className="flex flex-col">
-              {phaseLink.phases.map((phase) => {
-                const linked = phase.calendar_period_id === initial.id;
-                const linkedElsewhere = !linked && !!phase.calendar_period_id;
-                return (
-                  <label
-                    key={phase.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors hover:bg-gray-50"
-                  >
-                    <Checkbox
-                      checked={linked}
-                      disabled={togglingPhaseId !== null}
-                      onChange={(e) =>
-                        void handlePhaseToggle(phase, e.target.checked)
-                      }
-                    />
-                    <span className="min-w-0 flex-1 truncate text-gray-800">
-                      {phase.name}
-                    </span>
-                    {linkedElsewhere && (
-                      <span className="text-moto-orange shrink-0 text-xs">
-                        Mit anderem Zeitraum verknüpft
-                      </span>
-                    )}
-                    {!phase.is_active && (
-                      <span className="shrink-0 text-xs text-gray-400">
-                        Inaktiv
-                      </span>
-                    )}
-                  </label>
-                );
-              })}
-            </div>
-          </fieldset>
-        )}
-
-        {saveWarnings.map((warning) => (
-          <Alert
-            key={`${warning.code}-${warning.overlappingPeriodIds.join("-")}`}
-            type="warning"
-            message={warning.message}
-          />
-        ))}
-
-        {validationError && <Alert type="error" message={validationError} />}
-      </form>
-    </FormModal>
+        </SlideOverFooter>
+      </SlideOverContent>
+      {initial && (
+        <ConfirmDeleteModal
+          isOpen={deleteConfirmOpen}
+          title="Kalenderzeitraum löschen"
+          description={
+            <p>
+              Der Kalenderzeitraum{" "}
+              <span className="font-medium text-gray-900">
+                „{initial.name}“
+              </span>{" "}
+              wird gelöscht. {deleteWarning}
+            </p>
+          }
+          warningSlot={
+            <p className="bg-moto-amber/10 text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
+              {deleteConflictHint}
+            </p>
+          }
+          gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+          onConfirm={handleDelete}
+          onClose={() => setDeleteConfirmOpen(false)}
+          loading={deleting}
+          error=""
+        />
+      )}
+    </SlideOver>
   );
 }
 

@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
 // The classification that feeds the Bestandsschutz exemption (#2186). The
@@ -15,8 +13,8 @@ import (
 func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
 	t.Parallel()
 
-	link := func(id int64, selected, manual, automatic []string) *enrollmentModels.RequestChildOffering {
-		return &enrollmentModels.RequestChildOffering{
+	link := func(id int64, selected, manual, automatic []string) *RequestChildOffering {
+		return &RequestChildOffering{
 			CareOfferingID:        id,
 			SelectedDays:          selected,
 			ManualSelectedDays:    manual,
@@ -26,7 +24,7 @@ func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		link          *enrollmentModels.RequestChildOffering
+		link          *RequestChildOffering
 		wantManual    bool
 		wantAutomatic bool
 	}{
@@ -54,14 +52,14 @@ func TestGrandfatheredOfferingsFromLinks(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := grandfatheredOfferingsFromLinks([]*enrollmentModels.RequestChildOffering{tc.link})
+			got := grandfatheredOfferingsFromLinks([]*RequestChildOffering{tc.link})
 			require.Equal(t, tc.wantManual, got.Manual[tc.link.CareOfferingID])
 			require.Equal(t, tc.wantAutomatic, got.Automatic[tc.link.CareOfferingID])
 		})
 	}
 
 	t.Run("nil links are skipped", func(t *testing.T) {
-		got := grandfatheredOfferingsFromLinks([]*enrollmentModels.RequestChildOffering{nil})
+		got := grandfatheredOfferingsFromLinks([]*RequestChildOffering{nil})
 		require.Empty(t, got.Manual)
 		require.Empty(t, got.Automatic)
 	})

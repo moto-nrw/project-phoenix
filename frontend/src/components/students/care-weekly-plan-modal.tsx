@@ -1,19 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ChevronDown, Loader2, StickyNote } from "lucide-react";
-import { Checkbox } from "~/components/ui/checkbox";
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { useFormError } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
 import { useToast } from "~/contexts/ToastContext";
 import type { CareDaysSource } from "~/lib/student-arrival-api";
-import {
-  type ArrivalScheduleFormEntry,
-  WEEKDAYS,
-} from "~/lib/arrival-schedule-helpers";
+import type { ArrivalScheduleFormEntry } from "~/lib/arrival-schedule-helpers";
 import type {
   BulkPickupScheduleFormData,
   PickupScheduleFormData,
 } from "~/lib/pickup-schedule-helpers";
+import {
+  CareWeeklyPlanGrid,
+  toWeeklySubmit,
+  useWeeklyPlanDraft,
+  validateWeeklyRows,
+} from "./care-weekly-plan-editor";
 
 interface CareWeeklyPlanModalProps {
   readonly isOpen: boolean;
@@ -25,175 +29,68 @@ interface CareWeeklyPlanModalProps {
     arrivalSchedules: ArrivalScheduleFormEntry[];
     pickupData: BulkPickupScheduleFormData;
   }) => Promise<void>;
-  // Success toast shown after onSubmit resolves. Defaults to the post-creation
-  // "saved" wording; the create-student flow overrides it because the plan is
-  // only staged locally there, not yet persisted.
-  readonly successMessage?: string;
+  /** Success toast shown after `onSubmit` resolves. */
+  readonly successMessage: string;
 }
 
-interface CareWeeklyPlanRow {
-  readonly weekday: number;
-  readonly arrivalInCare: boolean;
-  readonly arrivalTime: string;
-  readonly arrivalNotes?: string | null;
-  readonly pickupTime: string;
-  readonly pickupNotes?: string;
+/**
+ * Die `FormModal`-Hülle des Wochenplans für den Anlege-Assistenten: das Kind
+ * gibt es noch nicht, der Plan wird nur zwischengespeichert und mit dem Kind
+ * zusammen angelegt. Deshalb heißt der Dialog „Wochenplan festlegen“ und nicht
+ * „bearbeiten“ (Bauart 2 Regel 3, #3119). Das Raster selbst ist dasselbe wie
+ * im Bearbeiten-Zustand der Kinddetailseite (`care-weekly-plan-editor.tsx`).
+ */
+export function CareWeeklyPlanModal(props: CareWeeklyPlanModalProps) {
+  // Der Entwurf lebt im inneren Formular, damit jedes Öffnen frisch aus den
+  // zwischengespeicherten Zeiten startet.
+  if (!props.isOpen) return null;
+  return <CareWeeklyPlanModalForm {...props} />;
 }
 
-const TIME_PATTERN = /^([01]?\d|2[0-3]):[0-5]\d$/;
-
-export function CareWeeklyPlanModal({
-  isOpen,
+function CareWeeklyPlanModalForm({
   onClose,
   careDaysSource,
   initialArrivalSchedules,
   initialPickupSchedules,
   onSubmit,
-  successMessage = "Wochenplan wurde gespeichert",
+  successMessage,
 }: CareWeeklyPlanModalProps) {
   const toast = useToast();
-  const [rows, setRows] = useState<CareWeeklyPlanRow[]>([]);
-  const [expandedWeekdays, setExpandedWeekdays] = useState<Set<number>>(
-    () => new Set(),
+  const draft = useWeeklyPlanDraft(
+    initialArrivalSchedules,
+    initialPickupSchedules,
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setRows(
-      WEEKDAYS.map((day) => {
-        const arrival = initialArrivalSchedules.find(
-          (schedule) => schedule.weekday === day.value,
-        );
-        const pickup = initialPickupSchedules.find(
-          (schedule) => schedule.weekday === day.value,
-        );
-        return {
-          weekday: day.value,
-          arrivalInCare: arrival?.inCare ?? false,
-          arrivalTime: arrival?.expected_arrival ?? "",
-          arrivalNotes: arrival?.notes ?? null,
-          pickupTime: pickup?.pickupTime ?? "",
-          pickupNotes: pickup?.notes,
-        };
-      }),
-    );
-    setExpandedWeekdays(
-      new Set(
-        WEEKDAYS.filter((day) => {
-          const arrival = initialArrivalSchedules.find(
-            (schedule) => schedule.weekday === day.value,
-          );
-          const pickup = initialPickupSchedules.find(
-            (schedule) => schedule.weekday === day.value,
-          );
-          return Boolean(arrival?.notes || pickup?.notes);
-        }).map((day) => day.value),
-      ),
-    );
-    setError(null);
-  }, [isOpen, initialArrivalSchedules, initialPickupSchedules]);
-
-  const updateRow = (
-    weekday: number,
-    field: "arrivalTime" | "pickupTime",
-    value: string,
-  ) => {
-    setRows((currentRows) =>
-      currentRows.map((row) =>
-        row.weekday === weekday ? { ...row, [field]: value } : row,
-      ),
-    );
-  };
-
-  const updateCareDay = (weekday: number, inCare: boolean) => {
-    setRows((currentRows) =>
-      currentRows.map((row) =>
-        row.weekday === weekday
-          ? {
-              ...row,
-              arrivalInCare: inCare,
-              arrivalTime: inCare ? row.arrivalTime : "",
-              arrivalNotes: inCare ? row.arrivalNotes : null,
-            }
-          : row,
-      ),
-    );
-  };
-
-  const updateNote = (
-    weekday: number,
-    field: "arrivalNotes" | "pickupNotes",
-    value: string,
-  ) => {
-    setRows((currentRows) =>
-      currentRows.map((row) =>
-        row.weekday === weekday
-          ? { ...row, [field]: value.trim() ? value : undefined }
-          : row,
-      ),
-    );
-  };
-
-  const toggleNotes = (weekday: number) => {
-    setExpandedWeekdays((current) => {
-      const next = new Set(current);
-      if (next.has(weekday)) {
-        next.delete(weekday);
-      } else {
-        next.add(weekday);
-      }
-      return next;
-    });
-  };
+  const [error, setError] = useFormError();
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
-    for (const row of rows) {
-      const day = WEEKDAYS.find((weekday) => weekday.value === row.weekday);
-      if (row.arrivalTime && !TIME_PATTERN.test(row.arrivalTime)) {
-        setError(`Ungültige Ankunftszeit für ${day?.label ?? "diesen Tag"}.`);
-        return;
-      }
-      if (row.pickupTime && !TIME_PATTERN.test(row.pickupTime)) {
-        setError(`Ungültige Abholzeit für ${day?.label ?? "diesen Tag"}.`);
-        return;
-      }
+    const invalid = validateWeeklyRows(draft.rows);
+    if (invalid) {
+      setError(invalid);
+      return;
     }
 
-    const arrivalSchedules = rows
-      .filter((row) => row.arrivalInCare)
-      .map((row) => ({
-        weekday: row.weekday,
-        inCare: true,
-        expected_arrival: row.arrivalTime,
-        notes: row.arrivalNotes ?? null,
-      }));
-    const pickupData = {
-      schedules: rows
-        .filter((row) => row.pickupTime.trim() !== "")
-        .map((row) => ({
-          weekday: row.weekday,
-          pickupTime: row.pickupTime,
-          notes: row.pickupNotes,
-        })),
-    };
-
+    const { arrivalSchedules, pickupSchedules } = toWeeklySubmit(
+      draft.rows,
+      careDaysSource === "bookings",
+    );
     setIsSubmitting(true);
     try {
-      await onSubmit({ arrivalSchedules, pickupData });
+      await onSubmit({
+        arrivalSchedules,
+        pickupData: { schedules: pickupSchedules },
+      });
       toast.success(successMessage);
       onClose();
     } catch (err) {
-      const message =
+      setError(
         err instanceof Error
           ? err.message
-          : "Wochenplan konnte nicht gespeichert werden";
-      setError(message);
-      toast.error(message);
+          : "Wochenplan konnte nicht übernommen werden",
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -201,43 +98,47 @@ export function CareWeeklyPlanModal({
 
   const footer = (
     <>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onClose}
         disabled={isSubmitting}
-        className="h-10 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
       >
         Abbrechen
-      </button>
-      <button
+      </Button>
+      <Button
         type="submit"
+        size="md"
         form="care-weekly-plan-form"
+        className="gap-2"
         disabled={isSubmitting}
-        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
       >
-        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        Wochenplan speichern
-      </button>
+        {isSubmitting ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : null}
+        Übernehmen
+      </Button>
     </>
   );
 
   return (
     <FormModal
-      isOpen={isOpen}
+      isOpen
       onClose={onClose}
-      title="Wochenplan bearbeiten"
+      title="Wochenplan festlegen"
       footer={footer}
       size="xl"
       mobilePosition="bottom"
+      error={error}
     >
-      <form id="care-weekly-plan-form" onSubmit={handleSubmit}>
-        {error ? (
-          <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mb-4 rounded-xl border px-4 py-3 text-sm">
-            {error}
-          </div>
-        ) : null}
-
-        <p className="mb-4 text-sm leading-6 text-gray-600">
+      <form
+        id="care-weekly-plan-form"
+        noValidate
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
+        <p className="text-sm leading-6 text-gray-600">
           {careDaysSource === "bookings" ? (
             <>
               Die Betreuungstage kommen aus den Buchungen. Abholzeiten können
@@ -250,164 +151,14 @@ export function CareWeeklyPlanModal({
             </>
           )}
         </p>
-
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm sm:rounded-2xl">
-          <div className="hidden grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] gap-3 border-b border-gray-100 bg-gray-50 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:grid">
-            <span>Betreuungstag</span>
-            <span>Ankunft</span>
-            <span>Abholung</span>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {WEEKDAYS.map((day) => {
-              const row = rows.find((entry) => entry.weekday === day.value);
-              return (
-                <div
-                  key={day.value}
-                  className="grid gap-3 px-3 py-4 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)] sm:items-center sm:px-4"
-                >
-                  <div>
-                    <label
-                      htmlFor={`weekly-care-${day.value}`}
-                      className="flex min-h-6 cursor-pointer items-center gap-2 text-sm font-semibold text-gray-900 has-[:disabled]:cursor-not-allowed"
-                    >
-                      <Checkbox
-                        id={`weekly-care-${day.value}`}
-                        checked={row?.arrivalInCare ?? false}
-                        disabled={careDaysSource === "bookings"}
-                        onChange={(event) =>
-                          updateCareDay(day.value, event.target.checked)
-                        }
-                      />
-                      <span>{day.label}</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => toggleNotes(day.value)}
-                      className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-gray-500 transition-colors hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                    >
-                      <StickyNote className="h-3.5 w-3.5" aria-hidden="true" />
-                      Notizen
-                      <ChevronDown
-                        className={`h-3.5 w-3.5 transition-transform ${
-                          expandedWeekdays.has(day.value) ? "rotate-180" : ""
-                        }`}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </div>
-                  <TimeField
-                    id={`weekly-arrival-${day.value}`}
-                    label="Ankunft"
-                    value={row?.arrivalTime ?? ""}
-                    disabled={!row?.arrivalInCare}
-                    onChange={(value) =>
-                      updateRow(day.value, "arrivalTime", value)
-                    }
-                  />
-                  <TimeField
-                    id={`weekly-pickup-${day.value}`}
-                    label="Abholung"
-                    value={row?.pickupTime ?? ""}
-                    disabled={
-                      careDaysSource === "bookings" && !row?.arrivalInCare
-                    }
-                    onChange={(value) =>
-                      updateRow(day.value, "pickupTime", value)
-                    }
-                  />
-                  {expandedWeekdays.has(day.value) ? (
-                    <div className="grid gap-3 sm:col-span-3 sm:grid-cols-[minmax(100px,0.7fr)_minmax(140px,1fr)_minmax(140px,1fr)]">
-                      <div className="hidden sm:block" />
-                      <NoteField
-                        id={`weekly-arrival-notes-${day.value}`}
-                        label="Ankunftsnotiz"
-                        value={row?.arrivalNotes ?? ""}
-                        disabled={!row?.arrivalInCare}
-                        onChange={(value) =>
-                          updateNote(day.value, "arrivalNotes", value)
-                        }
-                      />
-                      <NoteField
-                        id={`weekly-pickup-notes-${day.value}`}
-                        label="Abholnotiz"
-                        value={row?.pickupNotes ?? ""}
-                        disabled={
-                          careDaysSource === "bookings" && !row?.arrivalInCare
-                        }
-                        onChange={(value) =>
-                          updateNote(day.value, "pickupNotes", value)
-                        }
-                      />
-                    </div>
-                  ) : null}
-                </div>
-              );
-            })}
-          </div>
-        </div>
+        <CareWeeklyPlanGrid
+          draft={draft}
+          careDaysSource={careDaysSource}
+          removals={[]}
+          disabled={isSubmitting}
+          pickupNeedsCareDay
+        />
       </form>
     </FormModal>
-  );
-}
-
-function NoteField({
-  id,
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly value: string;
-  readonly disabled: boolean;
-  readonly onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-medium text-gray-500">
-        {label}
-      </span>
-      <input
-        id={id}
-        type="text"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        maxLength={500}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
-        placeholder="Optional"
-      />
-    </label>
-  );
-}
-
-function TimeField({
-  id,
-  label,
-  value,
-  disabled,
-  onChange,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly value: string;
-  readonly disabled: boolean;
-  readonly onChange: (value: string) => void;
-}) {
-  return (
-    <label className="block" htmlFor={id}>
-      <span className="mb-1 block text-xs font-medium text-gray-500 sm:hidden">
-        {label}
-      </span>
-      <input
-        id={id}
-        type="time"
-        value={value}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors hover:border-gray-300 focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400 sm:h-10"
-      />
-    </label>
   );
 }

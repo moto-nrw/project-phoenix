@@ -108,7 +108,7 @@ type SchoolIdentityRepos struct {
 	Students userModels.StudentRepository
 	// RFIDCards resolves a submitted tag id to a card of this school. Required
 	// only when the input carries one.
-	RFIDCards userModels.RFIDCardRepository
+	RFIDCards authModels.RFIDCardRepository
 }
 
 // SchoolIdentityInput describes the identity to provision.

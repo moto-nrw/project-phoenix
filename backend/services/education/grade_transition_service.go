@@ -14,11 +14,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -192,8 +192,7 @@ type GradeTransitionService struct {
 	studentRepo            users.StudentRepository
 	personRepo             users.PersonRepository
 	staffRepo              users.StaffRepository
-	visitRepo              activeModels.VisitRepository
-	attendanceRepo         activeModels.AttendanceRepository
+	presence               GraduationPresence
 	classTeacherRepo       education.ClassTeacherRepository
 	classListEntryRepo     users.ClassListEntryRepository
 	classListEntryAudit    auditModels.ClassListEntryChangeRepository
@@ -214,11 +213,10 @@ type GradeTransitionServiceDependencies struct {
 	TransitionRepo education.GradeTransitionRepository
 	StudentRepo    users.StudentRepository
 	PersonRepo     users.PersonRepository
-	// VisitRepo and AttendanceRepo guard graduation against stranding a
+	// Presence guards graduation against stranding a
 	// checked-in child (open visit or open attendance record). Optional so
-	// tests that don't exercise the check can leave them nil.
-	VisitRepo      activeModels.VisitRepository
-	AttendanceRepo activeModels.AttendanceRepository
+	// tests that do not exercise the check can leave it nil.
+	Presence GraduationPresence
 	// ClassTeacherRepo lets apply/revert follow the class renames for the
 	// Klassenlehrer assignments (#1772) — without it a "1a" assignment would
 	// silently point at next year's incoming cohort after 1a→2a. Optional;
@@ -252,8 +250,7 @@ func NewGradeTransitionService(deps GradeTransitionServiceDependencies) *GradeTr
 		studentRepo:         deps.StudentRepo,
 		personRepo:          deps.PersonRepo,
 		staffRepo:           deps.StaffRepo,
-		visitRepo:           deps.VisitRepo,
-		attendanceRepo:      deps.AttendanceRepo,
+		presence:            deps.Presence,
 		classTeacherRepo:    deps.ClassTeacherRepo,
 		classListEntryRepo:  deps.ClassListEntryRepo,
 		classListEntryAudit: deps.ClassListEntryAudit,
@@ -680,14 +677,15 @@ func (s *GradeTransitionService) findUnmappedClasses(
 		return fmt.Errorf("failed to get distinct classes: %w", err)
 	}
 
+	counts, err := s.studentCountsByClass(ctx, allClasses)
+	if err != nil {
+		return err
+	}
 	for _, className := range allClasses {
 		if mappedClasses[className] {
 			continue
 		}
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil {
-			return fmt.Errorf("failed to count students in unmapped class %s: %w", className, err)
-		}
+		count := counts[className]
 		if count == 0 {
 			continue
 		}
@@ -1168,39 +1166,39 @@ func studentIDsOf(students []*education.StudentClassInfo) []int64 {
 // FOR UPDATE-locked) graduating students is currently checked in — an open visit
 // (in a room) or an open attendance record for today. Such a child would become
 // an alumnus with a dangling open record the kiosk can no longer close (it
-// rejects every alumnus checkout). No-op when neither repository is wired (unit
+// rejects every alumnus checkout). No-op when presence is not wired (unit
 // tests) or there is nothing to graduate. Because the caller already holds the
 // FOR UPDATE lock on these rows, a concurrent check-in either committed before
 // the lock (and is observed here) or blocks until this apply commits and then
 // re-reads the alumnus status.
 func (s *GradeTransitionService) ensureGraduatesNotCheckedIn(ctx context.Context, graduates []*education.StudentClassInfo) error {
-	if len(graduates) == 0 || (s.visitRepo == nil && s.attendanceRepo == nil) {
+	if len(graduates) == 0 || s.presence == nil {
 		return nil
 	}
-
 	ids := studentIDsOf(graduates)
-
 	checkedIn := make(map[int64]struct{})
-
-	if s.visitRepo != nil {
-		openVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, ids)
-		if err != nil {
-			return fmt.Errorf("failed to check active visits: %w", err)
-		}
-		for id := range openVisits {
-			checkedIn[id] = struct{}{}
-		}
+	openVisits, err := s.presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: ids, OpenOnly: true})
+	if err != nil {
+		return fmt.Errorf("failed to check active visits: %w", err)
 	}
-
-	if s.attendanceRepo != nil {
-		today, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, ids)
-		if err != nil {
-			return fmt.Errorf("failed to check attendance: %w", err)
+	for _, visit := range openVisits {
+		checkedIn[visit.StudentID] = struct{}{}
+	}
+	day := s.today().String()
+	attendance, err := s.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{
+		StudentIDs: ids, FromDate: day, UntilDate: day, NewestFirst: true, StudentOrder: true,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to check attendance: %w", err)
+	}
+	seen := make(map[int64]bool, len(ids))
+	for _, row := range attendance {
+		if seen[row.StudentID] {
+			continue
 		}
-		for id, att := range today {
-			if att != nil && att.IsCheckedIn() {
-				checkedIn[id] = struct{}{}
-			}
+		seen[row.StudentID] = true
+		if row.CheckOutTime == nil {
+			checkedIn[row.StudentID] = struct{}{}
 		}
 	}
 
@@ -1807,6 +1805,10 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 		return nil, fmt.Errorf("failed to get classes: %w", err)
 	}
 
+	counts, err := s.studentCountsByClass(ctx, classes)
+	if err != nil {
+		return nil, err
+	}
 	suggestions := make([]*SuggestedMapping, 0)
 
 	// Pattern: optional prefix, grade number, optional letter(s) — matches
@@ -1815,13 +1817,7 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 	classPattern := regexp.MustCompile(`^(.*?)(\d+)([a-zA-Z]*)$`)
 
 	for _, className := range classes {
-		count, err := s.transitionRepo.GetStudentCountByClass(ctx, className)
-		if err != nil {
-			// Skipping a failed count would silently drop the class from the
-			// suggestion, and an admin could create a transition that omits an
-			// affected cohort without ever seeing an error (#405 review).
-			return nil, fmt.Errorf("failed to count students in class %q: %w", className, err)
-		}
+		count := counts[className]
 		if count == 0 {
 			continue
 		}
@@ -1881,6 +1877,14 @@ func (s *GradeTransitionService) SuggestMappings(ctx context.Context) ([]*Sugges
 	})
 
 	return suggestions, nil
+}
+
+func (s *GradeTransitionService) studentCountsByClass(ctx context.Context, classes []string) (map[string]int, error) {
+	counts, err := s.transitionRepo.GetStudentCountsByClasses(ctx, classes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count students by class: %w", err)
+	}
+	return counts, nil
 }
 
 // GetHistory retrieves the history records for a transition
@@ -1959,27 +1963,4 @@ func (s *GradeTransitionService) GetHistoryWithStudentStates(
 		}
 	}
 	return history, states, nil
-}
-
-// ErrGraduateStillPresent is returned when the ledger anonymization is asked to
-// run for a student whose row still exists.
-var ErrGraduateStillPresent = errors.New("student row still exists, refusing to anonymize its ledger")
-
-// AnonymizePurgedGraduate strips the child's name from the transition ledger
-// after the student and person rows have been hard-deleted.
-//
-// It verifies the row is really gone first, because that is the whole
-// justification for losing the name: while the student still exists the ledger
-// name is the only human-readable label a revert or an Abgänge list has, and
-// blanking it there would break both for a child who is still restorable.
-// Callers run this INSIDE the delete transaction, so the check sees the delete.
-func (s *GradeTransitionService) AnonymizePurgedGraduate(ctx context.Context, studentID int64) error {
-	statuses, err := s.transitionRepo.FindStudentStatesByIDs(ctx, []int64{studentID})
-	if err != nil {
-		return err
-	}
-	if _, stillThere := statuses[studentID]; stillThere {
-		return ErrGraduateStillPresent
-	}
-	return s.transitionRepo.AnonymizeHistoryForStudent(ctx, studentID)
 }

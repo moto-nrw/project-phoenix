@@ -1,0 +1,508 @@
+package postgres_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"testing"
+	"time"
+
+	postgresadapter "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+func testStore(t *testing.T, db *bun.DB) (*postgresadapter.Store, context.Context) {
+	t.Helper()
+	ctx := testpkg.WithTenantRuntime(t, context.Background(), db)
+	store := postgresadapter.New(
+		func(ctx context.Context, expectedTenantID int64) (bun.IDB, error) {
+			tx, _ := tenant.TransactionFromContext(ctx)
+			return tx.(bun.Tx), nil
+		},
+		func(ctx context.Context, callback func(context.Context, bun.IDB) error) error {
+			return tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error { return callback(txCtx, tx) })
+		},
+	)
+	return store, ctx
+}
+
+func enqueueEmail(t *testing.T, db *bun.DB, store *postgresadapter.Store, ctx context.Context, key string) domain.Enqueued {
+	t.Helper()
+	var enqueued domain.Enqueued
+	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		enqueued, err = store.Enqueue(txCtx, domain.Intent{
+			TenantID: testpkg.Tenant(t), Transport: domain.TransportEmail, Template: "welcome", IdempotencyKey: &key,
+			Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{"name":"Ada"}`),
+			Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+		})
+		return err
+	})
+	require.NoError(t, err)
+	return enqueued
+}
+
+func TestStoreEnqueueIsIdempotentPerTenant(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+
+	first := enqueueEmail(t, db, store, ctx, "welcome:guardian")
+	second := enqueueEmail(t, db, store, ctx, "welcome:guardian")
+
+	assert.Positive(t, first.ID)
+	assert.Equal(t, first.ID, second.ID)
+	assert.False(t, first.Duplicate)
+	assert.True(t, second.Duplicate)
+}
+
+func TestStoreConcurrentEnqueueReturnsExistingIntent(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	key := "concurrent-intent"
+	firstReady := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	firstDone := make(chan error, 1)
+	secondDone := make(chan struct {
+		result domain.Enqueued
+		err    error
+	}, 1)
+
+	go func() {
+		firstDone <- tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			_, err := store.Enqueue(txCtx, testEmailIntent(testpkg.Tenant(t), key))
+			close(firstReady)
+			if err != nil {
+				return err
+			}
+			<-releaseFirst
+			return nil
+		})
+	}()
+	<-firstReady
+	go func() {
+		var result domain.Enqueued
+		err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			var enqueueErr error
+			result, enqueueErr = store.Enqueue(txCtx, testEmailIntent(testpkg.Tenant(t), key))
+			return enqueueErr
+		})
+		secondDone <- struct {
+			result domain.Enqueued
+			err    error
+		}{result, err}
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	close(releaseFirst)
+	require.NoError(t, <-firstDone)
+	second := <-secondDone
+	require.NoError(t, second.err)
+	assert.True(t, second.result.Duplicate)
+	assert.Positive(t, second.result.ID)
+}
+
+func testEmailIntent(tenantID int64, key string) domain.Intent {
+	return domain.Intent{
+		TenantID: tenantID, Transport: domain.TransportEmail, Template: "welcome", IdempotencyKey: &key,
+		Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{"name":"Ada"}`),
+		Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+	}
+}
+
+func TestStoreRejectsIdempotencyKeyReuseWithDifferentSnapshot(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	enqueueEmail(t, db, store, ctx, "conflicting-intent")
+
+	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		key := "conflicting-intent"
+		_, err := store.Enqueue(txCtx, domain.Intent{
+			TenantID: testpkg.Tenant(t), Transport: domain.TransportEmail, Template: "welcome", IdempotencyKey: &key,
+			Recipient: json.RawMessage(`{"address":"different@example.com"}`), Payload: json.RawMessage(`{"name":"Ada"}`),
+			Status: "pending", NextRetryAt: time.Now(),
+		})
+		return err
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, domain.ErrIdempotencyConflict))
+}
+
+func TestStoreCrashBeforeSendReclaimsExpiredLeaseAndFencesStaleWorker(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	enqueued := enqueueEmail(t, db, store, ctx, "lease-reclaim")
+	base := time.Now()
+
+	first, err := store.Claim(ctx, domain.TransportEmail, 1, base, base.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, first, 1)
+	assert.Equal(t, enqueued.ID, first[0].ID)
+
+	second, err := store.Claim(ctx, domain.TransportEmail, 1, base.Add(2*time.Minute), base.Add(3*time.Minute))
+	require.NoError(t, err)
+	require.Len(t, second, 1)
+
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, *first[0].LeaseToken, json.RawMessage(`{"id":"stale"}`), base.Add(2*time.Minute))
+	require.NoError(t, err)
+	assert.False(t, finalized)
+	finalized, err = store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, *second[0].LeaseToken, json.RawMessage(`{"id":"current"}`), base.Add(2*time.Minute))
+	require.NoError(t, err)
+	assert.True(t, finalized)
+}
+
+func TestStoreCancellationInvalidatesClaimedIntent(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []domain.Transport{domain.TransportEmail, domain.TransportPush} {
+		t.Run(string(transport), func(t *testing.T) {
+			db := testpkg.SetupIsolatedTestDB(t)
+			store, ctx := testStore(t, db)
+			relatedType := "announcement"
+			relatedID := testpkg.Tenant(t)
+			key := "cancel-claimed-" + string(transport)
+			var enqueued domain.Enqueued
+			err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+				var err error
+				enqueued, err = store.Enqueue(txCtx, domain.Intent{
+					TenantID: testpkg.Tenant(t), Transport: transport, Template: "announcement", IdempotencyKey: &key,
+					RelatedEntityType: &relatedType, RelatedEntityID: &relatedID,
+					Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
+					Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+				})
+				return err
+			})
+			require.NoError(t, err)
+			claimed, err := store.Claim(ctx, transport, 1, time.Now(), time.Now().Add(time.Minute))
+			require.NoError(t, err)
+			require.Len(t, claimed, 1)
+
+			err = tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+				count, err := store.Cancel(txCtx, testpkg.Tenant(t), transport, relatedType, relatedID, "retracted", time.Now())
+				assert.EqualValues(t, 1, count)
+				return err
+			})
+			require.NoError(t, err)
+			_, renewed, err := store.StartDelivery(ctx, transport, enqueued.ID, *claimed[0].LeaseToken, time.Now().Add(time.Minute))
+			require.NoError(t, err)
+			assert.False(t, renewed, "the worker must lose its lease before the provider call")
+			finalized, err := store.FinalizeSent(ctx, transport, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), time.Now())
+			require.NoError(t, err)
+			assert.False(t, finalized, "a cancelled claim must lose its lease before the provider call")
+		})
+	}
+}
+
+func TestStoreDoesNotReclaimExpiredDispatchFence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	enqueued := enqueueEmail(t, db, store, ctx, "dispatch-fence")
+	now := time.Now()
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+
+	dispatchToken, active, err := store.StartDelivery(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, now.Add(-time.Minute))
+	require.NoError(t, err)
+	require.True(t, active)
+
+	reclaimed, err := store.Claim(ctx, domain.TransportEmail, 1, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	assert.Empty(t, reclaimed, "an expired dispatch fence belongs to the running provider call")
+
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, dispatchToken, json.RawMessage(`{}`), now)
+	require.NoError(t, err)
+	assert.True(t, finalized)
+}
+
+func TestStoreDeadLettersExpiredDispatchFence(t *testing.T) {
+	t.Parallel()
+	for _, transport := range []domain.Transport{domain.TransportEmail, domain.TransportPush} {
+		t.Run(string(transport), func(t *testing.T) {
+			db := testpkg.SetupIsolatedTestDB(t)
+			store, ctx := testStore(t, db)
+			key := "dispatch-unknown-" + string(transport)
+			var enqueued domain.Enqueued
+			err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+				var err error
+				enqueued, err = store.Enqueue(txCtx, domain.Intent{
+					TenantID: testpkg.Tenant(t), Transport: transport, Template: "welcome", IdempotencyKey: &key,
+					Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
+					Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+				})
+				return err
+			})
+			require.NoError(t, err)
+			now := time.Now()
+			claimed, err := store.Claim(ctx, transport, 1, now, now.Add(time.Minute))
+			require.NoError(t, err)
+			require.Len(t, claimed, 1)
+			liveToken, active, err := store.StartDelivery(ctx, transport, enqueued.ID, *claimed[0].LeaseToken, now.Add(time.Minute))
+			require.NoError(t, err)
+			require.True(t, active)
+
+			affected, err := store.DeadLetterExpiredDispatches(ctx, transport, now)
+			require.NoError(t, err)
+			assert.Zero(t, affected, "a running provider call keeps its unexpired dispatch fence")
+
+			affected, err = store.DeadLetterExpiredDispatches(ctx, transport, now.Add(2*time.Minute))
+			require.NoError(t, err)
+			assert.EqualValues(t, 1, affected)
+
+			reclaimed, err := store.Claim(ctx, transport, 1, now.Add(2*time.Minute), now.Add(3*time.Minute))
+			require.NoError(t, err)
+			assert.Empty(t, reclaimed, "an unknown provider outcome must not be sent again")
+			finalized, err := store.FinalizeSent(ctx, transport, enqueued.ID, liveToken, json.RawMessage(`{}`), now.Add(2*time.Minute))
+			require.NoError(t, err)
+			assert.False(t, finalized, "the dead letter fences the stale worker")
+
+			var row struct {
+				Status       string     `bun:"status"`
+				Attempts     int        `bun:"attempts"`
+				LastError    *string    `bun:"last_error"`
+				DeadLetterAt *time.Time `bun:"dead_letter_at"`
+				LeaseToken   *string    `bun:"lease_token"`
+			}
+			table := "platform.email_outbox"
+			if transport == domain.TransportPush {
+				table = "platform.push_outbox"
+			}
+			err = tenant.WithAdminTx(ctx, db, func(txCtx context.Context, tx bun.Tx) error {
+				return tx.NewRaw("SELECT status, attempts, last_error, dead_letter_at, lease_token FROM "+table+" WHERE id = ?", enqueued.ID).Scan(txCtx, &row)
+			})
+			require.NoError(t, err)
+			assert.Equal(t, "dead_letter", row.Status)
+			assert.Equal(t, 1, row.Attempts)
+			require.NotNil(t, row.LastError)
+			assert.Contains(t, *row.LastError, "outcome unknown")
+			assert.NotNil(t, row.DeadLetterAt)
+			assert.Nil(t, row.LeaseToken)
+		})
+	}
+}
+
+func TestStoreRejectsCrossTenantEmailOutboxAttachment(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	tenantA := testpkg.NewTenantScope(t, db)
+	tenantB := testpkg.NewTenantScope(t, db)
+	relatedType, relatedID := "announcement", int64(41)
+	address := "guardian@example.test"
+
+	var deliveryID, outboxID int64
+	err := tenant.WithTenantTx(ctx, db, tenantA.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := store.ReplaceEmailDeliveries(txCtx, tenantA.TenantID, relatedType, relatedID, []domain.EmailDelivery{{
+			RecipientEmail: &address, Reachability: "ok",
+		}}); err != nil {
+			return err
+		}
+		rows, err := store.EmailDeliveryStatuses(txCtx, tenantA.TenantID, relatedType, relatedID)
+		if err != nil {
+			return err
+		}
+		if len(rows) != 1 {
+			return fmt.Errorf("expected one email delivery, got %d", len(rows))
+		}
+		deliveryID = rows[0].DeliveryID
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(ctx, db, tenantB.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		key := "other-tenant-outbox"
+		stored, enqueueErr := store.Enqueue(txCtx, domain.Intent{
+			TenantID: tenantB.TenantID, Transport: domain.TransportEmail, Template: "announcement", IdempotencyKey: &key,
+			Recipient: json.RawMessage(`{"address":"guardian@example.test"}`), Payload: json.RawMessage(`{}`), NextRetryAt: time.Now(),
+		})
+		outboxID = stored.ID
+		return enqueueErr
+	})
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(ctx, db, tenantA.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return store.AttachEmailOutbox(txCtx, tenantA.TenantID, deliveryID, outboxID)
+	})
+	require.EqualError(t, err, "delivery postgres: email delivery not found")
+}
+
+func TestStoreReplaceEmailDeliveriesUsesDatabaseTimestamps(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	relatedType := "announcement"
+	relatedID := testpkg.Tenant(t)
+	address := "guardian@example.test"
+	var timestamps struct {
+		CreatedAt    time.Time `bun:"created_at"`
+		UpdatedAt    time.Time `bun:"updated_at"`
+		DatabaseTime time.Time `bun:"database_time"`
+	}
+	err := tenant.WithTenantTx(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		if err := store.ReplaceEmailDeliveries(txCtx, testpkg.Tenant(t), relatedType, relatedID, []domain.EmailDelivery{{
+			RecipientEmail: &address, Reachability: "ok",
+		}}); err != nil {
+			return err
+		}
+		return tx.NewRaw(`SELECT created_at, updated_at, CURRENT_TIMESTAMP AS database_time
+			FROM platform.delivery_email_deliveries
+			WHERE tenant_id = ? AND related_entity_type = ? AND related_entity_id = ?`, testpkg.Tenant(t), relatedType, relatedID).
+			Scan(txCtx, &timestamps)
+	})
+	require.NoError(t, err)
+	assert.WithinDuration(t, timestamps.DatabaseTime, timestamps.CreatedAt, time.Second)
+	assert.WithinDuration(t, timestamps.DatabaseTime, timestamps.UpdatedAt, time.Second)
+}
+
+func TestStoreProviderCancellationFinalizesUnderLeaseToken(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	enqueued := enqueueEmail(t, db, store, ctx, "provider-cancelled")
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, time.Now(), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+
+	finalized, err := store.FinalizeCancelled(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, "guardian access revoked", time.Now())
+	require.NoError(t, err)
+	require.True(t, finalized)
+
+	stale, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), time.Now())
+	require.NoError(t, err)
+	assert.False(t, stale)
+}
+
+func TestStoreStatusReadTracksDeliveryState(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	tenantID := testpkg.Tenant(t)
+	relatedType, relatedID := "announcement", tenantID
+	key := "status-read"
+	var enqueued domain.Enqueued
+	err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var enqueueErr error
+		enqueued, enqueueErr = store.Enqueue(txCtx, domain.Intent{
+			TenantID: tenantID, Transport: domain.TransportEmail, Template: "announcement", IdempotencyKey: &key,
+			RelatedEntityType: &relatedType, RelatedEntityID: &relatedID,
+			Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
+			Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+		})
+		return enqueueErr
+	})
+	require.NoError(t, err)
+
+	assertStatus := func(expected string) {
+		t.Helper()
+		err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			rows, statusErr := store.Statuses(txCtx, tenantID, domain.TransportEmail, relatedType, relatedID)
+			require.NoError(t, statusErr)
+			require.Len(t, rows, 1)
+			assert.Equal(t, expected, rows[0].Status)
+			return nil
+		})
+		require.NoError(t, err)
+	}
+	assertStatus("pending")
+
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, time.Now(), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	finalized, err := store.FinalizeSent(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, json.RawMessage(`{"message_id":"provider-1"}`), time.Now())
+	require.NoError(t, err)
+	require.True(t, finalized)
+	assertStatus("sent")
+}
+
+func TestStoreEmailDeliveryStatusJoinsOutboxState(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	tenantID := testpkg.Tenant(t)
+	relatedType, relatedID := "announcement", tenantID
+	key := "delivery-status-join"
+	address := "guardian@example.test"
+	var enqueued domain.Enqueued
+	err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var enqueueErr error
+		enqueued, enqueueErr = store.Enqueue(txCtx, domain.Intent{
+			TenantID: tenantID, Transport: domain.TransportEmail, Template: "announcement", IdempotencyKey: &key,
+			RelatedEntityType: &relatedType, RelatedEntityID: &relatedID,
+			Recipient: json.RawMessage(`{"address":"guardian@example.test"}`), Payload: json.RawMessage(`{}`),
+			Status: "pending", NextRetryAt: time.Now().Add(-time.Minute),
+		})
+		if enqueueErr != nil {
+			return enqueueErr
+		}
+		return store.ReplaceEmailDeliveries(txCtx, tenantID, relatedType, relatedID, []domain.EmailDelivery{{
+			OutboxID: &enqueued.ID, RecipientEmail: &address, Reachability: "ok",
+		}})
+	})
+	require.NoError(t, err)
+
+	assertEmailDeliveryState := func(expected string, attempts int) {
+		t.Helper()
+		err := tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			rows, statusErr := store.EmailDeliveryStatuses(txCtx, tenantID, relatedType, relatedID)
+			require.NoError(t, statusErr)
+			require.Len(t, rows, 1)
+			assert.Equal(t, expected, rows[0].EmailStatus)
+			assert.Equal(t, attempts, rows[0].Attempts)
+			return nil
+		})
+		require.NoError(t, err)
+	}
+	assertEmailDeliveryState("pending", 0)
+
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 1, time.Now(), time.Now().Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	result, err := store.FinalizeFailure(ctx, domain.TransportEmail, enqueued.ID, *claimed[0].LeaseToken, 1, "mailbox rejected", time.Now(), 1)
+	require.NoError(t, err)
+	require.True(t, result.Finalized)
+	assertEmailDeliveryState("failed", 1)
+}
+
+func TestStoreStatusReadIsTenantIsolatedByRLS(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, runtimeCtx := testStore(t, db)
+	tenantA := testpkg.NewTenantScope(t, db)
+	tenantB := testpkg.NewTenantScope(t, db)
+	relatedType, relatedID := "request", int64(77)
+
+	for _, scope := range []testpkg.TenantScope{tenantA, tenantB} {
+		scope := scope
+		err := tenant.WithTenantTx(runtimeCtx, db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+			key := fmt.Sprintf("tenant-isolation:%d", scope.TenantID)
+			_, err := store.Enqueue(txCtx, domain.Intent{
+				TenantID: scope.TenantID, Transport: domain.TransportEmail, Template: "request", IdempotencyKey: &key,
+				RelatedEntityType: &relatedType, RelatedEntityID: &relatedID,
+				Recipient: json.RawMessage(`{"address":"guardian@example.com"}`), Payload: json.RawMessage(`{}`),
+				Status: "pending", NextRetryAt: time.Now(),
+			})
+			return err
+		})
+		require.NoError(t, err)
+	}
+
+	err := tenant.WithTenantTx(runtimeCtx, db, tenantA.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		own, err := store.Statuses(txCtx, tenantA.TenantID, domain.TransportEmail, relatedType, relatedID)
+		require.NoError(t, err)
+		require.Len(t, own, 1)
+		other, err := store.Statuses(txCtx, tenantB.TenantID, domain.TransportEmail, relatedType, relatedID)
+		require.NoError(t, err)
+		assert.Empty(t, other, "tenant A transaction must not read tenant B even with tenant B in the predicate")
+		return nil
+	})
+	require.NoError(t, err)
+}

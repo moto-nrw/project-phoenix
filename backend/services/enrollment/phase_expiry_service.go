@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 const phaseExpiryWarningDays = 30
@@ -35,11 +35,15 @@ type PhaseExpiryService interface {
 	ListWarnings(ctx context.Context, asOf timezone.Date) ([]*PhaseExpiryWarning, error)
 }
 
-type phaseExpiryService struct {
-	repo enrollmentModels.PhaseExpiryRepository
+type PhaseExpirySnapshots interface {
+	ListSnapshots(context.Context, timezone.Date, timezone.Date) ([]*capability.PhaseExpirySnapshot, error)
 }
 
-func NewPhaseExpiryService(repo enrollmentModels.PhaseExpiryRepository) PhaseExpiryService {
+type phaseExpiryService struct {
+	repo PhaseExpirySnapshots
+}
+
+func NewPhaseExpiryService(repo PhaseExpirySnapshots) PhaseExpiryService {
 	return &phaseExpiryService{repo: repo}
 }
 
@@ -64,10 +68,13 @@ func (s *phaseExpiryService) ListWarnings(
 		if err := validatePhaseExpirySnapshot(snapshot); err != nil {
 			return nil, err
 		}
+		firstAffectedDate, err := timezone.ParseDate(string(snapshot.FirstAffectedDate))
+		if err != nil {
+			return nil, fmt.Errorf("list phase expiry warnings: %w", err)
+		}
 		if snapshot.SuccessorPhaseID != nil && snapshot.UnresolvedChildren == 0 {
 			continue
 		}
-
 		state := PhaseExpiryStateMissingSuccessor
 		if snapshot.SuccessorPhaseID != nil {
 			state = PhaseExpiryStateIncomplete
@@ -77,17 +84,17 @@ func (s *phaseExpiryService) ListWarnings(
 			SourcePhaseName:    snapshot.SourcePhaseName,
 			SuccessorPhaseID:   snapshot.SuccessorPhaseID,
 			SuccessorPhaseName: snapshot.SuccessorPhaseName,
-			FirstAffectedDate:  snapshot.FirstAffectedDate,
+			FirstAffectedDate:  firstAffectedDate,
 			AffectedChildren:   snapshot.AffectedChildren,
 			UnresolvedChildren: snapshot.UnresolvedChildren,
 			State:              state,
-			Overdue:            !snapshot.FirstAffectedDate.After(asOf),
+			Overdue:            !firstAffectedDate.After(asOf),
 		})
 	}
 	return warnings, nil
 }
 
-func validatePhaseExpirySnapshot(snapshot *enrollmentModels.PhaseExpirySnapshot) error {
+func validatePhaseExpirySnapshot(snapshot *capability.PhaseExpirySnapshot) error {
 	if snapshot == nil {
 		return errors.New("phase expiry repository returned a nil snapshot")
 	}

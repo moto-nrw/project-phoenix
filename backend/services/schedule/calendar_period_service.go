@@ -297,9 +297,11 @@ func (s *calendarPeriodService) withRecurrenceGate(
 // and always ends on July 31st of the following year.
 //
 // MUST stay in sync with the frontend helper schoolYearPeriodDefaults in
-// frontend/src/app/[tenant]/(protected)/timetables/page.tsx — both sides
-// derive the same name ("Schuljahr YYYY/YYYY+1") and the same date bounds
-// so the bootstrap endpoint and the client-side prefill never diverge.
+// frontend/src/app/[tenant]/(protected)/timetables/page.tsx and with
+// schoolYearBounds in backend/simulate/fullday.go — all three derive the same
+// name ("Schuljahr YYYY/YYYY+1") and the same date bounds, so the bootstrap
+// endpoint, the client-side prefill, and the demo school-year rollover never
+// diverge. (simulate cannot import internal/timezone, hence its own copy.)
 //
 // Extracted as a pure function so the year-boundary logic is testable
 // without injecting a clock.
@@ -340,8 +342,8 @@ func (s *calendarPeriodService) EnsureDefaultSchoolYear(ctx context.Context) ([]
 		period := &schedule.CalendarPeriod{
 			Name:            name,
 			PeriodType:      schedule.PeriodTypeSchoolYear,
-			StartDate:       start,
-			EndDate:         end,
+			StartDate:       schedule.Date(start),
+			EndDate:         schedule.Date(end),
 			WeekCycleLength: 1,
 			IsActive:        true,
 		}
@@ -393,7 +395,7 @@ func (s *calendarPeriodService) FindActiveOverlaps(ctx context.Context, period *
 // produce an instance on instanceDate, considering the period's A/B week cycle.
 //
 // Uses day-based difference calculation (NOT ISO week numbers) to avoid
-// year-boundary bugs. See timetable-system-plan.md §6.1 for algorithm details.
+// year-boundary bugs.
 //
 // timezone.Date.DaysUntil anchors both calendar days at UTC midnight before
 // subtracting, so DST transitions in Europe/Berlin (167- or 169-hour weeks at
@@ -419,7 +421,7 @@ func ShouldMaterializeWeekPattern(weekPattern int, instanceDate timezone.Date, p
 		return true // no anchor set, can't compute — allow by default
 	}
 
-	daysDiff := period.WeekCycleAnchor.DaysUntil(instanceDate)
+	daysDiff := period.WeekCycleAnchor.DaysUntil(schedule.Date(instanceDate))
 	weeksDiff := daysDiff / 7
 	// Go's integer division truncates toward zero, so for negative daysDiff
 	// we need an explicit floor when the division isn't exact.

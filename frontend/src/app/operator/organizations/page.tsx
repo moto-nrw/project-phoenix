@@ -25,7 +25,7 @@ import {
 
 function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+    <div className="moto-content-surface rounded-xl border px-5 py-4 shadow-sm">
       <div className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
         {label}
       </div>
@@ -265,9 +265,6 @@ export default function OperatorOrganizationsPage() {
       {orgDelete.deleteTarget && (
         <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          inputId="delete-org-confirm"
-          confirmInput={orgDelete.deleteConfirmInput}
-          onConfirmInputChange={orgDelete.setDeleteConfirmInput}
           errorMessage={orgDelete.softDeleteError}
           isProcessing={orgDelete.isProcessing}
           onCancel={() => orgDelete.setDeleteTarget(null)}

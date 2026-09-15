@@ -126,7 +126,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	t.Run("exception without a time cancels an otherwise booked day", func(t *testing.T) {
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
-			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+			careDayMonday: {StudentID: studentID, ExceptionDate: schedule.Date(careDayMonday)},
 		}
 
 		status := plans.statusFor(studentID, careDayMonday)
@@ -140,7 +140,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 		arrival := careDayClock("09:30")
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
-			careDayThursday: {StudentID: studentID, ExceptionDate: careDayThursday, ExpectedArrival: &arrival},
+			careDayThursday: {StudentID: studentID, ExceptionDate: schedule.Date(careDayThursday), ExpectedArrival: &arrival},
 		}
 
 		assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayThursday))
@@ -155,7 +155,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 			careDayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
 		}
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
-			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+			careDayMonday: {StudentID: studentID, ExceptionDate: schedule.Date(careDayMonday)},
 		}
 
 		assert.Equal(t, CareDayCancelled, plans.statusFor(studentID, careDayMonday))
@@ -164,7 +164,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	t.Run("timeless pickup exception cancels the day despite an arrival schedule", func(t *testing.T) {
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
 		plans.pickupExceptions[studentID] = map[timezone.Date]*schedule.StudentPickupException{
-			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+			careDayMonday: {StudentID: studentID, ExceptionDate: schedule.Date(careDayMonday)},
 		}
 
 		assert.Equal(t, CareDayCancelled, plans.statusFor(studentID, careDayMonday))
@@ -178,10 +178,10 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 		pickup := careDayClock("15:00")
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
-			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+			careDayMonday: {StudentID: studentID, ExceptionDate: schedule.Date(careDayMonday)},
 		}
 		plans.pickupExceptions[studentID] = map[timezone.Date]*schedule.StudentPickupException{
-			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday, PickupTime: &pickup},
+			careDayMonday: {StudentID: studentID, ExceptionDate: schedule.Date(careDayMonday), PickupTime: &pickup},
 		}
 
 		assert.Equal(t, CareDayCancelled, plans.statusFor(studentID, careDayMonday),
@@ -195,7 +195,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 			"weekends carry no weekly rows")
 
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
-			careDaySaturday: {StudentID: studentID, ExceptionDate: careDaySaturday, ExpectedArrival: &arrival},
+			careDaySaturday: {StudentID: studentID, ExceptionDate: schedule.Date(careDaySaturday), ExpectedArrival: &arrival},
 		}
 		assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDaySaturday))
 	})

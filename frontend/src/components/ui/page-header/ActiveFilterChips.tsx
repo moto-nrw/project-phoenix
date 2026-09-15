@@ -18,14 +18,14 @@ export function ActiveFilterChips({
         {filters.map((filter) => (
           <span
             key={filter.id}
-            className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700"
+            className="bg-moto-blue-soft text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium"
           >
             {filter.label}
             <button
               type="button"
               aria-label={`Filter ${filter.label} entfernen`}
               onClick={filter.onRemove}
-              className="transition-colors hover:text-blue-900"
+              className="hover:text-moto-blue-strong transition-colors"
             >
               <svg
                 className="h-3 w-3"
@@ -49,7 +49,7 @@ export function ActiveFilterChips({
         <button
           type="button"
           onClick={onClearAll}
-          className="text-xs font-medium text-blue-600 transition-colors hover:text-blue-700"
+          className="text-moto-blue-strong hover:text-moto-blue-hover text-xs font-medium transition-colors"
         >
           Alle löschen
         </button>

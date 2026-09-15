@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -92,7 +93,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 		children, err := svc.ListChildrenForAccount(ctx, chain.AccountID)
 		require.NoError(t, err)
 		require.Len(t, children, 1, "the child does not disappear from the portal")
-		assert.True(t, children[0].CareEnded(timezone.NewDate(2026, 8, 24)),
+		assert.True(t, children[0].CareEnded(careplan.Date(timezone.NewDate(2026, 8, 24).String())),
 			"the card is labelled 'Betreuung beendet' rather than removed")
 	})
 }

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
@@ -17,12 +19,12 @@ import (
 // contract. EffectiveFormCapabilities and DTO shaping stay in the API
 // layer. Schema and LegalTexts stay zero for the offering-only projection.
 type PublicFormBootstrapData struct {
-	Phase        *enrollmentModels.Phase
-	Schema       *enrollmentModels.FormSchema
+	Phase        *capability.Phase
+	Schema       *capability.FormSchema
 	Offerings    []*enrollmentModels.CareOffering
 	Capabilities FormCapabilities
 	LegalTexts   LegalTexts
-	LateInvite   *enrollmentModels.LateInvite
+	LateInvite   *capability.LateInvite
 }
 
 // BootstrapStage identifies which resolution step of a public bootstrap
@@ -72,7 +74,7 @@ func isPublicGateError(err error) bool {
 
 func (s *requestService) assemblePublicBootstrap(
 	ctx context.Context,
-	phaseLoader func(ctx context.Context) (*enrollmentModels.Phase, error),
+	phaseLoader func(ctx context.Context) (*capability.Phase, error),
 	opts publicBootstrapOptions,
 ) (*PublicFormBootstrapData, error) {
 	phase, err := phaseLoader(ctx)
@@ -93,16 +95,17 @@ func (s *requestService) assemblePublicBootstrap(
 	}
 	trimmedLateInviteToken := strings.TrimSpace(opts.lateInviteToken)
 	if s.LateInviteRepo != nil && trimmedLateInviteToken != "" {
-		invite, inviteErr := s.LateInviteRepo.FindUsableByTokenHash(
+		invite, inviteErr := s.LateInviteRepo.UsableLateInvite(
 			ctx,
 			lateInviteTokenHash(trimmedLateInviteToken),
 			phase.ID,
 			opts.lateInviteNow,
+			false,
 		)
 		switch {
 		case inviteErr == nil:
 			data.LateInvite = invite
-		case errors.Is(inviteErr, enrollmentModels.ErrLateInviteNotFound):
+		case errors.Is(inviteErr, capability.ErrLateInviteNotFound):
 			// An invalid token does not block an otherwise public, open phase.
 			// It simply grants no prefill data or closed-phase override.
 		default:
@@ -138,7 +141,7 @@ func (s *requestService) assemblePublicBootstrap(
 
 func (s *requestService) LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollmentModels.Phase, error) {
+		func(ctx context.Context) (*capability.Phase, error) {
 			return s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 		},
 		publicBootstrapOptions{
@@ -161,7 +164,7 @@ func (s *requestService) LoadPublicFormBootstrap(ctx context.Context, phaseID in
 // Caller must be inside a tenant-tx.
 func (s *requestService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string, access EnrolleeAudienceAccess) (*PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollmentModels.Phase, error) {
+		func(ctx context.Context) (*capability.Phase, error) {
 			return s.LoadEnrolleePhaseWithLateInvite(ctx, phaseID, now, lateInviteToken, access)
 		},
 		publicBootstrapOptions{
@@ -178,7 +181,7 @@ func (s *requestService) LoadEnrolleeFormBootstrap(ctx context.Context, phaseID 
 
 func (s *requestService) LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollmentModels.Phase, error) {
+		func(ctx context.Context) (*capability.Phase, error) {
 			return s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
 		},
 		publicBootstrapOptions{classifyStages: true})
@@ -186,7 +189,7 @@ func (s *requestService) LoadPublicCareOfferings(ctx context.Context, phaseID in
 
 func (s *requestService) LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error) {
 	return s.assemblePublicBootstrap(ctx,
-		func(ctx context.Context) (*enrollmentModels.Phase, error) {
+		func(ctx context.Context) (*capability.Phase, error) {
 			return s.LoadManualEnrollmentPhase(ctx, phaseID)
 		},
 		publicBootstrapOptions{

@@ -9,16 +9,15 @@ import {
 } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSWRConfig } from "swr";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { hasPermission } from "~/lib/auth-utils";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
-import { BackButton } from "~/components/ui/back-button";
-import { studentService } from "~/lib/api";
+import { useTenantRouter } from "~/lib/tenant-router";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
+import { groupService, studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
 import {
   useStudentData,
@@ -37,12 +36,19 @@ import {
   normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
 import {
-  StudentDetailHeader,
+  StudentHeaderAvatar,
+  StudentHeaderLocation,
+  StudentHeaderStats,
+  studentHeaderTitle,
   SupervisorsCard,
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
+import {
+  PersonalInfoEditPanel,
+  type PersonalInfoSaveDraft,
+} from "~/components/students/personal-info-edit-panel";
+import { StudentRecordActions } from "~/components/students/student-record-actions";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
 import { StudentDokumenteTab } from "~/components/students/dokumente-tab";
@@ -51,7 +57,9 @@ import {
   type AggregatedRequestFilters,
 } from "~/components/students/aggregated-request-list";
 import { FamilyProtectionControl } from "~/components/students/family-protection-control";
+import { StudentConsentsReadOnly } from "~/components/students/student-consents-read-only";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import {
   StudentCheckoutSection,
   StudentCheckinSection,
@@ -77,8 +85,6 @@ import {
   createStudentStatusDays,
   deleteStudentStatusDay,
   fetchStudentStatusDays,
-  StudentStatusDayConflictError,
-  StudentStatusDayPartialAbsenceConflictError,
   type StudentStatusDay,
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
@@ -93,7 +99,7 @@ import {
   fetchStudentPartialAbsences,
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
-import { StudentDetailSkeleton } from "./page-skeleton";
+import { StudentDetailLoadingPage } from "./page-skeleton";
 
 type TodayArrival = {
   time?: string;
@@ -103,6 +109,8 @@ type TodayArrival = {
 };
 
 const logger = createLogger({ component: "StudentDetailPage" });
+
+const EMPTY_GROUP_OPTIONS: ReadonlyArray<{ value: string; label: string }> = [];
 
 // Tabbed navigation for the student detail page (issue #1501). The cross-cutting
 // action bar (check-in/out, Krank/Entschuldigt) and the attendance header stay
@@ -234,33 +242,52 @@ function studentTabs(
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
 }
 
-// Shared classes for every tab panel. forceMount (below) keeps inactive panels
-// mounted. This is deliberate, not just pre-tabs parity: the panel children
-// (CareScheduleManager, StudentGuardianManager) fetch on mount and do NOT cache,
-// so the lazy alternative — letting Radix unmount inactive panels — would
-// re-fire those network calls on every tab revisit. forceMount loads each once
-// and keeps every section reachable for deep links. Tradeoff, accepted on
-// purpose: every section fetches up front on page open (no lazy-per-tab win),
-// but that matches the pre-tabs behaviour where all sections rendered together,
-// so it is not a regression. It disables Radix's own
-// `hidden` attribute, so `data-[state=inactive]:hidden` does the hiding via CSS
-// (display:none — also removes inactive panels from the a11y tree).
-const TAB_CONTENT_CLASS =
-  "mt-4 focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden sm:mt-6";
+/**
+ * Reiter der Kindakte für die Kopfkarte. Alle Reiter stehen nebeneinander;
+ * was nicht in die Zeile passt, räumt das Seitengerüst gemessen unter „Mehr".
+ */
+function buildStudentTabItems(tabs: StudentTabId[]) {
+  return tabs.map((tab) => ({ value: tab as string, label: TAB_LABELS[tab] }));
+}
 
-function StudentTabsList({ tabs }: Readonly<{ tabs: StudentTabId[] }>) {
+// Shared classes for every tab panel. Every panel stays mounted; the inactive
+// ones are hidden via CSS (`data-[state=inactive]:hidden` → display:none, which
+// also removes them from the a11y tree). This is deliberate: the panel children
+// (CareScheduleManager, StudentGuardianManager) fetch on mount and do NOT cache,
+// so unmounting inactive panels would re-fire those network calls on every tab
+// revisit. Mounting all of them loads each once and keeps every section
+// reachable for deep links. Tradeoff, accepted on purpose: every section fetches
+// up front on page open (no lazy-per-tab win), but that matches the pre-tabs
+// behaviour where all sections rendered together, so it is not a regression.
+// Der Reiterinhalt ist EIN Kind des Gerüsts; die Karten darin bekommen
+// deshalb denselben 24-px-Rhythmus (mobil 12 px) wie die Karten der Seite.
+const TAB_CONTENT_CLASS =
+  "space-y-6 max-sm:space-y-3 focus-visible:ring-0 focus-visible:ring-offset-0 data-[state=inactive]:hidden";
+
+/**
+ * Ein Reiterinhalt der Kindakte. Die Reiterleiste selbst liefert `TenantPage`,
+ * damit die Seite dieselbe Bauart hat wie jede andere Tenant-Seite.
+ */
+function StudentTabPanel({
+  value,
+  activeTab,
+  className = TAB_CONTENT_CLASS,
+  children,
+}: Readonly<{
+  value: StudentTabId;
+  activeTab: StudentTabId;
+  className?: string;
+  children?: React.ReactNode;
+}>) {
+  const active = value === activeTab;
   return (
-    <div className="overflow-x-auto border-b border-gray-200">
-      {/* border-b-0 here: the wrapper above already draws the full-width rail,
-          so the line variant's own border-b would stack a second 1px line under
-          the labels. Matches the detail-panel precedent (database/detail-panel.tsx). */}
-      <TabsList variant="line" className="w-max justify-start border-b-0">
-        {tabs.map((tab) => (
-          <TabsTrigger key={tab} value={tab}>
-            {TAB_LABELS[tab]}
-          </TabsTrigger>
-        ))}
-      </TabsList>
+    <div
+      role="tabpanel"
+      aria-label={TAB_LABELS[value]}
+      data-state={active ? "active" : "inactive"}
+      className={className}
+    >
+      {children}
     </div>
   );
 }
@@ -323,7 +350,7 @@ function mergeStatusDays(
 
 export default function StudentDetailPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<StudentDetailLoadingPage />}>
       <StudentDetailPageContent />
     </Suspense>
   );
@@ -331,13 +358,32 @@ export default function StudentDetailPage() {
 
 function StudentDetailPageContent() {
   const { mutate } = useSWRConfig();
-  const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const navRouter = useRouter();
+  const tenantRouter = useTenantRouter();
   const studentId = params.id as string;
-  const referrer = searchParams.get("from") ?? "/students/search";
+  const referrer = resolveDetailReferrer(
+    searchParams.get("from"),
+    "/students/search",
+    [
+      "/students/search",
+      "/database/students",
+      "/rooms",
+      "/active-supervisions",
+      "/day-log",
+      "/messages",
+      "/absences",
+      "/ogs-groups",
+    ],
+  );
+  // Der Rückweg heißt wie die Sammlung, aus der man kam: die Kinderdaten der
+  // Datenverwaltung verlinken seit #3115 hierher, statt ein eigenes Pane zu
+  // tragen.
+  const backLabel = referrer.startsWith("/database/students")
+    ? "Zurück zu den Kinderdaten"
+    : "Zurück zur Kinderübersicht";
   const toast = useToast();
   const { data: session, status: sessionStatus } = useSession();
 
@@ -376,6 +422,7 @@ function StudentDetailPageContent() {
     hasFullAccess,
     hasWriteAccess,
     hasAbsenceWriteAccess,
+    hasSickExcusedWriteAccess,
     attendanceLogEnabled,
     feedbackEnabled,
     supervisors,
@@ -384,6 +431,17 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  // Gruppen für das Auswahlfeld im Bearbeiten-Zustand der Stammdaten (#3115).
+  // Derselbe Schlüssel wie im Register der Kinderdaten, damit beide denselben
+  // Zwischenspeicher teilen; ohne Schreibrecht wird gar nicht erst geladen.
+  const { data: groupOptions = EMPTY_GROUP_OPTIONS } = useSWRAuth<
+    ReadonlyArray<{ value: string; label: string }>
+  >(hasWriteAccess ? "database-groups-dropdown" : null, async () => {
+    const groups = await groupService.getGroups();
+    return groups
+      .map((group) => ({ value: String(group.id), label: group.name }))
+      .sort((a, b) => a.label.localeCompare(b.label, "de"));
+  });
   const refreshDataAndHistory = useCallback(() => {
     refreshData();
     return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
@@ -416,6 +474,10 @@ function StudentDetailPageContent() {
     hasPermission(session, "users:checkin");
   const canCompleteCareWithdrawal =
     sessionStatus === "authenticated" && canReviewCareWithdrawals(session);
+  // Datensatz-Aktionen im Kebab der Kopfkarte (Betreuung beenden, Löschen):
+  // dieselbe Berechtigung wie das frühere Pane der Kinderdaten (#2487, #3115).
+  const canManageRecord =
+    sessionStatus === "authenticated" && hasPermission(session, "users:delete");
   const [careWithdrawal, setCareWithdrawal] =
     useState<CareWithdrawalCompletion | null>(null);
   const [careWithdrawalLoadFailed, setCareWithdrawalLoadFailed] =
@@ -464,7 +526,7 @@ function StudentDetailPageContent() {
   });
 
   // Personal info modal state
-  const [showPersonalInfoModal, setShowPersonalInfoModal] = useState(false);
+  const [showPersonalInfoEdit, setShowPersonalInfoEdit] = useState(false);
 
   // Checkout states
   const [showConfirmCheckout, setShowConfirmCheckout] = useState(false);
@@ -479,7 +541,7 @@ function StudentDetailPageContent() {
   const [sickLoading, setSickLoading] = useState(false);
   const [sickReason, setSickReason] = useState("");
   const sickConfirmText = sickLoading
-    ? "Wird gespeichert..."
+    ? "Wird gespeichert…"
     : student?.sick
       ? "Gesundmelden"
       : "Krankmelden";
@@ -489,7 +551,7 @@ function StudentDetailPageContent() {
   const [excusedLoading, setExcusedLoading] = useState(false);
   const isQuickExcused = (student?.excused ?? false) && !student?.class_trip;
   const excusedConfirmText = excusedLoading
-    ? "Wird gespeichert..."
+    ? "Wird gespeichert…"
     : isQuickExcused
       ? "Entschuldigung aufheben"
       : "Entschuldigen";
@@ -533,12 +595,20 @@ function StudentDetailPageContent() {
   // planning dialog opened empty for a school without feste Gruppen — existing
   // sick days stayed invisible and could not be cleared.
   const canReadStatusDays = hasFullAccess || hasAbsenceWriteAccess;
+  const canDeleteStatusDay = useCallback(
+    (day: StudentStatusDay) =>
+      day.status === "class_trip"
+        ? hasAbsenceWriteAccess
+        : hasSickExcusedWriteAccess,
+    [hasAbsenceWriteAccess, hasSickExcusedWriteAccess],
+  );
   // A partial excusal ("Ab Uhrzeit") is a pickup exception, not a status day:
   // its endpoints require users:update at the route AND full care access to the
   // child in the handler. The absence permission grants neither, so the scope
   // switch stays hidden for an absence-only staffer instead of offering a save
   // that would fail (#2232).
   const canPlanPartialExcusal =
+    hasSickExcusedWriteAccess &&
     hasFullAccess &&
     hasWriteAccess &&
     sessionStatus === "authenticated" &&
@@ -719,22 +789,21 @@ function StudentDetailPageContent() {
   // split both depend on `hasFullAccess`, a field on the student object that
   // isn't known until this fetch resolves.
   if (loading) {
-    return <StudentDetailSkeleton referrer={referrer} />;
+    return (
+      <StudentDetailLoadingPage referrer={referrer} backLabel={backLabel} />
+    );
   }
 
   // Show error state
   if (error || !student) {
     return (
-      <div className="flex min-h-[80vh] flex-col items-center justify-center">
-        <Alert type="error" message={error ?? "Kind nicht gefunden"} />
-        <button
-          type="button"
-          onClick={() => router.push(referrer)}
-          className="bg-moto-blue/10 text-moto-blue-strong hover:bg-moto-blue/20 mt-4 rounded px-4 py-2 transition-colors"
-        >
-          Zurück
-        </button>
-      </div>
+      <TenantPage
+        title="Kindakte"
+        back
+        backHref={referrer}
+        backLabel={backLabel}
+        error={error ?? "Kind nicht gefunden"}
+      />
     );
   }
 
@@ -742,7 +811,10 @@ function StudentDetailPageContent() {
   // EVENT HANDLERS
   // =============================================================================
 
-  const handleSavePersonal = async (editedStudent: ExtendedStudent) => {
+  const handleSavePersonal = async ({
+    privacyConsentChanged,
+    ...editedStudent
+  }: PersonalInfoSaveDraft) => {
     const allowedDepartureModes = normalizeAllowedDepartureModes(
       editedStudent.allowed_departure_modes ??
         allowedDepartureModesFromDeparture(
@@ -757,6 +829,22 @@ function StudentDetailPageContent() {
       first_name: editedStudent.first_name,
       second_name: editedStudent.second_name,
       school_class: editedStudent.school_class,
+      // Gruppe, Datenschutz und Foto-Einwilligung (#3115): vorher nur im Pane
+      // der Kinderdaten zu bearbeiten, jetzt an der einen Objektansicht.
+      group_id: editedStudent.group_id,
+      // Die Einwilligung liegt getrennt vom Kind. Ein unveränderter Entwurf
+      // darf eine zwischenzeitlich geänderte Einwilligung nicht überschreiben.
+      ...(privacyConsentChanged
+        ? {
+            privacy_consent_accepted: editedStudent.privacy_consent_accepted,
+            data_retention_days: editedStudent.data_retention_days,
+          }
+        : {}),
+      // Nur mitschicken, wenn der Entwurf den Wert kennt: `undefined` lässt
+      // das Backend die Einwilligung unangetastet, `false` nimmt sie zurück.
+      ...(editedStudent.photo_consent_given === undefined
+        ? {}
+        : { photo_consent_given: editedStudent.photo_consent_given }),
       birthday: editedStudent.birthday,
       address_street: editedStudent.address_street,
       address_postal_code: editedStudent.address_postal_code,
@@ -997,22 +1085,7 @@ function StudentDetailPageContent() {
         status: plannedStatusModal,
         error: err instanceof Error ? err.message : String(err),
       });
-      if (err instanceof StudentStatusDayPartialAbsenceConflictError) {
-        toast.warning(err.message);
-      } else if (err instanceof StudentStatusDayConflictError) {
-        const conflicts = err.conflicts
-          .map(
-            (day) =>
-              `${formatCalendarDate(day.date)} (${day.label.toLowerCase()})`,
-          )
-          .join(", ");
-        const wasOrWere = err.conflicts.length === 1 ? "wurde" : "wurden";
-        toast.warning(
-          `${conflicts} ${wasOrWere} zwischenzeitlich eingetragen und nicht überschrieben. Bitte Auswahl prüfen.`,
-        );
-      } else {
-        toast.error("Geplanter Status konnte nicht gespeichert werden");
-      }
+      // The open modal shows the failure in its error slot.
       throw err;
     } finally {
       setPlannedStatusLoading(false);
@@ -1077,7 +1150,7 @@ function StudentDetailPageContent() {
         partial_absence_id: partialAbsenceId,
         error: err instanceof Error ? err.message : String(err),
       });
-      toast.error("Entschuldigung konnte nicht gespeichert werden");
+      // The modal shows the failure in its error slot (Bauart 2 Regel 5).
       throw err;
     } finally {
       setPlannedStatusLoading(false);
@@ -1121,286 +1194,417 @@ function StudentDetailPageContent() {
   // =============================================================================
 
   return (
-    <>
-      <div className="mx-auto max-w-7xl">
-        <BackButton referrer={referrer} />
-
-        <StudentDetailHeader
+    /* Der Entitätskopf IST die Kopfkarte der Seite: Foto, Name, Statuszeile
+          mit Klasse, Gruppe und den Zeiten des heutigen Tages, der aktuelle
+          Aufenthaltsort als Aktion und die Schnellaktionen darunter. */
+    <TenantPage
+      back
+      backHref={referrer}
+      backLabel={backLabel}
+      leading={<StudentHeaderAvatar student={student} />}
+      title={studentHeaderTitle(student)}
+      actions={
+        canManageRecord ? (
+          <StudentRecordActions
+            student={student}
+            displayName={studentHeaderTitle(student)}
+            onChanged={refreshDataAndHistory}
+            onDeleted={() => tenantRouter.push(referrer)}
+          />
+        ) : undefined
+      }
+      stats={
+        // Der Aufenthaltsort ist Status, keine Aktion: er steht in der
+        // Statuszeile des Identitätskopfes und nicht im Aktionsplatz, wo er
+        // wie eine Schaltfläche gelesen würde.
+        <span className="block">
+          <span className="mb-1 flex flex-wrap items-center gap-2">
+            <StudentHeaderLocation
+              student={student}
+              myGroups={myGroups}
+              myGroupRooms={myGroupRooms}
+              mySupervisedRooms={mySupervisedRooms}
+              todayArrivalPlannedTime={todayArrival.time}
+              isArrivalException={todayArrival.isException}
+              todayArrivalNote={todayArrival.note}
+              isArrivalAbsent={todayArrival.isAbsent}
+            />
+          </span>
+          <StudentHeaderStats
+            student={student}
+            todayPickupPlannedTime={todayPickup.time}
+            todayPickupActualTime={student.actual_pickup_time}
+            todayPickupNote={todayPickup.note}
+            isPickupException={todayPickup.isException}
+            todayArrivalPlannedTime={todayArrival.time}
+            todayArrivalActualTime={student.actual_arrival_time}
+            isArrivalException={todayArrival.isException}
+            todayArrivalNote={todayArrival.note}
+            isArrivalAbsent={todayArrival.isAbsent}
+            sickReason={currentSickReason}
+          />
+        </span>
+      }
+      searchSlotHeight="natural"
+      searchSlot={
+        <StudentQuickActions
           student={student}
-          myGroups={myGroups}
-          myGroupRooms={myGroupRooms}
-          mySupervisedRooms={mySupervisedRooms}
-          todayPickupPlannedTime={todayPickup.time}
-          todayPickupActualTime={student.actual_pickup_time}
-          todayPickupNote={todayPickup.note}
-          isPickupException={todayPickup.isException}
-          todayArrivalPlannedTime={todayArrival.time}
-          todayArrivalActualTime={student.actual_arrival_time}
-          isArrivalException={todayArrival.isException}
-          todayArrivalNote={todayArrival.note}
-          isArrivalAbsent={todayArrival.isAbsent}
-          sickReason={currentSickReason}
+          showCheckout={showCheckout}
+          showCheckin={showCheckin}
+          hasAbsenceWriteAccess={hasAbsenceWriteAccess}
+          hasSickExcusedWriteAccess={hasSickExcusedWriteAccess}
+          onCheckoutClick={() => setShowConfirmCheckout(true)}
+          onCheckinClick={() => setShowConfirmCheckin(true)}
+          onSickClick={handleSickClick}
+          sickLoading={sickLoading}
+          isQuickExcused={isQuickExcused}
+          onExcusedClick={handleExcusedClick}
+          excusedLoading={excusedLoading}
+          onClassTripClick={() => setPlannedStatusModal("class_trip")}
+          plannedStatusLoading={plannedStatusLoading}
         />
+      }
+      tabs={{
+        value: activeTab,
+        onChange: handleTabChange,
+        items: buildStudentTabItems(visibleTabs),
+        label: "Bereiche der Kindakte",
+      }}
+      overlays={
+        <>
+          {/* Checkout Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmCheckout}
+            onClose={() => setShowConfirmCheckout(false)}
+            onConfirm={handleConfirmCheckout}
+            title="Kind abmelden"
+            confirmText={checkingOut ? "Wird abgemeldet…" : "Geht nach Hause"}
+            cancelText="Abbrechen"
+            isConfirmLoading={checkingOut}
+          >
+            <p>
+              Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
+            </p>
+          </ConfirmationModal>
 
-        {careWithdrawalLoadFailed ? (
-          <div className="mt-4">
-            <Alert
-              type="error"
-              message="Die offene Abmeldung konnte nicht geladen werden."
-            />
-          </div>
-        ) : careWithdrawal ? (
-          <div className="mt-4">
-            <Alert
-              type="warning"
-              message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
-              action={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="compact"
-                  onClick={() => setCareWithdrawalModalOpen(true)}
+          {/* Checkin Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmCheckin}
+            onClose={() => setShowConfirmCheckin(false)}
+            onConfirm={handleConfirmCheckin}
+            title="Kind anmelden"
+            confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
+            cancelText="Abbrechen"
+            isConfirmLoading={checkingIn}
+          >
+            <p>
+              Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
+            </p>
+          </ConfirmationModal>
+
+          {/* Sick Report Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmSick && hasSickExcusedWriteAccess}
+            onClose={() => {
+              setShowConfirmSick(false);
+              setSickReason("");
+            }}
+            onConfirm={handleConfirmSickToggle}
+            title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
+            confirmText={sickConfirmText}
+            cancelText="Abbrechen"
+            isConfirmLoading={sickLoading}
+          >
+            <p>
+              {student.sick ? (
+                <>
+                  Möchten Sie die Krankmeldung für{" "}
+                  <strong>{student.name}</strong> für heute aufheben? Geplante
+                  Kranktage in der Zukunft bleiben bestehen.
+                </>
+              ) : (
+                <>
+                  Möchten Sie <strong>{student.name}</strong> als krank melden?
+                </>
+              )}
+            </p>
+            {!student.sick && (
+              <div className="mt-4">
+                <label
+                  htmlFor="sick-reason"
+                  className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  Betreuung beenden
-                </Button>
-              }
-            />
-            <CareExitModal
-              isOpen={careWithdrawalModalOpen}
-              studentIds={[studentId]}
-              completionId={careWithdrawal.id}
-              firstBookinglessDay={careWithdrawal.firstBookinglessDay}
-              onClose={() => setCareWithdrawalModalOpen(false)}
-              onFinished={() => {
-                setCareWithdrawalModalOpen(false);
-                setCareWithdrawal(null);
-                window.dispatchEvent(new Event("change-requests-refresh"));
-              }}
-            />
-          </div>
-        ) : null}
+                  Grund (optional)
+                </label>
+                <textarea
+                  id="sick-reason"
+                  value={sickReason}
+                  onChange={(e) => setSickReason(e.target.value)}
+                  rows={2}
+                  maxLength={2000}
+                  placeholder="z. B. Fieber, beim Arzt"
+                  className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+                />
+              </div>
+            )}
+          </ConfirmationModal>
 
-        {hasFullAccess ? (
-          <FullAccessView
-            student={student}
-            studentId={studentId}
-            hasWriteAccess={hasWriteAccess}
-            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            showCheckout={showCheckout}
-            showCheckin={showCheckin}
-            activeTab={activeTab}
-            tabs={visibleTabs}
-            canViewEnrollments={canViewEnrollments}
-            canViewCarePlan={canViewCarePlan}
-            canManageFamilyProtection={canViewEnrollments}
-            onTabChange={handleTabChange}
-            statusDays={statusDays}
+          {/* Excused Confirmation Modal */}
+          <ConfirmationModal
+            isOpen={showConfirmExcused && hasSickExcusedWriteAccess}
+            onClose={() => setShowConfirmExcused(false)}
+            onConfirm={handleConfirmExcusedToggle}
+            title={
+              isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
+            }
+            confirmText={excusedConfirmText}
+            cancelText="Abbrechen"
+            isConfirmLoading={excusedLoading}
+          >
+            <p>
+              {isQuickExcused ? (
+                <>
+                  Möchten Sie die Entschuldigung für{" "}
+                  <strong>{student.name}</strong> für heute aufheben? Geplante
+                  Entschuldigungen in der Zukunft bleiben bestehen.
+                </>
+              ) : (
+                <>
+                  Möchten Sie <strong>{student.name}</strong> als entschuldigt
+                  markieren?
+                </>
+              )}
+            </p>
+          </ConfirmationModal>
+
+          {/* Switch Dialog, shown when user clicks one flag but the other is set */}
+          <ConfirmationModal
+            isOpen={switchTarget !== null && hasSickExcusedWriteAccess}
+            onClose={() => setSwitchTarget(null)}
+            onConfirm={handleConfirmSwitch}
+            title={
+              switchTarget === "sick"
+                ? "Als krank melden?"
+                : "Als entschuldigt markieren?"
+            }
+            confirmText={switchLoading ? "Wird gewechselt…" : "Status wechseln"}
+            cancelText="Abbrechen"
+            isConfirmLoading={switchLoading}
+          >
+            <p>
+              {switchTarget === "sick" ? (
+                <>
+                  <strong>{student.name}</strong> ist aktuell als entschuldigt
+                  markiert. Stattdessen als krank melden? Die Entschuldigung
+                  wird dabei aufgehoben.
+                </>
+              ) : (
+                <>
+                  <strong>{student.name}</strong> ist aktuell als krank
+                  gemeldet. Stattdessen als entschuldigt markieren? Die
+                  Krankmeldung wird dabei aufgehoben.
+                </>
+              )}
+            </p>
+          </ConfirmationModal>
+
+          <PlannedStatusDaysModal
+            isOpen={
+              plannedStatusModal !== null &&
+              (plannedStatusModal === "class_trip"
+                ? hasAbsenceWriteAccess
+                : hasSickExcusedWriteAccess)
+            }
+            status={plannedStatusModal ?? "sick"}
+            studentName={student.name}
+            isSubmitting={plannedStatusLoading}
+            existingDays={statusDays}
+            existingPartialAbsences={partialAbsences}
+            canPlanPartialExcusal={canPlanPartialExcusal}
+            deletingStatusDayId={deletingPlannedStatusDayId}
+            onClose={() => setPlannedStatusModal(null)}
+            loadExistingDays={loadPlannedStatusExistingDays}
+            loadPartialAbsences={loadPlannedPartialAbsences}
+            loadCarePlanDay={loadPlannedCarePlanDay}
+            onSubmit={handleCreatePlannedStatus}
             onDeleteStatusDay={handleDeletePlannedStatus}
-            onVisibleDateRangeChange={ensureStatusDayRange}
-            showPersonalInfoModal={showPersonalInfoModal}
-            onCheckoutClick={() => setShowConfirmCheckout(true)}
-            onCheckinClick={() => setShowConfirmCheckin(true)}
-            onOpenPersonalInfoModal={() => setShowPersonalInfoModal(true)}
-            onClosePersonalInfoModal={() => setShowPersonalInfoModal(false)}
-            onSavePersonal={handleSavePersonal}
-            onRefreshData={refreshDataAndHistory}
-            onSickClick={handleSickClick}
-            sickLoading={sickLoading}
-            isQuickExcused={isQuickExcused}
-            onExcusedClick={handleExcusedClick}
-            excusedLoading={excusedLoading}
-            onClassTripClick={() => setPlannedStatusModal("class_trip")}
-            plannedStatusLoading={plannedStatusLoading}
+            canDeleteStatusDay={canDeleteStatusDay}
+            onSubmitPartialAbsence={handleSavePartialAbsence}
+            onDeletePartialAbsence={
+              canPlanPartialExcusal ? handleDeletePartialAbsence : undefined
+            }
           />
-        ) : (
-          <LimitedAccessView
-            student={student}
-            studentId={studentId}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            supervisors={supervisors}
-            showCheckout={showCheckout}
-            showCheckin={showCheckin}
-            hasAbsenceWriteAccess={hasAbsenceWriteAccess}
-            activeTab={activeTab}
-            tabs={visibleTabs}
-            canViewEnrollments={canViewEnrollments}
-            onTabChange={handleTabChange}
-            onCheckoutClick={() => setShowConfirmCheckout(true)}
-            onCheckinClick={() => setShowConfirmCheckin(true)}
-            onSickClick={handleSickClick}
-            sickLoading={sickLoading}
-            isQuickExcused={isQuickExcused}
-            onExcusedClick={handleExcusedClick}
-            excusedLoading={excusedLoading}
-            onClassTripClick={() => setPlannedStatusModal("class_trip")}
-            plannedStatusLoading={plannedStatusLoading}
+        </>
+      }
+    >
+      {careWithdrawalLoadFailed ? (
+        <div>
+          <Alert
+            type="error"
+            message="Die offene Abmeldung konnte nicht geladen werden."
           />
-        )}
-      </div>
+        </div>
+      ) : careWithdrawal ? (
+        <div>
+          <Alert
+            type="warning"
+            message={`Abmeldung noch abschließen. Ab ${formatCalendarDate(careWithdrawal.firstBookinglessDay)} ist kein Betreuungstag mehr gebucht.`}
+            action={
+              <Button
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() => setCareWithdrawalModalOpen(true)}
+              >
+                Betreuung beenden
+              </Button>
+            }
+          />
+          <CareExitModal
+            isOpen={careWithdrawalModalOpen}
+            studentIds={[studentId]}
+            completionId={careWithdrawal.id}
+            firstBookinglessDay={careWithdrawal.firstBookinglessDay}
+            onClose={() => setCareWithdrawalModalOpen(false)}
+            onFinished={() => {
+              setCareWithdrawalModalOpen(false);
+              setCareWithdrawal(null);
+              window.dispatchEvent(new Event("change-requests-refresh"));
+            }}
+          />
+        </div>
+      ) : null}
 
-      {/* Checkout Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmCheckout}
-        onClose={() => setShowConfirmCheckout(false)}
-        onConfirm={handleConfirmCheckout}
-        title="Kind abmelden"
-        confirmText={checkingOut ? "Wird abgemeldet..." : "Geht nach Hause"}
-        cancelText="Abbrechen"
-        isConfirmLoading={checkingOut}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          Möchten Sie <strong>{student.name}</strong> jetzt abmelden?
-        </p>
-      </ConfirmationModal>
+      {hasFullAccess ? (
+        <FullAccessView
+          student={student}
+          studentId={studentId}
+          hasWriteAccess={hasWriteAccess}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          activeTab={activeTab}
+          tabs={visibleTabs}
+          canViewEnrollments={canViewEnrollments}
+          canViewCarePlan={canViewCarePlan}
+          canManageFamilyProtection={canViewEnrollments}
+          onTabChange={handleTabChange}
+          statusDays={statusDays}
+          onDeleteStatusDay={handleDeletePlannedStatus}
+          canDeleteStatusDay={canDeleteStatusDay}
+          onVisibleDateRangeChange={ensureStatusDayRange}
+          showPersonalInfoEdit={showPersonalInfoEdit}
+          onOpenPersonalInfoEdit={() => setShowPersonalInfoEdit(true)}
+          onClosePersonalInfoEdit={() => setShowPersonalInfoEdit(false)}
+          onSavePersonal={handleSavePersonal}
+          groupOptions={groupOptions}
+          onRefreshData={refreshDataAndHistory}
+        />
+      ) : (
+        <LimitedAccessView
+          student={student}
+          studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          supervisors={supervisors}
+          activeTab={activeTab}
+          tabs={visibleTabs}
+          canViewEnrollments={canViewEnrollments}
+        />
+      )}
+    </TenantPage>
+  );
+}
 
-      {/* Checkin Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmCheckin}
-        onClose={() => setShowConfirmCheckin(false)}
-        onConfirm={handleConfirmCheckin}
-        title="Kind anmelden"
-        confirmText={checkingIn ? "Wird angemeldet..." : "Anmelden"}
-        cancelText="Abbrechen"
-        isConfirmLoading={checkingIn}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          Möchten Sie <strong>{student.name}</strong> jetzt anmelden?
-        </p>
-      </ConfirmationModal>
+// =============================================================================
+// SCHNELLAKTIONEN
+// =============================================================================
 
-      {/* Sick Report Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmSick}
-        onClose={() => {
-          setShowConfirmSick(false);
-          setSickReason("");
-        }}
-        onConfirm={handleConfirmSickToggle}
-        title={student.sick ? "Krankmeldung aufheben" : "Kind krankmelden"}
-        confirmText={sickConfirmText}
-        cancelText="Abbrechen"
-        isConfirmLoading={sickLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          {student.sick ? (
-            <>
-              Möchten Sie die Krankmeldung für <strong>{student.name}</strong>{" "}
-              für heute aufheben? Geplante Kranktage in der Zukunft bleiben
-              bestehen.
-            </>
-          ) : (
-            <>
-              Möchten Sie <strong>{student.name}</strong> als krank melden?
-            </>
-          )}
-        </p>
-        {!student.sick && (
-          <div className="mt-4">
-            <label
-              htmlFor="sick-reason"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Grund (optional)
-            </label>
-            <textarea
-              id="sick-reason"
-              value={sickReason}
-              onChange={(e) => setSickReason(e.target.value)}
-              rows={2}
-              maxLength={2000}
-              placeholder="z. B. Fieber, beim Arzt"
-              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus-visible:border-gray-500 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-            />
-          </div>
-        )}
-      </ConfirmationModal>
+/**
+ * Die Kacheln für An-/Abmelden, Krank, Entschuldigt und weitere Statusaktionen.
+ *
+ * Bewusst große Touch-Ziele: die Reihe wird im Alltag am Tablet bedient, nicht
+ * mit der Maus. Sie steht deshalb nicht als OverflowMenu in der Titelzeile,
+ * sondern als Reihe im Fuß der Kopfkarte, damit keine freischwebende
+ * Kachelreihe zwischen Kopf und Reitern hängt. Beide Ansichten (eingeschränkt
+ * und voll) teilen sich diesen Block, statt ihn doppelt zu pflegen.
+ */
+function StudentQuickActions({
+  student,
+  showCheckout,
+  showCheckin,
+  hasAbsenceWriteAccess,
+  hasSickExcusedWriteAccess,
+  onCheckoutClick,
+  onCheckinClick,
+  onSickClick,
+  sickLoading,
+  isQuickExcused,
+  onExcusedClick,
+  excusedLoading,
+  onClassTripClick,
+  plannedStatusLoading,
+}: Readonly<{
+  student: ExtendedStudent;
+  showCheckout: boolean;
+  showCheckin: boolean;
+  hasAbsenceWriteAccess: boolean;
+  hasSickExcusedWriteAccess: boolean;
+  onCheckoutClick: () => void;
+  onCheckinClick: () => void;
+  onSickClick: () => void;
+  sickLoading: boolean;
+  isQuickExcused: boolean;
+  onExcusedClick: () => void;
+  excusedLoading: boolean;
+  onClassTripClick: () => void;
+  plannedStatusLoading: boolean;
+}>) {
+  if (
+    !showCheckout &&
+    !showCheckin &&
+    !hasAbsenceWriteAccess &&
+    !hasSickExcusedWriteAccess
+  )
+    return null;
 
-      {/* Excused Confirmation Modal */}
-      <ConfirmationModal
-        isOpen={showConfirmExcused}
-        onClose={() => setShowConfirmExcused(false)}
-        onConfirm={handleConfirmExcusedToggle}
-        title={
-          isQuickExcused ? "Entschuldigung aufheben" : "Kind entschuldigen"
-        }
-        confirmText={excusedConfirmText}
-        cancelText="Abbrechen"
-        isConfirmLoading={excusedLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          {isQuickExcused ? (
-            <>
-              Möchten Sie die Entschuldigung für <strong>{student.name}</strong>{" "}
-              für heute aufheben? Geplante Entschuldigungen in der Zukunft
-              bleiben bestehen.
-            </>
-          ) : (
-            <>
-              Möchten Sie <strong>{student.name}</strong> als entschuldigt
-              markieren?
-            </>
-          )}
-        </p>
-      </ConfirmationModal>
-
-      {/* Switch Dialog, shown when user clicks one flag but the other is set */}
-      <ConfirmationModal
-        isOpen={switchTarget !== null}
-        onClose={() => setSwitchTarget(null)}
-        onConfirm={handleConfirmSwitch}
-        title={
-          switchTarget === "sick"
-            ? "Als krank melden?"
-            : "Als entschuldigt markieren?"
-        }
-        confirmText={switchLoading ? "Wird gewechselt..." : "Status wechseln"}
-        cancelText="Abbrechen"
-        isConfirmLoading={switchLoading}
-        confirmButtonClass="bg-gray-900 hover:bg-gray-700"
-      >
-        <p>
-          {switchTarget === "sick" ? (
-            <>
-              <strong>{student.name}</strong> ist aktuell als entschuldigt
-              markiert. Stattdessen als krank melden? Die Entschuldigung wird
-              dabei aufgehoben.
-            </>
-          ) : (
-            <>
-              <strong>{student.name}</strong> ist aktuell als krank gemeldet.
-              Stattdessen als entschuldigt markieren? Die Krankmeldung wird
-              dabei aufgehoben.
-            </>
-          )}
-        </p>
-      </ConfirmationModal>
-
-      <PlannedStatusDaysModal
-        isOpen={plannedStatusModal !== null}
-        status={plannedStatusModal ?? "sick"}
-        studentName={student.name}
-        isSubmitting={plannedStatusLoading}
-        existingDays={statusDays}
-        existingPartialAbsences={partialAbsences}
-        canPlanPartialExcusal={canPlanPartialExcusal}
-        deletingStatusDayId={deletingPlannedStatusDayId}
-        onClose={() => setPlannedStatusModal(null)}
-        loadExistingDays={loadPlannedStatusExistingDays}
-        loadPartialAbsences={loadPlannedPartialAbsences}
-        loadCarePlanDay={loadPlannedCarePlanDay}
-        onSubmit={handleCreatePlannedStatus}
-        onDeleteStatusDay={handleDeletePlannedStatus}
-        onSubmitPartialAbsence={handleSavePartialAbsence}
-        onDeletePartialAbsence={handleDeletePartialAbsence}
-      />
-    </>
+  return (
+    // Auf dem Telefon zwei Spalten: vier Karten nebeneinander passen bei
+    // 390 px nicht, und „Entschuldigen" ist ein Wort, das sich nicht umbrechen
+    // laesst -- die Zeile lief rechts aus dem Bild, das Menue war gar nicht
+    // erreichbar. Ab sm stehen sie wieder in einer Reihe.
+    <div
+      className="grid grid-cols-2 gap-3 sm:flex sm:gap-4"
+      aria-label="Schnellaktionen"
+    >
+      {showCheckout && (
+        <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
+      )}
+      {showCheckin && <StudentCheckinSection onCheckinClick={onCheckinClick} />}
+      {hasSickExcusedWriteAccess && (
+        <StudentSickReportSection
+          isSick={student.sick ?? false}
+          sickSince={student.sick_since}
+          onToggle={onSickClick}
+          isLoading={sickLoading}
+        />
+      )}
+      {hasSickExcusedWriteAccess && (
+        <StudentExcusedReportSection
+          isExcused={isQuickExcused}
+          excusedSince={isQuickExcused ? student.excused_since : undefined}
+          onToggle={onExcusedClick}
+          isLoading={excusedLoading}
+        />
+      )}
+      {hasAbsenceWriteAccess && (
+        <StudentStatusActionsMenu
+          isClassTrip={student.class_trip ?? false}
+          classTripSince={student.class_trip_since}
+          onPlanClassTrip={onClassTripClick}
+          isLoading={plannedStatusLoading}
+        />
+      )}
+    </div>
   );
 }
 
@@ -1414,25 +1618,9 @@ interface LimitedAccessViewProps {
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
   supervisors: SupervisorContact[];
-  showCheckout: boolean;
-  showCheckin: boolean;
-  /** Absence actions are gated separately from read access: a school without
-   *  feste Gruppen lets staff report absences for children whose record they
-   *  may only see redacted (#2232). */
-  hasAbsenceWriteAccess: boolean;
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
-  onTabChange: (tab: string) => void;
-  onCheckoutClick: () => void;
-  onCheckinClick: () => void;
-  onSickClick: () => void;
-  sickLoading: boolean;
-  isQuickExcused: boolean;
-  onExcusedClick: () => void;
-  excusedLoading: boolean;
-  onClassTripClick: () => void;
-  plannedStatusLoading: boolean;
 }
 
 function LimitedAccessView({
@@ -1441,22 +1629,9 @@ function LimitedAccessView({
   attendanceLogEnabled,
   feedbackEnabled,
   supervisors,
-  showCheckout,
-  showCheckin,
-  hasAbsenceWriteAccess,
   activeTab,
   tabs,
   canViewEnrollments,
-  onTabChange,
-  onCheckoutClick,
-  onCheckinClick,
-  onSickClick,
-  sickLoading,
-  isQuickExcused,
-  onExcusedClick,
-  excusedLoading,
-  onClassTripClick,
-  plannedStatusLoading,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
@@ -1479,105 +1654,66 @@ function LimitedAccessView({
   }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
-        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-          {showCheckout && (
-            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-          )}
-          {showCheckin && (
-            <StudentCheckinSection onCheckinClick={onCheckinClick} />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentSickReportSection
-              isSick={student.sick ?? false}
-              sickSince={student.sick_since}
-              onToggle={onSickClick}
-              isLoading={sickLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentExcusedReportSection
-              isExcused={isQuickExcused}
-              excusedSince={isQuickExcused ? student.excused_since : undefined}
-              onToggle={onExcusedClick}
-              isLoading={excusedLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentStatusActionsMenu
-              isClassTrip={student.class_trip ?? false}
-              classTripSince={student.class_trip_since}
-              onPlanClassTrip={onClassTripClick}
-              isLoading={plannedStatusLoading}
-            />
-          )}
-        </div>
-      )}
+      <StudentTabPanel
+        value="stammdaten"
+        activeTab={activeTab}
+        className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
+      >
+        <SupervisorsCard supervisors={supervisors} studentName={student.name} />
+        <PersonalInfoReadOnly student={student} />
+      </StudentTabPanel>
 
-      <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={tabs} />
+      <StudentTabPanel
+        value="erziehungsberechtigte"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentGuardianManager studentId={student.id} readOnly={true} />
+      </StudentTabPanel>
 
-        <TabsContent
-          value="stammdaten"
-          forceMount
-          className={`${TAB_CONTENT_CLASS} space-y-4 sm:space-y-6`}
-        >
-          <SupervisorsCard
-            supervisors={supervisors}
-            studentName={student.name}
-          />
-          <PersonalInfoReadOnly student={student} />
-        </TabsContent>
-
-        <TabsContent
-          value="erziehungsberechtigte"
-          forceMount
+      {canViewEnrollments ? (
+        <StudentTabPanel
+          value="anmeldungen"
+          activeTab={activeTab}
           className={TAB_CONTENT_CLASS}
         >
-          <StudentGuardianManager studentId={student.id} readOnly={true} />
-        </TabsContent>
+          <StudentEnrollmentsTab studentId={student.id} />
+        </StudentTabPanel>
+      ) : null}
 
-        {canViewEnrollments ? (
-          <TabsContent
-            value="anmeldungen"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            <StudentEnrollmentsTab studentId={student.id} />
-          </TabsContent>
-        ) : null}
+      {tabs.includes("aenderungsprotokoll") && (
+        <StudentTabPanel
+          value="aenderungsprotokoll"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          {protocolTabSeen && (
+            <SectionCard
+              title="Änderungsprotokoll"
+              description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+            >
+              <AggregatedRequestList
+                view="history"
+                filters={changeProtocolFilters}
+              />
+            </SectionCard>
+          )}
+        </StudentTabPanel>
+      )}
 
-        {tabs.includes("aenderungsprotokoll") && (
-          <TabsContent
-            value="aenderungsprotokoll"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            {protocolTabSeen && (
-              <SectionCard
-                kicker="Kinderkartei"
-                title="Änderungsprotokoll"
-                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
-              >
-                <AggregatedRequestList
-                  view="history"
-                  filters={changeProtocolFilters}
-                />
-              </SectionCard>
-            )}
-          </TabsContent>
-        )}
-
-        <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
-          <StudentHistorySection
-            studentId={studentId}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            readOnly={true}
-            onNavigate={(path) => historyRouter.push(path)}
-          />
-        </TabsContent>
-      </Tabs>
+      <StudentTabPanel
+        value="historie"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentHistorySection
+          studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          readOnly={true}
+          onNavigate={(path) => historyRouter.push(path)}
+        />
+      </StudentTabPanel>
     </>
   );
 }
@@ -1590,12 +1726,8 @@ interface FullAccessViewProps {
   student: ExtendedStudent;
   studentId: string;
   hasWriteAccess: boolean;
-  /** See LimitedAccessViewProps.hasAbsenceWriteAccess (#2232). */
-  hasAbsenceWriteAccess: boolean;
   attendanceLogEnabled: boolean;
   feedbackEnabled: boolean;
-  showCheckout: boolean;
-  showCheckin: boolean;
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
@@ -1604,32 +1736,22 @@ interface FullAccessViewProps {
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
+  canDeleteStatusDay: (day: StudentStatusDay) => boolean;
   onVisibleDateRangeChange: (from: string, to: string) => void;
-  showPersonalInfoModal: boolean;
-  onCheckoutClick: () => void;
-  onCheckinClick: () => void;
-  onOpenPersonalInfoModal: () => void;
-  onClosePersonalInfoModal: () => void;
-  onSavePersonal: (student: ExtendedStudent) => Promise<void>;
+  showPersonalInfoEdit: boolean;
+  onOpenPersonalInfoEdit: () => void;
+  onClosePersonalInfoEdit: () => void;
+  onSavePersonal: (student: PersonalInfoSaveDraft) => Promise<void>;
   onRefreshData: () => void;
-  onSickClick: () => void;
-  sickLoading: boolean;
-  isQuickExcused: boolean;
-  onExcusedClick: () => void;
-  excusedLoading: boolean;
-  onClassTripClick: () => void;
-  plannedStatusLoading: boolean;
+  groupOptions: ReadonlyArray<{ value: string; label: string }>;
 }
 
 function FullAccessView({
   student,
   studentId,
   hasWriteAccess,
-  hasAbsenceWriteAccess,
   attendanceLogEnabled,
   feedbackEnabled,
-  showCheckout,
-  showCheckin,
   activeTab,
   tabs,
   canViewEnrollments,
@@ -1638,21 +1760,14 @@ function FullAccessView({
   onTabChange,
   statusDays,
   onDeleteStatusDay,
+  canDeleteStatusDay,
   onVisibleDateRangeChange,
-  showPersonalInfoModal,
-  onCheckoutClick,
-  onCheckinClick,
-  onOpenPersonalInfoModal,
-  onClosePersonalInfoModal,
+  showPersonalInfoEdit,
+  onOpenPersonalInfoEdit,
+  onClosePersonalInfoEdit,
   onSavePersonal,
   onRefreshData,
-  onSickClick,
-  sickLoading,
-  isQuickExcused,
-  onExcusedClick,
-  excusedLoading,
-  onClassTripClick,
-  plannedStatusLoading,
+  groupOptions,
 }: Readonly<FullAccessViewProps>) {
   const historyRouter = useTenantRouter();
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
@@ -1701,185 +1816,155 @@ function FullAccessView({
   }, [activeTab]);
   return (
     <>
-      {(showCheckout || showCheckin || hasAbsenceWriteAccess) && (
-        <div className="mb-4 flex gap-3 sm:mb-6 sm:gap-4">
-          {showCheckout && (
-            <StudentCheckoutSection onCheckoutClick={onCheckoutClick} />
-          )}
-          {showCheckin && (
-            <StudentCheckinSection onCheckinClick={onCheckinClick} />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentSickReportSection
-              isSick={student.sick ?? false}
-              sickSince={student.sick_since}
-              onToggle={onSickClick}
-              isLoading={sickLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentExcusedReportSection
-              isExcused={isQuickExcused}
-              excusedSince={isQuickExcused ? student.excused_since : undefined}
-              onToggle={onExcusedClick}
-              isLoading={excusedLoading}
-            />
-          )}
-          {hasAbsenceWriteAccess && (
-            <StudentStatusActionsMenu
-              isClassTrip={student.class_trip ?? false}
-              classTripSince={student.class_trip_since}
-              onPlanClassTrip={onClassTripClick}
-              isLoading={plannedStatusLoading}
-            />
-          )}
-        </div>
-      )}
-
-      <Tabs value={activeTab} onValueChange={onTabChange}>
-        <StudentTabsList tabs={tabs} />
-
-        <TabsContent
-          value="stammdaten"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <div className="space-y-4">
-            <PersonalInfoReadOnly
-              student={student}
-              enrollmentExtraGroups={enrollmentExtraGroups}
-              showEditButton={hasWriteAccess}
-              onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
-            />
-            {canManageFamilyProtection ? (
-              <SectionCard
-                kicker="Private Angaben"
-                title="Familienschutz"
-                description="Verhindert, dass Eltern Anfragen zu diesem Kind miteinander teilen."
-              >
-                <FamilyProtectionControl studentId={studentId} canManage />
-              </SectionCard>
-            ) : null}
-          </div>
-        </TabsContent>
-
-        <TabsContent
-          value="nachrichten"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          {studentId && messagesTabSeen && (
-            <ParentMessagesCard
-              studentId={studentId}
-              studentName={student?.name}
-            />
-          )}
-        </TabsContent>
-
-        <TabsContent
-          value="erziehungsberechtigte"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <StudentGuardianManager
-            studentId={studentId}
-            readOnly={!hasWriteAccess}
-            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+      <StudentTabPanel
+        value="stammdaten"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {/* Bearbeitet wird am Objekt: der Reiter wechselt in den
+            Bearbeiten-Zustand und zurück, kein Dialog über der Akte. */}
+        {hasWriteAccess && showPersonalInfoEdit ? (
+          <PersonalInfoEditPanel
+            student={student}
+            onSave={onSavePersonal}
+            onCancel={onClosePersonalInfoEdit}
+            onStudentRefresh={onRefreshData}
+            groups={groupOptions}
           />
-        </TabsContent>
-
-        {canViewCarePlan ? (
-          <TabsContent
-            value="betreuungsplan"
-            forceMount
-            className={TAB_CONTENT_CLASS}
+        ) : (
+          <PersonalInfoReadOnly
+            student={student}
+            enrollmentExtraGroups={enrollmentExtraGroups}
+            showEditButton={hasWriteAccess}
+            onEditClick={hasWriteAccess ? onOpenPersonalInfoEdit : undefined}
+          />
+        )}
+        <StudentConsentsReadOnly consents={student.consents} />
+        {canManageFamilyProtection ? (
+          <SectionCard
+            title="Familienschutz"
+            description="Verhindert, dass Eltern Anfragen zu diesem Kind miteinander teilen."
           >
-            {/* forceMounted for deep-linking; `active` gates the SWR read so it
+            <FamilyProtectionControl studentId={studentId} canManage />
+          </SectionCard>
+        ) : null}
+      </StudentTabPanel>
+
+      <StudentTabPanel
+        value="nachrichten"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {studentId && messagesTabSeen && (
+          <ParentMessagesCard
+            studentId={studentId}
+            studentName={student?.name}
+          />
+        )}
+      </StudentTabPanel>
+
+      <StudentTabPanel
+        value="erziehungsberechtigte"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentGuardianManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+        />
+      </StudentTabPanel>
+
+      {canViewCarePlan ? (
+        <StudentTabPanel
+          value="betreuungsplan"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          {/* forceMounted for deep-linking; `active` gates the SWR read so it
                 only fires when the tab is actually open. Only rendered with
                 schedules:read, so the timetable fetch never 403s. */}
-            <CarePlanView
-              studentId={studentId}
-              statusDays={statusDays}
-              isSick={student.sick}
-              isExcused={student.excused}
-              onEditSchedule={() => onTabChange("betreuungszeiten")}
-              onVisibleDateRangeChange={onVisibleDateRangeChange}
-              active={activeTab === "betreuungsplan"}
-            />
-          </TabsContent>
-        ) : null}
-
-        <TabsContent
-          value="betreuungszeiten"
-          forceMount
-          className={TAB_CONTENT_CLASS}
-        >
-          <CareScheduleManager
+          <CarePlanView
             studentId={studentId}
-            readOnly={!hasWriteAccess}
-            onUpdate={hasWriteAccess ? onRefreshData : undefined}
+            statusDays={statusDays}
             isSick={student.sick}
             isExcused={student.excused}
-            statusDays={statusDays}
-            onDeleteStatusDay={onDeleteStatusDay}
+            onEditSchedule={() => onTabChange("betreuungszeiten")}
             onVisibleDateRangeChange={onVisibleDateRangeChange}
+            active={activeTab === "betreuungsplan"}
           />
-        </TabsContent>
+        </StudentTabPanel>
+      ) : null}
 
-        {canViewEnrollments ? (
-          <TabsContent
-            value="anmeldungen"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            <StudentEnrollmentsTab studentId={studentId} />
-          </TabsContent>
-        ) : null}
-
-        <TabsContent value="dokumente" forceMount className={TAB_CONTENT_CLASS}>
-          {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
-        </TabsContent>
-
-        {tabs.includes("aenderungsprotokoll") && (
-          <TabsContent
-            value="aenderungsprotokoll"
-            forceMount
-            className={TAB_CONTENT_CLASS}
-          >
-            {protocolTabSeen && (
-              <SectionCard
-                kicker="Kinderkartei"
-                title="Änderungsprotokoll"
-                description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
-              >
-                <AggregatedRequestList
-                  view="history"
-                  filters={changeProtocolFilters}
-                />
-              </SectionCard>
-            )}
-          </TabsContent>
-        )}
-
-        <TabsContent value="historie" forceMount className={TAB_CONTENT_CLASS}>
-          <StudentHistorySection
-            studentId={studentId}
-            attendanceLogEnabled={attendanceLogEnabled}
-            feedbackEnabled={feedbackEnabled}
-            canViewChangeHistory={hasWriteAccess}
-            onNavigate={(path) => historyRouter.push(path)}
-          />
-        </TabsContent>
-      </Tabs>
-
-      {hasWriteAccess && (
-        <PersonalInfoFormModal
-          isOpen={showPersonalInfoModal}
-          onClose={onClosePersonalInfoModal}
-          student={student}
-          onSave={onSavePersonal}
+      <StudentTabPanel
+        value="betreuungszeiten"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <CareScheduleManager
+          studentId={studentId}
+          readOnly={!hasWriteAccess}
+          onUpdate={hasWriteAccess ? onRefreshData : undefined}
+          isSick={student.sick}
+          isExcused={student.excused}
+          statusDays={statusDays}
+          onDeleteStatusDay={onDeleteStatusDay}
+          canDeleteStatusDay={canDeleteStatusDay}
+          onVisibleDateRangeChange={onVisibleDateRangeChange}
         />
+      </StudentTabPanel>
+
+      {canViewEnrollments ? (
+        <StudentTabPanel
+          value="anmeldungen"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          <StudentEnrollmentsTab studentId={studentId} />
+        </StudentTabPanel>
+      ) : null}
+
+      <StudentTabPanel
+        value="dokumente"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
+      </StudentTabPanel>
+
+      {tabs.includes("aenderungsprotokoll") && (
+        <StudentTabPanel
+          value="aenderungsprotokoll"
+          activeTab={activeTab}
+          className={TAB_CONTENT_CLASS}
+        >
+          {protocolTabSeen && (
+            <SectionCard
+              title="Änderungsprotokoll"
+              description="Was sich an Buchungen, Betreuungszeiten, Stammdaten und Abwesenheiten dieses Kindes geändert hat"
+            >
+              <AggregatedRequestList
+                view="history"
+                filters={changeProtocolFilters}
+              />
+            </SectionCard>
+          )}
+        </StudentTabPanel>
       )}
+
+      <StudentTabPanel
+        value="historie"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        <StudentHistorySection
+          studentId={studentId}
+          attendanceLogEnabled={attendanceLogEnabled}
+          feedbackEnabled={feedbackEnabled}
+          canViewChangeHistory={hasWriteAccess}
+          onNavigate={(path) => historyRouter.push(path)}
+        />
+      </StudentTabPanel>
     </>
   );
 }

@@ -10,6 +10,13 @@ vi.mock("~/lib/hooks/use-require-admin", () => ({
 }));
 
 vi.mock("~/components/planning/calendar-periods-editor", () => ({
+  // Der Zustand liegt seit dem Gerüst-Umbau im Hook, den die Seite aufruft;
+  // Kopf-Aktionen und Inhaltsblock bekommen ihn als Prop.
+  useCalendarPeriods: () => ({
+    statusLine: "1 Zeitraum · 1 aktiv",
+    loading: false,
+  }),
+  CalendarPeriodsActions: () => <div data-testid="calendar-periods-actions" />,
   CalendarPeriodsEditor: () => <div data-testid="calendar-periods-editor" />,
 }));
 
@@ -49,7 +56,9 @@ describe("CalendarPeriodsPage", () => {
     expect(
       screen.getByTestId("closing-days-editor").closest(".hidden"),
     ).toBeNull();
-    expect(screen.queryByText(/Bitte am Computer öffnen/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Bitte am Computer öffnen/),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the loading state until the admin gate resolves", () => {

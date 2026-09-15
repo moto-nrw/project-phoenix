@@ -6,22 +6,22 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// SessionStartLocker serializes concurrent starts of the same tenant activity
-// for the lifetime of the caller's transaction.
-type SessionStartLocker interface {
-	LockSessionStart(ctx context.Context, tenantID, activityID int64) error
+// SupervisionBlocker is an open supervision projected for capability checks.
+type SupervisionBlocker struct {
+	ID        int64
+	GroupID   int64
+	GroupName string
+	StartDate string
 }
 
 // GroupRepository defines operations for managing active groups
 type GroupRepository interface {
-	base.Repository[*Group]
-
-	// CountWithOptions is the generic filtered count promoted from the
-	// embedded base repository.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	Create(context.Context, *Group) error
+	FindByID(context.Context, int64) (*Group, error)
+	Update(context.Context, *Group) error
+	Delete(context.Context, int64) error
 
 	// FindActiveByRoomID finds all active groups in a specific room
 	FindActiveByRoomID(ctx context.Context, roomID int64) ([]*Group, error)
@@ -38,9 +38,6 @@ type GroupRepository interface {
 	// FindByTimeRange finds all groups active during a specific time range
 	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Group, error)
 
-	// EndSession marks a group session as ended at the current time
-	EndSession(ctx context.Context, id int64) error
-
 	FindWithSupervisors(ctx context.Context, id int64) (*Group, error)
 
 	FindActiveByDeviceID(ctx context.Context, deviceID int64) (*Group, error)
@@ -53,7 +50,6 @@ type GroupRepository interface {
 	UpdateLastActivity(ctx context.Context, id int64, lastActivity time.Time) error
 	FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*Group, error)
 	// Unclaimed groups (for frontend claiming feature)
-	FindUnclaimed(ctx context.Context) ([]*Group, error)
 
 	// FindActiveGroups finds all groups with no end time (currently active)
 	FindActiveGroups(ctx context.Context) ([]*Group, error)
@@ -65,165 +61,26 @@ type GroupRepository interface {
 	// the current transaction.
 	FindByIDForUpdate(ctx context.Context, id int64) (*Group, error)
 
-	// GetOccupiedRoomIDs returns a set of room IDs that currently have active groups
-	GetOccupiedRoomIDs(ctx context.Context, roomIDs []int64) (map[int64]bool, error)
-
 	// GetOccupiedActivityGroupIDs returns a set of activity group IDs that currently have active sessions
 	GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error)
-
-	// EndSessionsByIDs ends multiple group sessions in a single query.
-	// Returns the number of sessions ended.
-	EndSessionsByIDs(ctx context.Context, ids []int64) (int64, error)
-
-	// AggregateRoomSessions returns one row per active.groups session in the
-	// given room that was active at any point during [start, end] — i.e.
-	// start_time <= end AND (end_time IS NULL OR end_time >= start). Sessions
-	// that began before `start` but were still occupying the room inside the
-	// window are included. Each row carries the aggregated session view
-	// (activity, supervisors, distinct student count) used by the
-	// room-history endpoint. When supervisorStaffID is non-nil the result is
-	// filtered to sessions supervised by that staff member; pass nil to see
-	// every session (admin / all_staff scope).
-	AggregateRoomSessions(ctx context.Context, roomID int64, start, end time.Time, supervisorStaffID *int64) ([]*RoomSessionAggregate, error)
 }
 
-// RoomSessionAggregate is one row in the per-room session timeline. It is
-// intentionally aggregated — no individual student IDs or names leave the
-// repo, only counts and the activity / supervisor metadata needed to render
-// the room occupancy history.
-type RoomSessionAggregate struct {
-	SessionID       int64      `bun:"session_id"`
-	StartedAt       time.Time  `bun:"started_at"`
-	EndedAt         *time.Time `bun:"ended_at"`
-	DurationMinutes *int       `bun:"duration_minutes"`
-	ActivityName    string     `bun:"activity_name"`
-	SupervisorName  string     `bun:"supervisor_name"`
-	StudentCount    int        `bun:"student_count"`
-}
-
-// VisitRepository defines operations for managing active visits
-type VisitRepository interface {
-	base.Repository[*Visit]
-
-	// FindActiveByStudentID finds all active visits for a specific student
-	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*Visit, error)
-
-	// GetCurrentRoomNamesForStudents returns the room name of each student's
-	// current open visit; students without one are absent from the map.
-	GetCurrentRoomNamesForStudents(ctx context.Context, studentIDs []int64) (map[int64]string, error)
-
-	// FindByActiveGroupID finds all visits for a specific active group
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*Visit, error)
-
-	// FindByActiveGroupIDs finds all visits belonging to any of the given active
-	// groups in a single query — the bulk form of FindByActiveGroupID for callers
-	// resolving many groups at once (e.g. a full day of slots).
-	FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*Visit, error)
-
-	// FindByTimeRange finds all visits active during a specific time range
-	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*Visit, error)
-
-	// FindByStudentAndTimeRange finds all visits (active or ended) for a specific
-	// student whose entry_time falls within [start, end], ordered by entry_time desc.
-	FindByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*Visit, error)
-
-	// FindActiveWithStudentDisplayByGroup returns the open visits of an
-	// active group joined with the students' display data (name, class,
-	// education group, status flags, photo path), newest entry first.
-	FindActiveWithStudentDisplayByGroup(ctx context.Context, activeGroupID int64) ([]*VisitWithStudentDisplay, error)
-
-	// FindByStudentAndActiveGroupIDs returns visits for the student whose
-	// active_group_id is in the given list. Used by the timetable per-student
-	// day view to detect unplanned attendance in a single batch query.
-	// Returns an empty slice (no DB call) when the id list is empty.
-	FindByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*Visit, error)
-
-	// EndVisit marks a visit as ended at the current time
-	EndVisit(ctx context.Context, id int64) error
-
-	// TransferVisitsFromRecentSessions transfers active visits from recent ended sessions on the same device to a new session
-	TransferVisitsFromRecentSessions(ctx context.Context, newActiveGroupID, deviceID int64) (int, error)
-
-	// TransferActiveVisitsBetweenGroups moves still-open visits from one active
-	// group to another. Ended visits are ignored so stale callers cannot reopen
-	// a checkout by writing an old NULL exit_time back to the row.
-	TransferActiveVisitsBetweenGroups(ctx context.Context, oldActiveGroupID, newActiveGroupID int64) (int, error)
-
-	// Cleanup operations for data retention
-	// DeleteExpiredVisits deletes visits older than retention days for a specific student
-	DeleteExpiredVisits(ctx context.Context, studentID int64, retentionDays int) (int64, error)
-
-	// GetVisitRetentionStats gets statistics about visits that are candidates for deletion
-	GetVisitRetentionStats(ctx context.Context) (map[int64]int, error)
-
-	// CountExpiredVisits counts visits that are older than retention period for all students
-	CountExpiredVisits(ctx context.Context) (int64, error)
-
-	// OldestExpiredVisitDate returns the created_at of the oldest visit past
-	// its per-student retention window, or nil when no visit is expired.
-	OldestExpiredVisitDate(ctx context.Context) (*time.Time, error)
-
-	// ExpiredVisitMonthlyCounts groups expired visits by calendar month of
-	// created_at, keyed YYYY-MM. Feeds the GDPR retention statistics.
-	ExpiredVisitMonthlyCounts(ctx context.Context) (map[string]int64, error)
-
-	// GetCurrentByStudentID finds the current active visit for a student
-	GetCurrentByStudentID(ctx context.Context, studentID int64) (*Visit, error)
-
-	// GetCurrentByStudentIDWithRoom finds the current active visit with its active group and room.
-	GetCurrentByStudentIDWithRoom(ctx context.Context, studentID int64) (*Visit, error)
-
-	// GetCurrentByStudentIDs finds the current active visit for multiple students
-	GetCurrentByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*Visit, error)
-
-	// CountActiveByRoomID counts currently active visits across all active groups in a room.
-	CountActiveByRoomID(ctx context.Context, roomID int64) (int, error)
-
-	// ListActiveStudentIDsByRoomID returns the IDs of students currently
-	// checked-in to any active (end_time IS NULL) group in the given room.
-	// Callers feed the IDs into the standard student list pipeline, which
-	// owns display fields, GDPR redaction, and pagination. Tenant scoping
-	// flows through TenantTxMiddleware.
-	ListActiveStudentIDsByRoomID(ctx context.Context, roomID int64) ([]int64, error)
-
-	// ListOpenVisitStudentIDsByRoom returns every currently checked-in student
-	// of the tenant grouped by the room they are in. It is the whole-tenant
-	// counterpart of ListActiveStudentIDsByRoomID: one query instead of one per
-	// room, which is what a caller iterating many supervised rooms needs.
-	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
-
-	// CountActiveByGroupID counts currently active visits in a single active group.
-	CountActiveByGroupID(ctx context.Context, activeGroupID int64) (int, error)
-
-	// FindActiveVisits finds all visits with no exit time (currently active)
-	FindActiveVisits(ctx context.Context) ([]*Visit, error)
-
-	// EndVisitsByActiveGroupIDs ends all active visits for multiple group IDs in a single query.
-	// Returns the number of visits ended.
-	EndVisitsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
-
-	// EndVisitsByIDs ends the given visits at the supplied instant in one
-	// state-checked UPDATE (WHERE exit_time IS NULL) and returns the rows it
-	// actually ended. Visits a concurrent caller already ended are absorbed
-	// and missing from the result — the batch counterpart of EndVisit's
-	// already-ended tolerance.
-	EndVisitsByIDs(ctx context.Context, ids []int64, at time.Time) ([]*Visit, error)
-
-	// GetTodayVisitNamesForStudents returns activity group + room names for all of
-	// today's visits for the given students. Used for tracking indicator matching.
-	GetTodayVisitNamesForStudents(ctx context.Context, studentIDs []int64) ([]VisitGroupNames, error)
-}
-
-// GroupSupervisorRepository defines operations for managing active group supervisors
+// GroupSupervisorRepository defines operations for managing active group supervisors.
 type GroupSupervisorRepository interface {
-	base.Repository[*GroupSupervisor]
+	Create(context.Context, *GroupSupervisor) error
+	FindByID(context.Context, int64) (*GroupSupervisor, error)
+	Update(context.Context, *GroupSupervisor) error
+	Delete(context.Context, int64) error
 
 	// ListActiveSupervisionBlockers returns still-open supervisions as
 	// caregiver-capability blocker rows.
-	ListActiveSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSupervision, error)
+	ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]SupervisionBlocker, error)
 
 	// FindActiveByStaffID finds all active supervisions for a specific staff member
 	FindActiveByStaffID(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
+	// FindActiveByStaffIDForUpdate locks a staff member's current supervision
+	// rows for the lifetime of the transaction.
+	FindActiveByStaffIDForUpdate(ctx context.Context, staffID int64) ([]*GroupSupervisor, error)
 
 	// ListActiveSupervisedRooms returns one (staff_id, room_id) pair per
 	// currently supervised room in the tenant, for every staff member at once.
@@ -233,8 +90,11 @@ type GroupSupervisorRepository interface {
 	ListActiveSupervisedRooms(ctx context.Context) ([]StaffRoomSupervision, error)
 
 	// FindByActiveGroupID finds supervisors for a specific active group
-	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
+	// If activeOnly is true, only returns supervisors whose date interval includes today.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*GroupSupervisor, error)
+	// FindByActiveGroupIDForUpdate locks a group's current supervision rows for
+	// the lifetime of the transaction.
+	FindByActiveGroupIDForUpdate(ctx context.Context, activeGroupID int64) ([]*GroupSupervisor, error)
 
 	// FindByActiveGroupIDs finds supervisors for multiple active groups in a single query
 	// If activeOnly is true, only returns supervisors with end_date IS NULL (currently active)
@@ -258,56 +118,14 @@ type GroupSupervisorRepository interface {
 	// is not an error (staff already ended or never supervised this group).
 	EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error)
 
-	// EndSupervisionsByActiveGroupIDs ends all active supervisions for multiple group IDs in a single query.
-	// Returns the number of supervisions ended.
-	EndSupervisionsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) (int64, error)
-
 	// FindStaleOpen returns supervisor rows started before the given day that
 	// still lack an end_date. Feeds the nightly stale-supervisor cleanup and
 	// its preview.
 	FindStaleOpen(ctx context.Context, before timezone.Date) ([]*GroupSupervisor, error)
 
-	// UpdateColumns is the generic partial-update helper promoted from the
-	// embedded base repository: updates only the named columns by primary
-	// key and returns the number of rows affected.
-	UpdateColumns(ctx context.Context, supervisor *GroupSupervisor, columns ...string) (int64, error)
+	// SetEndDate updates only end_date and updated_at, returning the number of matched rows.
+	SetEndDate(ctx context.Context, supervisor *GroupSupervisor) (int64, error)
 }
-
-// CombinedGroupRepository defines operations for managing active combined groups
-type CombinedGroupRepository interface {
-	base.Repository[*CombinedGroup]
-
-	// FindActive finds all currently active combined groups
-	FindActive(ctx context.Context) ([]*CombinedGroup, error)
-
-	// FindByTimeRange finds all combined groups active during a specific time range
-	FindByTimeRange(ctx context.Context, start, end time.Time) ([]*CombinedGroup, error)
-
-	// EndCombination marks a combined group as ended at the current time
-	EndCombination(ctx context.Context, id int64) error
-
-	// FindWithGroups finds a combined group with all its associated active groups
-	FindWithGroups(ctx context.Context, id int64) (*CombinedGroup, error)
-}
-
-// GroupMappingRepository defines operations for managing active group mappings
-type GroupMappingRepository interface {
-	base.Repository[*GroupMapping]
-
-	// FindByActiveCombinedGroupID finds all mappings for a specific combined group
-	FindByActiveCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*GroupMapping, error)
-
-	// FindByActiveGroupID finds all mappings for a specific active group
-	FindByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*GroupMapping, error)
-
-	// AddGroupToCombination adds an active group to a combined group
-	AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
-
-	// RemoveGroupFromCombination removes an active group from a combined group
-	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
-}
-
-// AttendanceRepository is already defined above
 
 // WorkSessionRepository defines operations for managing staff work sessions
 type WorkSessionRepository interface {
@@ -412,15 +230,6 @@ type StaffAbsenceRepository interface {
 	// once decided, the deciding person.
 	ListRequests(ctx context.Context, filter AbsenceRequestFilter) ([]*AbsenceRequestRow, error)
 
-	// ListNonHistoricalByStaffID returns absences that offboarding will delete:
-	// pending/question rows or absences whose end date has not passed.
-	ListNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) ([]*StaffAbsence, error)
-
-	// DeleteNonHistoricalByStaffID hard-deletes absences that are still pending
-	// ('requested' or 'question') or not yet over (date_end >= from). Past
-	// decided absences stay as history. Used by staff offboarding.
-	DeleteNonHistoricalByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
-
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the time-tracking retention cleanup.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
@@ -432,29 +241,8 @@ type StaffAbsenceAuditRepository interface {
 	Create(ctx context.Context, audit *StaffAbsenceAudit) error
 }
 
-// StaffAbsenceTypeRepository is the data-access boundary for school-defined
-// absence names (#2403). CRUD comes from the generic repository; ListAll
-// returns every entry of the current tenant (active and inactive) so a
-// retired art still resolves to its name on historical absences.
-//
-// There is deliberately no Delete: a name that was used must stay readable,
-// so retirement is is_active = false.
-type StaffAbsenceTypeRepository interface {
-	base.Repository[*StaffAbsenceType]
-
-	// ListAll returns all absence types for the current tenant, ordered by name.
-	ListAll(ctx context.Context) ([]*StaffAbsenceType, error)
-	// LockByID returns one art with a transaction-scoped row lock. Lifecycle
-	// changes and new references use it to serialize their invariants.
-	LockByID(ctx context.Context, id int64) (*StaffAbsenceType, error)
-	// IsInUse reports whether an absence still references the art. Used to keep
-	// historical display names stable when an administrator edits the list.
-	IsInUse(ctx context.Context, id int64) (bool, error)
-}
-
 type StaffAbsenceTypeAllowanceRepository interface {
 	base.Repository[*StaffAbsenceTypeAllowance]
-	Upsert(ctx context.Context, allowance *StaffAbsenceTypeAllowance) error
 }
 
 type StaffAbsenceTypeAllowanceChangeRepository interface {
@@ -478,32 +266,6 @@ type StaffBalanceAdjustmentRepository interface {
 	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
 	// staff members, keyed by staff ID.
 	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffBalanceAdjustment, error)
-}
-
-// StaffMonthBalanceSnapshotRepository defines operations for frozen month
-// closing balances (#1417).
-type StaffMonthBalanceSnapshotRepository interface {
-	base.Repository[*StaffMonthBalanceSnapshot]
-
-	// GetLatestClosedThrough returns the newest ACTIVE snapshot whose
-	// (year, month) is at or before the given one, or nil.
-	//
-	// Not expressible as a filter: the ordering key is the composite
-	// year*12+month expression, and "active" is the partial predicate
-	// reopened_at IS NULL.
-	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*StaffMonthBalanceSnapshot, error)
-
-	// GetByMonth lists the ACTIVE snapshots of one month for the whole tenant.
-	// Backs the close-status view.
-	GetByMonth(ctx context.Context, year, month int) ([]*StaffMonthBalanceSnapshot, error)
-
-	// LockStaffBalanceWrites takes the same per-staff advisory lock the
-	// adjustment ledger uses, so a close cannot interleave with a payout.
-	LockStaffBalanceWrites(ctx context.Context, staffID int64) error
-
-	// UpdateColumns writes selected columns only. Reopening must touch the
-	// reopen fields without rewriting the frozen values next to them.
-	UpdateColumns(ctx context.Context, snapshot *StaffMonthBalanceSnapshot, columns ...string) (int64, error)
 }
 
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement

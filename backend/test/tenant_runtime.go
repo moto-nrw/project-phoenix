@@ -11,12 +11,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type UnitOfWorkEvidence struct {
 	Kind     string
+	Result   string
+	Retries  int
 	Duration time.Duration
 }
 
@@ -31,9 +34,14 @@ func ContextForTenant(ctx context.Context, tenantID int64) context.Context {
 func CaptureUnitOfWorkEvidence(ctx context.Context) (context.Context, func() []UnitOfWorkEvidence) {
 	events := make([]UnitOfWorkEvidence, 0)
 	ctx = tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
-		events = append(events, UnitOfWorkEvidence{Kind: string(event.Kind), Duration: event.Duration})
+		events = append(events, UnitOfWorkEvidence{Kind: string(event.Kind), Result: string(event.Result), Retries: event.Retries, Duration: event.Duration})
 	})
 	return ctx, func() []UnitOfWorkEvidence { return append([]UnitOfWorkEvidence(nil), events...) }
+}
+
+// WithinCurrentTenant runs a test callback through the bound production runtime.
+func WithinCurrentTenant(ctx context.Context, fn func(context.Context) error) error {
+	return tenant.WithinCurrentTenant(ctx, fn)
 }
 
 func AttachLockWaitEvidence(db *bun.DB) {
@@ -58,7 +66,9 @@ func newTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 		return tenant.UnitOfWork{}, err
 	}
 	runtime = runtime.WithTransactionDetacher(postgresRuntime.ContextWithoutTransaction)
-	return runtime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction), nil
+	runtime = runtime.WithTransactionDetacher(func(ctx context.Context) context.Context { return audit.WithTransaction(ctx, nil) })
+	runtime = runtime.WithContextAdapters(postgresRuntime.ContextWithTenant, postgresRuntime.ContextWithTransaction)
+	return runtime.WithContextAdapters(audit.WithTenantID, audit.WithTransaction), nil
 }
 
 func bindPackageTenantRuntime(db *bun.DB) error {
@@ -89,6 +99,16 @@ func WithPackageTenantRuntime(ctx context.Context) context.Context {
 		return ctx
 	}
 	return tenant.WithUnitOfWork(ctx, *runtime)
+}
+
+// WithTestTenantRuntime attaches the runtime for tb's disposable clone when
+// present, otherwise the package runtime.
+func WithTestTenantRuntime(tb testing.TB, ctx context.Context) context.Context {
+	tb.Helper()
+	if value, ok := isolatedTestDatabases.Load(topLevelTestName(tb)); ok {
+		return tenant.WithUnitOfWork(ctx, value.(*isolatedTestDatabase).runtime)
+	}
+	return WithPackageTenantRuntime(ctx)
 }
 
 // PackageTenantRuntime returns the runtime bound to this test binary's shared
@@ -169,6 +189,62 @@ func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID in
 
 func (SettingsRuntimeAdapter) TodayTime() time.Time { return timezone.TodayDate().UTCMidnight() }
 
+// LockStaffAssignment mirrors Membership.FindStaffForMutation for owner tests
+// that cannot compose Membership through this package without an import cycle.
+func (r SettingsRuntimeAdapter) LockStaffAssignment(ctx context.Context, staffID int64) error {
+	if !r.HasTransaction(ctx) || r.TenantID(ctx) <= 0 {
+		return fmt.Errorf("staff assignment requires a tenant transaction")
+	}
+	var id int64
+	return r.DB(ctx).NewSelect().TableExpr("users.staff").Column("id").
+		Where("tenant_id = ?", r.TenantID(ctx)).Where("id = ?", staffID).
+		Where("deleted_at IS NULL").For("UPDATE").Scan(ctx, &id)
+}
+
+// AssignedStaffIDs and RebaseAssignedStaffAnchor stand in for the School
+// Membership capability the production settings runtime delegates to
+// (#2667). The test package cannot compose that module (its own tests import
+// this package), so it mirrors the owner's two statements directly. Keep
+// them in step with modules/schoolmembership if the owner's semantics move.
+func (r SettingsRuntimeAdapter) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
+	ids := []int64{}
+	query := r.DB(ctx).NewSelect().
+		TableExpr(`users.staff AS "staff"`).
+		ColumnExpr(`"staff".id`).
+		Where(`"staff".work_time_model_id = ?`, workTimeModelID).
+		Where(`"staff".deleted_at IS NULL`).
+		OrderExpr(`"staff".id ASC`)
+	if tenantID := r.TenantID(ctx); tenantID > 0 {
+		query = query.Where(`"staff".tenant_id = ?`, tenantID)
+	}
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func (r SettingsRuntimeAdapter) RebaseAssignedStaffAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
+	ids, err := r.AssignedStaffIDs(ctx, workTimeModelID)
+	if err != nil || len(ids) == 0 {
+		return ids, err
+	}
+	var anchor any
+	if anchorDate != "" {
+		anchor = anchorDate
+	}
+	query := r.DB(ctx).NewUpdate().
+		TableExpr(`users.staff`).
+		Set("rotation_anchor_date = ?", anchor).
+		Where("id IN (?)", bun.List(ids))
+	if tenantID := r.TenantID(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (r SettingsRuntimeAdapter) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
 	ctx = tenant.WithUnitOfWork(ctx, r.runtime)
 	return tenant.WithTenantTx(ctx, r.db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
@@ -193,7 +269,11 @@ func (r SettingsRuntimeAdapter) AcquireLock(ctx context.Context, key string, sha
 
 func WithTenantTx(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context, bun.Tx) error) error {
 	tb.Helper()
-	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, fn)
+	return tenant.WithTenantTx(WithTenantRuntime(tb, ctx, db), db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+		txCtx = audit.WithTenantID(txCtx, tenantID)
+		txCtx = audit.WithTransaction(txCtx, tx)
+		return fn(txCtx, tx)
+	})
 }
 
 func WithinTenantContext(tb testing.TB, ctx context.Context, db *bun.DB, tenantID int64, fn func(context.Context) error) error {

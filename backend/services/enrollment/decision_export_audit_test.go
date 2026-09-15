@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -37,8 +37,8 @@ func (s *stubAccessLogRepo) ExistsSince(context.Context, int64, string, map[stri
 func samplePhaseForAudit() *enrollmentModels.Phase {
 	p := &enrollmentModels.Phase{
 		Name:             "Schuljahr 2026/27",
-		ServiceStartDate: timezone.NewDate(2026, 8, 1),
-		ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+		ServiceStartDate: "2026-08-01",
+		ServiceEndDate:   "2027-07-31",
 	}
 	p.ID = 7401
 	return p
@@ -80,7 +80,7 @@ func TestRecordPhaseExportAudit_WritesRowWithPhaseWindowAndMetadata(t *testing.T
 	}
 	// range_* must carry the phase service window — the disclosed span.
 	// As TIMESTAMPTZ bounds the window maps to Berlin start/end of day.
-	if !e.RangeStart.Equal(phase.ServiceStartDate.BerlinMidnight()) || !e.RangeEnd.Equal(phase.ServiceEndDate.EndOfDay()) {
+	if !e.RangeStart.Equal(timezone.Date(phase.ServiceStartDate).BerlinMidnight()) || !e.RangeEnd.Equal(timezone.Date(phase.ServiceEndDate).EndOfDay()) {
 		t.Errorf("range = [%s..%s], want [%s..%s]",
 			e.RangeStart, e.RangeEnd, phase.ServiceStartDate, phase.ServiceEndDate)
 	}

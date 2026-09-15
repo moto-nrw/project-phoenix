@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -222,9 +221,9 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 	if err != nil {
 		return fmt.Errorf("failed to snapshot vacation opening for deletion audit: %w", err)
 	}
-	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+	if err := s.deletionRepo.Create(ctx, &TimeTrackingDeletionEvent{
 		StaffID:   staffID,
-		Source:    auditModels.TimeTrackingDeletionSourceVacationOpening,
+		Source:    "vacation_opening",
 		SourceID:  opening.ID,
 		DeletedBy: deletedBy,
 		Payload:   payload,

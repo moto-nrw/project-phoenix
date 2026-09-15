@@ -118,21 +118,6 @@ export function getActivityColor(type: ActivityType): string {
 }
 
 /**
- * Light tint for card backgrounds. Hardcoded to maintain contrast with the
- * coloured left-bar; computing them at runtime would invite drift.
- */
-export function getActivityLightTint(type: ActivityType): string {
-  switch (type) {
-    case "care":
-      return "#EBF0FB";
-    case "activity":
-      return "#ECF7DA";
-    case "external":
-      return "#FCEFD9";
-  }
-}
-
-/**
  * German label for the activity type, surfaced as a small badge on cards
  * when the type is non-default.
  */
@@ -544,6 +529,10 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     activityGroupId:
       raw.activity_group_id !== undefined && raw.activity_group_id !== null
         ? String(raw.activity_group_id)
+        : undefined,
+    calendarPeriodId:
+      raw.calendar_period_id !== undefined && raw.calendar_period_id !== null
+        ? String(raw.calendar_period_id)
         : undefined,
     planningTrackId:
       raw.planning_track_id !== undefined && raw.planning_track_id !== null
@@ -1171,6 +1160,25 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
         template.resolved_from_template_id !== null
           ? String(template.resolved_from_template_id)
           : undefined,
+      rosterMaintenance: template.roster_maintenance
+        ? {
+            mode: template.roster_maintenance.mode,
+            offeringNames: (template.roster_maintenance.offerings ?? []).map(
+              (offering) => offering.name,
+            ),
+            gradeLevels: template.roster_maintenance.grade_levels ?? [],
+            schoolClasses: template.roster_maintenance.school_classes ?? [],
+            inactiveOfferingNames: (
+              template.roster_maintenance.inactive_offerings ?? []
+            ).map((offering) => offering.name),
+            invalidOfferingNames: (
+              template.roster_maintenance.invalid_offerings ?? []
+            ).map((offering) => offering.name),
+            dynamicTargets: template.roster_maintenance.dynamic_targets,
+            careOfferingsDisabled:
+              template.roster_maintenance.care_offerings_disabled,
+          }
+        : undefined,
     })),
   };
 }
@@ -1425,7 +1433,7 @@ export function assignBlockLanes(
 }
 
 /**
- * Betreuungsplan-Tageskopfzeile (docs/06-betreuungsplan.md Abschnitt 3.1):
+ * Betreuungsplan-Tageskopfzeile:
  * eingeplante Personenzahl eines Tages als Vereinigung der zugeordneten,
  * nicht abwesenden Personen über alle Blöcke des Tages — eine Person zählt
  * unabhängig von der Anzahl ihrer Blöcke einmal, abgesagte Instanzen zählen

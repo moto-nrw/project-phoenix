@@ -13,12 +13,14 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -128,12 +130,12 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 	groupA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	groupB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repository := activeRepo.NewGroupRepository(db)
+	presence := repositories.NewPresenceGroupRecords(db)
 
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()
 		err := WithTenantTx(t, context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
-			groups, err := repository.List(txCtx, nil)
+			groups, err := presence.QueryGroupRecords(txCtx, repoActive.GroupRecordFilter{})
 			require.NoError(tb, err)
 
 			ids := make(map[int64]bool, len(groups))

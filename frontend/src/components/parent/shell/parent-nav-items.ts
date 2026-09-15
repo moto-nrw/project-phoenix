@@ -29,7 +29,7 @@ export interface ParentNavItem {
   /** Stabiler Schluessel fuer Listen und Tests. */
   readonly key: string;
   readonly href: string;
-  /** Schluessel im Katalog "parentNav", identisch in de, en, ru und sq. */
+  /** Schluessel im Katalog "parentNav", identisch in allen Sprachkatalogen. */
   readonly tKey: string;
   readonly concept: MotoConceptKey;
   readonly badge?: ParentNavBadgeSource;
@@ -111,7 +111,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
   {
     kind: "link",
     key: "enroll",
-    href: "/parents/enroll",
+    href: "/parents/anmeldung",
     tKey: "enroll",
     concept: "enrollments",
   },

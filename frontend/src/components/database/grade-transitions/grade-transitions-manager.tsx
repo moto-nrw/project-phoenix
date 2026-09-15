@@ -4,8 +4,16 @@
 // editor, preview + apply, revert. Consumes /api/admin/grade-transitions.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pencil, Play, RotateCcw, Trash2, Users } from "lucide-react";
+import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -179,8 +187,18 @@ function describeRevertWarning(warning: string): string {
 
 export function GradeTransitionsManager({
   permissions = FULL_ACCESS,
+  onSummaryChange,
 }: {
   readonly permissions?: TransitionPermissions;
+  /** Meldet die geladene Liste an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onSummaryChange?: (
+    summary: {
+      total: number;
+      applied: number;
+      latestYear: string | null;
+    } | null,
+  ) => void;
 }) {
   const toast = useToast();
   const [transitions, setTransitions] = useState<GradeTransition[] | null>(
@@ -222,6 +240,22 @@ export function GradeTransitionsManager({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!onSummaryChange) return;
+    if (!transitions) {
+      onSummaryChange(null);
+      return;
+    }
+    const years = [...transitions]
+      .map((t) => t.academicYear)
+      .sort((a, b) => a.localeCompare(b, "de"));
+    onSummaryChange({
+      total: transitions.length,
+      applied: transitions.filter((t) => t.status === "applied").length,
+      latestYear: years.at(-1) ?? null,
+    });
+  }, [transitions, onSummaryChange]);
 
   const handleApplied = (result: TransitionResult) => {
     setPreviewFor(null);
@@ -381,112 +415,117 @@ export function GradeTransitionsManager({
         key: "actions",
         header: "",
         align: "right",
-        render: (t) => (
-          <div className="flex justify-end gap-1">
-            {t.canModify && permissions.canUpdate && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => openEditorFor(t)}
-              >
-                Bearbeiten
-              </Button>
-            )}
-            {t.canApply && permissions.canApply && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setPreviewFor(t)}
-              >
-                Anwenden
-              </Button>
-            )}
-            {t.canModify && permissions.canDelete && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                className="text-moto-red"
-                onClick={() => setDeleteTarget(t)}
-              >
-                Löschen
-              </Button>
-            )}
-            {t.id === latestRevertableId && permissions.canApply && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setRevertTarget(t)}
-              >
-                Zurücksetzen
-              </Button>
-            )}
-            {/* Every transition that ran has Abgänge worth inspecting, including
-                a reverted one — a child hard-deleted before the revert stays
-                gone, and this is the only place that says so. */}
-            {t.status !== "draft" && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                onClick={() => setGraduatesFor(t)}
-              >
-                Abgänge
-              </Button>
-            )}
-          </div>
-        ),
+        // Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC Bauart 1
+        // Regel 4); Anwenden, Zurücksetzen und Löschen fragen weiter in
+        // ihren Dialogen nach.
+        render: (t) => {
+          const items: OverflowMenuEntry[] = [
+            ...(t.canModify && permissions.canUpdate
+              ? [
+                  {
+                    label: "Bearbeiten",
+                    icon: <Pencil className="h-4 w-4" aria-hidden />,
+                    onClick: () => openEditorFor(t),
+                  },
+                ]
+              : []),
+            ...(t.canApply && permissions.canApply
+              ? [
+                  {
+                    label: "Anwenden",
+                    icon: <Play className="h-4 w-4" aria-hidden />,
+                    onClick: () => setPreviewFor(t),
+                  },
+                ]
+              : []),
+            ...(t.id === latestRevertableId && permissions.canApply
+              ? [
+                  {
+                    label: "Zurücksetzen",
+                    icon: <RotateCcw className="h-4 w-4" aria-hidden />,
+                    onClick: () => setRevertTarget(t),
+                  },
+                ]
+              : []),
+            // Every transition that ran has Abgänge worth inspecting, including
+            // a reverted one — a child hard-deleted before the revert stays
+            // gone, and this is the only place that says so.
+            ...(t.status !== "draft"
+              ? [
+                  {
+                    label: "Abgänge",
+                    icon: <Users className="h-4 w-4" aria-hidden />,
+                    onClick: () => setGraduatesFor(t),
+                  },
+                ]
+              : []),
+            ...(t.canModify && permissions.canDelete
+              ? [
+                  {
+                    label: "Löschen",
+                    icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                    destructive: true,
+                    onClick: () => setDeleteTarget(t),
+                  },
+                ]
+              : []),
+          ];
+          return (
+            <div className="flex justify-end">
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${t.academicYear}`}
+                items={items}
+              />
+            </div>
+          );
+        },
       },
     ],
     [openEditorFor, permissions, latestRevertableId],
   );
 
   return (
-    <div className="space-y-4">
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">
-              Jahrgangswechsel
-            </h2>
-            <p className="text-sm text-gray-600">
-              Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge
-              zum Schuljahreswechsel.
-            </p>
-          </div>
-          {permissions.canCreate && (
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Liste weiter, die dann bis zur Unterkante des
+    // Bildschirms wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-4">
+      {loadError && <Alert type="error" message={loadError} />}
+
+      {/* Titel, Erklärung und Aktion stehen in der Kopfzeile derselben Karte,
+          die die Tabelle trägt: kein zweiter Seitenkopf und keine eigene
+          Zeile nur für den Knopf. */}
+      <SectionCard
+        title="Angelegte Jahrgangswechsel"
+        description="Versetzt alle Kinder in die nächste Klasse und verwaltet Abgänge zum Schuljahreswechsel."
+        actions={
+          permissions.canCreate ? (
             <Button type="button" size="md" onClick={() => openEditorFor(null)}>
               Neuer Jahrgangswechsel
             </Button>
-          )}
-        </div>
-      </div>
-
-      {loadError && <p className="text-moto-red text-sm">{loadError}</p>}
-
-      <DataTable
-        columns={columns}
-        rows={transitions ?? []}
-        getRowKey={(t: GradeTransition) => t.id}
-        isLoading={transitions === null && !loadError}
-        defaultSortKey="createdAt"
-        defaultSortDirection="desc"
-        emptyState={
-          <div className="py-8 text-center text-sm text-gray-500">
-            <p className="font-medium text-gray-700">
-              Noch kein Jahrgangswechsel angelegt.
-            </p>
-            <p className="mt-1">
-              Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
-              vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
-              anpassen.
-            </p>
-          </div>
+          ) : undefined
         }
-      />
+      >
+        <DataTable
+          columns={columns}
+          rows={transitions ?? []}
+          getRowKey={(t: GradeTransition) => t.id}
+          isLoading={transitions === null && !loadError}
+          defaultSortKey="createdAt"
+          defaultSortDirection="desc"
+          emptyState={
+            <div className="py-8 text-center text-sm text-gray-500">
+              <p className="font-medium text-gray-700">
+                Noch kein Jahrgangswechsel angelegt.
+              </p>
+              <p className="mt-1">
+                Mit Neuer Jahrgangswechsel werden alle Klassen automatisch
+                vorgeschlagen (z. B. 1a in 2a) und lassen sich vor dem Anwenden
+                anpassen.
+              </p>
+            </div>
+          }
+        />
+      </SectionCard>
 
       {editorOpen && (
         <TransitionEditor
@@ -546,21 +585,21 @@ export function GradeTransitionsManager({
         </p>
       </ConfirmationModal>
 
-      <ConfirmationModal
+      <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
         title="Entwurf löschen"
-        confirmText="Ja, löschen"
-        cancelText="Abbrechen"
-        isConfirmLoading={busy}
-        confirmButtonClass="bg-moto-red hover:bg-moto-red-hover text-white"
-      >
-        <p>
-          Den Entwurf für {deleteTarget?.academicYear} wirklich löschen? Es
-          werden keine Kinder verändert.
-        </p>
-      </ConfirmationModal>
+        description={
+          <p>
+            Der Entwurf für {deleteTarget?.academicYear} wird gelöscht. Es
+            werden keine Kinder verändert.
+          </p>
+        }
+        gate={{ mode: "twoStep" }}
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
+        loading={busy}
+        error=""
+      />
     </div>
   );
 }

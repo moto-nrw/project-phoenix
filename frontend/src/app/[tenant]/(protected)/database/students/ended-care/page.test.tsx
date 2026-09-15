@@ -138,9 +138,12 @@ describe("Beendete Betreuungen", () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
 
-    fireEvent.change(screen.getByPlaceholderText("Name oder Klasse suchen…"), {
-      target: { value: "Wirth" },
-    });
+    // Die Kopfkarte rendert die Suchzeile für Mobile und Desktop, deshalb
+    // liegen zwei Eingaben im DOM.
+    fireEvent.change(
+      screen.getAllByPlaceholderText("Name oder Klasse suchen…")[0]!,
+      { target: { value: "Wirth" } },
+    );
 
     await waitFor(() =>
       expect(mockFetchEndedCare).toHaveBeenCalledWith(
@@ -158,7 +161,7 @@ describe("Beendete Betreuungen", () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
 
-    expect(screen.getByText("137")).toBeVisible();
+    expect(screen.getByText(/137 Kinder/)).toBeVisible();
     expect(screen.getByText("Seite 1 von 3")).toBeVisible();
     expect(
       screen.getByRole("button", { name: "Vorherige Seite" }),
@@ -177,13 +180,22 @@ describe("Beendete Betreuungen", () => {
   it("opens the resume dialog and demands the explicit review", async () => {
     render(<Page />);
     await screen.findByText("Muster, Mia");
-    expect(
-      screen.getAllByRole("button", { name: "Wieder aufnehmen" }),
-    ).toHaveLength(1);
+    // Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4): nur die
+    // Zeile mit erfasstem Grund bietet „Wieder aufnehmen“ an.
+    const triggers = screen.getAllByRole("button", { name: /^Aktionen für/ });
+    expect(triggers).toHaveLength(2);
+    const offeringResume = triggers.filter((trigger) => {
+      fireEvent.click(trigger);
+      const offered =
+        screen.queryByRole("menuitem", { name: "Wieder aufnehmen" }) !== null;
+      fireEvent.keyDown(document, { key: "Escape" });
+      return offered;
+    });
+    expect(offeringResume).toHaveLength(1);
+    expect(offeringResume[0]).toHaveAccessibleName("Aktionen für Muster, Mia");
 
-    fireEvent.click(
-      screen.getAllByRole("button", { name: "Wieder aufnehmen" })[0]!,
-    );
+    fireEvent.click(offeringResume[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Wieder aufnehmen" }));
 
     const confirm = await screen.findByRole("button", {
       name: "Betreuung wieder aufnehmen",

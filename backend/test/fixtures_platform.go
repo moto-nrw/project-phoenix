@@ -42,21 +42,50 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 	return op
 }
 
+// CreateTestOrganization inserts an organization fixture and registers exact-ID cleanup.
+func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *platform.Organization) *platform.Organization {
+	tb.Helper()
+	require.NotNil(tb, organization)
+	_, err := db.NewInsert().
+		Model(organization).
+		ModelTableExpr("platform.organizations").
+		Returning("*").
+		Exec(context.Background())
+	require.NoError(tb, err, "Failed to create test organization")
+	tb.Cleanup(func() {
+		ctx := context.Background()
+		var tenantIDs []int64
+		cleanupErr := db.NewSelect().
+			TableExpr("platform.schools").
+			Column("id").
+			Where("organization_id = ?", organization.ID).
+			Scan(ctx, &tenantIDs)
+		require.NoError(tb, cleanupErr, "Failed to find test organization schools")
+		cleanupTenantTestData(tb, db, tenantIDs...)
+		_, cleanupErr = db.NewDelete().
+			Model((*platform.Organization)(nil)).
+			ModelTableExpr("platform.organizations").
+			Where("id = ?", organization.ID).
+			Exec(ctx)
+		require.NoError(tb, cleanupErr, "Failed to clean up test organization")
+	})
+	return organization
+}
+
 // OwnTestOperator registers exact-ID teardown for an operator created through
 // a service or repository path.
 func OwnTestOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()
-	tb.Cleanup(func() { CleanupOperator(tb, db, operatorID) })
+	tb.Cleanup(func() { cleanupOperator(tb, db, operatorID) })
 }
 
-// CleanupOperator removes an operator and its audit-log rows. All other
+// cleanupOperator removes an operator and its audit-log rows. All other
 // operator-scoped tables (tokens, MFA, passkeys) cascade on delete; rows in
 // domain tables referencing the operator (announcements)
 // must be removed by the caller's own cleanup first.
-func CleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
+func cleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	tb.Helper()
 	ctx := context.Background()
-
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(tb, err)
 	defer func() { _ = tx.Rollback() }()

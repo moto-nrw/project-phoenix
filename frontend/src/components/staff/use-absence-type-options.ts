@@ -8,14 +8,10 @@
 // mapping stays in ~/lib/absence-type-select, which nothing in the UI layer
 // needs to know about.
 
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 
 import { absenceTypeService, type AbsenceType } from "~/lib/absence-type-api";
-import {
-  customIdFromOptionValue,
-  customOptionValue,
-} from "~/lib/absence-type-select";
-import { readableApiMessage } from "~/lib/api-error-message";
+import { customOptionValue } from "~/lib/absence-type-select";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -49,48 +45,24 @@ export const STANDARD_ABSENCE_OPTIONS: readonly AbsenceTypeOption[] = [
 
 export interface UseAbsenceTypeOptionsResult {
   readonly options: AbsenceTypeOption[];
-  /** Undefined for a user without time_tracking:manage — hides the affordance. */
-  readonly create?: (name: string) => Promise<string>;
-  readonly rename?: (value: string, name: string) => Promise<void>;
-  readonly setActive?: (value: string, isActive: boolean) => Promise<void>;
-  readonly update?: (
-    value: string,
-    changes: {
-      name?: string;
-      allowanceEnabled?: boolean;
-      overrunPolicy?: "warn" | "block";
-    },
-  ) => Promise<void>;
 }
 
 /**
  * useAbsenceTypeOptions loads the school's own Abwesenheitsarten and returns
- * them merged behind the standard ones, plus the write callbacks — but only
- * when the caller may use them, so the component renders as a plain searchable
- * select for everyone else.
+ * them merged behind the standard ones.
+ *
+ * Gepflegt werden sie seit #3114 unter „Datenverwaltung → Abwesenheitsarten",
+ * nicht mehr in den Zeilen des Auswahlfelds; dieser Haken liest nur noch.
  *
  * `standardOptions` lets a caller narrow which standard types are offered (the
  * admin path may include Freizeitausgleich, self-service may not).
  */
-/**
- * The dropdown shows the message of a failed write as it is, so it must read
- * like a sentence to a school user, not like a status line.
- */
-async function withReadableError<T>(operation: Promise<T>): Promise<T> {
-  try {
-    return await operation;
-  } catch (err) {
-    const message = readableApiMessage(err);
-    if (message === null) throw err;
-    throw new Error(message, { cause: err });
-  }
-}
-
 export function useAbsenceTypeOptions(
   canManage: boolean,
   standardOptions: readonly AbsenceTypeOption[] = STANDARD_ABSENCE_OPTIONS,
+  currentValue?: string,
 ): UseAbsenceTypeOptionsResult {
-  const { data: custom = [], mutate } = useSWRAuth<AbsenceType[]>(
+  const { data: custom = [] } = useSWRAuth<AbsenceType[]>(
     "staff-absence-types",
     absenceTypeService.getAbsenceTypes.bind(absenceTypeService),
     {
@@ -108,7 +80,12 @@ export function useAbsenceTypeOptions(
     () => [
       ...standardOptions,
       ...custom
-        .filter((type) => canManage || !type.allowanceEnabled)
+        .filter(
+          (type) =>
+            canManage ||
+            !type.allowanceEnabled ||
+            customOptionValue(type.id) === currentValue,
+        )
         .map((type) => ({
           value: customOptionValue(type.id),
           label: type.name,
@@ -117,77 +94,8 @@ export function useAbsenceTypeOptions(
           overrunPolicy: type.overrunPolicy,
         })),
     ],
-    [standardOptions, custom, canManage],
+    [standardOptions, custom, canManage, currentValue],
   );
 
-  const create = useCallback(
-    async (name: string) => {
-      const created = await withReadableError(
-        absenceTypeService.createAbsenceType(name),
-      );
-      await mutate((previous = []) => [...previous, created], false);
-      return customOptionValue(created.id);
-    },
-    [mutate],
-  );
-
-  const rename = useCallback(
-    async (value: string, name: string) => {
-      const updated = await withReadableError(
-        absenceTypeService.updateAbsenceType(customIdFromOptionValue(value), {
-          name,
-        }),
-      );
-      await mutate(
-        (previous = []) =>
-          previous.map((type) => (type.id === updated.id ? updated : type)),
-        false,
-      );
-    },
-    [mutate],
-  );
-
-  const setActive = useCallback(
-    async (value: string, isActive: boolean) => {
-      const updated = await withReadableError(
-        absenceTypeService.updateAbsenceType(customIdFromOptionValue(value), {
-          isActive,
-        }),
-      );
-      await mutate(
-        (previous = []) =>
-          previous.map((type) => (type.id === updated.id ? updated : type)),
-        false,
-      );
-    },
-    [mutate],
-  );
-
-  const update = useCallback(
-    async (
-      value: string,
-      changes: {
-        name?: string;
-        allowanceEnabled?: boolean;
-        overrunPolicy?: "warn" | "block";
-      },
-    ) => {
-      const updated = await withReadableError(
-        absenceTypeService.updateAbsenceType(
-          customIdFromOptionValue(value),
-          changes,
-        ),
-      );
-      await mutate(
-        (previous = []) =>
-          previous.map((type) => (type.id === updated.id ? updated : type)),
-        false,
-      );
-    },
-    [mutate],
-  );
-
-  return canManage
-    ? { options, create, rename, setActive, update }
-    : { options };
+  return { options };
 }

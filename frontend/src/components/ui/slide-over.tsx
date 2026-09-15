@@ -25,11 +25,15 @@
  *       <SlideOverTitle>Mensa</SlideOverTitle>
  *       <SlideOverDescription>Mittwoch, 24.09.2026</SlideOverDescription>
  *     </SlideOverHeader>
- *     <div className="flex-1 overflow-y-auto px-5 py-4">…</div>
+ *     <SlideOverBody error={saveError}>…</SlideOverBody>
  *     <SlideOverFooter>…</SlideOverFooter>
  *   </SlideOverContent>
  * </SlideOver>
  * ```
+ *
+ * `SlideOverBody` is the scrolling middle; its `error` prop is the fixed slot
+ * for a form's validation or save error (BAUARTEN-SPEC, Bauart 2 Regel 5), so
+ * no panel places that alert on its own.
  */
 
 import * as React from "react";
@@ -38,6 +42,12 @@ import { X } from "lucide-react";
 
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import { FormErrorAlert } from "./form-error-alert";
+import type { FormErrorInput } from "./form-error";
+import {
+  OVERLAY_BACKDROP_CLASS,
+  OVERLAY_BACKDROP_TINT_CLASS,
+} from "./overlay-styles";
 
 /**
  * Unter sm fährt das Panel von unten ein, darüber von rechts. Vor dem ersten
@@ -142,7 +152,9 @@ const SlideOverOverlay = React.forwardRef<
   <DrawerPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-40 bg-slate-900/30 backdrop-blur-[1px]",
+      "fixed inset-0 z-40",
+      OVERLAY_BACKDROP_TINT_CLASS,
+      OVERLAY_BACKDROP_CLASS,
       className,
     )}
     {...props}
@@ -150,16 +162,16 @@ const SlideOverOverlay = React.forwardRef<
 ));
 SlideOverOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
-interface SlideOverContentProps extends React.ComponentPropsWithoutRef<
+type SlideOverContentProps = React.ComponentPropsWithoutRef<
   typeof DrawerPrimitive.Content
-> {
+> & {
   /**
    * Panel width on desktop. Default 420px matches the timetable mockup.
    * Ignoriert, solange das Panel als Blatt von unten läuft (< sm) — dort ist
    * es immer volle Breite.
    */
   widthClass?: string;
-}
+};
 
 const SlideOverContent = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Content>,
@@ -216,6 +228,34 @@ const SlideOverHeader = ({
 );
 SlideOverHeader.displayName = "SlideOverHeader";
 
+type SlideOverBodyProps = React.HTMLAttributes<HTMLDivElement> & {
+  /**
+   * The form's validation or save error. Rendered as an `Alert` at the top
+   * of the body and scrolled into view when it changes. Field-level problems
+   * additionally go to the field (`Input` `error`).
+   */
+  error?: FormErrorInput;
+};
+
+/**
+ * The scrolling middle of a panel between `SlideOverHeader` and
+ * `SlideOverFooter`. Carries the panel's padding and the error slot.
+ */
+const SlideOverBody = ({
+  className,
+  error,
+  children,
+  ...props
+}: SlideOverBodyProps) => (
+  <div className={cn("flex-1 overflow-y-auto px-5 py-4", className)} {...props}>
+    {/* mb-4 mirrors the gap of a `space-y-4` body: Tailwind v4 spaces
+        siblings with margin-bottom, so the two do not add up. */}
+    <FormErrorAlert message={error} className="mb-4" />
+    {children}
+  </div>
+);
+SlideOverBody.displayName = "SlideOverBody";
+
 const SlideOverFooter = ({
   className,
   ...props
@@ -254,15 +294,13 @@ const SlideOverDescription = React.forwardRef<
 ));
 SlideOverDescription.displayName = DrawerPrimitive.Description.displayName;
 
-const SlideOverClose = DrawerPrimitive.Close;
-
 /**
  * SlideOverCloseButton — the shared close (X) control for slide-over headers.
  *
  * The SlideOver primitive (Vaul) ships no styled close button, so every panel
  * used to hand-roll its own — which is why the close-X drifted across the app.
  * This is the single source of truth: a round icon button matching the
- * canonical slide-over close (room-detail-modal's closeButtonClass). Renders a
+ * canonical slide-over close. Renders a
  * default X; pass children to override, and aria-label to retitle it.
  */
 const SlideOverCloseButton = React.forwardRef<
@@ -287,9 +325,9 @@ export {
   SlideOver,
   SlideOverContent,
   SlideOverHeader,
+  SlideOverBody,
   SlideOverFooter,
   SlideOverTitle,
   SlideOverDescription,
-  SlideOverClose,
   SlideOverCloseButton,
 };

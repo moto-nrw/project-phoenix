@@ -8,13 +8,9 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // ErrAuditLogInvalid marks a caller mistake in an audit log request — HTTP 400.
@@ -80,14 +76,19 @@ type TimeTrackingAuditLogService interface {
 	ListAuditLog(ctx context.Context, req AuditLogListRequest) (*AuditLogPage, error)
 }
 
-type timeTrackingAuditLogService struct {
-	repo      auditModels.TimeTrackingAuditLogRepository
-	staffRepo userModels.StaffRepository
-	settings  settingsResolver
+// StaffDisplayNameQuery resolves tenant-visible staff names in one batch.
+type StaffDisplayNameQuery interface {
+	StaffDisplayNames(context.Context, []int64) (map[int64]string, error)
 }
 
-func NewTimeTrackingAuditLogService(repo auditModels.TimeTrackingAuditLogRepository, staffRepo userModels.StaffRepository, settings settingsResolver) TimeTrackingAuditLogService {
-	return &timeTrackingAuditLogService{repo: repo, staffRepo: staffRepo, settings: settings}
+type timeTrackingAuditLogService struct {
+	repo       TimeTrackingAuditReader
+	staffNames StaffDisplayNameQuery
+	settings   settingsResolver
+}
+
+func NewTimeTrackingAuditLogService(repo TimeTrackingAuditReader, staffNames StaffDisplayNameQuery, settings settingsResolver) TimeTrackingAuditLogService {
+	return &timeTrackingAuditLogService{repo: repo, staffNames: staffNames, settings: settings}
 }
 
 type auditLogCursorPayload struct {
@@ -98,7 +99,7 @@ type auditLogCursorPayload struct {
 
 func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req AuditLogListRequest) (*AuditLogPage, error) {
 	for _, src := range req.Sources {
-		if !slices.Contains(auditModels.ValidAuditLogSources, src) {
+		if !slices.Contains(s.repo.ValidSources(), src) {
 			return nil, fmt.Errorf("%w: unknown source %q", ErrAuditLogInvalid, src)
 		}
 	}
@@ -113,7 +114,7 @@ func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req Audi
 		return nil, fmt.Errorf("%w: limit exceeds %d", ErrAuditLogInvalid, auditLogMaxLimit)
 	}
 
-	filter := auditModels.TimeTrackingAuditLogFilter{
+	filter := TimeTrackingAuditFilter{
 		From:         req.From,
 		To:           req.To,
 		StaffID:      req.StaffID,
@@ -153,7 +154,7 @@ func (s *timeTrackingAuditLogService) ListAuditLog(ctx context.Context, req Audi
 }
 
 // decorate resolves staff and actor names in one batch query — never N+1.
-func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*auditModels.TimeTrackingAuditLogEntry) ([]*AuditLogEvent, error) {
+func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*TimeTrackingAuditEntry) ([]*AuditLogEvent, error) {
 	idSet := make(map[int64]struct{}, len(entries))
 	for _, e := range entries {
 		if e.StaffID != nil {
@@ -163,19 +164,13 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*a
 			idSet[*e.ActorStaffID] = struct{}{}
 		}
 	}
-	staffMap := map[int64]*userModels.Staff{}
+	staffNames := map[int64]string{}
 	if len(idSet) > 0 {
 		var err error
-		staffMap, err = s.staffRepo.FindWithPersonByIDs(ctx, slices.Collect(maps.Keys(idSet)))
+		staffNames, err = s.staffNames.StaffDisplayNames(ctx, slices.Collect(maps.Keys(idSet)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to resolve names for audit log: %w", err)
 		}
-	}
-	name := func(id int64) string {
-		if staff, ok := staffMap[id]; ok && staff != nil && staff.Person != nil {
-			return strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName)
-		}
-		return ""
 	}
 
 	events := make([]*AuditLogEvent, len(entries))
@@ -188,14 +183,14 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*a
 			Detail:     e.Detail,
 		}
 		if e.StaffID != nil {
-			event.Staff = &AuditLogPerson{ID: *e.StaffID, Name: name(*e.StaffID)}
+			event.Staff = &AuditLogPerson{ID: *e.StaffID, Name: staffNames[*e.StaffID]}
 		}
 		actor := AuditLogActor{IsSystem: e.ActorIsSystem}
 		if e.ActorIsSystem {
 			actor.Name = "System"
 		} else if e.ActorStaffID != nil {
 			actor.StaffID = e.ActorStaffID
-			actor.Name = name(*e.ActorStaffID)
+			actor.Name = staffNames[*e.ActorStaffID]
 			actor.IsSelf = e.StaffID != nil && *e.StaffID == *e.ActorStaffID
 		}
 		event.Actor = actor
@@ -210,19 +205,19 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*a
 func (s *timeTrackingAuditLogService) retentionCutoff(ctx context.Context) timezone.Date {
 	days := auditLogRetentionDefaultDays
 	if s.settings != nil {
-		if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimeTrackingRetentionDays); err == nil && v > 0 {
+		if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
 			days = v
 		}
 	}
 	return timezone.TodayDate().AddDays(-days)
 }
 
-func encodeAuditLogCursor(e *auditModels.TimeTrackingAuditLogEntry) string {
+func encodeAuditLogCursor(e *TimeTrackingAuditEntry) string {
 	payload, _ := json.Marshal(auditLogCursorPayload{OccurredAt: e.OccurredAt, Source: e.Source, EntryID: e.EntryID})
 	return base64.RawURLEncoding.EncodeToString(payload)
 }
 
-func decodeAuditLogCursor(raw string) (*auditModels.TimeTrackingAuditLogCursor, error) {
+func decodeAuditLogCursor(raw string) (*TimeTrackingAuditCursor, error) {
 	data, err := base64.RawURLEncoding.DecodeString(raw)
 	if err != nil {
 		return nil, err
@@ -234,5 +229,5 @@ func decodeAuditLogCursor(raw string) (*auditModels.TimeTrackingAuditLogCursor, 
 	if payload.OccurredAt.IsZero() || payload.Source == "" || payload.EntryID <= 0 {
 		return nil, errors.New("incomplete cursor")
 	}
-	return &auditModels.TimeTrackingAuditLogCursor{OccurredAt: payload.OccurredAt, Source: payload.Source, EntryID: payload.EntryID}, nil
+	return &TimeTrackingAuditCursor{OccurredAt: payload.OccurredAt, Source: payload.Source, EntryID: payload.EntryID}, nil
 }

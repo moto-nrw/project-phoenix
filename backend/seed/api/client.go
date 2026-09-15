@@ -12,11 +12,14 @@ import (
 
 // Client handles HTTP communication with the backend API
 type Client struct {
-	baseURL string
-	adapter Adapter
-	auth    AuthRef
-	token   string
-	verbose bool
+	baseURL    string
+	adapter    Adapter
+	auth       AuthRef
+	token      string
+	verbose    bool
+	lastMethod string
+	lastPath   string
+	lastStatus int
 }
 
 // NewClientWithAdapter creates a client that reuses a shared adapter.
@@ -172,6 +175,11 @@ func (c *Client) Put(path string, body any) ([]byte, error) {
 	return c.doRequestWithHeaders("PUT", path, body, true, nil)
 }
 
+// Patch makes an authenticated PATCH request
+func (c *Client) Patch(path string, body any) ([]byte, error) {
+	return c.doRequestWithHeaders("PATCH", path, body, true, nil)
+}
+
 // Delete makes an authenticated DELETE request.
 func (c *Client) Delete(path string) ([]byte, error) {
 	return c.doRequestWithHeaders("DELETE", path, nil, true, nil)
@@ -206,6 +214,7 @@ func (c *Client) authRef() AuthRef {
 
 func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRef AuthRef, headers map[string]string) ([]byte, error) {
 	respBody, statusCode, err := c.adapter.Raw(context.Background(), authRef, method, path, body, headers)
+	c.lastMethod, c.lastPath, c.lastStatus = method, path, statusCode
 	if err != nil {
 		return nil, err
 	}

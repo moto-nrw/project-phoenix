@@ -1,17 +1,35 @@
-package audit_test
+package audit
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type auditTestWorkSession struct {
+	ID           int64      `bun:"id,pk,autoincrement"`
+	TenantID     int64      `bun:"tenant_id,notnull"`
+	StaffID      int64      `bun:"staff_id,notnull"`
+	Date         audit.Date `bun:"date,notnull,type:date"`
+	Status       string     `bun:"status,notnull"`
+	Source       string     `bun:"source,notnull"`
+	CheckInTime  time.Time  `bun:"check_in_time,notnull"`
+	CheckOutTime *time.Time `bun:"check_out_time"`
+	CreatedBy    int64      `bun:"created_by,notnull"`
+}
+
+func (s *auditTestWorkSession) PrepareAuditWorkSession(tenantID int64) {
+	s.TenantID = tenantID
+	s.Source = "app"
+}
+
+func auditTestDate() audit.Date {
+	return audit.NewDate(2098, time.January, 5)
+}
 
 // ============================================================================
 // CreateBatch Tests
@@ -22,22 +40,21 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionEdit
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates multiple edit records", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		// Create a work session
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		oldValue := "08:00"
@@ -73,15 +90,15 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 	t.Run("validates field names", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		edits := []*audit.WorkSessionEdit{
@@ -147,15 +164,15 @@ func TestWorkSessionEditRepository_CreateBatch(t *testing.T) {
 
 	t.Run("creates batch with multiple fields", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		oldCheckIn := "08:00"
@@ -199,22 +216,21 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionEdit
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns edit records for session", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		// Create a work session
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		oldValue := "08:00"
@@ -248,15 +264,15 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 	t.Run("returns empty for session with no edits", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		edits, err := repo.GetBySessionID(ctx, session.ID)
@@ -266,15 +282,15 @@ func TestWorkSessionEditRepository_GetBySessionID(t *testing.T) {
 
 	t.Run("orders edits by creation time descending", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		oldValue1 := "08:00"
@@ -331,22 +347,21 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionEdit
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns count of edits for session", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		// Create a work session
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		oldValue := "30"
@@ -372,15 +387,15 @@ func TestWorkSessionEditRepository_CountBySessionID(t *testing.T) {
 
 	t.Run("returns zero for session with no edits", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		count, err := repo.CountBySessionID(ctx, session.ID)
@@ -398,36 +413,35 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionEdit
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns counts for multiple sessions", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
 		// Create two work sessions
-		today := timezone.TodayDate()
+		today := auditTestDate()
 		session1Out := time.Now().Add(8 * time.Hour)
 		session2Out := time.Now().Add(32 * time.Hour)
-		session1 := &active.WorkSession{
+		session1 := &auditTestWorkSession{
 			StaffID:      staff.ID,
 			Date:         today,
-			Status:       active.WorkSessionStatusPresent,
+			Status:       "present",
 			CheckInTime:  time.Now(),
 			CheckOutTime: &session1Out,
 			CreatedBy:    staff.ID,
 		}
-		session2 := &active.WorkSession{
+		session2 := &auditTestWorkSession{
 			StaffID:      staff.ID,
 			Date:         today.AddDays(1),
-			Status:       active.WorkSessionStatusPresent,
+			Status:       "present",
 			CheckInTime:  time.Now(),
 			CheckOutTime: &session2Out,
 			CreatedBy:    staff.ID,
 		}
 
-		err := sessionRepo.Create(ctx, session1)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session1)
 		require.NoError(t, err)
-		err = sessionRepo.Create(ctx, session2)
+		err = testpkg.InsertAuditTestWorkSession(ctx, db, session2)
 		require.NoError(t, err)
 
 		oldValue := "08:00"
@@ -470,17 +484,17 @@ func TestWorkSessionEditRepository_CountBySessionIDs(t *testing.T) {
 
 	t.Run("returns zero counts for sessions with no edits", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := auditTestDate()
 		checkOut := time.Now().Add(8 * time.Hour)
-		session := &active.WorkSession{
+		session := &auditTestWorkSession{
 			StaffID:      staff.ID,
 			Date:         today,
-			Status:       active.WorkSessionStatusPresent,
+			Status:       "present",
 			CheckInTime:  time.Now(),
 			CheckOutTime: &checkOut,
 			CreatedBy:    staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		counts, err := repo.CountBySessionIDs(ctx, []int64{session.ID})
@@ -500,21 +514,20 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).WorkSessionEdit
-	sessionRepo := repositories.NewFactory(db).WorkSession
+	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	t.Run("excludes system-authored edits", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today,
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		newValue := "17:00"
@@ -548,15 +561,15 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 
 	t.Run("session with only system edits is absent from map", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today.AddDays(1),
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		newValue := "17:00"
@@ -578,15 +591,15 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 
 	t.Run("excludes deviation-reason rows", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
-		session := &active.WorkSession{
+		today := auditTestDate()
+		session := &auditTestWorkSession{
 			StaffID:     staff.ID,
 			Date:        today.AddDays(2),
-			Status:      active.WorkSessionStatusPresent,
+			Status:      "present",
 			CheckInTime: time.Now(),
 			CreatedBy:   staff.ID,
 		}
-		err := sessionRepo.Create(ctx, session)
+		err := testpkg.InsertAuditTestWorkSession(ctx, db, session)
 		require.NoError(t, err)
 
 		// An ordinary early/late stamp records only a deviation reason (#1844),
@@ -644,7 +657,7 @@ func TestWorkSessionEditRepository_WrapsDatabaseErrors(t *testing.T) {
 	db := testpkg.SetupClosableTestDB(t)
 	require.NoError(t, db.Close())
 
-	repo := repositories.NewFactory(db).WorkSessionEdit
+	repo := NewWorkSessionEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 	edit := &audit.WorkSessionEdit{
 		SessionID: 1,

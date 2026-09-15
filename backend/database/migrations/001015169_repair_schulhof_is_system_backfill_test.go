@@ -70,12 +70,13 @@ func groupIsSystem(t *testing.T, db *testpkg.DB, groupID int64) bool {
 // 'Schulhof' category, still is_system = FALSE — the row the created_by IS
 // NULL predicate skipped.
 func TestRepairSchulhofIsSystemBackfill_FlagsStaffProvisionedRows(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	defer testpkg.CleanupTenantTestData(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Schulhof", "Supervisor")
 

@@ -1,11 +1,10 @@
-package audit_test
+package audit
 
 import (
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestStudentFieldEditRepository_CreateBatchAndGetByStudentID(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Audit", "History", "1a")
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("student-field-edit-%d@example.test", time.Now().UnixNano()))
 
-	repo := repositories.NewFactory(db).StudentFieldEdit
+	repo := NewStudentFieldEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.TenantContext(student.TenantID)
 	older := &audit.StudentFieldEdit{
 		StudentID:    student.ID,
@@ -71,7 +70,7 @@ func TestStudentFieldEditRepository_CreateBatchValidation(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).StudentFieldEdit
+	repo := NewStudentFieldEditRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.TenantContext(testpkg.UniqueTestTenantID(t))
 
 	require.NoError(t, repo.CreateBatch(ctx, nil))

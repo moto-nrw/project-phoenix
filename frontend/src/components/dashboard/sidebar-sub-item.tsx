@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import { NavLink } from "~/components/ui/nav-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
 
 interface SidebarSubItemProps {
   readonly href: string;
@@ -21,9 +22,9 @@ export function SidebarSubItem({
   badgeCount = 0,
 }: SidebarSubItemProps) {
   return (
-    <Link
+    <NavLink
       href={href}
-      className={`flex items-center justify-between rounded-md py-1.5 pr-3 pl-10 text-sm transition-colors ${
+      className={`${SIDEBAR_SUB_ITEM_CLASSES} ${
         isActive
           ? "bg-gray-100 font-semibold text-gray-900"
           : "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
@@ -37,6 +38,6 @@ export function SidebarSubItem({
           <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>
         )
       )}
-    </Link>
+    </NavLink>
   );
 }

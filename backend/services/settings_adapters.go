@@ -7,19 +7,51 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type settingsRuntime struct {
-	db   *bun.DB
-	unit *tenant.UnitOfWork
+	db         *bun.DB
+	unit       *tenant.UnitOfWork
+	membership schoolmembership.Capability
 }
 
 func newSettingsRuntime(db *bun.DB, unit *tenant.UnitOfWork) settingsRuntime {
 	return settingsRuntime{db: db, unit: unit}
+}
+
+// WithSchoolMembership returns the runtime with the staff owner attached.
+// The work-time-template repository resolves and rebases its assigned staff
+// through this capability instead of joining users.staff itself (#2667).
+func (r settingsRuntime) WithSchoolMembership(membership schoolmembership.Capability) settingsRuntime {
+	r.membership = membership
+	return r
+}
+
+func (r settingsRuntime) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {
+	if r.membership == nil {
+		return nil, errors.New("settings runtime: school membership capability is required")
+	}
+	members, err := r.membership.ListStaff(ctx, schoolmembership.StaffFilter{WorkTimeModelID: &workTimeModelID})
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(members))
+	for _, member := range members {
+		ids = append(ids, member.ID)
+	}
+	return ids, nil
+}
+
+func (r settingsRuntime) RebaseAssignedStaffAnchor(ctx context.Context, workTimeModelID int64, anchorDate string) ([]int64, error) {
+	if r.membership == nil {
+		return nil, errors.New("settings runtime: school membership capability is required")
+	}
+	return r.membership.RebaseWorkTimeModelAnchor(ctx, workTimeModelID, anchorDate)
 }
 
 func (r settingsRuntime) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
@@ -84,18 +116,18 @@ func (r settingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 }
 
 type schoolSettingsStore struct {
-	repo platformModels.SchoolRepository
+	schools organizationtenancy.Capability
 }
 
-func newSchoolSettingsStore(repo platformModels.SchoolRepository) configService.SchoolSettingsStore {
-	if repo == nil {
+func newSchoolSettingsStore(schools organizationtenancy.Capability) configService.SchoolSettingsStore {
+	if schools == nil {
 		return nil
 	}
-	return schoolSettingsStore{repo: repo}
+	return schoolSettingsStore{schools: schools}
 }
 
 func (s schoolSettingsStore) FindSettings(ctx context.Context, schoolID int64) (string, error) {
-	school, err := s.repo.FindByID(ctx, schoolID)
+	school, err := s.schools.FindSchool(ctx, schoolID)
 	if err != nil {
 		return "", err
 	}
@@ -103,7 +135,7 @@ func (s schoolSettingsStore) FindSettings(ctx context.Context, schoolID int64) (
 }
 
 func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64, update func(string) (string, error)) error {
-	school, err := s.repo.FindByIDForUpdate(ctx, schoolID)
+	school, err := s.schools.FindSchoolForMutation(ctx, schoolID)
 	if err != nil {
 		return err
 	}
@@ -111,6 +143,11 @@ func (s schoolSettingsStore) UpdateSettings(ctx context.Context, schoolID int64,
 	if err != nil {
 		return err
 	}
-	school.Settings = settings
-	return s.repo.Update(ctx, school)
+	_, err = s.schools.UpdateSchool(ctx, organizationtenancy.UpdateSchool{
+		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
+		Subdomain: school.Subdomain, Active: school.Active, Hidden: school.Hidden, Settings: settings,
+		Address: school.Address, City: school.City, Zip: school.Zip, Phone: school.Phone,
+		Email: school.Email, DevicePinHash: school.DevicePinHash,
+	})
+	return err
 }

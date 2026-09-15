@@ -53,6 +53,7 @@ func insertShiftTypeRaw(t *testing.T, db *testpkg.DB, tenantID int64, name strin
 // activities.categories.shift_type_id column + cross-schema tenant FK, Down
 // removes them, and the round-trip is idempotent (#1837 follow-up / #1836).
 func TestCategoryShiftTypeMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -81,16 +82,17 @@ func TestCategoryShiftTypeMigration(t *testing.T) {
 // rejects pointing a category at a shift type from a different tenant, and
 // accepts a same-tenant reference.
 func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
+	testpkg.OwnTenantRows(t, db, tenantB)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantA)
-		testpkg.CleanupTenantTestData(t, db, tenantB)
 		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
 		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)
 		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(ctx)

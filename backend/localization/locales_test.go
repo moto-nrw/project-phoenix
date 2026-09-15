@@ -27,6 +27,9 @@ func TestIsSupported(t *testing.T) {
 		{"registered en", "en", true},
 		{"registered ru", "ru", true},
 		{"registered sq", "sq", true},
+		{"registered pl", "pl", true},
+		{"registered tr", "tr", true},
+		{"registered uk", "uk", true},
 		{"region subtag stripped", "en-US", true},
 		{"underscore subtag stripped", "de_DE", true},
 		{"uppercase normalized", "EN", true},
@@ -57,6 +60,9 @@ func TestNormalizeLocale(t *testing.T) {
 		{"region subtag stripped", "en-US", "en"},
 		{"underscore subtag stripped", "ru_RU", "ru"},
 		{"uppercase normalized", "SQ", "sq"},
+		{"registered pl passes through", "pl", "pl"},
+		{"registered tr with region stripped", "tr-TR", "tr"},
+		{"registered uk passes through", "uk", "uk"},
 		{"surrounding whitespace trimmed", "  de  ", "de"},
 		// Unlike IsSupported, NormalizeLocale must NEVER reject — an unknown or
 		// empty value coerces to the default so a catalog always resolves.
@@ -80,7 +86,7 @@ func TestNormalizeLocale(t *testing.T) {
 func TestIsSupportedAndNormalizeAgree(t *testing.T) {
 	t.Parallel()
 
-	raws := []string{"de", "en", "ru", "sq", "en-US", "DE", "xx", "", "  "}
+	raws := []string{"de", "en", "ru", "sq", "pl", "tr", "uk", "en-US", "DE", "xx", "", "  "}
 	for _, raw := range raws {
 		if IsSupported(raw) {
 			if got := NormalizeLocale(raw); !IsSupported(got) {

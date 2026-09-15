@@ -24,14 +24,36 @@ const (
 type GuardianProfileRepository struct {
 	*repoBase.Repository[*users.GuardianProfile]
 	db *bun.DB
+	// activeAccounts is the Identity & Access owner query "every active
+	// platform account". auth.accounts is not read by this repository; the
+	// portal reachability check joins the owner's query instead (#2720).
+	activeAccounts ActiveAccountQuery
+}
+
+// ActiveAccountQuery returns the owner-built statement selecting the ids of
+// active platform accounts. It is a plain function type so this package does
+// not depend on the Identity & Access owner to state what it needs.
+type ActiveAccountQuery func(ctx context.Context) *bun.SelectQuery
+
+// GuardianProfileOption configures a GuardianProfileRepository at construction.
+type GuardianProfileOption func(*GuardianProfileRepository)
+
+// WithActiveAccounts installs the Identity & Access active-account query
+// FindActivePortalProfilesByIDs filters through (#2720).
+func WithActiveAccounts(query ActiveAccountQuery) GuardianProfileOption {
+	return func(r *GuardianProfileRepository) { r.activeAccounts = query }
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
-func NewGuardianProfileRepository(db *bun.DB) users.GuardianProfileRepository {
-	return &GuardianProfileRepository{
+func NewGuardianProfileRepository(db *bun.DB, options ...GuardianProfileOption) users.GuardianProfileRepository {
+	repository := &GuardianProfileRepository{
 		Repository: repoBase.NewRepository[*users.GuardianProfile](db, "users.guardian_profiles", "GuardianProfile"),
 		db:         db,
 	}
+	for _, option := range options {
+		option(repository)
+	}
+	return repository
 }
 
 // Create inserts a new guardian profile into the database
@@ -127,19 +149,23 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
 	}
+	if r.activeAccounts == nil {
+		return nil, errors.New("find active portal guardian profiles: active account query is required")
+	}
 
 	var profiles []*users.GuardianProfile
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "guardian_profile".account_id AND "account_tenant".tenant_id = "guardian_profile".tenant_id`).
-		Join(`INNER JOIN auth.accounts AS "account" ON "account".id = "guardian_profile".account_id`).
 		Join(`INNER JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "guardian_profile".account_id AND "account_role".tenant_id = "guardian_profile".tenant_id`).
 		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
 		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
-		Where(`"account".active = ?`, true).
+		// auth.accounts.active is the global switch Identity & Access owns; the
+		// owner's query keeps this a single statement.
+		Where(`"guardian_profile".account_id IN (?)`, r.activeAccounts(ctx)).
 		// Match the parent login guardian-role check (case-insensitive, mirrors
 		// strings.EqualFold in services/auth). Deduped by the result map below.
 		Where(`LOWER("role".name) = ?`, strings.ToLower(authModels.BaseRoleGuardian))

@@ -4,7 +4,8 @@ import (
 	"context"
 	"testing"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -79,7 +80,7 @@ func TestBroadcastVisitMovedWakesGuardiansWithoutBroadcaster(t *testing.T) {
 		tenant.WithTenantID(context.Background(), 42),
 	)
 
-	s.broadcastVisitMoved(ctx, &activeModels.Visit{}, &activeModels.Visit{StudentID: 4242}, nil, nil)
+	s.broadcastVisitMoved(ctx, &studentpresence.Visit{}, &studentpresence.Visit{StudentID: 4242}, nil, nil)
 	commit()
 
 	if len(waker.calls) != 1 {

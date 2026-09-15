@@ -24,6 +24,7 @@ func careOfferingAvailabilityRuleColumnExists(t *testing.T, db *testpkg.DB) bool
 }
 
 func TestCareOfferingAvailabilityRulesMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

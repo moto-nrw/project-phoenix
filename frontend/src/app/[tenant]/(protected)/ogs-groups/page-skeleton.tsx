@@ -8,6 +8,7 @@ export function OgsGroupsPageSkeleton() {
     <StudentCardPageSkeleton
       label="Gruppe wird geladen"
       testId="ogs-groups-skeleton"
+      title="Meine Gruppe"
     />
   );
 }

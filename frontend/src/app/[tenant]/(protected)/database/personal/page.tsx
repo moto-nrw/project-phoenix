@@ -2,12 +2,15 @@
 
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
-import { DatabaseEmptyState } from "~/components/database/database-empty-state";
 import { DatabaseGroupingToggle } from "~/components/database/database-grouping-toggle";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
+import { Skeleton } from "~/components/ui/skeleton";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { formatCount } from "~/lib/format-utils";
 import {
   useGroupedItems,
   type Grouper,
@@ -17,29 +20,20 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { ActiveFilter } from "~/components/ui/page-header/types";
-import { useToast } from "~/contexts/ToastContext";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
-import { CaregiverCapabilityModal } from "@/components/teachers/caregiver-capability-modal";
-import { RoleManagementModal } from "@/components/teachers/role-management-modal";
-import { StaffMasterDetail } from "@/components/teachers/staff-master-detail";
-import { TeacherEditModal } from "@/components/teachers/teacher-edit-modal";
-import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
+import { StaffList } from "@/components/teachers/staff-list";
 import { InvitationForm } from "~/components/admin/invitation-form";
 import { PendingInvitationsList } from "~/components/admin/pending-invitations-list";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { hasPermission } from "~/lib/auth-utils";
-import { getDbOperationMessage } from "@/lib/use-notification";
 import { getRoleDisplayName } from "@/lib/auth-helpers";
 import { createCrudService } from "@/lib/database/service-factory";
 import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
-import { Modal, ConfirmationModal } from "~/components/ui/modal";
-import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
+import { Modal } from "~/components/ui/modal";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { createLogger } from "~/lib/logger";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-
-const logger = createLogger({ component: "DatabaseTeachersPage" });
+import { useSWRAuth } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 type StaffGroupingMode = "none" | "role";
 
@@ -49,6 +43,9 @@ const STAFF_GROUPING_OPTIONS: { value: StaffGroupingMode; label: string }[] = [
   { value: "role", label: "Rolle" },
   { value: "none", label: "Keine" },
 ];
+
+/** Die Sammlung dieser Seite, für den Rückweg aus der Personalakte (`?from=`). */
+const COLLECTION_PATH = "/database/personal";
 
 function parseStaffGrouping(value: string | null): StaffGroupingMode {
   if (value === "none") return value;
@@ -79,13 +76,22 @@ export default function TeachersPage() {
   );
 }
 
+/**
+ * Personal (BAUARTEN-SPEC Bauart 1): die Sammlung mit Einladen, Import,
+ * Gruppierung und Suche. Jede Zeile führt auf die Personalakte `/staff/[id]`,
+ * die einzige Objektansicht einer Person (#3115). Bearbeiten, Löschen, Notizen
+ * und die Kontoaktionen liegen dort im Reiter „Konto" und im Kebab der
+ * Kopfkarte.
+ */
 function TeachersPageContent() {
+  const tenantPath = useTenantAwarePath();
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
-  const selectedId = searchParams.get("staff");
   const grouping = parseStaffGrouping(searchParams.get("groupBy"));
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchTerm, setSearchTerm] = useState(
+    () => searchParams.get("search") ?? "",
+  );
   const isMobile = useIsMobile();
 
   const [showInviteModal, setShowInviteModal] = useState(false);
@@ -93,32 +99,25 @@ function TeachersPageContent() {
     Date.now(),
   );
 
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
-  const [mfaModalOpen, setMfaModalOpen] = useState(false);
-  const [roleModalOpen, setRoleModalOpen] = useState(false);
-  const [savingTeacher, setSavingTeacher] = useState(false);
-
-  const {
-    showConfirmModal: showDeleteConfirmModal,
-    handleDeleteClick,
-    handleDeleteCancel,
-    confirmDelete,
-  } = useDeleteConfirmation();
-
-  const { success: toastSuccess, error: toastError } = useToast();
-
   const { data: sessionData, status } = useSession({
     required: true,
     onUnauthenticated() {
       redirect("/");
     },
   });
-  const accessToken = sessionData?.user?.token ?? "";
   const canManageUsers = hasPermission(sessionData, "users:manage");
+  // Seit #2906 erreicht die Seite auch, wer nur staff:manage oder
+  // staff:stammdaten hat. Die beiden Import-Wege hängen an denselben
+  // Berechtigungen wie ihre Backend-Routen: Personal-Import an users:create
+  // (POST /api/import/teachers), Eröffnungssalden an der Zeitwirtschaft —
+  // ohne diese Rechte antwortet das Backend mit 403.
+  const canImportStaff = hasPermission(sessionData, "users:create");
+  const canImportOpeningBalances = hasPermission(
+    sessionData,
+    "time_tracking:manage",
+  );
 
   const service = useMemo(() => createCrudService(teachersConfig), []);
-  const tenantMutate = useTenantMutate();
 
   const {
     data: teachersData,
@@ -132,6 +131,21 @@ function TeachersPageContent() {
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."
     : null;
+
+  // Statuszeile des Seitenkopfs aus der bereits geladenen Personalliste.
+  const statusLine = useMemo(() => {
+    const teachers = teachersData ?? [];
+    const roles = new Set(
+      teachers.map((t) => t.account_role?.trim()).filter(Boolean),
+    ).size;
+    const parts = [
+      `${formatCount(teachers.length)} ${teachers.length === 1 ? "Person" : "Personen"}`,
+    ];
+    if (roles > 0) {
+      parts.push(`${formatCount(roles)} ${roles === 1 ? "Rolle" : "Rollen"}`);
+    }
+    return parts.join(" · ");
+  }, [teachersData]);
 
   const existingPositions = useMemo(() => {
     const teachers = teachersData ?? [];
@@ -174,18 +188,22 @@ function TeachersPageContent() {
     return filters;
   }, [searchTerm]);
 
-  const selectedTeacher = useMemo(() => {
-    if (!selectedId) return null;
-    return (
-      (teachersData ?? []).find((teacher) => teacher.id === selectedId) ?? null
-    );
-  }, [teachersData, selectedId]);
-
-  const handleSelectTeacher = useCallback(
-    (id: string | null) => {
-      updateUrlParams({ staff: id });
+  // Der Rückweg trägt den tatsächlichen Suchzustand mit, damit „Zurück" die
+  // gefilterte Personalübersicht wiederherstellt.
+  const collectionReferrer = useMemo(() => {
+    const query = new URLSearchParams(searchParams);
+    if (searchTerm) query.set("search", searchTerm);
+    else query.delete("search");
+    const serialized = query.toString();
+    return serialized ? `${COLLECTION_PATH}?${serialized}` : COLLECTION_PATH;
+  }, [searchParams, searchTerm]);
+  const objectHref = useCallback(
+    (teacher: Teacher) => {
+      return tenantPath(
+        `/staff/${teacher.id}?tab=konto&from=${encodeURIComponent(collectionReferrer)}`,
+      );
     },
-    [updateUrlParams],
+    [collectionReferrer, tenantPath],
   );
 
   const handleGroupingChange = useCallback(
@@ -223,86 +241,82 @@ function TeachersPageContent() {
     () => setShowInviteModal(false),
     [],
   );
-  const handleCloseEditModal = useCallback(() => setShowEditModal(false), []);
-  const handleEditClick = useCallback(() => setShowEditModal(true), []);
-  const handleManageCaregiverClick = useCallback(
-    () => setCaregiverModalOpen(true),
-    [],
-  );
-  const handleManageMFAClick = useCallback(() => setMfaModalOpen(true), []);
-  const handleManageRoleClick = useCallback(() => setRoleModalOpen(true), []);
 
-  const handleEditTeacher = useCallback(
-    async (data: Partial<Teacher> & { password?: string }) => {
-      if (!selectedTeacher) return;
-      try {
-        setSavingTeacher(true);
-        await service.update(selectedTeacher.id, data);
-        setShowEditModal(false);
-        toastSuccess(
-          getDbOperationMessage("update", teachersConfig.name.singular),
-        );
-        await tenantMutate("database-teachers-list");
-      } catch (err) {
-        logger.error("failed to update teacher", {
-          teacher_id: selectedTeacher.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      } finally {
-        setSavingTeacher(false);
-      }
-    },
-    [selectedTeacher, service, tenantMutate, toastSuccess],
-  );
-
-  const handleDeleteTeacher = useCallback(async () => {
-    if (!selectedTeacher) return;
-    const deleteError = await service.delete(selectedTeacher.id);
-    if (deleteError) {
-      toastError(deleteError);
-      return;
-    }
-    toastSuccess(getDbOperationMessage("delete", teachersConfig.name.singular));
-    handleSelectTeacher(null);
-    await tenantMutate("database-teachers-list");
-  }, [
-    selectedTeacher,
-    service,
-    toastError,
-    toastSuccess,
-    handleSelectTeacher,
-    tenantMutate,
-  ]);
-
-  const handleUpdateNotes = useCallback(
-    async (notes: string) => {
-      if (!selectedTeacher) return;
-      try {
-        await service.update(selectedTeacher.id, { staff_notes: notes });
-        await tenantMutate("database-teachers-list");
-      } catch (err) {
-        logger.error("failed to update teacher notes", {
-          teacher_id: selectedTeacher.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        throw err;
-      }
-    },
-    [selectedTeacher, service, tenantMutate],
-  );
-
-  const canShowDetail = !loading && filteredTeachers.length > 0;
+  const canShowList = !loading && filteredTeachers.length > 0;
 
   return (
     <DatabasePageLayout
       loading={loading}
       sessionLoading={status === "loading"}
-      className="-mt-1.5 flex w-full flex-col"
-    >
-      <div className="mb-4">
+      error={error}
+      overlays={
+        canManageUsers ? (
+          <Modal
+            isOpen={showInviteModal}
+            onClose={handleCloseInviteModal}
+            title="Personal einladen"
+          >
+            <InvitationForm
+              existingPositions={existingPositions}
+              onCreated={() => {
+                setInvitationRefreshKey(Date.now());
+                setShowInviteModal(false);
+              }}
+            />
+          </Modal>
+        ) : null
+      }
+      className="flex w-full flex-col"
+      intro={{
+        title: "Personal",
+        description: loading ? <Skeleton className="h-4 w-48" /> : statusLine,
+        actions: (
+          <div className="flex items-center gap-2">
+            {!isMobile ? (
+              <>
+                <DatabaseGroupingToggle
+                  value={grouping}
+                  options={STAFF_GROUPING_OPTIONS}
+                  onChange={handleGroupingChange}
+                />
+                {canImportStaff ? (
+                  <Link
+                    href={tenantPath("/database/personal/import")}
+                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  >
+                    Importieren
+                  </Link>
+                ) : null}
+              </>
+            ) : null}
+            {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
+                Begründung, deshalb im Menü statt als weiterer Button. */}
+            {canImportOpeningBalances ? (
+              <OverflowMenu
+                ariaLabel="Weitere Import-Aktionen"
+                items={[
+                  {
+                    label: "Eröffnungssalden importieren",
+                    href: tenantPath("/database/personal/opening-balances"),
+                    onClick: () => undefined,
+                  },
+                ]}
+              />
+            ) : null}
+            {canManageUsers ? (
+              <DatabaseCreateAction
+                label="Personal"
+                ariaLabel="Personal hinzufügen"
+                onClick={() => setShowInviteModal(true)}
+              />
+            ) : null}
+          </div>
+        ),
+      }}
+      search={
         <PageHeaderWithSearch
-          title={isMobile ? "Personal" : ""}
+          embedded
+          title=""
           badge={{
             icon: (
               <MotoDuotoneIcon
@@ -317,194 +331,50 @@ function TeachersPageContent() {
           search={{
             value: searchTerm,
             onChange: setSearchTerm,
-            placeholder: "Personal suchen...",
+            placeholder: "Personal suchen…",
           }}
           filters={[]}
           activeFilters={activeFilters}
           onClearAllFilters={() => {
             setSearchTerm("");
           }}
-          actionButton={
-            <div className="flex items-center gap-2">
-              {!isMobile ? (
-                <>
-                  <DatabaseGroupingToggle
-                    value={grouping}
-                    options={STAFF_GROUPING_OPTIONS}
-                    onChange={handleGroupingChange}
-                  />
-                  <Link
-                    href="/database/personal/import"
-                    className="flex h-10 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Importieren
-                  </Link>
-                </>
-              ) : null}
-              {/* Zweiter Import-Weg (#2132): eigener Flow mit Stichtag und
-                  Begründung, deshalb im Menü statt als weiterer Button. */}
-              <OverflowMenu
-                ariaLabel="Weitere Import-Aktionen"
-                items={[
-                  {
-                    label: "Eröffnungssalden importieren",
-                    href: "/database/personal/opening-balances",
-                    onClick: () => undefined,
-                  },
-                ]}
-              />
-              {canManageUsers ? (
-                <DatabaseCreateAction
-                  label="Personal"
-                  ariaLabel="Personal hinzufügen"
-                  onClick={() => setShowInviteModal(true)}
-                />
-              ) : null}
-            </div>
-          }
         />
-      </div>
-
-      <RoleGuard variant="adminOnly">
+      }
+    >
+      <RoleGuard variant="adminOnly" embedded>
         <div className="mb-4">
           <PendingInvitationsList refreshKey={invitationRefreshKey} />
         </div>
       </RoleGuard>
 
-      {error && (
-        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-800">{error}</p>
-        </div>
-      )}
-
-      {canShowDetail ? (
+      {filteredTeachers.length === 0 ? (
+        <SectionCard>
+          <EmptyState
+            title={
+              searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
+            }
+            description={
+              searchTerm
+                ? "Versuchen Sie andere Suchkriterien."
+                : "Laden Sie die erste Person ein, damit sie sich anmelden kann."
+            }
+            icon={
+              <MotoDuotoneIcon
+                icon={MOTO_CONCEPTS.staff.icon}
+                tone={MOTO_CONCEPTS.staff.tone}
+                size={48}
+              />
+            }
+          />
+        </SectionCard>
+      ) : canShowList ? (
         <div className="min-h-0 flex-1 pb-4">
-          <StaffMasterDetail
+          <StaffList
             groupDefinitions={groupDefinitions}
-            selectedId={selectedId}
-            selectedTeacher={selectedTeacher}
-            onSelect={handleSelectTeacher}
-            onEditClick={handleEditClick}
-            onDeleteClick={handleDeleteClick}
-            onUpdateNotes={handleUpdateNotes}
-            onManageCaregiver={
-              selectedTeacher?.account_id
-                ? handleManageCaregiverClick
-                : undefined
-            }
-            onManageMFA={
-              selectedTeacher?.account_id ? handleManageMFAClick : undefined
-            }
-            onManageRole={
-              selectedTeacher?.account_id ? handleManageRoleClick : undefined
-            }
+            objectHref={objectHref}
           />
         </div>
-      ) : !loading ? (
-        <DatabaseEmptyState
-          icon={
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.staff.icon}
-              tone={MOTO_CONCEPTS.staff.tone}
-              size={48}
-              className="mx-auto"
-            />
-          }
-          title={
-            searchTerm ? "Kein Personal gefunden" : "Kein Personal vorhanden"
-          }
-          description={
-            searchTerm
-              ? "Versuchen Sie andere Suchkriterien."
-              : "Es wurde noch kein Personal erstellt."
-          }
-        />
       ) : null}
-
-      {canManageUsers ? (
-        <Modal
-          isOpen={showInviteModal}
-          onClose={handleCloseInviteModal}
-          title="Personal einladen"
-        >
-          <InvitationForm
-            existingPositions={existingPositions}
-            onCreated={() => {
-              setInvitationRefreshKey(Date.now());
-              setShowInviteModal(false);
-            }}
-          />
-        </Modal>
-      ) : null}
-
-      {selectedTeacher && (
-        <ConfirmationModal
-          isOpen={showDeleteConfirmModal}
-          onClose={handleDeleteCancel}
-          onConfirm={() => confirmDelete(() => void handleDeleteTeacher())}
-          title="Personal löschen?"
-          confirmText="Löschen"
-          cancelText="Abbrechen"
-          confirmButtonClass="bg-red-600 hover:bg-red-700"
-        >
-          <p className="text-sm text-gray-700">
-            Möchten Sie das Personal{" "}
-            <span className="font-medium">
-              {selectedTeacher.first_name} {selectedTeacher.last_name}
-            </span>{" "}
-            wirklich löschen? Der Zugang wird deaktiviert und die Person aus
-            allen Listen entfernt. Vorhandene Einträge wie Anwesenheiten und
-            Zeiterfassung bleiben für die Historie erhalten. Die Person kann
-            jederzeit erneut eingeladen werden.
-          </p>
-        </ConfirmationModal>
-      )}
-
-      {selectedTeacher && (
-        <TeacherEditModal
-          isOpen={showEditModal}
-          onClose={handleCloseEditModal}
-          teacher={selectedTeacher}
-          onSave={handleEditTeacher}
-          loading={savingTeacher}
-          existingPositions={existingPositions}
-        />
-      )}
-
-      {selectedTeacher && (
-        <CaregiverCapabilityModal
-          isOpen={caregiverModalOpen}
-          onClose={() => setCaregiverModalOpen(false)}
-          scope="tenant"
-          accountId={selectedTeacher.account_id?.toString() ?? ""}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-          onUpdated={async () => {
-            await tenantMutate("database-teachers-list");
-          }}
-        />
-      )}
-
-      {selectedTeacher?.account_id && accessToken && (
-        <MFAAdminOverrideModal
-          isOpen={mfaModalOpen}
-          onClose={() => setMfaModalOpen(false)}
-          bearerToken={accessToken}
-          accountId={selectedTeacher.account_id.toString()}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-        />
-      )}
-
-      {selectedTeacher?.account_id && (
-        <RoleManagementModal
-          isOpen={roleModalOpen}
-          onClose={() => setRoleModalOpen(false)}
-          accountId={selectedTeacher.account_id.toString()}
-          accountLabel={`${selectedTeacher.first_name} ${selectedTeacher.last_name}`}
-          onUpdated={async () => {
-            await tenantMutate("database-teachers-list");
-          }}
-        />
-      )}
     </DatabasePageLayout>
   );
 }

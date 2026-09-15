@@ -11,9 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1420).
@@ -112,18 +110,19 @@ type StaffBalanceAdjustmentService interface {
 }
 
 // adjustmentFreezeReader is implemented by
-// active.StaffMonthBalanceSnapshotRepository (#1417).
+// MonthSnapshots (#1417).
 type adjustmentFreezeReader interface {
-	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error)
+	LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*MonthSnapshot, error)
 }
 
 type staffBalanceAdjustmentService struct {
+	todayFunc      func() timezone.Date
 	adjustmentRepo activeModels.StaffBalanceAdjustmentRepository
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
-	deletionRepo   auditModels.TimeTrackingDeletionRepository
-	broadcaster    realtime.Broadcaster
+	deletionRepo   TimeTrackingDeletionAudit
+	broadcaster    EventPublisher
 	logger         *slog.Logger
 }
 
@@ -138,13 +137,13 @@ func (s *staffBalanceAdjustmentService) SetSnapshotReader(reader adjustmentFreez
 // injection like SetBroadcaster so existing API-layer mocks stay unchanged;
 // a nil repository makes DeleteAdjustment fail — deletes without a trace are
 // exactly the hole this closes.
-func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo TimeTrackingDeletionAudit) {
 	s.deletionRepo = repo
 }
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
 // StaffBalanceAdjustmentService so existing API-layer mocks stay unchanged.
-func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster EventPublisher) {
 	s.broadcaster = broadcaster
 }
 
@@ -157,13 +156,25 @@ func NewStaffBalanceAdjustmentService(
 	monthService WorkTimeMonthService,
 	settings monthSettingsResolver,
 	logger *slog.Logger,
+	today ...func() timezone.Date,
 ) StaffBalanceAdjustmentService {
-	return &staffBalanceAdjustmentService{
+	service := &staffBalanceAdjustmentService{
 		adjustmentRepo: adjustmentRepo,
 		monthService:   monthService,
 		settings:       settings,
 		logger:         logger,
 	}
+	if len(today) > 0 {
+		service.todayFunc = today[0]
+	}
+	return service
+}
+
+func (s *staffBalanceAdjustmentService) today() timezone.Date {
+	if s.todayFunc != nil {
+		return s.todayFunc()
+	}
+	return timezone.TodayDate()
 }
 
 // rejectPreAccountDate fails a booking dated before the account start: such
@@ -172,7 +183,7 @@ func NewStaffBalanceAdjustmentService(
 // resolved against TODAY's chain (the account the KPI shows), mirroring
 // chainAnchor's empty-setting fallback (January 1st of the current year).
 func (s *staffBalanceAdjustmentService) rejectPreAccountDate(ctx context.Context, effectiveDate timezone.Date) error {
-	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(timezone.TodayDate()))
+	anchor, err := resolveAccountAnchor(ctx, s.settings, s.getLogger(), monthOf(s.today()))
 	if err != nil {
 		return fmt.Errorf("failed to resolve account start for adjustment: %w", err)
 	}
@@ -195,7 +206,7 @@ func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, s
 		return nil
 	}
 	year, month := effectiveDate.Year(), int(effectiveDate.Month())
-	snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, year, month)
+	snapshot, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, year, month)
 	if err != nil {
 		return fmt.Errorf("failed to check month close state for adjustment: %w", err)
 	}
@@ -234,7 +245,7 @@ func (s *staffBalanceAdjustmentService) CreateAdjustment(ctx context.Context, st
 	// Mirror the Monatskarte's future bound: beyond it the closing-balance
 	// read has no defined result (and far enough out it fails), so an
 	// unbounded date must be a 400, not a 500 (#1420 review).
-	if horizon := monthOf(timezone.TodayDate()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
+	if horizon := monthOf(s.today()).addMonths(maxFutureMonths); horizon.before(monthOf(req.EffectiveDate)) {
 		return nil, fmt.Errorf(
 			"%w: effective_date %s is more than %d months ahead",
 			ErrAdjustmentInvalid, req.EffectiveDate.String(), maxFutureMonths,
@@ -353,9 +364,9 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if err != nil {
 		return fmt.Errorf("failed to snapshot adjustment for deletion audit: %w", err)
 	}
-	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+	if err := s.deletionRepo.Create(ctx, &TimeTrackingDeletionEvent{
 		StaffID:   staffID,
-		Source:    auditModels.TimeTrackingDeletionSourceBalanceAdjustment,
+		Source:    "balance_adjustment",
 		SourceID:  adjustment.ID,
 		DeletedBy: deletedBy,
 		Payload:   payload,
@@ -416,7 +427,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 	// A reset needs a closed cutoff. Today's sessions, absences, and targets
 	// can still change after this request, which would make the stored delta
 	// stale before the day ends.
-	if !effectiveDate.Before(timezone.TodayDate()) {
+	if !effectiveDate.Before(s.today()) {
 		return nil, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
 	}
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {
@@ -560,7 +571,7 @@ func (s *staffBalanceAdjustmentService) validateOpeningBalance(ctx context.Conte
 	}
 	// Same reasoning as the reset: the Stichtag needs a closed cutoff so the
 	// stored delta cannot go stale before the day ends.
-	if !effectiveDate.Before(timezone.TodayDate()) {
+	if !effectiveDate.Before(s.today()) {
 		return 0, fmt.Errorf("%w: effective_date must be before today", ErrAdjustmentInvalid)
 	}
 	if err := s.rejectPreAccountDate(ctx, effectiveDate); err != nil {

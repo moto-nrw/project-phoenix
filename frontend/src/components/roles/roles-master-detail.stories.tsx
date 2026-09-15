@@ -46,9 +46,9 @@ const meta: Meta<typeof RolesMasterDetail> = {
     selectedRole: null,
     detailLoading: false,
     onSelect: () => {},
-    onEditClick: () => {},
+    onSaveRole: async () => undefined,
     onDeleteClick: () => {},
-    onManagePermissions: () => {},
+    onPermissionsSaved: () => {},
   },
 };
 

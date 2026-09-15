@@ -4,9 +4,8 @@ import {
   type Page,
   test,
 } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
+import { loadSeedAccess } from "../scripts/seed-state";
 import {
   berlinTodayISO,
   parseISODate,
@@ -14,8 +13,6 @@ import {
 } from "../src/lib/date-helpers";
 import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 
-// Chunk 9 des Planung-Redesigns Inkrement 3
-// (docs/planung-redesign/docs/05-dienstplan.md Abschnitt 12): der neue
 // /dienstplan-Bereich (ResourceGrid-Wochenraster, Halbjahres-Sicht,
 // Verschieben-nach, URL-State d/view). Diese Spec prüft die UI-Verdrahtung des
 // Bereichs gegen den lokalen Stack, nicht die Schicht-/Serien-Backend-Semantik
@@ -41,40 +38,7 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 // aktiv, deshalb NIE auf `load`/`networkidle` warten, sondern auf konkrete
 // Selektoren mit `domcontentloaded`.
 
-interface SeedAccess {
-  slug: string;
-  email: string;
-  password: string;
-}
-
-function loadAccess(): SeedAccess | null {
-  const envSlug = process.env.E2E_TENANT_SLUG;
-  const envEmail = process.env.E2E_TEST_EMAIL;
-  const envPassword = process.env.E2E_TEST_PASSWORD;
-  let slug = envSlug;
-  let email = envEmail;
-  let password = envPassword;
-  try {
-    const raw = readFileSync(
-      join(process.cwd(), "..", "backend", ".seed-state.json"),
-      "utf8",
-    );
-    const seed = JSON.parse(raw) as {
-      bootstrap?: { tenant_slug?: string };
-      accounts?: { admin?: Array<{ email?: string; password?: string }> };
-    };
-    const admin = seed.accounts?.admin?.[0];
-    slug = slug ?? seed.bootstrap?.tenant_slug;
-    email = email ?? admin?.email;
-    password = password ?? admin?.password;
-  } catch {
-    // Keine Seed-Datei (z. B. CI ohne lokalen Stack): nur Env-Werte zählen.
-  }
-  if (slug && email && password) return { slug, email, password };
-  return null;
-}
-
-const access = loadAccess();
+const access = loadSeedAccess();
 const base = access ? `http://${access.slug}.localhost:3000` : "";
 const TODAY = berlinTodayISO();
 
@@ -306,7 +270,7 @@ function personRow(page: Page, staff: StaffLite) {
     .filter({ hasText: `${staff.last_name}, ${staff.first_name}` });
 }
 
-test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", () => {
+test.describe("Dienstplan UI-Flow", () => {
   // Diese Flows mutieren dieselbe lokale Dev-DB und lösen mehrere kalte
   // Next.js-Routen aus. Seriell bleiben die Ownership-Snapshots eindeutig und
   // der Dev-Server wird nicht mit sechs parallelen Kompiliervorgängen blockiert.

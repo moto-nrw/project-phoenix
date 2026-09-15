@@ -1,6 +1,6 @@
 "use client";
 
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 
 /**
  * Anzeigemodus der Störungslisten. Der Typ wohnt HIER und nicht in
@@ -38,15 +38,16 @@ export function VertretungListFilter({
     // TabsList, damit die Linie über die volle Kartenbreite läuft, die
     // Beschriftungen aber auf der Textkante der Zeilen darunter stehen.
     <div className="shrink-0">
-      <Tabs
+      <SegmentedControl
+        className="px-3 pt-3"
+        ariaLabel="Liste filtern"
         value={mode}
-        onValueChange={(v) => onModeChange(v as VertretungDayListMode)}
-      >
-        <TabsList variant="line" className="px-3 pt-3">
-          <TabsTrigger value="stoerungen">Nur Störungen</TabsTrigger>
-          <TabsTrigger value="ganzer-tag">{allLabel}</TabsTrigger>
-        </TabsList>
-      </Tabs>
+        onChange={(next) => onModeChange(next as VertretungDayListMode)}
+        items={[
+          { value: "stoerungen", label: "Nur Störungen" },
+          { value: "ganzer-tag", label: allLabel },
+        ]}
+      />
     </div>
   );
 }

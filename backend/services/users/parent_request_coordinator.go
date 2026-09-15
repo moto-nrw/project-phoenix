@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -108,18 +107,6 @@ func ParentRequestVersion(updatedAt time.Time) string {
 		return ""
 	}
 	return updatedAt.UTC().Format(time.RFC3339Nano)
-}
-
-func AbsenceBulkEligible(dates []timezone.Date, today timezone.Date) bool {
-	if len(dates) == 0 {
-		return false
-	}
-	for _, date := range dates {
-		if date.Before(today) {
-			return false
-		}
-	}
-	return true
 }
 
 func (s *ParentRequestCoordinator) BulkApprove(ctx context.Context, input BulkApproveParentRequestsInput) error {

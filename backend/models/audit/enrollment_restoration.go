@@ -3,8 +3,6 @@ package audit
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // EnrollmentRestoration is an append-only, data-minimal audit event written
@@ -13,7 +11,7 @@ import (
 // request_children rows that were flipped back from withdrawn to submitted.
 type EnrollmentRestoration struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
-	base.TenantModel
+	TenantModel
 	RequestID      int64     `bun:"request_id,notnull" json:"request_id"`
 	ChildIDs       []int64   `bun:"child_ids,type:jsonb,notnull" json:"child_ids"`
 	ActorAccountID *int64    `bun:"actor_account_id" json:"actor_account_id,omitempty"`

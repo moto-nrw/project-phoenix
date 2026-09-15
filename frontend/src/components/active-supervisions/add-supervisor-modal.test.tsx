@@ -16,6 +16,7 @@ vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({ success: showSuccess }),
 }));
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     title,

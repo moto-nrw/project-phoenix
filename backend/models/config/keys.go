@@ -1,5 +1,7 @@
 package config
 
+import reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+
 // Settings key constants. Use these instead of string literals to ensure
 // compile-time safety when referencing settings keys across the codebase.
 
@@ -124,7 +126,13 @@ const (
 	KeySessionAbandonedThresholdMin          = "operations.session_abandoned_threshold_minutes"
 	KeySessionInactivityTimeoutMin           = "operations.session_inactivity_timeout_minutes"
 	KeyOperationalOverviewScope              = "operations.operational_overview_scope"
+	KeyAttendanceEditScope                   = "operations.attendance_edit_scope"
+	KeyStudentAbsenceEditScope               = "operations.student_absence_edit_scope"
+	KeyClassArrivalExceptionEditors          = "operations.class_arrival_exception_editors"
+	KeySchoolPortalWriteScope                = "operations.school_portal_write_scope"
 	KeyParentRequestReasonPolicy             = "operations.parent_request_reason_policy"
+	KeyMealRegistrationEnabled               = "operations.meal_registration_enabled"
+	KeyMealRegistrationCutoffTime            = "operations.meal_registration_cutoff_time"
 	KeyStatusFlagClearTime                   = "operations.status_flag_clear_time"
 	KeySickClearMode                         = "operations.sick_clear_mode"
 	KeyExcusedClearMode                      = "operations.excused_clear_mode"
@@ -141,6 +149,8 @@ const (
 	KeyCareConcept                           = "operations.care_concept"
 	KeyRequirePickupOfferingReview           = "operations.require_pickup_offering_review"
 	KeyParentSickNoteEnabled                 = "operations.parent_sick_note_enabled"
+	KeyParentSickReportsEnabled              = "operations.parent_sick_reports_enabled"
+	KeyParentExcusedReportsEnabled           = "operations.parent_excused_reports_enabled"
 	KeyParentSickRequiresApproval            = "operations.parent_sick_requires_approval"
 	KeyParentExcusedRequiresApproval         = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled                    = "operations.parent_notes_enabled"
@@ -149,10 +159,12 @@ const (
 	KeyParentCareModeRequestEnabled          = "operations.parent_care_mode_request_enabled"
 	KeyParentMessageStaffNameVisible         = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled             = "operations.parent_pickup_change_enabled"
+	KeyParentPickupChangeCutoffTime          = "operations.parent_pickup_change_cutoff_time"
 	KeyParentGuardianManagementEnabled       = "operations.parent_guardian_management_enabled"
 	KeyParentMasterDataEditEnabled           = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled        = "operations.parent_master_data_request_enabled"
-	KeyParentRequestGroupLeaderReviewEnabled = "operations.parent_request_group_leader_review_enabled"
+	KeyParentRequestGroupLeaderReviewEnabled = reviewsettings.GroupLeaderEnabled
+	KeyParentAbsenceReviewScope              = "operations.parent_absence_review_scope"
 	KeyParentNewsEnabled                     = "operations.parent_news_enabled"
 	// Whether colleagues at this school can write to each other inside moto
 	// (OGS-internal 1:1 chat, issue #2598). Defaults OFF: a school switches an
@@ -202,6 +214,15 @@ const (
 	KeyNotificationsCareCancelledEmail = "notifications.care_cancelled_email"
 )
 
+// Inherit preserves the old cross-kind group-leader policy until a school
+// explicitly chooses an absence-only scope. Reset restores that policy.
+const (
+	ParentAbsenceReviewScopeInherit      = "inherit"
+	ParentAbsenceReviewScopeAdmins       = "admins"
+	ParentAbsenceReviewScopeGroupLeaders = "group_leaders"
+	ParentAbsenceReviewScopeAllStaff     = "all_staff"
+)
+
 // PresenceMode option values for KeyPresenceMode.
 const (
 	PresenceModeDetailed = "detailed"
@@ -227,6 +248,43 @@ const (
 	// OverviewScopeAllStaff opens every educational group and running module to
 	// administrators and every verified staff member of the tenant.
 	OverviewScopeAllStaff = "all_staff"
+)
+
+// AttendanceEditScope extends attendance actions, not supervision or planning.
+const (
+	AttendanceEditScopeOwn      = "own"
+	AttendanceEditScopeAllStaff = "all_staff"
+)
+
+// StudentAbsenceEditScope controls direct sick and excused reports, not parent review.
+const (
+	StudentAbsenceEditScopeAdmins   = "admins"
+	StudentAbsenceEditScopeAllStaff = "all_staff"
+)
+
+// ClassArrivalExceptionEditors option values for KeyClassArrivalExceptionEditors
+// (#2962). The setting says who may set a class-wide arrival day exception;
+// everybody sees it regardless.
+const (
+	// ClassArrivalExceptionEditorsAdmins limits the write to administrators
+	// (Koordination). It is the default.
+	ClassArrivalExceptionEditorsAdmins = "admins"
+	// ClassArrivalExceptionEditorsAllStaff lets every staff member holding
+	// users:update set one.
+	ClassArrivalExceptionEditorsAllStaff = "all_staff"
+)
+
+// SchoolPortalWriteScope option values for KeySchoolPortalWriteScope (#2970).
+// The OGS decides what a Lehrkraft may write into OGS data through "moto
+// schule"; the default is nothing. A single-select on purpose: the key is
+// meant to carry further school-portal write rights as more values, and a
+// multi-select is built once a second value exists.
+const (
+	// SchoolPortalWriteScopeNone keeps the school portal read-only. Default.
+	SchoolPortalWriteScopeNone = "none"
+	// SchoolPortalWriteScopeClassArrivalExceptions lets a Lehrkraft set the
+	// class-wide arrival day exception (#2962) for her assigned classes.
+	SchoolPortalWriteScopeClassArrivalExceptions = "class_arrival_exceptions"
 )
 
 // ReasonPolicy option values for KeyParentRequestReasonPolicy (#2267). The
@@ -293,8 +351,9 @@ const (
 	KeyEnrollmentAutoInviteGuardianOnApprove            = "enrollment.auto_invite_guardian_on_approval"
 	KeyEnrollmentOfferingChangesEnabled                 = "enrollment.offering_changes_enabled"
 	KeyEnrollmentOfferingChangesLeadDays                = "enrollment.offering_changes_lead_days"
+	KeyEnrollmentParentCourseRequestsEnabled            = "enrollment.parent_course_requests_enabled"
 	KeyEnrollmentDuplicateHandling                      = "enrollment.duplicate_handling"
-	KeyEnrollmentBookingsAuthoritative                  = "enrollment.bookings_authoritative"
+	KeyEnrollmentBookingsAuthoritative                  = reviewsettings.BookingsAuthoritative
 	KeyEnrollmentAllowSubmissionEdit                    = "enrollment.allow_submission_edit"
 	KeyEnrollmentRequireCaptcha                         = "enrollment.require_captcha"
 	KeyEnrollmentRejectedRetentionDays                  = "enrollment.rejected_retention_days"
@@ -410,6 +469,11 @@ const (
 // (for guardians who asked for it) a push. Definitions live in
 // defaults/appointment_reminders.go.
 const (
+	// KeyCalendarCalDAVEnabled controls the read-only personal CalDAV endpoint
+	// for staff. The ordinary iCalendar subscription remains available when it
+	// is false.
+	KeyCalendarCalDAVEnabled = "calendar.caldav_enabled"
+
 	KeyCalendarAppointmentReminderEnabled   = "calendar.appointment_reminder_enabled"
 	KeyCalendarAppointmentReminderLeadHours = "calendar.appointment_reminder_lead_hours"
 )
@@ -444,6 +508,25 @@ const (
 const (
 	PayrollUnitHours = "stunden"
 	PayrollUnitDays  = "tage"
+)
+
+// SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports
+// (#3050). Exactly ONE target per school; the file transferred is the
+// unchanged export file the download produces.
+//
+// Every value is empty by default — an incomplete configuration means "not
+// set up", and no transfer is started. There is deliberately no environment
+// fallback and no host-key exception: the fingerprint is mandatory, and an
+// unknown or changed key aborts the transfer. Definitions live in
+// defaults/sftp.go, resolution in services/config/sftp_target_service.go.
+const (
+	KeySFTPEnabled            = "sftp.enabled"
+	KeySFTPHost               = "sftp.host"
+	KeySFTPPort               = "sftp.port"
+	KeySFTPUsername           = "sftp.username"
+	KeySFTPPassword           = "sftp.password"
+	KeySFTPRemoteDirectory    = "sftp.remote_directory"
+	KeySFTPHostKeyFingerprint = "sftp.host_key_fingerprint"
 )
 
 // School file storage (#2596).

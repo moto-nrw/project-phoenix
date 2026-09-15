@@ -78,7 +78,7 @@ describe("useRequirePermission", () => {
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
-  it("redirects an authenticated user who lacks the permission to /dashboard", () => {
+  it("redirects an authenticated user who lacks the permission to /home", () => {
     mockUseSession.mockReturnValue({
       data: { user: { id: "1" } },
       status: "authenticated",
@@ -87,7 +87,7 @@ describe("useRequirePermission", () => {
     const { result } = renderHook(() => useRequirePermission("users:update"));
 
     expect(result.current.isReady).toBe(false);
-    expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/home");
   });
 
   it("is ready when the user holds any permission of an array", () => {
@@ -119,7 +119,7 @@ describe("useRequirePermission", () => {
     );
 
     expect(result.current.isReady).toBe(false);
-    expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/home");
   });
 
   it("is ready when a predicate accepts the session", () => {
@@ -147,7 +147,7 @@ describe("useRequirePermission", () => {
     const { result } = renderHook(() => useRequirePermission(() => false));
 
     expect(result.current.isReady).toBe(false);
-    expect(mockRedirect).toHaveBeenCalledWith("/dashboard");
+    expect(mockRedirect).toHaveBeenCalledWith("/home");
   });
 
   it("does not redirect while unauthenticated (NextAuth's required:true owns that)", () => {

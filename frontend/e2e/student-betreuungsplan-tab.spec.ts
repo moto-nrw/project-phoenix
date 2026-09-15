@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+
+import { loadSeedAccess } from "../scripts/seed-state";
 
 // Smoke-Test des kindbezogenen Betreuungsplan-Tabs auf students/[id]
 // (Kinderprofil-Planansicht). Prüft die End-to-End-Verdrahtung: der Tab
@@ -14,37 +14,7 @@ import { join } from "node:path";
 // backend/.seed-state.json; E2E_TENANT_SLUG / E2E_TEST_EMAIL / E2E_TEST_PASSWORD
 // überschreiben sie. Ohne verwertbare Werte überspringt die Spec.
 
-interface SeedAccess {
-  slug: string;
-  email: string;
-  password: string;
-}
-
-function loadAccess(): SeedAccess | null {
-  let slug = process.env.E2E_TENANT_SLUG;
-  let email = process.env.E2E_TEST_EMAIL;
-  let password = process.env.E2E_TEST_PASSWORD;
-  try {
-    const raw = readFileSync(
-      join(process.cwd(), "..", "backend", ".seed-state.json"),
-      "utf8",
-    );
-    const seed = JSON.parse(raw) as {
-      bootstrap?: { tenant_slug?: string };
-      accounts?: { admin?: Array<{ email?: string; password?: string }> };
-    };
-    const admin = seed.accounts?.admin?.[0];
-    slug = slug ?? seed.bootstrap?.tenant_slug;
-    email = email ?? admin?.email;
-    password = password ?? admin?.password;
-  } catch {
-    // Keine Seed-Datei (z. B. CI ohne lokalen Stack): nur Env-Werte zählen.
-  }
-  if (slug && email && password) return { slug, email, password };
-  return null;
-}
-
-const access = loadAccess();
+const access = loadSeedAccess();
 const base = access ? `http://${access.slug}.localhost:3000` : "";
 const DATA = { timeout: 15000 } as const;
 

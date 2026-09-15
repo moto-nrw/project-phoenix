@@ -2,18 +2,17 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+
 	"github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,80 +25,50 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 
 	statuses := make(map[int64]*AttendanceStatus, len(studentIDs))
 
-	attendanceRecords, err := s.AttendanceRepo.GetTodayByStudentIDs(ctx, studentIDs)
+	if s.SchoolPresence == nil {
+		return nil, &ActiveError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
+	}
+	today := s.todayDate()
+	attendanceRecords, err := s.SchoolPresence.ListSchoolStatuses(ctx, studentIDs, today.String())
 	if err != nil {
 		return nil, &ActiveError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
 	}
-	if attendanceRecords == nil {
-		attendanceRecords = make(map[int64]*active.Attendance)
-	}
-
-	today := s.todayDate()
-
-	for _, studentID := range studentIDs {
+	for _, attendance := range attendanceRecords {
 		status := &AttendanceStatus{
-			StudentID: studentID,
-			Status:    "not_checked_in",
-			Date:      today,
+			StudentID:    attendance.StudentID,
+			Status:       attendance.Status,
+			Date:         today,
+			CheckInTime:  attendance.CheckInTime,
+			CheckOutTime: attendance.CheckOutTime,
+			YardSince:    attendance.YardSince,
 		}
-
-		if attendance, ok := attendanceRecords[studentID]; ok && attendance != nil {
-			status.Date = attendance.Date
-			status.CheckInTime = &attendance.CheckInTime
-			status.CheckOutTime = attendance.CheckOutTime
-			status.YardSince = attendance.YardSince
-			status.Status = deriveAttendanceStatus(attendance)
-		}
-
-		statuses[studentID] = status
+		statuses[attendance.StudentID] = status
 	}
 
 	return statuses, nil
 }
 
-// deriveAttendanceStatus turns the attendance row's timestamp combination into
-// one of "checked_out", "on_yard", or "checked_in". Precedence: a checkout
-// time always wins (the student has formally left school), then yard_since
-// (on premises but outside the building), else the default checked_in.
-func deriveAttendanceStatus(a *active.Attendance) string {
-	if a.CheckOutTime != nil {
-		return "checked_out"
-	}
-	if a.YardSince != nil {
-		return "on_yard"
-	}
-	return "checked_in"
-}
-
 // GetStudentAttendanceStatus gets today's latest attendance record and determines status
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
-	attendance, err := s.AttendanceRepo.GetStudentCurrentStatus(ctx, studentID)
-	if err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActiveError{Op: "GetStudentAttendanceStatus", Err: ErrDatabaseOperation}
-		}
-		return &AttendanceStatus{
-			StudentID: studentID,
-			Status:    "not_checked_in",
-			Date:      s.todayDate(),
-		}, nil
+	if s.SchoolPresence == nil {
+		return nil, &ActiveError{Op: "GetStudentAttendanceStatus", Err: ErrDatabaseOperation}
 	}
+	today := s.todayDate()
+	statuses, err := s.SchoolPresence.ListSchoolStatuses(ctx, []int64{studentID}, today.String())
+	if err != nil || len(statuses) != 1 {
+		return nil, &ActiveError{Op: "GetStudentAttendanceStatus", Err: ErrDatabaseOperation}
+	}
+	attendance := statuses[0]
 
 	result := &AttendanceStatus{
 		StudentID:    studentID,
-		Status:       deriveAttendanceStatus(attendance),
-		Date:         attendance.Date,
-		CheckInTime:  &attendance.CheckInTime,
+		Status:       attendance.Status,
+		Date:         today,
+		CheckInTime:  attendance.CheckInTime,
 		CheckOutTime: attendance.CheckOutTime,
 		YardSince:    attendance.YardSince,
 	}
 
-	s.populateAttendanceStaffNames(ctx, result, attendance)
-	return result, nil
-}
-
-// populateAttendanceStaffNames populates staff names for check-in and check-out
-func (s *service) populateAttendanceStaffNames(ctx context.Context, result *AttendanceStatus, attendance *active.Attendance) {
 	if attendance.CheckedInBy > 0 {
 		result.CheckedInBy = s.getStaffNameByID(ctx, attendance.CheckedInBy)
 	}
@@ -107,21 +76,16 @@ func (s *service) populateAttendanceStaffNames(ctx context.Context, result *Atte
 	if attendance.CheckedOutBy != nil && *attendance.CheckedOutBy > 0 {
 		result.CheckedOutBy = s.getStaffNameByID(ctx, *attendance.CheckedOutBy)
 	}
+	return result, nil
 }
 
 // getStaffNameByID retrieves staff member's full name by ID
 func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
-	staff, err := s.StaffRepo.FindByID(ctx, staffID)
-	if err != nil || staff == nil {
+	name, err := s.StaffNames.StaffName(ctx, staffID)
+	if err != nil {
 		return ""
 	}
-
-	person, err := s.UsersService.Get(ctx, staff.PersonID)
-	if err != nil || person == nil {
-		return ""
-	}
-
-	return fmt.Sprintf("%s %s", person.FirstName, person.LastName)
+	return name
 }
 
 // ToggleStudentAttendance toggles the attendance state (check-in or check-out)
@@ -133,6 +97,19 @@ func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
 // because the second caller's internal re-read sees the first caller's
 // commit and flips the action.
 func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+	var result *AttendanceResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.toggleStudentAttendance(txCtx, studentID, staffID, deviceID, skipAuthCheck)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
 	authorizedStaffID, err := s.authorizeAttendanceToggle(ctx, studentID, staffID, deviceID, skipAuthCheck)
 	if err != nil {
 		return nil, err
@@ -168,8 +145,8 @@ func (s *service) ToggleStudentAttendance(ctx context.Context, studentID, staffI
 
 // attendanceStampSource picks the work-session source channel for the
 // presence auto-stamp: kiosk-driven requests stamp as nfc, web requests as app.
-func attendanceStampSource(ctx context.Context) string {
-	if device.IsIoTDeviceRequest(ctx) {
+func (s *service) attendanceStampSource(ctx context.Context) string {
+	if s.attendancePrincipal(ctx).IsIoT {
 		return active.WorkSessionSourceNFC
 	}
 	return active.WorkSessionSourceApp
@@ -183,7 +160,7 @@ func (s *service) ensureStaffPresenceForAttendanceResult(
 	if result == nil || (result.Action == "checked_out" && result.AttendanceID == 0) {
 		return
 	}
-	s.ensureStaffPresence(ctx, staffID, attendanceStampSource(ctx))
+	s.ensureStaffPresence(ctx, staffID, s.attendanceStampSource(ctx))
 }
 
 // ensureStaffPresence best-effort-opens today's work session for the staff
@@ -221,6 +198,19 @@ func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source
 // index, so the loser of an in/in race is absorbed and reports the existing
 // open row as the canonical result. Action is always "checked_in".
 func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+	var result *AttendanceResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.checkInStudent(txCtx, studentID, staffID, deviceID, skipAuthCheck)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) checkInStudent(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (*AttendanceResult, error) {
 	authorizedStaffID, err := s.authorizeAttendanceToggle(ctx, studentID, staffID, deviceID, skipAuthCheck)
 	if err != nil {
 		return nil, err
@@ -245,6 +235,19 @@ func (s *service) CheckInStudent(ctx context.Context, studentID, staffID, device
 // timestamps for display. Any open room visit is ended as part of the same
 // operation (issue #895) — callers don't need a separate EndVisit call.
 func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
+	var result *AttendanceResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.checkOutStudent(txCtx, studentID, staffID, skipAuthCheck)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64, skipAuthCheck bool) (*AttendanceResult, error) {
 	// Auth path is shared with the toggle — pass deviceID=0 because the
 	// caller is web-side (no kiosk involved); IsIoTDeviceRequest is false
 	// for web so authorizeWebToggle runs and validates teacher access.
@@ -268,8 +271,8 @@ func (s *service) CheckOutStudent(ctx context.Context, studentID, staffID int64,
 // when neither exists, the authenticated device remains the audit principal.
 func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error) {
 	staffID := int64(0)
-	if authenticatedStaff := device.StaffFromCtx(ctx); authenticatedStaff != nil {
-		staffID = authenticatedStaff.ID
+	if principal := s.attendancePrincipal(ctx); principal.HasStaff {
+		staffID = principal.StaffID
 	} else {
 		resolvedStaffID, err := s.getDeviceSupervisorID(ctx, deviceID)
 		if err != nil {
@@ -288,8 +291,17 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 			staffID = resolvedStaffID
 		}
 	}
-	now := time.Now()
-	return s.performCheckOut(ctx, studentID, staffID, deviceID, now, timezone.DateFromTime(now), checkoutTypeDaily)
+	var result *AttendanceResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		now := time.Now()
+		var err error
+		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, timezone.DateFromTime(now), checkoutTypeDaily)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // authorizeAttendanceToggle handles authorization and returns the staff ID to use
@@ -298,7 +310,7 @@ func (s *service) authorizeAttendanceToggle(ctx context.Context, studentID, staf
 		return staffID, nil
 	}
 
-	isIoTDevice := device.IsIoTDeviceRequest(ctx)
+	isIoTDevice := s.attendancePrincipal(ctx).IsIoT
 
 	if isIoTDevice {
 		return s.authorizeIoTDeviceToggle(ctx, deviceID)
@@ -340,6 +352,10 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 // A check-in that actually opened a row fans out over SSE after the request
 // transaction commits (#2113); the absorbed one stays silent.
 func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date, checkinType string) (*AttendanceResult, error) {
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
 	// Reject (and lock against a concurrent graduation) a graduated alumnus
 	// before writing attendance — the binary-mode / attendance-toggle counterpart
 	// to the CreateVisit guard (#405).
@@ -347,17 +363,20 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
 
-	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
-	attendance := &active.Attendance{
+	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
+	if err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	attendance := studentpresence.Attendance{
 		StudentID:   studentID,
-		Date:        today,
+		Date:        today.String(),
 		CheckInTime: now,
 		CheckedInBy: staffID,
 		DeviceID:    resolvedDeviceID,
 	}
-	attendance.SetTenantID(tenant.FromContext(ctx))
+	attendance.TenantID = tenant.FromContext(ctx)
 
-	inserted, err := s.AttendanceRepo.CreateIfNoOpenForToday(ctx, attendance)
+	attendance, inserted, err := s.SchoolPresence.EnsureAttendance(ctx, attendance)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
@@ -370,7 +389,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		// date, not a re-derived "today" (review #2372): a batch crossing
 		// Berlin midnight after its insert conflict would otherwise query the
 		// next day, find no row, and abort an otherwise idempotent batch.
-		rows, fetchErr := s.AttendanceRepo.FindForDateByStudentIDs(ctx, today, []int64{studentID})
+		rows, fetchErr := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
 		if fetchErr != nil {
 			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
 		}
@@ -383,11 +402,19 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		// Rows come back check_in_time ASC — the last one is the open row the
 		// concurrent winner created.
 		existing := rows[len(rows)-1]
-		s.autoClearStudentSickness(ctx, studentID)
-		s.autoClearStudentExcused(ctx, studentID)
-		s.autoClearPlannedStudentStatuses(ctx, studentID)
-		if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
-			s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, existing.CheckInTime)
+		if err := s.autoClearStudentSickness(ctx, studentID); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+		if err := s.autoClearStudentExcused(ctx, studentID); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+		if err := s.autoClearPlannedStudentStatuses(ctx, studentID); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+		}
+		if mode == PresenceModeBinary && s.AttendanceSyncer != nil {
+			if _, err := s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, existing.CheckInTime); err != nil {
+				return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync existing roomless check-in: %w", err)}
+			}
 		}
 		return &AttendanceResult{
 			Action:       "checked_in",
@@ -398,17 +425,25 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		}, nil
 	}
 
-	s.autoClearStudentSickness(ctx, studentID)
-	s.autoClearStudentExcused(ctx, studentID)
-	s.autoClearPlannedStudentStatuses(ctx, studentID)
-	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
-		s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, now)
+	if err := s.autoClearStudentSickness(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.autoClearStudentExcused(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.autoClearPlannedStudentStatuses(ctx, studentID); err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if mode == PresenceModeBinary && s.AttendanceSyncer != nil {
+		if _, err := s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, now); err != nil {
+			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync roomless check-in: %w", err)}
+		}
 	}
 
 	s.registerCheckinBroadcast(ctx, studentID, checkinType)
 
 	s.trackProductEvent(ctx, "student_checked_in", map[string]any{
-		"method": attendanceMethod(ctx),
+		"method": s.attendanceMethod(ctx),
 	})
 
 	return &AttendanceResult{
@@ -432,7 +467,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 // row so callers can mirror the same checkout into slot attendance. A missing
 // or newer-day visit returns nil; every other failure propagates so the
 // request transaction rolls back.
-func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day timezone.Date) (*active.Visit, error) {
+func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day timezone.Date) (*studentpresence.Visit, error) {
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, ErrVisitNotFound) {
@@ -443,18 +478,20 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 	if timezone.DateFromTime(visit.EntryTime).After(day) {
 		return nil, nil
 	}
-	if err := s.VisitRepo.EndVisit(ctx, visit.ID); err != nil {
-		latest, findErr := s.VisitRepo.FindByID(ctx, visit.ID)
-		if findErr == nil && latest != nil && latest.ExitTime != nil {
-			return latest, nil
-		}
+	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{visit.ID}, time.Now())
+	if err != nil {
 		return nil, err
 	}
-	ended, err := s.VisitRepo.FindByID(ctx, visit.ID)
-	if err != nil || ended == nil || ended.ExitTime == nil {
-		if err != nil {
-			return nil, err
-		}
+	if len(closed) != 0 {
+		return &closed[0], nil
+	}
+	// A successful state-checked close can affect no rows when another
+	// caller already closed the interval. Resolve that state, never a write error.
+	ended, err := s.SchoolPresence.FindVisit(ctx, visit.ID)
+	if err != nil {
+		return nil, err
+	}
+	if ended == nil || ended.ExitTime == nil {
 		return nil, ErrVisitNotFound
 	}
 	return ended, nil
@@ -481,10 +518,14 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID, checkoutDeviceID int64, now time.Time, today timezone.Date, checkoutType string) (*AttendanceResult, error) {
-	if err := s.AttendanceRepo.LockStudentAttendance(ctx, studentID); err != nil {
+	mode, err := s.GetPresenceMode(ctx)
+	if err != nil {
+		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if err := s.SchoolPresence.LockStudentAttendance(ctx, studentID); err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("lock attendance checkout: %w", err)}
 	}
-	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, today, staffID, checkoutDeviceID)
+	closedRows, err := s.SchoolPresence.CloseAttendance(ctx, studentpresence.AttendanceCheckout{StudentIDs: []int64{studentID}, Date: today.String(), At: now, StaffID: staffID, DeviceID: checkoutDeviceID})
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
@@ -496,7 +537,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 
 	var snapshot *AttendanceSnapshot
 	if s.AttendanceSyncer != nil {
-		if s.GetPresenceMode(ctx) == "binary" {
+		if mode == PresenceModeBinary {
 			// Binary mode has no visit provenance, so close the latest mirrored
 			// open slot. Run this even for idempotent attendance checkout to heal
 			// slot rows left open by older code — but only while the checkout
@@ -506,15 +547,20 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 			// day whose attendance this checkout never touched (review #2372,
 			// same day-scoping as the visit cleanup above).
 			if timezone.DateFromTime(now) == today {
-				s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
+				if err := s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now); err != nil {
+					return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync roomless checkout: %w", err)}
+				}
 			}
 		} else if endedVisit != nil {
 			// Detailed mode has exact source provenance through the ended visit.
-			snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
+			snapshot, err = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, presenceVisitSnapshot(endedVisit))
+			if err != nil {
+				return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync visit checkout: %w", err)}
+			}
 		}
 	}
 
-	if closed == nil {
+	if len(closedRows) == 0 {
 		// No open row — student is already checked out (or never checked in
 		// today). An orphaned visit may still have moved, so broadcast that
 		// checkout; only a true no-op stays silent.
@@ -532,13 +578,13 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 	s.registerCheckoutBroadcast(ctx, studentID, endedVisit, snapshot, checkoutType)
 
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
-		"method":        attendanceMethod(ctx),
+		"method":        s.attendanceMethod(ctx),
 		"checkout_type": checkoutType,
 	})
 
 	return &AttendanceResult{
 		Action:       "checked_out",
-		AttendanceID: closed.ID,
+		AttendanceID: closedRows[0].ID,
 		StudentID:    studentID,
 		Timestamp:    now,
 		Changed:      true,
@@ -572,7 +618,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 func (s *service) registerCheckoutBroadcast(
 	ctx context.Context,
 	studentID int64,
-	endedVisit *active.Visit,
+	endedVisit *studentpresence.Visit,
 	snapshot *AttendanceSnapshot,
 	checkoutType string,
 ) {
@@ -584,7 +630,7 @@ func (s *service) registerCheckoutBroadcast(
 		return
 	}
 
-	studentRec := s.getStudentForSSE(ctx, studentID)
+	educationGroupID := s.getEducationGroupForSSE(ctx, studentID)
 
 	tenant.RegisterAfterCommit(ctx, func() {
 		if endedVisit != nil {
@@ -594,10 +640,10 @@ func (s *service) registerCheckoutBroadcast(
 			if checkoutType == checkoutTypeDaily {
 				source = dailyCheckoutSource
 			}
-			s.emitVisitCheckout(ctx, endedVisit, snapshot, studentRec, source)
+			s.emitVisitCheckout(ctx, endedVisit, snapshot, educationGroupID, source)
 			return
 		}
-		s.emitRoomlessCheckout(ctx, studentID, studentRec, checkoutSourceLabel(checkoutType))
+		s.emitRoomlessCheckout(ctx, studentID, educationGroupID, checkoutSourceLabel(checkoutType))
 	})
 }
 
@@ -625,10 +671,10 @@ func (s *service) registerCheckinBroadcast(ctx context.Context, studentID int64,
 		return
 	}
 
-	studentRec := s.getStudentForSSE(ctx, studentID)
+	educationGroupID := s.getEducationGroupForSSE(ctx, studentID)
 
 	tenant.RegisterAfterCommit(ctx, func() {
-		s.emitRoomlessCheckin(ctx, studentID, studentRec, checkinType)
+		s.emitRoomlessCheckin(ctx, studentID, educationGroupID, checkinType)
 	})
 }
 
@@ -659,9 +705,10 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	}
 
 	// Get supervisors for the active group
-	supervisors, err := s.FindSupervisorsByActiveGroupID(ctx, activeGroup.ID)
+	day := timezone.TodayDate().String()
+	supervisors, err := s.SchoolPresence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
 	if err != nil {
-		return 0, fmt.Errorf("failed to get supervisors for group %d: %w", activeGroup.ID, err)
+		return 0, fmt.Errorf("failed to get supervisors for group %d: %w", activeGroup.ID, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation})
 	}
 
 	if len(supervisors) == 0 {
@@ -669,53 +716,28 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	}
 
 	// Use first active supervisor
-	now := time.Now()
+	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
-		if IsSupervisorActive(supervisor, now) {
+		start, err := timezone.ParseDate(supervisor.StartDate)
+		if err != nil {
+			return 0, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
+		}
+		if start.After(today) {
+			continue
+		}
+		if supervisor.EndDate == nil {
+			return supervisor.StaffID, nil
+		}
+		end, err := timezone.ParseDate(*supervisor.EndDate)
+		if err != nil {
+			return 0, &ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: ErrDatabaseOperation}
+		}
+		if today.Before(end) {
 			return supervisor.StaffID, nil
 		}
 	}
 
 	return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active supervisors found in group %d", activeGroup.ID)}
-}
-
-// CheckTeacherStudentAccess checks if a teacher has access to mark attendance for a student
-func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
-	// Get teacher from staff ID
-	teacher, err := s.TeacherRepo.FindByStaffID(ctx, teacherID)
-	if err != nil {
-		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
-	}
-	if teacher == nil {
-		return false, nil
-	}
-
-	// Get teacher's groups via educationService
-	teacherGroups, err := s.EducationService.GetTeacherGroups(ctx, teacher.ID)
-	if err != nil {
-		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
-	}
-
-	// Get student info
-	student, err := s.StudentRepo.FindByID(ctx, studentID)
-	if err != nil {
-		if base.IsNoRows(err) {
-			return false, nil
-		}
-		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
-	}
-	if student == nil || student.GroupID == nil {
-		return false, nil
-	}
-
-	// Check if student.GroupID is in teacher's groups
-	for _, group := range teacherGroups {
-		if group.ID == *student.GroupID {
-			return true, nil
-		}
-	}
-
-	return false, nil
 }
 
 // emitRoomlessCheckout publishes a checkout that has no room context. Used when
@@ -725,10 +747,10 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 func (s *service) emitRoomlessCheckout(
 	ctx context.Context,
 	studentID int64,
-	studentRec *userModels.Student,
+	educationGroupID *int64,
 	source string,
 ) {
-	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckOut, studentID, studentRec, source)
+	s.emitRoomlessAttendanceChange(ctx, false, studentID, educationGroupID, source)
 }
 
 // emitRoomlessCheckin publishes a check-in that has no room context: attendance
@@ -740,10 +762,10 @@ func (s *service) emitRoomlessCheckout(
 func (s *service) emitRoomlessCheckin(
 	ctx context.Context,
 	studentID int64,
-	studentRec *userModels.Student,
+	educationGroupID *int64,
 	source string,
 ) {
-	s.emitRoomlessAttendanceChange(ctx, realtime.EventStudentCheckIn, studentID, studentRec, source)
+	s.emitRoomlessAttendanceChange(ctx, true, studentID, educationGroupID, source)
 }
 
 // emitRoomlessAttendanceChange publishes an attendance change with no room
@@ -755,33 +777,24 @@ func (s *service) emitRoomlessCheckin(
 // emitVisitCheckout — see its doc comment.
 func (s *service) emitRoomlessAttendanceChange(
 	ctx context.Context,
-	eventType realtime.EventType,
+	checkIn bool,
 	studentID int64,
-	studentRec *userModels.Student,
+	educationGroupID *int64,
 	source string,
 ) {
 	if s.Broadcaster == nil {
 		return
 	}
 
-	studentIDStr := fmt.Sprintf("%d", studentID)
-	eduGroupIDs := eduGroupIDsOf(studentRec)
+	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	data := realtime.EventData{
-		StudentID: &studentIDStr,
-		Source:    &source,
-	}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-	event := realtime.NewEvent(
-		eventType,
-		"", // no active group — the child is not in a room
-		data,
-	)
-
-	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page updates
-	s.broadcastToEducationalGroup(ctx, studentRec, event)
+	// Broadcast to educational (OGS) group topic so the "Meine Gruppe" page
+	// updates. The source is always carried, even when empty.
+	realtimeevents.PublishRoomlessAttendanceChange(ctx, s.Broadcaster, s.getLogger(), checkIn, realtimeevents.VisitChange{
+		StudentID:        fmt.Sprintf("%d", studentID),
+		EducationGroupID: educationGroupID,
+		Source:           source,
+	})
 
 	// Notify every client of the tenant so dashboard counts and the search
 	// page refresh — the educational group broadcast only reaches staff in
@@ -802,6 +815,19 @@ func (s *service) emitRoomlessAttendanceChange(
 // student is still "checked_in"; a concurrent checkout is treated as an
 // idempotent no-op.
 func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error) {
+	var result *DailyCheckoutResult
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.confirmDailyCheckout(txCtx, studentID, deviceID, destination)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *service) confirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error) {
 	s.getLogger().InfoContext(ctx, "confirming daily checkout",
 		slog.Int64("student_id", studentID),
 		slog.String("destination", destination),
@@ -865,61 +891,90 @@ func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID 
 // GetUnclaimedActiveGroups returns all active groups that have no supervisors
 // This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
 func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	groups, err := s.GroupRepo.FindUnclaimed(ctx)
+	rows, err := s.SchoolPresence.UnclaimedGroups(ctx, s.todayDate().String())
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
-
+	groups := make([]*active.Group, 0, len(rows))
+	if len(rows) == 0 {
+		return groups, nil
+	}
+	roomIDs, templateIDs := make([]int64, 0, len(rows)), make([]int64, 0, len(rows))
+	for _, row := range rows {
+		roomIDs = append(roomIDs, row.RoomID)
+		if row.GroupID != nil {
+			templateIDs = append(templateIDs, *row.GroupID)
+		}
+	}
+	rooms, err := s.RoomRepo.FindByIDs(ctx, roomIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
+	}
+	templates, err := s.ActivityGroupRepo.FindByIDs(ctx, templateIDs)
+	if err != nil {
+		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
+	}
+	roomsByID := make(map[int64]*active.SessionRoom, len(rooms))
+	for _, room := range rooms {
+		roomsByID[room.ID] = room
+	}
+	templatesByID := make(map[int64]*active.SessionActivity, len(templates))
+	for _, template := range templates {
+		// This endpoint historically includes the template without its category relation.
+		copy := *template
+		copy.Category = nil
+		templatesByID[copy.ID] = &copy
+	}
+	for _, row := range rows {
+		group := &active.Group{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, StartTime: row.StartTime, EndTime: row.EndTime, LastActivity: row.LastActivity, TimeoutMinutes: row.TimeoutMinutes, GroupID: row.GroupID, DeviceID: row.DeviceID, RoomID: row.RoomID}
+		group.SetTenantID(row.TenantID)
+		group.Room = roomsByID[row.RoomID]
+		if group.Room == nil || group.Room.Name != "Schulhof" {
+			continue
+		}
+		if row.GroupID != nil {
+			group.ActualGroup = templatesByID[*row.GroupID]
+		}
+		groups = append(groups, group)
+	}
 	return groups, nil
 }
 
 // ClaimActiveGroup allows a staff member to claim supervision of an active group
 // This is primarily used for deviceless rooms like Schulhof
 func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
-	// Lock the group while checking its lifecycle and creating the supervisor.
-	// Planned-session absorption takes the same lock before deciding that an
-	// open, unsupervised group can be folded into the new session. This prevents
-	// a claim from committing on a group that absorption ended while the claim
-	// was in flight.
-	group, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
-	if err != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
-	}
-	if group == nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
-	}
-
-	if group.EndTime != nil {
-		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("cannot claim ended group")}
-	}
-
-	// Check if staff is already supervising this group (only check active supervisors)
-	existingSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
-	if err == nil {
-		for _, sup := range existingSupervisors {
-			if sup.StaffID == staffID {
-				return nil, &ActiveError{Op: "ClaimActiveGroup", Err: ErrStaffAlreadySupervising}
-			}
-		}
-	}
-
-	// Create supervisor assignment
 	if role == "" {
 		role = "supervisor"
 	}
-
-	supervisor := &active.GroupSupervisor{
-		StaffID:   staffID,
-		GroupID:   groupID,
-		Role:      role,
-		StartDate: s.todayDate(),
-		// EndDate is nil (active supervision)
+	var result *active.GroupSupervisor
+	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.lockStaffForSupervision(txCtx, staffID); err != nil {
+			return err
+		}
+		row, err := s.SchoolPresence.ClaimGroup(txCtx, studentpresence.GroupClaim{GroupID: groupID, StaffID: staffID, Role: role, Date: s.todayDate().String()})
+		switch {
+		case errors.Is(err, studentpresence.ErrAlreadySupervising):
+			return ErrStaffAlreadySupervising
+		case errors.Is(err, studentpresence.ErrGroupNotFound), errors.Is(err, studentpresence.ErrGroupEnded):
+			return err
+		case err != nil:
+			return ErrDatabaseOperation
+		}
+		date, err := timezone.ParseDate(row.StartDate)
+		if err != nil {
+			return err
+		}
+		result = &active.GroupSupervisor{Model: base.Model{ID: row.ID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt}, GroupID: row.GroupID, StaffID: row.StaffID, Role: row.Role, StartDate: date}
+		result.SetTenantID(row.TenantID)
+		source := active.WorkSessionSourceApp
+		if s.attendancePrincipal(txCtx).IsIoT {
+			source = active.WorkSessionSourceNFC
+		}
+		s.ensureStaffPresence(txCtx, staffID, source)
+		return nil
+	})
+	if err != nil {
+		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: err}
 	}
-
-	// Use existing CreateGroupSupervisor method for validation and creation
-	if err := s.CreateGroupSupervisor(ctx, supervisor); err != nil {
-		return nil, err
-	}
-
-	return supervisor, nil
+	return result, nil
 }

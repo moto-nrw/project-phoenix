@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres"
@@ -15,9 +16,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type SettingsFunc func(context.Context) (bool, error)
-
-func (fn SettingsFunc) MealPlanEnabled(ctx context.Context) (bool, error) { return fn(ctx) }
+type boolSettingsResolver func(context.Context) (bool, error)
+type stringSettingsResolver func(context.Context) (string, error)
 
 type TransactionFunc func(context.Context, func(context.Context) error) error
 
@@ -27,16 +27,29 @@ func (fn TransactionFunc) Run(ctx context.Context, callback func(context.Context
 
 type Observation = ports.Observation
 
+type ParticipantCandidate struct {
+	StudentID   int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+type ParticipantFinder func(context.Context, string) ([]ParticipantCandidate, error)
+
 type Dependencies struct {
 	DB       *bun.DB
 	Settings interface {
 		MealPlanEnabled(context.Context) (bool, error)
+		MealRegistrationEnabled(context.Context) (bool, error)
+		MealRegistrationCutoff(context.Context) (string, error)
 	}
-	Observe func(Observation)
+	Observe      func(Observation)
+	Now          func() time.Time
+	Participants ParticipantFinder
 }
 
 func New(dependencies Dependencies) (*mealplan.Module, error) {
-	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Settings == nil || dependencies.Observe == nil || dependencies.Now == nil || dependencies.Participants == nil {
 		return nil, errors.New("meal plan compose: all dependencies are required")
 	}
 	store := postgres.New(func(ctx context.Context) (bun.IDB, int64, error) {
@@ -54,36 +67,79 @@ func New(dependencies Dependencies) (*mealplan.Module, error) {
 		}
 		return tx, tenantID.Int64(), nil
 	})
-	service := application.New(store, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe)
+	service := application.New(store, participantDirectory{find: dependencies.Participants}, dependencies.Settings, TransactionFunc(tenant.NewTransactionRunner().RunInTx), dependencies.Observe, dependencies.Now)
 	return mealplan.NewModule(engine{service: service}), nil
 }
 
+type participantDirectory struct{ find ParticipantFinder }
+
+func (d participantDirectory) FindDailyCandidates(ctx context.Context, date domain.Date) ([]domain.DailyCandidate, domain.OperationStats, error) {
+	started := time.Now()
+	rows, err := d.find(ctx, date.String())
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return nil, stats, err
+	}
+	stats.Rows = int64(len(rows))
+	candidates := make([]domain.DailyCandidate, 0, len(rows))
+	for _, row := range rows {
+		candidates = append(candidates, domain.DailyCandidate{
+			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
+		})
+	}
+	return candidates, stats, nil
+}
+
 type Settings struct {
-	mu      sync.RWMutex
-	resolve SettingsFunc
+	mu                      sync.RWMutex
+	mealPlanEnabled         boolSettingsResolver
+	mealRegistrationEnabled boolSettingsResolver
+	mealRegistrationCutoff  stringSettingsResolver
 }
 
 func NewSettings() *Settings { return &Settings{} }
 
-func (s *Settings) Bind(resolve func(context.Context) (bool, error)) {
-	if resolve == nil {
-		panic("meal plan settings: resolver is required")
+func (s *Settings) Bind(mealPlanEnabled, mealRegistrationEnabled func(context.Context) (bool, error), mealRegistrationCutoff func(context.Context) (string, error)) {
+	if mealPlanEnabled == nil || mealRegistrationEnabled == nil || mealRegistrationCutoff == nil {
+		panic("meal plan settings: resolvers are required")
 	}
 	s.mu.Lock()
-	if s.resolve != nil {
+	if s.mealPlanEnabled != nil {
 		s.mu.Unlock()
-		panic("meal plan settings: resolver is already bound")
+		panic("meal plan settings: resolvers are already bound")
 	}
-	s.resolve = SettingsFunc(resolve)
+	s.mealPlanEnabled = boolSettingsResolver(mealPlanEnabled)
+	s.mealRegistrationEnabled = boolSettingsResolver(mealRegistrationEnabled)
+	s.mealRegistrationCutoff = stringSettingsResolver(mealRegistrationCutoff)
 	s.mu.Unlock()
 }
 
 func (s *Settings) MealPlanEnabled(ctx context.Context) (bool, error) {
 	s.mu.RLock()
-	resolve := s.resolve
+	resolve := s.mealPlanEnabled
 	s.mu.RUnlock()
 	if resolve == nil {
 		return false, errors.New("meal plan settings: resolver is not bound")
+	}
+	return resolve(ctx)
+}
+
+func (s *Settings) MealRegistrationEnabled(ctx context.Context) (bool, error) {
+	s.mu.RLock()
+	resolve := s.mealRegistrationEnabled
+	s.mu.RUnlock()
+	if resolve == nil {
+		return false, errors.New("meal plan settings: resolver is not bound")
+	}
+	return resolve(ctx)
+}
+
+func (s *Settings) MealRegistrationCutoff(ctx context.Context) (string, error) {
+	s.mu.RLock()
+	resolve := s.mealRegistrationCutoff
+	s.mu.RUnlock()
+	if resolve == nil {
+		return "", errors.New("meal plan settings: resolver is not bound")
 	}
 	return resolve(ctx)
 }
@@ -128,9 +184,91 @@ func (e engine) Clear(ctx context.Context, date string) error {
 	return mapError(e.service.Clear(ctx, parsed))
 }
 
+func (e engine) RegistrationAvailable(ctx context.Context) (bool, error) {
+	available, err := e.service.RegistrationAvailable(ctx)
+	return available, mapError(err)
+}
+
+func (e engine) Participation(ctx context.Context, studentID int64, from, to string) (mealplan.ParticipationPlan, error) {
+	start, err := domain.ParseDate(from)
+	if err != nil {
+		return mealplan.ParticipationPlan{}, err
+	}
+	end, err := domain.ParseDate(to)
+	if err != nil {
+		return mealplan.ParticipationPlan{}, err
+	}
+	plan, err := e.service.Participation(ctx, studentID, start, end)
+	if err != nil {
+		return mealplan.ParticipationPlan{}, mapError(err)
+	}
+	return publicParticipationPlan(plan), nil
+}
+
+func (e engine) ReplaceParticipationSchedule(ctx context.Context, studentID, accountID int64, weekdays []mealplan.Weekday) (mealplan.Date, error) {
+	values := make([]domain.Weekday, 0, len(weekdays))
+	for _, weekday := range weekdays {
+		values = append(values, domain.Weekday(weekday))
+	}
+	effectiveFrom, err := e.service.ReplaceParticipationSchedule(ctx, studentID, accountID, values)
+	return mealplan.Date(effectiveFrom.String()), mapError(err)
+}
+
+func (e engine) SetParticipationDay(ctx context.Context, studentID, accountID int64, date string, participating bool) error {
+	parsed, err := domain.ParseDate(date)
+	if err != nil {
+		return err
+	}
+	return mapError(e.service.SetParticipationDay(ctx, studentID, accountID, parsed, participating))
+}
+
+func (e engine) ClearParticipationDay(ctx context.Context, studentID, accountID int64, date string) error {
+	parsed, err := domain.ParseDate(date)
+	if err != nil {
+		return err
+	}
+	return mapError(e.service.ClearParticipationDay(ctx, studentID, accountID, parsed))
+}
+
+func (e engine) DailyParticipants(ctx context.Context, date string) (mealplan.DailyList, error) {
+	parsed, err := domain.ParseDate(date)
+	if err != nil {
+		return mealplan.DailyList{}, err
+	}
+	list, err := e.service.DailyParticipants(ctx, parsed)
+	if err != nil {
+		return mealplan.DailyList{}, mapError(err)
+	}
+	result := mealplan.DailyList{Date: mealplan.Date(list.Date.String()), CutoffTime: list.CutoffTime, Participants: make([]mealplan.DailyParticipant, 0, len(list.Participants))}
+	for _, participant := range list.Participants {
+		result.Participants = append(result.Participants, mealplan.DailyParticipant{StudentID: participant.StudentID, FirstName: participant.FirstName, LastName: participant.LastName, SchoolClass: participant.SchoolClass})
+	}
+	return result, nil
+}
+
+func publicParticipationPlan(plan domain.ParticipationPlan) mealplan.ParticipationPlan {
+	result := mealplan.ParticipationPlan{EffectiveFrom: mealplan.Date(plan.EffectiveFrom.String()), CutoffTime: plan.CutoffTime, Weekdays: make([]mealplan.Weekday, 0, len(plan.Weekdays)), Days: make([]mealplan.ParticipationDay, 0, len(plan.Days))}
+	for _, weekday := range plan.Weekdays {
+		result.Weekdays = append(result.Weekdays, mealplan.Weekday(weekday))
+	}
+	for _, day := range plan.Days {
+		result.Days = append(result.Days, mealplan.ParticipationDay{Date: mealplan.Date(day.Date.String()), Participating: day.Participating, Source: mealplan.ParticipationSource(day.Source), Changeable: day.Changeable})
+	}
+	return result
+}
+
 func mapError(err error) error {
 	if errors.Is(err, application.ErrDisabled) {
 		return mealplan.ErrDisabled
+	}
+	if errors.Is(err, application.ErrRegistrationDisabled) {
+		return mealplan.ErrRegistrationDisabled
+	}
+	if errors.Is(err, application.ErrCutoffPassed) {
+		return mealplan.ErrParticipationCutoff
+	}
+	if errors.Is(err, application.ErrInvalidCutoff) {
+		return mealplan.ErrInvalidParticipation
 	}
 	return err
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -38,13 +39,14 @@ type Resource struct {
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
+	AppEnv                     string
 	AuthService                platformSvc.OperatorAuthService
 	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
 	ProvisioningService        platformSvc.OperatorProvisioningService
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
-	AnnouncementsService       platformSvc.AnnouncementService
+	AnnouncementsService       communication.Capability
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
 	SettingsService            configSvc.SettingsService
 	// Broadcaster is optional. When supplied, the inner SettingsResource emits
@@ -120,6 +122,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		tokenAuth:             tokenAuth,
 		operatorLookup:        cfg.AuthService,
 	}
+	resource.provisioningResource.appEnv = cfg.AppEnv
 	if cfg.SettingsService != nil {
 		resource.settingsResource = NewSettingsResource(cfg.SettingsService, cfg.DB, cfg.Broadcaster, cfg.SchoolService, cfg.ActiveService, cfg.CareLifecycle)
 	}
@@ -216,6 +219,7 @@ func (rs *Resource) mountProtectedRoutes(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(RequiresOperatorScope)
 		r.Use(common.SecurityPrincipalMiddleware)
 		r.Use(RequiresActiveOperator(rs.operatorLookup))

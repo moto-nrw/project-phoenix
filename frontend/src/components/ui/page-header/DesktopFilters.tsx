@@ -2,6 +2,8 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { normalizeFilterValues, type FilterConfig } from "./types";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 
 interface DesktopFiltersProps {
   readonly filters: ReadonlyArray<FilterConfig>;
@@ -31,34 +33,51 @@ function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
   }
 
   if (filter.type === "buttons") {
-    const isMulti = !!filter.multiSelect;
     const selectedValues = normalizeFilterValues(filter.value);
-    return (
-      <div className="flex h-10 rounded-xl bg-white p-1 shadow-sm">
-        {filter.options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => {
-              if (isMulti) {
-                const next = selectedValues.includes(option.value)
-                  ? selectedValues.filter((v) => v !== option.value)
-                  : [...selectedValues, option.value];
-                filter.onChange(next);
-              } else {
-                filter.onChange(option.value);
+
+    // Mehrfachauswahl ist eine Reihe einzeln schaltbarer Merkmale, keine
+    // Umschaltleiste. Vorher trug sie die Optik des SegmentedControls und
+    // stand damit als zweite, gleich aussehende Reiterleiste über den echten
+    // Reitern der Seite (Anfragen: "Stammdaten | Betreuungszeiten | …" direkt
+    // über "Eltern | Mitarbeitende"). Das Kit trennt beides ausdrücklich:
+    // SegmentedControl wählt GENAU EINE Option, ToggleChip schaltet jede für
+    // sich.
+    if (filter.multiSelect) {
+      return (
+        <div
+          className="flex flex-wrap gap-2"
+          role="group"
+          aria-label={filter.label}
+        >
+          {filter.options.map((option) => (
+            <ToggleChip
+              key={option.value}
+              pressed={selectedValues.includes(option.value)}
+              onPressedChange={(next) =>
+                filter.onChange(
+                  next
+                    ? [...selectedValues, option.value]
+                    : selectedValues.filter((v) => v !== option.value),
+                )
               }
-            }}
-            className={`rounded-lg px-3 text-sm font-medium whitespace-nowrap transition-all ${
-              selectedValues.includes(option.value)
-                ? "bg-gray-900 text-white"
-                : "text-gray-600 hover:text-gray-900"
-            } `}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
+            >
+              {option.label}
+            </ToggleChip>
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <SegmentedControl
+        ariaLabel={filter.label}
+        value={selectedValues[0] ?? filter.options[0]?.value ?? ""}
+        onChange={(value) => filter.onChange(value)}
+        items={filter.options.map((option) => ({
+          value: option.value,
+          label: option.label,
+        }))}
+      />
     );
   }
 
@@ -152,7 +171,7 @@ function DropdownFilter({
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${isFiltered ? "ring-2 ring-blue-500 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
+        className={`flex h-10 items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-medium whitespace-nowrap shadow-sm transition-all ${isFiltered ? "ring-moto-blue ring-2 ring-offset-1" : ""} ${isOpen ? "bg-gray-50" : "hover:bg-gray-50"} `}
       >
         {showIcons && selectedOption?.icon && (
           <svg
@@ -191,7 +210,7 @@ function DropdownFilter({
 
       {isOpen && (
         <div
-          className={`absolute top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+          className={`moto-popover-surface absolute top-full z-50 mt-1 w-48 overflow-hidden rounded-xl border py-1 ${
             dropdownPosition === "right" ? "right-0" : "left-0"
           }`}
         >

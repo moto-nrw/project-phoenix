@@ -10,7 +10,13 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-import { render, screen, waitFor, cleanup } from "@testing-library/react";
+import {
+  render,
+  screen,
+  waitFor,
+  cleanup,
+  fireEvent,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
@@ -28,6 +34,7 @@ vi.mock("~/lib/auth-utils", () => ({
     if (role === "user") return !(session?.user?.isAdmin ?? false);
     return false;
   },
+  hasPermission: () => false,
 }));
 
 // Mock next-auth/react
@@ -42,7 +49,7 @@ vi.mock("next-auth/react", () => ({
 const mockPush = vi.fn();
 const mockRedirect = vi.fn();
 vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: mockPush }),
+  useRouter: () => ({ push: mockPush, replace: vi.fn() }),
   useSearchParams: () => ({
     get: (key: string) =>
       key === "room" ? navigationMockState.roomParam : null,
@@ -72,13 +79,28 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
 
 // Mock Alert
 vi.mock("~/components/ui/alert", () => ({
-  Alert: ({ message, type }: { message: string; type: string }) => (
-    <div data-testid={`alert-${type}`}>{message}</div>
+  // The action slot is part of the real Alert: the released-room notice and
+  // the reopen banner both carry their action in it, so a stub that drops it
+  // would hide the only control on those blocks.
+  Alert: ({
+    message,
+    type,
+    action,
+  }: {
+    message: string;
+    type: string;
+    action?: React.ReactNode;
+  }) => (
+    <div data-testid={`alert-${type}`}>
+      {message}
+      {action}
+    </div>
   ),
 }));
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog" as const, "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -199,6 +221,7 @@ vi.mock("~/components/students/student-card", () => ({
   ),
   SchoolClassIcon: () => <span data-testid="school-class-icon" />,
   GroupIcon: () => <span data-testid="group-icon" />,
+  ActivityIcon: () => <span data-testid="activity-icon" />,
   PickupTimeRow: ({
     pickupTime,
     isException,
@@ -581,6 +604,14 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       expect(
         screen.getAllByRole("button", { name: "Raum verlassen" }),
       ).toHaveLength(2);
+      // Das Nachtragen ist eine Kopf-Aktion mit Dialog (#3112): die Suche
+      // erscheint erst nach „Kind hinzufügen“.
+      expect(
+        screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).not.toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    await waitFor(() => {
       expect(
         screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
       ).toHaveAttribute("name", "unplanned-student-search");
@@ -688,7 +719,7 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       screen.queryByRole("button", { name: "Beenden" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      screen.queryByRole("button", { name: "Kind hinzufügen" }),
     ).not.toBeInTheDocument();
   });
 });

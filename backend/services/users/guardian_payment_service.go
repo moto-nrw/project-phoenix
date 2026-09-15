@@ -316,6 +316,23 @@ func (s *GuardianService) buildPaymentRows(
 	resourceType string,
 	extraMetadata map[string]interface{},
 ) ([]GuardianPaymentRow, error) {
+	var result []GuardianPaymentRow
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.buildPaymentRowsInTx(txCtx, actorAccountID, actorRole, unmasked, resourceType, extraMetadata)
+		return err
+	})
+	return result, err
+}
+
+func (s *GuardianService) buildPaymentRowsInTx(
+	ctx context.Context,
+	actorAccountID int64,
+	actorRole string,
+	unmasked bool,
+	resourceType string,
+	extraMetadata map[string]interface{},
+) ([]GuardianPaymentRow, error) {
 	if s.DataAccessLog == nil {
 		return nil, fmt.Errorf("data access log repository is not wired; refusing unaudited payment read")
 	}
@@ -399,6 +416,16 @@ func (s *GuardianService) buildPaymentRows(
 // exists) and writes the data-access log entry. Callers must not serve any
 // value when the returned error is non-nil.
 func (s *GuardianService) loadPaymentAudited(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, resourceType string) (*users.GuardianFinancialData, error) {
+	var result *users.GuardianFinancialData
+	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		result, err = s.loadPaymentAuditedInTx(txCtx, guardianProfileID, actorAccountID, actorRole, resourceType)
+		return err
+	})
+	return result, err
+}
+
+func (s *GuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, resourceType string) (*users.GuardianFinancialData, error) {
 	if s.DataAccessLog == nil {
 		return nil, fmt.Errorf("data access log repository is not wired; refusing unaudited payment read")
 	}

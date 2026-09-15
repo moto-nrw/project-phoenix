@@ -69,6 +69,14 @@ export interface Announcement {
   options: AnnouncementOption[];
   delivery_mode: AnnouncementDeliveryMode;
   email_audience: AnnouncementEmailAudience;
+  /**
+   * Scheduled reminder (#3162): the moment the announcement goes out a second
+   * time to its whole audience, the optional short wording of that second
+   * delivery, and the moment it actually went out. All absent = no reminder.
+   */
+  reminder_at?: string;
+  reminder_text?: string;
+  reminder_sent_at?: string;
 }
 
 /** True when the announcement is a binding Elternbrief. */
@@ -144,6 +152,18 @@ export interface AnnouncementInput {
    */
   delivery_mode?: AnnouncementDeliveryMode;
   email_audience?: AnnouncementEmailAudience;
+  /** Scheduled reminder (#3162): an instant (ISO) or null for none. */
+  reminder_at?: string | null;
+  reminder_text?: string | null;
+}
+
+/**
+ * The one edit a published announcement still accepts (#3162): move, reword
+ * or remove (reminder_at null) its scheduled reminder, until it has been sent.
+ */
+export interface AnnouncementReminderInput {
+  reminder_at: string | null;
+  reminder_text?: string | null;
 }
 
 /**
@@ -251,6 +271,21 @@ export async function fetchAnnouncements(
   return data ?? [];
 }
 
+/**
+ * One announcement with its targets, for the object page
+ * /parent-announcements/[id] (#3115). Resolves to undefined when the backend
+ * answers without a body; the page treats that as "nicht gefunden".
+ */
+export async function fetchAnnouncement(
+  id: string,
+): Promise<Announcement | undefined> {
+  return request<Announcement>(
+    `${BASE}/${encodeURIComponent(id)}`,
+    undefined,
+    "Elternmitteilung konnte nicht geladen werden",
+  );
+}
+
 function jsonBody(body: AnnouncementInput): RequestInit {
   return {
     method: "POST",
@@ -282,6 +317,23 @@ export async function updateAnnouncement(
   );
   if (!data)
     throw new Error("Elternmitteilung konnte nicht gespeichert werden");
+  return data;
+}
+
+export async function updateAnnouncementReminder(
+  id: string,
+  input: AnnouncementReminderInput,
+): Promise<Announcement> {
+  const data = await request<Announcement>(
+    `${BASE}/${encodeURIComponent(id)}/reminder`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    },
+    "Erinnerung konnte nicht gespeichert werden",
+  );
+  if (!data) throw new Error("Erinnerung konnte nicht gespeichert werden");
   return data;
 }
 
@@ -427,4 +479,81 @@ export async function fetchAnnouncementRecipients(
     "Empfängerliste konnte nicht geladen werden",
   );
   return data ?? [];
+}
+
+/* --- Anhänge (#2890) -------------------------------------------------------
+ *
+ * Eigener Pfad statt einer Unterroute von /api/parent-announcements: die
+ * Bytes gehören der Dateiablage, die Mitteilung steuert nur den
+ * Empfängerkreis bei.
+ */
+
+const ATTACHMENTS_BASE = "/api/announcement-attachments";
+
+export interface AnnouncementAttachment {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  content_type: string;
+  uploaded_at: string;
+}
+
+export interface AnnouncementAttachmentList {
+  attachments: AnnouncementAttachment[];
+  /** Höchstzahl der Anhänge je Mitteilung. */
+  max_count: number;
+  /** Größengrenze je Datei in Bytes. */
+  max_bytes: number;
+  /** false, sobald die Mitteilung veröffentlicht ist. */
+  editable: boolean;
+}
+
+const EMPTY_ATTACHMENTS: AnnouncementAttachmentList = {
+  attachments: [],
+  max_count: 0,
+  max_bytes: 0,
+  editable: false,
+};
+
+export async function fetchAnnouncementAttachments(
+  announcementId: string,
+): Promise<AnnouncementAttachmentList> {
+  const data = await request<AnnouncementAttachmentList>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}`,
+    undefined,
+    "Anhänge konnten nicht geladen werden",
+  );
+  return data ?? EMPTY_ATTACHMENTS;
+}
+
+export async function uploadAnnouncementAttachment(
+  announcementId: string,
+  file: File,
+): Promise<AnnouncementAttachment | undefined> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<AnnouncementAttachment>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}`,
+    { method: "POST", body: form },
+    "Die Datei konnte nicht hochgeladen werden",
+  );
+}
+
+export async function deleteAnnouncementAttachment(
+  announcementId: string,
+  attachmentId: string,
+): Promise<void> {
+  await request<unknown>(
+    `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}`,
+    { method: "DELETE" },
+    "Der Anhang konnte nicht entfernt werden",
+  );
+}
+
+/** Adresse, unter der das Personal einen Anhang zur Kontrolle öffnet. */
+export function announcementAttachmentDownloadUrl(
+  announcementId: string,
+  attachmentId: string,
+): string {
+  return `${ATTACHMENTS_BASE}/${encodeURIComponent(announcementId)}/${encodeURIComponent(attachmentId)}/download`;
 }

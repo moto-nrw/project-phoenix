@@ -53,9 +53,10 @@ func insertNotificationModeTestOutbox(t *testing.T, db *testpkg.DB, tenantID, re
 	t.Helper()
 	_, err := db.ExecContext(context.Background(), `
 		INSERT INTO platform.email_outbox
-			(tenant_id, kind, related_entity_type, related_entity_id, payload,
+			(tenant_id, kind, related_entity_type, related_entity_id, recipient, payload,
 			 status, attempts, next_retry_at, created_at)
-		VALUES (?, ?, 'enrollment_request', ?, '{}'::jsonb, 'pending', 0, NOW(), ?)
+		VALUES (?, ?, 'enrollment_request', ?, '{"address":"migration@example.test"}'::jsonb,
+			'{"recipient_email":"migration@example.test"}'::jsonb, 'pending', 0, NOW(), ?)
 	`, tenantID, kind, requestID, createdAt)
 	require.NoError(t, err)
 }
@@ -84,6 +85,7 @@ func roleHasDeletePrivilege(t *testing.T, db *testpkg.DB, relation string) bool 
 }
 
 func TestEnrollmentNotificationModeAndCleanupGrantsMigration_PostSchemaAndScopedBackfill(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -165,6 +167,7 @@ func TestEnrollmentNotificationModeAndCleanupGrantsMigration_PostSchemaAndScoped
 }
 
 func TestEnrollmentNotificationModeAndCleanupGrantsMigration_DownPreservesInheritedLateInviteDelete(t *testing.T) {
+	t.Parallel()
 	source, err := os.ReadFile("001015180_enrollment_notification_mode_and_cleanup_grants.go")
 	require.NoError(t, err)
 	assert.Contains(t, string(source), "REVOKE DELETE ON platform.email_outbox FROM phoenix_tenant")

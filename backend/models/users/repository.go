@@ -9,27 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// RFIDCardRepository defines operations for managing RFID cards
-type RFIDCardRepository interface {
-	// Create inserts a new RFID card into the database
-	Create(ctx context.Context, card *RFIDCard) error
-
-	// FindByID retrieves an RFID card by its ID
-	FindByID(ctx context.Context, id string) (*RFIDCard, error)
-
-	// Update updates an existing RFID card
-	Update(ctx context.Context, card *RFIDCard) error
-
-	// Delete removes an RFID card
-	Delete(ctx context.Context, id string) error
-
-	// List retrieves RFID cards matching the filters
-	List(ctx context.Context, filters map[string]interface{}) ([]*RFIDCard, error)
-
-	// Deactivate sets an RFID card as inactive
-	Deactivate(ctx context.Context, id string) error
-}
-
 // PersonRepository defines operations for managing persons
 type PersonRepository interface {
 	base.CRUDRepository[*Person]
@@ -148,6 +127,8 @@ type StudentRepository interface {
 
 	// FindByTeacherIDWithGroups retrieves students with group names supervised by a teacher
 	FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*StudentWithGroupInfo, error)
+	// FindByTeacherStaffIDsWithGroups retrieves the distinct students supervised by teachers for any requested staff ID.
+	FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*StudentWithGroupInfo, error)
 
 	// FindAllWithGroups retrieves all students with their group names (LEFT JOIN for students without groups)
 	FindAllWithGroups(ctx context.Context) ([]*StudentWithGroupInfo, error)
@@ -156,6 +137,9 @@ type StudentRepository interface {
 	// group. Membership follows EnrolledOn, so today decides whether an
 	// immediately activated child (active, enrolled_from still ahead) counts.
 	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*StudentWithGroupInfo, error)
+	// FindOverlappingWithGroupsOnDate is the composition-boundary variant. The
+	// instant is converted to the current Berlin date inside the repository.
+	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*StudentWithGroupInfo, error)
 
 	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
 	// Alumni are excluded: a graduate is soft-deleted and must not block the
@@ -390,9 +374,6 @@ type TeacherRepository interface {
 	// FindBySpecialization retrieves teachers by their specialization
 	FindBySpecialization(ctx context.Context, specialization string) ([]*Teacher, error)
 
-	// ListWithOptions retrieves teachers matching the query options
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Teacher, error)
-
 	// FindByGroupID retrieves teachers assigned to a group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*Teacher, error)
 
@@ -465,6 +446,9 @@ type StudentGuardianRepository interface {
 
 	// FindByGuardianProfileID retrieves relationships by guardian profile ID
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*StudentGuardian, error)
+	// FindByGuardianProfileIDs retrieves relationships for several guardian
+	// profiles in one query.
+	FindByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*StudentGuardian, error)
 
 	// AccountHasStudentPermission reports whether the guardian account holds the
 	// named parent_portal.* permission on its relationship to the given student
@@ -555,8 +539,6 @@ type StudentGuardianRepository interface {
 // consider both endpoint columns — that is why there is no generic
 // List(filters) usage here: a filter map cannot express the OR.
 type StudentCompanionRepository interface {
-	base.CRUDRepository[*StudentCompanion]
-
 	// ListForStudent returns every edge touching the student, all weekdays.
 	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
 
@@ -581,36 +563,7 @@ type StudentCompanionRepository interface {
 	// which they keep at least one edge to a child other than excludeID. The
 	// "mit wem" cover is per weekday, so removal checks need this per-day view.
 	CompanionDaysCoveredExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]map[string]bool, error)
-}
-
-// StudentRetentionSetting is the projection used by the GDPR visit-cleanup
-// worklist: one row per distinct (student, retention-days) pair with an
-// accepted privacy consent.
-type StudentRetentionSetting struct {
-	StudentID         int64 `bun:"student_id"`
-	DataRetentionDays int   `bun:"data_retention_days"`
-}
-
-// PrivacyConsentRepository defines operations for managing privacy consents
-type PrivacyConsentRepository interface {
-	base.CRUDRepository[*PrivacyConsent]
-
-	// FindByStudentID retrieves privacy consents for a student
-	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
-	// FindActiveByStudentID retrieves active privacy consents for a student
-	FindActiveByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
-	// Accept marks a privacy consent as accepted
-	Accept(ctx context.Context, id int64, acceptedAt time.Time) error
-
-	// Revoke revokes a privacy consent
-	Revoke(ctx context.Context, id int64) error
-
-	// ListAcceptedRetentionSettings returns the distinct (student_id,
-	// data_retention_days) pairs of accepted privacy consents, ordered by
-	// student_id. Feeds the GDPR visit-cleanup worklist.
-	ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error)
+	CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error)
 }
 
 // GuardianProfileRepository defines operations for managing guardian profiles

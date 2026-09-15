@@ -8,6 +8,8 @@ import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -17,6 +19,13 @@ import {
   IMPORT_MODE_ITEMS,
   type ImportMode,
 } from "~/lib/import-mode";
+import {
+  countAlreadyExistsRows,
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -102,6 +111,29 @@ function splitMessages(errors: ImportError[]): {
   };
 }
 
+function toDisplayStudent(row: ImportRowResult): DisplayStudent {
+  return {
+    row: row.RowNumber,
+    status: row.Errors.some(
+      (error) =>
+        error.code === "already_exists" || error.code === "will_update",
+    )
+      ? "existing"
+      : row.Errors.some((error) => error.severity === "error")
+        ? "error"
+        : row.Errors.some((error) => error.severity === "warning")
+          ? "warning"
+          : "new",
+    ...splitMessages(row.Errors),
+    first_name: row.Data.first_name,
+    last_name: row.Data.last_name,
+    school_class: row.Data.school_class,
+    group_name: row.Data.group_name ?? "",
+    guardian_info: guardianLabel(row.Data.guardians),
+    health_info: row.Data.health_info ?? "",
+  };
+}
+
 /** "Maria Muster (Mutter)" from whatever parts the row carries; empty when none. */
 function guardianLabel(
   guardians: ImportRowResult["Data"]["guardians"] | undefined,
@@ -124,6 +156,7 @@ export default function StudentImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
@@ -146,6 +179,7 @@ export default function StudentImportPage() {
     setIsLoading(false);
     setIsImporting(false);
     setImportComplete(false);
+    setImportInterrupted(false);
     setImportResult(null);
     setError(null);
   }, []);
@@ -201,6 +235,7 @@ export default function StudentImportPage() {
       setError(null);
       setIsLoading(true);
       setImportComplete(false);
+      setImportInterrupted(false);
       setImportResult(null);
 
       try {
@@ -344,42 +379,35 @@ export default function StudentImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(result);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewData((interrupted.Errors ?? []).map(toDisplayStudent));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("student_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
-          (result.message as string | undefined) ?? "Fehler beim Import",
+          (result.error as string | undefined) ??
+            (result.message as string | undefined) ??
+            "Fehler beim Import",
         );
       }
 
       const importData = result.data as ImportResult;
       setImportResult(importData);
+      setImportInterrupted(false);
 
       // Handle partial failures vs full success
       if (importData.ErrorCount > 0) {
         // Partial success: Show warning and keep form to display error details
         // Don't set importComplete - keep preview visible so user sees which rows failed
-        // Update previewData with error details from import result
-        const errorDisplayData: DisplayStudent[] = importData.Errors.map(
-          (row) => ({
-            row: row.RowNumber,
-            status: row.Errors.some(
-              (error) =>
-                error.code === "already_exists" || error.code === "will_update",
-            )
-              ? "existing"
-              : row.Errors.some((error) => error.severity === "error")
-                ? "error"
-                : row.Errors.some((error) => error.severity === "warning")
-                  ? "warning"
-                  : "new",
-            ...splitMessages(row.Errors),
-            first_name: row.Data.first_name,
-            last_name: row.Data.last_name,
-            school_class: row.Data.school_class,
-            group_name: row.Data.group_name ?? "",
-            guardian_info: guardianLabel(row.Data.guardians),
-            health_info: row.Data.health_info ?? "",
-          }),
-        );
-        setPreviewData(errorDisplayData);
+        setPreviewData(importData.Errors.map(toDisplayStudent));
         toast.warning(
           `${childCountLabel(importData.CreatedCount)} importiert, ${importData.UpdatedCount} aktualisiert, ${importData.ErrorCount} übersprungen`,
         );
@@ -442,85 +470,100 @@ export default function StudentImportPage() {
     }
   };
 
-  // Stats - use backend counts directly
+  // already_exists is a skip, not a blocking preview error. Create-mode
+  // recovery re-uploads count committed rows that way; they must not disable Import.
+  const alreadyExists = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.UpdatedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
+    errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
-  const importLabel =
-    mode === "create"
+  const importable =
+    mode === "update"
+      ? (importResult?.UpdatedCount ?? 0)
+      : stats.new + (mode === "upsert" ? (importResult?.UpdatedCount ?? 0) : 0);
+  const importLabel = importInterrupted
+    ? "Erneut versuchen"
+    : mode === "create"
       ? `${childCountLabel(stats.new)} importieren`
       : mode === "update"
-        ? `${childCountLabel(stats.existing)} aktualisieren`
-        : `${childCountLabel(stats.new + stats.existing)} übernehmen`;
+        ? `${childCountLabel(importable)} aktualisieren`
+        : `${childCountLabel(importable)} übernehmen`;
+  const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
+
+  // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importComplete
+          ? "Import abgeschlossen"
+          : importInterrupted
+            ? `${savedCount} gespeichert`
+            : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+        !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "Noch keine Datei gewählt";
 
   if (status === "loading") {
     return (
-      <SkeletonRegion label="Kinder-Import wird geladen…">
-        <FormSkeleton fields={2} />
-      </SkeletonRegion>
+      <TenantPage title="Kinder importieren" stats={statusLine} back>
+        <SkeletonRegion label="Kinder-Import wird geladen…">
+          <FormSkeleton fields={2} />
+        </SkeletonRegion>
+      </TenantPage>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
+    <TenantPage title="Kinder importieren" stats={statusLine} back>
       {/* Info Section */}
-      <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
-            <Info
-              className="text-moto-blue-strong h-6 w-6"
-              aria-hidden="true"
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              Import-Anleitung
-            </h3>
-            <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-              <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
-              <li>
-                Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT,
-                TT.MM.JJJJ oder TT.MM.JJ
-              </li>
-              <li>
-                Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
-                Erziehungsberechtigte. Das Blatt „Hinweise" erklärt jede Spalte
-              </li>
-              <li>Speichern Sie die ausgefüllte Datei</li>
-              <li>
-                Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
-              </li>
-              <li>Bestätigen Sie den Import</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <SectionCard title="Import-Anleitung" icon={Info}>
+        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+          <li>Füllen Sie die Datei mit Ihren Kinderdaten aus</li>
+          <li>
+            Für Geburtstage sind diese Formate erlaubt: JJJJ-MM-TT, TT.MM.JJJJ
+            oder TT.MM.JJ
+          </li>
+          <li>
+            Die Vorlage enthält auch Adresse, RFID-Karte und bis zu vier
+            Erziehungsberechtigte. Das Blatt „Hinweise“ erklärt jede Spalte
+          </li>
+          <li>Speichern Sie die ausgefüllte Datei</li>
+          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
+          <li>Bestätigen Sie den Import</li>
+        </ul>
+      </SectionCard>
 
       {/* Error Display */}
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
-          <button
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Download Template Button */}
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 1: Vorlage herunterladen
-        </h3>
+      <SectionCard title="Vorlage herunterladen" icon={Download}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -571,13 +614,9 @@ export default function StudentImportPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 2: Was soll der Import tun?
-        </h3>
+      <SectionCard title="Was soll der Import tun?" icon={RefreshCw}>
         <SegmentedControl
           items={IMPORT_MODE_ITEMS}
           value={mode}
@@ -590,7 +629,7 @@ export default function StudentImportPage() {
           Bekannt ist eine Zeile über Vorname, Nachname und Klasse. Bei
           Klassenwechsel über die RFID-Karte oder den Geburtstag.
         </p>
-      </div>
+      </SectionCard>
 
       {/* Upload Section */}
       <UploadSection
@@ -606,7 +645,7 @@ export default function StudentImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           {/* Statistics */}
           <StatsCards
@@ -619,64 +658,63 @@ export default function StudentImportPage() {
             errors={stats.errors}
           />
 
-          {/* Data List */}
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
-            <div className="border-b border-gray-100 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <ListChecks
-                  className="h-5 w-5 text-gray-600"
-                  aria-hidden="true"
-                />
-                Schritt 4: Datenvorschau
-              </h3>
-            </div>
-
-            <div className="space-y-2 p-3">
-              {previewData.map((student, idx) => (
-                <StudentRowCard
-                  key={student.row}
-                  student={{
-                    row: student.row,
-                    status: student.status,
-                    errors: student.errors,
-                    notes: student.notes,
-                    first_name: student.first_name,
-                    last_name: student.last_name,
-                    meta: [
-                      student.school_class,
-                      student.group_name,
-                      student.guardian_info,
-                    ],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </div>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((student, idx) => (
+                  <StudentRowCard
+                    key={student.row}
+                    student={{
+                      row: student.row,
+                      status: student.status,
+                      errors: student.errors,
+                      notes: student.notes,
+                      first_name: student.first_name,
+                      last_name: student.last_name,
+                      meta: [
+                        student.school_class,
+                        student.group_name,
+                        student.guardian_info,
+                      ],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
 
           {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
-            <button
+          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              className="flex-1"
               onClick={resetForm}
-              className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="success"
+              size="md"
+              className="flex-1"
+              disabled={
+                isImporting ||
+                isLoading ||
+                (!importInterrupted && (stats.errors > 0 || importable === 0))
+              }
               onClick={() => void handleImport()}
-              disabled={stats.errors > 0 || isImporting || isLoading}
-              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
-              {isImporting ? "Importiere..." : importLabel}
-            </button>
+              {isImporting ? "Wird importiert…" : importLabel}
+            </Button>
           </div>
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }

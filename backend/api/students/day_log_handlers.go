@@ -20,6 +20,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -309,7 +310,7 @@ func filterDayLogGroups(r *http.Request, groups []*educationModel.Group) ([]*edu
 type dayLogData struct {
 	studentsByGroup     map[int64][]*usersModel.Student
 	persons             map[int64]*usersModel.Person
-	attendanceByStudent map[int64][]*active.Attendance
+	attendanceByStudent map[int64][]*studentpresence.Attendance
 	statusByStudent     map[int64][]*active.StudentStatusDay
 	careDays            map[int64]scheduleService.CareDayStatus
 	arrivalTimes        map[int64]*scheduleService.EffectiveArrivalTime
@@ -332,7 +333,7 @@ func (rs *Resource) loadDayLogData(ctx context.Context, groups []*educationModel
 
 	data := &dayLogData{
 		studentsByGroup:     make(map[int64][]*usersModel.Student, len(groups)),
-		attendanceByStudent: map[int64][]*active.Attendance{},
+		attendanceByStudent: map[int64][]*studentpresence.Attendance{},
 		statusByStudent:     map[int64][]*active.StudentStatusDay{},
 		careDays:            map[int64]scheduleService.CareDayStatus{},
 		arrivalTimes:        map[int64]*scheduleService.EffectiveArrivalTime{},
@@ -508,7 +509,7 @@ func buildDayLogStudent(student *usersModel.Student, data *dayLogData) dayLogStu
 // wins (present), then the status-day precedence (sick > class trip >
 // excused), then a cancelled care day (reported absence), then a non-booked
 // day, and only the unexplained rest is absent.
-func classifyDayLogStudent(row *dayLogStudent, attendance []*active.Attendance, statuses []*active.StudentStatusDay, careDay scheduleService.CareDayStatus) {
+func classifyDayLogStudent(row *dayLogStudent, attendance []*studentpresence.Attendance, statuses []*active.StudentStatusDay, careDay scheduleService.CareDayStatus) {
 	eff := activeService.ResolveEffectiveStatus(statuses)
 
 	if len(attendance) > 0 {
@@ -573,7 +574,7 @@ func latestDayLogRowOfStatus(statuses []*active.StudentStatusDay, status string)
 
 // mergeDayLogAttendance folds a day's sessions into first arrival and last
 // departure; an open session (nil check-out) keeps the departure open.
-func mergeDayLogAttendance(rows []*active.Attendance) (time.Time, *time.Time) {
+func mergeDayLogAttendance(rows []*studentpresence.Attendance) (time.Time, *time.Time) {
 	checkIn := rows[0].CheckInTime
 	checkOut := rows[0].CheckOutTime
 	stillPresent := checkOut == nil
@@ -646,7 +647,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		groupIDs = append(groupIDs, group.ID)
 	}
 
-	entry := &auditModels.DataAccessLog{
+	entry := &activeService.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeAttendanceDayLog,
@@ -654,8 +655,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		RangeEnd:       date.EndOfDay(),
 		AccessedAt:     time.Now(),
 	}
-	entry.SetMetadata("group_ids", groupIDs)
-	entry.SetMetadata("date", date.String())
+	entry.Metadata = map[string]interface{}{"group_ids": groupIDs, "date": date.String()}
 
 	if err := rs.StudentHistoryService.RecordDataAccess(r.Context(), entry); err != nil {
 		logger.Error("audit log write failed, refusing to serve day log",

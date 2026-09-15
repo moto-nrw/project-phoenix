@@ -65,6 +65,26 @@ describe("LanguageSwitcher", () => {
     expect(refreshMock).toHaveBeenCalledTimes(1);
   });
 
+  it("offers all seven languages and switches to a new one", () => {
+    render(<LanguageSwitcher />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    expect(
+      screen.getAllByRole("option").map((option) => option.textContent),
+    ).toEqual([
+      "Deutsch",
+      "English",
+      "Русский",
+      "Shqip",
+      "Polski",
+      "Türkçe",
+      "Українська",
+    ]);
+
+    fireEvent.click(screen.getByRole("option", { name: "Українська" }));
+    expect(mockedWriteLocaleCookie).toHaveBeenCalledWith("uk");
+  });
+
   it("delegates to the parent locale context when available", async () => {
     const setLocale = vi.fn().mockResolvedValue(undefined);
     mockedUseParentLocale.mockReturnValue({

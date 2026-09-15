@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -19,7 +19,7 @@ import (
 // account start date.
 type wtmIntSettings struct{ accountStart string }
 
-func (s wtmIntSettings) ResolveString(context.Context, string) (string, error) {
+func (s wtmIntSettings) AccountStartDate(context.Context) (string, error) {
 	return s.accountStart, nil
 }
 
@@ -35,7 +35,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Monat", "Karte")
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	ctx := testpkg.TenantContext(tenantID)
 
 	t.Cleanup(func() {
@@ -49,16 +49,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	})
 
 	// Contract: Mondays 480 minutes since 2020.
-	scheduleRow := &configModels.StaffWorkSchedule{
-		TenantID:      tenantID,
-		StaffID:       staff.ID,
-		DayOfWeek:     configModels.DayMonday,
-		TargetMinutes: 480,
-		WeekIndex:     0, RotationLength: 1,
-		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
-	}
-	_, err := db.NewInsert().Model(scheduleRow).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
-	require.NoError(t, err)
+	testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, active.DayMonday, 480, scheduleValidFrom)
 
 	// One 480-minute session on Monday June 1, 2026.
 	checkIn := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
@@ -87,8 +78,8 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
 
 	svc := active.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, repos.Staff,
-		repos.StaffWorkSchedule, repos.WorkTimeModel, repos.StaffShift,
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
+		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),
 		wtmIntSettings{accountStart: "2026-06-01"}, nil,
 	)
 

@@ -106,6 +106,7 @@ export const WithPendingAndHistory: Story = {
   args: {
     staffId: "1",
     canEdit: true,
+    canEditQuota: true,
     canManageSickReports: true,
   },
   beforeEach: () =>
@@ -116,6 +117,7 @@ export const ReadOnly: Story = {
   args: {
     staffId: "1",
     canEdit: false,
+    canEditQuota: false,
     canManageSickReports: false,
   },
   beforeEach: () =>
@@ -126,6 +128,7 @@ export const WithVacationOpening: Story = {
   args: {
     staffId: "1",
     canEdit: true,
+    canEditQuota: true,
     canManageSickReports: true,
   },
   beforeEach: () =>
@@ -136,6 +139,7 @@ export const Empty: Story = {
   args: {
     staffId: "1",
     canEdit: true,
+    canEditQuota: true,
     canManageSickReports: true,
   },
   beforeEach: () => withMockedAbsences([]),

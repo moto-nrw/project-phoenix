@@ -126,7 +126,7 @@ export function SchoolCheckinModeMobile({
       data-checkin-mode-mobile="active"
     >
       <div
-        className="moto-content-surface rounded-2xl border border-gray-200 bg-white/95 p-2 shadow-sm backdrop-blur"
+        className="moto-content-surface rounded-2xl border p-2 shadow-sm"
         role="region"
         aria-label="An- und Abmelde-Modus"
         aria-busy={disabled && runningAction !== null}

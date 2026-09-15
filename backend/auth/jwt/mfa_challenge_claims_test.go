@@ -12,7 +12,7 @@ import (
 func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	in := MFAChallengeClaims{
@@ -48,7 +48,7 @@ func TestMFAChallengeClaims_TenantRoundTrip(t *testing.T) {
 func TestMFAChallengeClaims_PlatformRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	in := MFAChallengeClaims{
@@ -120,7 +120,7 @@ func TestMFAChallengeClaims_RejectsNonPendingToken(t *testing.T) {
 func TestParseMFAChallengeJWT_TenantRoundTripPopulatesClaims(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	tokenString, err := ta.CreateMFAChallengeJWT(MFAChallengeClaims{
@@ -142,7 +142,7 @@ func TestParseMFAChallengeJWT_TenantRoundTripPopulatesClaims(t *testing.T) {
 func TestParseMFAChallengeJWT_PlatformRoundTripOmitsTenant(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	tokenString, err := ta.CreateMFAChallengeJWT(MFAChallengeClaims{
@@ -161,7 +161,7 @@ func TestParseMFAChallengeJWT_PlatformRoundTripOmitsTenant(t *testing.T) {
 func TestParseMFAChallengeJWT_RejectsGarbageToken(t *testing.T) {
 	t.Parallel()
 
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	claims, err := ta.ParseMFAChallengeJWT("not-a-jwt-at-all")
@@ -173,9 +173,9 @@ func TestParseMFAChallengeJWT_RejectsTokenSignedWithDifferentSecret(t *testing.T
 	t.Parallel()
 
 	tenantID := ptrtest.NewTenantID()
-	issuer, err := NewTokenAuthWithSecret("issuer-secret-must-be-at-least-32-characters-long")
+	issuer, err := newTestTokenAuth(t, "issuer-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
-	verifier, err := NewTokenAuthWithSecret("verifier-secret-must-be-at-least-32-characters-long")
+	verifier, err := newTestTokenAuth(t, "verifier-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	tokenString, err := issuer.CreateMFAChallengeJWT(MFAChallengeClaims{
@@ -194,7 +194,7 @@ func TestParseMFAChallengeJWT_RejectsExpiredToken(t *testing.T) {
 	t.Parallel()
 
 	tenantID := ptrtest.NewTenantID()
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	// Issue with a TTL that's already in the past so the exp-check branch fires.
@@ -217,7 +217,7 @@ func TestParseMFAChallengeJWT_RejectsNonChallengeToken(t *testing.T) {
 
 	// Hand-craft a token where mfa_pending is missing — should fall through
 	// ParseClaims' "token is not a pending-MFA challenge" branch.
-	ta, err := NewTokenAuthWithSecret("test-secret-must-be-at-least-32-characters-long")
+	ta, err := newTestTokenAuth(t, "test-secret-must-be-at-least-32-characters-long")
 	require.NoError(t, err)
 
 	// Sentinel IDs >9 so the in-memory JWT claim values don't trip the

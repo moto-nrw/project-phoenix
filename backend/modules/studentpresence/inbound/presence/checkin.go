@@ -1,0 +1,273 @@
+package presence
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
+)
+
+// CheckinRequest represents the request body for manual check-in
+type CheckinRequest struct {
+	ActiveGroupID int64 `json:"active_group_id"`
+}
+
+// checkinContext holds validated data for the check-in operation
+type checkinContext struct {
+	studentID   int64
+	activeGroup *studentpresence.LiveGroup
+	staff       *StaffIdentity
+	request     CheckinRequest
+}
+
+// checkinStudent handles manual check-in of a student who is at home
+// The request body must contain an active_group_id to specify which room to check into
+func (rs *Resource) checkinStudent(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Parse and validate the request
+	checkinCtx, err := rs.parseAndValidateCheckinRequest(ctx, r)
+	if err != nil {
+		err.respond(w, r)
+		return
+	}
+
+	// Validate student can be checked in
+	if err := rs.validateStudentForCheckin(ctx, checkinCtx.studentID); err != nil {
+		err.respond(w, r)
+		return
+	}
+
+	// Create the visit with staff context
+	ctx = rs.runtime.WithStaff(ctx, checkinCtx.staff.ID, checkinCtx.staff.TenantID)
+	visit, err := rs.createCheckinVisit(ctx, checkinCtx)
+	if err != nil {
+		err.respond(w, r)
+		return
+	}
+
+	// Build and send success response
+	rs.respondCheckinSuccess(w, r, ctx, visit, checkinCtx)
+}
+
+// checkinError represents an error that occurred during check-in
+type checkinError struct {
+	statusCode int
+	message    string
+}
+
+func (e *checkinError) respond(w http.ResponseWriter, r *http.Request) {
+	common.RespondWithError(w, r, e.statusCode, e.message)
+}
+
+// parseAndValidateCheckinRequest parses the request and validates authorization
+func (rs *Resource) parseAndValidateCheckinRequest(ctx context.Context, r *http.Request) (*checkinContext, *checkinError) {
+	// Read the principal validated by the route's authentication middleware.
+	principal, principalErr := common.CurrentPrincipal(ctx)
+	if principalErr != nil {
+		return nil, &checkinError{http.StatusUnauthorized, "Invalid token"}
+	}
+
+	// Get student ID from URL
+	studentIDStr := chi.URLParam(r, "studentId")
+	studentID, err := strconv.ParseInt(studentIDStr, 10, 64)
+	if err != nil {
+		return nil, &checkinError{http.StatusBadRequest, "Invalid student ID"}
+	}
+
+	// Verify the student exists before any further processing
+	student, studentErr := rs.PersonService.GetStudentByID(ctx, studentID)
+	if studentErr != nil || student == nil {
+		return nil, &checkinError{http.StatusNotFound, "Student not found"}
+	}
+
+	// Parse request body
+	var req CheckinRequest
+	err = json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		return nil, &checkinError{http.StatusBadRequest, "Invalid request body"}
+	}
+
+	// Validate active_group_id is provided
+	if req.ActiveGroupID <= 0 {
+		return nil, &checkinError{http.StatusBadRequest, "active_group_id is required"}
+	}
+
+	// Get and validate the active group
+	activeGroup, groupErr := rs.presenceLiveGroup(ctx, req.ActiveGroupID)
+	if groupErr != nil {
+		// Distinguish "not found" from other errors (DB failures, timeouts)
+		if errors.Is(groupErr, studentpresence.ErrGroupNotFound) {
+			return nil, &checkinError{http.StatusNotFound, "Active group not found"}
+		}
+		return nil, &checkinError{http.StatusInternalServerError, "Failed to retrieve active group"}
+	}
+	if activeGroup == nil {
+		return nil, &checkinError{http.StatusNotFound, "Active group not found"}
+	}
+
+	if !activeGroup.IsOpen() {
+		return nil, &checkinError{http.StatusConflict, "The selected room session is no longer active"}
+	}
+
+	// Get staff authorization
+	staff, authErr := rs.getAuthorizedStaff(ctx, principal.AccountID())
+	if authErr != nil {
+		return nil, authErr
+	}
+
+	return &checkinContext{
+		studentID:   studentID,
+		activeGroup: activeGroup,
+		staff:       staff,
+		request:     req,
+	}, nil
+}
+
+// getAuthorizedStaff checks if the user is authorized to check in the student
+func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int64) (*StaffIdentity, *checkinError) {
+	person, personErr := rs.PersonService.FindByAccountID(ctx, accountID)
+	if personErr != nil || person == nil {
+		return nil, &checkinError{http.StatusInternalServerError, "Failed to get user information"}
+	}
+
+	staff, staffErr := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
+	if staffErr != nil || staff == nil {
+		return nil, &checkinError{http.StatusForbidden, "Only staff members can check in students"}
+	}
+
+	// Any verified staff member may check in any student (#2329) — the
+	// former education-group gate is gone.
+	return staff, nil
+}
+
+// validateStudentForCheckin checks if the student is in a valid state for check-in
+func (rs *Resource) validateStudentForCheckin(ctx context.Context, studentID int64) *checkinError {
+	// Check if student already has an active visit
+	currentVisit, visitErr := rs.currentPresenceVisit(ctx, studentID)
+	if visitErr != nil {
+		// ErrVisitNotFound is expected when student has no active visit - proceed with check-in
+		if !errors.Is(visitErr, studentpresence.ErrVisitNotFound) {
+			// Any other error (DB failure, etc.) should return 500
+			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
+		}
+	}
+
+	// Check attendance status
+	attendanceStatus, statusErr := rs.Operations.StudentAttendanceStatus(ctx, studentID)
+	if statusErr != nil {
+		return &checkinError{http.StatusInternalServerError, "Failed to get attendance status"}
+	}
+
+	if currentVisit != nil {
+		// Present states ("checked_in" and its yard sub-state) keep the
+		// genuine conflict: the student really is in another room.
+		if attendanceStatus.Status == "checked_in" || attendanceStatus.Status == "on_yard" {
+			return &checkinError{http.StatusConflict, "Student already has an active visit in another room"}
+		}
+
+		// Orphaned visit (issue #895): attendance says the student left, but
+		// a visit row is still open — the deadlock state left behind by a
+		// partial checkout. Heal it and proceed with the check-in; a failure
+		// returns 500 so TenantTxMiddleware rolls the request back.
+		if endErr := rs.Operations.EndVisit(ctx, currentVisit.ID); endErr != nil && !errors.Is(endErr, studentpresence.ErrVisitAlreadyEnded) {
+			return &checkinError{http.StatusInternalServerError, "Failed to check current visit status"}
+		}
+		return nil
+	}
+
+	if attendanceStatus.Status == "checked_in" {
+		return &checkinError{http.StatusConflict, "Student is already checked in"}
+	}
+
+	return nil
+}
+
+// createCheckinVisit creates the visit record for check-in
+func (rs *Resource) createCheckinVisit(ctx context.Context, checkinCtx *checkinContext) (*studentpresence.Visit, *checkinError) {
+	visit := studentpresence.Visit{
+		StudentID:     checkinCtx.studentID,
+		ActiveGroupID: checkinCtx.request.ActiveGroupID,
+		EntryTime:     time.Now(),
+	}
+
+	admitted, createErr := rs.Operations.AdmitVisit(ctx, visit)
+	if createErr != nil {
+		var capacityErr *studentpresence.RoomCapacityError
+		if errors.As(createErr, &capacityErr) {
+			rs.runtime.MarkRollback(ctx)
+			return nil, &checkinError{http.StatusConflict, capacityErr.Error()}
+		}
+		// Handle race condition: another request already created a visit for this student
+		if errors.Is(createErr, studentpresence.ErrStudentAlreadyActive) {
+			return nil, &checkinError{http.StatusConflict, "Student already has an active visit"}
+		}
+		// A graduated (alumnus) student — the admission's ensureStudentCheckinAllowed
+		// guard, reached from a stale page or when a graduation commits between
+		// this request's student lookup and the visit write — is treated like an
+		// unknown student (404), the same mapping errorRules, the IoT checkin
+		// mapper and the school-checkin handler use. Without it the row-lock race
+		// this guard exists to win surfaces as a 500 (#405).
+		if errors.Is(createErr, studentpresence.ErrStudentGraduated) || errors.Is(createErr, studentpresence.ErrStudentCareEnded) {
+			return nil, &checkinError{http.StatusNotFound, "Student not found"}
+		}
+		rs.getLogger().ErrorContext(ctx, "failed to create visit during check-in",
+			slog.Int64("student_id", checkinCtx.studentID),
+			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),
+			slog.String("error", createErr.Error()),
+		)
+		return nil, &checkinError{http.StatusInternalServerError, "Failed to check in student to room"}
+	}
+
+	// Update last_activity on the active group to prevent session timeout
+	// while staff are actively using the web check-in feature
+	if activityErr := rs.Operations.TouchSession(ctx, checkinCtx.request.ActiveGroupID); activityErr != nil {
+		// Log but don't fail - the visit was created successfully
+		rs.getLogger().WarnContext(ctx, "failed to update session activity after check-in",
+			slog.Int64("active_group_id", checkinCtx.request.ActiveGroupID),
+			slog.String("error", activityErr.Error()),
+		)
+	}
+
+	return &admitted, nil
+}
+
+// respondCheckinSuccess sends the success response for check-in
+func (rs *Resource) respondCheckinSuccess(w http.ResponseWriter, r *http.Request, ctx context.Context, visit *studentpresence.Visit, checkinCtx *checkinContext) {
+	responseData := map[string]interface{}{
+		"student_id":      checkinCtx.studentID,
+		"action":          "checked_in",
+		"visit_id":        visit.ID,
+		"active_group_id": checkinCtx.request.ActiveGroupID,
+		"room_id":         checkinCtx.activeGroup.RoomID,
+	}
+
+	// Try to get updated attendance status for response
+	updatedAttendance, statusErr := rs.Operations.StudentAttendanceStatus(ctx, checkinCtx.studentID)
+	if statusErr != nil {
+		rs.getLogger().WarnContext(ctx, "failed to get updated attendance status after checkin",
+			slog.Int64("student_id", checkinCtx.studentID),
+			slog.String("error", statusErr.Error()),
+		)
+	}
+
+	if statusErr == nil && updatedAttendance != nil {
+		responseData["attendance_status"] = updatedAttendance.Status
+		responseData["check_in_time"] = updatedAttendance.CheckInTime
+		responseData["checked_in_by"] = updatedAttendance.CheckedInBy
+	}
+
+	common.RespondWithJSON(w, r, http.StatusOK, map[string]interface{}{
+		"status":  "success",
+		"message": "Student checked in successfully",
+		"data":    responseData,
+	})
+}

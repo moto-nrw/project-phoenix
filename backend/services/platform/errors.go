@@ -31,15 +31,6 @@ func (e *OperatorInactiveError) Error() string {
 	return fmt.Sprintf("operator account %d is inactive", e.OperatorID)
 }
 
-// AnnouncementNotFoundError is returned when an announcement is not found
-type AnnouncementNotFoundError struct {
-	AnnouncementID int64
-}
-
-func (e *AnnouncementNotFoundError) Error() string {
-	return fmt.Sprintf("announcement with ID %d not found", e.AnnouncementID)
-}
-
 // InvalidDataError is returned when data validation fails
 type InvalidDataError struct {
 	Err error

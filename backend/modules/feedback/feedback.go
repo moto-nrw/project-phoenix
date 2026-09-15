@@ -21,6 +21,13 @@ type Date string
 
 func Today() Date { return Date(timezone.TodayDate().String()) }
 
+// TimestampParts returns the Berlin calendar day and wall-clock time stored
+// for one feedback instant, including across midnight and DST transitions.
+func TimestampParts(instant time.Time) (Date, string) {
+	local := instant.In(timezone.Berlin)
+	return Date(timezone.DateFromTime(local).String()), local.Format("15:04:05")
+}
+
 func ParseDate(value string) (Date, error) {
 	date, err := timezone.ParseDate(value)
 	if err != nil {

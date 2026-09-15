@@ -6,12 +6,12 @@ import { useSWRConfig } from "swr";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import {
   StatusBadge,
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
@@ -701,7 +701,7 @@ export function StaffSessionTable({
                         isExpanded
                           ? "bg-gray-50"
                           : isToday
-                            ? "bg-[#F78C10]/5"
+                            ? "bg-moto-orange/5"
                             : isWeekend
                               ? "bg-gray-50/60"
                               : ""
@@ -847,55 +847,65 @@ export function StaffSessionTable({
                             holidayName={holidayName}
                           />
                           {canEdit && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                // On a multi-block day the pencil adds a
-                                // further block; each existing block has its
-                                // own pencil in its sub-row.
-                                const targetSession = hasMultipleBlocks
-                                  ? null
-                                  : (originalSession ?? null);
-                                if (onEditDay) {
-                                  onEditDay(
-                                    targetSession ? originalSessionDate : day,
-                                    targetSession,
-                                    absence ?? null,
-                                  );
-                                } else {
-                                  setEditModal({
-                                    mode:
-                                      targetSession == null
-                                        ? "nachtragen"
-                                        : "edit",
-                                    date: targetSession
-                                      ? originalSessionDate
-                                      : day,
-                                    session: targetSession,
-                                  });
-                                }
-                              }}
-                              aria-label={
-                                session == null
-                                  ? "Eintrag nachtragen"
-                                  : hasMultipleBlocks
-                                    ? "Block nachtragen"
-                                    : "Eintrag bearbeiten"
-                              }
-                              title={
-                                session == null
-                                  ? "Eintrag nachtragen"
-                                  : hasMultipleBlocks
-                                    ? "Block nachtragen"
-                                    : "Eintrag bearbeiten"
-                              }
-                              className="h-7 w-7 shrink-0 text-gray-400 hover:text-gray-700"
+                            // Zeilenaktion nur im Kebab der Zeile (BAUARTEN-
+                            // SPEC Bauart 1 Regel 4). stopPropagation hält
+                            // den Menüklick vom Zeilenklick fern, der die
+                            // Änderungshistorie auf- und zuklappt.
+                            <div
+                              className="flex shrink-0 items-center"
+                              onClick={(e) => e.stopPropagation()}
+                              onKeyDown={(e) => e.stopPropagation()}
+                              role="presentation"
                             >
-                              <SquarePen className="h-4 w-4" />
-                            </Button>
+                              <OverflowMenu
+                                ariaLabel={`Aktionen für ${formatShortDate(day)}`}
+                                triggerSize="sm"
+                                items={[
+                                  {
+                                    label:
+                                      session == null
+                                        ? "Eintrag nachtragen"
+                                        : hasMultipleBlocks
+                                          ? "Block nachtragen"
+                                          : "Eintrag bearbeiten",
+                                    icon: (
+                                      <SquarePen
+                                        className="h-4 w-4"
+                                        aria-hidden
+                                      />
+                                    ),
+                                    onClick: () => {
+                                      // On a multi-block day the entry adds a
+                                      // further block; each existing block has
+                                      // its own menu in its sub-row.
+                                      const targetSession = hasMultipleBlocks
+                                        ? null
+                                        : (originalSession ?? null);
+                                      if (onEditDay) {
+                                        onEditDay(
+                                          targetSession
+                                            ? originalSessionDate
+                                            : day,
+                                          targetSession,
+                                          absence ?? null,
+                                        );
+                                      } else {
+                                        setEditModal({
+                                          mode:
+                                            targetSession == null
+                                              ? "nachtragen"
+                                              : "edit",
+                                          date: targetSession
+                                            ? originalSessionDate
+                                            : day,
+                                          session: targetSession,
+                                        });
+                                      }
+                                    },
+                                  },
+                                ]}
+                              />
+                            </div>
                           )}
                         </div>
                       </td>
@@ -957,39 +967,50 @@ export function StaffSessionTable({
                                 holidayName={undefined}
                               />
                               {canEdit && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const originalBlock = block.id
-                                      ? (originalSessionsByID.get(block.id) ??
-                                        block)
-                                      : block;
-                                    const originalBlockDate = parseISODate(
-                                      originalBlock.date,
-                                    );
-                                    if (onEditDay) {
-                                      onEditDay(
-                                        originalBlockDate,
-                                        originalBlock,
-                                        absence ?? null,
-                                      );
-                                    } else {
-                                      setEditModal({
-                                        mode: "edit",
-                                        date: originalBlockDate,
-                                        session: originalBlock,
-                                      });
-                                    }
-                                  }}
-                                  aria-label={`Block ${blockIndex + 1} bearbeiten`}
-                                  title={`Block ${blockIndex + 1} bearbeiten`}
-                                  className="h-6 w-6 shrink-0 text-gray-400 hover:text-gray-700"
+                                <div
+                                  className="flex shrink-0 items-center"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onKeyDown={(e) => e.stopPropagation()}
+                                  role="presentation"
                                 >
-                                  <SquarePen className="h-3.5 w-3.5" />
-                                </Button>
+                                  <OverflowMenu
+                                    ariaLabel={`Aktionen für Block ${blockIndex + 1}`}
+                                    triggerSize="sm"
+                                    items={[
+                                      {
+                                        label: `Block ${blockIndex + 1} bearbeiten`,
+                                        icon: (
+                                          <SquarePen
+                                            className="h-4 w-4"
+                                            aria-hidden
+                                          />
+                                        ),
+                                        onClick: () => {
+                                          const originalBlock = block.id
+                                            ? (originalSessionsByID.get(
+                                                block.id,
+                                              ) ?? block)
+                                            : block;
+                                          const originalBlockDate =
+                                            parseISODate(originalBlock.date);
+                                          if (onEditDay) {
+                                            onEditDay(
+                                              originalBlockDate,
+                                              originalBlock,
+                                              absence ?? null,
+                                            );
+                                          } else {
+                                            setEditModal({
+                                              mode: "edit",
+                                              date: originalBlockDate,
+                                              session: originalBlock,
+                                            });
+                                          }
+                                        },
+                                      },
+                                    ]}
+                                  />
+                                </div>
                               )}
                             </div>
                           </td>
@@ -1059,10 +1080,12 @@ export function StaffSessionTable({
           </table>
         </div>
         {!isAdminView && (
-          <p className="border-t border-gray-100 bg-gray-50 px-4 py-2 text-xs text-gray-500">
-            Eigene Arbeitszeiten können in der Zeiterfassung-Seite bearbeitet
-            werden.
-          </p>
+          <div className="border-t border-gray-100 bg-gray-50 p-3">
+            <Alert
+              type="info"
+              message="Eigene Arbeitszeiten können auf der Seite Zeiterfassung bearbeitet werden."
+            />
+          </div>
         )}
         {!onEditDay && editModal && (
           <AdminSessionEditModal
@@ -1173,7 +1196,7 @@ function PlannedShiftCell({
             <span className="line-through">
               {shift.startTime}–{shift.endTime}
             </span>{" "}
-            <span className="text-[11px]">entfällt</span>
+            <span className="text-xs">entfällt</span>
           </div>
         ) : (
           <div key={shift.id} className="text-gray-600">
@@ -1233,7 +1256,7 @@ function computeRowStatus(
 }
 
 // Every fixed-outcome pill is the kit StatusBadge; only the absence pill stays
-// StatusDotBadge because its colour is data (ABSENCE_TYPE_HEX), not one of the
+// StatusColorBadge because its colour is data (ABSENCE_TYPE_HEX), not one of the
 // five semantic tones. `title` lives on a wrapper — StatusBadge takes no
 // tooltip prop and does not need one.
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
@@ -1244,7 +1267,7 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
     // this very column. #0EA5E9 is the hue staff-helpers already uses for
     // Homeoffice.
     return (
-      <StatusDotBadge
+      <StatusColorBadge
         label="Homeoffice"
         color={MOTO_COLOR_PALETTE.timeTracking.base}
       />
@@ -1268,7 +1291,7 @@ function RowStatusBadge({ status }: { readonly status: RowStatus }) {
       : absenceLabel;
     const color =
       ABSENCE_TYPE_HEX[status.absenceType] ?? ABSENCE_TYPE_HEX.other!;
-    return <StatusDotBadge label={label} color={color} />;
+    return <StatusColorBadge label={label} color={color} />;
   }
   return <StatusBadge label="Nicht erfasst" tone="gray" />;
 }
@@ -1366,7 +1389,7 @@ function HintBadges({
 // Saldo values sit as plain text on a white row — identical to KpiCard in
 // staff-time-views, which prices the same figure on /staff/[id]. The -strong
 // ramp steps are used deliberately even though they read brownish: amber only
-// becomes legible on white once it is that dark. The previous text-amber-600
+// becomes legible on white once it is that dark. The previous amber text token
 // (#D97706) sat at 3.19:1 and missed AA for normal text, moto-amber-strong
 // (#92400E) reaches 7.09:1. Green is the brand green because it is legible and
 // unambiguous at this size.

@@ -5,9 +5,8 @@ import (
 	"time"
 
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,40 +28,40 @@ const (
 	collidingEducationRef int64 = 7  // the education group the care template serves
 )
 
-func templateFixtures() map[int64]*activitiesModels.Group {
+func templateFixtures() map[int64]*activeModels.SessionActivity {
 	educationRef := collidingEducationRef
 
-	collidingActivity := &activitiesModels.Group{
+	collidingActivity := &activeModels.SessionActivity{
 		Name:            "Fußball",
-		Type:            activitiesModels.GroupTypeActivity,
-		TargetGroupType: activitiesModels.TargetGroupTypeNone,
+		Type:            "activity",
+		TargetGroupType: "none",
 	}
 	collidingActivity.ID = collidingID
 
-	careGroup := &activitiesModels.Group{
+	careGroup := &activeModels.SessionActivity{
 		Name:             "Gruppenzeit Bären",
-		Type:             activitiesModels.GroupTypeCare,
-		TargetGroupType:  activitiesModels.TargetGroupTypeGruppe,
+		Type:             "care",
+		TargetGroupType:  "gruppe",
 		EducationGroupID: &educationRef,
 	}
 	careGroup.ID = careTemplateID
 
-	careWithoutGroup := &activitiesModels.Group{
+	careWithoutGroup := &activeModels.SessionActivity{
 		Name:            "Mittagessen 1. Schicht",
-		Type:            activitiesModels.GroupTypeCare,
-		TargetGroupType: activitiesModels.TargetGroupTypeNone,
+		Type:            "care",
+		TargetGroupType: "none",
 	}
 	careWithoutGroup.ID = careWithoutGroupID
 
-	activityWithTarget := &activitiesModels.Group{
+	activityWithTarget := &activeModels.SessionActivity{
 		Name:             "Basteln für die Bären",
-		Type:             activitiesModels.GroupTypeActivity,
-		TargetGroupType:  activitiesModels.TargetGroupTypeGruppe,
+		Type:             "activity",
+		TargetGroupType:  "gruppe",
 		EducationGroupID: &educationRef,
 	}
 	activityWithTarget.ID = activityWithTargetID
 
-	return map[int64]*activitiesModels.Group{
+	return map[int64]*activeModels.SessionActivity{
 		collidingID:          collidingActivity,
 		careTemplateID:       careGroup,
 		careWithoutGroupID:   careWithoutGroup,
@@ -82,7 +81,7 @@ func activeSession(id int64, templateID *int64, roomID int64) *activeModels.Grou
 
 func emptyRoomData() *dashboardRoomData {
 	return &dashboardRoomData{
-		roomByID:        map[int64]*facilityModels.Room{},
+		roomByID:        map[int64]*activeModels.SessionRoom{},
 		occupiedRooms:   map[int64]bool{},
 		roomStudentsMap: map[int64]map[int64]struct{}{},
 	}
@@ -95,7 +94,7 @@ func TestIsOGSGroupTemplate(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		template *activitiesModels.Group
+		template *activeModels.SessionActivity
 		want     bool
 	}{
 		{"care block bound to an education group", templates[careTemplateID], true},
@@ -132,7 +131,7 @@ func TestProcessActiveGroupsCountsOnlyEducationBoundCareSessions(t *testing.T) {
 	}
 
 	roomData := emptyRoomData()
-	totalCount, ogsCount, _ := processActiveGroups(sessions, map[int64][]*activeModels.Visit{}, templates, roomData)
+	totalCount, ogsCount, _ := processActiveGroups(sessions, map[int64][]studentpresence.Visit{}, templates, roomData)
 
 	assert.Equal(t, len(sessions), totalCount)
 	assert.Equal(t, 1, ogsCount, "only the education-bound care session is a Betreuungsgruppe")
@@ -148,8 +147,8 @@ func TestProcessActiveGroupsWithoutTemplatesCountsNoOGSGroups(t *testing.T) {
 
 	_, ogsCount, _ := processActiveGroups(
 		sessions,
-		map[int64][]*activeModels.Visit{},
-		map[int64]*activitiesModels.Group{},
+		map[int64][]studentpresence.Visit{},
+		map[int64]*activeModels.SessionActivity{},
 		emptyRoomData(),
 	)
 

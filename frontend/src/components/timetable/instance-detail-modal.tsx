@@ -1,8 +1,9 @@
 "use client";
 
 /**
- * InstanceDetailModal — centered modal showing the full state of a
- * clicked instance plus lifecycle action buttons (#1956).
+ * InstanceDetailModal — Seitenpanel (SlideOver) mit dem vollen Zustand eines
+ * angeklickten Termins samt Aktionen (#1956). Auf dem Telefon fährt es als
+ * Blatt von unten ein; der Wochenplan dahinter bleibt sichtbar.
  *
  * Shows the operational state of one timetable instance: lifecycle,
  * assigned staff, children, attendance state, and admin corrections.
@@ -10,7 +11,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import {
   Check,
   CheckCircle2,
@@ -29,8 +30,16 @@ import {
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import { ChoiceModal } from "~/components/ui/choice-modal";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import {
+  SlideOver,
+  SlideOverCloseButton,
+  SlideOverContent,
+  SlideOverFooter,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import {
   GuardianNoticeFields,
   guardianNoticeIncomplete,
@@ -38,7 +47,7 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/origin-chip";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -54,7 +63,9 @@ import type { InstanceParticipantNames } from "~/lib/timetable-api";
 import type {
   GuardianNoticeInput,
   GuardianNoticeReach,
+  TemplateRosterMaintenance,
 } from "~/lib/timetable-types";
+import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -87,7 +98,8 @@ export interface LifecycleActionOptions {
   guardianNotice?: GuardianNoticeInput;
 }
 
-type PendingConfirmAction = "complete" | "cancel" | "delete" | "reopen";
+// Löschen läuft über ConfirmDeleteModal (#3110), nicht über diese Liste.
+type PendingConfirmAction = "complete" | "cancel" | "reopen";
 
 const CONFIRM_DIALOGS: Record<
   PendingConfirmAction,
@@ -95,7 +107,6 @@ const CONFIRM_DIALOGS: Record<
     title: string;
     body: string;
     confirmText: string;
-    confirmButtonClass?: string;
   }
 > = {
   complete: {
@@ -107,12 +118,6 @@ const CONFIRM_DIALOGS: Record<
     title: "Termin absagen?",
     body: "Der Termin wird im Plan als abgesagt markiert. Das kann nicht rückgängig gemacht werden.",
     confirmText: "Absagen",
-  },
-  delete: {
-    title: "Abgesagten Termin löschen?",
-    body: "Der abgesagte Termin wird dauerhaft entfernt.",
-    confirmText: "Löschen",
-    confirmButtonClass: "bg-moto-red hover:bg-moto-red-strong",
   },
   reopen: {
     title: "Termin wieder öffnen?",
@@ -177,6 +182,14 @@ interface InstanceDetailModalProps {
    * studentNames-Map des Aufrufers.
    */
   fetchParticipantNames?: boolean;
+  /**
+   * Teilnehmerpflege des Regeltermins (#3140), wenn der Aufrufer die Serie
+   * schon geladen hat. Fehlt sie, lädt das Panel den Regeltermin für
+   * `seriesPeriodId` selbst nach.
+   */
+  seriesRosterMaintenance?: TemplateRosterMaintenance;
+  /** Planungszeitraum, in dem der Termin liegt; nötig für das Nachladen. */
+  seriesPeriodId?: string;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -192,8 +205,7 @@ function germanFullDate(iso: string): string {
 
 /**
  * Regeltermin-Herkunftstext für den OriginChip im Detail-Modal
- * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 3.2: "aus
- * Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
+ * ("aus Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
  * Template-Titel — materialisierte Instanzen erben den Titel des
  * Regeltermins 1:1 (timetable-helpers.ts Mapper), daher genügt
  * `instance.title`. Der Wochentag wird aus dem Instanzdatum abgeleitet
@@ -211,22 +223,61 @@ function regelterminOriginLabel(instance: EnrichedInstance): string {
     .join(" ");
 }
 
+/**
+ * Teilnehmerpflege des Regeltermins (#3140) im Detail-Panel. Nimmt den Stand
+ * aus der geladenen Serienliste, sonst den einzelnen Regeltermin; eine
+ * Serie ohne ableitbaren Stand zeigt nichts statt einer Vermutung.
+ */
+function SeriesRosterMaintenance({
+  templateId,
+  periodId,
+  known,
+}: Readonly<{
+  templateId: string;
+  periodId?: string;
+  known?: TemplateRosterMaintenance;
+}>) {
+  const { data } = useSWRAuth(
+    known || !periodId
+      ? null
+      : `timetable-template-roster-maintenance-${templateId}-${periodId}`,
+    () => timetableService.getTemplate(templateId, periodId ?? ""),
+  );
+  const state = known ?? data?.rosterMaintenance;
+  if (!state) return null;
+  return <RosterMaintenanceBadge state={state} />;
+}
+
 interface StatusBadgeProps {
   status: InstanceStatus;
 }
 
+/** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
+const STATUS_BADGE_ON_CLASS = "text-white";
+
 function StatusBadge({ status }: StatusBadgeProps) {
+  // Flächen aus LOCATION_COLORS bzw. der neutralen Palette, die Schrift als
+  // Tailwind-Klasse (gray-700 = neutral.strong, gray-500 = neutral.base) —
+  // kein Hex-Literal neben einem Token in derselben Tabelle.
   const palette: Record<InstanceStatus, { bg: string; text: string }> = {
-    planned: { bg: "#F3F4F6", text: "#374151" },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: "#FFFFFF" },
-    completed: { bg: "#E5E7EB", text: "#6B7280" },
-    cancelled: { bg: LOCATION_COLORS.DANGER, text: "#FFFFFF" },
+    planned: {
+      bg: MOTO_COLOR_PALETTE.neutral.soft,
+      text: "text-gray-700",
+    },
+    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_CLASS },
+    // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
+    // aber die hellere Schrift: erledigt, nicht offen.
+    completed: {
+      bg: MOTO_COLOR_PALETTE.neutral.soft,
+      text: "text-gray-500",
+    },
+    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_CLASS },
   };
   const { bg, text } = palette[status];
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase"
-      style={{ backgroundColor: bg, color: text }}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${text}`}
+      style={{ backgroundColor: bg }}
     >
       {status === "active" && (
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
@@ -534,6 +585,8 @@ export function InstanceDetailModal({
   canManageStaffPool = false,
   canManage = true,
   fetchParticipantNames = false,
+  seriesRosterMaintenance,
+  seriesPeriodId,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -553,8 +606,11 @@ export function InstanceDetailModal({
   const [pendingConfirm, setPendingConfirm] =
     useState<PendingConfirmAction | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
-  const [deleteScopeOpen, setDeleteScopeOpen] = useState(false);
-  const [pendingDeleteScope, setPendingDeleteScope] = useState<string | null>(
+  // Löschen (#3110): ein Dialog, die Scope-Wahl (nur diese Woche / ab jetzt
+  // dauerhaft) liegt als Slot in der ConfirmDeleteModal statt davor.
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteScopeAvailable, setDeleteScopeAvailable] = useState(false);
+  const [deleteScope, setDeleteScope] = useState<"single" | "following" | null>(
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
@@ -600,8 +656,8 @@ export function InstanceDetailModal({
 
   useEffect(() => {
     setPendingConfirm(null);
-    setDeleteScopeOpen(false);
-    setPendingDeleteScope(null);
+    setDeleteOpen(false);
+    setDeleteScope(null);
     setNoticeDraft(null);
     setNoticeReach(null);
   }, [instance?.id]);
@@ -657,33 +713,54 @@ export function InstanceDetailModal({
     instance.date >= currentToday;
   const seriesEndAvailable = canEndSeries(today);
 
-  // If the scope dialog was opened before Berlin midnight, its recurring
-  // option becomes invalid at the rollover. Continue with the only valid
-  // deletion flow instead of leaving a stale option that the backend rejects.
+  // If the delete dialog was opened before Berlin midnight, its recurring
+  // option becomes invalid at the rollover. Collapse to the only valid
+  // deletion scope instead of leaving a stale option that the backend rejects.
+  // A deletion already in flight keeps its dialog as it is.
   useEffect(() => {
-    if (deleteScopeOpen && pendingDeleteScope === null && !seriesEndAvailable) {
-      setDeleteScopeOpen(false);
-      setPendingConfirm("delete");
+    if (
+      deleteOpen &&
+      deleteScopeAvailable &&
+      !pendingDelete &&
+      !seriesEndAvailable
+    ) {
+      setDeleteScopeAvailable(false);
+      setDeleteScope("single");
     }
-  }, [deleteScopeOpen, pendingDeleteScope, seriesEndAvailable]);
+  }, [deleteOpen, deleteScopeAvailable, pendingDelete, seriesEndAvailable]);
 
   const openDeleteFlow = () => {
     // The hook refreshes once a minute. Re-read Berlin's current date at the
     // interaction boundary so the short interval after midnight cannot open
-    // an already invalid series-ending flow.
-    if (canEndSeries(berlinTodayISO())) {
-      setDeleteScopeOpen(true);
+    // an already invalid series-ending choice.
+    const scopeAvailable = canEndSeries(berlinTodayISO());
+    setDeleteScopeAvailable(scopeAvailable);
+    setDeleteScope(scopeAvailable ? null : "single");
+    setDeleteOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    // The dialog may have been open across midnight. Do not send a stale
+    // "following" request that the backend must reject; fall back to the
+    // single deletion and let the user confirm that one.
+    if (deleteScope === "following" && !canEndSeries(berlinTodayISO())) {
+      setDeleteScopeAvailable(false);
+      setDeleteScope("single");
       return;
     }
-    setPendingConfirm("delete");
+    const succeeded =
+      deleteScope === "following"
+        ? await handleDeleteFollowing()
+        : await handleDeleteCancelled();
+    if (succeeded) {
+      setDeleteOpen(false);
+    }
   };
 
   const handleConfirm = async () => {
     const action = pendingConfirm;
     setPendingConfirm(null);
-    if (action === "delete") {
-      await handleDeleteCancelled();
-    } else if (action === "cancel") {
+    if (action === "cancel") {
       const guardianNotice = guardianNoticePayload(noticeDraft, noticeReach);
       await handleLifecycle(
         action,
@@ -691,28 +768,6 @@ export function InstanceDetailModal({
       );
     } else if (action) {
       await handleLifecycle(action);
-    }
-  };
-
-  const handleDeleteScopeSelect = async (scope: string) => {
-    // The scope modal may have been open across midnight. Do not send a
-    // stale "following" request that the backend must reject.
-    if (scope === "following" && !canEndSeries(berlinTodayISO())) {
-      setDeleteScopeOpen(false);
-      setPendingConfirm("delete");
-      return;
-    }
-    setPendingDeleteScope(scope);
-    try {
-      const succeeded =
-        scope === "following"
-          ? await handleDeleteFollowing()
-          : await handleDeleteCancelled();
-      if (succeeded) {
-        setDeleteScopeOpen(false);
-      }
-    } finally {
-      setPendingDeleteScope(null);
     }
   };
 
@@ -743,8 +798,7 @@ export function InstanceDetailModal({
     <div className="flex w-full flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
         {/* Sprung in den Vertretungs-Bereich bei einer Störung des Blocks
-                  (offene Lücke oder eingetragene Abwesenheit) —
-                  docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
+                  (offene Lücke oder eingetragene Abwesenheit). Nutzt
                   nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
         {canManage &&
           (instance.status === "planned" || instance.status === "active") &&
@@ -898,200 +952,204 @@ export function InstanceDetailModal({
 
   return (
     <>
-      {/* Confirmation-/ChoiceModal teilen sich mit dem Detail-Modal denselben
-          fixen z-index. Solange eines offen ist, wird das Detail-Modal
-          ausgeblendet statt gestapelt (gleiches Muster wie
-          staff/shift-move-dialog.tsx). */}
-      <Modal
-        isOpen={pendingConfirm === null && !deleteScopeOpen && !suspended}
-        onClose={onClose}
-        title={instance.title}
-        closeLabel="Schließen"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-3xl"
-        footer={footer}
+      {/* Confirmation-/ConfirmDeleteModal liegen auf derselben Ebene wie das
+          Panel. Solange eines offen ist, wird das Panel ausgeblendet statt
+          gestapelt (gleiches Muster wie staff/shift-move-dialog.tsx). */}
+      <SlideOver
+        open={pendingConfirm === null && !deleteOpen && !suspended}
+        onOpenChange={(open) => {
+          if (!open) onClose();
+        }}
       >
-        <div className="space-y-5">
-          <div className="space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={instance.status} />
-              {instance.isSpontaneous && (
-                <span
-                  className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
-                  title="Dieser Termin wurde spontan gestartet und war nicht geplant."
-                >
-                  Spontan gestartet
-                </span>
-              )}
-              <ActivityTypeBadge activityType={instance.activityType} />
+        <SlideOverContent widthClass="sm:w-[760px]">
+          <SlideOverHeader className="flex-row items-start justify-between gap-3">
+            <div className="min-w-0">
+              <SlideOverTitle>{instance.title}</SlideOverTitle>
             </div>
-            <p className="text-sm text-gray-500">
-              {germanFullDate(instance.date)} • {instance.startTime} –{" "}
-              {instance.endTime}
-            </p>
-            {instance.activityGroupId && (
-              <OriginChip
-                label={regelterminOriginLabel(instance)}
-                className="mt-1.5"
-              />
-            )}
-          </div>
-          {instance.conflictWarnings.length > 0 && (
-            <div className={timetableDangerPanel}>
-              <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
-                <TriangleAlert className="h-4 w-4" />
-                {instance.conflictWarnings.length} Konflikt(e)
+            <SlideOverCloseButton />
+          </SlideOverHeader>
+          <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={instance.status} />
+                {instance.isSpontaneous && (
+                  <span
+                    className="rounded-full bg-gray-100 px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-gray-600 uppercase"
+                    title="Dieser Termin wurde spontan gestartet und war nicht geplant."
+                  >
+                    Spontan gestartet
+                  </span>
+                )}
+                <ActivityTypeBadge activityType={instance.activityType} />
               </div>
-              <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
-                {instance.conflictWarnings.map((warning) => (
-                  <li key={warning.message}>• {warning.message}</li>
-                ))}
-              </ul>
+              <p className="text-sm text-gray-500">
+                {germanFullDate(instance.date)} • {instance.startTime} –{" "}
+                {instance.endTime}
+              </p>
+              {instance.activityGroupId && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <OriginChip label={regelterminOriginLabel(instance)} />
+                  <SeriesRosterMaintenance
+                    templateId={instance.activityGroupId}
+                    periodId={seriesPeriodId}
+                    known={seriesRosterMaintenance}
+                  />
+                </div>
+              )}
             </div>
-          )}
+            {instance.conflictWarnings.length > 0 && (
+              <div className={timetableDangerPanel}>
+                <div className="text-moto-red-strong flex items-center gap-2 text-xs font-bold">
+                  <TriangleAlert className="h-4 w-4" />
+                  {instance.conflictWarnings.length} Konflikt(e)
+                </div>
+                <ul className="text-moto-red-strong mt-1 space-y-0.5 text-xs">
+                  {instance.conflictWarnings.map((warning) => (
+                    <li key={warning.message}>• {warning.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
 
-          <StatsRow instance={instance} />
+            <StatsRow instance={instance} />
 
-          <Section title="Details">
-            <Row
-              icon={<MotoConceptIcon concept="careTimes" size={18} />}
-              label="Zeit"
-            >
-              {instance.startTime} – {instance.endTime}
-            </Row>
-            <Row
-              icon={<MotoConceptIcon concept="rooms" size={18} />}
-              label="Raum"
-            >
-              {instance.roomName || `Raum #${instance.roomId}`}
-            </Row>
-            <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
-              {instance.planningTrackName ?? "Keine Planungsspur"}
-            </Row>
-            <Row
-              icon={<MotoConceptIcon concept="staff" size={18} />}
-              label={`Personal (${instance.staffCount})`}
-            >
-              {instance.staffCount === 0
-                ? "Niemand zugeordnet"
-                : `${instance.staffCount - instance.absentStaffCount} aktiv${
-                    instance.absentStaffCount > 0
-                      ? `, ${instance.absentStaffCount} abwesend`
-                      : ""
-                  }`}
-            </Row>
-            {showTimetableCounts ? (
+            <Section title="Details">
               <Row
-                icon={<MotoConceptIcon concept="children" size={18} />}
-                label="Kinder"
+                icon={<MotoConceptIcon concept="careTimes" size={18} />}
+                label="Zeit"
               >
-                {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
-                eingetragen
-                {instance.presentStudentsCount > 0
-                  ? ` • ${instance.presentStudentsCount} anwesend`
-                  : ""}
-                {/* Names the gap between the assignment list and the care
+                {instance.startTime} – {instance.endTime}
+              </Row>
+              <Row
+                icon={<MotoConceptIcon concept="rooms" size={18} />}
+                label="Raum"
+              >
+                {instance.roomName || `Raum #${instance.roomId}`}
+              </Row>
+              <Row icon={<Palette className="h-4 w-4" />} label="Planungsspur">
+                {instance.planningTrackName ?? "Keine Planungsspur"}
+              </Row>
+              <Row
+                icon={<MotoConceptIcon concept="staff" size={18} />}
+                label={`Personal (${instance.staffCount})`}
+              >
+                {instance.staffCount === 0
+                  ? "Niemand zugeordnet"
+                  : `${instance.staffCount - instance.absentStaffCount} aktiv${
+                      instance.absentStaffCount > 0
+                        ? `, ${instance.absentStaffCount} abwesend`
+                        : ""
+                    }`}
+              </Row>
+              {showTimetableCounts ? (
+                <Row
+                  icon={<MotoConceptIcon concept="children" size={18} />}
+                  label="Kinder"
+                >
+                  {instance.expectedStudentsCount +
+                    instance.presentStudentsCount}{" "}
+                  eingetragen
+                  {instance.presentStudentsCount > 0
+                    ? ` • ${instance.presentStudentsCount} anwesend`
+                    : ""}
+                  {/* Names the gap between the assignment list and the care
                       plan (#1747) instead of leaving a smaller number
                       unexplained. */}
-                {instance.notScheduledStudentsCount > 0
-                  ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
-                  : ""}
-              </Row>
-            ) : null}
-            {instance.seriesNotes && (
-              <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
-                <span className="whitespace-pre-line">
-                  {instance.seriesNotes}
-                </span>
-              </Row>
-            )}
-            {instance.notes && (
-              <Row
-                icon={<StickyNote className="h-4 w-4" />}
-                label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
-              >
-                <span className="whitespace-pre-line">{instance.notes}</span>
-              </Row>
-            )}
-          </Section>
+                  {instance.notScheduledStudentsCount > 0
+                    ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
+                    : ""}
+                </Row>
+              ) : null}
+              {instance.seriesNotes && (
+                <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
+                  <span className="whitespace-pre-line">
+                    {instance.seriesNotes}
+                  </span>
+                </Row>
+              )}
+              {instance.notes && (
+                <Row
+                  icon={<StickyNote className="h-4 w-4" />}
+                  label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
+                >
+                  <span className="whitespace-pre-line">{instance.notes}</span>
+                </Row>
+              )}
+            </Section>
 
-          {fetchParticipantNames ? (
-            <ParticipantNamesLoader instanceId={instance.id}>
-              {(names) => {
-                const visibleStudents = students.filter((student) =>
-                  names.studentNames.has(student.studentId),
-                );
-                const visibleGroupedStudents = {
-                  expected: groupedStudents.expected.filter((student) =>
+            {fetchParticipantNames ? (
+              <ParticipantNamesLoader instanceId={instance.id}>
+                {(names) => {
+                  const visibleStudents = students.filter((student) =>
                     names.studentNames.has(student.studentId),
-                  ),
-                  notScheduled: groupedStudents.notScheduled.filter((student) =>
-                    names.studentNames.has(student.studentId),
-                  ),
-                  present: groupedStudents.present.filter((student) =>
-                    names.studentNames.has(student.studentId),
-                  ),
-                  absent: groupedStudents.absent.filter((student) =>
-                    names.studentNames.has(student.studentId),
-                  ),
-                };
+                  );
+                  const visibleGroupedStudents = {
+                    expected: groupedStudents.expected.filter((student) =>
+                      names.studentNames.has(student.studentId),
+                    ),
+                    notScheduled: groupedStudents.notScheduled.filter(
+                      (student) => names.studentNames.has(student.studentId),
+                    ),
+                    present: groupedStudents.present.filter((student) =>
+                      names.studentNames.has(student.studentId),
+                    ),
+                    absent: groupedStudents.absent.filter((student) =>
+                      names.studentNames.has(student.studentId),
+                    ),
+                  };
 
-                return (
-                  <>
-                    <AssignedStaffSection
-                      instance={instance}
-                      staffNames={names.staffNames}
-                      onOpenPool={poolAvailable ? onOpenPool : undefined}
-                      canManageStaffPool={canManageStaffPool}
-                    />
-                    <InstanceStudentsSection
-                      groupedStudents={visibleGroupedStudents}
-                      handleAttendancePatch={handleAttendancePatch}
-                      instance={instance}
-                      onAttendancePatch={attendancePatch}
-                      pendingStudentId={pendingStudentId}
-                      studentNames={names.studentNames}
-                      students={visibleStudents}
-                    />
-                  </>
-                );
-              }}
-            </ParticipantNamesLoader>
-          ) : (
-            <>
-              <AssignedStaffSection
-                instance={instance}
-                staffNames={staffNames}
-                onOpenPool={poolAvailable ? onOpenPool : undefined}
-                canManageStaffPool={canManageStaffPool}
-              />
-              <InstanceStudentsSection
-                groupedStudents={groupedStudents}
-                handleAttendancePatch={handleAttendancePatch}
-                instance={instance}
-                onAttendancePatch={attendancePatch}
-                pendingStudentId={pendingStudentId}
-                studentNames={studentNames}
-                students={students}
-              />
-            </>
-          )}
-        </div>
-      </Modal>
+                  return (
+                    <>
+                      <AssignedStaffSection
+                        instance={instance}
+                        staffNames={names.staffNames}
+                        onOpenPool={poolAvailable ? onOpenPool : undefined}
+                        canManageStaffPool={canManageStaffPool}
+                      />
+                      <InstanceStudentsSection
+                        groupedStudents={visibleGroupedStudents}
+                        handleAttendancePatch={handleAttendancePatch}
+                        instance={instance}
+                        onAttendancePatch={attendancePatch}
+                        pendingStudentId={pendingStudentId}
+                        studentNames={names.studentNames}
+                        students={visibleStudents}
+                      />
+                    </>
+                  );
+                }}
+              </ParticipantNamesLoader>
+            ) : (
+              <>
+                <AssignedStaffSection
+                  instance={instance}
+                  staffNames={staffNames}
+                  onOpenPool={poolAvailable ? onOpenPool : undefined}
+                  canManageStaffPool={canManageStaffPool}
+                />
+                <InstanceStudentsSection
+                  groupedStudents={groupedStudents}
+                  handleAttendancePatch={handleAttendancePatch}
+                  instance={instance}
+                  onAttendancePatch={attendancePatch}
+                  pendingStudentId={pendingStudentId}
+                  studentNames={studentNames}
+                  students={students}
+                />
+              </>
+            )}
+          </div>
+          <SlideOverFooter>{footer}</SlideOverFooter>
+        </SlideOverContent>
+      </SlideOver>
       {pendingConfirm && (
         <ConfirmationModal
           isOpen
           onClose={() => setPendingConfirm(null)}
           onConfirm={handleConfirm}
-          title={
-            pendingConfirm === "delete" && instance?.status === "planned"
-              ? "Termin löschen?"
-              : CONFIRM_DIALOGS[pendingConfirm].title
-          }
+          title={CONFIRM_DIALOGS[pendingConfirm].title}
           confirmText={CONFIRM_DIALOGS[pendingConfirm].confirmText}
           cancelText="Abbrechen"
-          confirmButtonClass={
-            CONFIRM_DIALOGS[pendingConfirm].confirmButtonClass
-          }
           isConfirmDisabled={
             pendingConfirm === "cancel" &&
             guardianNoticeIncomplete(
@@ -1105,9 +1163,7 @@ export function InstanceDetailModal({
             <p className="text-sm leading-relaxed text-gray-600">
               {pendingConfirm === "cancel" && instance?.status === "active"
                 ? "Die laufende Betreuung wird gestoppt und der Termin als abgesagt markiert. Das kann nicht rückgängig gemacht werden."
-                : pendingConfirm === "delete" && instance?.status === "planned"
-                  ? "Der geplante Termin wird dauerhaft entfernt."
-                  : CONFIRM_DIALOGS[pendingConfirm].body}
+                : CONFIRM_DIALOGS[pendingConfirm].body}
             </p>
             {pendingConfirm === "cancel" && (
               <GuardianNoticeFields
@@ -1122,27 +1178,62 @@ export function InstanceDetailModal({
           </div>
         </ConfirmationModal>
       )}
-      <ChoiceModal
-        isOpen={deleteScopeOpen}
-        onClose={() => setDeleteScopeOpen(false)}
-        title="Wiederholenden Termin löschen"
-        description={`Der Termin am ${germanFullDate(instance.date)} gehört zu einem Regeltermin.`}
-        options={[
-          {
-            value: "single",
-            label: "Nur diese Woche",
-            description:
-              "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
-          },
-          {
-            value: "following",
-            label: "Ab jetzt dauerhaft",
-            description:
-              "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
-          },
-        ]}
-        onSelect={handleDeleteScopeSelect}
-        isBusy={pendingDeleteScope !== null}
+      <ConfirmDeleteModal
+        isOpen={deleteOpen}
+        title={
+          deleteScopeAvailable
+            ? "Wiederholenden Termin löschen"
+            : instance.status === "cancelled"
+              ? "Abgesagten Termin löschen"
+              : "Termin löschen"
+        }
+        description={
+          deleteScopeAvailable ? (
+            <p>
+              Der Termin am {germanFullDate(instance.date)} gehört zu einem
+              Regeltermin.
+            </p>
+          ) : (
+            <p className="leading-relaxed">
+              {instance.status === "cancelled"
+                ? "Der abgesagte Termin wird dauerhaft entfernt."
+                : "Der geplante Termin wird dauerhaft entfernt."}
+            </p>
+          )
+        }
+        scope={
+          deleteScopeAvailable
+            ? {
+                label: "Was soll gelöscht werden?",
+                name: "instance-delete-scope",
+                value: deleteScope,
+                onChange: (value) =>
+                  setDeleteScope(
+                    value === "following" ? "following" : "single",
+                  ),
+                options: [
+                  {
+                    value: "single",
+                    label: "Nur diese Woche",
+                    description:
+                      "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
+                  },
+                  {
+                    value: "following",
+                    label: "Ab jetzt dauerhaft",
+                    description:
+                      "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
+                  },
+                ],
+              }
+            : undefined
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+        confirmLabel={deleteScopeAvailable ? "Löschen" : "Endgültig löschen"}
+        onConfirm={handleConfirmDelete}
+        onClose={() => setDeleteOpen(false)}
+        loading={pendingDelete}
+        error=""
       />
     </>
   );
@@ -1410,7 +1501,7 @@ function StatsRow({ instance }: StatsRowProps) {
         <TimetableRatioPill
           icon={<MotoConceptIcon concept="present" size={16} />}
           label="Anwesend"
-          value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
+          value={totalStudents === 0 ? "–" : `${present} / ${totalStudents}`}
           tone={attendanceStudentTone(present, totalStudents)}
         />
       )}
@@ -1419,7 +1510,7 @@ function StatsRow({ instance }: StatsRowProps) {
         label="Personal"
         value={
           instance.staffCount === 0
-            ? "—"
+            ? "–"
             : `${activeStaff} / ${instance.staffCount}`
         }
         tone={attendanceStaffTone(
@@ -1432,7 +1523,7 @@ function StatsRow({ instance }: StatsRowProps) {
         label="Besetzung"
         value={
           instance.requiredStaffCount === 0
-            ? "—"
+            ? "–"
             : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
         }
         tone={capacityTone(

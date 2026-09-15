@@ -1,7 +1,5 @@
 package enrollment
 
-import "context"
-
 // DeletionCounts describes every request-owned row affected by an enrollment
 // deletion. Counts are captured before deletion and persisted in the audit row.
 type DeletionCounts struct {
@@ -39,13 +37,4 @@ type DeletionImpact struct {
 	PreservedParentAccounts       int
 	UnlinkedGuardianProfiles      int
 	ParentAccountsWithoutStudents int
-}
-
-// DeletionRepository owns the cross-schema queries required for an atomic
-// enrollment cleanup. The service supplies policy, locking, and audit.
-type DeletionRepository interface {
-	PreviewRequest(ctx context.Context, requestID int64) (*DeletionImpact, error)
-	PreviewChild(ctx context.Context, requestID, childID int64) (*DeletionImpact, error)
-	DeleteRequest(ctx context.Context, requestID int64) error
-	DeleteChild(ctx context.Context, requestID, childID int64) error
 }

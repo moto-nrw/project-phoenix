@@ -38,6 +38,17 @@ func TestBroadSetup() { graph.NewFactory(nil, nil, nil) }
 			wantDetail: "TestBroadSetup calls services.NewFactory outside a route/module builder",
 		},
 		{
+			name: "route name does not excuse broad setup",
+			source: `package sample_test
+import (
+ "net/http"
+ testutil "github.com/moto-nrw/project-phoenix/api/testutil"
+)
+func setupSampleRoute() http.Handler { testutil.SetupAPITest(nil); return nil }
+`,
+			wantDetail: "setupSampleRoute calls SetupAPITest",
+		},
+		{
 			name: "aliased service factory return",
 			source: `package sample_test
 
@@ -105,8 +116,6 @@ import (
 	"net/http"
 
 	sampleAPI "github.com/moto-nrw/project-phoenix/api/sample"
-	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-	graph "github.com/moto-nrw/project-phoenix/services"
 	"github.com/uptrace/bun"
 )
 
@@ -116,8 +125,6 @@ type sampleModule struct {
 }
 
 func setupSampleRoute() (*bun.DB, *sampleAPI.Resource) {
-	_, _ = testutil.SetupAPITest(nil)
-	_, _ = graph.NewFactory(nil, nil, nil)
 	return nil, nil
 }
 

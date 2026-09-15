@@ -465,7 +465,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
         >
           ← Zurück zur Träger-Übersicht
         </Link>
-        <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6 text-center">
+        <div className="moto-content-surface mt-6 rounded-xl border p-6 text-center shadow-sm">
           <p className="text-gray-600">Träger nicht gefunden.</p>
         </div>
       </div>
@@ -621,9 +621,6 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       {orgDelete.deleteTarget && (
         <OrgSoftDeleteModal
           target={orgDelete.deleteTarget}
-          inputId="delete-org-confirm-detail"
-          confirmInput={orgDelete.deleteConfirmInput}
-          onConfirmInputChange={orgDelete.setDeleteConfirmInput}
           errorMessage={orgDelete.softDeleteError}
           isProcessing={orgDelete.isProcessing}
           onCancel={() => orgDelete.setDeleteTarget(null)}

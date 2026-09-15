@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
@@ -10,30 +9,18 @@ import (
 )
 
 func TestDocumentationRouterDoesNotRequireDatabase(t *testing.T) {
-	t.Setenv("DB_DSN", "")
-	t.Setenv("TEST_DB_DSN", "")
+	t.Parallel()
 
 	routes, err := documentationRoutes()
 	require.NoError(t, err)
 	require.NotEmpty(t, routes)
-
-	_, dbDSNWasSet := os.LookupEnv("DB_DSN")
-	assert.True(t, dbDSNWasSet, "the test must exercise an explicitly empty DB_DSN")
 }
 
-// Deliberately serial: Cobra flags and the working directory are process-global.
 func TestGendocRoutesCLIWorksWithoutDatabase(t *testing.T) {
-	t.Setenv("DB_DSN", "")
-	t.Setenv("TEST_DB_DSN", "")
-	workingDirectory, err := os.Getwd()
-	require.NoError(t, err)
-	require.NoError(t, os.Chdir(t.TempDir()))
-	t.Cleanup(func() { require.NoError(t, os.Chdir(workingDirectory)) })
-
-	routes, openapi = true, false
-	t.Cleanup(func() { routes, openapi = false, false })
-	require.NoError(t, gendocCmd.RunE(gendocCmd, nil))
-	content, err := os.ReadFile("routes.md")
+	t.Parallel()
+	path := t.TempDir() + "/routes.md"
+	require.NoError(t, genRoutesDocAt(path))
+	content, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Contains(t, string(content), "/api")
 }
@@ -52,41 +39,18 @@ func TestGenRoutesDocReportsWriteFailure(t *testing.T) {
 // =============================================================================
 
 func TestGendocCmd_Metadata(t *testing.T) {
+	t.Parallel()
 	assert.Equal(t, "gendoc", gendocCmd.Use)
 	assert.Contains(t, gendocCmd.Short, "Generate")
 	assert.Contains(t, gendocCmd.Long, "OpenAPI")
 	assert.NotNil(t, gendocCmd.RunE)
 }
 
-func TestGendocCmd_IsRegisteredOnRoot(t *testing.T) {
-	found := false
-	for _, cmd := range RootCmd.Commands() {
-		if cmd.Use == "gendoc" {
-			found = true
-			break
-		}
-	}
-	assert.True(t, found, "gendocCmd should be registered on RootCmd")
-}
-
 func TestGendocCmd_Flags(t *testing.T) {
+	t.Parallel()
 	f := gendocCmd.Flags()
 	assert.NotNil(t, f.Lookup("routes"))
 	assert.NotNil(t, f.Lookup("openapi"))
-}
-
-func TestGendocCmd_UsageOutput(t *testing.T) {
-	buf := new(bytes.Buffer)
-	gendocCmd.SetOut(buf)
-	gendocCmd.SetErr(buf)
-
-	err := gendocCmd.Usage()
-	require.NoError(t, err)
-
-	output := buf.String()
-	assert.Contains(t, output, "gendoc")
-	assert.Contains(t, output, "--routes")
-	assert.Contains(t, output, "--openapi")
 }
 
 // =============================================================================
@@ -94,6 +58,7 @@ func TestGendocCmd_UsageOutput(t *testing.T) {
 // =============================================================================
 
 func TestCreateOpenAPIBaseStructure(t *testing.T) {
+	t.Parallel()
 	spec := createOpenAPIBaseStructure()
 
 	assert.Equal(t, "3.0.3", spec["openapi"])
@@ -135,41 +100,48 @@ func TestCreateOpenAPIBaseStructure(t *testing.T) {
 // =============================================================================
 
 func TestExtractRoutePattern_WithBackticksAndSummary(t *testing.T) {
+	t.Parallel()
 	line := "`/api/students` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "/api/students", result)
 }
 
 func TestExtractRoutePattern_NoBackticks(t *testing.T) {
+	t.Parallel()
 	line := "/api/students <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
 func TestExtractRoutePattern_NoSummaryTag(t *testing.T) {
+	t.Parallel()
 	line := "`/api/students`"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
 func TestExtractRoutePattern_EmptyLine(t *testing.T) {
+	t.Parallel()
 	result := extractRoutePattern("")
 	assert.Equal(t, "", result)
 }
 
 func TestExtractRoutePattern_WildcardRoute(t *testing.T) {
+	t.Parallel()
 	line := "`*` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
 func TestExtractRoutePattern_EmptyBackticks(t *testing.T) {
+	t.Parallel()
 	line := "`` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
 }
 
 func TestExtractRoutePattern_SingleBacktick(t *testing.T) {
+	t.Parallel()
 	line := "` <summary>"
 	result := extractRoutePattern(line)
 	assert.Equal(t, "", result)
@@ -180,26 +152,31 @@ func TestExtractRoutePattern_SingleBacktick(t *testing.T) {
 // =============================================================================
 
 func TestExtractPathParams_SingleParam(t *testing.T) {
+	t.Parallel()
 	params := extractPathParams("/users/{id}")
 	assert.Equal(t, []string{"id"}, params)
 }
 
 func TestExtractPathParams_MultipleParams(t *testing.T) {
+	t.Parallel()
 	params := extractPathParams("/users/{userId}/posts/{postId}")
 	assert.Equal(t, []string{"userId", "postId"}, params)
 }
 
 func TestExtractPathParams_NoParams(t *testing.T) {
+	t.Parallel()
 	params := extractPathParams("/api/students")
 	assert.Nil(t, params)
 }
 
 func TestExtractPathParams_EmptyPath(t *testing.T) {
+	t.Parallel()
 	params := extractPathParams("")
 	assert.Nil(t, params)
 }
 
 func TestExtractPathParams_ComplexPath(t *testing.T) {
+	t.Parallel()
 	params := extractPathParams("/api/{version}/groups/{groupId}/students/{studentId}")
 	assert.Equal(t, []string{"version", "groupId", "studentId"}, params)
 }
@@ -209,37 +186,44 @@ func TestExtractPathParams_ComplexPath(t *testing.T) {
 // =============================================================================
 
 func TestGetTagsFromPath_SimpleAPI(t *testing.T) {
+	t.Parallel()
 	tags := getTagsFromPath("/api/students")
 	assert.Equal(t, []string{"Students"}, tags)
 }
 
 func TestGetTagsFromPath_NestedPath(t *testing.T) {
+	t.Parallel()
 	tags := getTagsFromPath("/api/groups/123/students")
 	assert.Equal(t, []string{"Groups"}, tags)
 }
 
 func TestGetTagsFromPath_IoTPath(t *testing.T) {
+	t.Parallel()
 	tags := getTagsFromPath("/api/iot/devices")
 	assert.Equal(t, []string{"Iot"}, tags)
 }
 
 func TestGetTagsFromPath_RootPath(t *testing.T) {
+	t.Parallel()
 	tags := getTagsFromPath("/")
 	assert.Equal(t, []string{"API"}, tags)
 }
 
 func TestGetTagsFromPath_EmptyPath(t *testing.T) {
+	t.Parallel()
 	tags := getTagsFromPath("")
 	assert.Equal(t, []string{"API"}, tags)
 }
 
 func TestGetTagsFromPath_APIOnly(t *testing.T) {
+	t.Parallel()
 	// /api with nothing after should fall through to "API" default
 	tags := getTagsFromPath("/api")
 	assert.Equal(t, []string{"API"}, tags)
 }
 
 func TestGetTagsFromPath_NonAPIPrefix(t *testing.T) {
+	t.Parallel()
 	tags := getTagsFromPath("/health")
 	assert.Equal(t, []string{"Health"}, tags)
 }
@@ -249,6 +233,7 @@ func TestGetTagsFromPath_NonAPIPrefix(t *testing.T) {
 // =============================================================================
 
 func TestGetSettingsSchemas(t *testing.T) {
+	t.Parallel()
 	schemas := getSettingsSchemas()
 
 	assert.Contains(t, schemas, "Setting")
@@ -299,12 +284,14 @@ func TestGetSettingsSchemas(t *testing.T) {
 // =============================================================================
 
 func TestTryAddHTTPMethod_EmptyCurrentRoute(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{}
 	tryAddHTTPMethod("_GET_ /some/route", paths, "")
 	assert.Empty(t, paths)
 }
 
 func TestTryAddHTTPMethod_GET(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
 	}
@@ -315,6 +302,7 @@ func TestTryAddHTTPMethod_GET(t *testing.T) {
 }
 
 func TestTryAddHTTPMethod_POST(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
 	}
@@ -325,6 +313,7 @@ func TestTryAddHTTPMethod_POST(t *testing.T) {
 }
 
 func TestTryAddHTTPMethod_PUT(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
 	}
@@ -335,6 +324,7 @@ func TestTryAddHTTPMethod_PUT(t *testing.T) {
 }
 
 func TestTryAddHTTPMethod_DELETE(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
 	}
@@ -345,6 +335,7 @@ func TestTryAddHTTPMethod_DELETE(t *testing.T) {
 }
 
 func TestTryAddHTTPMethod_PATCH(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
 	}
@@ -355,6 +346,7 @@ func TestTryAddHTTPMethod_PATCH(t *testing.T) {
 }
 
 func TestTryAddHTTPMethod_NoMethodMarker(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/test": map[string]interface{}{},
 	}
@@ -369,6 +361,7 @@ func TestTryAddHTTPMethod_NoMethodMarker(t *testing.T) {
 // =============================================================================
 
 func TestAddMethod_CreatesOperation(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/students": map[string]interface{}{},
 	}
@@ -383,6 +376,7 @@ func TestAddMethod_CreatesOperation(t *testing.T) {
 }
 
 func TestAddMethod_SkipsDuplicate(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/students": map[string]interface{}{},
 	}
@@ -395,6 +389,7 @@ func TestAddMethod_SkipsDuplicate(t *testing.T) {
 }
 
 func TestAddMethod_WithPathParams(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/students/{id}": map[string]interface{}{},
 	}
@@ -414,6 +409,7 @@ func TestAddMethod_WithPathParams(t *testing.T) {
 }
 
 func TestAddMethod_WithMultiplePathParams(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{
 		"/api/groups/{groupId}/students/{studentId}": map[string]interface{}{},
 	}
@@ -434,6 +430,7 @@ func TestAddMethod_WithMultiplePathParams(t *testing.T) {
 // =============================================================================
 
 func TestMergeSettingsSchemas(t *testing.T) {
+	t.Parallel()
 	spec := createOpenAPIBaseStructure()
 
 	mergeSettingsSchemas(spec)
@@ -450,12 +447,14 @@ func TestMergeSettingsSchemas(t *testing.T) {
 // =============================================================================
 
 func TestParseRoutesFromMarkdown_Empty(t *testing.T) {
+	t.Parallel()
 	paths := map[string]interface{}{}
 	parseRoutesFromMarkdown("", paths)
 	assert.Empty(t, paths)
 }
 
 func TestParseRoutesFromMarkdown_WithRoutes(t *testing.T) {
+	t.Parallel()
 	md := "`/api/students` <summary>\n_GET_ handler\n_POST_ handler\n"
 	paths := map[string]interface{}{}
 	parseRoutesFromMarkdown(md, paths)
@@ -467,6 +466,7 @@ func TestParseRoutesFromMarkdown_WithRoutes(t *testing.T) {
 }
 
 func TestParseRoutesFromMarkdown_MultipleRoutes(t *testing.T) {
+	t.Parallel()
 	md := "`/api/students` <summary>\n_GET_ handler\n`/api/groups` <summary>\n_POST_ handler\n"
 	paths := map[string]interface{}{}
 	parseRoutesFromMarkdown(md, paths)

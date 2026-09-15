@@ -109,5 +109,13 @@ func processOutput(dir string, environment []string, executable string, args ...
 	command := exec.Command(executable, args...)
 	command.Dir = dir
 	command.Env = environment
-	return command.CombinedOutput()
+	// Successful stdout may be JSON or a Git blob. Go cache plugins and other
+	// tools can write diagnostics to stderr even when the command succeeds.
+	var diagnostics bytes.Buffer
+	command.Stderr = &diagnostics
+	output, err := command.Output()
+	if err != nil {
+		return append(output, diagnostics.Bytes()...), err
+	}
+	return output, nil
 }

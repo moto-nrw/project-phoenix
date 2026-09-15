@@ -5,6 +5,7 @@ import type {
   CompanionExtensionConfirmation,
   StudentCompanion,
 } from "./student-companion-api";
+import type { ConsentRecord } from "./consent-types";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -171,9 +172,7 @@ const DEPARTURE_MODE_ORDER: readonly DepartureMode[] = [
   "accompanied",
 ];
 
-export function normalizeDepartureDays(
-  value?: DepartureDays | null,
-): DepartureDays {
+function normalizeDepartureDays(value?: DepartureDays | null): DepartureDays {
   const out: DepartureDays = {};
   for (const day of DEPARTURE_WEEKDAYS) {
     const mode = value?.[day.key];
@@ -533,9 +532,12 @@ export interface BackendStudent {
   agb_accepted_at?: string;
   data_processing_accepted_at?: string;
   email_contact_accepted_at?: string;
+  consents?: StudentConsent[];
   created_at: string;
   updated_at: string;
 }
+
+export type StudentConsent = ConsentRecord;
 
 /** Backend wire shape for `GET /api/students?view=slim`. */
 export interface BackendSlimStudent {
@@ -588,9 +590,9 @@ export interface SupervisorContact {
 export interface BackendStudentDetail extends BackendStudent {
   has_full_access: boolean;
   has_write_access: boolean;
-  /** Absence actions only (krank / entschuldigt / Klassenfahrt) — a superset of
-   *  has_write_access in a school without fixed groups (#2232). */
+  /** Class-trip authority; sick/excused reports carry a separate capability. */
   has_absence_write_access?: boolean;
+  has_sick_excused_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   attendance_log_enabled: boolean;
 }
@@ -698,9 +700,9 @@ export interface Student {
   // Additional fields for access control
   has_full_access?: boolean;
   has_write_access?: boolean;
-  /** May report/clear absences for this child, even without Stammdaten write
-   *  access (open care, #2232). */
+  /** Class-trip authority, independent of Stammdaten write access. */
   has_absence_write_access?: boolean;
+  has_sick_excused_write_access?: boolean;
   group_supervisors?: SupervisorContact[];
   // Feature flag: tenant has attendance log enabled
   attendance_log_enabled?: boolean;
@@ -748,6 +750,7 @@ export interface Student {
   agb_accepted_at?: string;
   data_processing_accepted_at?: string;
   email_contact_accepted_at?: string;
+  consents?: StudentConsent[];
 }
 
 // Mapping functions
@@ -847,6 +850,7 @@ export function mapStudentResponse(
     agb_accepted_at: backendStudent.agb_accepted_at,
     data_processing_accepted_at: backendStudent.data_processing_accepted_at,
     email_contact_accepted_at: backendStudent.email_contact_accepted_at,
+    consents: backendStudent.consents,
   };
 
   // Add scheduled checkout info if present
@@ -937,6 +941,9 @@ export function mapStudentDetailResponse(
   student.has_write_access = backendStudent.has_write_access;
   student.has_absence_write_access =
     backendStudent.has_absence_write_access ?? backendStudent.has_write_access;
+  student.has_sick_excused_write_access =
+    backendStudent.has_sick_excused_write_access ??
+    student.has_absence_write_access;
   student.group_supervisors = backendStudent.group_supervisors;
   student.attendance_log_enabled = backendStudent.attendance_log_enabled;
 

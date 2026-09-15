@@ -53,6 +53,18 @@ interface WireSchulhofStatus {
   }>;
 }
 
+// One permanently released room ("offener Raum", #3065) with everyone
+// currently recorded in it. Its students carry the same shape as a session
+// roster, so the page renders both through one mapping.
+interface WireOpenRoom {
+  room_id: string;
+  name: string;
+  is_user_supervising: boolean;
+  active_group_ids: string[];
+  student_count: number;
+  students: Array<WireVisit & { activity_name?: string }>;
+}
+
 interface WireActiveSession {
   active_group_id: number;
   instance_id: number;
@@ -170,6 +182,7 @@ interface WireDashboard {
   current_staff_id?: string;
   educational_groups: WireEducationalGroup[];
   schulhof_status: WireSchulhofStatus | null;
+  open_rooms: WireOpenRoom[] | null;
   capabilities: { web_spontaneous_activities_enabled: boolean };
   active_sessions: WireActiveSession[];
   planned_now: WirePlannedInstance[];
@@ -180,6 +193,46 @@ interface WireDashboard {
 }
 
 // ===== Frontend response type (camelCase view the page consumes) =====
+
+// One open visit as the page renders it — the same shape for a session roster
+// and for a released room's occupancy.
+interface SupervisionVisit {
+  studentId: string;
+  studentName: string;
+  schoolClass: string;
+  groupName: string;
+  activeGroupId: string;
+  checkInTime: string;
+  actualArrivalTime?: string;
+  actualPickupTime?: string;
+  isActive: boolean;
+  sick?: boolean;
+  sickSince?: string;
+  excused?: boolean;
+  excusedSince?: string;
+  photoUrl?: string;
+}
+
+// A wire visit as the page renders it. `isActive` is a constant here: the
+// backend only ever ships open visits in these sections.
+function toSupervisionVisit(v: WireVisit): SupervisionVisit {
+  return {
+    studentId: v.student_id,
+    studentName: v.student_name,
+    schoolClass: v.school_class,
+    groupName: v.group_name,
+    activeGroupId: v.active_group_id,
+    checkInTime: v.check_in_time,
+    actualArrivalTime: v.actual_arrival_time,
+    actualPickupTime: v.actual_pickup_time,
+    isActive: true,
+    sick: v.sick,
+    sickSince: v.sick_since,
+    excused: v.excused,
+    excusedSince: v.excused_since,
+    photoUrl: v.photo_url,
+  };
+}
 
 interface ActiveSupervisionDashboardResponse {
   businessDay: string;
@@ -207,23 +260,18 @@ interface ActiveSupervisionDashboardResponse {
   }>;
   // Visits of the selected session (the backend resolves group_id, or the
   // first supervised session when the parameter is absent).
-  firstRoomVisits: Array<{
-    studentId: string;
-    studentName: string;
-    schoolClass: string;
-    groupName: string;
-    activeGroupId: string;
-    checkInTime: string;
-    actualArrivalTime?: string;
-    actualPickupTime?: string;
-    isActive: boolean;
-    sick?: boolean;
-    sickSince?: string;
-    excused?: boolean;
-    excusedSince?: string;
-    photoUrl?: string;
-  }>;
+  firstRoomVisits: SupervisionVisit[];
   firstRoomId: string | null;
+  // Every permanently released room (#3065) with its full occupancy. Complete
+  // in this response, so opening a shared room needs no second request.
+  openRooms: Array<{
+    roomId: string;
+    name: string;
+    isUserSupervising: boolean;
+    activeGroupIds: string[];
+    studentCount: number;
+    students: Array<SupervisionVisit & { activityName?: string }>;
+  }>;
   schulhofStatus: {
     exists: boolean;
     roomId: string | null;
@@ -348,23 +396,19 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       name: g.name,
       room: g.room_name ? { name: g.room_name } : undefined,
     })),
-    firstRoomVisits: (wire.visits ?? []).map((v) => ({
-      studentId: v.student_id,
-      studentName: v.student_name,
-      schoolClass: v.school_class,
-      groupName: v.group_name,
-      activeGroupId: v.active_group_id,
-      checkInTime: v.check_in_time,
-      actualArrivalTime: v.actual_arrival_time,
-      actualPickupTime: v.actual_pickup_time,
-      isActive: true,
-      sick: v.sick,
-      sickSince: v.sick_since,
-      excused: v.excused,
-      excusedSince: v.excused_since,
-      photoUrl: v.photo_url,
-    })),
+    firstRoomVisits: (wire.visits ?? []).map(toSupervisionVisit),
     firstRoomId: wire.selected_group_id ?? null,
+    openRooms: (wire.open_rooms ?? []).map((room) => ({
+      roomId: room.room_id,
+      name: room.name,
+      isUserSupervising: room.is_user_supervising,
+      activeGroupIds: room.active_group_ids ?? [],
+      studentCount: room.student_count,
+      students: (room.students ?? []).map((student) => ({
+        ...toSupervisionVisit(student),
+        activityName: student.activity_name,
+      })),
+    })),
     schulhofStatus: wire.schulhof_status
       ? {
           exists: wire.schulhof_status.exists,

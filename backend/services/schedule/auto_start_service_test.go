@@ -39,11 +39,11 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
+		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) ([]InstanceConflictWarning, error) {
 			if inst.ID == 104 {
-				return []InstanceConflictWarning{{Kind: ConflictKindStaff, ResourceID: inst.RoomID, CanOverride: true}}
+				return []InstanceConflictWarning{{Kind: ConflictKindStaff, ResourceID: inst.RoomID, CanOverride: true}}, nil
 			}
-			return nil
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -63,6 +63,37 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 	assert.Equal(t, []int64{101, 102, 103, 104, 105}, staffRepo.requestedIDs)
 }
 
+func TestAutoStart_RunForTenant_ReportsConflictReadFailureAndRetries(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
+	injected := errors.New("presence lookup failed")
+	readErr := injected
+	starter := &autoStartInstanceStarter{}
+	svc := NewAutoStartService(AutoStartDependencies{
+		InstanceRepo: &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
+			autoStartInstance(201, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
+		}},
+		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{201: 1}},
+		InstanceService:   starter,
+		RoomRepo:          &autoStartRoomRepo{},
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+			return nil, readErr
+		},
+		Logger: slog.Default(),
+	})
+	result, err := svc.RunForTenant(context.Background(), now)
+	require.ErrorIs(t, err, injected)
+	assert.Equal(t, 1, result.Failed)
+	assert.Zero(t, result.SkippedConflict)
+	assert.Zero(t, result.Started)
+	assert.Empty(t, starter.startedIDs)
+	readErr = nil
+	result, err = svc.RunForTenant(context.Background(), now)
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.Started)
+	assert.Equal(t, []int64{201}, starter.startedIDs)
+}
+
 func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 	t.Parallel()
 
@@ -78,8 +109,8 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
-			return nil
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -114,8 +145,8 @@ func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
 		RoomRepo:          &autoStartRoomRepo{},
-		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
-			return nil
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) ([]InstanceConflictWarning, error) {
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -147,12 +178,12 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{311: 1, 312: 1}},
 		InstanceService:   starter,
 		RoomRepo: &autoStartRoomRepo{rooms: map[int64]*facilitiesModel.Room{
-			401: {Model: base.Model{ID: 401}, Name: constants.SchulhofRoomName},
-			402: {Model: base.Model{ID: 402}, Name: "Lernraum"},
+			401: {ID: 401, Name: constants.SchulhofRoomName},
+			402: {ID: 402, Name: "Lernraum"},
 		}},
-		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
+		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) ([]InstanceConflictWarning, error) {
 			conflictChecks = append(conflictChecks, inst.ID)
-			return nil
+			return nil, nil
 		},
 		Logger: slog.Default(),
 	})
@@ -168,7 +199,7 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 
 func autoStartInstance(id int64, status string, startHour, startMinute, endHour, endMinute int) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(2026, 4, 20),
+		Date:      scheduleModel.NewDate(2026, 4, 20),
 		Title:     "Auto-start test",
 		StartTime: time.Date(1, 1, 1, startHour, startMinute, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, endHour, endMinute, 0, 0, time.UTC),
@@ -200,7 +231,7 @@ func (r *autoStartRoomRepo) FindByIDs(_ context.Context, ids []int64) ([]*facili
 			rooms = append(rooms, room)
 			continue
 		}
-		rooms = append(rooms, &facilitiesModel.Room{Model: base.Model{ID: id}, Name: "Lernraum"})
+		rooms = append(rooms, &facilitiesModel.Room{ID: id, Name: "Lernraum"})
 	}
 	return rooms, nil
 }
@@ -237,16 +268,16 @@ func (r *autoStartInstanceRepo) Delete(context.Context, any) error {
 func (r *autoStartInstanceRepo) List(context.Context, *base.QueryOptions) ([]*scheduleModel.ActivityInstance, error) {
 	return r.instances, nil
 }
-func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return r.instances, nil
 }
-func (r *autoStartInstanceRepo) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByTenantAndDateRange(context.Context, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (r *autoStartInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (r *autoStartInstanceRepo) FindByActivityGroupAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindByActivityGroupAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (r *autoStartInstanceRepo) FindByActiveGroupID(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
@@ -256,7 +287,7 @@ func (r *autoStartInstanceRepo) FindByIDs(context.Context, []int64) ([]*schedule
 	return nil, nil
 }
 
-func (r *autoStartInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+func (r *autoStartInstanceRepo) FindPlannedTemplateBackedFrom(context.Context, scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 
@@ -293,10 +324,10 @@ func (r *autoStartStaffRepo) List(context.Context, *base.QueryOptions) ([]*sched
 func (r *autoStartStaffRepo) FindByInstanceID(context.Context, int64) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
-func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
+func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, scheduleModel.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
-func (r *autoStartStaffRepo) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
+func (r *autoStartStaffRepo) FindByStaffAndDateRange(context.Context, int64, scheduleModel.Date, scheduleModel.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
 func (r *autoStartStaffRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStaff, error) {
@@ -308,9 +339,6 @@ func (r *autoStartStaffRepo) CountNonAbsentByInstanceIDs(_ context.Context, ids 
 }
 func (r *autoStartStaffRepo) DeleteByInstanceID(context.Context, int64) error {
 	return nil
-}
-func (r *autoStartStaffRepo) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
-	return 0, nil
 }
 
 type autoStartInstanceStarter struct {
@@ -413,19 +441,19 @@ func (r *autoStartInstanceRepo) CountWithOptions(context.Context, *base.QueryOpt
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) OldestBefore(context.Context, string, *timezone.Date) (*timezone.Date, error) {
+func (r *autoStartInstanceRepo) OldestBefore(context.Context, string, *scheduleModel.Date) (*scheduleModel.Date, error) {
 	return nil, nil
 }
 
-func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
+func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, scheduleModel.Date, *scheduleModel.Date, *int64, bool) (int64, error) {
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, timezone.Date) (int64, error) {
+func (r *autoStartInstanceRepo) PropagateListKindToFutureInstances(context.Context, int64, *string, *string, scheduleModel.Date) (int64, error) {
 	return 0, nil
 }
 

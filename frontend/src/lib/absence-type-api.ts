@@ -104,11 +104,21 @@ class AbsenceTypeService {
     return readList(response);
   }
 
-  async createAbsenceType(name: string): Promise<AbsenceType> {
+  async createAbsenceType(
+    name: string,
+    config: {
+      allowanceEnabled: boolean;
+      overrunPolicy: "warn" | "block";
+    },
+  ): Promise<AbsenceType> {
     const response = await sessionFetch("/api/staff/absence-types", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({
+        name,
+        allowance_enabled: config.allowanceEnabled,
+        overrun_policy: config.overrunPolicy,
+      }),
     });
     return readOne(response);
   }

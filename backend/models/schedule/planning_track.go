@@ -6,15 +6,13 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 var planningTrackColorPattern = regexp.MustCompile(`^#[0-9A-Fa-f]{6}$`)
 
 type PlanningTrack struct {
-	base.Model `bun:"schema:schedule,table:planning_tracks"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:planning_tracks"`
+	TenantModel
 	Name       string     `bun:"name,notnull" json:"name"`
 	Color      string     `bun:"color,notnull" json:"color"`
 	SortOrder  int        `bun:"sort_order,notnull" json:"sort_order"`
@@ -43,7 +41,7 @@ func (p *PlanningTrack) IsArchived() bool {
 }
 
 type PlanningTrackRepository interface {
-	base.CRUDRepository[*PlanningTrack]
+	crudRepository[*PlanningTrack]
 	ListAll(ctx context.Context) ([]*PlanningTrack, error)
 	// FindByIDs returns the tracks matching the given IDs in one
 	// tenant-scoped IN query (missing IDs are simply absent). Archived

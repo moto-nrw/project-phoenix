@@ -33,7 +33,7 @@ import { useSWRAuth } from "~/lib/swr";
 // Dokumente tab (#1424, phase 1): flat file list per staff member with
 // upload, download, audited delete and category filter. The backend already
 // filters per category permission (AU → staff_documents:health, Lohn →
-// staff:financial, rest → users:update) and sends the caller's visible
+// staff:financial, rest → staff:documents, #2906) and sends the caller's visible
 // categories — the tab renders exactly that, no client-side authority.
 
 const logger = createLogger({ component: "DokumenteTab" });
@@ -81,7 +81,7 @@ function RetentionCell({ doc }: { readonly doc: StaffDocument }) {
       </span>
     );
   }
-  return <span className="text-xs text-gray-400">—</span>;
+  return <span className="text-xs text-gray-400">–</span>;
 }
 
 export function DokumenteTab({ staffId }: { readonly staffId: string }) {
@@ -278,7 +278,6 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
   return (
     <div className="space-y-6">
       <SectionCard
-        kicker="Personalakte"
         title="Dokumente"
         description="Dateien zur Personalakte. Uploads und Löschungen werden im Änderungsprotokoll festgehalten; Aufbewahrungsfristen sind Hinweise, gelöscht wird nur manuell."
       >
@@ -319,7 +318,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
           <div
             className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
               dragActive
-                ? "border-[#83CD2D] bg-[#83CD2D]/5"
+                ? "border-moto-green bg-moto-green/5"
                 : "border-gray-200 bg-gray-50/50"
             }`}
             onDragOver={(e) => {
@@ -340,7 +339,7 @@ export function DokumenteTab({ staffId }: { readonly staffId: string }) {
                 type="button"
                 variant="ghost"
                 size="compact"
-                className="text-[#5080D8]"
+                className="text-moto-blue"
                 disabled={uploading || !effectiveUploadCategory}
                 onClick={() => fileInputRef.current?.click()}
               >

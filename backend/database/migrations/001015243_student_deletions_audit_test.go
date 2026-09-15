@@ -26,6 +26,7 @@ func studentDeletionAuditColumnExists(t *testing.T, db *testpkg.DB, column strin
 }
 
 func TestStudentDeletionsAuditMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 

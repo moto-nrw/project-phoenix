@@ -1,66 +1,28 @@
 #!/usr/bin/env bash
-# rollback-remote.sh — Runs ON the remote server during manual rollback.
-# SCP'd by CI into ~/scripts/, same pattern as deploy-remote.sh to avoid heredoc stdin bugs.
-#
-# Required env vars:
-#   DEPLOY_DIR   — Server directory (staging/demo/production)
-#   TARGET_SHA   — Short commit SHA to roll back to
-#   RESTORE_DB   — "true" to restore database from latest backup
-#
-# Exit codes:
-#   0  — Rollback succeeded
-#   1  — Rollback failed
-
-for var in DEPLOY_DIR TARGET_SHA RESTORE_DB; do
-  eval "val=\${$var:-}"
-  if [ -z "$val" ]; then
-    echo "FATAL: $var is not set"
-    exit 1
-  fi
-done
-
-cd ~/"$DEPLOY_DIR"
-echo "Starting manual rollback to ${TARGET_SHA}..."
-
-# ── Database restore (if requested) ──
-if [ "$RESTORE_DB" = "true" ]; then
-  BACKUP_FILE=$(ls -t ~/backups/"$DEPLOY_DIR"/backup-*.dump 2>/dev/null | head -1)
-  if [ -z "$BACKUP_FILE" ]; then
-    echo "No backup found in ~/backups/$DEPLOY_DIR/"
-    exit 1
-  fi
-  docker compose stop server frontend
-
-  SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-  if ! "$SCRIPT_DIR/restore-db.sh" "$BACKUP_FILE"; then
-    exit 1
-  fi
-else
-  docker compose stop server frontend
+# Manual full-state rollback. Images and configuration come from the selected
+# snapshot, not from an independently selected tag or the newest loose dump.
+set -Eeuo pipefail
+umask 077
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+case "${DEPLOY_DIR:-}" in staging|production) ;; *) echo 'Invalid DEPLOY_DIR' >&2; exit 1;; esac
+deployment_directory=${1:-"$HOME/$DEPLOY_DIR"}
+[[ "$deployment_directory" = /* ]] || { echo 'Deployment directory must be absolute' >&2; exit 1; }
+cd "$deployment_directory"
+mkdir .release-operation.lock || { echo 'Another release operation owns this environment' >&2; exit 1; }
+trap 'rmdir .release-operation.lock' EXIT
+backup_id=${BACKUP_ID:-}
+if [ -z "$backup_id" ]; then
+  backup_id=$(awk -F= '$1 == "BACKUP_ID" {print $2}' .deploy-state)
 fi
-
-# ── Override image tags to SHA-pinned versions ──
-sed -i "s|phoenix-server:[^ ]*|phoenix-server:${TARGET_SHA}|" docker-compose.yml
-sed -i "s|phoenix-frontend:[^ ]*|phoenix-frontend:${TARGET_SHA}|" docker-compose.yml
-
-# ── Pull and start ──
-docker compose pull
-if ! docker compose up -d --wait; then
-  echo "CRITICAL: Rolled-back version also unhealthy!"
+[[ "$backup_id" =~ ^release-[0-9]{8}T[0-9]{6}Z-[a-f0-9]{7,40}$ ]] || {
+  echo 'Select a complete release backup ID; legacy loose dumps cannot be restored automatically' >&2
+  exit 1
+}
+bundle="${deployment_directory%/*}/backups/$DEPLOY_DIR/$backup_id"
+bash "$script_dir/restore-db.sh" "$bundle"
+if ! docker compose up -d --wait --remove-orphans server frontend; then
+  docker compose stop server frontend || true
+  echo 'Restored application failed healthchecks and was stopped' >&2
   exit 1
 fi
-
-# ── Update deploy state ──
-PREVIOUS_SHA=""
-if [ -f .deploy-state ]; then
-  PREVIOUS_SHA=$(grep '^CURRENT_SHA=' .deploy-state | cut -d= -f2)
-fi
-echo "CURRENT_SHA=${TARGET_SHA}" > .deploy-state
-echo "PREVIOUS_SHA=${PREVIOUS_SHA}" >> .deploy-state
-echo "DEPLOYED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> .deploy-state
-echo "BACKUP_FILE=" >> .deploy-state
-
-rm -f ~/rollback-remote.sh ~/restore-db.sh
-
-echo "Rollback to ${TARGET_SHA} complete"
-exit 0
+echo "Complete release restored from $backup_id"

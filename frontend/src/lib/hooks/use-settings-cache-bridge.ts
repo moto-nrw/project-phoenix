@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { SETTINGS_SCHEMA_SWR_KEY } from "~/lib/settings-api";
 import { subscribeSettingsChanged } from "~/lib/settings-broadcast";
-import { useTenantMutate } from "~/lib/swr";
+import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
+import { CHANGE_REQUEST_ACCESS_SWR_KEY } from "./use-change-request-access";
 
 /**
  * Bridges cross-tab/cross-origin settings-change broadcasts to the active
@@ -18,11 +20,26 @@ import { useTenantMutate } from "~/lib/swr";
  * value; other tabs' SWR caches stayed stale until navigation or reload.
  */
 export function useSettingsCacheBridge(): void {
+  const { data: session } = useSession();
   const tenantMutate = useTenantMutate();
+  const refreshActionAccess = useTenantMutateMatching([
+    "student-detail-",
+    "timetable-roster-",
+    "timetable-day-",
+    "timetable-week-",
+    "active-supervision-dashboard-",
+    "home-day-flow",
+  ]);
+  const accountId = session?.user.id;
 
   useEffect(() => {
     const invalidate = () => {
       void tenantMutate(SETTINGS_SCHEMA_SWR_KEY);
+      void refreshActionAccess();
+      window.dispatchEvent(new CustomEvent("change-requests-refresh"));
+      if (accountId) {
+        void tenantMutate(`${CHANGE_REQUEST_ACCESS_SWR_KEY}:${accountId}`);
+      }
     };
     const unsubscribeBroadcast = subscribeSettingsChanged(invalidate);
     if (typeof window !== "undefined") {
@@ -34,5 +51,5 @@ export function useSettingsCacheBridge(): void {
         window.removeEventListener("phoenix:tenant-settings-stale", invalidate);
       }
     };
-  }, [tenantMutate]);
+  }, [accountId, tenantMutate, refreshActionAccess]);
 }

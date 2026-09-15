@@ -431,15 +431,25 @@ func buildTemplate(ctx context.Context, templateDSN string) error {
 
 	cmd := exec.CommandContext(ctx, "go", "run", ".", "migrate")
 	cmd.Dir = backend
-	cmd.Env = append(os.Environ(),
-		"APP_ENV=test",
-		"TEST_DB_DSN="+templateDSN,
-		"PHOENIX_AUTH_PASSWORD="+AuthRolePassword,
-	)
+	cmd.Env = templateBuildEnvironment(os.Environ(), templateDSN)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("go run . migrate: %w\n%s", err, out)
 	}
 	return nil
+}
+
+func templateBuildEnvironment(inherited []string, templateDSN string) []string {
+	environment := make([]string, 0, len(inherited)+7)
+	environment = append(environment, inherited...)
+	return append(environment,
+		"APP_ENV=test",
+		"TEST_DB_DSN="+templateDSN,
+		"PHOENIX_AUTH_PASSWORD="+AuthRolePassword,
+		"DB_MAX_OPEN_CONNS=4",
+		"DB_MAX_IDLE_CONNS=2",
+		"DB_CONN_MAX_LIFETIME=30m",
+		"DB_CONN_MAX_IDLE_TIME=10m",
+	)
 }
 
 // normalizeMigrationVersion makes filename prefixes (001015301) and Bun's

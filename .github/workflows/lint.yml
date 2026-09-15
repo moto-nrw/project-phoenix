@@ -37,56 +37,8 @@ jobs:
             backend/go.sum
             backend/tools/go.sum
 
-      - name: Check Go formatting
-        working-directory: backend
-        run: |
-          UNFORMATTED=$(gofmt -l . 2>&1 || true)
-          if [[ -n "$UNFORMATTED" ]]; then
-            echo "❌ The following files are not formatted with gofmt:"
-            echo ""
-            echo "$UNFORMATTED" | while IFS= read -r file; do
-              echo "  $file"
-            done
-            echo ""
-            echo "Run 'gofmt -w .' or 'go fmt ./...' to fix."
-            exit 1
-          else
-            echo "All Go files are properly formatted"
-          fi
-
-      - name: Run backend source ratchets
-        working-directory: backend
-        run: go test ./test -run Ratchet -count=1
-
-      - name: Validate migration dependencies
-        working-directory: backend
-        run: go run main.go migrate validate
-
-      - name: Check for migration version collisions
-        working-directory: backend
-        run: go test ./database/migrations/ -run TestNoDuplicateMigrationVersions -v
-
-      - name: Run dead code detection
-        run: scripts/check-deadcode.sh
-
-      - name: Check Go dependency licenses
-        working-directory: backend
-        run: |
-          echo "🔍 Checking Go dependency licenses..."
-
-          # Disallowed licenses for a source-available project (copyleft / network-copyleft)
-          DISALLOWED="AGPL-3.0,GPL-3.0,LGPL-3.0,SSPL-1.0,EUPL-1.2"
-
-          # go-licenses check exits non-zero if disallowed licenses are found
-          go tool go-licenses check ./... --ignore github.com/moto-nrw/project-phoenix --disallowed_types=restricted,reciprocal 2>&1 || {
-            echo ""
-            echo "❌ Disallowed licenses found in Go dependencies."
-            echo "Source-available project cannot use restricted or reciprocal licenses."
-            echo "Review the output above and replace the offending dependency."
-            exit 1
-          }
-
-          echo "All Go dependency licenses are compatible"
+      - name: Backend quality (shared with pre-push)
+        run: bash scripts/check-quality.sh backend
 
   backend-lint:
     if: ${{ inputs.run-backend }}
@@ -126,17 +78,6 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
-    env:
-      NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
-      SKIP_ENV_VALIDATION: "true" # Skip validation during linting
-      # knip loads playwright.config.ts, which fail-fasts on its required E2E
-      # env vars at import time. Provide placeholders so static analysis can
-      # load the config (these are never used to run a real browser here).
-      API_URL: "http://localhost:8080"
-      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
-      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
-      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
-      TENANT_DOMAIN: "localhost"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -154,42 +95,8 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Run lint
-        working-directory: frontend
-        run: pnpm run lint --max-warnings 0
-
-      - name: Run typecheck
-        working-directory: frontend
-        run: pnpm run typecheck
-
-      - name: Check frontend dependency graph
-        working-directory: frontend
-        run: pnpm depcruise
-
-      - name: Check for unused code
-        working-directory: frontend
-        run: pnpm knip
-
-      - name: Check for production files used only by tests or stories
-        working-directory: frontend
-        run: pnpm knip:production
-
-      - name: Check npm dependency licenses
-        working-directory: frontend
-        run: |
-          echo "🔍 Checking npm dependency licenses..."
-
-          npx license-checker --production --failOn \
-            "AGPL-1.0-only;AGPL-1.0-or-later;AGPL-3.0-only;AGPL-3.0-or-later;GPL-2.0-only;GPL-2.0-or-later;GPL-3.0-only;GPL-3.0-or-later;LGPL-2.0-only;LGPL-2.0-or-later;LGPL-2.1-only;LGPL-2.1-or-later;LGPL-3.0-only;LGPL-3.0-or-later;SSPL-1.0;EUPL-1.2" \
-            --summary || {
-            echo ""
-            echo "❌ Disallowed licenses found in npm dependencies."
-            echo "Source-available project cannot use restricted or reciprocal licenses."
-            echo "Review the output above and replace the offending dependency."
-            exit 1
-          }
-
-          echo "All npm dependency licenses are compatible"
+      - name: Frontend quality (shared with pre-push)
+        run: bash scripts/check-quality.sh frontend
 
   frontend-react-doctor:
     # Changed-scope only: the existing codebase has ~1000 findings, so a full
@@ -214,12 +121,8 @@ jobs:
         working-directory: frontend
         env:
           BASE_REF: ${{ github.base_ref }}
-        run: |
-          npx --ignore-scripts -y react-doctor@0.8.1 . --yes \
-            --scope changed \
-            --base "origin/$BASE_REF" \
-            --no-telemetry \
-            --no-supply-chain
+        run: bash ../scripts/check-quality.sh react-doctor "origin/$BASE_REF"
+
 
   frontend-build:
     if: ${{ inputs.run-frontend }}
@@ -229,6 +132,17 @@ jobs:
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
+      API_URL: "http://localhost:8080"
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      NEXT_PUBLIC_SCHOOL_HOSTNAME: "schule.localhost:3000"
+      TENANT_DOMAIN: "localhost"
+      NEXT_PUBLIC_TENANT_DOMAIN: "localhost"
+      NEXTAUTH_URL: "http://localhost:3000"
+      NEXTAUTH_SECRET: "ci-bundle-ratchet-throwaway-secret"
+      AUTH_JWT_EXPIRY: "15m"
+      AUTH_JWT_REFRESH_EXPIRY: "168h"
+      METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -257,6 +171,24 @@ jobs:
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
+
+      # Bundle-Size-Ratchet (#2939): `next experimental-analyze` kompiliert
+      # kalt (Chunk-Aufteilung hängt sonst vom Cache-Zustand ab) und vergleicht
+      # Client-JS je Route mit scripts/perf/bundle-baseline.json. Die Baseline
+      # sind Runner-Zahlen: zum Nachziehen das Artefakt `bundle-measured`
+      # laden und als bundle-baseline.json einchecken.
+      - name: Bundle size ratchet
+        working-directory: frontend
+        run: pnpm run perf:bundle-ratchet
+
+      - name: Upload measured bundle sizes
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: bundle-measured
+          path: frontend/perf-results/bundle-measured.json
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Build Storybook
         working-directory: frontend

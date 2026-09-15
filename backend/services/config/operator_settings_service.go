@@ -137,7 +137,7 @@ func (s *operatorSettingsService) ResetValue(ctx context.Context, schoolID int64
 			return err
 		}
 		if hook != nil && resetReplaysHook(key) {
-			if def := config.GetDefinition(key); def != nil {
+			if def := definitionFor(s.settings, key); def != nil {
 				cb, err := hook(txCtx, schoolID, key, def.Default)
 				if err != nil {
 					return err

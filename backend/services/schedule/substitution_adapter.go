@@ -74,7 +74,7 @@ func (a *SubstitutionAdapter) Overview(ctx context.Context, from, to timezone.Da
 	if from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) >= 56 {
 		return nil, ErrSubstitutionInvalidPeriod
 	}
-	instances, err := a.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
+	instances, err := a.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func projectSubstitutionAppointments(instances []*scheduleModel.ActivityInstance
 			})
 		}
 		appointments = append(appointments, SubstitutionAppointment{
-			ID: instance.ID, Date: instance.Date,
+			ID: instance.ID, Date: timezone.Date(instance.Date),
 			StartTime: instance.StartTime.Format("15:04"), EndTime: instance.EndTime.Format("15:04"),
 			Title: instance.Title, Status: instance.Status, Staff: staff,
 		})

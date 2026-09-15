@@ -60,29 +60,6 @@ func CanManageStudentAbsence(
 	return CanModifyStudent(ctx, userPermissions, student, userCtx, "update")
 }
 
-// AbsenceWritableStudentFilter is the set form of CanManageStudentAbsence,
-// resolving the caller's verdict once so a caller-side loop — the
-// excused-request review queue and its sidebar badge — does not re-resolve it
-// per student.
-//
-// Callers that scope a queue with this MUST gate the corresponding write with
-// CanManageStudentAbsence too: the filter decides visibility, the gate decides
-// the write, and they have to agree. That includes the read prerequisite: a
-// caller admitted on users:absence alone, without users:read, sees no child
-// here either — otherwise the queue would list entries the gate then refuses.
-func AbsenceWritableStudentFilter(
-	ctx context.Context,
-	userPermissions []string,
-	userCtx StudentAccessUserContext,
-) func(authorizationStudent) bool {
-	if !HasAdminWildcard(userPermissions) &&
-		absenceOnlyAuthority(userPermissions) &&
-		!HasPermission(usersRead, userPermissions) {
-		return func(authorizationStudent) bool { return false }
-	}
-	return WritableStudentFilter(ctx, userPermissions, userCtx)
-}
-
 // CanReviewExcusedAbsenceRequests reports whether the caller may open and
 // decide the parent excused-absence queue: users:update (the queue's original
 // gate, shared with the Stammdaten queues next to it) or the users:absence +

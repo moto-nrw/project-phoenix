@@ -4,17 +4,21 @@ import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 
 const logger = createLogger({ component: "DatabasePage" });
+import Link from "~/components/ui/navigation-link";
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { CollectionGrid } from "~/components/ui/collection-grid";
+import { TenantPage } from "~/components/ui/tenant-page";
+import { Skeleton } from "~/components/ui/skeleton";
+import { TileCard } from "~/components/ui/tile-card";
 import useSWR from "swr";
-import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { ChevronRight } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
-import { DatabaseIndexSkeleton } from "./page-skeleton";
+import { DatabaseCardGridSkeleton } from "./page-skeleton";
+import { formatCount } from "~/lib/format-utils";
 
-import { useNFCEnabled } from "~/lib/tenant-context";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
+import { useNFCEnabled, useTimetableEnabled } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface DataSection {
@@ -29,6 +33,14 @@ interface DataSection {
    * no flag of its own.
    */
   permissionKey?: string;
+  /**
+   * Tenant-Berechtigung aus der Sitzung. Die Stammdaten-Kataloge (#3114)
+   * haben keine Zahl in /api/database/counts und damit auch kein Flag dort;
+   * sie hängen an dem Recht, das ihre Route verlangt.
+   */
+  sessionPermission?: string;
+  /** Nur sichtbar, solange der Planungsbereich eingeschaltet ist. */
+  requiresPlanning?: boolean;
   /** Replaces the entry-count badge for sections that count nothing. */
   badge?: string;
   /** Call to action on the card. Defaults to "Verwalten". */
@@ -101,9 +113,11 @@ async function fetchDatabaseCounts(url: string): Promise<DatabaseCounts> {
 
 const baseDataSections: DataSection[] = [
   {
+    // „Kinderdaten", nicht „Kinder": hier wird der Datensatz gepflegt. Den
+    // laufenden Tag zeigt „Alle Kinder" im Tagesbetrieb (ADR 0008, #2826).
     id: "students",
-    title: "Kinder",
-    description: "Kinderdaten verwalten und bearbeiten",
+    title: "Kinderdaten",
+    description: "Kinder anlegen, importieren und ihre Daten pflegen",
     href: "/database/students",
     concept: "children",
   },
@@ -157,6 +171,46 @@ const baseDataSections: DataSection[] = [
     concept: "permissions",
   },
   {
+    // Die kurzen Stammdaten-Listen der Schule (#3114). Sie lagen vorher in
+    // Slide-overs und Auswahlfeldern der Flächen, die sie benutzen.
+    id: "categories",
+    title: "Terminkategorien",
+    description: "Termine und Aktivitäten einordnen, zum Beispiel Essen",
+    href: "/database/categories",
+    concept: "activities",
+    sessionPermission: "activities:manage_categories",
+    badge: "Stammdaten",
+  },
+  {
+    id: "planningTracks",
+    title: "Planungsspuren",
+    description: "Regeltermine im Betreuungsplan farblich bündeln",
+    href: "/database/planning-tracks",
+    concept: "carePlan",
+    sessionPermission: "schedules:manage",
+    requiresPlanning: true,
+    badge: "Stammdaten",
+  },
+  {
+    id: "shiftTypes",
+    title: "Schichtarten",
+    description: "Aufgabe einer Schicht im Dienstplan benennen",
+    href: "/database/shift-types",
+    concept: "staffPlan",
+    sessionPermission: "time_tracking:manage",
+    requiresPlanning: true,
+    badge: "Stammdaten",
+  },
+  {
+    id: "absenceTypes",
+    title: "Abwesenheitsarten",
+    description: "Eigene Namen für Abwesenheiten der Mitarbeitenden",
+    href: "/database/absence-types",
+    concept: "timeTracking",
+    sessionPermission: "time_tracking:manage",
+    badge: "Stammdaten",
+  },
+  {
     id: "gradeTransitions",
     title: "Jahrgangswechsel",
     description:
@@ -183,10 +237,32 @@ const baseDataSections: DataSection[] = [
 
 const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
 
+/** Statuszeile des Seitenkopfs: die Bestände, die der Zugriff hergibt.
+ *  Zahlen stammen aus /api/database/counts, das die Seite ohnehin lädt. */
+function buildDatabaseStatusLine(counts: DatabaseCounts): string {
+  const permissions = counts.permissions;
+  const parts: string[] = [];
+  if (permissions.canViewStudents) {
+    parts.push(`${formatCount(counts.students)} Kinder`);
+  }
+  if (permissions.canViewTeachers) {
+    parts.push(`${formatCount(counts.teachers)} Personen`);
+  }
+  if (permissions.canViewRooms) {
+    parts.push(`${formatCount(counts.rooms)} Räume`);
+  }
+  if (permissions.canViewGroups) {
+    parts.push(`${formatCount(counts.groups)} Gruppen`);
+  }
+  return parts.slice(0, 3).join(" · ");
+}
+
 function DatabaseContent() {
   const { data: session } = useSession();
-  const isMobile = useIsMobile();
   const nfcEnabled = useNFCEnabled();
+  // Der Wert kommt aus den Tenant-Metadaten und steht damit auch delegierten
+  // Personen ohne config:read zur Verfügung.
+  const timetableEnabled = useTimetableEnabled();
   const tenantPath = useTenantAwarePath();
   const { data, isLoading: countsLoading } = useSWR(
     session?.user ? "/api/database/counts" : null,
@@ -206,28 +282,59 @@ function DatabaseContent() {
     redirect("/");
   }
 
-  if (countsLoading && data === undefined) {
-    return <DatabaseIndexSkeleton />;
-  }
+  const showSkeleton = countsLoading && data === undefined;
+  const statusLine = buildDatabaseStatusLine(counts);
 
   return (
-    <div className="w-full">
-      {/* Header - Show on mobile */}
-      {isMobile && <PageHeaderWithSearch title="Datenverwaltung" />}
+    <TenantPage
+      title="Datenverwaltung"
+      stats={statusLine}
+      statsLoading={showSkeleton}
+    >
+      {/* Die Grenze zu „Alle Kinder" steht auf der Seite selbst, nicht nur
+          in der Hilfe (ADR 0008, #2826): hier wird angelegt und gepflegt,
+          der laufende Tag liegt im Tagesbetrieb. */}
+      <p className="max-w-2xl text-sm leading-6 text-gray-600">
+        Hier legen Sie Kinder, Personal, Räume und Gruppen an und pflegen ihre
+        Daten. Wer heute da ist, sehen Sie unter{" "}
+        <Link
+          href={tenantPath("/students/search")}
+          className="font-medium text-gray-900 underline decoration-gray-300 underline-offset-2 hover:decoration-gray-900"
+        >
+          Alle Kinder
+        </Link>
+        .
+      </p>
 
-      {/* Data Sections Grid */}
-      <div className="min-h-[60vh]">
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {showSkeleton ? (
+        <DatabaseCardGridSkeleton />
+      ) : (
+        <CollectionGrid minTileWidth="18rem">
           {baseDataSections.map((section) => {
             if (!nfcEnabled && NFC_ONLY_SECTION_IDS.has(section.id)) {
               return null;
             }
 
-            // Check permissions for this section
-            const permissionKey = (section.permissionKey ??
-              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
-            if (!permissions?.[permissionKey]) {
+            if (section.requiresPlanning && !timetableEnabled) {
               return null;
+            }
+
+            if (section.sessionPermission !== undefined) {
+              // Stammdaten-Katalog: das Recht der Route entscheidet, nicht ein
+              // Flag aus den Zählern (#3114).
+              if (
+                !hasEffectiveAdminScope(session) &&
+                !hasPermission(session, section.sessionPermission)
+              ) {
+                return null;
+              }
+            } else {
+              // Check permissions for this section
+              const permissionKey = (section.permissionKey ??
+                `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
+              if (!permissions?.[permissionKey]) {
+                return null;
+              }
             }
 
             const countKey =
@@ -236,19 +343,18 @@ function DatabaseContent() {
             const entryLabel = count === 1 ? "Eintrag" : "Einträge";
             const countText =
               section.badge ??
-              (countsLoading ? "Lade..." : `${count} ${entryLabel}`);
+              (countsLoading ? "Lädt…" : `${count} ${entryLabel}`);
             const badgeLoading = section.badge === undefined && countsLoading;
             const concept = MOTO_CONCEPTS[section.concept];
 
             return (
-              <Link
+              <TileCard
                 key={section.id}
                 href={tenantPath(section.href)}
-                className="moto-content-surface moto-hover-elevated group relative min-h-[44px] touch-manipulation overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] active:shadow-[0_10px_26px_rgba(15,23,42,0.1)]"
+                padding="none"
+                className="min-h-[44px] touch-manipulation"
               >
-                <div className="pointer-events-none absolute inset-0 rounded-2xl ring-1 ring-transparent transition-[box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"></div>
-
-                <div className="relative p-6">
+                <div className="relative p-4 sm:p-6">
                   <div className="mb-4 flex items-start justify-between">
                     <div data-testid={`database-section-icon-${section.id}`}>
                       <MotoDuotoneIcon
@@ -257,18 +363,20 @@ function DatabaseContent() {
                         size={36}
                       />
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
-                        badgeLoading
-                          ? "animate-pulse bg-gray-200 text-gray-400"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {countText}
-                    </span>
+                    {badgeLoading ? (
+                      // Platzhalter in der Höhe der fertigen Zahl (Text +
+                      // py-1.5), damit die Kachel beim Laden nicht springt.
+                      <Skeleton className="h-7 w-20 rounded-full">
+                        <span className="sr-only">{countText}</span>
+                      </Skeleton>
+                    ) : (
+                      <span className="rounded-full bg-gray-100 px-3 py-1.5 text-xs font-semibold text-gray-600">
+                        {countText}
+                      </span>
+                    )}
                   </div>
 
-                  <h3 className="mb-2 inline-block origin-left text-lg font-bold text-gray-900 transition-[color,transform] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:scale-[1.025] group-hover:text-gray-950 motion-reduce:transition-none motion-reduce:group-hover:scale-100">
+                  <h3 className="mb-2 text-base font-bold text-gray-900">
                     {section.title}
                   </h3>
                   <p className="mb-4 line-clamp-2 text-sm text-gray-600">
@@ -285,12 +393,12 @@ function DatabaseContent() {
                     />
                   </div>
                 </div>
-              </Link>
+              </TileCard>
             );
           })}
-        </div>
-      </div>
-    </div>
+        </CollectionGrid>
+      )}
+    </TenantPage>
   );
 }
 

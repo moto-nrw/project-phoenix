@@ -90,11 +90,7 @@ export function upcomingAfter(
  * 11:00 starten" um 13:20 ist eine Aufforderung zu warten, die nie endet.
  */
 export type SupervisionStartState =
-  | "cancelled"
-  | "completed"
-  | "startable"
-  | "too_early"
-  | "expired";
+  "cancelled" | "completed" | "startable" | "too_early" | "expired";
 
 export function supervisionStartState(
   instance: PlannedTimetableInstance,

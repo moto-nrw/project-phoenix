@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,7 +17,7 @@ import (
 func TestStudentPickupException_Validate_Author(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 6, 15)
+	date := NewDate(2026, 6, 15)
 	pickup := time.Date(2026, 6, 15, 14, 30, 0, 0, time.UTC)
 	guardian := int64(42)
 
@@ -104,7 +103,7 @@ func TestStudentPickupException_Validate_Author(t *testing.T) {
 func TestStudentArrivalException_Validate_Author(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 6, 15)
+	date := NewDate(2026, 6, 15)
 	arrival := time.Date(2026, 6, 15, 8, 15, 0, 0, time.UTC)
 	guardian := int64(42)
 

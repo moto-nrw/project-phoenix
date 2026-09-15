@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -41,7 +42,10 @@ type ServiceConfig struct {
 	ParentsURL          string
 	SchoolURL           string
 	PasswordResetExpiry time.Duration
+	RateLimitEnabled    bool
+	TokenAuth           *jwt.TokenAuth
 	Settings            configSvc.SettingsService
+	Audit               auditModels.Command
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -78,12 +82,14 @@ type Service struct {
 	parentsURL          string
 	schoolURL           string
 	passwordResetExpiry time.Duration
+	rateLimitEnabled    bool
 	jwtExpiry           time.Duration
 	jwtRefreshExpiry    time.Duration
 	txHandler           *tenant.TransactionRunner
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
+	audit               auditModels.Command
 	tenantRuntime       *tenant.UnitOfWork
 	// mfaService is optional. When non-nil and an account requires MFA the
 	// login flow returns a challenge token instead of an access/refresh
@@ -131,9 +137,13 @@ func NewService(
 		return nil, &AuthError{Op: opCreateService, Err: errors.New("database is nil")}
 	}
 
-	tokenAuth, err := jwt.NewTokenAuth()
-	if err != nil {
-		return nil, &AuthError{Op: "create token auth", Err: err}
+	tokenAuth := config.TokenAuth
+	if tokenAuth == nil {
+		var err error
+		tokenAuth, err = jwt.NewTokenAuth()
+		if err != nil {
+			return nil, &AuthError{Op: "create token auth", Err: err}
+		}
 	}
 
 	return &Service{
@@ -145,12 +155,14 @@ func NewService(
 		parentsURL:          config.ParentsURL,
 		schoolURL:           config.SchoolURL,
 		passwordResetExpiry: config.PasswordResetExpiry,
+		rateLimitEnabled:    config.RateLimitEnabled,
 		jwtExpiry:           tokenAuth.JwtExpiry,
 		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
 		txHandler:           tenant.NewTransactionRunner(),
 		db:                  db,
 		logger:              logger,
 		settings:            config.Settings,
+		audit:               config.Audit,
 	}, nil
 }
 

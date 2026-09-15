@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { render, screen, fireEvent, act } from "@testing-library/react";
+import {
+  expectIdleRenderBudget,
+  RENDER_BUDGET_MAX_COMMITS,
+} from "~/test/render-budget";
 
 // Mock dependencies before importing component
 vi.mock("next/navigation", () => ({
@@ -69,6 +74,15 @@ vi.mock("~/components/ui/drawer", () => ({
   ),
 }));
 
+vi.mock("./header/refresh-button", () => ({
+  RefreshButton: () => <button type="button">Aktualisieren</button>,
+}));
+
+vi.mock("~/components/staff-preview/staff-preview-modal", () => ({
+  StaffPreviewModal: ({ isOpen }: { isOpen: boolean }) =>
+    isOpen ? <div>Vorschau-Dialog</div> : null,
+}));
+
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: vi.fn(() => ({
     user: { name: "Test User", email: "test@example.com", roles: [] },
@@ -77,10 +91,14 @@ vi.mock("~/lib/shell-auth-context", () => ({
     isSessionExpired: false,
     logout: vi.fn(),
     mode: "teacher",
-    homeUrl: "/dashboard",
+    homeUrl: "/home",
 
     profileUrl: "/profile",
   })),
+}));
+
+vi.mock("~/lib/hooks/use-change-request-access", () => ({
+  useChangeRequestAccess: vi.fn(),
 }));
 
 vi.mock("~/lib/operator-url", () => ({
@@ -99,7 +117,10 @@ import {
   isCaregiver,
 } from "~/lib/auth-utils";
 import { useShellAuth } from "~/lib/shell-auth-context";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import {
+  useAttendanceLogEnabled,
+  useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
@@ -118,6 +139,9 @@ const mockIsCaregiver = vi.mocked(isCaregiver);
 const mockHasEffectiveAdminScope = vi.mocked(hasEffectiveAdminScope);
 const mockHasPermission = vi.mocked(hasPermission);
 const mockUseShellAuth = vi.mocked(useShellAuth);
+const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
+const mockUseAttendanceLogEnabled = vi.mocked(useAttendanceLogEnabled);
+const mockUseDisplayEnabled = vi.mocked(useDisplayEnabled);
 const mockUseNFCEnabled = vi.mocked(useNFCEnabled);
 const mockUsePresenceMode = vi.mocked(usePresenceMode);
 const mockUseTenantRoutingModeSafe = vi.mocked(useTenantRoutingModeSafe);
@@ -176,11 +200,12 @@ describe("MobileBottomNav", () => {
       isSessionExpired: false,
       logout: vi.fn(),
       mode: "teacher",
-      homeUrl: "/dashboard",
+      homeUrl: "/home",
 
       profileUrl: "/profile",
+      canStartStaffPreview: false,
     });
-    mockUsePathname.mockReturnValue("/dashboard");
+    mockUsePathname.mockReturnValue("/home");
     mockUseSearchParams.mockReturnValue(createMockSearchParams());
     mockUseSession.mockReturnValue(createMockSession(false));
     mockUseSupervision.mockReturnValue({
@@ -208,6 +233,9 @@ describe("MobileBottomNav", () => {
     mockUseTenantRoutingModeSafe.mockReturnValue("path");
     mockUseTenantSlugSafe.mockReturnValue("test-tenant");
     mockUseStaffMessagingEnabled.mockReturnValue(false);
+    mockUseChangeRequestAccess.mockReturnValue({
+      canOpenRequestsPage: false,
+    } as ReturnType<typeof useChangeRequestAccess>);
   });
 
   describe("rendering", () => {
@@ -245,24 +273,51 @@ describe("MobileBottomNav", () => {
       const hrefs = screen
         .getAllByRole("link")
         .map((link) => link.getAttribute("href"));
-      expect(hrefs).toContain("/dashboard");
+      expect(hrefs).toContain("/home");
       expect(hrefs).toContain("/students/search");
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
+      expect(
+        screen.getByRole("link", { name: "Meine Gruppen" }),
+      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
+      expect(screen.getByText("Datenverwaltung").closest("a")).toHaveAttribute(
         "href",
-        "/ogs-groups",
+        "/test-tenant/database",
+      );
+      expect(screen.getByText("Anmeldungen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/admin/enrollments",
       );
     });
+
+    it.each([
+      ["activities:manage_categories", "/database/categories"],
+      ["schedules:manage", "/database/planning-tracks"],
+      ["time_tracking:manage", "/database/shift-types"],
+    ])(
+      "opens the first allowed catalog for users with %s",
+      (permission, expectedHref) => {
+        mockHasPermission.mockImplementation(
+          (_session, currentPermission) => currentPermission === permission,
+        );
+
+        render(<MobileBottomNav />);
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+        expect(
+          screen.getByRole("link", { name: "Datenverwaltung" }),
+        ).toHaveAttribute("href", `/test-tenant${expectedHref}`);
+      },
+    );
 
     it("hides groups from users without staff or admin access", () => {
       mockIsCaregiver.mockReturnValue(false);
 
       render(<MobileBottomNav />);
 
-      expect(screen.queryByRole("link", { name: "Gruppe" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Meine Gruppen" })).toBeNull();
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.queryByRole("link", { name: "Gruppe" })).toBeNull();
+      expect(screen.queryByRole("link", { name: "Meine Gruppen" })).toBeNull();
     });
 
     it("shows groups to effective admins", () => {
@@ -272,10 +327,9 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
-      expect(screen.getByRole("link", { name: "Gruppe" })).toHaveAttribute(
-        "href",
-        "/ogs-groups",
-      );
+      expect(
+        screen.getByRole("link", { name: "Meine Gruppen" }),
+      ).toHaveAttribute("href", "/test-tenant/ogs-groups");
     });
 
     it("renders with custom className", () => {
@@ -294,10 +348,47 @@ describe("MobileBottomNav", () => {
       expect(spacer).toBeInTheDocument();
     });
 
+    it("keeps header actions available in the overflow menu", () => {
+      mockUseShellAuth.mockReturnValue({
+        user: { name: "Test User", email: "test@example.com", roles: [] },
+        profile: { firstName: "Test", lastName: "User" },
+        status: "authenticated",
+        isSessionExpired: true,
+        logout: vi.fn(),
+        mode: "teacher",
+        homeUrl: "/home",
+        profileUrl: "/profile",
+        canStartStaffPreview: true,
+      });
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(
+        screen.getByText(
+          "Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Aktualisieren")).not.toHaveLength(0);
+      expect(screen.getByText("Erinnerungen").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/reminders",
+      );
+      expect(screen.getByText("Profil").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/profile",
+      );
+      fireEvent.click(screen.getByText("Ansicht eines Mitarbeitenden"));
+      expect(screen.getByText("Vorschau-Dialog")).toBeInTheDocument();
+    });
+
     it("prefixes the Anfragen overflow link in path-routing mode", () => {
       mockHasPermission.mockImplementation(
         (_session, permission) => permission === "vacation:approve",
       );
+      mockUseChangeRequestAccess.mockReturnValue({
+        canOpenRequestsPage: true,
+      } as ReturnType<typeof useChangeRequestAccess>);
 
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
@@ -306,6 +397,17 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/anfragen",
       );
+    });
+
+    it("hides Anfragen without a current effective review scope", () => {
+      mockHasPermission.mockImplementation(
+        (_session, permission) => permission === "users:update",
+      );
+
+      render(<MobileBottomNav />);
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+      expect(screen.queryByText("Anfragen")).not.toBeInTheDocument();
     });
 
     it("prefixes the Team-Chat overflow link in path-routing mode", () => {
@@ -323,7 +425,7 @@ describe("MobileBottomNav", () => {
 
   describe("active route detection", () => {
     it("highlights dashboard link when on dashboard", () => {
-      mockUsePathname.mockReturnValue("/dashboard");
+      mockUsePathname.mockReturnValue("/home");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
@@ -332,9 +434,9 @@ describe("MobileBottomNav", () => {
       // The active link should have the bg-gray-100 class and show label
       const dashboardLink = screen
         .getAllByRole("link")
-        .find((link) => link.getAttribute("href") === "/dashboard");
+        .find((link) => link.getAttribute("href") === "/home");
       expect(dashboardLink).toHaveClass("bg-gray-100");
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
     it("highlights dashboard for root path", () => {
@@ -344,8 +446,8 @@ describe("MobileBottomNav", () => {
 
       render(<MobileBottomNav />);
 
-      // Should show "Home" label since dashboard is active
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      // Should show the "Start" label since the start page is active
+      expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
     it("detects active route from search params 'from' parameter", () => {
@@ -389,24 +491,31 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Home must NOT be active (its label only renders when active)…
-      expect(screen.queryByText("Home")).not.toBeInTheDocument();
+      expect(screen.queryByText("Start")).not.toBeInTheDocument();
       // …and the Eltern group ("Mehr") is active via its /messages activePath.
       expect(screen.getByRole("button", { name: "Mehr" })).toHaveClass(
         "bg-gray-100",
       );
     });
 
-    it("highlights the canonical activities route", () => {
+    // Seit #2180 steht die Startseite als erster Reiter; die Aktivitäten
+    // wohnen für Betreuungskräfte im Mehr-Menü.
+    it("lists the activities route in the overflow menu", () => {
       mockUsePathname.mockReturnValue("/activities");
 
       render(<MobileBottomNav />);
 
-      // Activities should be highlighted
-      const links = screen.getAllByRole("link");
-      const activitiesLink = links.find(
-        (link) => link.getAttribute("href") === "/activities",
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).toContain("/home");
+      expect(hrefs).not.toContain("/activities");
+
+      fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+      expect(screen.getByRole("link", { name: "Aktivitäten" })).toHaveAttribute(
+        "href",
+        "/test-tenant/activities",
       );
-      expect(activitiesLink).toBeDefined();
     });
   });
 
@@ -420,7 +529,7 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
 
       // Admin main items include Home, Suchen, Aktivitäten, Räume
-      expect(screen.getByText("Home")).toBeInTheDocument();
+      expect(screen.getByText("Start")).toBeInTheDocument();
     });
 
     it("shows admin-only items in overflow menu", () => {
@@ -437,8 +546,11 @@ describe("MobileBottomNav", () => {
       // Admin-only items should be visible in the drawer
       expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Terminvertretungen")).toBeInTheDocument();
-      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.getByText("Vertretungsplan")).toBeInTheDocument();
+      // Die Gruppen der Seitenleiste stehen im Menü als Überschrift, nicht
+      // als Link (#2826).
+      expect(screen.getByText("Planung")).toBeInTheDocument();
+      expect(screen.getByText("Planung").closest("a")).toBeNull();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
@@ -451,11 +563,10 @@ describe("MobileBottomNav", () => {
       render(<MobileBottomNav />);
       fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
 
-      // Nur Planungs- und Eltern-Hub-Links tragen das Tenant-Präfix; /calendar
-      // bleibt bar.
+      // Alle tenant-gebundenen Drawer-Links tragen im Pfadmodus das Präfix.
       expect(screen.getByText("Mein Kalender").closest("a")).toHaveAttribute(
         "href",
-        "/calendar",
+        "/test-tenant/calendar",
       );
       expect(screen.queryByText("Kalender")).not.toBeInTheDocument();
     });
@@ -506,9 +617,10 @@ describe("MobileBottomNav", () => {
         "href",
         "/test-tenant/dienstplan",
       );
-      expect(
-        screen.getByText("Terminvertretungen").closest("a"),
-      ).toHaveAttribute("href", "/test-tenant/vertretung");
+      expect(screen.getByText("Vertretungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/vertretung",
+      );
     });
 
     it("keeps planning links bare in subdomain mode", () => {
@@ -525,9 +637,10 @@ describe("MobileBottomNav", () => {
         "href",
         "/dienstplan",
       );
-      expect(
-        screen.getByText("Terminvertretungen").closest("a"),
-      ).toHaveAttribute("href", "/vertretung");
+      expect(screen.getByText("Vertretungsplan").closest("a")).toHaveAttribute(
+        "href",
+        "/vertretung",
+      );
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
@@ -561,8 +674,8 @@ describe("MobileBottomNav", () => {
       );
     });
 
-    it("highlights Kalenderzeiträume as its own overflow entry", () => {
-      // Kalenderzeiträume und Tageslisten waren mobil ausgeblendet und liehen
+    it("highlights Schuljahr und Ferien as its own overflow entry", () => {
+      // Schuljahr und Ferien und Tageslisten waren mobil ausgeblendet und liehen
       // sich die Hervorhebung vom Betreuungsplan. Erreichbar waren sie dadurch
       // nicht: es gibt keinen Verweis vom Betreuungsplan dorthin. Beide sind
       // jetzt eigene Einträge und markieren sich selbst.
@@ -577,7 +690,7 @@ describe("MobileBottomNav", () => {
       expect(moreButton).toBeDefined();
       fireEvent.click(moreButton!);
 
-      expect(screen.getByText("Kalenderzeiträume").closest("a")).toHaveClass(
+      expect(screen.getByText("Schuljahr und Ferien").closest("a")).toHaveClass(
         "bg-gray-100",
       );
       expect(screen.getByText("Tageslisten").closest("a")).toBeInTheDocument();
@@ -678,6 +791,77 @@ describe("MobileBottomNav", () => {
         .map((link) => link.getAttribute("href"));
       expect(hrefs).not.toContain("/activities");
       expect(hrefs).toContain("/ogs-groups");
+    });
+  });
+
+  // #2915: Räume, Aktivitäten und Aufsicht sperrt der BinaryModeGuard — die
+  // mobile Navigation muss sie unter derselben Regel ausblenden wie die
+  // Desktop-Sidebar, sonst führt der Eintrag auf eine 404-Seite.
+  describe("binary presence mode", () => {
+    beforeEach(() => {
+      mockUseNFCEnabled.mockReturnValue(true);
+      mockUsePresenceMode.mockReturnValue("binary");
+    });
+
+    it("hides Aufsicht from the staff main navigation", () => {
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+      expect(
+        screen.queryByRole("link", { name: "Aufsicht" }),
+      ).not.toBeInTheDocument();
+      expect(hrefs).toContain("/ogs-groups");
+    });
+
+    it("hides Aufsicht and Räume from the overflow menu", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen
+        .getAllByRole("button")
+        .find((btn) => !btn.hasAttribute("data-testid"));
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const drawerHrefs = Array.from(
+        screen.getByTestId("drawer-content").querySelectorAll("a"),
+      ).map((link) => link.getAttribute("href"));
+      expect(drawerHrefs).not.toContain("/active-supervisions");
+      expect(drawerHrefs).not.toContain("/rooms");
+    });
+
+    it("hides the injected admin Aufsicht tab", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: true,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: true,
+        supervisedRooms: [{ id: "1", name: "Room A", groupId: "g1" }],
+        groups: [],
+        refresh: vi.fn(),
+      });
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
+      expect(hrefs).not.toContain("/active-supervisions");
+    });
+
+    it("keeps Aufsicht visible in detailed presence mode", () => {
+      mockUsePresenceMode.mockReturnValue("detailed");
+
+      render(<MobileBottomNav />);
+
+      const hrefs = screen
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("href"));
       expect(hrefs).toContain("/active-supervisions");
     });
   });
@@ -712,7 +896,10 @@ describe("MobileBottomNav", () => {
       fireEvent.click(staffLink);
 
       // The link should exist and be clickable
-      expect(staffLink.closest("a")).toHaveAttribute("href", "/staff");
+      expect(staffLink.closest("a")).toHaveAttribute(
+        "href",
+        "/test-tenant/staff",
+      );
     });
 
     it("displays additional nav items in drawer", () => {
@@ -752,9 +939,31 @@ describe("MobileBottomNav", () => {
 
       const link = screen.getByText("Statistik").closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/statistics");
+      expect(link).toHaveAttribute("href", "/test-tenant/statistics");
       expect(screen.queryByText("Berichte")).not.toBeInTheDocument();
       expect(screen.queryByText("Bald verfügbar")).not.toBeInTheDocument();
+    });
+
+    it("prefixes tenant-scoped Verwaltungsseiten in the path-routing drawer", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+      mockUseAttendanceLogEnabled.mockReturnValue(true);
+      mockUseDisplayEnabled.mockReturnValue(true);
+
+      render(<MobileBottomNav />);
+      fireEvent.click(getMoreButton());
+
+      for (const { label, href } of [
+        { label: "Tagesauswertung", href: "/test-tenant/day-log" },
+        { label: "Statistik", href: "/test-tenant/statistics" },
+        { label: "Dateien", href: "/test-tenant/dateien" },
+        { label: "Info-Displays", href: "/test-tenant/info-displays" },
+      ] as const) {
+        expect(screen.getByText(label).closest("a")).toHaveAttribute(
+          "href",
+          href,
+        );
+      }
     });
 
     it("shows Statistik to non-admin staff with both required permissions", () => {
@@ -770,7 +979,7 @@ describe("MobileBottomNav", () => {
       fireEvent.click(getMoreButton());
       expect(screen.getByText("Statistik").closest("a")).toHaveAttribute(
         "href",
-        "/statistics",
+        "/test-tenant/statistics",
       );
     });
 
@@ -785,7 +994,7 @@ describe("MobileBottomNav", () => {
       const zeiterfassungElement = screen.getByText("Zeiterfassung");
       const link = zeiterfassungElement.closest("a");
       expect(link).not.toBeNull();
-      expect(link).toHaveAttribute("href", "/time-tracking");
+      expect(link).toHaveAttribute("href", "/test-tenant/time-tracking");
     });
 
     it("does not show the old Dienstpläne placeholder for admins", () => {
@@ -887,10 +1096,11 @@ describe("MobileBottomNav", () => {
       expect(hrefs).not.toContain("/active-supervisions");
     });
 
-    it("does not inject Aufsicht tab when only a synthetic Schulhof room exists (setting off)", () => {
-      // P1-A regression guard: Schulhof is injected into supervisedRooms for
-      // every tenant that has one. An admin without admin_supervision_overview
-      // must not surface the admin tab merely because a Schulhof entry exists.
+    it("does not inject Aufsicht tab when only a released room exists (setting off)", () => {
+      // P1-A regression guard: a released room appears in supervisedRooms for
+      // every caregiver of that tenant. An admin without
+      // admin_supervision_overview must not surface the admin tab merely
+      // because such a shared room exists (#3065).
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
       mockUseSupervision.mockReturnValue({
@@ -900,7 +1110,7 @@ describe("MobileBottomNav", () => {
         isLoadingSupervision: false,
         overviewEnabled: false,
         supervisedRooms: [
-          { id: "schulhof", name: "Schulhof", groupId: "g1", isSchulhof: true },
+          { id: "7", name: "Schulhof", groupId: "7", isOpenRoom: true },
         ],
         groups: [],
         refresh: vi.fn(),
@@ -994,7 +1204,7 @@ describe("MobileBottomNav", () => {
       // The active link should show the "Gruppe" label after timers complete
       expect(screen.getByText("Gruppe")).toBeInTheDocument();
 
-      vi.useRealTimers();
+      releaseFakeTimers();
     });
 
     it("hides indicator when no active item found", async () => {
@@ -1013,7 +1223,7 @@ describe("MobileBottomNav", () => {
       const activeLinks = container.querySelectorAll("a.bg-gray-100");
       expect(activeLinks.length).toBe(0);
 
-      vi.useRealTimers();
+      releaseFakeTimers();
     });
 
     it("shows indicator on more button when additional route is active", async () => {
@@ -1032,7 +1242,7 @@ describe("MobileBottomNav", () => {
       // The "Mehr" label should be visible (indicating More button is highlighted)
       expect(screen.getByText("Mehr")).toBeInTheDocument();
 
-      vi.useRealTimers();
+      releaseFakeTimers();
     });
   });
 
@@ -1090,7 +1300,21 @@ describe("MobileBottomNav", () => {
       expect(hrefs).toContain("/operator/accounts");
       expect(hrefs).toContain("/operator/devices");
       expect(hrefs).toContain("/operator/persons");
-      expect(hrefs).not.toContain("/operator/settings");
+      expect(hrefs).toContain("/operator/settings");
+    });
+
+    it("keeps the refresh action available in the operator overflow menu", () => {
+      render(<MobileBottomNav />);
+
+      const moreButton = screen
+        .getAllByRole("button")
+        .find((button) => !button.hasAttribute("data-testid"));
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      expect(
+        screen.getByRole("button", { name: "Aktualisieren" }),
+      ).toBeInTheDocument();
     });
 
     it("shows active label for current operator route", () => {
@@ -1216,8 +1440,8 @@ describe("MobileBottomNav", () => {
 
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
       expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
-      expect(screen.queryByText("Terminvertretungen")).not.toBeInTheDocument();
-      expect(screen.getByText("Kalenderzeiträume")).toBeInTheDocument();
+      expect(screen.queryByText("Vertretungsplan")).not.toBeInTheDocument();
+      expect(screen.getByText("Schuljahr und Ferien")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
     });
@@ -1231,5 +1455,29 @@ describe("MobileBottomNav", () => {
         expect.any(Object),
       );
     });
+  });
+
+  // Render-Budget (#2939): die Nav lief bis #2978 auf jeder Seite in einer
+  // Effekt-Schleife. Ohne den Fix aus #2978 zählt der Helfer hier 51 Commits.
+  describe("render budget", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each([
+      ["/home", true],
+      ["/ogs-groups", false],
+      ["/settings", true],
+    ])(
+      `commits at most ${RENDER_BUDGET_MAX_COMMITS} times in idle on %s`,
+      async (pathname, admin) => {
+        vi.useFakeTimers();
+        mockIsAdmin.mockReturnValue(admin);
+        mockUseSession.mockReturnValue(createMockSession(admin));
+        mockUsePathname.mockReturnValue(pathname);
+
+        await expectIdleRenderBudget(<MobileBottomNav />);
+      },
+    );
   });
 });

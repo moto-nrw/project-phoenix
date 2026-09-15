@@ -22,7 +22,7 @@ type settingsTestContext struct {
 func setupSettingsModule(t *testing.T) *settingsTestContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupSettingsModule(t)
 	runtime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
 		Protected:   testutil.ProtectedTestTenantGroupFunc(db),
 		Permission:  func(configAPI.Access) configAPI.Middleware { return testutil.IdentityMiddleware },
@@ -35,7 +35,9 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 		NoContent: testutil.RespondNoContent,
 		Failure:   testutil.RespondError,
 	})
-	resource := configAPI.NewSettingsResource(svc.TenantSettings, runtime)
+	homeLayouts, ok := svc.Settings.(configAPI.HomeLayoutOperations)
+	require.True(t, ok)
+	resource := configAPI.NewSettingsResource(svc.TenantSettings, homeLayouts, runtime)
 
 	return &settingsTestContext{
 		db:       db,
@@ -87,6 +89,67 @@ func TestSettingsSetValue_Success(t *testing.T) {
 
 	rr := testutil.ExecuteRequest(router, req)
 	testutil.AssertSuccessResponse(t, rr, 200)
+}
+
+func TestSettingsSetHomeLayout_LegacyPayloadPreservesArrangement(t *testing.T) {
+	t.Parallel()
+
+	ctx := setupSettingsModule(t)
+	router := ctx.resource.SettingsRouter()
+
+	currentPayload := map[string]interface{}{
+		"overrides": map[string]bool{"section.birthdays": false},
+		"blocks": []map[string]interface{}{
+			{"key": "section.staff_notices", "span": 2, "col": 2, "row": 3},
+		},
+	}
+	req := testutil.NewAuthenticatedRequest(t, "PUT", "/home-layout", currentPayload,
+		testutil.WithTestTenant(t),
+	)
+	rr := testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, 200)
+
+	legacyPayload := map[string]interface{}{
+		"overrides": map[string]bool{"section.birthdays": true},
+	}
+	req = testutil.NewAuthenticatedRequest(t, "PUT", "/home-layout", legacyPayload,
+		testutil.WithTestTenant(t),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, 200)
+
+	req = testutil.NewAuthenticatedRequest(t, "GET", "/home-layout", nil,
+		testutil.WithTestTenant(t),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, 200)
+
+	response := testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok := response["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, []interface{}{
+		map[string]interface{}{"key": "section.staff_notices", "span": float64(2), "col": float64(2), "row": float64(3)},
+	}, data["blocks"])
+
+	clearPayload := map[string]interface{}{
+		"overrides": map[string]bool{"section.birthdays": true},
+		"blocks":    []interface{}{},
+	}
+	req = testutil.NewAuthenticatedRequest(t, "PUT", "/home-layout", clearPayload,
+		testutil.WithTestTenant(t),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, 200)
+
+	req = testutil.NewAuthenticatedRequest(t, "GET", "/home-layout", nil,
+		testutil.WithTestTenant(t),
+	)
+	rr = testutil.ExecuteRequest(router, req)
+	testutil.AssertSuccessResponse(t, rr, 200)
+	response = testutil.ParseJSONResponse(t, rr.Body.Bytes())
+	data, ok = response["data"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Empty(t, data["blocks"])
 }
 
 func TestSettingsSetValue_InvalidKey(t *testing.T) {

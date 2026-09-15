@@ -194,7 +194,7 @@ func validateTemplateCreateInput(in CreateTemplateInput) error {
 // the supported grade bounds and free of duplicates (mirroring
 // Group.ValidateTargetGroup, which direct service callers bypass), and no
 // manual roster next to a source (the roster is derived, a snapshot would
-// silently drift).
+// silently drift; per-weekday staff is fine, per-weekday children are not).
 // Callers persist the class filter as given; trimming and the nil-for-empty
 // canonicalization happen in activities.Group.ValidateTargetGroup (create)
 // and in the API layer (update), and matching normalizes at compare time.
@@ -257,11 +257,12 @@ func validateOfferingSourceInput(
 	}
 	// Per-weekday CHILD lists (#2129) are editor-owned snapshots; a sourced
 	// roster is server-managed. Letting both in would plan children twice.
-	// Per-weekday staff on sourced templates is a possible follow-up — the
-	// editor hides the whole weekday section for sourced templates today, so
-	// reject staff rows too instead of silently accepting a half.
-	if len(weekdayAssignments) > 0 {
-		return fmt.Errorf("%w: weekday_assignments must be empty when an offering source is set", ErrOfferingSourceInvalid)
+	// Per-weekday STAFF stays with the planner (#3165): the source decides
+	// which children come, not who supervises them on which weekday.
+	for _, assignment := range weekdayAssignments {
+		if len(assignment.StudentIDs) > 0 {
+			return fmt.Errorf("%w: weekday_assignments must not contain student_ids when an offering source is set", ErrOfferingSourceInvalid)
+		}
 	}
 	return nil
 }
@@ -359,7 +360,7 @@ func (s *TimetableDataService) createTemplateLocked(
 			ActivityGroupID:  group.ID,
 			WeekPattern:      in.WeekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
-			ValidFrom:        cloneOptionalDate(in.ScheduleValidFrom),
+			ValidFrom:        activityDatePtr(in.ScheduleValidFrom),
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, sched); err != nil {
@@ -491,14 +492,14 @@ func (s *TimetableDataService) createTemplateRoster(
 		return &ScheduleError{Op: "create template: resolve roster", Err: err}
 	}
 
-	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
+	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
 		return &ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
 	for _, row := range roster.Students {
 		enrollment := &activitiesModel.StudentEnrollment{
 			StudentID:        row.PersonID,
 			ActivityGroupID:  groupID,
-			ValidFrom:        in.RosterValidFrom,
+			ValidFrom:        activitiesModel.Date(in.RosterValidFrom),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}
@@ -508,7 +509,7 @@ func (s *TimetableDataService) createTemplateRoster(
 		}
 	}
 
-	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, in.RosterValidFrom); err != nil {
+	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
 		return &ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
 	for _, row := range roster.Staff {
@@ -516,7 +517,7 @@ func (s *TimetableDataService) createTemplateRoster(
 			StaffID:          row.PersonID,
 			GroupID:          groupID,
 			IsPrimary:        row.IsPrimary,
-			ValidFrom:        in.RosterValidFrom,
+			ValidFrom:        activitiesModel.Date(in.RosterValidFrom),
 			CalendarPeriodID: in.CalendarPeriodID,
 			Weekday:          weekdayScopePtr(row.Weekday),
 		}

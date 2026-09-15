@@ -1,13 +1,10 @@
 import { expect, type Page, test } from "@playwright/test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
+import { loadSeedAccess } from "../scripts/seed-state";
 import { berlinTodayISO } from "../src/lib/date-helpers";
 import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 
-// Chunk 8 des Planung-Redesigns Inkrement 2
-// (docs/planung-redesign/docs/07-vertretung.md Abschnitt 12/13): der Zweiteiler
-// /vertretung. Diese Spec testet AUSSCHLIESSLICH die UI-Verdrahtung, nicht die
+// Der Zweiteiler /vertretung. Diese Spec testet AUSSCHLIESSLICH die UI-Verdrahtung, nicht die
 // Deviations-Backend-Semantik (die decken die Go-E2E-Flows
 // flow_c_gaps_substitute_test.go / flow_h_replan_deviations_test.go ab).
 //
@@ -27,41 +24,7 @@ import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 // jedem Seed); E2E_TENANT_SLUG / E2E_TEST_EMAIL / E2E_TEST_PASSWORD
 // überschreiben sie. Ohne verwertbare Werte überspringt die Spec.
 
-interface SeedAccess {
-  slug: string;
-  email: string;
-  password: string;
-}
-
-function loadAccess(): SeedAccess | null {
-  const envSlug = process.env.E2E_TENANT_SLUG;
-  const envEmail = process.env.E2E_TEST_EMAIL;
-  const envPassword = process.env.E2E_TEST_PASSWORD;
-  let slug = envSlug;
-  let email = envEmail;
-  let password = envPassword;
-  try {
-    // Playwright läuft mit cwd = frontend/; die Seed-Datei liegt daneben.
-    const raw = readFileSync(
-      join(process.cwd(), "..", "backend", ".seed-state.json"),
-      "utf8",
-    );
-    const seed = JSON.parse(raw) as {
-      bootstrap?: { tenant_slug?: string };
-      accounts?: { admin?: Array<{ email?: string; password?: string }> };
-    };
-    const admin = seed.accounts?.admin?.[0];
-    slug = slug ?? seed.bootstrap?.tenant_slug;
-    email = email ?? admin?.email;
-    password = password ?? admin?.password;
-  } catch {
-    // Keine Seed-Datei (z. B. CI ohne lokalen Stack): nur Env-Werte zählen.
-  }
-  if (slug && email && password) return { slug, email, password };
-  return null;
-}
-
-const access = loadAccess();
+const access = loadSeedAccess();
 const base = access ? `http://${access.slug}.localhost:3000` : "";
 
 // `view` kam mit der Wochenansicht (#2030) hinzu; die Tagesansicht bleibt der

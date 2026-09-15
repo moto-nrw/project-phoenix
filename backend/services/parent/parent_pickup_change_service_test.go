@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -31,7 +32,7 @@ import (
 func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -52,14 +53,18 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (parentSer
 }
 
 // buildPickupChangeServiceWithRequests adds the real request service, so the
-// submit/list/withdraw round trip runs against actual rows.
-func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory) {
+// submit/list/withdraw round trip runs against actual rows. configure adjusts
+// the service configuration before the service is built (#3163 uses it to pin
+// the clock and to reuse the wiring for further services).
+func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*parentService.ServiceConfig)) (parentService.Service, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
 	careRequests := scheduleSvc.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
@@ -67,10 +72,10 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
 		repos.StudentPickupException,
-		repos.Attendance,
+		presence,
 		scheduleSvc.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),
@@ -83,12 +88,12 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		sf.StudentAudit,
 	)
 
-	svc := parentService.NewService(parentService.ServiceConfig{
+	cfg := parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		PickupExceptionRepo: repos.StudentPickupException,
-		AttendanceRepo:      repos.Attendance,
+		Attendance:          parentAttendance(t, db),
 		CareRequests:        careRequests,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
@@ -100,7 +105,11 @@ func buildPickupChangeServiceWithRequests(t *testing.T) (parentService.Service, 
 		},
 		DB:     db,
 		Logger: slog.Default(),
-	})
+	}
+	for _, apply := range configure {
+		apply(&cfg)
+	}
+	svc := parentService.NewService(cfg)
 	return svc, db, repos
 }
 
@@ -133,7 +142,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 
 	// Nothing was applied: only a staff approval may move a pickup time.
 	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
-		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, date)
+		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, scheduleModels.Date(date))
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
 }
@@ -277,4 +286,11 @@ func TestPickupChangeRequiresConfiguredRequestService(t *testing.T) {
 	_, err := svc.ListPickupChangeRequests(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
+}
+
+func approvedOfferingProjection(t *testing.T) *services.ApprovedOfferingTestProjection {
+	t.Helper()
+	projection, err := services.NewOwnerApprovedOfferingTestProjection(testpkg.SetupTestDB(t))
+	require.NoError(t, err)
+	return projection
 }

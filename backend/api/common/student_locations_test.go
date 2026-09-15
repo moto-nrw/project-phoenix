@@ -1,17 +1,35 @@
 package common_test
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type failedPresenceMode struct {
+	activeService.Service
+	err error
+}
+
+func (s failedPresenceMode) GetPresenceMode(context.Context) (string, error) { return "", s.err }
+
+func TestLoadStudentLocationSnapshotPropagatesModeFailure(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("presence mode unavailable")
+	snapshot, err := common.LoadStudentLocationSnapshot(context.Background(), failedPresenceMode{err: injected}, nil)
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, snapshot)
+}
 
 // =============================================================================
 // StudentLocationInfo Tests
@@ -62,7 +80,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_EmptySnapshot(t *testing
 
 	snapshot := &common.StudentLocationSnapshot{
 		Attendances: make(map[int64]*activeService.AttendanceStatus),
-		Visits:      make(map[int64]*activeModels.Visit),
+		Visits:      make(map[int64]*studentpresence.Visit),
 		Groups:      make(map[int64]*activeModels.Group),
 	}
 
@@ -81,7 +99,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_NotCheckedIn(t *testing.
 				Status:    "not_checked_in",
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -102,7 +120,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedOut(t *testing.T)
 				CheckOutTime: &checkoutTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -123,7 +141,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedOut_NoFullAccess(
 				CheckOutTime: &checkoutTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -144,7 +162,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NoFullAccess(t
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -165,7 +183,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NoVisit(t *tes
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit), // No visit
+		Visits: make(map[int64]*studentpresence.Visit), // No visit
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -186,7 +204,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NilVisit(t *te
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: nil, // Explicit nil visit
 		},
 		Groups: make(map[int64]*activeModels.Group),
@@ -210,7 +228,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_VisitNoGroupID
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 0, // No group ID
@@ -238,7 +256,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupNotFound(
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -266,7 +284,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NilGroup(t *te
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -297,7 +315,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupNoRoom(t 
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -333,7 +351,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupEmptyRoom
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -345,7 +363,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupEmptyRoom
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name: "", // Empty name
 				},
 			},
@@ -371,7 +389,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -383,7 +401,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name:     "Room 101",
 					Building: "Main Building",
 				},
@@ -414,7 +432,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 			Attendances: map[int64]*activeService.AttendanceStatus{
 				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
 			},
-			Visits: map[int64]*activeModels.Visit{
+			Visits: map[int64]*studentpresence.Visit{
 				123: {StudentID: 123, ActiveGroupID: 456, EntryTime: entryTime},
 			},
 			Groups: map[int64]*activeModels.Group{
@@ -422,7 +440,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 					GroupID:   ptrtest.Ptr(int64(789)),
 					RoomID:    1,
 					StartTime: startTime,
-					Room: &facilities.Room{
+					Room: &activeModels.SessionRoom{
 						Name:     "Bibliothek",
 						Building: "Main Building",
 						Color:    &roomColor,
@@ -443,7 +461,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 			Attendances: map[int64]*activeService.AttendanceStatus{
 				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
 			},
-			Visits: map[int64]*activeModels.Visit{
+			Visits: map[int64]*studentpresence.Visit{
 				123: {StudentID: 123, ActiveGroupID: 456, EntryTime: entryTime},
 			},
 			Groups: map[int64]*activeModels.Group{
@@ -451,7 +469,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 					GroupID:   ptrtest.Ptr(int64(789)),
 					RoomID:    1,
 					StartTime: startTime,
-					Room:      &facilities.Room{Name: "Sportraum"},
+					Room:      &activeModels.SessionRoom{Name: "Sportraum"},
 				},
 			},
 		}
@@ -490,7 +508,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedOut_FullA
 				CheckOutTime: &checkoutTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -513,7 +531,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedOut_NoFul
 				CheckOutTime: &checkoutTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -537,7 +555,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedIn_WithRo
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			123: {
 				StudentID:     123,
 				ActiveGroupID: 456,
@@ -549,7 +567,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedIn_WithRo
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name: "Art Room",
 				},
 			},
@@ -575,7 +593,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_Unterwegs(t *tes
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -592,11 +610,11 @@ func TestDetailedMode_OpenVisitWithoutAttendanceRemainsVisible(t *testing.T) {
 	snapshot := &common.StudentLocationSnapshot{
 		Mode:        common.PresenceModeDetailed,
 		Attendances: map[int64]*activeService.AttendanceStatus{},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
 		},
 		Groups: map[int64]*activeModels.Group{
-			99: {RoomID: 1, Room: &facilities.Room{Name: "Kunstraum"}},
+			99: {RoomID: 1, Room: &activeModels.SessionRoom{Name: "Kunstraum"}},
 		},
 	}
 
@@ -629,13 +647,13 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 			3: {StudentID: 3, Status: "checked_in", CheckInTime: &checkinTime},
 			4: {StudentID: 4, Status: "checked_in", CheckInTime: &checkinTime},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			4: {StudentID: 4, ActiveGroupID: 10, EntryTime: entryTime},
 		},
 		Groups: map[int64]*activeModels.Group{
 			10: {
 				GroupID: ptrtest.Ptr(int64(100)), RoomID: 1, StartTime: startTime,
-				Room: &facilities.Room{Name: "Cafeteria"},
+				Room: &activeModels.SessionRoom{Name: "Cafeteria"},
 			},
 		},
 	}
@@ -680,7 +698,7 @@ func TestStudentLocationSnapshot_NilAttendanceInMap(t *testing.T) {
 		Attendances: map[int64]*activeService.AttendanceStatus{
 			123: nil, // Explicit nil value
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -699,7 +717,7 @@ func TestStudentLocationSnapshot_UnknownStatus(t *testing.T) {
 				Status:    "unknown_status", // Invalid status
 			},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 
@@ -834,11 +852,11 @@ func TestBinaryMode_IgnoresVisitsAndGroups(t *testing.T) {
 				CheckInTime: &checkinTime,
 			},
 		},
-		Visits: map[int64]*activeModels.Visit{
+		Visits: map[int64]*studentpresence.Visit{
 			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
 		},
 		Groups: map[int64]*activeModels.Group{
-			99: {RoomID: 1, Room: &facilities.Room{Name: "Art Room"}},
+			99: {RoomID: 1, Room: &activeModels.SessionRoom{Name: "Art Room"}},
 		},
 	}
 
@@ -877,7 +895,7 @@ func TestDefaultMode_EmptyModeBehavesAsDetailed(t *testing.T) {
 		Attendances: map[int64]*activeService.AttendanceStatus{
 			42: {StudentID: 42, Status: "checked_in", CheckInTime: &checkinTime},
 		},
-		Visits: make(map[int64]*activeModels.Visit),
+		Visits: make(map[int64]*studentpresence.Visit),
 		Groups: make(map[int64]*activeModels.Group),
 	}
 

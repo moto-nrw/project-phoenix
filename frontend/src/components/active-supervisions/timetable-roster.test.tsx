@@ -6,6 +6,7 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
+import type { Student } from "~/lib/student-helpers";
 
 function rosterRow(
   studentId: string,
@@ -131,6 +132,58 @@ describe("TimetableRosterContent pickup times", () => {
     expect(
       screen.getByRole("button", { name: "Einchecken" }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("TimetableRosterContent unplanned student dialog", () => {
+  it("clears a selected child when the dialog closes", () => {
+    const students: Student[] = [
+      {
+        id: "1",
+        name: "Marie Beier",
+        school_class: "2a",
+        current_location: "home",
+      },
+      {
+        id: "2",
+        name: "Marie Garschagen",
+        school_class: "2a",
+        current_location: "home",
+      },
+    ];
+    render(
+      <TimetableRosterContent
+        addStudentResults={students}
+        addStudentSearch="Marie"
+        attendanceWebEnabled
+        isAddingStudent={false}
+        isCompletingInstance={false}
+        isConfirmingExpected={false}
+        roster={roster([], true)}
+        showTimetableCounts={false}
+        onAddStudent={vi.fn()}
+        onComplete={vi.fn()}
+        onConfirmExpected={vi.fn()}
+        onRosterAction={vi.fn()}
+        onSearchChange={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    fireEvent.click(screen.getByRole("button", { name: /Marie Beier/ }));
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(
+      screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Kind hinzufügen" }));
+    expect(screen.getByRole("button", { name: /Marie Beier/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
   });
 });
 

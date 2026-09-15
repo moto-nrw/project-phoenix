@@ -1,3 +1,5 @@
+import { validateSessionToken } from "./token-validation";
+vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { tenantAuthConfig as authConfig } from "./tenant-config";
 import { _resetRefreshState, _testHelpers } from "./shared";
@@ -112,6 +114,18 @@ function callSessionCallback(args: { session: unknown; token: unknown }) {
 describe("authConfig", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(validateSessionToken).mockImplementation(async (token) => {
+      try {
+        return {
+          exp: Math.floor(Date.now() / 1000) + 900,
+          ...JSON.parse(
+            Buffer.from(token.split(".")[1]!, "base64url").toString(),
+          ),
+        };
+      } catch {
+        return null;
+      }
+    });
     vi.stubGlobal("fetch", mockFetch);
     mockRequestHeaders.mockResolvedValue(new Headers());
     _resetRefreshState();
@@ -311,7 +325,7 @@ describe("authConfig", () => {
       expect(result?.token).toBe("access-token");
     });
 
-    it("should gracefully handle failed proactive refresh", async () => {
+    it("should end the session on a rejected proactive refresh (#2952)", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -335,10 +349,11 @@ describe("authConfig", () => {
         session: undefined,
       });
 
-      // Token stays unchanged — no error set, Axios interceptor handles fallback
+      // A 401 on refresh is final: the session callback strips the tokens.
       expect(result?.token).toBe("old-access-token");
       expect(result?.refreshToken).toBe("old-refresh-token");
-      expect(result?.error).toBeUndefined();
+      expect(result?.error).toBe("RefreshTokenError");
+      expect(result?.needsRefresh).toBe(true);
     });
 
     it("should gracefully handle network error during proactive refresh", async () => {

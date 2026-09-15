@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -15,8 +17,8 @@ import (
 const pickupOfferingAdjustmentReason = "Angebotswechsel wegen dauerhafter Gehzeiten"
 
 type directOfferingAdjustmentScope struct {
-	period                *enrollmentModels.StudentCarePeriod
-	phase                 *enrollmentModels.Phase
+	period                *StudentCarePeriod
+	phase                 *enrollmentOwner.Phase
 	effectiveFrom         timezone.Date
 	catalog               *OfferingChangeCatalog
 	bookingsAuthoritative bool
@@ -32,7 +34,7 @@ func (s *offeringChangeRequestService) PrepareDirectOfferingAdjustment(
 	if err := s.DirectApplier.LockOfferingDerivedWrites(ctx); err != nil {
 		return err
 	}
-	_, err := s.previewDirectOfferingAdjustment(ctx, input, true)
+	_, err := s.previewDirectOfferingAdjustment(ctx, input, true, s.todayDate())
 	return err
 }
 
@@ -44,15 +46,16 @@ func (s *offeringChangeRequestService) PreviewDirectOfferingAdjustment(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
 ) (*DirectOfferingAdjustmentPreview, error) {
-	return s.previewDirectOfferingAdjustment(ctx, input, false)
+	return s.previewDirectOfferingAdjustment(ctx, input, false, s.todayDate())
 }
 
 func (s *offeringChangeRequestService) previewDirectOfferingAdjustment(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
 	checkCapacity bool,
+	today timezone.Date,
 ) (*DirectOfferingAdjustmentPreview, error) {
-	scope, err := s.directAdjustmentScope(ctx, input)
+	scope, err := s.directAdjustmentScope(ctx, input, today)
 	if err != nil {
 		return nil, err
 	}
@@ -83,15 +86,16 @@ func (s *offeringChangeRequestService) previewDirectOfferingAdjustment(
 func (s *offeringChangeRequestService) directAdjustmentScope(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
+	today timezone.Date,
 ) (*directOfferingAdjustmentScope, error) {
 	if input.StudentID <= 0 {
 		return nil, fmt.Errorf("%w: student is required", ErrOfferingChangeInvalid)
 	}
 	effectiveFrom := input.EffectiveFrom
 	if effectiveFrom.IsZero() {
-		effectiveFrom = timezone.TodayDate()
+		effectiveFrom = today
 	}
-	if effectiveFrom.Before(timezone.TodayDate()) {
+	if effectiveFrom.Before(today) {
 		return nil, fmt.Errorf("%w: effective date is in the past", ErrOfferingChangeDateOutOfRange)
 	}
 	if err := s.ensureDirectCareOfferingsEnabled(ctx); err != nil {
@@ -109,9 +113,9 @@ func (s *offeringChangeRequestService) directAdjustmentScope(
 	if err != nil {
 		return nil, err
 	}
-	earliest := timezone.TodayDate()
-	if earliest.Before(phase.ServiceStartDate) {
-		earliest = phase.ServiceStartDate
+	earliest := today
+	if earliest.Before(timezone.Date(phase.ServiceStartDate)) {
+		earliest = timezone.Date(phase.ServiceStartDate)
 	}
 	catalog, err := s.catalogAt(ctx, input.StudentID, period, phase, earliest, latest, effectiveFrom)
 	return &directOfferingAdjustmentScope{period, phase, effectiveFrom, catalog, bookingsAuthoritative}, err
@@ -145,7 +149,7 @@ func (s *offeringChangeRequestService) directMaterializedSelections(
 	}
 	if checkCapacity {
 		if err := s.assertCapacityAvailable(
-			ctx, scope.phase, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative,
+			ctx, scope.phase, input.StudentID, scope.period.RequestChildID, scope.effectiveFrom, input.Selections, excluded, scope.bookingsAuthoritative, nil,
 		); err != nil {
 			return nil, nil, err
 		}
@@ -168,8 +172,8 @@ func (s *offeringChangeRequestService) directOfferingDiff(
 	scope *directOfferingAdjustmentScope,
 	base, selected []materializedOfferingSelection,
 ) (*offeringDecisionDiff, []int64, error) {
-	current, err := s.RequestChildOfferingRepo.ListByRequestChildIDAtDate(
-		ctx, scope.period.RequestChildID, scope.effectiveFrom,
+	current, err := readOwnerOfferingSelections(
+		ctx, s.Children, scope.period.RequestChildID, scope.effectiveFrom,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering change: list current offerings: %w", err)
@@ -177,6 +181,7 @@ func (s *offeringChangeRequestService) directOfferingDiff(
 	ids, currentByID, requestedByID := offeringChangeSides(current, offeringChangeSelections(selected))
 	diff, err := s.buildDecisionDiff(
 		ctx, input.ExcludedAutoOfferingIDs, current, base, selected, ids, currentByID, requestedByID,
+		scope.catalog, input.Selections,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -236,7 +241,8 @@ func (s *offeringChangeRequestService) ApplyDirectOfferingAdjustment(
 	ctx context.Context,
 	input DirectOfferingAdjustmentInput,
 ) error {
-	preview, err := s.previewDirectOfferingAdjustment(ctx, input, true)
+	today := s.todayDate()
+	preview, err := s.previewDirectOfferingAdjustment(ctx, input, true, today)
 	if err != nil {
 		return err
 	}
@@ -255,7 +261,7 @@ func (s *offeringChangeRequestService) ApplyDirectOfferingAdjustment(
 	excluded := offeringIDSet(input.ExcludedAutoOfferingIDs)
 	effectiveFrom := input.EffectiveFrom
 	if effectiveFrom.IsZero() {
-		effectiveFrom = timezone.TodayDate()
+		effectiveFrom = today
 	}
 	_, err = s.DirectApplier.UpdateChildOfferings(ctx, UpdateChildOfferingsInput{
 		RequestID:                   preview.RequestID,

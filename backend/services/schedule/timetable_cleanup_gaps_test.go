@@ -45,9 +45,9 @@ func buildSvc(db *bun.DB, settings configSvc.SettingsService) scheduleSvc.Timeta
 	return scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
-		scheduleRepoPkg.NewInstanceStudentRepository(db),
-		auditRepoPkg.NewDataDeletionRepository(db),
-		auditRepoPkg.NewDeviationEventRepository(db),
+		testInstanceStudents(db),
+		auditRepoPkg.NewDataDeletionRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
+		auditRepoPkg.NewDeviationEventRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
 		settings,
 		slog.Default(),
 	)
@@ -262,7 +262,7 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
-		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
+		testInstanceStudents(f.db),
 		nil,
 		nil,
 		nil,
@@ -291,8 +291,8 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 	svc := scheduleSvc.NewTimetableCleanupService(
 		scheduleRepoPkg.NewActivityInstanceRepository(db),
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
-		scheduleRepoPkg.NewInstanceStudentRepository(db),
-		auditRepoPkg.NewDataDeletionRepository(db),
+		testInstanceStudents(db),
+		auditRepoPkg.NewDataDeletionRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
 		nil,
 		nil,
 		nil,

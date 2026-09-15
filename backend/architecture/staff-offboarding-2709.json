@@ -1,0 +1,24 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": ["#2645", "#2667", "#2685", "#2688", "#2689", "#2690", "#3130"],
+  "owner_and_capability": "Staff Offboarding workflow; Membership retirement, Workforce offboarding and leased document cleanup, Timetable offboarding, People unlink, Identity access revocation, Audit append",
+  "affected_packages": ["workflows/staffoffboarding", "modules/schoolmembership", "modules/workforce", "modules/timetable", "modules/studentpresence", "services/users", "services/auth", "services/active", "database/repositories"],
+  "affected_tables": ["users.staff", "users.teachers", "users.persons", "education.class_teacher", "education.group_teacher", "education.group_substitution", "active.staff_absences", "schedule.staff_shifts", "schedule.staff_shift_series", "schedule.instance_staff", "activities.supervisors", "auth.account_tenants", "auth.tokens", "auth.accounts", "auth.account_roles", "auth.account_permissions", "audit.data_deletions", "audit.time_tracking_deletions", "audit.auth_events", "users.staff_offboarding_cleanup"],
+  "exact_ratchet_keys": [],
+  "atomic_cutover": "Replace the sole legacy repository-coordinating provider with workflows/staffoffboarding in production Membership deletion. Owner preview/execute share a tenant UnitOfWork; irreversible cleanup uses durable owner intents and after-commit worker wake-ups. No dual provider or direct workflow SQL remains.",
+  "tests": ["Owner and workflow drift, foreign-tenant/auth cases, history retention, concurrent planning and supervision, owner-command/audit/intent rollback, idempotency, leased file-cleanup failure/retry and expired-token fencing; production HTTP and backend ratchets."],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/staff-offboarding-2709.md and staff-offboarding-2709.raw.json",
+    "workload": "2026-09-09 local isolated PostgreSQL 17.11 clone, Go 1.27.0 darwin/arm64; five warmups plus 30 sequential preview and execute calls with account, token, future shift, future timetable assignment and real durable enqueue. File failure/retry is a separate workload.",
+    "thresholds": "No task-specific latency SLO or query budget is defined. Existing architecture/composition/query and behavior gates apply; measured values are observations, not fitted thresholds or a production performance claim.",
+    "query_count": "Preview 29 statements, execute 103 statements. Execute reports 13 successful DML rows per sample; preview zero. Fixture setup is excluded.",
+    "errors": "0/30 errors per measured operation; zero database deadlocks and zero measured pool waits. Separate stale-preview and authorization cases reject without partial writes.",
+    "failure": "Injected absence/final audit failures and cleanup-intent failure roll back. Actual file-removal failure leaves backlog one; retry after 60 seconds completes on attempt two and backlog becomes zero. Expired leases are reclaimable and old tokens cannot finish jobs.",
+    "rollback": "Five workflow phase injections plus the real-composition post-Identity cleanup-intent failure preserve all affected owner state. Retrying succeeds and repeated retirement is a no-op.",
+    "smoke": "Real owner composition, production staff-delete HTTP tests, kiosk/session tests, document upload/download/delete/recovery tests and expanded Workforce/Timetable/Active/Schedule/Users suites exercise the cutover. Full-backend and architecture gates are run before completion."
+  },
+  "rollback_and_cleanup": "Before commit, abort the shared UnitOfWork. After irreversible cleanup, do not resurrect credentials or files implicitly; use owner restoration/anonymization policy. Preserve history/audit. Remove obsolete legacy interfaces/adapters together with the old workflow provider.",
+  "exit_criterion": "Preview and execution agree; each owner mutates its own data; cleanup is durable and leased; no direct workflow repository writes or dual provider remain. Architecture/composition baselines do not grow, existing ownership remains unchanged, and the new cleanup table belongs to Workforce."
+}

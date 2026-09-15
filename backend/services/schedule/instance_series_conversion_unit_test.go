@@ -70,14 +70,14 @@ func conversionValidFrom() timezone.Date {
 func conversionEnrollment(studentID int64, from timezone.Date) *activitiesModel.StudentEnrollment {
 	return &activitiesModel.StudentEnrollment{
 		StudentID: studentID,
-		ValidFrom: from,
+		ValidFrom: activitiesModel.Date(from),
 	}
 }
 
 func conversionSupervisor(staffID int64, from timezone.Date) *activitiesModel.SupervisorPlanned {
 	return &activitiesModel.SupervisorPlanned{
 		StaffID:   staffID,
-		ValidFrom: from,
+		ValidFrom: activitiesModel.Date(from),
 	}
 }
 
@@ -257,7 +257,7 @@ func TestTemplateAssignmentsOn_FiltersDuplicatesTargetsAndInvalidRows(t *testing
 		conversionEnrollment(22, future), // not yet valid
 		{
 			StudentID:        23,
-			ValidFrom:        from,
+			ValidFrom:        activitiesModel.Date(from),
 			CalendarPeriodID: &wrongPeriod,
 		},
 		conversionEnrollment(24, from),

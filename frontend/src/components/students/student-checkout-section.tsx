@@ -233,12 +233,21 @@ export function StudentStatusActionsMenu({
         aria-label="Weitere Statusaktionen"
         aria-haspopup="menu"
         aria-expanded={open}
-        className="moto-content-surface flex h-full min-h-[116px] w-14 items-center justify-center rounded-2xl border text-gray-500 backdrop-blur-md transition-all hover:bg-gray-50 hover:text-gray-700 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
+        className="moto-content-surface flex h-full min-h-[116px] w-full items-center justify-center rounded-2xl border text-gray-500 backdrop-blur-md transition-all hover:bg-gray-50 hover:text-gray-700 hover:shadow-sm active:scale-[0.97] disabled:opacity-50 sm:min-h-[140px] sm:w-16"
       >
         {isLoading ? (
           <div className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent" />
         ) : (
-          <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+          // Auf dem Telefon ist das eine Karte so gross wie ihre Nachbarn --
+          // drei Punkte allein sagen darin nichts. Neben den schmalen
+          // Streifen auf dem Desktop passt kein Wort, dort bleibt es beim
+          // Symbol.
+          <span className="flex flex-col items-center gap-3">
+            <MoreVertical className="h-5 w-5 sm:h-6 sm:w-6" aria-hidden />
+            <span className="text-base font-semibold text-gray-900 sm:hidden">
+              Weitere
+            </span>
+          </span>
         )}
       </button>
       {open ? (

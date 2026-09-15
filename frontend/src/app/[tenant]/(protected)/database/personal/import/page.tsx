@@ -8,6 +8,8 @@ import { SkeletonRegion, FormSkeleton } from "~/components/ui/page-skeletons";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Alert } from "~/components/ui/alert";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
@@ -17,7 +19,15 @@ import {
   IMPORT_MODE_ITEMS,
   type ImportMode,
 } from "~/lib/import-mode";
+import {
+  countAlreadyExistsRows,
+  importBatchFailureAlertType,
+  importBatchFailureMessage,
+  importBatchSavedCount,
+  readImportBatchFailure,
+} from "~/lib/import-batch-result";
 import { useToast } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { createCrudService } from "~/lib/database/service-factory";
 import { rolesConfig } from "~/components/database/configs/roles.config";
 import { getRoleDisplayName, type Role } from "~/lib/auth-helpers";
@@ -110,6 +120,7 @@ export default function StaffImportPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importComplete, setImportComplete] = useState(false);
+  const [importInterrupted, setImportInterrupted] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [templateFormat, setTemplateFormat] = useState<"csv" | "xlsx">("xlsx");
@@ -124,8 +135,17 @@ export default function StaffImportPage() {
 
   const toast = useToast();
 
+  // Update and upsert mode write the same fields as the personnel screens,
+  // so the backend refuses them without both personnel permissions (#2906).
+  // Without them the page stays in create mode and says so.
+  const canChangeExisting =
+    hasPermission(session, "staff:manage") &&
+    hasPermission(session, "staff:stammdaten");
+
   // Load the tenant's role names so the user knows what to put in the
   // "Rolle" column (the import matches role names exactly, case-insensitive).
+  // The list endpoint accepts users:create, the permission this page opens
+  // on, so the hint is complete for every user who may import (#2906).
   const rolesService = useMemo(() => createCrudService(rolesConfig), []);
   const [availableRoles, setAvailableRoles] = useState<string[]>([]);
 
@@ -154,6 +174,7 @@ export default function StaffImportPage() {
     setIsLoading(false);
     setIsImporting(false);
     setImportComplete(false);
+    setImportInterrupted(false);
     setImportResult(null);
     setError(null);
   }, []);
@@ -207,6 +228,7 @@ export default function StaffImportPage() {
       setError(null);
       setIsLoading(true);
       setImportComplete(false);
+      setImportInterrupted(false);
       setImportResult(null);
 
       try {
@@ -310,13 +332,29 @@ export default function StaffImportPage() {
       const result = (await response.json()) as Record<string, unknown>;
 
       if (!response.ok) {
+        const interrupted = readImportBatchFailure<ImportRowResult>(result);
+        if (interrupted) {
+          setImportResult(interrupted as ImportResult);
+          setImportInterrupted(true);
+          setPreviewData((interrupted.Errors ?? []).map(toDisplayStaff));
+          setError(importBatchFailureMessage(interrupted));
+          logger.error("staff_import_batch_failed", {
+            created: interrupted.CreatedCount,
+            updated: interrupted.UpdatedCount,
+            errors: interrupted.ErrorCount,
+          });
+          return;
+        }
         throw new Error(
-          (result.message as string | undefined) ?? "Fehler beim Import",
+          (result.error as string | undefined) ??
+            (result.message as string | undefined) ??
+            "Fehler beim Import",
         );
       }
 
       const importData = result.data as ImportResult;
       setImportResult(importData);
+      setImportInterrupted(false);
 
       if (importData.ErrorCount > 0) {
         // Partial success: keep preview visible so the user sees which rows failed.
@@ -381,101 +419,112 @@ export default function StaffImportPage() {
     }
   };
 
+  const alreadyExists = countAlreadyExistsRows(importResult?.Errors);
   const stats = {
     total: importResult?.TotalRows ?? 0,
     new: importResult?.CreatedCount ?? 0,
-    existing: importResult?.UpdatedCount ?? 0,
-    errors: importResult?.ErrorCount ?? 0,
+    existing: (importResult?.UpdatedCount ?? 0) + alreadyExists,
+    errors: (importResult?.ErrorCount ?? 0) - alreadyExists,
   };
-  const importLabel =
-    mode === "create"
+  const importable =
+    mode === "update"
+      ? (importResult?.UpdatedCount ?? 0)
+      : stats.new + (mode === "upsert" ? (importResult?.UpdatedCount ?? 0) : 0);
+  const importLabel = importInterrupted
+    ? "Erneut versuchen"
+    : mode === "create"
       ? `${stats.new} Mitarbeiter anlegen`
       : mode === "update"
-        ? `${stats.existing} Mitarbeiter aktualisieren`
-        : `${stats.new + stats.existing} Mitarbeiter übernehmen`;
+        ? `${importable} Mitarbeiter aktualisieren`
+        : `${importable} Mitarbeiter übernehmen`;
+  const savedCount = importResult ? importBatchSavedCount(importResult) : 0;
+
+  // Statuszeile des Seitenkopfs: der Stand des Imports, nicht ein Erklärsatz.
+  const statusLine = uploadedFile
+    ? [
+        uploadedFile.name,
+        importComplete
+          ? "Import abgeschlossen"
+          : importInterrupted
+            ? `${savedCount} gespeichert`
+            : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
+        !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "Noch keine Datei gewählt";
 
   if (status === "loading") {
     return (
-      <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
-        <FormSkeleton fields={2} />
-      </SkeletonRegion>
+      <TenantPage title="Personal importieren" stats={statusLine} back>
+        <SkeletonRegion label="Mitarbeiter-Import wird geladen…">
+          <FormSkeleton fields={2} />
+        </SkeletonRegion>
+      </TenantPage>
     );
   }
 
   return (
-    <div className="w-full space-y-6">
+    <TenantPage title="Personal importieren" stats={statusLine} back>
       {/* Info Section */}
-      <div className="border-moto-blue/20 bg-moto-blue-soft rounded-xl border p-6">
-        <div className="flex items-start gap-4">
-          <div className="flex-shrink-0">
-            <Info
-              className="text-moto-blue-strong h-6 w-6"
-              aria-hidden="true"
-            />
-          </div>
-          <div className="flex-1">
-            <h3 className="mb-2 text-sm font-semibold text-gray-900">
-              Import-Anleitung
-            </h3>
-            <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
-              <li>Laden Sie die Vorlage herunter (siehe unten)</li>
-              <li>Füllen Sie die Datei mit Ihren Mitarbeiterdaten aus</li>
-              <li>
-                Die Spalte „Rolle" muss exakt einer vorhandenen Rolle
-                entsprechen
-                {availableRoles.length > 0 && (
-                  <>
-                    :{" "}
-                    {availableRoles.map((role, i) => (
-                      <span key={role}>
-                        {i > 0 && ", "}
-                        <span className="font-medium text-gray-900">
-                          {role}
-                        </span>
-                      </span>
-                    ))}
-                  </>
-                )}
-              </li>
-              <li>
-                Jede Zeile wird sofort in der Personalliste angelegt, mit
-                Stammdaten wie Personalnummer, Adresse und Vertragsdaten
-              </li>
-              <li>
-                Steht eine E-Mail in der Zeile, bekommt die Person zusätzlich
-                eine Einladung und setzt ihr Passwort selbst. Ohne E-Mail gibt
-                es keinen Zugang
-              </li>
-              <li>
-                Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau
-              </li>
-              <li>Bestätigen Sie den Import</li>
-            </ul>
-          </div>
-        </div>
-      </div>
+      <SectionCard title="Import-Anleitung" icon={Info}>
+        <ul className="list-inside list-disc space-y-1 text-sm text-gray-600">
+          <li>Laden Sie die Vorlage herunter (siehe unten)</li>
+          <li>Füllen Sie die Datei mit Ihren Mitarbeiterdaten aus</li>
+          <li>
+            Die Spalte „Rolle“ muss exakt einer vorhandenen Rolle entsprechen
+            {availableRoles.length > 0 && (
+              <>
+                :{" "}
+                {availableRoles.map((role, i) => (
+                  <span key={role}>
+                    {i > 0 && ", "}
+                    <span className="font-medium text-gray-900">{role}</span>
+                  </span>
+                ))}
+              </>
+            )}
+          </li>
+          <li>
+            Jede Zeile wird sofort in der Personalliste angelegt, mit Stammdaten
+            wie Personalnummer, Adresse und Vertragsdaten
+          </li>
+          <li>
+            Steht eine E-Mail in der Zeile, bekommt die Person zusätzlich eine
+            Einladung und setzt ihr Passwort selbst. Ohne E-Mail gibt es keinen
+            Zugang
+          </li>
+          <li>Laden Sie die Datei hier hoch und überprüfen Sie die Vorschau</li>
+          <li>Bestätigen Sie den Import</li>
+        </ul>
+      </SectionCard>
 
       {/* Error Display */}
       {error && (
         <div className="relative">
-          <Alert type="error" message={error} />
-          <button
+          <Alert
+            type={
+              importInterrupted && importResult
+                ? importBatchFailureAlertType(importResult)
+                : "error"
+            }
+            message={error}
+          />
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setError(null)}
-            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-4 -translate-y-1/2"
+            className="text-moto-red hover:text-moto-red-strong absolute top-1/2 right-2 -translate-y-1/2"
             aria-label="Fehler schließen"
           >
             <X className="h-4 w-4" aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       )}
 
       {/* Download Template */}
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Download className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 1: Vorlage herunterladen
-        </h3>
+      <SectionCard title="Vorlage herunterladen" icon={Download}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
           <div className="flex-1">
             <label
@@ -500,7 +549,7 @@ export default function StaffImportPage() {
               <span className="font-medium">Nachname</span>,{" "}
               <span className="font-medium">Rolle</span>. Alle weiteren Spalten
               (E-Mail, Personalnummer, Adresse, Vertrag, Qualifikationen) sind
-              optional und im Blatt „Hinweise" erklärt
+              optional und im Blatt „Hinweise“ erklärt
             </p>
           </div>
           <div className="flex-1">
@@ -524,26 +573,34 @@ export default function StaffImportPage() {
             </Button>
           </div>
         </div>
-      </div>
+      </SectionCard>
 
-      <div className="rounded-xl border border-gray-100 bg-white p-6">
-        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <RefreshCw className="h-5 w-5 text-gray-600" aria-hidden="true" />
-          Schritt 2: Was soll der Import tun?
-        </h3>
-        <SegmentedControl
-          items={IMPORT_MODE_ITEMS}
-          value={mode}
-          onChange={handleModeChange}
-          fullWidth
-          ariaLabel="Import-Modus"
-        />
-        <p className="mt-3 text-sm text-gray-600">{IMPORT_MODE_HINTS[mode]}</p>
-        <p className="mt-1 text-sm text-gray-500">
-          Bekannt ist eine Zeile über Personalnummer, sonst E-Mail, sonst Vor-
-          und Nachname.
-        </p>
-      </div>
+      <SectionCard title="Was soll der Import tun?" icon={RefreshCw}>
+        {canChangeExisting ? (
+          <>
+            <SegmentedControl
+              items={IMPORT_MODE_ITEMS}
+              value={mode}
+              onChange={handleModeChange}
+              fullWidth
+              ariaLabel="Import-Modus"
+            />
+            <p className="mt-3 text-sm text-gray-600">
+              {IMPORT_MODE_HINTS[mode]}
+            </p>
+            <p className="mt-1 text-sm text-gray-500">
+              Bekannt ist eine Zeile über Personalnummer, sonst E-Mail, sonst
+              Vor- und Nachname.
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-gray-600">
+            Mit Ihren Berechtigungen legt der Import nur neue Mitarbeiter an.
+            Zeilen, die es schon gibt, werden als Fehler gemeldet. Bestehende
+            Datensätze ändert die Leitung.
+          </p>
+        )}
+      </SectionCard>
 
       {/* Upload Section */}
       <UploadSection
@@ -559,7 +616,7 @@ export default function StaffImportPage() {
       />
 
       {/* Preview Section */}
-      {previewData.length > 0 && !importComplete && (
+      {(previewData.length > 0 || importInterrupted) && !importComplete && (
         <>
           <StatsCards
             total={stats.total}
@@ -571,59 +628,59 @@ export default function StaffImportPage() {
             errors={stats.errors}
           />
 
-          <div className="overflow-hidden rounded-xl border border-gray-100 bg-white">
-            <div className="border-b border-gray-100 p-4">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <ListChecks
-                  className="h-5 w-5 text-gray-600"
-                  aria-hidden="true"
-                />
-                Schritt 4: Datenvorschau
-              </h3>
-            </div>
-
-            <div className="space-y-2 p-3">
-              {previewData.map((staff, idx) => (
-                <StudentRowCard
-                  key={staff.row}
-                  student={{
-                    row: staff.row,
-                    status: staff.status,
-                    errors: staff.errors,
-                    notes: staff.notes,
-                    first_name: staff.first_name,
-                    last_name: staff.last_name,
-                    meta: [staff.email, staff.role_name, staff.position],
-                  }}
-                  index={idx}
-                />
-              ))}
-            </div>
-          </div>
+          {previewData.length > 0 && (
+            <SectionCard title="Datenvorschau" icon={ListChecks}>
+              <div className="space-y-2">
+                {previewData.map((staff, idx) => (
+                  <StudentRowCard
+                    key={staff.row}
+                    student={{
+                      row: staff.row,
+                      status: staff.status,
+                      errors: staff.errors,
+                      notes: staff.notes,
+                      first_name: staff.first_name,
+                      last_name: staff.last_name,
+                      meta: [staff.email, staff.role_name, staff.position],
+                    }}
+                    index={idx}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+          )}
 
           {/* Spacer for sticky action bar */}
           <div className="h-20" />
 
           {/* Action Buttons */}
-          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
-            <button
+          <div className="sticky bottom-4 z-10 flex flex-col gap-2 rounded-2xl border border-gray-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-sm sm:flex-row sm:gap-3">
+            <Button
               type="button"
+              variant="outline"
+              size="md"
+              className="flex-1"
               onClick={resetForm}
-              className="flex-1 rounded-lg bg-gray-200 px-3 py-2 text-xs font-medium text-gray-800 transition-all duration-200 hover:bg-gray-300 hover:shadow-md md:px-4 md:text-sm"
             >
               Abbrechen
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="success"
+              size="md"
+              className="flex-1"
+              disabled={
+                isImporting ||
+                isLoading ||
+                (!importInterrupted && (stats.errors > 0 || importable === 0))
+              }
               onClick={() => void handleImport()}
-              disabled={stats.errors > 0 || isImporting || isLoading}
-              className="bg-moto-green hover:bg-moto-green-hover flex-1 rounded-lg px-3 py-2 text-xs font-medium text-gray-950 transition-all duration-200 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm"
             >
-              {isImporting ? "Importiere..." : importLabel}
-            </button>
+              {isImporting ? "Wird importiert…" : importLabel}
+            </Button>
           </div>
         </>
       )}
-    </div>
+    </TenantPage>
   );
 }

@@ -20,13 +20,25 @@ type StudentAccessContext struct {
 	IsStaff bool
 }
 
+type CurrentStaff interface {
+	GetCurrentStaff(context.Context) (*users.Staff, error)
+}
+
 // ResolveStudentAccess resolves the access context for the current caller.
 // Admin status comes from JWT permissions; the staff record is looked up only
 // for non-admin callers.
 func ResolveStudentAccess(
 	ctx context.Context,
-	userCtx UserContextService,
+	userCtx CurrentStaff,
 ) *StudentAccessContext {
+	return ResolveStudentAccessWithStaffLookup(ctx, func(ctx context.Context) (bool, error) {
+		staff, err := userCtx.GetCurrentStaff(ctx)
+		return staff != nil, err
+	})
+}
+
+// ResolveStudentAccessWithStaffLookup applies the same policy to a projected identity lookup.
+func ResolveStudentAccessWithStaffLookup(ctx context.Context, lookup func(context.Context) (bool, error)) *StudentAccessContext {
 	access := &StudentAccessContext{
 		IsAdmin: authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)),
 	}
@@ -35,8 +47,8 @@ func ResolveStudentAccess(
 		return access
 	}
 
-	staff, err := userCtx.GetCurrentStaff(ctx)
-	access.IsStaff = err == nil && staff != nil
+	found, err := lookup(ctx)
+	access.IsStaff = err == nil && found
 	return access
 }
 

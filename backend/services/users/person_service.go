@@ -46,7 +46,7 @@ const (
 type PersonServiceDependencies struct {
 	// Repository dependencies
 	PersonRepo  userModels.PersonRepository
-	RFIDRepo    userModels.RFIDCardRepository
+	RFIDRepo    auth.RFIDCardRepository
 	AccountRepo auth.AccountRepository
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
@@ -354,7 +354,7 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	}
 	if card == nil {
 		// Auto-create RFID card on assignment (per RFID Implementation Guide)
-		newCard := &userModels.RFIDCard{
+		newCard := &auth.RFIDCard{
 			StringIDModel: base.StringIDModel{ID: tagID},
 			Active:        true,
 		}
@@ -666,6 +666,23 @@ func (s *personService) GetStudentsWithGroupsByTeacher(ctx context.Context, teac
 	return results, nil
 }
 
+// GetStudentsWithGroupsByTeacherStaffIDs retrieves the union of students
+// supervised by teachers belonging to any supplied staff ID.
+func (s *personService) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]StudentWithGroup, error) {
+	if len(staffIDs) == 0 {
+		return []StudentWithGroup{}, nil
+	}
+	rows, err := s.StudentRepo.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)
+	if err != nil {
+		return nil, &UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}
+	}
+	results := make([]StudentWithGroup, 0, len(rows))
+	for _, row := range rows {
+		results = append(results, StudentWithGroup{Student: row.Student, GroupName: row.GroupName})
+	}
+	return results, nil
+}
+
 // ---------------------------------------------------------------------------
 // Staff write operations (issue #584: moved verbatim out of api/staff)
 // ---------------------------------------------------------------------------
@@ -701,10 +718,12 @@ func (s *personService) CreateStaffWithTeacher(ctx context.Context, input Create
 		}
 		if existing != nil && existing.DeletedAt == nil {
 			// Adoption is an edit of a record that is already in the directory,
-			// so it owes users:update — the create permission this route is
-			// gated on does not cover overwriting someone's notes or writing
-			// a caregiver profile onto them.
-			if !authorize.HasPermission(permissions.UsersUpdate, input.ActorPermissions) {
+			// so it owes staff:manage — the same authority PUT /api/staff/{id}
+			// requires since #2906. The create permission this route is gated
+			// on does not cover overwriting someone's notes or writing a
+			// caregiver profile onto them, and neither does users:update,
+			// which the plain Betreuer role holds for the child-data surfaces.
+			if !authorize.HasPermission(permissions.StaffManage, input.ActorPermissions) {
 				return ErrStaffAdoptionNotPermitted
 			}
 			existing.StaffNotes = input.StaffNotes

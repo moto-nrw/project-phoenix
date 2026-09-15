@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-nrw/project-phoenix/services/import/ports"
 )
 
 // importerUserIDKey is a context key for the importing user's ID
@@ -34,33 +35,79 @@ func importModeFromContext(ctx context.Context) importModels.ImportMode {
 
 // ImportService handles generic import logic for any entity type
 type ImportService[T any] struct {
-	config    importModels.ImportConfig[T]
-	batchSize int
-	auditRepo audit.DataImportRepository
+	transactions importModels.Transactions
+	config       ImportConfig[T]
+	batchSize    int
+	audit        ports.AuditCommand
+	observe      func(ImportObservation)
+	fingerprint  func([]byte) string
+	checkpoints  audit.ImportCheckpointReader
 	// config keeps request-specific reference data after PreloadReferenceData.
 	// Serialize processing while that mutable configuration is shared.
 	importMu sync.Mutex
 }
 
+// ImportObservation is emitted once per import run: the row counters of the
+// batch and how long the run took. It carries no personal data.
+type ImportObservation struct {
+	Entity           string
+	DryRun           bool
+	Rows             int
+	Accepted         int
+	Rejected         int
+	Created          int
+	Updated          int
+	Duration         time.Duration
+	BatchesCommitted int
+	BatchesRetried   int
+	CheckpointLag    int
+	Deadlocks        int
+	PoolWait         time.Duration
+	LockWait         time.Duration
+	Commands         []ports.CommandObservation
+}
+
 type requestScopedConfig[T any] interface {
-	NewRequestScoped() importModels.ImportConfig[T]
+	NewRequestScoped() ImportConfig[T]
 }
 
 type importConfigLocker interface{ ImportLock() *sync.Mutex }
 
-// NewImportService creates a new import service
-func NewImportService[T any](config importModels.ImportConfig[T]) *ImportService[T] {
-	return &ImportService[T]{
-		config:    config,
-		batchSize: 100, // Default batch size
-	}
+// importModeAuthorizer lets a config veto an import mode for the current
+// importer before any row is validated (#2906). Configs without it accept
+// every mode the route allows.
+type importModeAuthorizer interface {
+	AuthorizeImportMode(ctx context.Context, mode importModels.ImportMode) error
 }
 
-// SetAuditRepository wires the GDPR import-audit repository (issue #584:
-// audit writes moved out of api/import). Optional at construction time, but
-// production wiring must set it — RecordAuditInTransaction fails when unset.
-func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
-	s.auditRepo = repo
+// ImportRuntime carries the platform collaborators of an import service:
+// the Audit command the GDPR import record is appended through (issue #584:
+// audit writes moved out of api/import; #2708: the owner command replaces
+// the repository) and the runtime-evidence sink that receives one
+// ImportObservation per run. A nil Observe disables observation; a nil
+// Audit makes RecordAuditInTransaction fail. Transactions is required for
+// ImportBatches, which owns the transaction lifecycle.
+type ImportRuntime struct {
+	Transactions importModels.Transactions
+	Audit        ports.AuditCommand
+	Observe      func(ImportObservation)
+	Fingerprint  func([]byte) string
+}
+
+// NewImportService creates an import service bound to its platform
+// collaborators. A zero ImportRuntime is legitimate for decision tests that
+// never record an audit row, read an observation, or execute batches.
+func NewImportService[T any](config ImportConfig[T], runtime ImportRuntime) *ImportService[T] {
+	checkpoints, _ := runtime.Audit.(audit.ImportCheckpointReader)
+	return &ImportService[T]{
+		config:       config,
+		transactions: runtime.Transactions,
+		batchSize:    100, // Default batch size
+		audit:        ports.ObserveAuditCommand(runtime.Audit),
+		observe:      runtime.Observe,
+		fingerprint:  runtime.Fingerprint,
+		checkpoints:  checkpoints,
+	}
 }
 
 // RecordAuditInTransaction writes a GDPR import audit record using the caller's
@@ -70,8 +117,8 @@ func (s *ImportService[T]) SetAuditRepository(repo audit.DataImportRepository) {
 // leaves the connection on the NOINHERIT phoenix_auth role, which has no
 // grants on audit.data_imports, and the INSERT fails with 42501 (#2141).
 func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityType, filename string, result *importModels.ImportResult[T], userID int64, dryRun bool, tenantID int64) error {
-	if s.auditRepo == nil {
-		return fmt.Errorf("import audit repository not wired")
+	if s.audit == nil {
+		return fmt.Errorf("import audit command not wired")
 	}
 
 	auditRecord := &audit.DataImport{
@@ -87,10 +134,9 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 		ImportedBy:   userID,
 		StartedAt:    result.StartedAt,
 		CompletedAt:  &result.CompletedAt,
-		Metadata:     audit.JSONBMap{},
 	}
 	auditRecord.SetTenantID(tenantID)
-	if err := s.auditRepo.Create(ctx, auditRecord); err != nil {
+	if err := s.audit.Append(ctx, auditRecord); err != nil {
 		return fmt.Errorf("create import audit record: %w", err)
 	}
 	return nil
@@ -100,9 +146,11 @@ func (s *ImportService[T]) RecordAuditInTransaction(ctx context.Context, entityT
 func (s *ImportService[T]) Import(ctx context.Context, request importModels.ImportRequest[T]) (*importModels.ImportResult[T], error) {
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
 		clone := &ImportService[T]{
-			config:    scoped.NewRequestScoped(),
-			batchSize: s.batchSize,
-			auditRepo: s.auditRepo,
+			config:       scoped.NewRequestScoped(),
+			transactions: s.transactions,
+			batchSize:    s.batchSize,
+			audit:        s.audit,
+			observe:      s.observe,
 		}
 		if locker, ok := clone.config.(importConfigLocker); ok {
 			locker.ImportLock().Lock()
@@ -126,6 +174,12 @@ func (s *ImportService[T]) importWithConfig(ctx context.Context, request importM
 	ctx = ContextWithImporterID(ctx, request.UserID)
 	ctx = context.WithValue(ctx, importModeKey{}, request.Mode)
 
+	if authorizer, ok := s.config.(importModeAuthorizer); ok {
+		if err := authorizer.AuthorizeImportMode(ctx, request.Mode); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := s.config.PreloadReferenceData(ctx); err != nil {
 		return nil, fmt.Errorf("preload reference data: %w", err)
 	}
@@ -138,25 +192,57 @@ func (s *ImportService[T]) importWithConfig(ctx context.Context, request importM
 	result.CompletedAt = time.Now()
 	result.BulkActions = s.generateBulkActions(result.Errors)
 
+	if s.observe != nil {
+		s.observe(ImportObservation{
+			Entity:   s.config.EntityName(),
+			DryRun:   request.DryRun,
+			Rows:     result.TotalRows,
+			Accepted: result.TotalRows - result.ErrorCount,
+			Rejected: result.ErrorCount,
+			Created:  result.CreatedCount,
+			Updated:  result.UpdatedCount,
+			Duration: result.CompletedAt.Sub(result.StartedAt),
+		})
+	}
 	return result, nil
 }
 
 func (s *ImportService[T]) validateBatch(ctx context.Context, rows []T) map[int][]importModels.ValidationError {
-	validator, ok := s.config.(importModels.BatchValidator[T])
+	validator, ok := s.config.(BatchValidator[T])
 	if !ok {
 		return nil
 	}
 	return validator.ValidateBatch(ctx, rows)
 }
 
-// processAllRows processes all rows in the import request
+// processAllRows validates the complete batch first and only then applies
+// the accepted rows (#2708): no owner command runs before every row has been
+// checked, so a file that fails validation further down never leaves a
+// partial batch behind. Rows are applied in the config's processing order;
+// a row that fails during the write phase is recorded and rolled back to its
+// savepoint without stopping the batch.
+//
+// Validation therefore never sees the rows the same file creates. The write
+// phase re-resolves each row against the owners, so create-versus-update
+// stays correct; only a second, partial row for a record the same file just
+// created is now asked for the fields a create needs. Duplicates inside one
+// file are the batch validator's job (BatchValidator), not the row scan's.
 func (s *ImportService[T]) processAllRows(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], batchErrors map[int][]importModels.ValidationError) bool {
+	accepted := make([]bool, len(request.Rows))
+	for i := range request.Rows {
+		ok, stop := s.validateRow(ctx, request, result, &request.Rows[i], i+2, batchErrors[i])
+		if stop {
+			return true
+		}
+		accepted[i] = ok
+	}
+
 	order := make([]int, len(request.Rows))
 	for i := range request.Rows {
 		order[i] = i
 	}
 	if !request.DryRun {
-		if orderer, ok := s.config.(importModels.ProcessingOrderer[T]); ok {
+		if orderer, ok := s.config.(ProcessingOrderer[T]); ok {
 			if configuredOrder := orderer.ProcessingOrder(request.Rows); validProcessingOrder(configuredOrder, len(request.Rows)) {
 				order = configuredOrder
 			}
@@ -164,10 +250,18 @@ func (s *ImportService[T]) processAllRows(ctx context.Context, request importMod
 	}
 
 	for _, i := range order {
+		if !accepted[i] {
+			continue
+		}
 		row := &request.Rows[i]
 		rowNum := i + 2
-
-		if s.processImportRow(ctx, request, result, row, rowNum, batchErrors[i]) {
+		var stop bool
+		if request.DryRun {
+			stop = s.processDryRunRow(ctx, request, result, row, rowNum)
+		} else {
+			stop = s.processActualImportRow(ctx, request, result, row, rowNum)
+		}
+		if stop {
 			return true
 		}
 	}
@@ -190,8 +284,10 @@ func validProcessingOrder(order []int, rowCount int) bool {
 	return true
 }
 
-// processImportRow processes a single row
-func (s *ImportService[T]) processImportRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int, batchErrors []importModels.ValidationError) bool {
+// validateRow validates a single row and records its warnings and blocking
+// errors. It reports whether the row is accepted for the write phase and
+// whether the batch must stop (StopOnError after a blocking error).
+func (s *ImportService[T]) validateRow(ctx context.Context, request importModels.ImportRequest[T], result *importModels.ImportResult[T], row *T, rowNum int, batchErrors []importModels.ValidationError) (accepted bool, stop bool) {
 	validationErrors := s.config.Validate(ctx, row)
 	validationErrors = append(validationErrors, batchErrors...)
 	blockingErrors, warnings := categorizeValidationErrors(validationErrors)
@@ -204,14 +300,9 @@ func (s *ImportService[T]) processImportRow(ctx context.Context, request importM
 
 	if len(blockingErrors) > 0 {
 		recordBlockingErrors(result, rowNum, row, blockingErrors, warnings)
-		return request.StopOnError
+		return false, request.StopOnError
 	}
-
-	if request.DryRun {
-		return s.processDryRunRow(ctx, request, result, row, rowNum)
-	}
-
-	return s.processActualImportRow(ctx, request, result, row, rowNum)
+	return true, false
 }
 
 // categorizeValidationErrors separates errors by severity

@@ -19,7 +19,7 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
 import { requestParentPasswordReset } from "~/lib/auth-api";
 import { parentPath } from "~/lib/parent-url";
-import { env } from "~/env";
+import { clientEnv } from "~/env.client";
 
 /**
  * Wie lange nach einem erfolgreichen signIn auf die publizierte Session
@@ -40,7 +40,7 @@ const SESSION_HANDOFF_TIMEOUT_MS = 10_000;
  */
 function staffLoginUrl(): string {
   const portSuffix = window.location.port ? `:${window.location.port}` : "";
-  return `${window.location.protocol}//${env.NEXT_PUBLIC_TENANT_DOMAIN}${portSuffix}/`;
+  return `${window.location.protocol}//${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${portSuffix}/`;
 }
 
 export default function ParentLoginPage() {

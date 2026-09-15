@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +26,7 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -47,14 +48,22 @@ func TestMasterDataReview_ListHistory(t *testing.T) {
 		return e
 	})
 	require.NoError(t, err)
+	var rejectedDecision *userModels.StudentDataChangeRequest
+	err = testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var findErr error
+		rejectedDecision, findErr = repos.StudentDataChangeRequest.FindByID(txCtx, rejected.ID)
+		return findErr
+	})
+	require.NoError(t, err)
+	autoAppliedAt := rejectedDecision.UpdatedAt.Add(time.Second)
 	// The auto-applied row never went through Decide — flip it directly, like
 	// the auto-apply path does (no reviewer).
 	_, err = db.NewUpdate().
 		Model((*userModels.StudentDataChangeRequest)(nil)).
 		ModelTableExpr(`users.student_data_change_requests AS "student_data_change_request"`).
 		Set("status = ?", userModels.DataChangeStatusAutoApplied).
-		Set("applied_at = NOW()").
-		Set("updated_at = NOW() + INTERVAL '1 second'").
+		Set("applied_at = ?", autoAppliedAt).
+		Set("updated_at = ?", autoAppliedAt).
 		Where(`"student_data_change_request".id = ?`, autoApplied.ID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -112,7 +121,7 @@ func TestMasterDataReview_ListHistoryScopedToWritableChildren(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, nil, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

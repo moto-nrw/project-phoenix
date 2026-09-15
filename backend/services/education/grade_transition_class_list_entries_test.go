@@ -12,9 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -26,15 +27,16 @@ func setupClassListEntryTransitionTest(t *testing.T) (*educationService.GradeTra
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:      educationRepo.NewGradeTransitionRepository(db),
+		TransitionRepo:      newGradeTransitionRepository(t, db),
 		StudentRepo:         usersRepo.NewStudentRepository(db),
 		PersonRepo:          usersRepo.NewPersonRepository(db),
-		ClassTeacherRepo:    educationRepo.NewClassTeacherRepository(db),
-		StaffRepo:           usersRepo.NewStaffRepository(db),
-		ClassListEntryRepo:  usersRepo.NewClassListEntryRepository(db),
-		ClassListEntryAudit: auditRepo.NewClassListEntryChangeRepository(db),
+		ClassTeacherRepo:    repos.ClassTeacher,
+		StaffRepo:           repos.Staff,
+		ClassListEntryRepo:  repos.ClassListEntry,
+		ClassListEntryAudit: auditRepo.NewClassListEntryChangeRepository(auditRepo.NewRuntime(db, auditModels.TenantIDFromContext)),
 		DB:                  db,
 	})
 

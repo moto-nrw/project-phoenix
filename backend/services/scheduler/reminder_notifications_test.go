@@ -13,13 +13,13 @@ import (
 
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
-	"github.com/moto-nrw/project-phoenix/services/reminders"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

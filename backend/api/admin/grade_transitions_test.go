@@ -41,7 +41,7 @@ type testContext struct {
 func setupGradeTransitionsModule(t *testing.T) *testContext {
 	t.Helper()
 
-	db, svc := testutil.SetupAPITest(t)
+	db, svc := testutil.SetupGradeTransitionModule(t)
 	resource := adminAPI.NewGradeTransitionResource(svc.GradeTransition, db)
 
 	return &testContext{

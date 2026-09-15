@@ -179,6 +179,35 @@ describe("GET /api/staff/[id]", () => {
     expect(json.data.person_id).toBe(personID);
   });
 
+  it("keeps a bigint account_id as the exact decimal string", async () => {
+    const accountID = "9007199254740993";
+    mockApiGet.mockResolvedValueOnce({
+      status: "success",
+      data: {
+        id: 1,
+        person_id: "1",
+        is_teacher: false,
+        person: {
+          id: 1,
+          first_name: "John",
+          last_name: "Doe",
+          account_id: accountID,
+          created_at: "2024-01-01T00:00:00Z",
+          updated_at: "2024-01-01T00:00:00Z",
+        },
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+      },
+    });
+
+    const request = createMockRequest("/api/staff/1");
+    const response = await GET(request, createMockContext({ id: "1" }));
+
+    const json =
+      await parseJsonResponse<ApiResponse<{ account_id: string }>>(response);
+    expect(json.data.account_id).toBe(accountID);
+  });
+
   it("throws error when staff member not found", async () => {
     mockApiGet.mockResolvedValueOnce({ data: null });
 
@@ -262,7 +291,9 @@ describe("PUT /api/staff/[id]", () => {
 
     expect(response.status).toBe(500);
     const json = await parseJsonResponse<{ error: string }>(response);
-    expect(json.error).toContain("Permission denied");
+    expect(json.error).toBe(
+      "Sie dürfen Mitarbeiterdaten nicht ändern. Bitte wenden Sie sich an Ihre OGS-Leitung.",
+    );
   });
 
   it("throws error when staff member not found", async () => {

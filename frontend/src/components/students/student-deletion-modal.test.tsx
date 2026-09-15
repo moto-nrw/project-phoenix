@@ -43,10 +43,14 @@ const impact: StudentDeletionImpact = {
   },
 };
 
+const NAME_LABEL = "Zur Sicherheit: Name des Kindes erneut eingeben";
+const CONFIRM = "Kind endgültig löschen";
+
 function renderModal(
   onDeleted = vi.fn(),
   onClose = vi.fn(),
   completionId?: string,
+  extra: Partial<React.ComponentProps<typeof StudentDeletionModal>> = {},
 ) {
   render(
     <ModalProvider>
@@ -57,24 +61,24 @@ function renderModal(
         completionId={completionId}
         onClose={onClose}
         onDeleted={onDeleted}
+        {...extra}
       />
     </ModalProvider>,
   );
   return { onDeleted, onClose };
 }
 
-async function completeFirstStep() {
-  const nextButton = await screen.findByRole("button", {
-    name: "Weiter",
-  });
-  expect(nextButton).toBeDisabled();
+// Löschgrund + Bestätigungshaken sind die Voraussetzungen; die Namenseingabe
+// ist das Gate der ConfirmDeleteModal (#3110).
+async function completePrerequisites() {
+  const confirmButton = await screen.findByRole("button", { name: CONFIRM });
+  expect(confirmButton).toBeDisabled();
 
   fireEvent.click(screen.getByRole("combobox", { name: "Löschgrund" }));
   fireEvent.click(await screen.findByRole("option", { name: "Testdaten" }));
   fireEvent.click(screen.getByRole("checkbox"));
 
-  expect(nextButton).toBeEnabled();
-  fireEvent.click(nextButton);
+  return confirmButton;
 }
 
 describe("StudentDeletionModal", () => {
@@ -89,29 +93,22 @@ describe("StudentDeletionModal", () => {
 
     expect(await screen.findByText("Stundenplan-Zuordnungen")).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Mia Muster löschen" }),
+      screen.getByRole("dialog", { name: "Mia Muster löschen" }),
     ).toBeVisible();
     expect(screen.getByText("Anwesenheits- und Statusdaten")).toBeVisible();
     expect(
       screen.getByText(/Elternkonten und Profile der Erziehungsberechtigten/),
     ).toBeVisible();
 
-    await completeFirstStep();
-    expect(
-      screen.getByRole("heading", {
-        name: "Löschung von Mia Muster bestätigen",
-      }),
-    ).toBeVisible();
-
-    const finalButton = screen.getByRole("button", {
-      name: "Kind endgültig löschen",
-    });
+    const finalButton = await completePrerequisites();
+    // Reason and acknowledgement alone do not open the gate.
     expect(finalButton).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Name erneut eingeben"), {
+
+    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
       target: { value: "Mia Muste" },
     });
     expect(finalButton).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Name erneut eingeben"), {
+    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
       target: { value: "Mia Muster" },
     });
     expect(finalButton).toBeEnabled();
@@ -132,6 +129,27 @@ describe("StudentDeletionModal", () => {
     expect(onDeleted).toHaveBeenCalledOnce();
   });
 
+  it("keeps the typed name from opening the gate before the prerequisites", async () => {
+    renderModal();
+    const finalButton = await screen.findByRole("button", { name: CONFIRM });
+    await screen.findByText("Stundenplan-Zuordnungen");
+
+    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
+      target: { value: "Mia Muster" },
+    });
+    expect(finalButton).toBeDisabled();
+    expect(mockDeleteStudent).not.toHaveBeenCalled();
+  });
+
+  it("names the immediate deletion when opened from an open withdrawal", async () => {
+    renderModal(vi.fn(), vi.fn(), "completion-1", { skipsLastCareDay: true });
+
+    expect(
+      await screen.findByText(/Auch ein späterer letzter Betreuungstag/),
+    ).toBeVisible();
+    expect(mockFetchImpact).toHaveBeenCalledWith("42", "completion-1");
+  });
+
   it("returns to a refreshed impact when the backend reports a conflict", async () => {
     const { StudentDeletionApiError } = await import("~/lib/student-api");
     mockDeleteStudent.mockRejectedValueOnce(
@@ -141,24 +159,26 @@ describe("StudentDeletionModal", () => {
         "students.deletion_preview_changed",
       ),
     );
+    mockFetchImpact
+      .mockResolvedValueOnce(impact)
+      .mockResolvedValueOnce({ ...impact, fingerprint: "def456" });
     renderModal();
 
-    await completeFirstStep();
-    fireEvent.change(screen.getByLabelText("Name erneut eingeben"), {
+    await completePrerequisites();
+    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
       target: { value: "Mia Muster" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Kind endgültig löschen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: CONFIRM }));
 
     expect(
-      await screen.findByRole("button", {
-        name: "Weiter",
-      }),
-    ).toBeDisabled();
-    expect(screen.getByText("Die Daten haben sich geändert.")).toBeVisible();
+      await screen.findByText("Die Daten haben sich geändert."),
+    ).toBeVisible();
     expect(mockFetchImpact).toHaveBeenCalledTimes(2);
+    // Acknowledgement and typed name reset on the refreshed preview, so the
+    // deletion cannot be re-confirmed without looking again.
     expect(screen.getByRole("checkbox")).not.toBeChecked();
+    expect(screen.getByLabelText(NAME_LABEL)).toHaveValue("");
+    expect(screen.getByRole("button", { name: CONFIRM })).toBeDisabled();
   });
 
   it("does not expose the destructive controls when the preview fails", async () => {
@@ -168,7 +188,7 @@ describe("StudentDeletionModal", () => {
     renderModal();
 
     expect(await screen.findByText("Vorschau nicht verfügbar")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: CONFIRM })).toBeDisabled();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
@@ -177,13 +197,11 @@ describe("StudentDeletionModal", () => {
     const onClose = vi.fn();
     renderModal(onDeleted, onClose);
 
-    await completeFirstStep();
-    fireEvent.change(screen.getByLabelText("Name erneut eingeben"), {
+    await completePrerequisites();
+    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
       target: { value: "Mia Muster" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Kind endgültig löschen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: CONFIRM }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockDeleteStudent).toHaveBeenCalledOnce();

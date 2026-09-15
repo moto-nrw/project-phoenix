@@ -3,6 +3,9 @@
 import { useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { DataField } from "~/components/ui/detail-modal-components";
+import { useFormError, type FormErrorInput } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -32,12 +35,9 @@ export function AllowanceValue({
   value: number;
 }) {
   return (
-    <div className="rounded-lg bg-gray-50 px-3 py-2">
-      <dt className="text-xs text-gray-500">{label}</dt>
-      <dd className="font-semibold text-gray-900 tabular-nums">
-        {formatDayCount(value)}
-      </dd>
-    </div>
+    <DataField label={label}>
+      <span className="tabular-nums">{formatDayCount(value)}</span>
+    </DataField>
   );
 }
 
@@ -45,6 +45,7 @@ function useAllowanceEditor({ staffId, year, entry, onSaved }: EditorProps) {
   const [days, setDays] = useState(String(entry.summary.entitledDays));
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useFormError();
   const toast = useToast();
   const entitledDays = Number(days.replace(",", "."));
   const validDays =
@@ -55,6 +56,7 @@ function useAllowanceEditor({ staffId, year, entry, onSaved }: EditorProps) {
   const save = async () => {
     if (!validDays || reason.trim() === "") return;
     setSaving(true);
+    setError(null);
     try {
       await absenceTypeService.setAllowance(entry.type.id, staffId, {
         year,
@@ -63,17 +65,17 @@ function useAllowanceEditor({ staffId, year, entry, onSaved }: EditorProps) {
       });
       toast.success("Anspruch gespeichert.");
       await onSaved();
-    } catch (error) {
-      toast.error(
-        error instanceof Error
-          ? error.message
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
           : "Anspruch konnte nicht gespeichert werden.",
       );
     } finally {
       setSaving(false);
     }
   };
-  return { days, setDays, reason, setReason, saving, validDays, save };
+  return { days, setDays, reason, setReason, saving, validDays, error, save };
 }
 
 function EditorFooter({
@@ -114,16 +116,19 @@ function EditorFooter({
 function EditorFields({
   days,
   reason,
+  error,
   setDays,
   setReason,
 }: {
   days: string;
   reason: string;
+  error: FormErrorInput;
   setDays: (value: string) => void;
   setReason: (value: string) => void;
 }) {
   return (
     <div className="space-y-4">
+      <FormErrorAlert message={error} />
       <div>
         <Input
           id="custom-allowance-days"
@@ -173,6 +178,7 @@ export function EditCustomAllowanceModal(props: EditorProps) {
       <EditorFields
         days={state.days}
         reason={state.reason}
+        error={state.error}
         setDays={state.setDays}
         setReason={state.setReason}
       />

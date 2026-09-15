@@ -1,122 +1,63 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import * as TabsPrimitive from "@radix-ui/react-tabs";
+import { KeyRound, Trash2, Users } from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { staffService } from "~/lib/staff-api";
 import type { Staff } from "~/lib/staff-api";
+import { teacherService, type Teacher } from "~/lib/teacher-api";
+import { teachersConfig } from "~/components/database/configs/teachers.config";
+import { createCrudService } from "~/lib/database/service-factory";
+import { getDbOperationMessage } from "~/lib/use-notification";
+import { useToast } from "~/contexts/ToastContext";
+import { createLogger } from "~/lib/logger";
 import {
   employmentTypeLabels,
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
-import { Avatar } from "~/components/ui/avatar";
-import { EmptyState } from "~/components/ui/empty-state";
-import { StatusBadge } from "~/components/ui/status-badge";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import {
-  OverflowMenu,
-  type OverflowMenuEntry,
-} from "~/components/ui/page-header/OverflowMenu";
+  loadAccountRoleAssignment,
+  replaceAccountRole,
+  type AccountRoleAssignment,
+} from "~/lib/account-role-assignment";
+import { Avatar } from "~/components/ui/avatar";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
 import { DokumenteTab } from "~/components/staff/dokumente-tab";
 import { KlassenTab } from "~/components/staff/klassen-tab";
+import { KontoTab, type KontoDraft } from "~/components/staff/konto-tab";
+import { CaregiverCapabilityModal } from "~/components/teachers/caregiver-capability-modal";
+import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-modal";
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { staffAbsenceService } from "~/lib/staff-api";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
-import { StaffDetailSkeleton, StaffHeaderSkeleton } from "./page-skeleton";
+import { StaffDetailSkeleton } from "./page-skeleton";
 
-// ─── Labels & constants ──────────────────────────────────────────────────────
+const logger = createLogger({ component: "StaffDetailPage" });
 
-// ─── Rich Header ─────────────────────────────────────────────────────────────
+/** SWR-Schlüssel des Personal-Datensatzes (Konto-Reiter, Bearbeiten). */
+function staffRecordKey(staffId: string): string {
+  return `staff-record-${staffId}`;
+}
 
-function StaffHeader({
-  staff,
-  menu,
-}: {
-  readonly staff: Staff;
-  readonly menu: React.ReactNode;
-}) {
-  const locationStatus = getStaffLocationStatus(staff);
-  const displayType = getStaffDisplayType(staff);
-  const employmentLabel = staff.employmentType
-    ? (employmentTypeLabels[staff.employmentType] ?? staff.employmentType)
-    : null;
-
-  const position = staff.specialization ?? (displayType || null);
-  const subtitleParts = [position, employmentLabel].filter(Boolean);
-  const metaParts = [
-    staff.email,
-    staff.hasRfid ? "RFID zugewiesen" : null,
-  ].filter(Boolean);
-
-  return (
-    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex min-w-0 flex-1 items-start gap-4">
-        {/* Kit avatar: initials fallback in the brand-green tint. The name is
-            rendered right next to it, so the avatar is decorative. */}
-        <Avatar
-          name={`${staff.firstName} ${staff.lastName}`}
-          size="lg"
-          decorative
-        />
-
-        {/* Eyebrow + Name + Subheading + meta */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.staff.icon}
-              tone={MOTO_CONCEPTS.staff.tone}
-              size={18}
-            />
-            <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-              Mitarbeiter-Profil
-            </p>
-          </div>
-          <h1 className="mt-1 truncate text-2xl font-bold text-gray-900 sm:text-3xl">
-            {staff.firstName} {staff.lastName}
-          </h1>
-          {subtitleParts.length > 0 && (
-            <p className="mt-2 truncate text-base font-medium text-gray-600">
-              {subtitleParts.join(" · ")}
-            </p>
-          )}
-          {metaParts.length > 0 && (
-            <p className="mt-1 truncate text-xs text-gray-400">
-              {metaParts.join(" · ")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Right side: Status badge + Kebab menu trigger */}
-      <div className="flex flex-shrink-0 items-center gap-2">
-        {/* Kein Glow, kein Pulsieren — dieselbe Entscheidung wie auf den
-            Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
-            (LOCATION_COLORS über getStaffLocationStatus), deshalb
-            StatusDotBadge und nicht StatusBadge. */}
-        {!staff.isLimitedProfile ? (
-          <StatusDotBadge
-            label={locationStatus.label}
-            color={locationStatus.customBgColor}
-          />
-        ) : null}
-        {menu}
-      </div>
-    </div>
-  );
+/** SWR-Schlüssel der Systemrolle des Kontos (Konto-Bearbeiten, #3116). */
+function roleAssignmentKey(accountId: string): string {
+  return `staff-role-assignment-${accountId}`;
 }
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
@@ -132,6 +73,18 @@ export default function StaffDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
   const staffId = params.id as string;
+  // Rückweg: die Sammlung, aus der man kam. Die Datenverwaltung verlinkt seit
+  // #3115 hierher statt in ein eigenes Pane; sonst die Mitarbeiterliste.
+  const referrer = resolveDetailReferrer(searchParams.get("from"), "/staff", [
+    "/staff",
+    "/database/personal",
+  ]);
+  const backLabel = referrer.startsWith("/database/personal")
+    ? "Zurück zum Personal"
+    : "Zurück zu den Mitarbeitenden";
+  const { success: toastSuccess, error: toastError } = useToast();
+  const tenantMutate = useTenantMutate();
+  const recordService = useMemo(() => createCrudService(teachersConfig), []);
   // Effective admin: the backend grants everything to `admin:*` / `*:*`
   // holders regardless of the role name, so a custom role carrying the
   // wildcard must see the same admin-gated UI as the literal admin role
@@ -142,12 +95,19 @@ export default function StaffDetailContent() {
     canEdit ||
     canManageTimeTracking ||
     hasPermission(session, "vacation:approve");
+  // Urlaubsanspruch (#2906): Spiegel des Backend-Gates auf
+  // PUT /{id}/vacation/quota — time_tracking:manage. Bewusst nicht
+  // staff:manage: wer nur das hält, sieht weder den Anspruch (GET ist
+  // vacation:approve / time_tracking:manage) noch den Abwesenheiten-Reiter.
+  const canEditVacationQuota = canEdit || canManageTimeTracking;
   const canManagePayrollSettings = hasPermission(session, "config:manage");
   const canViewTimeTracking = canEdit || canManageTimeTracking;
-  const canEditStammdaten = hasPermission(session, "users:update");
-  // Deliberately NOT users:read: the sections carry HR-file data (birthday,
-  // private address, contract terms), and users:read is held by everyone who
-  // may see the staff list at all — mirrors the backend route gate.
+  const canEditStammdaten = hasPermission(session, "staff:stammdaten");
+  // Deliberately NOT users:read or users:update: the sections carry HR-file
+  // data (birthday, private address, contract terms). users:read is held by
+  // everyone who may see the staff list at all, users:update by the
+  // Betreuer-Standardrolle for the child data (#2906) — mirrors the backend
+  // route gate.
   const canViewStammdatenSections =
     canEdit || canManageTimeTracking || canEditStammdaten;
   // Klassen-Zuweisung (#1772): Spiegel der Backend-Gates — Lesen users:read,
@@ -161,9 +121,27 @@ export default function StaffDetailContent() {
   // to exactly the categories the caller may see.
   const canViewDocuments =
     canEdit ||
-    canEditStammdaten ||
+    hasPermission(session, "staff:documents") ||
     canViewFinancial ||
     hasPermission(session, "staff_documents:health");
+  // Der Personal-Datensatz (Reiter „Konto", #3115): Spiegel des Backend-Gates
+  // auf GET /api/staff/{id} — users:read, staff:manage, staff:stammdaten oder
+  // time_tracking:manage. Das ist der Kreis, der vorher das Pane der
+  // Datenverwaltung sah.
+  const canViewRecord =
+    canEdit ||
+    canManageTimeTracking ||
+    canEditStammdaten ||
+    hasPermission(session, "users:read") ||
+    hasPermission(session, "staff:manage");
+  // Bearbeiten (Name, Position, Notizen) geht über PUT /api/staff/{id} und
+  // braucht staff:manage; Vorname und Nachname zusätzlich users:update am
+  // Personen-Datensatz (#2906).
+  const canManageStaffRecords = hasPermission(session, "staff:manage");
+  const canEditPersonFields = hasPermission(session, "users:update");
+  // Löschen und die Kontoaktionen hängen am Konto, nicht am Datensatz.
+  const canDeleteStaff = hasPermission(session, "users:delete");
+  const canManageUsers = hasPermission(session, "users:manage");
   const requestedTab = searchParams.get("tab");
   const requestedDate = searchParams.get("date");
   const initialTimeTrackingDate =
@@ -172,6 +150,12 @@ export default function StaffDetailContent() {
     isValidISODate(requestedDate)
       ? requestedDate
       : undefined;
+
+  // Vom Benutzer gewählter Reiter. Solange niemand gewechselt hat, entscheidet
+  // die Berechtigung bzw. der Deep-Link — das kann erst gelten, wenn die
+  // Sitzung aufgelöst ist, deshalb wird der Vorgabewert bei jedem Rendern neu
+  // bestimmt statt einmalig im useState-Initialwert eingefroren.
+  const [selectedTab, setSelectedTab] = useState<string | null>(null);
 
   const {
     data: staff,
@@ -184,6 +168,128 @@ export default function StaffDetailContent() {
         ? staffService.getDocumentProfile(staffId)
         : staffService.getStaffById(staffId),
   );
+
+  // Der Datensatz für den Reiter „Konto" und das Bearbeiten: dieselbe
+  // Abbildung wie das Register der Datenverwaltung (Systemrolle, RFID-Karte,
+  // Notizen, Konto-ID), damit beide Seiten dieselben Felder kennen.
+  const { data: record, error: recordError } = useSWRAuth<Teacher>(
+    canViewRecord ? staffRecordKey(staffId) : null,
+    () => recordService.getOne(staffId),
+  );
+  const accountId = record?.account_id ?? "";
+  const hasAccount = accountId !== "";
+  const canEditRole = canManageUsers && hasAccount;
+  // Der Bearbeiten-Zustand des Konto-Reiters (#3116): Positionen der Schule
+  // als Vorschläge und die Systemrolle des Kontos laden erst, wenn jemand
+  // bearbeitet.
+  const [kontoEditing, setKontoEditing] = useState(false);
+  const { data: staffDirectory } = useSWRAuth<Teacher[]>(
+    kontoEditing && canManageStaffRecords ? "database-teachers-list" : null,
+    async () => {
+      const data = await recordService.getList({ page: 1, pageSize: 1000 });
+      return Array.isArray(data.data) ? data.data : [];
+    },
+  );
+  const existingPositions = useMemo(() => {
+    const positions = new Set<string>();
+    for (const entry of Array.isArray(staffDirectory) ? staffDirectory : []) {
+      if (entry.role?.trim()) positions.add(entry.role.trim());
+    }
+    return [...positions].sort((a, b) => a.localeCompare(b, "de"));
+  }, [staffDirectory]);
+  const { data: roleAssignment, error: roleAssignmentError } =
+    useSWRAuth<AccountRoleAssignment>(
+      kontoEditing && canEditRole ? roleAssignmentKey(accountId) : null,
+      () => loadAccountRoleAssignment(accountId),
+    );
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
+  const [mfaModalOpen, setMfaModalOpen] = useState(false);
+  const accessToken = session?.user?.token ?? "";
+
+  const refreshRecord = useCallback(async () => {
+    await Promise.all([
+      tenantMutate(staffRecordKey(staffId)),
+      tenantMutate(`staff-detail-${staffId}`),
+      tenantMutate("database-teachers-list"),
+    ]);
+  }, [staffId, tenantMutate]);
+
+  // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
+  // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
+  // sagt die Meldung, was schon gespeichert ist.
+  const handleSaveKonto = useCallback(
+    async (draft: KontoDraft) => {
+      const { role_id: targetRoleId, ...recordData } = draft;
+      const hasRecordChanges = Object.keys(recordData).length > 0;
+      if (hasRecordChanges) {
+        try {
+          await teacherService.updateTeacher(staffId, recordData);
+        } catch (err) {
+          logger.error("failed to update staff record", {
+            staff_id: staffId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          throw new Error("Die Änderungen konnten nicht gespeichert werden.", {
+            cause: err,
+          });
+        }
+      }
+      if (targetRoleId !== undefined) {
+        try {
+          await replaceAccountRole(accountId, targetRoleId);
+        } catch (err) {
+          logger.error("failed to update account role", {
+            staff_id: staffId,
+            account_id: accountId,
+            target_role_id: targetRoleId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          await refreshRecord();
+          throw new Error(
+            hasRecordChanges
+              ? "Name, Position und Notizen sind gespeichert. Die Systemrolle konnte nicht geändert werden."
+              : "Die Systemrolle konnte nicht geändert werden.",
+            { cause: err },
+          );
+        }
+        await tenantMutate(roleAssignmentKey(accountId));
+      }
+      toastSuccess(
+        getDbOperationMessage("update", teachersConfig.name.singular),
+      );
+      await refreshRecord();
+    },
+    [accountId, refreshRecord, staffId, tenantMutate, toastSuccess],
+  );
+
+  const handleDeleteRecord = useCallback(async () => {
+    setDeleting(true);
+    try {
+      const deleteError = await recordService.delete(staffId);
+      if (deleteError) {
+        toastError(deleteError);
+        return;
+      }
+      toastSuccess(
+        getDbOperationMessage("delete", teachersConfig.name.singular),
+      );
+      await tenantMutate("database-teachers-list");
+      setShowDeleteModal(false);
+      router.push(referrer);
+    } finally {
+      setDeleting(false);
+    }
+  }, [
+    recordService,
+    referrer,
+    router,
+    staffId,
+    tenantMutate,
+    toastError,
+    toastSuccess,
+  ]);
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
@@ -203,9 +309,11 @@ export default function StaffDetailContent() {
   );
   const pendingCount = pendingForStaff ?? 0;
 
-  // Breadcrumb: Mitarbeiter / <Name>
+  // Breadcrumb: Mitarbeiter / <Name>, aus dem Register heraus
+  // Datenverwaltung / Personal / <Name>.
   useSetBreadcrumb({
     staffName: staff ? `${staff.firstName} ${staff.lastName}` : undefined,
+    referrerPage: referrer,
   });
 
   // Radix Tabs auto-focuses the active TabsContent on mount, which the
@@ -226,176 +334,321 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canViewTimeTracking && !canViewStammdaten && !canViewDocuments) {
-    router.replace("/staff");
+  if (
+    !canViewTimeTracking &&
+    !canViewStammdaten &&
+    !canViewDocuments &&
+    !canViewRecord
+  ) {
+    router.replace(referrer);
     return <StaffDetailSkeleton />;
   }
 
   if (!isLoading && (error || !staff)) {
     return (
-      <EmptyState
-        title="Mitarbeiter konnte nicht geladen werden."
-        description="Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr."
+      <TenantPage
+        title="Mitarbeiter"
+        back
+        backHref={referrer}
+        backLabel={backLabel}
+        empty={{
+          title: "Mitarbeiter konnte nicht geladen werden.",
+          description:
+            "Bitte laden Sie die Seite neu. Bleibt der Fehler bestehen, existiert die Person möglicherweise nicht mehr.",
+        }}
       />
     );
   }
 
-  // All actions are placeholders until their flows land; noop keeps the
-  // kit item shape (onClick is required) while disabled suppresses it anyway.
-  const noop = () => undefined;
-  const menuItems: readonly OverflowMenuEntry[] = [
-    { label: "PIN zurücksetzen", onClick: noop, disabled: true },
-    { label: "Passwort zurücksetzen", onClick: noop, disabled: true },
-    { label: "Abwesenheit eintragen", onClick: noop, disabled: true },
-    { kind: "separator" },
-    { label: "Deaktivieren", onClick: noop, disabled: true, destructive: true },
-    { label: "Löschen", onClick: noop, disabled: true, destructive: true },
+  const locationStatus = staff ? getStaffLocationStatus(staff) : null;
+  const displayType = staff ? getStaffDisplayType(staff) : "";
+  const employmentLabel = staff?.employmentType
+    ? (employmentTypeLabels[staff.employmentType] ?? staff.employmentType)
+    : null;
+  // Statuszeile der Kopfkarte: echte Angaben zur Person, keine Erklärzeile.
+  const statusLine = staff
+    ? [
+        staff.specialization ?? (displayType || null),
+        employmentLabel,
+        staff.email,
+        staff.hasRfid ? "RFID zugewiesen" : null,
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : null;
+
+  // Seitenreiter: berechtigungsgesteuert, nicht datengesteuert. Die Flags
+  // kommen aus der Sitzung, die hier bereits aufgelöst ist — die Reiterleiste
+  // steht also sofort, auch während `staff` noch lädt.
+  const tabItems: TenantPageTab[] = [
+    ...(canViewTimeTracking
+      ? [
+          { value: "uebersicht", label: "Übersicht" },
+          { value: "zeiterfassung", label: "Zeiterfassung" },
+        ]
+      : []),
+    ...(canEdit
+      ? [{ value: "arbeitszeitmodell", label: "Arbeitszeitmodell" }]
+      : []),
+    ...(canManageAbsences
+      ? [
+          {
+            value: "abwesenheiten",
+            label: "Abwesenheiten",
+            badge: pendingCount,
+          },
+        ]
+      : []),
+    ...(canViewStammdaten
+      ? [{ value: "stammdaten", label: "Stammdaten" }]
+      : []),
+    ...(canViewDocuments ? [{ value: "dokumente", label: "Dokumente" }] : []),
+    ...(canViewKlassen ? [{ value: "klassen", label: "Klassen" }] : []),
+    // Rolle, Zugang, Notizen und Kontoaktionen (#3115) — vorher das Pane der
+    // Datenverwaltung, jetzt ein Reiter der einen Personalakte.
+    ...(canViewRecord ? [{ value: "konto", label: "Konto" }] : []),
+  ];
+
+  const defaultTab =
+    requestedTab === "dokumente" && canViewDocuments
+      ? "dokumente"
+      : requestedTab === "zeiterfassung" && canViewTimeTracking
+        ? "zeiterfassung"
+        : requestedTab === "konto" && canViewRecord
+          ? "konto"
+          : canViewTimeTracking
+            ? "uebersicht"
+            : canViewStammdaten
+              ? "stammdaten"
+              : canViewDocuments
+                ? "dokumente"
+                : canViewRecord
+                  ? "konto"
+                  : "abwesenheiten";
+  const activeTab = selectedTab ?? defaultTab;
+
+  // Aktionen im Kebab der Kopfkarte (Bauart 2 Regel 1): die Kontoaktionen
+  // mit eigenem Ablauf (#3116) und das Löschen. Bearbeitet wird im Reiter
+  // „Konto", nicht von hier aus.
+  const recordLabel = record
+    ? `${record.first_name} ${record.last_name}`.trim()
+    : "";
+  const recordMenuItems: OverflowMenuItem[] = [
+    ...(canManageUsers && hasAccount && accessToken
+      ? [
+          {
+            label: "Zwei-Faktor-Authentifizierung verwalten",
+            icon: <KeyRound className="size-4" aria-hidden />,
+            onClick: () => setMfaModalOpen(true),
+          },
+        ]
+      : []),
+    ...(canManageUsers && hasAccount
+      ? [
+          {
+            label: "Betreuung verwalten",
+            icon: <Users className="size-4" aria-hidden />,
+            onClick: () => setCaregiverModalOpen(true),
+          },
+        ]
+      : []),
+    ...(canDeleteStaff && record
+      ? [
+          {
+            label: "Löschen",
+            icon: <Trash2 className="size-4" aria-hidden />,
+            destructive: true,
+            onClick: () => setShowDeleteModal(true),
+          },
+        ]
+      : []),
   ];
 
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Rich Header with kebab trigger. Name/status are data-bound (they
-          come from `staff`), so this stays a skeleton until the fetch
-          resolves — the tab bar right below doesn't need to wait. */}
-      {staff ? (
-        <StaffHeader
-          staff={staff}
-          menu={<OverflowMenu items={menuItems} ariaLabel="Weitere Aktionen" />}
-        />
-      ) : (
-        <StaffHeaderSkeleton />
-      )}
-
-      {/* Tabs — permission-gated, not data-gated: the canView/canEdit/canManage
-          flags all derive from the session, which is already resolved here,
-          so the real tab bar renders immediately even while `staff` is
-          still loading. */}
-      <Tabs
-        defaultValue={
-          requestedTab === "dokumente" && canViewDocuments
-            ? "dokumente"
-            : requestedTab === "zeiterfassung" && canViewTimeTracking
-              ? "zeiterfassung"
-              : canViewTimeTracking
-                ? "uebersicht"
-                : canViewStammdaten
-                  ? "stammdaten"
-                  : canViewDocuments
-                    ? "dokumente"
-                    : "abwesenheiten"
-        }
-        className="w-full"
-      >
-        <TabsList
-          variant="line"
-          className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
-        >
-          {canViewTimeTracking ? (
-            <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
+    <TenantPage
+      // Der Entitätskopf IST die Kopfkarte: Avatar links, Name als Titel,
+      // Statuszeile darunter, Status und Kebab als Aktionen.
+      title={staff ? `${staff.firstName} ${staff.lastName}` : "Mitarbeiter"}
+      stats={statusLine}
+      statsLoading={!staff}
+      back
+      backHref={referrer}
+      backLabel={backLabel}
+      leading={
+        staff ? (
+          // Kit-Avatar mit Initialen; der Name steht direkt daneben, das Bild
+          // ist also rein schmückend.
+          <Avatar
+            name={`${staff.firstName} ${staff.lastName}`}
+            size="lg"
+            decorative
+          />
+        ) : undefined
+      }
+      actions={
+        <>
+          {/* Kein Glow, kein Pulsieren, dieselbe Entscheidung wie auf den
+              Karten der Mitarbeiter-Liste. Die Farbe ist datengetrieben
+              (LOCATION_COLORS über getStaffLocationStatus), deshalb
+              StatusColorBadge und nicht StatusBadge. */}
+          {staff && !staff.isLimitedProfile && locationStatus ? (
+            <StatusColorBadge
+              label={locationStatus.label}
+              color={locationStatus.customBgColor}
+            />
           ) : null}
-          {canViewTimeTracking ? (
-            <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+          {recordMenuItems.length > 0 ? (
+            <OverflowMenu
+              ariaLabel="Weitere Aktionen"
+              items={recordMenuItems}
+            />
           ) : null}
-          {canEdit ? (
-            <TabsTrigger value="arbeitszeitmodell">
-              Arbeitszeitmodell
-            </TabsTrigger>
-          ) : null}
-          {canManageAbsences ? (
-            <TabsTrigger value="abwesenheiten">
-              <span className="inline-flex items-center gap-1.5">
-                Abwesenheiten
-                {pendingCount > 0 && (
-                  <StatusBadge
-                    tone="red"
-                    label={pendingCount > 99 ? "99+" : String(pendingCount)}
-                  />
-                )}
-              </span>
-            </TabsTrigger>
-          ) : null}
-          {canViewStammdaten ? (
-            <TabsTrigger value="stammdaten">Stammdaten</TabsTrigger>
-          ) : null}
-          {canViewDocuments ? (
-            <TabsTrigger value="dokumente">Dokumente</TabsTrigger>
-          ) : null}
-          {canViewKlassen ? (
-            <TabsTrigger value="klassen">Klassen</TabsTrigger>
-          ) : null}
-        </TabsList>
-
-        {staff ? (
+        </>
+      }
+      tabs={{
+        value: activeTab,
+        onChange: setSelectedTab,
+        items: tabItems,
+        label: "Bereiche der Personalakte",
+      }}
+      overlays={
+        record ? (
           <>
-            {canViewTimeTracking ? (
-              <TabsPrimitive.Content value="uebersicht">
-                <UebersichtTab staffId={staffId} />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canViewTimeTracking ? (
-              <TabsPrimitive.Content value="zeiterfassung">
-                <ZeiterfassungTab
-                  staffId={staffId}
-                  initialDate={initialTimeTrackingDate}
+            <ConfirmDeleteModal
+              isOpen={showDeleteModal}
+              onClose={() => setShowDeleteModal(false)}
+              onConfirm={() => void handleDeleteRecord()}
+              title="Personal löschen?"
+              description={
+                <>
+                  Der Zugang wird deaktiviert und die Person aus allen Listen
+                  entfernt. Vorhandene Einträge wie Anwesenheiten und
+                  Zeiterfassung bleiben für die Historie erhalten. Die Person
+                  kann jederzeit erneut eingeladen werden.
+                </>
+              }
+              gate={{
+                mode: "textConfirm",
+                expected: recordLabel,
+                inputId: "confirm-delete-staff-name",
+                label: "Tippen Sie zur Bestätigung den Namen der Person:",
+                preview: recordLabel,
+                placeholder: "Vorname Nachname",
+              }}
+              loading={deleting}
+              error=""
+            />
+            {hasAccount ? (
+              <>
+                <CaregiverCapabilityModal
+                  isOpen={caregiverModalOpen}
+                  onClose={() => setCaregiverModalOpen(false)}
+                  scope="tenant"
+                  accountId={accountId}
+                  accountLabel={recordLabel}
+                  onUpdated={refreshRecord}
                 />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canEdit ? (
-              <TabsPrimitive.Content value="arbeitszeitmodell">
-                <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canManageAbsences ? (
-              <TabsPrimitive.Content value="abwesenheiten">
-                <AbwesenheitenTab
-                  staffId={staffId}
-                  canEdit={canEdit}
-                  canManageSickReports={canManageTimeTracking}
-                  staff={staff}
-                />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canViewStammdaten ? (
-              <TabsPrimitive.Content value="stammdaten">
-                <StammdatenTab
-                  staffId={staffId}
-                  canManagePayroll={canManageTimeTracking}
-                  canManagePayrollSettings={canManagePayrollSettings}
-                  canViewSections={canViewStammdatenSections}
-                  canEditSections={canEditStammdaten}
-                  canViewFinancial={canViewFinancial}
-                />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {canViewDocuments ? (
-              <TabsPrimitive.Content value="dokumente">
-                <DokumenteTab staffId={staffId} />
-              </TabsPrimitive.Content>
-            ) : null}
-
-            {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
-                Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
-                Ersetzen mit users:manage — beides erzwingt das Backend. */}
-            {canViewKlassen ? (
-              <TabsPrimitive.Content value="klassen">
-                <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
-              </TabsPrimitive.Content>
+                {accessToken ? (
+                  <MFAAdminOverrideModal
+                    isOpen={mfaModalOpen}
+                    onClose={() => setMfaModalOpen(false)}
+                    bearerToken={accessToken}
+                    accountId={accountId}
+                    accountLabel={recordLabel}
+                  />
+                ) : null}
+              </>
             ) : null}
           </>
-        ) : (
-          // The active tab's content needs the fetched `staff` (e.g.
-          // AbwesenheitenTab takes it as a prop directly), so it skeletonizes
-          // as a unit instead of rendering per-tab while data is missing.
-          <div className="mt-6">
-            <DetailSkeleton sections={2} fieldsPerSection={4} />
-          </div>
-        )}
-      </Tabs>
-    </div>
+        ) : null
+      }
+    >
+      {staff ? (
+        <>
+          {activeTab === "uebersicht" && canViewTimeTracking && (
+            <UebersichtTab staffId={staffId} />
+          )}
+
+          {activeTab === "zeiterfassung" && canViewTimeTracking && (
+            <ZeiterfassungTab
+              staffId={staffId}
+              initialDate={initialTimeTrackingDate}
+            />
+          )}
+
+          {activeTab === "arbeitszeitmodell" && canEdit && (
+            <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+          )}
+
+          {activeTab === "abwesenheiten" && canManageAbsences && (
+            <AbwesenheitenTab
+              staffId={staffId}
+              canEdit={canEdit}
+              canEditQuota={canEditVacationQuota}
+              canManageSickReports={canManageTimeTracking}
+              staff={staff}
+            />
+          )}
+
+          {activeTab === "stammdaten" && canViewStammdaten && (
+            <StammdatenTab
+              staffId={staffId}
+              canManagePayroll={canManageTimeTracking}
+              canManagePayrollSettings={canManagePayrollSettings}
+              canViewSections={canViewStammdatenSections}
+              canEditSections={canEditStammdaten}
+              canViewFinancial={canViewFinancial}
+            />
+          )}
+
+          {activeTab === "dokumente" && canViewDocuments && (
+            <DokumenteTab staffId={staffId} />
+          )}
+
+          {/* Klassen-Zuweisung (#1772): scopt die Lehrkraft-Klassenansicht.
+              Lesen mit users:read (wie die übrigen Staff-Detail-Reads),
+              Ersetzen mit users:manage — beides erzwingt das Backend. */}
+          {activeTab === "klassen" && canViewKlassen && (
+            <KlassenTab staffId={staffId} canEdit={canEditKlassen} />
+          )}
+
+          {activeTab === "konto" && canViewRecord ? (
+            record ? (
+              <KontoTab
+                key={record.id}
+                teacher={record}
+                editing={
+                  canManageStaffRecords || canEditRole
+                    ? {
+                        canEditPersonFields:
+                          canManageStaffRecords && canEditPersonFields,
+                        canEditStaffFields: canManageStaffRecords,
+                        existingPositions,
+                        canEditRole,
+                        roleAssignment,
+                        roleAssignmentError: Boolean(roleAssignmentError),
+                        onEditingChange: setKontoEditing,
+                        onSave: handleSaveKonto,
+                      }
+                    : undefined
+                }
+              />
+            ) : recordError ? (
+              <TenantPage
+                title="Konto"
+                error="Der Personal-Datensatz konnte nicht geladen werden."
+              />
+            ) : (
+              <DetailSkeleton sections={2} fieldsPerSection={4} />
+            )
+          ) : null}
+        </>
+      ) : (
+        // Der Inhalt des aktiven Reiters braucht die geladene Person (der
+        // Abwesenheiten-Reiter bekommt sie direkt als Prop), er skelettiert
+        // deshalb als Ganzes statt pro Reiter.
+        <DetailSkeleton sections={2} fieldsPerSection={4} />
+      )}
+    </TenantPage>
   );
 }

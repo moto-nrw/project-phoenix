@@ -3,14 +3,12 @@ package schedule
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // Dateframe represents a date range for scheduling
 type Dateframe struct {
-	base.Model `bun:"schema:schedule,table:dateframes"`
-	base.TenantModel
+	Model `bun:"schema:schedule,table:dateframes"`
+	TenantModel
 	StartDate   time.Time `bun:"start_date,notnull" json:"start_date"`
 	EndDate     time.Time `bun:"end_date,notnull" json:"end_date"`
 	Name        string    `bun:"name" json:"name,omitempty"`

@@ -4,53 +4,20 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // StaffExcusedRequestResponse is the legacy-named staff projection of one
-// parent absence approval request in the review queue.
-type StaffExcusedRequestResponse struct {
-	ID            string     `json:"id"`
-	StudentID     string     `json:"student_id"`
-	FirstName     string     `json:"first_name"`
-	LastName      string     `json:"last_name"`
-	AbsenceStatus string     `json:"absence_status"`
-	Status        string     `json:"status"`
-	Dates         []string   `json:"dates"`
-	Note          string     `json:"note"`
-	Reason        *string    `json:"reason,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	ReviewedAt    *time.Time `json:"reviewed_at,omitempty"`
-}
-
-func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem) StaffExcusedRequestResponse {
-	r := item.Request
-	dates := make([]string, 0, len(r.Dates))
-	for _, d := range r.Dates {
-		dates = append(dates, d.String())
-	}
-	return StaffExcusedRequestResponse{
-		ID:            strconv.FormatInt(r.ID, 10),
-		StudentID:     strconv.FormatInt(r.StudentID, 10),
-		FirstName:     item.FirstName,
-		LastName:      item.LastName,
-		AbsenceStatus: r.AbsenceStatus,
-		Status:        r.Status,
-		Dates:         dates,
-		Note:          r.Note,
-		Reason:        r.DecisionReason,
-		CreatedAt:     r.CreatedAt,
-		ReviewedAt:    r.ReviewedAt,
-	}
-}
+// parent absence approval request; the shared request-review projection
+// (#2705) owns the shape and the decide route answers with the same one.
+type StaffExcusedRequestResponse = requestreview.StaffExcusedRequestResponse
 
 // DecideExcusedRequestBody is the body of POST
 // .../excused-absence-requests/{requestId}/decide.
@@ -63,19 +30,19 @@ type DecideExcusedRequestBody struct {
 }
 
 var excusedDecideErrorRenderer = common.RulesRenderer(parentRequestRules(
-	common.ErrorRule{Target: activeModels.ErrExcusedRequestNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: activeModels.ErrExcusedRequestNotPending, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestNotFound, Render: common.ErrorNotFound},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestNotPending, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "change_request_not_pending")
 	}},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestGuardianAccessRevoked, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestGuardianAccessRevoked, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "guardian_access_revoked")
 	}},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestStatusConflict, Render: func(err error) render.Renderer {
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestStatusConflict, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "excused_request_status_conflict")
 	}},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestForbidden, Render: common.ErrorForbidden},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestRejectReasonRequired, Render: common.ErrorInvalidRequest},
-	common.ErrorRule{Target: absenceService.ErrExcusedRequestRejectReasonTooLong, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestRejectReasonRequired, Render: common.ErrorInvalidRequest},
+	common.ErrorRule{Target: excusedrequests.ErrExcusedRequestRejectReasonTooLong, Render: common.ErrorInvalidRequest},
 ), common.ErrorInternalServer)
 
 // decideExcusedAbsenceRequest approves (writes the requested status days) or
@@ -100,7 +67,7 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	item, err := rs.ExcusedRequestService.Decide(r.Context(), absenceService.ExcusedRequestDecideInput{
+	item, err := rs.ExcusedRequestService.Decide(r.Context(), excusedrequests.DecideInput{
 		RequestID:       requestID,
 		Approve:         *body.Approve,
 		Reason:          body.Reason,
@@ -114,5 +81,5 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toStaffExcusedRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, requestreviewcompose.ToStaffExcusedRequestResponse(item), "Decision applied")
 }

@@ -8,13 +8,94 @@ package students
 // a school disabled the photo feature.
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type failedPresenceMode struct {
+	activeService.Service
+	err error
+}
+
+func (s failedPresenceMode) GetPresenceMode(context.Context) (string, error) { return "", s.err }
+
+func TestStudentResponsePropagatesPresenceModeFailure(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("presence mode unavailable")
+	_, err := newStudentResponseWithOpts(context.Background(), StudentResponseOpts{Student: &users.Student{}}, StudentResponseServices{ActiveService: failedPresenceMode{err: injected}})
+	require.ErrorIs(t, err, injected)
+}
+
+type failedStudentLocationRead struct {
+	activeService.Service
+	attendanceErr error
+	visitErr      error
+	visit         *studentpresence.Visit
+	groupErr      error
+}
+
+func (s failedStudentLocationRead) GetPresenceMode(context.Context) (string, error) {
+	return activeService.PresenceModeDetailed, nil
+}
+
+func (s failedStudentLocationRead) GetStudentAttendanceStatus(context.Context, int64) (*activeService.AttendanceStatus, error) {
+	return &activeService.AttendanceStatus{Status: "checked_in"}, s.attendanceErr
+}
+
+func (s failedStudentLocationRead) GetStudentCurrentVisit(context.Context, int64) (*studentpresence.Visit, error) {
+	return s.visit, s.visitErr
+}
+
+func (s failedStudentLocationRead) GetActiveGroup(context.Context, int64) (*activeModels.Group, error) {
+	return nil, s.groupErr
+}
+
+func TestStudentResponsePropagatesLocationGroupReadFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	student := testpkg.CreateTestStudent(t, db, "Location", "Read", "3a")
+	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
+	injected := errors.New("location group unavailable")
+	svc := failedStudentLocationRead{visit: &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID}, groupErr: injected}
+	_, err := newStudentResponseWithOpts(testpkg.Ctx(t), StudentResponseOpts{Student: student, HasFullAccess: true}, StudentResponseServices{ActiveService: svc})
+	require.ErrorIs(t, err, injected)
+}
+
+func TestStudentResponseDistinguishesLocationReadFailureFromMissingVisit(t *testing.T) {
+	t.Parallel()
+	injected := errors.New("presence read unavailable")
+	for _, tc := range []struct {
+		name    string
+		svc     failedStudentLocationRead
+		wantErr error
+	}{
+		{name: "attendance read", svc: failedStudentLocationRead{attendanceErr: injected}, wantErr: injected},
+		{name: "visit read", svc: failedStudentLocationRead{visitErr: injected}, wantErr: injected},
+		{name: "visit not found", svc: failedStudentLocationRead{visitErr: &activeService.ActiveError{Op: "GetStudentCurrentVisit", Err: activeService.ErrVisitNotFound}}},
+		{name: "no visit", svc: failedStudentLocationRead{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response, err := newStudentResponseWithOpts(context.Background(), StudentResponseOpts{Student: &users.Student{}, HasFullAccess: true}, StudentResponseServices{ActiveService: tc.svc})
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				assert.Empty(t, response.Location)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, "Unterwegs", response.Location)
+		})
+	}
+}
 
 func TestPopulatePublicStudentFields_PreservesNonCanonicalPickupStatus(t *testing.T) {
 	t.Parallel()

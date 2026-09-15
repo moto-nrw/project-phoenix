@@ -4,10 +4,12 @@ import (
 	"testing"
 	"time"
 
+	enrollmentAudience "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -21,10 +23,10 @@ func TestLetterChildStatuses_DerivesFulfilmentFromAcknowledgement(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -70,10 +72,10 @@ func TestLetterChildStatuses_TenantIsolation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -100,10 +102,10 @@ func TestResolveDeliveryRecipients_IncludesGuardiansWithoutPortalAccess(t *testi
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})
@@ -168,10 +170,10 @@ func TestLetterChildStatuses_KeepsChildrenNobodyCanConfirmFor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	repo := usersRepo.NewParentAnnouncementRepository(db)
+	repo := repositories.NewParentAnnouncementRepository(db, enrollmentAudience.New())
 	ctx := tenantCtx(t)
 
-	letter := publishedAnnouncement(t, ctx, repo, chain.AccountID, chain.TenantID,
+	letter := publishedAnnouncement(t, ctx, db, repo, chain.AccountID, chain.TenantID,
 		"Elternbrief", []*usersModels.ParentAnnouncementTarget{
 			{TargetType: usersModels.AnnouncementTargetSchoolAll},
 		})

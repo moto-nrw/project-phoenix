@@ -16,9 +16,10 @@ import (
 	"io"
 	"log/slog"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -26,10 +27,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -42,7 +43,7 @@ type scenario struct {
 	t              *testing.T
 	db             *bun.DB
 	resource       *timetableTestResource
-	createVisit    func(context.Context, *activeModel.Visit) error
+	createVisit    func(context.Context, *studentpresence.Visit) error
 	endVisit       func(context.Context, int64) error
 	previewCleanup func(context.Context) (*scheduleSvc.TimetableCleanupPreview, error)
 	cleanup        func(context.Context) (*scheduleSvc.TimetableCleanupResult, error)
@@ -59,7 +60,7 @@ type scenario struct {
 func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *scenario {
 	t.Helper()
 
-	db, factory := testutil.SetupAPITest(t, clocks...)
+	db, factory := testutil.SetupTimetableScenarioModule(t, clocks...)
 	primaryTenant := testpkg.Tenant(t)
 	secondaryTenant := testpkg.NewTenantScope(t, db).TenantID
 
@@ -95,7 +96,7 @@ func setupTimetableScenarioModule(t *testing.T, clocks ...func() time.Time) *sce
 	return s
 }
 
-func (s *scenario) createActiveVisit(ctx context.Context, visit *activeModel.Visit) error {
+func (s *scenario) createActiveVisit(ctx context.Context, visit *studentpresence.Visit) error {
 	return s.createVisit(ctx, visit)
 }
 
@@ -113,7 +114,7 @@ func (s *scenario) cleanupTimetable(ctx context.Context) (*scheduleSvc.Timetable
 
 // tenantCtx returns a context bound to the primary tenant.
 func (s *scenario) tenantCtx() context.Context {
-	return testpkg.TenantContext(s.primaryTenant)
+	return tenant.WithTenantID(testpkg.WithTestTenantRuntime(s.t, context.Background()), s.primaryTenant)
 }
 
 // mountRouter builds the full timetable Resource with real services and
@@ -139,7 +140,7 @@ func (s *scenario) do(method, path string, body any, claims timetableTestClaims)
 	require.NoError(s.t, err, "mint JWT")
 
 	req := httptest.NewRequest(method, path, reader)
-	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
+	req = req.WithContext(testpkg.WithTestTenantRuntime(s.t, req.Context()))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 
@@ -212,8 +213,8 @@ func (s *scenario) createActivePeriod(name string, anchor timezone.Date) *schedu
 	period := &scheduleModels.CalendarPeriod{
 		Name:            name,
 		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
-		StartDate:       timezone.NewDate(anchor.Year()-1, 8, 1),
-		EndDate:         timezone.NewDate(anchor.Year()+1, 7, 31),
+		StartDate:       scheduleModels.NewDate(anchor.Year()-1, 8, 1),
+		EndDate:         scheduleModels.NewDate(anchor.Year()+1, 7, 31),
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -323,14 +324,20 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 	if validFrom.IsZero() {
 		validFrom = s.today().AddDays(-30)
 	}
+	activityValidFrom := activitiesModels.Date(validFrom)
+	var activityValidUntil *activitiesModels.Date
+	if spec.validUntil != nil {
+		value := activitiesModels.Date(*spec.validUntil)
+		activityValidUntil = &value
+	}
 
 	var enrollmentIDs []int64
 	for _, sid := range spec.studentIDs {
 		enroll := &activitiesModels.StudentEnrollment{
 			StudentID:       sid,
 			ActivityGroupID: group.ID,
-			ValidFrom:       validFrom,
-			ValidUntil:      spec.validUntil,
+			ValidFrom:       activityValidFrom,
+			ValidUntil:      activityValidUntil,
 		}
 		enroll.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().
@@ -346,8 +353,8 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 			StaffID:    stid,
 			GroupID:    group.ID,
 			IsPrimary:  i == 0,
-			ValidFrom:  validFrom,
-			ValidUntil: spec.validUntil,
+			ValidFrom:  activityValidFrom,
+			ValidUntil: activityValidUntil,
 		}
 		sup.SetTenantID(s.primaryTenant)
 		_, err := s.db.NewInsert().
@@ -369,20 +376,6 @@ func (s *scenario) buildTemplate(spec templateSpec) *templateFixture {
 		validFromUTC: validFrom,
 	}
 }
-
-// queryCounter is a bun.QueryHook that counts queries between reset and read.
-type queryCounter struct {
-	count atomic.Int64
-}
-
-func (q *queryCounter) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
-	return ctx
-}
-func (q *queryCounter) AfterQuery(_ context.Context, _ *bun.QueryEvent) {
-	q.count.Add(1)
-}
-func (q *queryCounter) reset()     { q.count.Store(0) }
-func (q *queryCounter) get() int64 { return q.count.Load() }
 
 // nextWeekday returns the next occurrence of the given ISO weekday (1=Mon...7=Sun)
 // at least `minDaysAhead` days from `from`.

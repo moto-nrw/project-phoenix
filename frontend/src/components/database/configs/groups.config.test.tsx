@@ -90,53 +90,6 @@ describe("groupsConfig", () => {
     );
   });
 
-  it("shows student count badge", () => {
-    const mockGroup: Group = {
-      id: "1",
-      name: "Group Blue",
-      student_count: 15,
-    };
-
-    const badges = groupsConfig.detail.header?.badges ?? [];
-    const countBadge = badges[0];
-    expect(countBadge).toBeDefined();
-    expect((countBadge!.label as (entity: Group) => string)(mockGroup)).toBe(
-      "15 Kinder",
-    );
-  });
-
-  it("shows room badge when assigned", () => {
-    const mockGroup: Group = {
-      id: "1",
-      name: "Group Blue",
-      room_name: "Room 101",
-      student_count: 0,
-    };
-
-    const badges = groupsConfig.detail.header?.badges ?? [];
-    const roomBadge = badges.find((b) => b.label === "Raum zugewiesen");
-    expect(roomBadge?.showWhen(mockGroup)).toBe(true);
-  });
-
-  it("shows supervisor count badge", () => {
-    const mockGroup: Group = {
-      id: "1",
-      name: "Group Blue",
-      student_count: 0,
-      supervisors: [
-        { id: "1", name: "Max Mustermann" },
-        { id: "2", name: "Jane Doe" },
-      ],
-    };
-
-    const badges = groupsConfig.detail.header?.badges ?? [];
-    const supervisorBadge = badges[2];
-    expect(supervisorBadge).toBeDefined();
-    expect(
-      (supervisorBadge!.label as (entity: Group) => string)(mockGroup),
-    ).toBe("2 Gruppenleiter/innen");
-  });
-
   it("maps request data correctly", () => {
     const data: Partial<Group> = {
       name: "Test Group",
@@ -166,7 +119,7 @@ describe("groupsConfig", () => {
     };
 
     const subtitle = groupsConfig.list.item.subtitle?.(mockGroup);
-    expect(subtitle).toBe("1 Gruppenleiter/in");
+    expect(subtitle).toBe("1 Gruppenleitung");
   });
 
   it("displays no supervisor message in list", () => {

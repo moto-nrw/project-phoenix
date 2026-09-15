@@ -2,7 +2,7 @@
 
 import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import {
   ABSENCE_TYPE_HEX,
   absenceRowLabel,
@@ -57,14 +57,14 @@ export function AbsenceRequestRow<
               {staffName && (
                 <p className="text-sm font-bold text-gray-900">{staffName}</p>
               )}
-              <StatusDotBadge
+              <StatusColorBadge
                 label={absenceRowLabel(row)}
                 color={
                   ABSENCE_TYPE_HEX[row.absence_type] ?? LOCATION_COLORS.UNKNOWN
                 }
               />
               {isQuestioned && (
-                <StatusDotBadge
+                <StatusColorBadge
                   label={statusMeta.label}
                   color={statusMeta.color}
                 />

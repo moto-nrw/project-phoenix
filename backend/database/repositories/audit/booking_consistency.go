@@ -2,94 +2,157 @@ package audit
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 var errBookingConsistencyTenantRequired = errors.New("booking consistency audit requires a tenant context")
 
 type bookingConsistencyRepository struct {
-	db *bun.DB
+	runtime    Runtime
+	students   StudentDirectory
+	carePlan   CareOfferingDirectory
+	enrollment EnrollmentQueries
 }
 
-func NewBookingConsistencyRepository(db *bun.DB) auditModel.BookingConsistencyRepository {
-	return &bookingConsistencyRepository{db: db}
+// CareOfferingProjection is the narrow owner data this audit needs.
+type CareOfferingProjection struct {
+	ID             int64             `json:"id"`
+	TenantID       int64             `json:"tenant_id"`
+	PhaseID        int64             `json:"phase_id"`
+	DaysOfWeekMode string            `json:"days_of_week_mode"`
+	AvailableDays  []string          `json:"available_days"`
+	IsActive       bool              `json:"is_active"`
+	IsRequired     bool              `json:"is_required"`
+	CountsAsCare   bool              `json:"counts_as_care"`
+	PickupTimes    map[string]string `json:"pickup_times"`
+}
+
+// CareOfferingDirectory supplies the current tenant's care offerings.
+type CareOfferingDirectory interface {
+	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
+}
+
+type EnrollmentQueries interface {
+	ApprovedBookings(context.Context) ([]enrollment.ApprovedBooking, error)
+	ApprovedBookingOfferingLinks(context.Context) ([]enrollment.CareOfferingLink, error)
+}
+
+func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries) auditModel.BookingConsistencyRepository {
+	if enrollment == nil {
+		panic("booking consistency audit requires Enrollment queries")
+	}
+	return &bookingConsistencyRepository{runtime: requireRuntime(runtime), enrollment: enrollment}
+}
+
+// BindStudentDirectory installs the People Directory the audit resolves the
+// alumnus exclusion through (#2662).
+func (r *bookingConsistencyRepository) BindStudentDirectory(students StudentDirectory) {
+	r.students = students
+}
+
+// BindCarePlan installs the owner projection used by the cross-domain audit.
+func (r *bookingConsistencyRepository) BindCarePlan(capability CareOfferingDirectory) {
+	r.carePlan = capability
 }
 
 // Audit checks approved booking windows for missing pickup projections and
 // offering coverage. Raw arrival rows and materialized class rosters are not
 // consistency signals: booking-led care deliberately ignores the former on
 // unbooked days and marks the latter not scheduled at read time.
+//
+// Graduates drop out of both checks. Their lifecycle status belongs to the
+// People Directory (#2662): the approved students are read first, the
+// directory names the alumni among them, and the audit query excludes those
+// ids. A request child whose student reference was cleared (ON DELETE SET
+// NULL) keeps the semantics of the former joins: it never counts as an
+// approved student, but still counts as approved without offering.
 func (r *bookingConsistencyRepository) Audit(
 	ctx context.Context,
-	auditDate timezone.Date,
+	auditDate auditModel.Date,
 ) (*auditModel.BookingConsistencyReport, error) {
 	if auditDate.IsZero() {
 		return nil, errors.New("booking consistency audit date is required")
 	}
-	tenantID := tenant.FromContext(ctx)
+	tenantID := runtimeTenantID(ctx, r.runtime)
 	if tenantID <= 0 {
 		return nil, errBookingConsistencyTenantRequired
 	}
+	bookings, err := r.enrollment.ApprovedBookings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encodedBookings, err := json.Marshal(bookings)
+	if err != nil {
+		return nil, fmt.Errorf("encode approved booking audit projection: %w", err)
+	}
+	links, err := r.enrollment.ApprovedBookingOfferingLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	encodedLinks, err := json.Marshal(links)
+	if err != nil {
+		return nil, fmt.Errorf("encode approved booking offering links: %w", err)
+	}
+	alumni, err := r.approvedAlumniStudentIDs(ctx, bookings)
+	if err != nil {
+		return nil, err
+	}
+	offerings, err := r.careOfferingProjection(ctx)
+	if err != nil {
+		return nil, err
+	}
 
 	report := &auditModel.BookingConsistencyReport{}
-	err := base.GetDB(ctx, r.db).NewRaw(bookingConsistencyQuery, tenantID, auditDate).Scan(ctx, report)
-	if err != nil {
-		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
-	}
-	return report, nil
-}
-
-const bookingConsistencyQuery = `
+	err = runtimeDB(ctx, r.runtime).NewRaw(`
 WITH params AS (
-	SELECT ?::bigint AS tenant_id, ?::date AS audit_date
+	SELECT ?::bigint AS tenant_id, ?::date AS audit_date, ?::bigint[] AS alumni_student_ids
+), care_offerings AS (
+	SELECT * FROM jsonb_to_recordset(?::jsonb) AS offering(
+		id bigint, tenant_id bigint, phase_id bigint, days_of_week_mode text,
+		available_days jsonb, is_active boolean, is_required boolean,
+		counts_as_care boolean, pickup_times jsonb
+	)
+), approved_bookings AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS booking(
+  request_child_id bigint, student_id bigint, phase_id bigint, tenant_id bigint,
+  service_start_date date, service_end_date date, care_offering_selection_mode text
+ )
+), offering_links AS (
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(`+enrollment.CareOfferingLinkRecordColumns+`)
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
-	CROSS JOIN generate_series(0, 6) AS day_offset(day)
+	CROSS JOIN (VALUES (0), (1), (2), (3), (4), (5), (6)) AS day_offset(day)
 ), approved_students AS (
-	SELECT
-		request_child.id AS request_child_id,
-		COALESCE(request_child.created_student_id, request_child.matched_student_id) AS student_id,
-		phase.id AS phase_id,
-		phase.service_start_date,
-		phase.service_end_date,
-		request_child.tenant_id
-	FROM enrollment.request_children AS request_child
-	INNER JOIN enrollment.requests AS request
-		ON request.tenant_id = request_child.tenant_id
-		AND request.id = request_child.request_id
-	INNER JOIN enrollment.phases AS phase
-		ON phase.tenant_id = request.tenant_id
-		AND phase.id = request.phase_id
-	INNER JOIN users.students AS student
-		ON student.tenant_id = request_child.tenant_id
-		AND student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
-		AND student.status <> 'alumnus'
-	INNER JOIN params ON params.tenant_id = request_child.tenant_id
-	WHERE request_child.status = 'approved'
+ SELECT booking.*
+ FROM approved_bookings AS booking
+ INNER JOIN params ON params.tenant_id = booking.tenant_id
+ WHERE booking.student_id IS NOT NULL
+ AND NOT (booking.student_id = ANY(params.alumni_student_ids))
 ), care_inputs AS (
 	SELECT
 		approved_students.student_id,
 		audit_dates.date,
 		NULLIF(care_offering.pickup_times ->> day_code.value, '') AS pickup_time
 	FROM approved_students
-	INNER JOIN enrollment.request_child_offerings AS link
+	INNER JOIN offering_links AS link
 		ON link.request_child_id = approved_students.request_child_id
 	INNER JOIN params ON params.tenant_id = link.tenant_id
-	INNER JOIN enrollment.care_offerings AS care_offering
+	INNER JOIN care_offerings AS care_offering
 		ON care_offering.tenant_id = link.tenant_id
 		AND care_offering.id = link.care_offering_id
 		AND care_offering.phase_id = approved_students.phase_id
 	CROSS JOIN audit_dates
 	CROSS JOIN LATERAL (
-		VALUES (CASE EXTRACT(ISODOW FROM audit_dates.date)::int
+		VALUES (CASE date_part('isodow', audit_dates.date)::int
 			WHEN 1 THEN 'mon'
 			WHEN 2 THEN 'tue'
 			WHEN 3 THEN 'wed'
@@ -103,17 +166,19 @@ WITH params AS (
 		AND care_offering.counts_as_care = TRUE
 		AND audit_dates.date >= approved_students.service_start_date
 		AND audit_dates.date <= approved_students.service_end_date
-		AND EXTRACT(ISODOW FROM audit_dates.date)::int <= 5
+		AND date_part('isodow', audit_dates.date)::int <= 5
 		AND (link.valid_from IS NULL OR link.valid_from <= audit_dates.date)
 		AND (link.valid_until IS NULL OR link.valid_until > audit_dates.date)
 		AND EXISTS (
 			SELECT 1
-			FROM jsonb_array_elements_text(CASE
-				WHEN COALESCE(jsonb_array_length(link.selected_days), 0) > 0
-					OR care_offering.days_of_week_mode <> 'fixed'
-					THEN COALESCE(link.selected_days, '[]'::jsonb)
-				ELSE COALESCE(care_offering.available_days, '[]'::jsonb)
-			END) AS selected_day(value)
+			FROM (
+				SELECT jsonb_array_elements_text(CASE
+					WHEN COALESCE(jsonb_array_length(link.selected_days), 0) > 0
+						OR care_offering.days_of_week_mode <> 'fixed'
+						THEN COALESCE(link.selected_days, '[]'::jsonb)
+					ELSE COALESCE(care_offering.available_days, '[]'::jsonb)
+				END) AS value
+			) AS selected_day
 			WHERE LOWER(BTRIM(selected_day.value)) = day_code.value
 		)
 ), care_days AS (
@@ -131,65 +196,56 @@ WITH params AS (
 	GROUP BY student_id, date
 ), approved_without_offering AS (
 	SELECT
-		phase.care_offering_selection_mode,
+		booking.care_offering_selection_mode,
 		EXISTS (
 			SELECT 1
-			FROM enrollment.care_offerings AS required_offering
-			WHERE required_offering.tenant_id = phase.tenant_id
-				AND required_offering.phase_id = phase.id
+			FROM care_offerings AS required_offering
+			WHERE required_offering.tenant_id = booking.tenant_id
+				AND required_offering.phase_id = booking.phase_id
 				AND required_offering.is_active = TRUE
 				AND required_offering.is_required = TRUE
 				AND NOT COALESCE((
 					SELECT range_agg(daterange(
-						GREATEST(COALESCE(required_link.valid_from, phase.service_start_date), phase.service_start_date),
-						LEAST(COALESCE(required_link.valid_until, phase.service_end_date + 1), phase.service_end_date + 1),
+						GREATEST(COALESCE(required_link.valid_from, booking.service_start_date), booking.service_start_date),
+						LEAST(COALESCE(required_link.valid_until, booking.service_end_date + 1), booking.service_end_date + 1),
 						'[)'
-					)) @> daterange(phase.service_start_date, phase.service_end_date + 1, '[)')
-					FROM enrollment.request_child_offerings AS required_link
-					WHERE required_link.tenant_id = request_child.tenant_id
-						AND required_link.request_child_id = request_child.id
+					)) @> daterange(booking.service_start_date, booking.service_end_date + 1, '[)')
+					FROM offering_links AS required_link
+					WHERE required_link.tenant_id = booking.tenant_id
+						AND required_link.request_child_id = booking.request_child_id
 						AND required_link.care_offering_id = required_offering.id
-						AND (required_link.valid_from IS NULL OR required_link.valid_from <= phase.service_end_date)
-						AND (required_link.valid_until IS NULL OR required_link.valid_until > phase.service_start_date)
+						AND (required_link.valid_from IS NULL OR required_link.valid_from <= booking.service_end_date)
+						AND (required_link.valid_until IS NULL OR required_link.valid_until > booking.service_start_date)
 				), FALSE)
 		) AS missing_required_offering,
 		EXISTS (
 			SELECT 1
-			FROM enrollment.care_offerings AS care_offering
-			WHERE care_offering.tenant_id = phase.tenant_id
-				AND care_offering.phase_id = phase.id
+			FROM care_offerings AS care_offering
+			WHERE care_offering.tenant_id = booking.tenant_id
+				AND care_offering.phase_id = booking.phase_id
 				AND care_offering.is_active = TRUE
 				AND care_offering.is_required = FALSE
 				AND care_offering.counts_as_care = TRUE
 				AND COALESCE((
 					SELECT range_agg(daterange(
-						GREATEST(COALESCE(link.valid_from, phase.service_start_date), phase.service_start_date),
-						LEAST(COALESCE(link.valid_until, phase.service_end_date + 1), phase.service_end_date + 1),
+						GREATEST(COALESCE(link.valid_from, booking.service_start_date), booking.service_start_date),
+						LEAST(COALESCE(link.valid_until, booking.service_end_date + 1), booking.service_end_date + 1),
 						'[)'
-					)) @> daterange(phase.service_start_date, phase.service_end_date + 1, '[)')
-					FROM enrollment.request_child_offerings AS link
-					WHERE link.tenant_id = request_child.tenant_id
-						AND link.request_child_id = request_child.id
+					)) @> daterange(booking.service_start_date, booking.service_end_date + 1, '[)')
+					FROM offering_links AS link
+					WHERE link.tenant_id = booking.tenant_id
+						AND link.request_child_id = booking.request_child_id
 						AND link.care_offering_id = care_offering.id
-						AND (link.valid_from IS NULL OR link.valid_from <= phase.service_end_date)
-						AND (link.valid_until IS NULL OR link.valid_until > phase.service_start_date)
+						AND (link.valid_from IS NULL OR link.valid_from <= booking.service_end_date)
+						AND (link.valid_until IS NULL OR link.valid_until > booking.service_start_date)
 				), FALSE)
 		) AS has_choosable_offering
-	FROM enrollment.request_children AS request_child
-	INNER JOIN enrollment.requests AS request
-		ON request.tenant_id = request_child.tenant_id
-		AND request.id = request_child.request_id
-	INNER JOIN enrollment.phases AS phase
-		ON phase.tenant_id = request.tenant_id
-		AND phase.id = request.phase_id
-	LEFT JOIN users.students AS student
-		ON student.tenant_id = request_child.tenant_id
-		AND student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
-	INNER JOIN params ON params.tenant_id = request_child.tenant_id
-	WHERE request_child.status = 'approved'
-		AND (student.id IS NULL OR student.status <> 'alumnus')
-		AND phase.service_start_date <= params.audit_date + 6
-		AND phase.service_end_date >= params.audit_date
+
+ FROM approved_bookings AS booking
+ INNER JOIN params ON params.tenant_id = booking.tenant_id
+ WHERE (booking.student_id IS NULL OR NOT (booking.student_id = ANY(params.alumni_student_ids)))
+ AND booking.service_start_date <= params.audit_date + 6
+ AND booking.service_end_date >= params.audit_date
 )
 SELECT
 	params.tenant_id,
@@ -206,4 +262,63 @@ SELECT
 			AND NOT missing_required_offering
 			AND NOT has_choosable_offering)::int AS approved_without_optional_offering
 FROM params
-`
+`, tenantID, auditDate, pgdialect.Array(alumni), offerings, string(encodedBookings), string(encodedLinks)).Scan(ctx, report)
+	if err != nil {
+		return nil, fmt.Errorf("audit booking consistency for tenant %d: %w", tenantID, err)
+	}
+	return report, nil
+}
+
+func (r *bookingConsistencyRepository) careOfferingProjection(ctx context.Context) (string, error) {
+	if r.carePlan == nil {
+		return "", errors.New("booking consistency audit requires the Care Plan capability")
+	}
+	offerings, err := r.carePlan.ListCareOfferings(ctx)
+	if err != nil {
+		return "", fmt.Errorf("list care offerings for booking consistency audit: %w", err)
+	}
+	encoded, err := json.Marshal(offerings)
+	if err != nil {
+		return "", fmt.Errorf("encode care offerings for booking consistency audit: %w", err)
+	}
+	return string(encoded), nil
+}
+
+// approvedAlumniStudentIDs names the graduates among the tenant's approved
+// request children. The ids come from the Enrollment projection; the
+// lifecycle status comes from the People Directory.
+func (r *bookingConsistencyRepository) approvedAlumniStudentIDs(ctx context.Context, bookings []enrollment.ApprovedBooking) ([]int64, error) {
+	if r.students == nil {
+		return nil, errStudentDirectoryRequired
+	}
+
+	studentIDs := make([]int64, 0, len(bookings))
+	seen := make(map[int64]struct{}, len(bookings))
+	for _, booking := range bookings {
+		if booking.StudentID == nil {
+			continue
+		}
+		id := *booking.StudentID
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		studentIDs = append(studentIDs, id)
+	}
+	slices.Sort(studentIDs)
+
+	alumni := []int64{}
+	if len(studentIDs) == 0 {
+		return alumni, nil
+	}
+	students, err := r.students.ListStudentsByID(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		if student.Alumnus {
+			alumni = append(alumni, student.ID)
+		}
+	}
+	return alumni, nil
+}

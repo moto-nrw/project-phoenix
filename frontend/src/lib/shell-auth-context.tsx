@@ -9,12 +9,22 @@ import { schoolAbsoluteUrl, schoolPath } from "~/lib/school-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { createLogger } from "~/lib/logger";
 import { unsubscribePushSilently } from "~/lib/push-api";
-import { hasPermission, isCaregiver } from "~/lib/auth-utils";
-import { usePresenceMode, useTimetableEnabled } from "~/lib/tenant-context";
+import { hasPermission } from "~/lib/auth-utils";
+import { getSmartRedirectPath } from "~/lib/redirect-utils";
+import { performEndStaffPreview } from "~/lib/staff-preview-api";
+import { mutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
 interface ShellUser {
+  /**
+   * Kontokennung der angemeldeten Person. Jede Portal-Hülle löst die Sitzung
+   * ohnehin auf; Karten, die etwas pro Konto im Browser merken (die
+   * Geräte-Einrichtung, #2831), holen sie hier statt eine eigene
+   * Sitzungsabfrage zu öffnen. Optional, weil ältere Testdoppel der Hülle
+   * ohne Kennung auskommen; fehlt sie, entfällt nur der Neustart-Knopf.
+   */
+  id?: string;
   name: string;
   email: string;
   roles: string[];
@@ -39,6 +49,13 @@ interface ShellAuthContextType {
   mode: ShellMode;
   homeUrl: string;
   profileUrl: string | null;
+  // Admin staff-view preview (#2893) — only the teacher shell fills these.
+  // isPreview: this session currently renders the read-only view of another
+  // staff member; canStartStaffPreview: the signed-in admin may open one.
+  isPreview?: boolean;
+  previewTargetName?: string;
+  previewTargetAccountId?: string;
+  canStartStaffPreview?: boolean;
 }
 
 const ShellAuthContext = createContext<ShellAuthContextType | undefined>(
@@ -53,30 +70,30 @@ export function useShellAuth(): ShellAuthContextType {
   return context;
 }
 
+// useShellAuthSafe returns undefined outside a provider instead of throwing.
+// For chrome that merely ADAPTS to shell state (the preview offset in
+// AppShell) and must keep rendering where no shell provider exists.
+export function useShellAuthSafe(): ShellAuthContextType | undefined {
+  return useContext(ShellAuthContext);
+}
+
 export function TeacherShellProvider({
   children,
 }: {
   readonly children: React.ReactNode;
 }) {
-  const { data: session, status: sessionStatus } = useSession();
+  const { data: session, status: sessionStatus, update } = useSession();
   const { profile } = useProfile();
-  const presenceMode = usePresenceMode();
-  const timetableEnabled = useTimetableEnabled();
-  // Home der Betreuungskräfte ist der Tagesplan (#2383) — dieselbe Regel wie
-  // der Login-Redirect, inklusive schedules:read (das Gate der Tagesplan-
-  // Route). Admins (und Schulen ohne Betreuungsplan bzw. im binären Modus)
-  // behalten /dashboard als Logo-Ziel.
-  const homeUrl =
-    isCaregiver(session) &&
-    presenceMode !== "binary" &&
-    timetableEnabled &&
-    hasPermission(session, "schedules:read")
-      ? "/tagesplan"
-      : "/dashboard";
+  // Das Logo folgt derselben Portalentscheidung wie der Login-Redirect. Der
+  // relative Schulpfad ist auch beim serverseitigen Rendern sicher; der Proxy
+  // leitet ihn auf den Schul-Host weiter.
+  const redirectPath = getSmartRedirectPath(session);
+  const homeUrl = redirectPath;
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Benutzer",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
@@ -112,6 +129,20 @@ export function TeacherShellProvider({
         } catch {
           // sessionStorage unavailable (e.g. private browsing quota)
         }
+        // Abmelden aus einer laufenden Vorschau beendet zuerst die Vorschau
+        // (#2893): sie endet hier genauso wie per Klick, also gehört ihr Ende
+        // ins Protokoll — und der Aufruf braucht das Admin-Token, das erst das
+        // Zurückschalten wiederherstellt. Danach widerruft der Logout die
+        // Admin-Familie wie gewohnt.
+        if (session?.user?.isPreview) {
+          try {
+            await performEndStaffPreview(session.user.token, update, mutate);
+          } catch (err: unknown) {
+            logger.warn("staff_preview_end_before_logout_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
         // Best-effort: drop this device's Web Push registration while the
         // session is still valid. Must never block logout.
         await unsubscribePushSilently("tenant");
@@ -135,8 +166,16 @@ export function TeacherShellProvider({
       mode: "teacher" as const,
       homeUrl,
       profileUrl: "/profile",
+      // Admin staff-view preview (#2893): the entry point requires the admin
+      // wildcard (same gate as the backend route); during a preview the
+      // session carries the TARGET's permissions, so the flag is false then.
+      isPreview: session?.user?.isPreview ?? false,
+      previewTargetName: session?.user?.previewTargetName,
+      previewTargetAccountId: session?.user?.previewTargetAccountId,
+      canStartStaffPreview:
+        !session?.user?.isPreview && hasPermission(session, "admin:*"),
     };
-  }, [session, sessionStatus, profile, homeUrl]);
+  }, [session, sessionStatus, profile, homeUrl, update]);
 
   return (
     <ShellAuthContext.Provider value={value}>
@@ -155,6 +194,7 @@ export function OperatorShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Operator",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["operator"],
@@ -216,6 +256,7 @@ export function SchoolShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Lehrkraft",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["lehrkraft"],
@@ -301,6 +342,7 @@ export function ParentShellProvider({
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
       ? {
+          id: session.user.id,
           name: session.user.name?.trim() || "Eltern",
           email: session.user.email ?? "",
           roles: session.user.roles ?? ["guardian"],

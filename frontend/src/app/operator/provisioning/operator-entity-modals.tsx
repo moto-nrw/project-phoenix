@@ -19,9 +19,6 @@ const ORG_DELETE_BULLETS = [
 
 interface SoftDeleteWrapperProps<T extends SoftDeletable> {
   readonly target: T;
-  readonly inputId: string;
-  readonly confirmInput: string;
-  readonly onConfirmInputChange: (value: string) => void;
   readonly errorMessage: string;
   readonly isProcessing: boolean;
   readonly onCancel: () => void;
@@ -38,7 +35,6 @@ export function SchoolSoftDeleteModal<T extends SoftDeletable>(
       {...props}
       entityLabel="Schule"
       entityArticleAccusative="die Schule"
-      nameLabel="Geben Sie den Schulnamen ein:"
       warningTitle="Folgende Aktionen werden ausgeführt:"
       warningBullets={SCHOOL_DELETE_BULLETS}
     />
@@ -53,7 +49,6 @@ export function OrgSoftDeleteModal<T extends SoftDeletable>(
       {...props}
       entityLabel="Träger"
       entityArticleAccusative="den Träger"
-      nameLabel="Geben Sie den Trägernamen ein:"
       warningTitle="Hinweis:"
       warningBullets={ORG_DELETE_BULLETS}
     />

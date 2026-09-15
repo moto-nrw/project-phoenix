@@ -60,44 +60,6 @@ describe("rolesConfig", () => {
     expect(rolesConfig.detail.header?.title(mockRole)).toBe("admin");
   });
 
-  it("shows permission count badge", () => {
-    const mockRole: Role = {
-      id: "1",
-      name: "admin",
-      description: "Administrator role",
-      isSystem: false,
-      permissions: [
-        {
-          id: "1",
-          name: "perm1",
-          resource: "students",
-          action: "read",
-          description: "",
-          createdAt: "",
-          updatedAt: "",
-        },
-        {
-          id: "2",
-          name: "perm2",
-          resource: "rooms",
-          action: "write",
-          description: "",
-          createdAt: "",
-          updatedAt: "",
-        },
-      ],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const badges = rolesConfig.detail.header?.badges ?? [];
-    const permBadge = badges[0];
-    expect(permBadge).toBeDefined();
-    expect((permBadge!.label as (entity: Role) => string)(mockRole)).toBe(
-      "2 Berechtigungen",
-    );
-  });
-
   it("has list configuration", () => {
     expect(rolesConfig.list.title).toBe("Rollen verwalten");
     expect(rolesConfig.list.searchStrategy).toBe("frontend");

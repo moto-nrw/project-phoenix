@@ -95,30 +95,24 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("database");
   });
 
-  it("expands 'eltern' section for /eltern hub path", () => {
-    const { result } = renderHook(() => useSidebarAccordion("/eltern"));
-    expect(result.current.expanded).toBe("eltern");
-  });
-
-  it("expands 'eltern' section for parent sub-pages", () => {
-    // /admin/change-requests gehört seit #2429 nicht mehr zum Eltern-Bereich —
-    // die Route ist nur noch ein Redirect auf das Top-Level-Modul /anfragen.
+  it("treats the former Eltern and Planung pages as plain pages (#2826)", () => {
+    // Eltern und Planung sind Gruppen der Seitenleiste (use-sidebar-groups),
+    // keine Akkordeons mehr: ihre Seiten öffnen keinen Bereich.
     for (const path of [
       "/messages",
       "/admin/guardian-approvals",
       "/parent-announcements",
       "/meal-plan",
+      "/betreuungsplan",
+      "/dienstplan",
+      "/staff/dienstplan",
+      "/vertretung",
+      "/calendar-periods",
+      "/team-chat",
     ]) {
       const { result } = renderHook(() => useSidebarAccordion(path));
-      expect(result.current.expanded).toBe("eltern");
+      expect(result.current.expanded, path).toBeNull();
     }
-  });
-
-  it("expands 'eltern' from fromParam on child pages", () => {
-    const { result } = renderHook(() =>
-      useSidebarAccordion("/students/123", "/messages"),
-    );
-    expect(result.current.expanded).toBe("eltern");
   });
 
   it("expands 'enrollments' section for enrollment paths", () => {
@@ -135,37 +129,17 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("enrollments");
   });
 
-  it("expands 'planning' for all planning paths incl. legacy redirects (#1946)", () => {
-    // Betreuungsplan, Dienstplan, Vertretung und Kalenderzeiträume sind
-    // Unterpunkte des Planung-Akkordeons; die Redirect-Stubs zählen dazu.
-    for (const path of [
-      "/calendar-periods",
-      "/timetables",
-      "/staff/dienstplan",
-      "/betreuungsplan",
-      "/dienstplan",
-      "/vertretung",
-      "/vertretungsplan",
-    ]) {
-      const { result } = renderHook(() => useSidebarAccordion(path));
-      expect(result.current.expanded).toBe("planning");
+  it("ignores stored values of the dissolved accordions (#2826)", () => {
+    // Browser, die vor dem Umbau "planning", "eltern" oder "kommunikation"
+    // gespeichert haben, starten ohne offenen Bereich statt mit einem
+    // Fehler.
+    for (const stored of ["planning", "eltern", "kommunikation"]) {
+      localStorageMock.getItem.mockReturnValueOnce(stored);
+
+      const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
+
+      expect(result.current.expanded, stored).toBeNull();
     }
-  });
-
-  it("restores a stored 'planning' value from localStorage", () => {
-    localStorageMock.getItem.mockReturnValueOnce("planning");
-
-    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
-
-    expect(result.current.expanded).toBe("planning");
-  });
-
-  it("restores 'eltern' from localStorage when pathname does not determine section", () => {
-    localStorageMock.getItem.mockReturnValueOnce("eltern");
-
-    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
-
-    expect(result.current.expanded).toBe("eltern");
   });
 
   it("restores 'enrollments' from localStorage when pathname does not determine section", () => {

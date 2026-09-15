@@ -13,6 +13,7 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 func weeklyPlanSettings(bookingsAuthoritative bool) map[string]bool {
@@ -88,8 +89,13 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 	staffCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	staffCtx = context.WithValue(staffCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(staffAccount.ID)})
 	staffCtx = context.WithValue(staffCtx, jwt.CtxPermissions, []string{"admin:*"})
-	decided, err := requests.Decide(staffCtx, scheduleService.CareRequestDecideInput{
-		RequestID: view.PendingRequest.ID, Approve: true, ReviewedBy: staffAccount.ID,
+	var decided *scheduleService.CareRequestReviewItem
+	err = testpkg.WithTenantTx(t, staffCtx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var decideErr error
+		decided, decideErr = requests.Decide(txCtx, scheduleService.CareRequestDecideInput{
+			RequestID: view.PendingRequest.ID, Approve: true, ReviewedBy: staffAccount.ID,
+		})
+		return decideErr
 	})
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.CareRequestStatusApproved, decided.Request.Status)

@@ -1,11 +1,11 @@
 package common
 
 import (
+	"context"
 	"errors"
 	"net/http"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 const ErrCodeAttendanceWebDisabled = "attendance.web_disabled"
@@ -14,7 +14,9 @@ const ErrCodeAttendanceWebDisabled = "attendance.web_disabled"
 // staff-initiated HTTP mutations. It must run after TenantTxMiddleware so the
 // setting is resolved in the request tenant. IoT, scheduler, and other system
 // paths do not use this middleware and remain unaffected.
-func RequireWebAttendanceEnabled(settings configService.SettingsService) Middleware {
+func RequireWebAttendanceEnabled(settings interface {
+	ResolveBool(context.Context, string) (bool, error)
+}) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if settings == nil {

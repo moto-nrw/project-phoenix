@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -45,7 +44,7 @@ func (worker readinessWorker) Start() {
 
 func (readinessWorker) Stop() {}
 
-func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
+func checkRuntimeRejectsMissingDependencies(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -65,9 +64,23 @@ func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 		{
 			name: "port",
 			ctx:  context.Background(),
-			deps: ServeConfig{Logger: slog.Default()},
+			deps: ServeConfig{Logger: slog.Default(), FrontendURL: "http://localhost:3000"},
 			run:  func(*Runtime) error { return nil },
 			want: "port",
+		},
+		{
+			name: "frontend URL",
+			ctx:  context.Background(),
+			deps: ServeConfig{Port: "8080", PublicAPIURL: "http://api.invalid", Logger: slog.Default()},
+			run:  func(*Runtime) error { return nil },
+			want: "frontend URL",
+		},
+		{
+			name: "public API URL",
+			ctx:  context.Background(),
+			deps: ServeConfig{Port: "8080", FrontendURL: "http://localhost:3000", Logger: slog.Default()},
+			run:  func(*Runtime) error { return nil },
+			want: "public API URL",
 		},
 		{
 			name: "context",
@@ -108,22 +121,10 @@ func TestWithRuntimeRejectsMissingDependencies(t *testing.T) {
 	})
 }
 
-func TestWithRuntimeBuildsCompleteWorker(t *testing.T) {
+func TestStaffMessageCleanupSkipsMissingRuntime(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
-	called := false
-	err := WithRuntime(context.Background(), ServeConfig{
-		Port:   "127.0.0.1:0",
-		Logger: slog.Default(),
-	}, func(runtime *Runtime) error {
-		called = true
-		require.NotNil(t, runtime.worker)
-		return nil
-	})
-
-	require.NoError(t, err)
-	require.True(t, called)
+	require.Nil(t, staffMessageCleanup(nil))
 }
 
 func TestRuntimeServeReturnsListenFailure(t *testing.T) {

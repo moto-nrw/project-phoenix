@@ -136,7 +136,7 @@ func TestSwitchTenant_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	_, accountID, tenantID, slug := registerAccountAtTenant(t, db, service, "switch-school-only")
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
 
-	accessToken, refreshToken, err := service.SwitchTenant(context.Background(), accountID, slug)
+	accessToken, refreshToken, err := service.SwitchTenant(context.Background(), accountID, slug, "")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, auth.ErrMustUseSchoolPortal)

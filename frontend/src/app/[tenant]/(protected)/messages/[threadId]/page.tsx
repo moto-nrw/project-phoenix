@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { ArrowLeft } from "lucide-react";
+import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
 import { BackButton } from "~/components/ui/back-button";
+import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
+import { PickupRequestDetailModal } from "~/components/messaging/pickup-request-detail-modal";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
@@ -25,11 +29,14 @@ import {
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { getApiErrorMessage } from "~/lib/api-error-message";
-import { staffRequestStatusLabel } from "~/lib/messaging-status";
+import {
+  pickupRequestRef,
+  staffRequestStatusLabel,
+} from "~/lib/messaging-status";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
-import { ThreadSkeleton } from "./page-skeleton";
+import { ThreadSkeleton, ThreadMessagesSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
@@ -41,6 +48,24 @@ export function isMessageSnapshotUnavailable(
 ): boolean {
   return (
     Boolean(loadError) || ((isLoading || isValidating) && messageCount === 0)
+  );
+}
+
+function MessagesBackNav() {
+  const router = useTenantRouter();
+
+  return (
+    <>
+      <BackButton referrer="/messages" />
+      <button
+        type="button"
+        onClick={() => router.push("/messages")}
+        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
+      >
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        Zurück zu Nachrichten
+      </button>
+    </>
   );
 }
 
@@ -159,6 +184,30 @@ function MessageThreadContent() {
     return key === null || !decidedRefs.has(key);
   };
 
+  // A pickup-change pill (created or decided) opens exactly the request row it
+  // references, in a read-only view, for as long as the row exists (#3135).
+  // Other request pills keep the deep-link to the queue while still open.
+  const [openRequestId, setOpenRequestId] = useState<string | null>(null);
+  const eventAction = (
+    message: Message,
+  ): { label: string; onClick: () => void } | undefined => {
+    if (!canReviewRequests) return undefined;
+    const pickupRef = pickupRequestRef(message);
+    if (pickupRef) {
+      return {
+        label: "Anfrage ansehen",
+        onClick: () => setOpenRequestId(pickupRef),
+      };
+    }
+    if (requestStillOpen(message)) {
+      return {
+        label: "Anfrage bearbeiten",
+        onClick: () => router.push("/anfragen"),
+      };
+    }
+    return undefined;
+  };
+
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -252,71 +301,73 @@ function MessageThreadContent() {
   // loading window via `snapshotUnavailable`.
   const showSkeleton = !thread && isLoading;
 
+  // Statuszeile unter dem Titel: Beziehung, Kind und die Zahl der geladenen
+  // Nachrichten.
+  const statusLine = thread
+    ? `${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
+        messagesLoading
+          ? "Nachrichten werden geladen"
+          : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`
+      }`
+    : null;
+
   if (!showSkeleton && !thread) {
     return (
-      <div className="-mt-1.5 w-full">
+      <TenantPage
+        title="Unterhaltung"
+        error={{
+          message: loadError
+            ? "Nachrichtenverlauf konnte nicht geladen werden."
+            : "Unterhaltung nicht gefunden.",
+          keepContent: true,
+        }}
+      >
         <MessagesBackNav />
-        <Alert
-          type="error"
-          message={
-            loadError
-              ? "Nachrichtenverlauf konnte nicht geladen werden."
-              : "Unterhaltung nicht gefunden."
-          }
-        />
-      </div>
+      </TenantPage>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="-mt-1.5 flex min-h-[20rem] w-full flex-col overflow-hidden"
+    <TenantPage
+      title={thread?.guardian_name ?? "Unterhaltung"}
+      stats={statusLine}
+      statsLoading={showSkeleton}
+      actions={
+        thread ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() =>
+              router.push(`/students/${thread.student_id}?from=/messages`)
+            }
+            className="flex-shrink-0"
+          >
+            <MotoConceptIcon concept="children" size={18} className="mr-1.5" />
+            Zum Kinderprofil
+          </Button>
+        ) : null
+      }
     >
       <MessagesBackNav />
 
-      <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
-        {showSkeleton ? (
-          <ThreadSkeleton />
-        ) : (
-          <>
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
-                  {thread?.guardian_name}
-                </h1>
-                <p className="mt-0.5 truncate text-sm text-gray-500">
-                  {thread ? relationshipLabel(thread.relationship_type) : ""}{" "}
-                  von {thread?.student_name}
-                </p>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() =>
-                  thread &&
-                  router.push(`/students/${thread.student_id}?from=/messages`)
-                }
-                className="flex-shrink-0"
-              >
-                <MotoConceptIcon
-                  concept="children"
-                  size={18}
-                  className="mr-1.5"
-                />
-                Zum Kinderprofil
-              </Button>
-            </div>
-
+      <div
+        ref={containerRef}
+        className="flex min-h-[20rem] w-full flex-col overflow-hidden"
+      >
+        <SectionCard
+          className="flex min-h-0 flex-1 flex-col"
+          bodyClassName="flex min-h-0 flex-1 flex-col"
+        >
+          {showSkeleton ? (
+            <ThreadSkeleton />
+          ) : (
             <div
               ref={scrollRef}
               className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1"
             >
               {messagesLoading ? (
-                <p className="py-6 text-center text-sm text-gray-400">
-                  Verlauf wird geladen...
-                </p>
+                <ThreadMessagesSkeleton />
               ) : messages.length > 0 ? (
                 messages.map((message) =>
                   message.kind === "request" ? (
@@ -326,14 +377,7 @@ function MessageThreadContent() {
                       key={message.id}
                       body={message.body}
                       createdAt={message.created_at}
-                      action={
-                        canReviewRequests && requestStillOpen(message)
-                          ? {
-                              label: "Anfrage bearbeiten",
-                              onClick: () => router.push("/anfragen"),
-                            }
-                          : undefined
-                      }
+                      action={eventAction(message)}
                     />
                   ) : (
                     <ChatBubble
@@ -361,39 +405,46 @@ function MessageThreadContent() {
                   message="Nachrichtenverlauf konnte nicht geladen werden."
                 />
               ) : (
-                <p className="py-6 text-center text-sm text-gray-500">
-                  Noch keine Nachrichten in dieser Unterhaltung.
-                </p>
+                <EmptyState
+                  title="Noch keine Nachrichten"
+                  description="In dieser Unterhaltung wurde noch nichts geschrieben."
+                />
               )}
             </div>
-          </>
-        )}
-
-        {sendError && (
-          <div className="mt-3">
-            <Alert type="error" message={sendError} />
-          </div>
-        )}
-
-        <div className="mt-4">
-          {messagingEnabled ? (
-            <MessageComposer
-              value={draft}
-              onChange={setDraft}
-              onSend={() => void handleSend()}
-              sending={isSending}
-              disabled={snapshotUnavailable}
-              placeholder="Nachricht an die Eltern schreiben..."
-            />
-          ) : (
-            <p className="rounded-lg bg-gray-50 px-4 py-3 text-sm text-gray-500">
-              Die Eltern-Nachrichten sind für diese Schule deaktiviert. Sie
-              können den Verlauf weiterhin lesen, aber nicht antworten.
-            </p>
           )}
-        </div>
+
+          {sendError && (
+            <div className="mt-3">
+              <Alert type="error" message={sendError} />
+            </div>
+          )}
+
+          <div className="mt-4">
+            {messagingEnabled ? (
+              <MessageComposer
+                value={draft}
+                onChange={setDraft}
+                onSend={() => void handleSend()}
+                sending={isSending}
+                disabled={snapshotUnavailable}
+                placeholder="Nachricht an die Eltern schreiben…"
+              />
+            ) : (
+              <Alert
+                type="info"
+                message="Die Eltern-Nachrichten sind für diese Schule ausgeschaltet. Sie können den Verlauf weiterhin lesen, aber nicht antworten."
+              />
+            )}
+          </div>
+        </SectionCard>
       </div>
-    </div>
+
+      <PickupRequestDetailModal
+        requestId={openRequestId}
+        onClose={() => setOpenRequestId(null)}
+        onOpenQueue={() => router.push("/anfragen")}
+      />
+    </TenantPage>
   );
 }
 
@@ -405,7 +456,7 @@ function MessageThreadContent() {
 // non-interactive "event" pills (ChatEventCard) with a German body.
 function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <SectionCard>
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">{message.body}</p>
@@ -417,29 +468,7 @@ function RequestHistoryCard({ message }: Readonly<{ message: Message }>) {
           label={staffRequestStatusLabel(message.request_status)}
         />
       </div>
-    </div>
-  );
-}
-
-// Back navigation for the thread screen, in ONE place (it renders in both the
-// not-found and the loaded branches). Mobile uses the kit BackButton
-// (md:hidden); desktop gets an inline "Zurück zu den Nachrichten" link because
-// the kit has no desktop back component (BackButton is mobile-only by design)
-// and this screen has no breadcrumb. The two are responsive-exclusive — only
-// one shows at a time.
-function MessagesBackNav() {
-  const router = useTenantRouter();
-  return (
-    <>
-      <BackButton referrer="/messages" />
-      <button
-        type="button"
-        onClick={() => router.push("/messages")}
-        className="mb-4 hidden items-center gap-1 text-sm text-gray-500 hover:text-gray-900 md:flex"
-      >
-        <ArrowLeft className="h-4 w-4" /> Zurück zu den Nachrichten
-      </button>
-    </>
+    </SectionCard>
   );
 }
 

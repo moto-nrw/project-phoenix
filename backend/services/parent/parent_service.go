@@ -26,13 +26,13 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	absenceSvc "github.com/moto-nrw/project-phoenix/services/absence"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -43,10 +43,45 @@ import (
 type MealPlan interface {
 	Available(context.Context) (bool, error)
 	Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error)
+	RegistrationAvailable(context.Context) (bool, error)
+	Participation(context.Context, int64, mealplanModule.Date, mealplanModule.Date) (mealplanModule.ParticipationPlan, error)
+	ReplaceParticipationSchedule(context.Context, mealplanModule.ReplaceParticipationSchedule) (mealplanModule.Date, error)
+	SetParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
+	ClearParticipationForDay(context.Context, mealplanModule.SetParticipationDay) error
+}
+
+// MealPlanEntry is the parent-portal view of one planned dish. Keeping this
+// transport-neutral view in the parent service prevents HTTP handlers from
+// depending on the meal-plan module's public API.
+type MealPlanEntry struct {
+	Date     string
+	Position int
+	Dish     string
+	Note     *string
+}
+
+type MealWeekday int
+
+type MealParticipationDay struct {
+	Date          string
+	Participating bool
+	Source        string
+	Changeable    bool
+}
+
+type MealParticipationPlan struct {
+	Weekdays      []MealWeekday
+	EffectiveFrom string
+	CutoffTime    string
+	Days          []MealParticipationDay
 }
 
 // Service is the public contract consumed by HTTP handlers.
 type Service interface {
+	// GuardianAnnouncementTenant reports the school of an announcement whose
+	// attachments this account may download, or 0 when it may not (#2890).
+	GuardianAnnouncementTenant(ctx context.Context, accountID, announcementID int64) (int64, error)
+
 	// ListChildrenForAccount returns every child linked to any
 	// guardian profile owned by the account, across every active
 	// tenant mapping. Sorted by school then by name.
@@ -78,6 +113,13 @@ type Service interface {
 	// having to dig out the email-link status URL.
 	ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
 
+	// GetChildConsents returns the four consent/acknowledgement states currently
+	// stored for the child. Visibility requires parent_portal.access; only the
+	// voluntary photo consent can be withdrawn through this interface.
+	GetChildConsents(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+	WithdrawPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+	GrantPhotoConsent(ctx context.Context, accountID, studentID int64) ([]ChildConsent, error)
+
 	GetProfile(ctx context.Context, accountID int64) (*Profile, error)
 
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error)
@@ -98,13 +140,13 @@ type Service interface {
 	// ListExcusedRequests returns the child's pending sick and excused absence
 	// requests plus any decided in the recent window, newest-first. The method
 	// retains its legacy excused-only name. Authorization only.
-	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*activeModels.ExcusedAbsenceRequest, error)
+	ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error)
 
 	// EditExcusedRequest rewrites the caller's own pending sick or excused
 	// absence request instead of withdrawing and refiling it (#2267). The
 	// existing share is kept. Authorization: the account must be the
 	// submitting guardian.
-	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*activeModels.ExcusedAbsenceRequest, error)
+	EditExcusedRequest(ctx context.Context, accountID, studentID, requestID int64, dates []timezone.Date, note, expectedVersion string) (*careplan.ExcusedAbsenceRequest, error)
 
 	// EditPickupChangeRequest rewrites the caller's own pending one-day
 	// pickup change (#2267).
@@ -143,7 +185,13 @@ type Service interface {
 	// (parent_portal.access) plus the operations.meal_plan_enabled toggle for
 	// the child's tenant: when the feature is off it returns
 	// ErrMealPlanDisabled so the portal can hide the section.
-	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]mealplanModule.Entry, error)
+	MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]MealPlanEntry, error)
+	MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (MealParticipationPlan, error)
+	// Meal-participation writes require the relationship-scoped
+	// parent_portal.meal_participation.manage permission.
+	ReplaceMealParticipationSchedule(ctx context.Context, accountID, studentID int64, weekdays []MealWeekday) (string, error)
+	SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error
+	ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error
 
 	// SubmitCareExceptionWithReason requires a
 	// concrete pickup time and stores the parent's explanation with it. Arrival
@@ -273,6 +321,16 @@ type Service interface {
 	// change feature being switched on.
 	GetChildCareOfferings(ctx context.Context, accountID, studentID int64) (*ChildCareOfferings, error)
 
+	// GetChildCourses lists the school's courses (AGs reached through a care
+	// offering) with the child's state, and RequestChildCourse /
+	// WithdrawChildCourseRequest are the family's two actions on them (#3075).
+	// Reading needs parent_portal.enrollments.view and reports a missing
+	// permission as a named reason. The two actions additionally need
+	// parent_portal.enrollment.submit.
+	GetChildCourses(ctx context.Context, accountID, studentID int64) (*enrollmentSvc.CourseCatalog, error)
+	RequestChildCourse(ctx context.Context, accountID, studentID, offeringID int64, note string) (*enrollmentSvc.CourseCatalog, error)
+	WithdrawChildCourseRequest(ctx context.Context, accountID, studentID, requestID int64) (*enrollmentSvc.CourseCatalog, error)
+
 	// ListAnnouncements returns the guardian's parent-news feed across all their
 	// (news-enabled) children's schools, newest-published first, each with the
 	// guardian's read/ack state. Cross-tenant; broadcast (#1669).
@@ -309,8 +367,9 @@ type ChildFeatureFlags struct {
 	// capability: when it is true every write flag below is false, and the
 	// portal shows a read-only profile with one sentence explaining why
 	// instead of buttons that would all fail the same way.
-	CareEnded       bool
-	SickNoteEnabled bool
+	CareEnded          bool
+	SickNoteEnabled    bool
+	ExcusedNoteEnabled bool
 	// SickRequiresApproval is true when a Krankmeldung stays pending until the
 	// OGS confirms it (operations.parent_sick_requires_approval, #2449).
 	SickRequiresApproval bool
@@ -318,7 +377,7 @@ type ChildFeatureFlags struct {
 	// by the office before it takes effect (operations.parent_excused_requires_approval,
 	// #1845). The parent UI uses it to explain that the absence will be pending
 	// and to keep the mandatory-note requirement visible. Only meaningful while
-	// SickNoteEnabled is true.
+	// ExcusedNoteEnabled is true.
 	ExcusedRequiresApproval bool
 	NotesEnabled            bool
 	// RequestSubmitEnabled is true when messaging is on AND the guardian holds
@@ -326,7 +385,14 @@ type ChildFeatureFlags struct {
 	// quick actions (care schedule / master data) in the parent UI.
 	RequestSubmitEnabled bool
 	PickupChangeEnabled  bool
-	PickupManageAllowed  bool
+	// PickupChangeCutoffTime is the school's same-day cutoff for the one-day
+	// pickup change as HH:MM (#3163); empty when there is none or the pickup
+	// change is off. PickupChangeTodayClosed says the cutoff has passed, so
+	// today is closed for guardians while later days stay open. The portal
+	// shows both before anyone types, instead of rebuilding the rule.
+	PickupChangeCutoffTime  string
+	PickupChangeTodayClosed bool
+	PickupManageAllowed     bool
 	// GuardianContactManageAllowed is true when the caller may create and edit
 	// accountless contacts for this child.
 	GuardianContactManageAllowed bool
@@ -350,7 +416,8 @@ type ChildFeatureFlags struct {
 	// MealPlanEnabled is true when the school maintains a meal plan
 	// (operations.meal_plan_enabled), so the portal can show the read-only
 	// Essensplan section for this child's school.
-	MealPlanEnabled bool
+	MealPlanEnabled         bool
+	MealRegistrationEnabled bool
 	// HasOpenChangeRequest is STATE, not a capability: true when the child has at
 	// least one pending change request (master data OR care schedule) awaiting an
 	// OGS decision. It rides along on the features fetch (the one call the child
@@ -413,6 +480,25 @@ type Profile struct {
 	Explicit  bool
 }
 
+// ConversationCore is the consumer-owned port for Communication's shared
+// parent-OGS conversation rules. Both portals mark reads, stamp receipts, and
+// fan out over the SAME implementation, so the two chats' unread counts and
+// receipts cannot drift; Communication supplies it at the composition seam.
+type ConversationCore interface {
+	// AppendMessage serializes the thread, persists the message, and advances
+	// the thread preview off the row's DB-stamped created_at.
+	AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error
+	// MarkReadToNewest advances the reader's cursor to the newest counterpart
+	// message in the snapshot and reports whether it moved.
+	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error)
+	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
+	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage)
+	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
+	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
+	// BroadcastRead wakes the same fan-out for a read-receipt refresh.
+	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
+}
+
 // ServiceConfig is the dependency-injection bundle.
 type ServiceConfig struct {
 	ChildRepo             parentModels.ChildRepository
@@ -421,12 +507,9 @@ type ServiceConfig struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	GuardianProfileRepo   usersModels.GuardianProfileRepository
 
-	// AttendanceRepo liefert die schulweite Anwesenheit des Kindes. Sie ist
-	// die einzige Praesenzquelle fuer Eltern; active.visits wird nie gelesen,
-	// damit kein Raumbezug nach aussen gelangt. Gefuellt wird die Tabelle
-	// sowohl vom Kiosk-Scan als auch von der manuellen Erfassung im
-	// Personal-Portal, der Tagesstatus funktioniert also mit und ohne NFC.
-	AttendanceRepo activeModels.AttendanceRepository
+	// Attendance is the only presence source for parents. Visits and room
+	// locations are deliberately excluded from this consumer contract.
+	Attendance AttendanceReader
 
 	// Per-child write features (sick notes + care exceptions).
 	StatusDayRepo        activeModels.StudentStatusDayRepository
@@ -447,7 +530,7 @@ type ServiceConfig struct {
 	// ExcusedRequests is the legacy-named office-approval store for parent sick
 	// and excused absences. When the matching setting is on, a submission becomes
 	// a pending request here instead of a direct status day.
-	ExcusedRequests absenceSvc.ExcusedAbsenceRequestService
+	ExcusedRequests careplan.ExcusedAbsenceRequests
 
 	// AbsenceNotifier informs the child's group and the office that an absence
 	// was reported. Optional and best-effort, after-commit only.
@@ -466,9 +549,9 @@ type ServiceConfig struct {
 
 	// Booked care offerings read view (#1665). The offering side is reached
 	// through the approved enrollment behind the child.
-	RequestChildRepo         enrollmentModels.RequestChildRepository
-	RequestChildOfferingRepo enrollmentModels.RequestChildOfferingRepository
-	CareOfferingRepo         enrollmentModels.CareOfferingRepository
+	CarePeriods      enrollmentSvc.StudentCarePeriodReader
+	OfferingHistory  enrollmentSvc.OfferingHistoryReader
+	CareOfferingRepo enrollmentModels.CareOfferingRepository
 	// OfferingChanges owns the post-enrollment change-request lifecycle; this
 	// service only authorizes the guardian and hands over.
 	OfferingChanges enrollmentSvc.OfferingChangeRequestService
@@ -477,6 +560,10 @@ type ServiceConfig struct {
 	MessageThreadRepo usersModels.ParentMessageThreadRepository
 	MessageRepo       usersModels.ParentMessageRepository
 	MessageReadRepo   usersModels.ParentMessageReadRepository
+	// Conversations applies Communication's shared conversation rules (append,
+	// mark-to-newest, receipts, fan-out) to the stores above, so the parent and
+	// staff chats can never drift apart.
+	Conversations ConversationCore
 
 	// Parent announcements (broadcast news feed).
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
@@ -506,6 +593,8 @@ type ServiceConfig struct {
 	// pickup/emergency flag change (append-only).
 	GuardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
 	GuardianChangeAuditRepo auditModels.GuardianChangeRepository
+	StudentConsents         usersSvc.StudentConsentService
+	StudentPhotos           usersSvc.StudentPhotoService
 
 	DB     *bun.DB
 	Logger *slog.Logger
@@ -549,6 +638,18 @@ func (s *service) todayDate() timezone.Date {
 // would force every test double to grow a method none of them call.
 type AbsenceNotifierSetter interface {
 	SetAbsenceNotifier(notifier notificationsSvc.AbsenceNotifier)
+}
+
+// StudentPhotoSetter injects the photo lifecycle after API bootstrap. The
+// unlinker lives in the API layer, so the parent service cannot receive this
+// dependency during the main service-factory construction.
+type StudentPhotoSetter interface {
+	SetStudentPhotos(photos usersSvc.StudentPhotoService)
+}
+
+// SetStudentPhotos implements StudentPhotoSetter.
+func (s *service) SetStudentPhotos(photos usersSvc.StudentPhotoService) {
+	s.StudentPhotos = photos
 }
 
 // SetAbsenceNotifier implements AbsenceNotifierSetter.

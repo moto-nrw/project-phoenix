@@ -9,11 +9,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // validateDepartureCompanionNote bounds the free-text "mit wem" companion note
@@ -210,17 +210,23 @@ type SupervisorContact struct {
 // StudentDetailResponse represents a detailed student response with access control
 type StudentDetailResponse struct {
 	StudentResponse
-	HasFullAccess  bool `json:"has_full_access"`
-	HasWriteAccess bool `json:"has_write_access"`
-	// HasAbsenceWriteAccess gates the Krankmeldung / Entschuldigung /
-	// Klassenfahrt actions specifically. It is a superset of HasWriteAccess: in
-	// a school running operations.group_mode = open_care, staff holding
-	// users:absence may report absences for children they cannot otherwise edit
-	// (#2232). Never use it to show Stammdaten edit affordances.
-	HasAbsenceWriteAccess bool                `json:"has_absence_write_access"`
-	GroupSupervisors      []SupervisorContact `json:"group_supervisors,omitempty"`
-	AttendanceLogEnabled  bool                `json:"attendance_log_enabled"`
-	FeedbackEnabled       bool                `json:"feedback_enabled"`
+	HasFullAccess  bool                     `json:"has_full_access"`
+	HasWriteAccess bool                     `json:"has_write_access"`
+	Consents       []StudentConsentResponse `json:"consents,omitempty"`
+	// HasAbsenceWriteAccess retains the class-trip write gate. Sick and excused
+	// actions additionally require HasSickExcusedWriteAccess. Neither flag
+	// grants Stammdaten writes or authority to review a parent request.
+	HasAbsenceWriteAccess     bool                `json:"has_absence_write_access"`
+	HasSickExcusedWriteAccess bool                `json:"has_sick_excused_write_access"`
+	GroupSupervisors          []SupervisorContact `json:"group_supervisors,omitempty"`
+	AttendanceLogEnabled      bool                `json:"attendance_log_enabled"`
+	FeedbackEnabled           bool                `json:"feedback_enabled"`
+}
+
+type StudentConsentResponse struct {
+	Key       string     `json:"key"`
+	State     string     `json:"state"`
+	ChangedAt *time.Time `json:"changed_at,omitempty"`
 }
 
 type StudentStatusDayResponse struct {
@@ -296,7 +302,7 @@ type StudentRequest struct {
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
 	// scalar guardian_* fields above.
-	Guardians []guardiansAPI.GuardianWithRelationshipInput `json:"guardians,omitempty"`
+	Guardians []peopleModule.NewStudentGuardian `json:"guardians,omitempty"`
 
 	// Weekly recurring arrival/pickup schedules persisted together with the
 	// student in the same atomic transaction. Reuse the bulk-update item DTOs
@@ -432,7 +438,7 @@ type PrivacyConsentRequest struct {
 // rules are enforced at the model layer on insert (which rolls back the whole
 // transaction on failure); the relationship type has no default and is required
 // to link.
-func validateGuardianRelationships(guardians []guardiansAPI.GuardianWithRelationshipInput) error {
+func validateGuardianRelationships(guardians []peopleModule.NewStudentGuardian) error {
 	for i := range guardians {
 		if strings.TrimSpace(guardians[i].RelationshipType) == "" {
 			return errors.New("guardian relationship_type is required")

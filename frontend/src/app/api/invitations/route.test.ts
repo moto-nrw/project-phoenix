@@ -108,7 +108,7 @@ describe("GET /api/invitations", () => {
       {
         id: 1,
         email: "teacher@example.com",
-        role_id: 2,
+        role_id: "2",
         token: "inv-token-1",
         expires_at: "2024-02-01T00:00:00Z",
         created_by: 1,
@@ -116,7 +116,7 @@ describe("GET /api/invitations", () => {
       {
         id: 2,
         email: "staff@example.com",
-        role_id: 3,
+        role_id: "3",
         token: "inv-token-2",
         expires_at: "2024-02-01T00:00:00Z",
         created_by: 1,
@@ -148,7 +148,7 @@ describe("POST /api/invitations", () => {
 
     const request = createMockRequest("/api/invitations", {
       method: "POST",
-      body: { email: "new@example.com", roleId: 2 },
+      body: { email: "new@example.com", roleId: "2" },
     });
     const response = await POST(request, createMockContext());
 
@@ -158,7 +158,7 @@ describe("POST /api/invitations", () => {
   it("creates invitation successfully with roleId (camelCase)", async () => {
     const requestBody = {
       email: "newteacher@example.com",
-      roleId: 2,
+      roleId: "2",
       firstName: "John",
       lastName: "Doe",
       position: "Math Teacher",
@@ -167,7 +167,7 @@ describe("POST /api/invitations", () => {
     const createdInvitation = {
       id: 10,
       email: "newteacher@example.com",
-      role_id: 2,
+      role_id: "2",
       token: "new-inv-token",
       expires_at: "2024-02-01T00:00:00Z",
       created_by: 1,
@@ -189,7 +189,7 @@ describe("POST /api/invitations", () => {
       "test-token",
       {
         email: "newteacher@example.com",
-        role_id: 2,
+        role_id: "2",
         first_name: "John",
         last_name: "Doe",
         position: "Math Teacher",
@@ -205,7 +205,7 @@ describe("POST /api/invitations", () => {
   it("creates invitation successfully with role_id (snake_case)", async () => {
     const requestBody = {
       email: "newteacher@example.com",
-      role_id: 2,
+      role_id: "2",
       first_name: "Jane",
       last_name: "Smith",
     };
@@ -213,7 +213,7 @@ describe("POST /api/invitations", () => {
     const createdInvitation = {
       id: 11,
       email: "newteacher@example.com",
-      role_id: 2,
+      role_id: "2",
       token: "new-inv-token-2",
       expires_at: "2024-02-01T00:00:00Z",
       created_by: 1,
@@ -234,13 +234,103 @@ describe("POST /api/invitations", () => {
       "test-token",
       {
         email: "newteacher@example.com",
-        role_id: 2,
+        role_id: "2",
         first_name: "Jane",
         last_name: "Smith",
       },
     );
 
     expect(response.status).toBe(200);
+  });
+
+  it("normalizes a legacy numeric role ID before forwarding", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: {
+        id: 12,
+        email: "newteacher@example.com",
+        role_id: "2",
+        token: "new-inv-token-legacy",
+        expires_at: "2024-02-01T00:00:00Z",
+        created_by: 1,
+      },
+    });
+
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", roleId: 2 },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({ role_id: "2" }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("normalizes a legacy numeric role_id before forwarding", async () => {
+    mockApiPost.mockResolvedValueOnce({
+      data: {
+        id: 13,
+        email: "newteacher@example.com",
+        role_id: "2",
+        token: "new-inv-token-legacy-snake",
+        expires_at: "2024-02-01T00:00:00Z",
+        created_by: 1,
+      },
+    });
+
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", role_id: 2 },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({ role_id: "2" }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("forwards a role ID above JavaScript's safe integer range unchanged", async () => {
+    const roleId = "9007199254740993";
+    mockApiPost.mockResolvedValueOnce({
+      data: {
+        id: 12,
+        email: "newteacher@example.com",
+        role_id: roleId,
+        token: "new-inv-token-3",
+        expires_at: "2024-02-01T00:00:00Z",
+        created_by: 1,
+      },
+    });
+
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", roleId },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).toHaveBeenCalledWith(
+      "/auth/invitations",
+      "test-token",
+      expect.objectContaining({ role_id: roleId }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("rejects an unsafe numeric role ID instead of forwarding its rounded value", async () => {
+    const request = createMockRequest("/api/invitations", {
+      method: "POST",
+      body: { email: "newteacher@example.com", roleId: 9007199254740992 },
+    });
+    const response = await POST(request, createMockContext());
+
+    expect(mockApiPost).not.toHaveBeenCalled();
+    expect(response.status).toBe(500);
   });
 
   it("returns error when role_id is missing", async () => {
@@ -264,7 +354,7 @@ describe("POST /api/invitations", () => {
   it("handles backend error", async () => {
     const requestBody = {
       email: "duplicate@example.com",
-      roleId: 2,
+      roleId: "2",
     };
 
     mockApiPost.mockRejectedValueOnce(

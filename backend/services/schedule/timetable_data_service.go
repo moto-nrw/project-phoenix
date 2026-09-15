@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -47,7 +49,7 @@ type TimetableDataDependencies struct {
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
 	PickupBaselines        PickupBaselineReader
 	PickupExceptionRepo    scheduleModel.StudentPickupExceptionRepository
-	VisitRepo              activeModel.VisitRepository
+	Presence               StudentVisitReader
 	RoomRepo               facilitiesModel.RoomRepository
 	ActivityCategoryRepo   activitiesModel.CategoryRepository
 	PlanningTrackRepo      scheduleModel.PlanningTrackRepository
@@ -78,8 +80,16 @@ type TimetableDataDependencies struct {
 	ValidateOfferingSource func(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
 	DeviationEventRepo auditModel.DeviationEventRepository
-	// ConflictAckRepo stores per-user conflict acknowledgements (#2139).
-	ConflictAckRepo scheduleModel.TimetableConflictAckRepository
+	// AttendanceCorrectionRepo records corrections to a child's attendance in
+	// an instance (#2898). Optional — nil disables the trail, which is only
+	// acceptable in read-only test facades; production always wires it.
+	AttendanceCorrectionRepo auditModel.AttendanceCorrectionRepository
+	// PersonRepo snapshots the acting person's name onto a correction so the
+	// trail survives a later account deletion. Optional.
+	PersonRepo usersModel.PersonRepository
+	// ConflictAcks is the Timetable & Activities owner capability for per-user
+	// conflict acknowledgements (#2139, #2686).
+	ConflictAcks timetable.ConflictAckCapability
 	// RecoveryRepo serializes attendance writes with instance completion.
 	// Production always wires it; unit-test facades may leave it nil.
 	RecoveryRepo scheduleModel.ActivityRecoveryRepository
@@ -115,11 +125,85 @@ func (s *TimetableDataService) getLogger() *slog.Logger {
 // optionally narrowed to one slot (#1886). Raw IDs — display names resolve in
 // the read path (handler), never in storage.
 func (s *TimetableDataService) ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]*auditModel.DeviationEvent, error) {
-	return s.deps.DeviationEventRepo.ListByRange(ctx, from, to, activityGroupID, startTime)
+	return s.deps.DeviationEventRepo.ListByRange(ctx, auditModel.Date(from), auditModel.Date(to), activityGroupID, startTime)
 }
 
 func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {
 	return s.deps.InstanceStudentRepo.FindByInstanceID(ctx, instanceID)
+}
+
+// InstanceRows holds the per-instance children of a list window: staff and
+// student rows keyed by instance ID, pickup cutoffs keyed by date.
+type InstanceRows struct {
+	Staff    map[int64][]*scheduleModel.InstanceStaff
+	Students map[int64][]*scheduleModel.InstanceStudent
+	Cutoffs  map[timezone.Date]map[int64]time.Time
+}
+
+// GetInstanceRows loads the rows of every listed instance with one batched
+// read per kind plus one cutoff read per distinct date (the list range cap
+// bounds that count), instead of three reads per instance (#2940). Student
+// rows keep the created_at order of the single-instance finder so the
+// participant projection does not change with the batch read.
+func (s *TimetableDataService) GetInstanceRows(ctx context.Context, instances []*scheduleModel.ActivityInstance) (*InstanceRows, error) {
+	rows := &InstanceRows{
+		Staff:    make(map[int64][]*scheduleModel.InstanceStaff, len(instances)),
+		Students: make(map[int64][]*scheduleModel.InstanceStudent, len(instances)),
+		Cutoffs:  make(map[timezone.Date]map[int64]time.Time),
+	}
+	if len(instances) == 0 {
+		return rows, nil
+	}
+	ids := make([]int64, 0, len(instances))
+	for _, inst := range instances {
+		ids = append(ids, inst.ID)
+	}
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load staff for instances: %w", err)
+	}
+	for _, row := range staffRows {
+		rows.Staff[row.InstanceID] = append(rows.Staff[row.InstanceID], row)
+	}
+	studentRows, err := s.deps.InstanceStudentRepo.FindByInstanceIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("load students for instances: %w", err)
+	}
+	for _, row := range studentRows {
+		rows.Students[row.InstanceID] = append(rows.Students[row.InstanceID], row)
+	}
+	for _, list := range rows.Students {
+		slices.SortStableFunc(list, func(a, b *scheduleModel.InstanceStudent) int {
+			return cmp.Or(a.CreatedAt.Compare(b.CreatedAt), cmp.Compare(a.ID, b.ID))
+		})
+	}
+	for date, studentIDs := range studentIDsByDate(instances, rows.Students) {
+		cutoffs, err := s.GetPartialAbsenceCutoffsForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, fmt.Errorf("load pickup cutoffs for %s: %w", date, err)
+		}
+		rows.Cutoffs[date] = cutoffs
+	}
+	return rows, nil
+}
+
+func studentIDsByDate(instances []*scheduleModel.ActivityInstance, students map[int64][]*scheduleModel.InstanceStudent) map[timezone.Date][]int64 {
+	seen := make(map[timezone.Date]map[int64]struct{})
+	out := make(map[timezone.Date][]int64)
+	for _, inst := range instances {
+		date := timezone.Date(inst.Date)
+		for _, row := range students[inst.ID] {
+			if seen[date] == nil {
+				seen[date] = make(map[int64]struct{})
+			}
+			if _, dup := seen[date][row.StudentID]; dup {
+				continue
+			}
+			seen[date][row.StudentID] = struct{}{}
+			out[date] = append(out[date], row.StudentID)
+		}
+	}
+	return out
 }
 
 // GetPartialAbsenceCutoffsForDate returns, per student, the wall-clock time
@@ -135,7 +219,7 @@ func (s *TimetableDataService) GetPartialAbsenceCutoffsForDate(
 	if len(studentIDs) == 0 {
 		return map[int64]time.Time{}, nil
 	}
-	rows, err := s.deps.PickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	rows, err := s.deps.PickupExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +245,7 @@ func (s *TimetableDataService) GetCareDayCandidateStudentsByInstanceIDs(ctx cont
 }
 
 func (s *TimetableDataService) GetStudentInstancesWithAttendance(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.ScheduledInstanceRow, error) {
-	return s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	return s.deps.InstanceStudentRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetInstanceStudent(ctx context.Context, instanceID, studentID int64) (*scheduleModel.InstanceStudent, error) {
@@ -179,6 +263,17 @@ func (s *TimetableDataService) GetActivityInstance(ctx context.Context, id int64
 	return s.deps.ActivityInstanceRepo.FindByID(ctx, id)
 }
 
+func (s *TimetableDataService) GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*scheduleModel.ActivityInstance, error) {
+	if s.deps.ActivityInstanceRepo == nil {
+		return nil, &ScheduleError{Op: "get activity instances", Err: errors.New("repository is not configured")}
+	}
+	instances, err := s.deps.ActivityInstanceRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, &ScheduleError{Op: "get activity instances", Err: err}
+	}
+	return indexActivityInstances(instances), nil
+}
+
 // LockInstanceAttendance takes FOR UPDATE on every instance_students row so a
 // concurrent Complete cannot flip the instance to completed between the
 // status check and the attendance UPDATE. No-op when RecoveryRepo is unset.
@@ -190,7 +285,7 @@ func (s *TimetableDataService) LockInstanceAttendance(ctx context.Context, insta
 }
 
 func (s *TimetableDataService) GetActivityInstancesByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
-	return s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	return s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetInstanceByActiveGroupID(ctx context.Context, activeGroupID int64) (*scheduleModel.ActivityInstance, error) {
@@ -209,13 +304,18 @@ func (s *TimetableDataService) MarkInstanceCompleted(ctx context.Context, id int
 // before they reach the database (#2139).
 var ErrInvalidConflictFingerprint = errors.New("invalid conflict fingerprint")
 
+var errConflictAcksNotWired = errors.New("conflict acknowledgements are not wired")
+
 // ListConflictAcks returns every conflict fingerprint the account has
 // acknowledged in the current tenant (#2139).
 func (s *TimetableDataService) ListConflictAcks(ctx context.Context, accountID int64) ([]string, error) {
 	if accountID <= 0 {
 		return nil, errors.New("account id is required")
 	}
-	return s.deps.ConflictAckRepo.ListFingerprintsByAccount(ctx, accountID)
+	if s.deps.ConflictAcks == nil {
+		return nil, errConflictAcksNotWired
+	}
+	return s.deps.ConflictAcks.ListConflictAcks(ctx, accountID)
 }
 
 // AcknowledgeConflict idempotently hides one concrete conflict for one user.
@@ -223,10 +323,13 @@ func (s *TimetableDataService) AcknowledgeConflict(ctx context.Context, accountI
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
-	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+	if !timetable.ValidConflictAckFingerprint(fingerprint) {
 		return ErrInvalidConflictFingerprint
 	}
-	return s.deps.ConflictAckRepo.Acknowledge(ctx, accountID, fingerprint)
+	if s.deps.ConflictAcks == nil {
+		return errConflictAcksNotWired
+	}
+	return s.deps.ConflictAcks.AcknowledgeConflict(ctx, accountID, fingerprint)
 }
 
 // UnacknowledgeConflict makes a previously hidden conflict visible again.
@@ -234,14 +337,17 @@ func (s *TimetableDataService) UnacknowledgeConflict(ctx context.Context, accoun
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
-	if !scheduleModel.ValidConflictAckFingerprint(fingerprint) {
+	if !timetable.ValidConflictAckFingerprint(fingerprint) {
 		return ErrInvalidConflictFingerprint
 	}
-	return s.deps.ConflictAckRepo.Unacknowledge(ctx, accountID, fingerprint)
+	if s.deps.ConflictAcks == nil {
+		return errConflictAcksNotWired
+	}
+	return s.deps.ConflictAcks.UnacknowledgeConflict(ctx, accountID, fingerprint)
 }
 
 func (s *TimetableDataService) GetActivityExceptionsByDateRange(ctx context.Context, from, to timezone.Date) ([]*scheduleModel.ActivityException, error) {
-	return s.deps.ActivityExceptionRepo.FindByDateRange(ctx, from, to)
+	return s.deps.ActivityExceptionRepo.FindByDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) CreateActivitySchedule(ctx context.Context, schedule *activitiesModel.Schedule) error {
@@ -253,7 +359,7 @@ func (s *TimetableDataService) GetTemplateStartTimesByGroupIDs(ctx context.Conte
 }
 
 func (s *TimetableDataService) GetInstanceStaffByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
-	return s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, date)
+	return s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, scheduleModel.Date(date))
 }
 
 func (s *TimetableDataService) GetInstanceStaff(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStaff, error) {
@@ -316,11 +422,11 @@ func (s *TimetableDataService) CreateGroupSupervisor(ctx context.Context, superv
 }
 
 func (s *TimetableDataService) GetArrivalExceptionsByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {
-	return s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, date)
+	return s.deps.ArrivalExceptionRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(date))
 }
 
 func (s *TimetableDataService) GetArrivalExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentArrivalException, error) {
-	return s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
+	return s.deps.ArrivalExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetPickupSchedulesByStudent(ctx context.Context, studentID int64) ([]*scheduleModel.StudentPickupSchedule, error) {
@@ -328,11 +434,7 @@ func (s *TimetableDataService) GetPickupSchedulesByStudent(ctx context.Context, 
 }
 
 func (s *TimetableDataService) GetPickupExceptionsByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*scheduleModel.StudentPickupException, error) {
-	return s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, from, to)
-}
-
-func (s *TimetableDataService) GetVisitsByStudentAndActiveGroupIDs(ctx context.Context, studentID int64, activeGroupIDs []int64) ([]*activeModel.Visit, error) {
-	return s.deps.VisitRepo.FindByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
+	return s.deps.PickupExceptionRepo.FindByStudentIDAndDateRange(ctx, studentID, scheduleModel.Date(from), scheduleModel.Date(to))
 }
 
 func (s *TimetableDataService) GetRoom(ctx context.Context, id int64) (*facilitiesModel.Room, error) {
@@ -368,11 +470,11 @@ func (s *TimetableDataService) CreatePlannedSupervisor(ctx context.Context, supe
 }
 
 func (s *TimetableDataService) CloseOpenEnrollmentsByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	return s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom)
+	return s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, activitiesModel.Date(validFrom))
 }
 
 func (s *TimetableDataService) CloseOpenSupervisorsByGroupAndPeriod(ctx context.Context, groupID int64, calendarPeriodID *int64, validFrom timezone.Date) error {
-	return s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, validFrom)
+	return s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, calendarPeriodID, activitiesModel.Date(validFrom))
 }
 
 func (s *TimetableDataService) GetTimeframesByTimeRange(ctx context.Context, startTime, endTime time.Time) ([]*scheduleModel.Timeframe, error) {
@@ -480,6 +582,9 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 	if err != nil {
 		return err
 	}
+	if !hasTemplateTargets(targetsByGroup) {
+		return nil
+	}
 	targetStudentsByGroup, err := targetRepo.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
 	if err != nil {
 		return err
@@ -489,6 +594,15 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
 	}
 	return nil
+}
+
+func hasTemplateTargets(targetsByGroup map[int64][]*activitiesModel.GroupTarget) bool {
+	for _, targets := range targetsByGroup {
+		if len(targets) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func unionCount(left, right []int64) int {

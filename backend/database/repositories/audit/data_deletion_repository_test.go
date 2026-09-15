@@ -1,10 +1,9 @@
-package audit_test
+package audit
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestDataDeletionRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataDeletion
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	// Create a test student for FK reference
@@ -85,7 +84,7 @@ func TestDataDeletionRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataDeletion
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Find", "Student", "2a")
@@ -122,7 +121,7 @@ func TestDataDeletionRepository_FindByStudentID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataDeletion
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	student1 := testpkg.CreateTestStudent(t, db, "Student", "One", "3a")
@@ -156,7 +155,7 @@ func TestDataDeletionRepository_FindByDateRange(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataDeletion
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Range", "Student", "4a")
@@ -188,7 +187,7 @@ func TestDataDeletionRepository_FindByType(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataDeletion
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "Type", "Student", "5a")
@@ -225,7 +224,7 @@ func TestDataDeletionRepository_List(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).DataDeletion
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
 	ctx := testpkg.Ctx(t)
 
 	student := testpkg.CreateTestStudent(t, db, "List", "Student", "8a")

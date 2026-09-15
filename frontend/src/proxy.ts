@@ -267,6 +267,7 @@ function handleOperatorSubdomain(request: NextRequest): NextResponse {
  * sees /login → internally rewritten to /parents/login.
  */
 const PARENTS_PUBLIC_PATHS = [
+  "/invite",
   "/login",
   "/reset-password",
   "/email-confirm",
@@ -276,7 +277,7 @@ const PARENTS_PUBLIC_PATHS = [
   "/meal-plan",
   "/calendar",
   "/settings",
-  "/enroll",
+  "/anmeldung",
   "/accept-guardian-invite",
 ];
 
@@ -381,6 +382,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/aufsichten",
   "/klasse",
   "/nachrichten",
+  // Tagesinformationen der OGS-Leitung für Lehrkräfte (#2208).
+  "/tagesinformationen",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [
@@ -483,8 +486,68 @@ function extractTenantSlug(host: string): string | null {
   return null;
 }
 
-function isEnrollPath(pathname: string): boolean {
-  return pathname === "/enroll" || pathname.startsWith("/enroll/");
+/** Public parent-enrollment surface. German path since #2829; the English
+ * `/enroll` lives on only as the legacy redirect below, because it is
+ * printed in parent letters that schools already handed out. */
+const ENROLLMENT_PATH = "/anmeldung";
+const LEGACY_ENROLLMENT_PATH = "/enroll";
+
+function isEnrollmentPath(pathname: string): boolean {
+  return (
+    pathname === ENROLLMENT_PATH || pathname.startsWith(`${ENROLLMENT_PATH}/`)
+  );
+}
+
+function withEnrollmentPath(prefix: string, rest: string): string {
+  return `${prefix}${ENROLLMENT_PATH}${rest}`;
+}
+
+/** Maps a legacy `/enroll…` URL onto its German successor, or null when the
+ * path is unrelated. Covers the parents host (`/enroll/status/x`), a tenant
+ * subdomain (`/enroll/phase-1`), path mode on the bare domain
+ * (`/school-a/enroll/phase-1`) and parent-portal links rendered before the
+ * route rename (`/parents/enroll/status/x`). */
+function legacyEnrollmentTarget(pathname: string): string | null {
+  if (
+    pathname === LEGACY_ENROLLMENT_PATH ||
+    pathname.startsWith(`${LEGACY_ENROLLMENT_PATH}/`)
+  ) {
+    return withEnrollmentPath(
+      "",
+      pathname.slice(LEGACY_ENROLLMENT_PATH.length),
+    );
+  }
+
+  const legacyParentsPath = `/parents${LEGACY_ENROLLMENT_PATH}`;
+  if (
+    pathname === legacyParentsPath ||
+    pathname.startsWith(`${legacyParentsPath}/`)
+  ) {
+    return withEnrollmentPath(
+      "/parents",
+      pathname.slice(legacyParentsPath.length),
+    );
+  }
+
+  const match = /^\/([^/]+)(\/enroll(?:\/.*)?)$/.exec(pathname);
+  const slug = match?.[1];
+  const tail = match?.[2];
+  if (!slug || !tail || RESERVED_SUBDOMAINS.has(slug)) return null;
+
+  return withEnrollmentPath(
+    `/${slug}`,
+    tail.slice(LEGACY_ENROLLMENT_PATH.length),
+  );
+}
+
+function redirectLegacyEnrollment(
+  request: NextRequest,
+  target: string,
+): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = target;
+  // 308 keeps method and body, and lets browsers cache the move.
+  return withSecurityHeaders(NextResponse.redirect(url, 308));
 }
 
 function getBareTenantPrefixedPath(pathname: string): string | null {
@@ -495,6 +558,101 @@ function getBareTenantPrefixedPath(pathname: string): string | null {
   if (!slug || RESERVED_SUBDOMAINS.has(slug)) return null;
 
   return match[2] ?? "/";
+}
+
+type LegacySelectionSource = {
+  readonly collectionPath: string;
+  readonly selectionKey: string;
+  readonly target: (selection: string) => string;
+  readonly tab?: string;
+};
+
+const LEGACY_SELECTION_SOURCES: readonly LegacySelectionSource[] = [
+  {
+    collectionPath: "/rooms",
+    selectionKey: "room",
+    target: (selection: string) =>
+      selection === "__transit__"
+        ? "/rooms/unterwegs"
+        : `/rooms/${encodePathSegment(selection)}`,
+  },
+  {
+    collectionPath: "/database/rooms",
+    selectionKey: "room",
+    target: (selection: string) => `/rooms/${encodePathSegment(selection)}`,
+    tab: "stammdaten",
+  },
+  {
+    collectionPath: "/database/students",
+    selectionKey: "student",
+    target: (selection: string) => `/students/${encodePathSegment(selection)}`,
+  },
+  {
+    collectionPath: "/database/personal",
+    selectionKey: "staff",
+    target: (selection: string) => `/staff/${encodePathSegment(selection)}`,
+    tab: "konto",
+  },
+];
+
+/** Dots must stay encoded: assigning a literal `..` to URL.pathname would
+ * normalize it into a different route. */
+function encodePathSegment(value: string): string {
+  return encodeURIComponent(value).replaceAll(".", "%2E");
+}
+
+/**
+ * The old collection panes selected their object through a query parameter.
+ * Next's static redirects forward extra query parameters beside the fixed
+ * destination query, but cannot nest them in `from`. This request-aware
+ * redirect keeps search and grouping on the originating collection instead.
+ */
+function redirectLegacySelection(request: NextRequest): NextResponse | null {
+  const { pathname, searchParams } = request.nextUrl;
+  let collectionPath = pathname;
+  let tenantPrefix = "";
+
+  if (
+    !LEGACY_SELECTION_SOURCES.some((rule) => rule.collectionPath === pathname)
+  ) {
+    const match =
+      /^\/([^/]+)(\/(?:rooms|database\/(?:rooms|students|personal)))$/.exec(
+        pathname,
+      );
+    const tenant = match?.[1];
+    const nestedCollectionPath = match?.[2];
+    // These are fixed first path segments, never tenant slugs. The same
+    // exclusion made the previous next.config redirect unambiguous.
+    if (
+      !tenant ||
+      !nestedCollectionPath ||
+      ["api", "database", "rooms", "students", "staff"].includes(tenant)
+    ) {
+      return null;
+    }
+    collectionPath = nestedCollectionPath;
+    tenantPrefix = `/${tenant}`;
+  }
+
+  const rule = LEGACY_SELECTION_SOURCES.find(
+    (entry) => entry.collectionPath === collectionPath,
+  );
+  if (!rule) return null;
+
+  const selection = searchParams.get(rule.selectionKey);
+  if (!selection) return null;
+
+  const collectionQuery = new URLSearchParams(searchParams);
+  collectionQuery.delete(rule.selectionKey);
+  const query = collectionQuery.toString();
+  const referrer = query ? `${collectionPath}?${query}` : collectionPath;
+  const url = request.nextUrl.clone();
+  url.pathname = `${tenantPrefix}${rule.target(selection)}`;
+  url.search = "";
+  if (rule.tab) url.searchParams.set("tab", rule.tab);
+  url.searchParams.set("from", referrer);
+
+  return withSecurityHeaders(NextResponse.redirect(url));
 }
 
 // --- Main proxy ---
@@ -508,6 +666,15 @@ export function proxy(request: NextRequest): NextResponse {
   }
 
   const hostname = getHostname(request);
+
+  // 0. Legacy English enrollment links (#2829). Parent letters and e-mails
+  // sent before the rename still point at /enroll; they must keep working on
+  // every host that serves the enrollment surface. Runs before host routing
+  // so the parents host, tenant subdomains and path mode share one rule.
+  const legacyEnrollment = legacyEnrollmentTarget(pathname);
+  if (legacyEnrollment) {
+    return redirectLegacyEnrollment(request, legacyEnrollment);
+  }
 
   // 1a. Operator subdomain gets its own routing
   if (isOperatorHost(hostname)) {
@@ -530,6 +697,12 @@ export function proxy(request: NextRequest): NextResponse {
   if (isSchoolHost(hostname)) {
     return handleSchoolSubdomain(request);
   }
+
+  // Object links from panes that existed before #3115 need the whole
+  // collection query nested in `from`, which static next.config redirects
+  // cannot express. Handle both tenant-subdomain and path-routing URLs here.
+  const legacySelection = redirectLegacySelection(request);
+  if (legacySelection) return legacySelection;
 
   // 2. /api/* and /monitoring (Sentry tunnel): pass through with security headers.
   if (pathname.startsWith("/api") || pathname.startsWith("/monitoring")) {
@@ -615,7 +788,7 @@ export function proxy(request: NextRequest): NextResponse {
   // The root app/page.tsx can handle tenant selection or redirect.
   if (!tenantSlug) {
     const appPath = getBareTenantPrefixedPath(pathname);
-    return appPath && isEnrollPath(appPath)
+    return appPath && isEnrollmentPath(appPath)
       ? nextLocalized(request)
       : secureNext(request);
   }
@@ -626,7 +799,7 @@ export function proxy(request: NextRequest): NextResponse {
     ? pathname.slice(tenantSlug.length + 1) || "/"
     : pathname;
   const normalizedAppPath = appPath.startsWith("/") ? appPath : `/${appPath}`;
-  const isEnroll = isEnrollPath(normalizedAppPath);
+  const isEnroll = isEnrollmentPath(normalizedAppPath);
 
   // Already has tenant prefix. useTenantRouter().push() adds the slug explicitly,
   // so skip rewriting to avoid double-prefixing (e.g. /school-a/school-a/dashboard).

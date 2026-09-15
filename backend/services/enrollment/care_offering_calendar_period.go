@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -47,7 +50,7 @@ func (s *careOfferingService) ValidateCalendarPeriodChange(
 		)
 	}
 	if s.Repo == nil || s.ActivityGroupRepo == nil || s.ActivityScheduleRepo == nil ||
-		s.CalendarPeriodRepo == nil || s.PhaseRepo == nil {
+		s.CalendarPeriodRepo == nil || s.Phases == nil {
 		return errors.New("calendar period care-offering validation dependencies are not configured")
 	}
 
@@ -187,19 +190,26 @@ func (s *careOfferingService) loadCareOfferingPeriodChangeSegments(
 ) ([]loadedCareOfferingSegment, bool, error) {
 	loaded := make([]loadedCareOfferingSegment, 0, len(series))
 	referencesChangedPeriod := false
+	groupIDs := make([]int64, 0, len(series))
+	for _, segment := range series {
+		if segment != nil {
+			groupIDs = append(groupIDs, segment.ID)
+		}
+	}
+	var scheduleRows []*activitiesModels.Schedule
+	if len(groupIDs) > 0 {
+		var err error
+		scheduleRows, err = s.ActivityScheduleRepo.FindByGroupIDs(ctx, groupIDs)
+		if err != nil {
+			return nil, false, fmt.Errorf("load care offering %d timetable schedules: %w", offeringID, err)
+		}
+	}
+	schedulesByGroup := activitySchedulesByGroup(scheduleRows)
 	for _, segment := range series {
 		if segment == nil {
 			continue
 		}
-		schedules, err := s.ActivityScheduleRepo.FindByGroupID(ctx, segment.ID)
-		if err != nil {
-			return nil, false, fmt.Errorf(
-				"load care offering %d timetable segment %d schedules: %w",
-				offeringID,
-				segment.ID,
-				err,
-			)
-		}
+		schedules := schedulesByGroup[segment.ID]
 		schedulesReferenceChangedPeriod := schedulesReferencePeriod(schedules, periodID)
 		referencesChangedPeriod = referencesChangedPeriod ||
 			referencesPeriod(segment.CalendarPeriodID, periodID) ||
@@ -210,6 +220,16 @@ func (s *careOfferingService) loadCareOfferingPeriodChangeSegments(
 		})
 	}
 	return loaded, referencesChangedPeriod, nil
+}
+
+func activitySchedulesByGroup(rows []*activitiesModels.Schedule) map[int64][]*activitiesModels.Schedule {
+	result := make(map[int64][]*activitiesModels.Schedule)
+	for _, row := range rows {
+		if row != nil {
+			result[row.ActivityGroupID] = append(result[row.ActivityGroupID], row)
+		}
+	}
+	return result
 }
 
 func schedulesReferencePeriod(schedules []*activitiesModels.Schedule, periodID int64) bool {
@@ -224,8 +244,8 @@ func schedulesReferencePeriod(schedules []*activitiesModels.Schedule, periodID i
 func (s *careOfferingService) loadCareOfferingPeriodChangePhase(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
-) (*enrollmentModels.Phase, error) {
-	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
+) (*enrollmentOwner.Phase, error) {
+	phase, err := s.Phases.Phase(ctx, offering.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("load care offering %d phase: %w", offering.ID, err)
 	}
@@ -239,7 +259,7 @@ func (s *careOfferingService) resolveCareOfferingPostChangeSegments(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
 	root *activitiesModels.Group,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	loaded []loadedCareOfferingSegment,
 	periodID int64,
 	replacement *scheduleModels.CalendarPeriod,
@@ -273,7 +293,7 @@ func (s *careOfferingService) resolveCareOfferingPostChangeSegment(
 	ctx context.Context,
 	offering *enrollmentModels.CareOffering,
 	root *activitiesModels.Group,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 	state loadedCareOfferingSegment,
 	periodID int64,
 	replacement *scheduleModels.CalendarPeriod,
@@ -480,7 +500,7 @@ func referencesPeriod(current *int64, periodID int64) bool {
 
 func schedulesOverlapEnrollmentPhase(
 	schedules []*activitiesModels.Schedule,
-	phase *enrollmentModels.Phase,
+	phase *enrollmentOwner.Phase,
 ) bool {
 	if phase == nil {
 		return false
@@ -489,8 +509,8 @@ func schedulesOverlapEnrollmentPhase(
 		if schedule == nil {
 			continue
 		}
-		startsAfterPhase := schedule.ValidFrom != nil && schedule.ValidFrom.After(phase.ServiceEndDate)
-		endsBeforeOrOnPhase := schedule.ValidUntil != nil && !schedule.ValidUntil.After(phase.ServiceStartDate)
+		startsAfterPhase := schedule.ValidFrom != nil && schedule.ValidFrom.After(timezone.Date(phase.ServiceEndDate))
+		endsBeforeOrOnPhase := schedule.ValidUntil != nil && !schedule.ValidUntil.After(timezone.Date(phase.ServiceStartDate))
 		if !startsAfterPhase && !endsBeforeOrOnPhase {
 			return true
 		}

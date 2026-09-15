@@ -26,7 +26,7 @@ import (
 
 // setupPersonService creates a PersonService with real database connection
 func setupPersonService(t *testing.T, db *bun.DB) users.PersonService {
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Users
@@ -191,8 +191,6 @@ func TestPersonService_Create(t *testing.T) {
 
 		// ACT
 		err := service.Create(ctx, person)
-		defer func() {
-		}()
 
 		// ASSERT
 		require.NoError(t, err)
@@ -721,7 +719,8 @@ func TestPersonService_LinkStudentToRFIDCard(t *testing.T) {
 		rfidCard := testpkg.CreateTestRFIDCard(t, db, "PURGEDTAG")
 		// Deleting the student is this test's ARRANGE step, not a teardown:
 		// the point is what the service does when the row is gone.
-		testpkg.CleanupActivityFixtures(t, db, student.ID)
+		repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+		require.NoError(t, repos.Student.Delete(ctx, student.ID))
 
 		// ACT
 		err := service.LinkStudentToRFIDCard(ctx, student.ID, rfidCard.ID)
@@ -1023,8 +1022,6 @@ func TestPersonService_Create_WithRFIDCard(t *testing.T) {
 
 		// ACT
 		err := service.Create(ctx, person)
-		defer func() {
-		}()
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1360,7 +1357,7 @@ func TestPersonService_CreateStaffWithTeacher_AdoptsLiveCaregiverProfile(t *test
 		PersonID:         existing.Staff.PersonID,
 		StaffNotes:       "Notiz",
 		IsTeacher:        false,
-		ActorPermissions: []string{permissions.UsersCreate, permissions.UsersUpdate},
+		ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
 	})
 
 	// ASSERT
@@ -1467,7 +1464,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 		PersonID:         staffRecord.PersonID,
 		IsTeacher:        true,
 		Specialization:   "Betreuung",
-		ActorPermissions: []string{permissions.UsersCreate, permissions.UsersUpdate},
+		ActorPermissions: []string{permissions.UsersCreate, permissions.StaffManage},
 	})
 
 	// ASSERT — refused before anything is written.

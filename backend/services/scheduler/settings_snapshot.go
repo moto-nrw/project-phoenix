@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -155,33 +154,6 @@ func (s *Scheduler) forEachKnownTenant(
 	opName string,
 	fn func(context.Context, int64) error,
 ) []int64 {
-	completed := make([]int64, 0, len(tenantIDs))
-	ctx = s.withUnitOfWork(ctx)
-	for _, tenantID := range tenantIDs {
-		id, idErr := tenant.NewTenantID(tenantID)
-		if idErr != nil {
-			s.observeTenantRuntime("missing_tenant")
-			s.getLogger().Error("tenant operation rejected",
-				slog.String("entry_point", "worker"),
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", idErr.Error()),
-			)
-			continue
-		}
-		err := tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
-			return fn(txCtx, tenantID)
-		})
-		if err != nil {
-			s.observeTenantRuntime("transaction_failure")
-			s.getLogger().Error("tenant operation failed, continuing to next tenant",
-				slog.String("operation", opName),
-				slog.Int64("tenant_id", tenantID),
-				slog.String("error", err.Error()),
-			)
-			continue
-		}
-		completed = append(completed, tenantID)
-	}
-	return completed
+	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(fn))
+	return result.CompletedTenantIDs()
 }

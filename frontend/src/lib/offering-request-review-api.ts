@@ -30,6 +30,8 @@ export interface OfferingRequestDiffLine {
   readonly trigger_names?: readonly string[];
   /** True when staff may exclude this rule-added line per request (#2370). */
   readonly optoutable?: boolean;
+  /** True for a Kurs — an AG the family reached through a care offering. */
+  readonly is_course?: boolean;
 }
 
 /** One booking the request leaves exactly as it is. */

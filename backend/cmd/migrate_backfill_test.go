@@ -1,0 +1,90 @@
+package cmd
+
+import (
+	"bytes"
+	"strconv"
+	"testing"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/migrations"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestMigrateBackfillRequestChildStorageCmd_Metadata(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "backfill", migrateBackfillCmd.Use)
+	assert.Equal(t, "request-child-storage", migrateBackfillRequestChildStorageCmd.Use)
+	assert.NotNil(t, migrateBackfillRequestChildStorageCmd.RunE)
+	assert.Contains(t, migrateCmd.Commands(), migrateBackfillCmd)
+	for _, flag := range []string{"batch-size", "tenant", "max-passes", "lock-timeout", "verify-only", "restart"} {
+		assert.NotNil(t, migrateBackfillRequestChildStorageCmd.Flags().Lookup(flag), flag)
+	}
+}
+
+func TestMigrateRequestChildCompatibilityCmdMetadata(t *testing.T) {
+	t.Parallel()
+	require.Contains(t, migrateBackfillCmd.Commands(), migrateRequestChildCompatibilityCmd)
+	require.Equal(t, "request-child-compatibility", migrateRequestChildCompatibilityCmd.Use)
+	require.NotNil(t, migrateRequestChildCompatibilityCmd.RunE)
+	for _, flag := range []string{"batch-size", "tenant", "verify-only"} {
+		require.NotNil(t, migrateRequestChildCompatibilityCmd.Flags().Lookup(flag))
+	}
+	require.Nil(t, migrateRequestChildCompatibilityCmd.Flags().Lookup("restart"), "post-cutover recovery cannot truncate owner targets")
+}
+
+func TestMigrateBackfillRequestChildStorageFlags(t *testing.T) {
+	t.Parallel()
+	cmd := &cobra.Command{Use: "request-child-storage"}
+	registerRequestChildStorageFlags(cmd)
+	require.NoError(t, cmd.Flags().Parse([]string{"--batch-size=7", "--tenant=3,4", "--max-passes=2", "--lock-timeout=250ms", "--verify-only", "--restart"}))
+	options, err := requestChildStorageOptionsFromFlags(cmd)
+	require.NoError(t, err)
+	assert.Equal(t, migrations.RequestChildStorageBackfillOptions{
+		BatchSize: 7, TenantIDs: []int64{3, 4}, MaxPasses: 2, LockTimeout: 250 * time.Millisecond, VerifyOnly: true, Restart: true,
+	}, options)
+}
+
+func TestMigrateBackfillRequestChildStorageReportsPerTenantEvidence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	// This command contract belongs to the pre-cutover schema. A current-schema
+	// backfill must refuse to overwrite authoritative owner data from a view.
+	_, err := db.ExecContext(t.Context(), `
+		DROP VIEW enrollment.request_child_offerings;
+		DROP FUNCTION enrollment.route_request_child_offering_compatibility();
+		DROP FUNCTION enrollment.request_child_effective_days(jsonb, jsonb);
+		DROP FUNCTION enrollment.request_child_legacy_manual(jsonb, jsonb, jsonb);
+		DROP SEQUENCE enrollment.request_child_compatibility_reads, enrollment.request_child_compatibility_writes;
+		ALTER TABLE enrollment.request_child_offerings_legacy RENAME TO request_child_offerings;
+		ALTER TABLE enrollment.request_child_offerings ADD CONSTRAINT request_child_offerings_non_overlapping_validity
+			EXCLUDE USING gist (request_child_id WITH =, care_offering_id WITH =,
+				daterange(COALESCE(valid_from, '-infinity'::date), COALESCE(valid_until, 'infinity'::date), '[)') WITH &&);
+	`)
+	require.NoError(t, err)
+	tenant := testpkg.Tenant(t)
+	phaseID, _, childID := testpkg.CreateAuditAdjustmentChain(t, db)
+	offering := testpkg.CreateTestCareOffering(t, db, phaseID, "CLI backfill")
+	_, err = db.NewRaw(`INSERT INTO enrollment.request_child_offerings
+		(tenant_id, request_child_id, care_offering_id, selected_days, notes, valid_from, valid_until)
+		VALUES (?, ?, ?, '["mon"]', 'cli', '2026-08-01', '2027-08-01')`, tenant, childID, offering.ID).Exec(t.Context())
+	require.NoError(t, err)
+
+	var output bytes.Buffer
+	options := migrations.RequestChildStorageBackfillOptions{TenantIDs: []int64{tenant}}
+	require.NoError(t, runRequestChildStorageBackfill(t.Context(), db, options, &output))
+	assert.Regexp(t, `tenant +complete +hwm +scanned`, output.String())
+	assert.Regexp(t, strconv.FormatInt(tenant, 10)+` +true`, output.String())
+	assert.Contains(t, output.String(), "provenance=earliest-surviving-interval-v1 day_differences=0")
+
+	// Drift makes verify-only fail with a non-zero exit and an evidence row.
+	_, err = db.NewRaw(`UPDATE enrollment.request_child_offerings SET notes = 'changed' WHERE tenant_id = ?`, tenant).Exec(t.Context())
+	require.NoError(t, err)
+	output.Reset()
+	options.VerifyOnly = true
+	err = runRequestChildStorageBackfill(t.Context(), db, options, &output)
+	require.ErrorContains(t, err, "incomplete for tenants")
+	assert.Regexp(t, strconv.FormatInt(tenant, 10)+` +false`, output.String())
+}

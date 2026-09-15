@@ -20,6 +20,7 @@ import {
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EnrollmentChangeRequestDiff } from "~/components/enrollment/enrollment-change-request-diff";
 import type { EnrollmentChangeRequestDiffCopy } from "~/lib/enrollment-change-request-diff";
@@ -362,7 +363,7 @@ export function EnrollmentStatusView({
         backdropLabel={t("modalBackdropClose")}
         isConfirmLoading={withdrawingChild !== null}
         isDismissDisabled={withdrawingChild !== null}
-        confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
+        confirmVariant="danger"
       >
         <p className="text-sm leading-6 text-gray-600">
           {withdrawTarget?.childID
@@ -467,10 +468,10 @@ function EnrollmentStatusContent({
   const showOptInBanner = pendingRenewalCount > 0;
   const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
   const editHref = pathname?.startsWith("/parents")
-    ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
+    ? `/parents/anmeldung/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
   const adjustHref = pathname?.startsWith("/parents")
-    ? `/parents/enroll/status/${encodeURIComponent(token)}/adjust`
+    ? `/parents/anmeldung/status/${encodeURIComponent(token)}/adjust`
     : `${pathname?.replace(/\/$/, "") ?? ""}/adjust`;
   const parentsHref = pathname?.startsWith("/parents") ? "/" : "/parents";
 
@@ -806,7 +807,7 @@ function EnrollmentChildRow({
   };
 
   return (
-    <li className="rounded-xl border border-gray-200 bg-white p-4">
+    <li className="moto-content-surface rounded-xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
@@ -1038,43 +1039,24 @@ function GuardianSection({
 function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
   const t = useTranslations("enrollmentStatus");
   return (
-    <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("nameLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold text-gray-900">
-          {status.guardian_first_name} {status.guardian_last_name}
-        </dd>
-      </div>
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("emailLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold break-all text-gray-900">
-          {status.guardian_email}
-        </dd>
-      </div>
-      <div className="rounded-xl border border-gray-200 bg-white p-4">
-        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {t("phoneLabel")}
-        </dt>
-        <dd className="mt-1 font-semibold text-gray-900">
-          {status.guardian_phone ?? t("notProvided")}
-        </dd>
-      </div>
+    <DataGrid>
+      <DataField label={t("nameLabel")}>
+        {status.guardian_first_name} {status.guardian_last_name}
+      </DataField>
+      <DataField label={t("emailLabel")}>
+        <span className="break-all">{status.guardian_email}</span>
+      </DataField>
+      <DataField label={t("phoneLabel")}>
+        {status.guardian_phone ?? t("notProvided")}
+      </DataField>
       {status.additional_guardians?.map((guardian: StatusGuardian) => (
-        <div
+        <DataField
           key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}-${guardian.phone ?? ""}`}
-          className="rounded-xl border border-gray-200 bg-white p-4 sm:col-span-3"
+          label={t("additionalGuardiansLabel")}
+          fullWidth
         >
-          <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("additionalGuardiansLabel")}
-          </dt>
-          <dd className="mt-1 font-semibold text-gray-900">
-            {guardian.first_name} {guardian.last_name}
-          </dd>
-          <dd className="mt-1 text-sm text-gray-600">
+          {guardian.first_name} {guardian.last_name}
+          <span className="block font-normal text-gray-600">
             {guardian.email && guardian.email.trim() !== ""
               ? guardian.email
               : t("notProvided")}
@@ -1082,10 +1064,10 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
             {guardian.phone && guardian.phone.trim() !== ""
               ? guardian.phone
               : t("notProvided")}
-          </dd>
-        </div>
+          </span>
+        </DataField>
       ))}
-    </dl>
+    </DataGrid>
   );
 }
 
@@ -1121,7 +1103,7 @@ function WithdrawAllSection({
     <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/5 text-[#CC2626] shadow-sm">
+          <span className="border-moto-red/30 bg-moto-red/5 text-moto-red flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border shadow-sm">
             <AlertTriangle className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
@@ -1261,7 +1243,7 @@ function ChangeRequestsPanel({
       </div>
 
       {requests.length === 0 ? (
-        <p className="rounded-xl border border-gray-200 bg-white p-4 text-sm text-gray-600">
+        <p className="moto-content-surface rounded-xl border p-4 text-sm text-gray-600 shadow-sm">
           {t("changeRequestsEmpty")}
         </p>
       ) : (
@@ -1273,7 +1255,7 @@ function ChangeRequestsPanel({
             return (
               <li
                 key={request.id}
-                className="rounded-xl border border-gray-200 bg-white p-4"
+                className="moto-content-surface rounded-xl border p-4 shadow-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>

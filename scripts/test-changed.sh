@@ -4,17 +4,31 @@
 #   Test-Abhängigkeiten sie transitiv importieren.
 # Frontend: vitest --changed (derselbe Modus, den CI für PRs benutzt).
 #
-# Usage: scripts/test-changed.sh [base-ref]   (Default: origin/development)
+# Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
+#   --fast: nur direkt geänderte Packages plus ihre direkten Importer
+#           (Depth 1 statt transitiver Closure, ohne das Ratchet-Package
+#           ./test). Für die schnelle Fix-Iteration; vor dem Push einmal
+#           ohne --fast laufen lassen.
 set -euo pipefail
 repo_root=$(git rev-parse --show-toplevel)
 cd "$repo_root"
 
+FAST=false
+if [ "${1:-}" = --fast ]; then
+  FAST=true
+  shift
+fi
 BASE=${1:-origin/development}
 # Merge-Base statt Drei-Punkt-Diff, damit auch uncommittete Änderungen zählen.
 MB=$(git merge-base HEAD "$BASE")
 
 affected=()
-affected_output=$(scripts/backend-affected-packages.sh "$BASE")
+if [ "$FAST" = true ]; then
+  echo "==> Schnellmodus: nur direkt geänderte Packages und ihre direkten Importer. Vor dem Push ohne --fast laufen lassen."
+  affected_output=$(scripts/backend-affected-packages.sh --direct "$BASE")
+else
+  affected_output=$(scripts/backend-affected-packages.sh "$BASE")
+fi
 while IFS= read -r package; do
   [ -n "$package" ] && affected+=("$package")
 done <<< "$affected_output"
@@ -25,29 +39,23 @@ if [ "${#affected[@]}" -gt 0 ]; then
     echo "getconf returned an invalid CPU count: $cpu_count" >&2
     exit 1
   fi
+  # Half the machine (at most eight package binaries) keeps the changed-test
+  # loop usable on weak hardware. Each DB-backed binary opens 13 connections
+  # at -parallel 8 (backend/test/db_clone.go), so 8 x 13 = 104 stays well
+  # under the local postgres-test max_connections=300. -parallel is pinned:
+  # -test.parallel is part of the Go test cache key, and a CPU-derived value
+  # would split the cache universe per machine. No GOMAXPROCS override for
+  # the same reason as in test-backend.sh: -p bounds the load.
   package_workers=$((cpu_count / 2))
   if [ "$package_workers" -lt 1 ]; then
     package_workers=1
-  elif [ "$package_workers" -gt 4 ]; then
-    package_workers=4
-  fi
-  binary_cpus=$((cpu_count / (2 * package_workers)))
-  if [ "$binary_cpus" -lt 1 ]; then
-    binary_cpus=1
-  fi
-  test_workers=$cpu_count
-  if [ "$test_workers" -gt 8 ]; then
-    test_workers=8
+  elif [ "$package_workers" -gt 8 ]; then
+    package_workers=8
   fi
 
-  # Half the machine (at most four package binaries) keeps the changed-test
-  # loop usable on weak hardware. Each DB-backed binary sizes its own pool from
-  # -parallel, so this also bounds local PostgreSQL connection pressure.
-  echo "==> go test (${#affected[@]} affected packages; -p $package_workers, GOMAXPROCS $binary_cpus, -parallel $test_workers)"
-  PHX_TEST_RUN_ID=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
-  export PHX_TEST_RUN_ID
-  backend_go_phase=1
-  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  echo "==> go test (${#affected[@]} affected packages; -p $package_workers, -parallel 8)"
+  backend_go_phase=0
+  backend_go_log=
   summarize_backend_go_failure() {
     echo "==> go test failure summary" >&2
     summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
@@ -66,12 +74,26 @@ if [ "${#affected[@]}" -gt 0 ]; then
       [ "$status" -eq 0 ]; then
       status=1
     fi
+    [ -n "${PHX_TEST_RUN_LOCK:-}" ] && rm -f "$PHX_TEST_RUN_LOCK"
     rm -f "$backend_go_log"
     return "$status"
   }
+  # Stabile Run-ID pro Worktree (Cache-Hebel) plus Overlap-Lock; Details im
+  # Helper. Der Trap muss vor dem Bootstrap stehen, damit dessen Fehlschlag
+  # das gerade erworbene Lock ebenfalls aufräumt.
+  # shellcheck source=scripts/test-run-id.sh
+  source "$repo_root/scripts/test-run-id.sh"
   trap backend_sweep EXIT
-  (cd backend && GOMAXPROCS="$binary_cpus" go test \
-    -p "$package_workers" -parallel "$test_workers" "${affected[@]}") 2>&1 | tee "$backend_go_log"
+  # Handshake einmal pro Lauf statt einmal pro Binary. Jedes Binary liest
+  # PHX_TEST_TEMPLATE, die Variable ist Teil des Go-Test-Cache-Keys und muss
+  # deshalb zwischen beiden Wrappern uebereinstimmen (test-backend.sh setzt
+  # sie genauso).
+  PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
+  export PHX_TEST_TEMPLATE
+  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  backend_go_phase=1
+  (cd backend && go test \
+    -p "$package_workers" -parallel 8 "${affected[@]}") 2>&1 | tee "$backend_go_log"
   backend_go_phase=0
 else
   echo "==> backend: keine Go-Änderungen"
@@ -86,7 +108,9 @@ frontend_changes=$(
 run_frontend_vitest() {
   (
     cd frontend
-    pnpm install --frozen-lockfile
+    # The changed-test command is unattended. CI mode lets pnpm recreate a
+    # stale generated modules directory from the frozen lockfile.
+    CI=true pnpm install --frozen-lockfile
     pnpm vitest run "$@"
   )
 }

@@ -4,7 +4,7 @@
 # Checks:
 #   1. All SOPS environment files have the same keys
 #   2. .env.example contains all keys from SOPS files (and vice versa)
-#   3. docker-compose.example.yml services match environment compose files
+#   3. Deployed Compose services enforce runtime environment allowlists
 #
 # Works WITHOUT decryption: SOPS keeps keys in plaintext, only values are encrypted.
 #
@@ -183,35 +183,12 @@ else
 fi
 
 # ============================================================
-# CHECK 3: docker-compose.example.yml ↔ environment compose files
+# CHECK 3: Deployed runtime environment boundaries
 # ============================================================
 echo ""
-echo "=== Check 3: Compose file service consistency ==="
-
-if [[ -f "$COMPOSE_EXAMPLE" ]]; then
-  # Check that core services exist in all environment compose files
-  for env in "${ENVS[@]}"; do
-    compose_file="${ENV_DIR}/${env}.compose.yml"
-    [[ -f "$compose_file" ]] || { echo "❌ ${env}.compose.yml not found"; exit_code=1; continue; }
-
-    # Check required services: server, frontend, postgres
-    for svc in server frontend postgres; do
-      if ! grep -q "^  ${svc}:" "$compose_file"; then
-        echo "❌ ${env}.compose.yml is missing service: ${svc}"
-        exit_code=1
-      fi
-    done
-
-    # Check that compose uses env_file (not inline environment with ${VAR} interpolation)
-    if grep -q '\${' "$compose_file"; then
-      echo "❌ ${env}.compose.yml uses \${VAR} interpolation — should use env_file: .env"
-      exit_code=1
-    fi
-
-    echo "✅ ${env}.compose.yml — services and env_file OK"
-  done
-else
-  echo "⏭️  Skipped (docker-compose.example.yml not found)"
+echo "=== Check 3: Runtime environment boundaries ==="
+if ! python3 "${SCRIPT_DIR}/check-runtime-env.py"; then
+  exit_code=1
 fi
 
 # ============================================================

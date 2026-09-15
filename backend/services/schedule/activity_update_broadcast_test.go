@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -24,7 +23,7 @@ func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
 	tenantID := tenant.FromContext(testpkg.Ctx(t))
 	instance := &scheduleModel.ActivityInstance{
-		Date:      timezone.NewDate(2026, 7, 15),
+		Date:      scheduleModel.NewDate(2026, 7, 15),
 		StartTime: time.Date(1970, 1, 1, 9, 30, 0, 0, time.UTC),
 	}
 	instance.ID = 456
@@ -51,7 +50,7 @@ func TestQueueActivityUpdates_DropsEventOnRollback(t *testing.T) {
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := &instanceService{deps: InstanceServiceDependencies{Broadcaster: broadcaster}}
 	tenantID := tenant.FromContext(testpkg.Ctx(t))
-	instance := &scheduleModel.ActivityInstance{Date: timezone.NewDate(2026, 7, 15)}
+	instance := &scheduleModel.ActivityInstance{Date: scheduleModel.NewDate(2026, 7, 15)}
 	rollback := errors.New("rollback")
 
 	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {

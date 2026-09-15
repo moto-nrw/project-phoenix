@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { ProfileProvider, useProfile } from "./profile-context";
@@ -50,7 +51,6 @@ describe("ProfileContext", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useRealTimers(); // Use real timers by default
 
     // Default mock implementations
     vi.mocked(nextAuthReact.useSession).mockReturnValue({
@@ -87,6 +87,23 @@ describe("ProfileContext", () => {
 
       expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
       expect(result.current.profile).toEqual(mockProfile);
+    });
+
+    it("renders a server-preloaded profile without fetching (#2973)", async () => {
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <ProfileProvider initialProfile={mockProfile}>
+          {children}
+        </ProfileProvider>
+      );
+
+      const { result } = renderHook(() => useProfile(), { wrapper });
+
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.profile).toEqual(mockProfile);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(profileApi.fetchProfile).not.toHaveBeenCalled();
     });
 
     it("should not fetch profile when no session token", async () => {
@@ -217,7 +234,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
     });
@@ -250,7 +267,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       expect(profileApi.fetchProfile).not.toHaveBeenCalled();
     });
@@ -284,7 +301,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       expect(profileApi.fetchProfile).toHaveBeenCalledTimes(1);
     });
@@ -308,7 +325,7 @@ describe("ProfileContext", () => {
         void result.current.refreshProfile(false);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       // Should show loading state
       expect(result.current.isLoading).toBe(true);
@@ -337,7 +354,7 @@ describe("ProfileContext", () => {
         void result.current.refreshProfile(true);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       // Should NOT show loading state
       expect(result.current.isLoading).toBe(false);
@@ -385,7 +402,7 @@ describe("ProfileContext", () => {
         resolveFirstFetch();
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(result.current.profile).toEqual(mockProfile);
@@ -494,7 +511,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile(true);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(profileApi.fetchProfile).toHaveBeenCalled();
@@ -526,7 +543,7 @@ describe("ProfileContext", () => {
         await result.current.refreshProfile(true);
       });
 
-      vi.useRealTimers();
+      releaseFakeTimers();
 
       await waitFor(() => {
         expect(result.current.profile?.firstName).toBe("Jane");

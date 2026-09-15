@@ -63,7 +63,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
@@ -127,7 +127,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 	t.Helper()
 	shift := &scheduleModels.StaffShift{
 		StaffID:   staffID,
-		Date:      date,
+		Date:      scheduleModels.Date(date),
 		StartTime: e.clock(t, start),
 		EndTime:   e.clock(t, end),
 		CreatedBy: staffID,
@@ -170,7 +170,7 @@ func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *scheduleModels.Insta
 
 func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, eventType string) []*auditModels.DeviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, from, to, nil, nil)
+	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
 	require.NoError(t, err)
 	var filtered []*auditModels.DeviationEvent
 	for _, ev := range events {
@@ -325,7 +325,7 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	stored.Cancelled = true
 	stored.ChangeReason = &reason
 	stored.SickAbsenceID = &absenceID
-	_, err := e.repos.StaffShift.UpdateColumns(e.ctx, stored, "cancelled", "change_reason", "sick_absence_id")
+	err := e.repos.StaffShift.Update(e.ctx, stored)
 	require.NoError(t, err)
 
 	before := activeSvc.SickCascadeInput{
@@ -598,7 +598,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 		DateEnd:        day,
 	}
 	shift := &scheduleModels.StaffShift{
-		StaffID: e.subject.ID, Date: day, StartTime: e.clock(t, "08:00"),
+		StaffID: e.subject.ID, Date: scheduleModels.Date(day), StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "09:00"), CreatedBy: e.admin.ID,
 	}
 	shift.SetTenantID(testpkg.Tenant(t))
@@ -657,7 +657,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 		DateEnd:        day,
 	}
 	cover := &scheduleModels.StaffShift{
-		StaffID: e.sub.ID, Date: day, StartTime: e.clock(t, "08:00"),
+		StaffID: e.sub.ID, Date: scheduleModels.Date(day), StartTime: e.clock(t, "08:00"),
 		EndTime: e.clock(t, "10:00"), CreatedBy: e.admin.ID, OriginShiftID: &origin.ID,
 	}
 	cover.SetTenantID(testpkg.Tenant(t))
@@ -843,7 +843,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, clearableInstance.UnderstaffedAck)
 	assert.Nil(t, clearableInstance.UnderstaffedNote)
-	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, tomorrow, tomorrow, nil, nil)
+	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(tomorrow), auditModels.Date(tomorrow), nil, nil)
 	require.NoError(t, err)
 	var unackEvents []*auditModels.DeviationEvent
 	for _, event := range allEvents {

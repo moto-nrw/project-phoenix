@@ -30,8 +30,9 @@ const (
 
 // SettingsResource defines the settings API resource.
 type SettingsResource struct {
-	operations Operations
-	runtime    Runtime
+	operations  Operations
+	homeLayouts HomeLayoutOperations
+	runtime     Runtime
 }
 
 type Operations interface {
@@ -49,14 +50,31 @@ type Operations interface {
 	ClassifyError(error) string
 }
 
+// HomeLayoutOperations is the settings-platform capability for personal start
+// pages and school-wide prescriptions. It is intentionally separate from the
+// legacy tenant settings operations graph, which is shrink-only.
+type HomeLayoutOperations interface {
+	HomeLayout(context.Context, int64, int64, []string) (any, error)
+	// SetHomeLayout takes the hidden-block deviations, the arrangement in
+	// display order, the width per block, and the column and row per block.
+	// replaceBlocks distinguishes a deliberately empty arrangement from a
+	// payload sent by an older client before blocks existed.
+	// They travel apart because this boundary speaks primitives only: a shared
+	// placement type would have to live in one of the two packages and be
+	// imported by the other, which the architecture policy does not allow.
+	SetHomeLayout(context.Context, int64, int64, map[string]bool, []string, map[string]int, map[string]int, map[string]int, bool) error
+	ResetHomeLayout(context.Context, int64, int64) error
+	SetHomeBlockPolicies(context.Context, int64, int64, []string, map[string]string) error
+}
+
 const (
 	settingsErrorNotFound  = "not_found"
 	settingsErrorInvalid   = "invalid"
 	settingsErrorForbidden = "forbidden"
 )
 
-func NewSettingsResource(operations Operations, runtime Runtime) *SettingsResource {
-	return &SettingsResource{operations: operations, runtime: runtime}
+func NewSettingsResource(operations Operations, homeLayouts HomeLayoutOperations, runtime Runtime) *SettingsResource {
+	return &SettingsResource{operations: operations, homeLayouts: homeLayouts, runtime: runtime}
 }
 
 func (rs *SettingsResource) OnValueSet(hook func(context.Context, int64, string, any) (func(), error)) {
@@ -99,6 +117,17 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 		// AGB document writes manage a file-system side effect. Like login-image
 		// writes, they open their own tenant tx so file cleanup only runs after
 		// the DB write has committed.
+		// Start page composition (#2875). The read is open to every signed-in
+		// account: the start page renders for everybody and needs to know what
+		// this person chose and what the school prescribes. The two personal
+		// writes only ever touch the caller's own row — the account comes from
+		// the token, never from the payload. The school-wide prescription is
+		// guarded by the settings service, which checks config:update.
+		r.With(withTx).Get("/home-layout", rs.getHomeLayout)
+		r.With(withTx).Put("/home-layout", rs.setHomeLayout)
+		r.With(withTx).Delete("/home-layout", rs.resetHomeLayout)
+		r.With(withTx).Put("/home-layout/policies", rs.setHomeBlockPolicies)
+
 		r.With(settingsWrite, rs.runtime.TenantOperation()).Post("/enrollment/legal-agb-document", rs.uploadEnrollmentLegalAGBDocument)
 		r.With(settingsWrite, rs.runtime.TenantOperation()).Delete("/enrollment/legal-agb-document", rs.deleteEnrollmentLegalAGBDocument)
 	})

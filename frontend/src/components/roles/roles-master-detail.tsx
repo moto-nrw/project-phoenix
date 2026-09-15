@@ -1,7 +1,8 @@
 "use client";
 
 import { Pencil } from "lucide-react";
-import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { useState } from "react";
 import { DatabaseDetailHeader } from "~/components/database/database-detail-header";
 import { DatabaseListItem } from "~/components/database/database-list-item";
@@ -15,12 +16,15 @@ import { EmptyDetailState } from "~/components/database/empty-detail-state";
 import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
+import { rolesConfig } from "~/components/database/configs/roles.config";
+import { DatabaseForm } from "~/components/ui/database/database-form";
 import {
   DataField,
   DataGrid,
   InfoSection,
 } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { RolePermissionsTab } from "~/components/roles/role-permissions-tab";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import {
   getBaseRoleLabel,
@@ -34,10 +38,14 @@ interface RolesMasterDetailProps {
   selectedId: string | null;
   selectedRole: Role | null;
   detailLoading: boolean;
+  /** Darf den Berechtigungskatalog laden und Rollenrechte ändern. */
+  canManagePermissions?: boolean;
   onSelect: (id: string | null) => void;
-  onEditClick: () => void;
+  /** Speichert die im Detailbereich bearbeiteten Stammdaten. */
+  onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
-  onManagePermissions: () => void;
+  /** Nach dem Speichern der Berechtigungen: Liste und Detail neu laden. */
+  onPermissionsSaved: () => void | Promise<void>;
 }
 
 function keyForRole(role: Role): string {
@@ -54,10 +62,11 @@ export function RolesMasterDetail({
   selectedId,
   selectedRole,
   detailLoading,
+  canManagePermissions = false,
   onSelect,
-  onEditClick,
+  onSaveRole,
   onDeleteClick,
-  onManagePermissions,
+  onPermissionsSaved,
 }: RolesMasterDetailProps) {
   const groupDefinitions = useGroupedItems(roles, "none", {}, "Rollen");
 
@@ -85,11 +94,13 @@ export function RolesMasterDetail({
 
   const detailNode = selectedRole ? (
     <RoleDetailContent
+      key={selectedRole.id}
       role={selectedRole}
       loading={detailLoading}
-      onEditClick={onEditClick}
+      canManagePermissions={canManagePermissions}
+      onSaveRole={onSaveRole}
       onDeleteClick={onDeleteClick}
-      onManagePermissions={onManagePermissions}
+      onPermissionsSaved={onPermissionsSaved}
     />
   ) : (
     <EmptyDetailState
@@ -115,48 +126,92 @@ export function RolesMasterDetail({
 interface RoleDetailContentProps {
   role: Role;
   loading: boolean;
-  onEditClick: () => void;
+  canManagePermissions: boolean;
+  onSaveRole: (data: Partial<Role>) => Promise<void>;
   onDeleteClick: () => void;
-  onManagePermissions: () => void;
+  onPermissionsSaved: () => void | Promise<void>;
 }
 
 function RoleDetailContent({
   role,
   loading,
-  onEditClick,
+  canManagePermissions,
+  onSaveRole,
   onDeleteClick,
-  onManagePermissions,
+  onPermissionsSaved,
 }: RoleDetailContentProps) {
   const [activeTab, setActiveTab] = useState<string>("master-data");
+  // Bearbeitet wird am Objekt, nicht in einem Modal daneben (BAUARTEN-SPEC
+  // Bauart 2 Regel 3): „Bearbeiten" schaltet den OFFENEN Reiter um, Stammdaten
+  // wie Berechtigungen (#3116). Ein Reiterwechsel beendet den Zustand, der
+  // Entwurf gehört zum Reiter.
+  const [editing, setEditing] = useState(false);
 
-  const headerActions = role.isSystem ? null : (
-    <>
-      <button
-        type="button"
-        onClick={onManagePermissions}
-        className="border-moto-purple/20 bg-moto-purple-soft text-moto-purple-strong hover:bg-moto-purple/20 flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium"
-      >
-        <MotoConceptIcon concept="permissions" size={16} />
-        Berechtigungen
-      </button>
-      <button
-        type="button"
-        onClick={onEditClick}
-        className="flex items-center gap-1.5 rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
-      >
-        <Pencil className="h-3.5 w-3.5" aria-hidden />
-        Bearbeiten
-      </button>
-      <DetailDeleteButton onClick={onDeleteClick} />
-    </>
-  );
+  const handleSaveRole = async (data: Partial<Role>) => {
+    await onSaveRole(data);
+    setEditing(false);
+  };
+
+  const handlePermissionsSaved = async () => {
+    await onPermissionsSaved();
+    setEditing(false);
+  };
+
+  const handleTabChange = (id: string) => {
+    setEditing(false);
+    setActiveTab(id);
+  };
+
+  const canEditActiveTab = activeTab !== "permissions" || canManagePermissions;
+  const headerActions =
+    role.isSystem || editing ? null : (
+      <>
+        {canEditActiveTab ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            onClick={() => setEditing(true)}
+          >
+            <Pencil className="h-3.5 w-3.5" aria-hidden />
+            Bearbeiten
+          </Button>
+        ) : null}
+        <DetailDeleteButton onClick={onDeleteClick} />
+      </>
+    );
 
   const tabs: DetailTab[] = [
     {
       id: "master-data",
       label: "Stammdaten",
-      content: <RoleStammdatenTab role={role} loading={loading} />,
+      content: (
+        <RoleStammdatenTab
+          role={role}
+          loading={loading}
+          editing={editing && activeTab === "master-data"}
+          onSaveRole={handleSaveRole}
+          onCancelEdit={() => setEditing(false)}
+        />
+      ),
     },
+    ...(canManagePermissions
+      ? [
+          {
+            id: "permissions",
+            label: "Berechtigungen",
+            content: (
+              <RolePermissionsTab
+                key={role.id}
+                role={role}
+                editing={editing && activeTab === "permissions"}
+                onSaved={handlePermissionsSaved}
+                onCancelEdit={() => setEditing(false)}
+              />
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -177,7 +232,7 @@ function RoleDetailContent({
       }
       tabs={tabs}
       activeTab={activeTab}
-      onTabChange={setActiveTab}
+      onTabChange={handleTabChange}
     />
   );
 }
@@ -185,9 +240,15 @@ function RoleDetailContent({
 function RoleStammdatenTab({
   role,
   loading,
+  editing,
+  onSaveRole,
+  onCancelEdit,
 }: {
   role: Role;
   loading: boolean;
+  editing: boolean;
+  onSaveRole: (data: Partial<Role>) => Promise<void>;
+  onCancelEdit: () => void;
 }) {
   if (loading) {
     return <DetailLoadingSpinner label="Rollendaten werden geladen..." />;
@@ -195,9 +256,22 @@ function RoleStammdatenTab({
 
   const description = getRoleDisplayDescription(role.name, role.description);
 
+  if (editing) {
+    return (
+      <DatabaseForm<Partial<Role>>
+        sections={rolesConfig.form.sections}
+        initialData={role}
+        onSubmit={onSaveRole}
+        onCancel={onCancelEdit}
+        submitLabel="Speichern"
+        stickyActions
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <section className="rounded-lg border border-gray-200 bg-white p-4">
+      <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           {role.isSystem ? (
             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
@@ -243,9 +317,10 @@ function RoleStammdatenTab({
       </InfoSection>
 
       {role.isSystem ? (
-        <p className="text-center text-xs text-gray-500">
-          System-Rollen können nicht bearbeitet oder gelöscht werden.
-        </p>
+        <Alert
+          type="info"
+          message="System-Rollen können nicht bearbeitet oder gelöscht werden."
+        />
       ) : null}
     </div>
   );

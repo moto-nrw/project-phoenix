@@ -28,7 +28,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		case "/api/timetable/templates":
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"template_id":41,"schedule_ids":[51,52],"instances_created":2}}`)
 		case "/api/timetable/instances":
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[{"id":61,"title":"Frühbetreuung","activity_group_id":41},{"id":62,"title":"Frühbetreuung","activity_group_id":41},{"id":63,"title":"Frühbetreuung","activity_group_id":41}]}}`)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"instances":[{"id":61,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":27}]},{"id":62,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":27}]},{"id":63,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":27}]},{"id":64,"title":"Frühbetreuung","activity_group_id":41,"staff":[{"staff_id":26}]}]}}`)
 		default:
 			_, _ = fmt.Fprint(w, `{"status":"success","data":null}`)
 		}
@@ -73,7 +73,7 @@ func TestSeedPlanningDemoStepCreatesRealPlanningFlows(t *testing.T) {
 		"/api/timetable/instances",
 		"/api/timetable/instances/61/deviations",
 		"/api/timetable/instances/62",
-		"/api/timetable/instances/63/deviations",
+		"/api/timetable/instances/64/deviations",
 	}, paths)
 	require.Len(t, templates, 3)
 	assert.Equal(t, "care", templates[0]["type"])

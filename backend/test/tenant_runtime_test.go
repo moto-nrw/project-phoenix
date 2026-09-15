@@ -30,7 +30,7 @@ func newUnitOfWorkGuardianProfile(t *testing.T, suffix string) *usersModels.Guar
 func TestUnitOfWorkCommitsSuccessfulCommand(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	profile := newUnitOfWorkGuardianProfile(t, "commit")
 
 	err := tenant.WithinCurrentTenant(Ctx(t), func(txCtx context.Context) error {
@@ -46,7 +46,7 @@ func TestUnitOfWorkCommitsSuccessfulCommand(t *testing.T) {
 func TestUnitOfWorkRollsBackReturnedError(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	profile := newUnitOfWorkGuardianProfile(t, "error")
 	commandErr := errors.New("command failed")
 
@@ -63,7 +63,7 @@ func TestUnitOfWorkRollsBackReturnedError(t *testing.T) {
 func TestUnitOfWorkRollsBackPanic(t *testing.T) {
 	t.Parallel()
 	db := SetupTestDB(t)
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	profile := newUnitOfWorkGuardianProfile(t, "panic")
 
 	assert.PanicsWithValue(t, "command panicked", func() {

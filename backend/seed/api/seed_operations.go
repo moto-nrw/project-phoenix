@@ -22,6 +22,9 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 
 	today := todaySeedDate()
+	if err := enableMealRegistration(rt); err != nil {
+		return err
+	}
 	if err := seedClosingDay(rt, today); err != nil {
 		return err
 	}
@@ -32,6 +35,18 @@ func (seedOperationsDemoStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	fmt.Println("  1 closing day, 1 meal plan and 1 staff shift created")
+	return nil
+}
+
+func enableMealRegistration(rt *Runtime) error {
+	for _, key := range []string{
+		"operations.meal_plan_enabled",
+		"operations.meal_registration_enabled",
+	} {
+		if _, err := rt.Client.Put("/api/settings/values/"+key, map[string]any{"value": true}); err != nil {
+			return fmt.Errorf("enable %s: %w", key, err)
+		}
+	}
 	return nil
 }
 
@@ -48,6 +63,9 @@ func seedClosingDay(rt *Runtime, today seedDate) error {
 }
 
 func seedMealPlan(rt *Runtime, today seedDate) error {
+	for today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
+		today = today.AddDays(1)
+	}
 	if _, err := rt.Client.Put("/api/meal-plan/"+today.String(), map[string]any{
 		"dishes": []map[string]any{
 			{"dish": "Gemüsenudeln", "note": "Auch ohne Milch erhältlich"},

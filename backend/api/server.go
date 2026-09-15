@@ -7,12 +7,14 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	"github.com/moto-nrw/project-phoenix/database"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -21,9 +23,11 @@ const shutdownTimeout = 30 * time.Second
 
 // ServeConfig contains the typed inputs for the production Serve root.
 type ServeConfig struct {
-	Port       string
-	EnableCORS bool
-	Logger     *slog.Logger
+	Port         string
+	FrontendURL  string
+	PublicAPIURL string
+	EnableCORS   bool
+	Logger       *slog.Logger
 }
 
 // Runtime owns the assembled HTTP graph and its process-scoped resources.
@@ -89,10 +93,16 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 	if strings.TrimSpace(config.Port) == "" {
 		return nil, fmt.Errorf("serve dependency port is required")
 	}
+	if strings.TrimSpace(config.FrontendURL) == "" {
+		return nil, fmt.Errorf("serve dependency frontend URL is required")
+	}
+	if strings.TrimSpace(config.PublicAPIURL) == "" {
+		return nil, fmt.Errorf("serve dependency public API URL is required")
+	}
 
 	config.Logger.Info("initializing API server")
 
-	api, err := New(config.EnableCORS, config.Logger)
+	api, err := New(config.EnableCORS, config.PublicAPIURL, config.Logger, config.FrontendURL)
 	if err != nil {
 		return nil, err
 	}
@@ -165,6 +175,7 @@ func newWorker(api *API, logger *slog.Logger) (*scheduler.Scheduler, error) {
 func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
+		Getenv:                 os.Getenv,
 		DB:                     api.db,
 		SchoolRepo:             api.repos.School,
 		TenantRuntime:          &api.tenantRuntime,
@@ -172,10 +183,20 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDe
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
 		Tracer:                 workerTracer(api),
 		Settings:               api.Services.Settings,
-		StaffDocumentCleaner:   api.Staff,
+		StaffDocumentCleaner:   api.StaffAdmin,
 		StudentDocumentCleaner: api.Students,
-		FileStoreCleaner:       api.FileStore,
+		FileStoreCleaner:       fileStoreCleaner(api),
 	}
+}
+
+// fileStoreCleaner hands the File Storage sweep to the worker only when the
+// module was composed. A nil module behind a non-nil interface would pass the
+// scheduler's nil check and fail on the first tick.
+func fileStoreCleaner(api *API) scheduler.FileStoreCleaner {
+	if api.Services.FileStore == nil {
+		return nil
+	}
+	return api.Services.FileStore
 }
 
 func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) {
@@ -197,7 +218,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.TimeTrackingCleanup = services.TimeTrackingCleanup
 	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
 	deps.PWAUsageCleanup = services.PWAUsage
-	deps.StaffMessageCleanup = services.StaffMessaging
+	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
 	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
@@ -205,7 +226,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.StudentLifecycleAudit = services.StudentAudit
 	deps.CareExitEffector = services.CareLifecycle
 	deps.OutboxWorker = services.EmailOutboxWorker
-	deps.AppointmentReminders = services.Calendar
+	deps.AppointmentReminders = services.Reminders
 	var rollover scheduler.RolloverDeadlineRunner
 	if services.EnrollmentRollover != nil {
 		rollover = scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {
@@ -213,6 +234,20 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 		})
 	}
 	deps.RolloverDeadlineRunner = rollover
+}
+
+func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.StaffMessageCleanup {
+	if service == nil {
+		return nil
+	}
+	return func(ctx context.Context) (scheduler.StaffMessageCleanupResult, error) {
+		result, err := service.CleanupExpiredStaffMessages(ctx)
+		return scheduler.StaffMessageCleanupResult{
+			MessagesDeleted: result.MessagesDeleted,
+			ThreadsDeleted:  result.ThreadsDeleted,
+			RetentionDays:   result.RetentionDays,
+		}, err
+	}
 }
 
 func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, api *API) {
@@ -245,6 +280,20 @@ func workerTracer(api *API) scheduler.WorkerTracer {
 		},
 		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
 			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
+		},
+		Batch: func(event scheduler.TenantBatchEvidence) {
+			observability.RecordWorkerTenantBatchEvent(
+				string(event.JobID),
+				event.Duration,
+				event.Processed,
+				event.Failed,
+				event.Retries,
+				event.Backlog,
+				event.PoolWait,
+			)
+		},
+		Backlog: func(jobID scheduler.JobID, backlog int) {
+			observability.SetWorkerTenantBatchBacklog(string(jobID), backlog)
 		},
 	}
 }

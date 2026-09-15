@@ -10,6 +10,7 @@ import (
 )
 
 func TestWithdrawParentArrivalRequestsLeavesPickupRequestsPending(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	arrivalChain := testpkg.CreateTestParentGuardianChain(t, db)
 	pickupChain := testpkg.CreateTestParentGuardianChain(t, db)

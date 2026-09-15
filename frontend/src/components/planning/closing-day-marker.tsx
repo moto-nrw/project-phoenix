@@ -96,7 +96,7 @@ export function ClosingDayConfirmModal({
       title="An einem Schließtag planen?"
       confirmText="Trotzdem planen"
       cancelText="Abbrechen"
-      confirmButtonClass="bg-moto-orange hover:bg-moto-orange-hover"
+      confirmVariant="warning"
     >
       <div className="flex flex-col gap-3">
         <p className="text-sm leading-relaxed text-gray-600">

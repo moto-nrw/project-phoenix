@@ -42,7 +42,6 @@ import {
   formatParticipantStatus,
   isTimeSlotAvailable,
   isSupervisorAvailable,
-  getActivityCategoryColor,
   isSystemActivity,
 } from "./activity-helpers";
 
@@ -1212,51 +1211,6 @@ describe("isSupervisorAvailable", () => {
   it("returns false when supervisor has conflict", () => {
     expect(isSupervisorAvailable("100", "1", "10", existingSchedules)).toBe(
       false,
-    );
-  });
-});
-
-// ===== CATEGORY COLORS =====
-
-describe("getActivityCategoryColor", () => {
-  it("returns specific colors for known categories", () => {
-    expect(getActivityCategoryColor("Sport")).toBe(
-      "from-blue-500 to-indigo-600",
-    );
-    expect(getActivityCategoryColor("Kreativ")).toBe(
-      "from-purple-500 to-pink-600",
-    );
-    expect(getActivityCategoryColor("Musik")).toBe("from-pink-500 to-rose-600");
-    expect(getActivityCategoryColor("Spiele")).toBe(
-      "from-green-500 to-emerald-600",
-    );
-    expect(getActivityCategoryColor("Lernen")).toBe(
-      "from-yellow-500 to-orange-600",
-    );
-    expect(getActivityCategoryColor("Hausaufgaben")).toBe(
-      "from-red-500 to-pink-600",
-    );
-    expect(getActivityCategoryColor("Draußen")).toBe(
-      "from-green-600 to-teal-600",
-    );
-    expect(getActivityCategoryColor("Gruppenraum")).toBe(
-      "from-slate-500 to-gray-600",
-    );
-    expect(getActivityCategoryColor("Mensa")).toBe(
-      "from-orange-500 to-amber-600",
-    );
-  });
-
-  it("returns gray for null/undefined category", () => {
-    expect(getActivityCategoryColor(null)).toBe("from-gray-500 to-gray-600");
-    expect(getActivityCategoryColor(undefined)).toBe(
-      "from-gray-500 to-gray-600",
-    );
-  });
-
-  it("returns gray for unknown category", () => {
-    expect(getActivityCategoryColor("Unknown Category")).toBe(
-      "from-gray-500 to-gray-600",
     );
   });
 });

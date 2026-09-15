@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -15,7 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -343,7 +341,7 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
@@ -384,7 +382,7 @@ func TestOGSGroupLive_UsesBookingBoundaryAndKeepsPresentChildren(t *testing.T) {
 func TestOGSGroupLive_KeepsOpenVisitWithoutAttendance(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t)
-	repos := repositories.NewFactory(tc.db)
+	repos := newStudentTestRepositories(tc.db)
 	require.NoError(t, tc.resource.SettingsService.SetValue(
 		testpkg.Ctx(t), configModel.KeyEnrollmentBookingsAuthoritative, true, nil, nil,
 	))
@@ -462,41 +460,12 @@ func TestOGSGroupLive_MinimalProjection(t *testing.T) {
 	}
 }
 
-// queryCounter counts every SQL statement issued through the hooked *bun.DB,
-// including statements inside tenant transactions.
-type queryCounter struct {
-	mu      sync.Mutex
-	queries []string
-}
-
-func (h *queryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) context.Context {
-	h.mu.Lock()
-	h.queries = append(h.queries, event.Query)
-	h.mu.Unlock()
-	return ctx
-}
-
-func (h *queryCounter) AfterQuery(context.Context, *bun.QueryEvent) {}
-
-func (h *queryCounter) reset() {
-	h.mu.Lock()
-	h.queries = nil
-	h.mu.Unlock()
-}
-
-func (h *queryCounter) count() int {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	return len(h.queries)
-}
-
 // TestOGSGroupLive_QueryBudget guards the aggregate against per-student N+1
 // regressions: the query count must not grow with group size, and the total
 // per request stays under a fixed budget.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestOGSGroupLive_QueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	tc := setupStudentsRoute(t)
 
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OGSBudget", "Leader")
@@ -513,15 +482,14 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 	}
 	// Students before groups: a group still referenced by a student cannot go.
 
-	counter := &queryCounter{}
-	tc.db.AddQueryHook(counter)
+	counter := testpkg.CaptureQueries(t, tc.db)
 
 	run := func() int {
-		counter.reset()
+		counter.Reset()
 		req := testutil.NewRequest("GET", fmt.Sprintf("/ogs-group-live?group_id=%d", group.ID), nil)
 		rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), ogsLivePerms)
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
-		return counter.count()
+		return counter.Total()
 	}
 
 	addStudents(3)
@@ -536,11 +504,10 @@ func TestOGSGroupLive_QueryBudget(t *testing.T) {
 		"query count must be independent of group size (no per-student N+1)")
 
 	// Fixed budget: identity resolution (~6), group list + room (~4), students +
-	// snapshot (~6), status days + day planning (~6), transfers + settings (~4),
-	// tenant tx overhead (~6). Raise only with a written justification.
-	const maxQueries = 40
-	assert.LessOrEqual(t, largeCount, maxQueries,
-		"aggregated OGS request exceeded its query budget")
+	// snapshot (~6), status days + day planning (~6), class day exceptions (~1),
+	// transfers + settings (~4), tenant tx overhead (~6). Raise only with a
+	// written justification.
+	testpkg.AssertQueryBudget(t, "api.students.ogs_group_live", counter.Queries())
 }
 
 // TestOGSGroupLive_PayloadBudget bounds the wire size for a production-sized

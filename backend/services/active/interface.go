@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Service defines operations for managing active groups and visits
@@ -17,64 +18,40 @@ type Service interface {
 	CreateActiveGroup(ctx context.Context, group *active.Group) error
 	UpdateActiveGroup(ctx context.Context, group *active.Group) error
 	DeleteActiveGroup(ctx context.Context, id int64) error
-	ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*active.Group, error)
-	FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error)
 	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
-	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
-	GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error)
-	GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error)
 
 	// Visit operations
-	GetVisit(ctx context.Context, id int64) (*active.Visit, error)
-	CreateVisit(ctx context.Context, visit *active.Visit) error
-	UpdateVisit(ctx context.Context, visit *active.Visit) error
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
+	UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error
 	DeleteVisit(ctx context.Context, id int64) error
-	ListVisits(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error)
-	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error)
-	FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
+	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
-	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
-	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error)
-	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*active.Visit, error)
-	CountActiveVisitsByRoomID(ctx context.Context, roomID int64) (int, error)
+	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
+	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*VisitWithRoom, error)
+	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error)
 	CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error)
 	ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error)
+	ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error)
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
 	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
+	AssignTransitStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*TransitAssignResult, error)
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
-	GetGroupSupervisor(ctx context.Context, id int64) (*active.GroupSupervisor, error)
 	CreateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error
 	UpdateGroupSupervisor(ctx context.Context, supervisor *active.GroupSupervisor) error
 	DeleteGroupSupervisor(ctx context.Context, id int64) error
-	ListGroupSupervisors(ctx context.Context, options *base.QueryOptions) ([]*active.GroupSupervisor, error)
-	FindSupervisorsByStaffID(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
-	FindSupervisorsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupSupervisor, error)
-	FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error)
 	EndSupervision(ctx context.Context, id int64) error
-	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
 
 	// Combined Group operations
-	GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error)
-	CreateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error
-	UpdateCombinedGroup(ctx context.Context, group *active.CombinedGroup) error
+	CreateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error
+	UpdateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error
 	DeleteCombinedGroup(ctx context.Context, id int64) error
-	ListCombinedGroups(ctx context.Context, options *base.QueryOptions) ([]*active.CombinedGroup, error)
-	FindActiveCombinedGroups(ctx context.Context) ([]*active.CombinedGroup, error)
-	FindCombinedGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.CombinedGroup, error)
 	EndCombinedGroup(ctx context.Context, id int64) error
-	GetCombinedGroupWithGroups(ctx context.Context, id int64) (*active.CombinedGroup, error)
-	CreateCombinedGroupWithGroups(ctx context.Context, group *active.CombinedGroup, groupIDs []int64) error
-
-	// Group Mapping operations
-	AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
-	RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error
-	GetGroupMappingsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupMapping, error)
-	GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error)
+	CreateCombinedGroupWithGroups(ctx context.Context, group *studentpresence.CombinedGroup, groupIDs []int64) error
 
 	// Activity Session Management with Conflict Detection
 	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
@@ -104,11 +81,10 @@ type Service interface {
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error)
 	// GetRoomsByIDs retrieves rooms by ID (issue #584 lookup; repository
 	// result returned verbatim).
-	GetRoomsByIDs(ctx context.Context, ids []int64) ([]*facilityModels.Room, error)
+	GetRoomsByIDs(ctx context.Context, ids []int64) ([]*active.SessionRoom, error)
 	// GetActiveGroupVisitsWithDisplay returns the open visits of an active
-	// group joined with student display data (issue #584 lookup; repository
-	// result returned verbatim).
-	GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*active.VisitWithStudentDisplay, error)
+	// group joined with tenant-scoped student display data.
+	GetActiveGroupVisitsWithDisplay(ctx context.Context, activeGroupID int64) ([]*VisitWithStudentDisplay, error)
 	// HasOpenAttendanceOn reports whether any attendance row on the given
 	// calendar date is still open (issue #584 lookup; repository result
 	// returned verbatim). Used by the operator presence-mode switch guard.
@@ -144,7 +120,6 @@ type Service interface {
 	// batch. See the implementation doc comment for the ordering and
 	// idempotency contract.
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action string) (*SchoolCheckinBatchResult, error)
-	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
 	// an IoT device: it validates the student has today's attendance record and,
 	// when destination is "zuhause" and the student is still checked in, checks
@@ -164,14 +139,17 @@ type Service interface {
 	GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error)
 
 	// GetPresenceMode resolves the tenant's presence mode ("detailed" | "binary").
-	// Fails safe to "detailed" when the settings resolver is nil or the lookup
-	// errors. Use this instead of calling the settings service directly so every
-	// caller gets consistent fallback behavior.
-	GetPresenceMode(ctx context.Context) string
+	// Missing wiring, lookup failures and invalid values return an error.
+	GetPresenceMode(ctx context.Context) (string, error)
 
 	// Injects the tenant-scoped settings resolver (optional).
 	// Called by the factory after the settings service is constructed.
 	SetSettingsService(resolver SettingsResolver)
+
+	// SetTenantRuntime injects the transaction runtime bound to this service's
+	// repository pool. The cleanup commands run without a request transaction
+	// and need it to open one of their own.
+	SetTenantRuntime(runtime tenant.UnitOfWork)
 }
 
 // TransitAssignSkipped describes a student that was not assigned during a
@@ -215,6 +193,9 @@ type StudentMoveResult struct {
 type StudentMoveAuthorization struct {
 	StaffID              int64
 	BypassResourceChecks bool
+	// Set only after the inbound adapter verified an OGS staff actor with
+	// the existing move permission. The service still resolves tenant settings.
+	SchoolWideAttendanceEligible bool
 }
 
 // DashboardAnalytics represents aggregated analytics for dashboard
@@ -269,7 +250,7 @@ type CurrentActivity struct {
 	Name         string
 	Category     string
 	Participants int
-	MaxCapacity  int
+	MaxCapacity  *int
 	Status       string
 }
 

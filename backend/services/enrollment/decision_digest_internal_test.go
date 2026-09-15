@@ -54,7 +54,7 @@ func TestDecisionDigestIdempotencyKeyTracksCanonicalStatusVector(t *testing.T) {
 
 	firstReview := time.Date(2026, time.July, 10, 12, 0, 0, 0, time.UTC)
 	secondReview := firstReview.Add(time.Minute)
-	children := []*enrollmentModels.RequestChild{
+	children := []*RequestChild{
 		{RequestID: 9, Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &firstReview},
 		{RequestID: 9, Status: enrollmentModels.ChildStatusWaitlisted, ReviewedAt: &firstReview},
 	}
@@ -62,7 +62,7 @@ func TestDecisionDigestIdempotencyKeyTracksCanonicalStatusVector(t *testing.T) {
 	children[1].ID = 11
 
 	first := decisionDigestIdempotencyKey(9, children)
-	reordered := decisionDigestIdempotencyKey(9, []*enrollmentModels.RequestChild{children[1], children[0]})
+	reordered := decisionDigestIdempotencyKey(9, []*RequestChild{children[1], children[0]})
 	assert.Equal(t, first, reordered, "slice order must not change the material state key")
 
 	children[1].Status = enrollmentModels.ChildStatusApproved

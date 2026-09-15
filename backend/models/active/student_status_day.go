@@ -113,10 +113,10 @@ type StudentStatusDayRepository interface {
 	FindByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*StudentStatusDay, error)
 }
 
-// StudentStatusDayOverviewRepository adds the joined, globally ordered read
-// required by the paginated absence overview.
+// StudentStatusDayOverviewRepository adds the ordered read required by the
+// paginated absence overview.
 type StudentStatusDayOverviewRepository interface {
 	StudentStatusDayRepository
-	ListOverviewWithOptions(ctx context.Context, options *base.QueryOptions) ([]*StudentStatusDay, error)
+	ListOverviewWithOptions(ctx context.Context, options *base.QueryOptions, orderedStudentIDs []int64) ([]*StudentStatusDay, error)
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
 }

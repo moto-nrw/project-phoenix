@@ -48,7 +48,10 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	enrollmentState.Settings = settings
+	enrollmentState.Settings, err = encodeSeedStateSettings(settings)
+	if err != nil {
+		return fmt.Errorf("encode enrollment settings: %w", err)
+	}
 
 	if len(parents) > 0 {
 		actions, err := s.seedParentPortalActions(rt, parentAuths[parents[0].Email], parents[0])
@@ -56,6 +59,9 @@ func (s parentEnrollmentSeedStep) Run(ctx context.Context, rt *Runtime) error {
 			return err
 		}
 		enrollmentState.ParentActions = actions
+		if err := s.seedDecidedPickupChange(rt, adminAuth, parentAuths[parents[0].Email], parents[0]); err != nil {
+			return err
+		}
 	}
 
 	rt.Enrollment = enrollmentState
@@ -76,6 +82,7 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[s
 		"guardians.parent_can_remove":                   true,
 		"enrollment.require_captcha":                    false,
 		"enrollment.offering_changes_enabled":           true,
+		"enrollment.parent_course_requests_enabled":     true,
 	}
 	for key, value := range settings {
 		if _, err := rt.Client.PutWithAuth(auth, "/api/settings/values/"+key, map[string]any{"value": value}); err != nil {
@@ -83,6 +90,18 @@ func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[s
 		}
 	}
 	return settings, nil
+}
+
+func encodeSeedStateSettings(settings map[string]any) (map[string]json.RawMessage, error) {
+	encoded := make(map[string]json.RawMessage, len(settings))
+	for key, value := range settings {
+		raw, err := json.Marshal(value)
+		if err != nil {
+			return nil, fmt.Errorf("setting %s: %w", key, err)
+		}
+		encoded[key] = raw
+	}
+	return encoded, nil
 }
 
 func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Runtime, adminAuth AuthRef) ([]ParentCredentials, map[string]AuthRef, error) {
@@ -193,7 +212,7 @@ func (s parentEnrollmentSeedStep) acceptGuardianInvitation(rt *Runtime, token, p
 func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef, parents []ParentCredentials, parentAuths map[string]AuthRef) (SeedEnrollmentState, error) {
 	state := SeedEnrollmentState{
 		Offerings: make(map[string]int64),
-		Settings:  make(map[string]any),
+		Settings:  make(map[string]json.RawMessage),
 	}
 
 	schemaID, err := s.createEnrollmentSchema(rt, adminAuth)
@@ -224,6 +243,12 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		return state, err
 	}
 	if err := seedOfferingPlanningTemplate(rt, offerings["mittagessen"]); err != nil {
+		return state, err
+	}
+	if err := seedCourseTemplate(rt, "Fußball-AG", 3, offerings["ag-fussball"], 12); err != nil {
+		return state, err
+	}
+	if err := seedCourseTemplate(rt, "Theater-AG", 4, offerings["ag-theater"], 1); err != nil {
 		return state, err
 	}
 	state.Offerings = offerings
@@ -257,9 +282,14 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		}
 	}
 	submissions := []enrollmentSubmission{
+		// Lea belegt den einzigen Platz der Theater-AG. Dadurch zeigt die
+		// Eltern-App bei den anderen Familien einen vollen Kurs — und eine
+		// Anfrage dort landet auf der Warteliste (#3075).
 		seedSubmission("public", "Lea", "Sommer", "2019-04-18", 1,
 			"Daniela", "Sommer", "daniela.sommer@example.test", "approved-3-days",
-			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
+			// Der Kurs steht ohne Tagesauswahl in der Liste: seine Tage legt
+			// die Schule fest (days_of_week_mode "fixed").
+			[]string{"ogs-ganztag", "mittagessen", "ag-theater"}, map[string][]string{
 				"ogs-ganztag": {"mon", "wed", "fri"},
 				"mittagessen": {"mon", "wed", "fri"},
 			}, "approved", "Demo-Zusage: drei Betreuungstage"),
@@ -638,6 +668,37 @@ func seedOfferingPlanningTemplate(rt *Runtime, offeringID int64) error {
 	return nil
 }
 
+// seedCourseTemplate makes one demo AG a Kurs in the sense of #3075: an
+// activity Regeltermin fed by a care offering. Without it the Kurse section of
+// the parents app is empty on every dev machine and nobody reviews it. The
+// demo seeds two, one with room and one already full, so both states — a plain
+// request and a waiting-list place — are visible without setting anything up.
+func seedCourseTemplate(rt *Runtime, name string, weekday int, offeringID int64, maxParticipants int) error {
+	if rt.FixedSeeder == nil || offeringID == 0 {
+		return fmt.Errorf("course template prerequisites not available")
+	}
+	roomID := rt.FixedSeeder.roomIDs["Sporthalle"]
+	categoryID := seedAnyCategoryID(rt)
+	staffIDs := orderedSeedStaffIDs(rt.FixedSeeder)
+	if roomID == 0 || categoryID == 0 || len(staffIDs) == 0 {
+		return fmt.Errorf("course template references not available")
+	}
+	today := todaySeedDate()
+	_, err := rt.Client.Post("/api/timetable/templates", map[string]any{
+		"name": name, "type": "activity", "list_kind": "activity",
+		"target_group_type": "angebot", "source_care_offering_ids": []int64{offeringID},
+		"weekdays": []int{weekday}, "start_time": "14:00", "end_time": "15:00",
+		"room_id": roomID, "category_id": categoryID, "week_pattern": 0,
+		"max_participants": maxParticipants,
+		"staff_ids":        staffIDs[:1], "primary_staff_id": staffIDs[0],
+		"materialize_from": today.String(), "materialize_to": today.AddDays(6).String(),
+	})
+	if err != nil {
+		return fmt.Errorf("create course template %s: %w", name, err)
+	}
+	return nil
+}
+
 func publicEnrollmentSeedHeaders(index int) map[string]string {
 	return map[string]string{
 		"X-Forwarded-For": fmt.Sprintf("198.51.100.%d", 10+index),
@@ -713,6 +774,11 @@ func demoCareOfferings() []seedCareOffering {
 		{key: "ogs-kurz", name: "Kurzbetreuung", description: "Betreuung bis 14 Uhr", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: false, price: 9000, sort: 20, countsAsCare: true, pickupTime: "14:00"},
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30},
 		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(2), sort: 40, countsAsCare: true, pickupTime: "16:00"},
+		// Die Demo-Kurse (#3075): Angebote, die an einer AG hängen. Zwei davon,
+		// damit die Eltern-App beide Zustände zeigt — einer mit freien Plätzen,
+		// einer voll, der eine Anfrage auf die Warteliste setzt.
+		{key: "ag-fussball", name: "Fußball-AG", description: "Mittwochs auf dem Sportplatz", daysMode: "fixed", days: []string{"wed"}, capacity: intPtr(12), sort: 50},
+		{key: "ag-theater", name: "Theater-AG", description: "Donnerstags in der Aula", daysMode: "fixed", days: []string{"thu"}, capacity: intPtr(1), sort: 51},
 	}
 }
 
@@ -962,6 +1028,15 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 			},
 		},
 		{
+			actionType: "excused-note",
+			path:       fmt.Sprintf("/parent/me/children/%d/sick-note", studentID),
+			body: map[string]any{
+				"dates":  []string{todaySeedDate().AddDays(4).String()},
+				"status": "excused",
+				"reason": "Demo-Entschuldigung aus dem Elternportal",
+			},
+		},
+		{
 			actionType: "care-exception",
 			path:       fmt.Sprintf("/parent/me/children/%d/care-exception", studentID),
 			body: map[string]any{
@@ -999,6 +1074,82 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 		})
 	}
 	return out, nil
+}
+
+// seedDecidedPickupChange files a second one-day pickup change for the demo
+// parent and approves it as the OGS. The staff message thread then shows the
+// "Abholzeit angefragt" AND the "Abholzeit bestätigt" pill with day and
+// time, and "Anfrage ansehen" opens a decided request (#3135). The day is a
+// weekday a week out, so the approval applies to a care day.
+func (s parentEnrollmentSeedStep) seedDecidedPickupChange(
+	rt *Runtime, adminAuth, parentAuth AuthRef, parent ParentCredentials,
+) error {
+	if len(parent.StudentIDs) == 0 {
+		return nil
+	}
+	studentID := parent.StudentIDs[0]
+	date := todaySeedDate().AddDays(7)
+	for date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
+		date = date.AddDays(1)
+	}
+	raw, err := rt.Client.PostWithAuth(parentAuth, fmt.Sprintf("/parent/me/children/%d/care-exception", studentID), map[string]any{
+		"date":        date.String(),
+		"pickup_time": "14:30",
+		"reason":      "Zahnarzttermin am Nachmittag",
+	})
+	if err != nil {
+		return fmt.Errorf("create decided demo pickup request: %w", err)
+	}
+	requestID, err := parseEnvelopeStringID(raw)
+	if err != nil {
+		return fmt.Errorf("parse decided demo pickup request: %w", err)
+	}
+	impactToken, expectedVersion, err := loadSeedCareRequestDecisionTokens(rt, adminAuth, studentID, requestID)
+	if err != nil {
+		return err
+	}
+	_, err = rt.Client.PostWithAuth(adminAuth, fmt.Sprintf("/api/students/care-schedule-change-requests/%d/decide", requestID), map[string]any{
+		"approve":          true,
+		"reason":           "Passt, wir melden das Kind für den Nachmittag ab.",
+		"impact_token":     impactToken,
+		"expected_version": expectedVersion,
+	})
+	if err != nil {
+		return fmt.Errorf("approve decided demo pickup request: %w", err)
+	}
+	return nil
+}
+
+// loadSeedCareRequestDecisionTokens reads the impact token and row version
+// the decide route pins a pickup-change approval on, from the open queue the
+// staff UI reads them from.
+func loadSeedCareRequestDecisionTokens(rt *Runtime, adminAuth AuthRef, studentID, requestID int64) (impactToken, expectedVersion string, err error) {
+	raw, err := rt.Client.GetWithAuth(adminAuth, fmt.Sprintf("/api/students/change-requests?view=open&types=care_schedule&student_id=%d", studentID))
+	if err != nil {
+		return "", "", fmt.Errorf("load open care requests for decision: %w", err)
+	}
+	var resp struct {
+		Data struct {
+			Items []struct {
+				RequestType     string `json:"request_type"`
+				ExpectedVersion string `json:"expected_version"`
+				Data            struct {
+					ID          string `json:"id"`
+					ImpactToken string `json:"impact_token"`
+				} `json:"data"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return "", "", fmt.Errorf("parse open care requests: %w", err)
+	}
+	want := strconv.FormatInt(requestID, 10)
+	for _, item := range resp.Data.Items {
+		if item.RequestType == "care_schedule" && item.Data.ID == want {
+			return item.Data.ImpactToken, item.ExpectedVersion, nil
+		}
+	}
+	return "", "", fmt.Errorf("decided demo pickup request %d not found in the open queue", requestID)
 }
 
 func (s parentEnrollmentSeedStep) shareSeedPickupRequest(

@@ -3,12 +3,20 @@
 import Link from "next/link";
 import { cn } from "~/lib/utils";
 
+// Die kurze Brücke vermeidet, dass ButtonLink den Portal-Anbieter lädt.
+declare global {
+  interface Window {
+    m?: (href: string) => void;
+  }
+}
+
 type ButtonVariant =
   | "primary"
   | "secondary"
   | "outline"
   | "outline_danger"
   | "danger"
+  | "warning"
   | "success"
   | "surface"
   | "ghost";
@@ -25,12 +33,16 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
 
 interface ButtonLinkProps extends Omit<
   React.ComponentProps<typeof Link>,
-  "className"
+  "className" | "href"
 > {
+  readonly href: string;
   readonly variant?: ButtonVariant;
   readonly size?: ButtonSize;
   readonly className?: string;
 }
+type ButtonLinkNavigationEvent = Parameters<
+  NonNullable<ButtonLinkProps["onNavigate"]>
+>[0];
 
 function buttonClassName({
   variant,
@@ -63,7 +75,9 @@ function buttonClassName({
     // Apple HIG (44pt) und Material (48dp).
     touch: "min-h-12 rounded-xl px-5 text-[17px] font-semibold",
     compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
-    icon: "h-8 w-8 rounded-md disabled:cursor-not-allowed",
+    // `aspect-square` statt `w-8`: erzwingt die Kopfkarte ihre Bedienhöhe
+    // (40/44 px), folgt die Breite — sonst wird der quadratische Knopf oval.
+    icon: "aspect-square h-8 rounded-md disabled:cursor-not-allowed",
     card: "w-full rounded-2xl p-4",
   };
   const variantStyles: Record<ButtonVariant, string> = {
@@ -77,6 +91,11 @@ function buttonClassName({
       "bg-moto-red-soft text-moto-red-strong ring-moto-red/30 shadow-md ring-1 hover:bg-moto-red/20 hover:ring-moto-red/50",
     danger:
       "bg-moto-red text-white shadow-md hover:bg-moto-red-strong hover:shadow-lg",
+    // Bestätigung mit Nebenwirkung, die kein Löschen ist (Schließtag trotzdem
+    // planen, Einzelanpassungen verwerfen): Orange statt Rot. Dunkler Text wie
+    // bei success: Weiß auf moto-orange erreicht nur 2,4:1 und verfehlt AA.
+    warning:
+      "bg-moto-orange text-gray-950 shadow-md hover:bg-moto-orange-hover hover:shadow-lg",
     success:
       "bg-moto-green text-gray-950 shadow-md hover:bg-moto-green-hover hover:shadow-lg active:scale-95",
     surface:
@@ -109,6 +128,7 @@ export function Button({
     <button
       type="submit"
       disabled={isLoading}
+      data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className })}
       {...props}
     >
@@ -128,6 +148,16 @@ export function ButtonLink({
     <Link
       className={buttonClassName({ variant, size, className })}
       {...props}
+      onNavigate={(event: ButtonLinkNavigationEvent) => {
+        let cancelled: boolean | undefined;
+        props.onNavigate?.({
+          preventDefault() {
+            cancelled = true;
+            event.preventDefault();
+          },
+        });
+        if (!cancelled) window.m?.(props.href);
+      }}
     />
   );
 }

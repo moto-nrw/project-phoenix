@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,12 +31,14 @@ type Envelope struct {
 	Status  string          `json:"status"`
 	Data    json.RawMessage `json:"data"`
 	Message string          `json:"message"`
+	Code    string          `json:"code"`
 }
 
 type APIError struct {
 	Method     string
 	Path       string
 	StatusCode int
+	Code       string
 	Message    string
 	Body       string
 }
@@ -45,6 +48,9 @@ func (e *APIError) Error() string {
 		return ""
 	}
 	if e.Message != "" {
+		if e.Code != "" {
+			return fmt.Sprintf("%s %s failed: %d (%s) - %s", e.Method, e.Path, e.StatusCode, e.Code, e.Message)
+		}
 		return fmt.Sprintf("%s %s failed: %d - %s", e.Method, e.Path, e.StatusCode, e.Message)
 	}
 	if e.Body != "" {
@@ -87,19 +93,16 @@ func (a *Adapter) HTTPClient() *http.Client {
 }
 
 func (a *Adapter) CheckHealth(ctx context.Context) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.baseURL+"/health", nil)
+	_, status, err := a.Raw(ctx, AuthRef{}, http.MethodGet, "/health", nil, nil)
 	if err != nil {
-		return fmt.Errorf("build health request: %w", err)
-	}
-
-	resp, err := a.httpClient.Do(req)
-	if err != nil {
+		var apiErr *APIError
+		if errors.As(err, &apiErr) {
+			return fmt.Errorf("server health check failed: %w", err)
+		}
 		return fmt.Errorf("server not reachable at %s: %w", a.baseURL, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("server health check failed: status %d", resp.StatusCode)
+	if status != http.StatusOK {
+		return fmt.Errorf("GET /health failed: status %d", status)
 	}
 	return nil
 }
@@ -110,7 +113,7 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 		"password": password,
 	}
 
-	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/operator/auth/login", body, nil)
+	respBody, status, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/operator/auth/login", body, nil)
 	if err != nil {
 		return AuthRef{}, fmt.Errorf("operator login request failed: %w", err)
 	}
@@ -128,7 +131,7 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 		MFAEnrollmentRequired bool   `json:"mfa_enrollment_required"`
 	}
 	if err := json.Unmarshal(respBody, &loginResp); err != nil {
-		return AuthRef{}, fmt.Errorf("parse operator login response: %w", err)
+		return AuthRef{}, fmt.Errorf("parse operator login response from POST /operator/auth/login with status %d: %w", status, err)
 	}
 
 	token := loginResp.Data.AccessToken
@@ -160,7 +163,7 @@ func (a *Adapter) LoginOperator(ctx context.Context, email, password string) (Au
 			return AuthRef{}, fmt.Errorf("complete operator mfa verify: %w", err)
 		}
 	case token == "":
-		return AuthRef{}, fmt.Errorf("no access token in operator login response")
+		return AuthRef{}, fmt.Errorf("POST /operator/auth/login response with status %d has no access token", status)
 	}
 
 	return AuthRef{
@@ -180,17 +183,17 @@ func (a *Adapter) completeOperatorMFAVerify(ctx context.Context, challengeToken,
 	if err != nil {
 		return "", err
 	}
-	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/operator/auth/mfa/verify",
+	respBody, status, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/operator/auth/mfa/verify",
 		map[string]any{"challenge_token": challengeToken, "code": code}, nil)
 	if err != nil {
 		return "", fmt.Errorf("mfa verify: %w", err)
 	}
 	token, err := parseLoginToken(respBody)
 	if err != nil {
-		return "", fmt.Errorf("decode mfa verify: %w", err)
+		return "", fmt.Errorf("decode POST /operator/auth/mfa/verify response with status %d: %w", status, err)
 	}
 	if token == "" {
-		return "", fmt.Errorf("mfa verify returned no access token")
+		return "", fmt.Errorf("POST /operator/auth/mfa/verify response with status %d has no access token", status)
 	}
 	return token, nil
 }
@@ -213,16 +216,16 @@ func (a *Adapter) completeOperatorMFAEnrollment(ctx context.Context, enrollmentT
 		return "", err
 	}
 
-	respBody, _, err := a.Raw(ctx, enrollAuth, http.MethodPost, "/operator/auth/mfa/enroll/confirm", map[string]string{"code": code}, nil)
+	respBody, status, err := a.Raw(ctx, enrollAuth, http.MethodPost, "/operator/auth/mfa/enroll/confirm", map[string]string{"code": code}, nil)
 	if err != nil {
 		return "", fmt.Errorf("enroll confirm: %w", err)
 	}
 	token, err := parseLoginToken(respBody)
 	if err != nil {
-		return "", fmt.Errorf("decode enroll confirm: %w", err)
+		return "", fmt.Errorf("decode POST /operator/auth/mfa/enroll/confirm response with status %d: %w", status, err)
 	}
 	if token == "" {
-		return "", fmt.Errorf("enroll confirm returned no access token")
+		return "", fmt.Errorf("POST /operator/auth/mfa/enroll/confirm response with status %d has no access token", status)
 	}
 	return token, nil
 }
@@ -236,17 +239,17 @@ func (a *Adapter) LoginTenant(ctx context.Context, email, password, tenantSlug s
 		body["tenant_slug"] = tenantSlug
 	}
 
-	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/auth/login", body, nil)
+	respBody, status, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/auth/login", body, nil)
 	if err != nil {
 		return AuthRef{}, fmt.Errorf("login request failed: %w", err)
 	}
 
 	token, err := parseLoginToken(respBody)
 	if err != nil {
-		return AuthRef{}, fmt.Errorf("parse login response: %w", err)
+		return AuthRef{}, fmt.Errorf("parse login response from POST /auth/login with status %d: %w", status, err)
 	}
 	if token == "" {
-		return AuthRef{}, fmt.Errorf("no access token in login response")
+		return AuthRef{}, fmt.Errorf("POST /auth/login response with status %d has no access token", status)
 	}
 
 	label := "tenant"
@@ -266,17 +269,17 @@ func (a *Adapter) LoginParent(ctx context.Context, email, password string) (Auth
 		"password": password,
 	}
 
-	respBody, _, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/parent/auth/login", body, nil)
+	respBody, status, err := a.Raw(ctx, AuthRef{}, http.MethodPost, "/parent/auth/login", body, nil)
 	if err != nil {
 		return AuthRef{}, fmt.Errorf("parent login request failed: %w", err)
 	}
 
 	token, err := parseLoginToken(respBody)
 	if err != nil {
-		return AuthRef{}, fmt.Errorf("parse parent login response: %w", err)
+		return AuthRef{}, fmt.Errorf("parse parent login response from POST /parent/auth/login with status %d: %w", status, err)
 	}
 	if token == "" {
-		return AuthRef{}, fmt.Errorf("no access token in parent login response")
+		return AuthRef{}, fmt.Errorf("POST /parent/auth/login response with status %d has no access token", status)
 	}
 
 	return AuthRef{
@@ -309,7 +312,7 @@ func parseLoginToken(respBody []byte) (string, error) {
 func (a *Adapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {
 	req, err := a.buildRequest(ctx, auth, method, path, body, headers)
 	if err != nil {
-		return nil, 0, err
+		return nil, 0, fmt.Errorf("%s %s failed: %w", method, path, err)
 	}
 	return a.send(req, auth, method, path)
 }
@@ -323,7 +326,7 @@ func (a *Adapter) RawUpload(ctx context.Context, auth AuthRef, method, path, con
 	}
 	req, err := http.NewRequestWithContext(ctx, method, a.baseURL+path, bytes.NewReader(body))
 	if err != nil {
-		return nil, 0, fmt.Errorf("create request: %w", err)
+		return nil, 0, fmt.Errorf("%s %s failed: create request: %w", method, path, err)
 	}
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("Accept", "application/json")
@@ -340,13 +343,13 @@ func (a *Adapter) send(req *http.Request, auth AuthRef, method, path string) ([]
 
 	resp, err := a.httpClient.Do(req)
 	if err != nil {
-		return nil, 0, fmt.Errorf("execute request: %w", err)
+		return nil, 0, fmt.Errorf("%s %s failed: execute request: %w", method, path, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, resp.StatusCode, fmt.Errorf("read response: %w", err)
+		return nil, resp.StatusCode, fmt.Errorf("%s %s failed: read response with status %d: %w", method, path, resp.StatusCode, err)
 	}
 
 	if a.verbose {
@@ -393,6 +396,7 @@ func (a *Adapter) Envelope(ctx context.Context, auth AuthRef, method, path strin
 			Method:     method,
 			Path:       path,
 			StatusCode: http.StatusOK,
+			Code:       envelope.Code,
 			Message:    envelope.Message,
 			Body:       truncateBody(string(respBody)),
 		}
@@ -458,6 +462,7 @@ func parseHTTPError(method, path string, statusCode int, body []byte) error {
 		Status  string `json:"status"`
 		Message string `json:"message"`
 		Error   string `json:"error"`
+		Code    string `json:"code"`
 	}
 	if err := json.Unmarshal(body, &payload); err == nil {
 		message := strings.TrimSpace(payload.Message)
@@ -468,6 +473,7 @@ func parseHTTPError(method, path string, statusCode int, body []byte) error {
 			Method:     method,
 			Path:       path,
 			StatusCode: statusCode,
+			Code:       strings.TrimSpace(payload.Code),
 			Message:    message,
 			Body:       truncateBody(string(body)),
 		}

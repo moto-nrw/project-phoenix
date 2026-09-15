@@ -98,6 +98,82 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, rows[actualRow.ID].Status, "delete must preserve actual attendance")
 }
 
+// „Rest des Tages“ in Aktuelle Aufsicht (#3166): the running block is
+// excused by hand first, then a partial absence starts at that block's start
+// time. Later blocks follow the partial absence; earlier blocks and every
+// block someone already decided by hand stay as they are.
+func TestPartialAbsenceFromRunningBlockStartExcusesTheRestOfTheDay(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "Rest", "OfDay", "PA5")
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Rest", "Teacher")
+	room := testpkg.CreateTestRoom(t, tc.db, "Rest of day room")
+	date := timezone.NewDate(2026, 9, 22)
+
+	instance := func(start, end, title, status string) *scheduleModel.ActivityInstance {
+		return testpkg.CreateTestActivityInstance(t, tc.db, date, room.ID, testpkg.ActivityInstanceOpts{
+			StartHHMM: start, EndHHMM: end, Title: title, Status: status,
+		})
+	}
+	earlier := instance("11:30", "12:30", "Mittagessen", scheduleModel.InstanceStatusCompleted)
+	running := instance("13:00", "14:00", "Lernzeit", scheduleModel.InstanceStatusActive)
+	later := instance("14:00", "15:00", "Ganztag", "")
+	decided := instance("15:00", "16:00", "AG", "")
+	reset := instance("16:00", "17:00", "Spätdienst", "")
+
+	checkedInAt := time.Date(2026, 9, 22, 11, 35, 0, 0, timezone.Berlin)
+	manualAt := time.Date(2026, 9, 22, 13, 10, 0, 0, timezone.Berlin)
+	earlierRow := testpkg.CreateTestInstanceStudent(t, tc.db, earlier.ID, student.ID, scheduleModel.AttendanceStatusPresent,
+		testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
+	// The PATCH of „Entschuldigt“ on the running block leaves a manual absence.
+	runningRow := testpkg.CreateTestInstanceStudent(t, tc.db, running.ID, student.ID, scheduleModel.AttendanceStatusAbsent,
+		testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+	laterRow := testpkg.CreateTestInstanceStudent(t, tc.db, later.ID, student.ID, scheduleModel.AttendanceStatusExpected)
+	decidedRow := testpkg.CreateTestInstanceStudent(t, tc.db, decided.ID, student.ID, scheduleModel.AttendanceStatusAbsent,
+		testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+	resetRow := testpkg.CreateTestInstanceStudent(t, tc.db, reset.ID, student.ID, scheduleModel.AttendanceStatusExpected,
+		testpkg.InstanceStudentOpts{ManualStatusAt: &manualAt})
+	ids := []int64{earlierRow.ID, runningRow.ID, laterRow.ID, decidedRow.ID, resetRow.ID}
+
+	createReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{
+		"date": date.String(), "from_time": "13:00",
+	})
+	createRR := authExec(t, tc, createReq, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusCreated, createRR.Code, createRR.Body.String())
+	partialAbsenceID := partialAbsenceResponseID(t, createRR.Body.Bytes())
+
+	rows := loadAttendanceRows(t, tc, ids...)
+	assert.Equal(t, scheduleModel.AttendanceStatusPresent, rows[earlierRow.ID].Status, "earlier block must stay present")
+	assert.True(t, checkedInAt.Equal(*rows[earlierRow.ID].CheckedInAt), "earlier check-in must be preserved")
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, rows[runningRow.ID].Status)
+	assert.Nil(t, rows[runningRow.ID].PickupExceptionID, "the running block keeps its own manual decision")
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, rows[laterRow.ID].Status)
+	require.NotNil(t, rows[laterRow.ID].Substatus)
+	assert.Equal(t, scheduleModel.AttendanceSubstatusExcused, *rows[laterRow.ID].Substatus)
+	require.NotNil(t, rows[laterRow.ID].PickupExceptionID)
+	assert.Equal(t, partialAbsenceID, *rows[laterRow.ID].PickupExceptionID)
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, rows[decidedRow.ID].Status)
+	assert.Nil(t, rows[decidedRow.ID].Substatus, "a manually decided later block must not be overwritten")
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, rows[resetRow.ID].Status, "a manual reset to expected must not be overwritten")
+
+	listReq := testutil.NewAuthenticatedRequest(t, http.MethodGet,
+		fmt.Sprintf("/%d/partial-absences?from=%s&to=%s", student.ID, date.String(), date.String()), nil)
+	listRR := authExec(t, tc, listReq, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, listRR.Code, listRR.Body.String())
+	assert.Contains(t, listRR.Body.String(), fmt.Sprintf(`"id":%d`, partialAbsenceID))
+	assert.Contains(t, listRR.Body.String(), `"from_time":"13:00"`)
+
+	deleteReq := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d/partial-absences/%d", student.ID, partialAbsenceID), nil)
+	deleteRR := authExec(t, tc, deleteReq, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, deleteRR.Code, deleteRR.Body.String())
+
+	rows = loadAttendanceRows(t, tc, ids...)
+	assert.Equal(t, scheduleModel.AttendanceStatusExpected, rows[laterRow.ID].Status, "removing the partial absence restores later blocks")
+	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, rows[runningRow.ID].Status, "the running block stays excused by hand")
+	assert.Equal(t, scheduleModel.AttendanceStatusPresent, rows[earlierRow.ID].Status)
+}
+
 func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 	t.Parallel()
 

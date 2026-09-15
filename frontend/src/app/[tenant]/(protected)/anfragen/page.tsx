@@ -1,38 +1,31 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useMemo, useState } from "react";
 
 import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 
 import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
 import { StaffAbsenceRequestList } from "~/components/staff/staff-absence-request-list";
+import { RequestFeedDialog } from "~/components/students/request-feed-dialog";
 import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absence-request-list";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   ActiveFilter,
   FilterConfig,
 } from "~/components/ui/page-header/types";
-import { SkeletonRegion, ListSkeleton } from "~/components/ui/page-skeletons";
 import type {
   AggregatedRequestStatus,
   AggregatedRequestType,
 } from "~/lib/change-request-list-api";
-import {
-  canOpenParentRequestsTab,
-  canOpenRequestsPage,
-  canReviewChangeRequests,
-  canReviewCareWithdrawals,
-  canReviewEnrollmentChangeRequests,
-  canReviewStaffAbsenceRequests,
-  canReviewStudentDataRequests,
-} from "~/lib/change-request-access";
 import { ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import { toISODate } from "~/lib/date-helpers";
-import { useRequirePermission } from "~/lib/hooks/use-require-permission";
+import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 type AnfragenTabId = "eltern" | "mitarbeitende";
 
@@ -92,23 +85,21 @@ const STATUS_OPTIONS: readonly {
  * Historie) und erscheint nur mit Freigaberecht dafür (vacation:approve).
  */
 export default function AnfragenPage() {
-  // Die Seite öffnet, wer mindestens einen Reiter sehen darf. Die Regeln
-  // stehen in change-request-access — dieselben tragen Sidebar-Eintrag,
-  // mobile Navigation und Zähler-Badge.
-  const { isReady } = useRequirePermission(canOpenRequestsPage);
-  const { data: session } = useSession();
-
-  const showElternTab = canOpenParentRequestsTab(session);
+  const { status: sessionStatus } = useSession({ required: true });
+  const tenantPath = useTenantAwarePath();
+  const requestAccess = useChangeRequestAccess();
+  const showElternTab = requestAccess.canOpenParentRequestsTab;
   // Anmeldungsänderungen hängen an config:manage und kommen aus einem eigenen
   // Endpunkt (#2435); ohne das Recht bleiben Quelle und Filteroption weg.
-  const showEnrollmentRequests = canReviewEnrollmentChangeRequests(session);
-  const showCareWithdrawals = canReviewCareWithdrawals(session);
-  const showMitarbeitendeTab = canReviewStaffAbsenceRequests(session);
+  const showEnrollmentRequests =
+    requestAccess.canReviewEnrollmentChangeRequests;
+  const showCareWithdrawals = requestAccess.canReviewCareWithdrawals;
+  const showMitarbeitendeTab = requestAccess.canReviewStaffAbsenceRequests;
   // Der Aggregator über die vier Kinderdaten-Arten verlangt users:update oder
   // users:absence — ohne eines von beiden darf die Quelle gar nicht angefragt
   // werden.
-  const showAggregatedRequests = canReviewChangeRequests(session);
-  const showStudentDataRequests = canReviewStudentDataRequests(session);
+  const showAggregatedRequests = requestAccess.canReviewParentRequests;
+  const showStudentDataRequests = requestAccess.canReviewStudentDataRequests;
   // Wer nur die Entschuldigungs-Warteschlange hält, sieht ohnehin nur diese
   // eine Art — der Art-Filter wäre eine Liste toter Optionen (#2232).
   const showTypeFilter = showStudentDataRequests || showEnrollmentRequests;
@@ -122,6 +113,27 @@ export default function AnfragenPage() {
       tabs.push({ id: "mitarbeitende", label: "Mitarbeitende" });
     return tabs;
   }, [showElternTab, showMitarbeitendeTab]);
+
+  // Zeilenzahl der sichtbaren Liste, von der Liste selbst gemeldet (kein
+  // zusätzlicher Request). `count: null` = noch am Laden; `hasMore` sagt, dass
+  // die Liste paginiert und noch weitere Seiten bereitliegen.
+  const [listCount, setListCount] = useState<{
+    count: number | null;
+    hasMore: boolean;
+  }>({ count: null, hasMore: false });
+
+  // Stabile Referenzen, damit der Melde-Effekt der Listen nicht bei jedem
+  // Render neu läuft.
+  const handleParentCount = useCallback(
+    (count: number | null, hasMore: boolean) =>
+      setListCount({ count, hasMore }),
+    [],
+  );
+  // Die Abwesenheitsanträge kommen ungeteilt, dort gibt es nie ein "+".
+  const handleStaffCount = useCallback(
+    (count: number | null) => setListCount({ count, hasMore: false }),
+    [],
+  );
 
   const [selectedTab, setSelectedTab] = useState<AnfragenTabId>("eltern");
   // Fällt die Auswahl aus den sichtbaren Reitern (z. B. Session noch am
@@ -141,6 +153,7 @@ export default function AnfragenPage() {
     [],
   );
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  const [requestFeedOpen, setRequestFeedOpen] = useState(false);
 
   // Stabil memoisiert: die Liste lädt bei jeder Identitätsänderung neu.
   const filters: AggregatedRequestFilters = useMemo(
@@ -345,18 +358,21 @@ export default function AnfragenPage() {
     setView(nextView);
   };
 
-  if (!isReady) {
-    return (
-      <div className="-mt-1.5 w-full">
-        <PageHeaderWithSearch title="Anfragen" />
-        <SkeletonRegion label="Anfragen werden geladen…">
-          <ListSkeleton rows={4} avatar={false} />
-        </SkeletonRegion>
-      </div>
-    );
+  const isAccessLoading =
+    sessionStatus === "loading" || requestAccess.isLoading;
+
+  if (!isAccessLoading && !requestAccess.canOpenRequestsPage) {
+    redirect(tenantPath("/home"));
   }
 
+  // Der Ladezustand kommt aus dem Gerüst (`loading` an TenantPage); bis der
+  // effektive Prüfbereich feststeht, bleibt die Seite ohne Reiter und Filter.
+  const isReady = !isAccessLoading;
+
   const staffActive = activeTab === "mitarbeitende";
+  const canManageRequestFeed =
+    requestAccess.parentReviewAccess === "admin" ||
+    requestAccess.canReviewEnrollmentChangeRequests;
 
   const viewSwitcher = (
     <SegmentedControl
@@ -370,57 +386,99 @@ export default function AnfragenPage() {
     />
   );
 
+  // Ohne Reiter trägt die Reiterleiste nur einen einzigen Eintrag; dann
+  // bleibt sie weg.
+  const hasTabs = visibleTabs.length > 1;
+
   return (
-    <div className="-mt-1.5 w-full">
-      {/* Der Seitentitel steht auf dem Desktop in der Breadcrumb der
-          Kopfzeile; PageHeaderWithSearch blendet seine Überschrift ab md aus
-          (md:hidden), wie auf der vorherigen Freigabeansicht. */}
-      <PageHeaderWithSearch
-        title="Anfragen"
-        tabs={
-          visibleTabs.length > 1
-            ? {
-                items: visibleTabs,
-                activeTab,
-                // Der Suchbegriff des einen Reiters passt nie zum anderen
-                // (Kind gegen Teammitglied), also beim Wechsel leeren.
-                onTabChange: (tabId) => {
-                  setSelectedTab(tabId as AnfragenTabId);
-                  setSearchTerm("");
-                },
-              }
-            : undefined
-        }
-        search={{
-          value: searchTerm,
-          onChange: setSearchTerm,
-          placeholder: staffActive
-            ? "Teammitglied suchen..."
-            : "Kind suchen...",
-        }}
-        filters={
-          staffActive
+    <TenantPage
+      title="Anfragen"
+      stats={
+        listCount.count === null
+          ? null
+          : `${listCount.count}${listCount.hasMore ? "+" : ""} ${view === "open" ? "offen" : "entschieden"}`
+      }
+      statsLoading={!isReady || listCount.count === null}
+      // Offen gegen Historie ist eine Wertauswahl über derselben Liste, kein
+      // eigener Seitenbereich; sie sitzt deshalb als Aktion in der Titelzeile.
+      actions={isReady ? viewSwitcher : undefined}
+      search={
+        isReady
+          ? {
+              value: searchTerm,
+              onChange: setSearchTerm,
+              placeholder: staffActive
+                ? "Teammitglied suchen…"
+                : "Kind suchen…",
+            }
+          : undefined
+      }
+      filters={
+        !isReady
+          ? undefined
+          : staffActive
             ? staffFilterConfigs
             : filterConfigs.length > 0
               ? filterConfigs
               : undefined
-        }
-        activeFilters={staffActive ? staffActiveFilters : activeFilters}
-        onClearAllFilters={clearAllFilters}
-        filterVariant="quiet"
-        activeFilterDisplay="count"
-        // Der Umschalter sitzt auf einer Höhe mit den Reitern: beides ist
-        // eine Auswahl, was die Liste zeigt. `tabsRowAction` hält ihn auf
-        // jeder Breite dort — `actionButton` wandert auf Mobil in die
-        // Titelzeile, `primaryAction` rendert nur im Desktop-Zweig.
-        tabsRowAction={viewSwitcher}
-      />
+      }
+      activeFilters={
+        isReady ? (staffActive ? staffActiveFilters : activeFilters) : undefined
+      }
+      onClearAllFilters={clearAllFilters}
+      overflowMenu={
+        isReady && !staffActive && canManageRequestFeed
+          ? [
+              {
+                label: "Neue Anfragen abonnieren",
+                onClick: () => setRequestFeedOpen(true),
+              },
+            ]
+          : undefined
+      }
+      tabs={
+        isReady && hasTabs
+          ? {
+              value: activeTab,
+              // Der Suchbegriff des einen Reiters passt nie zum anderen (Kind
+              // gegen Teammitglied), also beim Wechsel leeren.
+              onChange: (tabId) => {
+                setSelectedTab(tabId as AnfragenTabId);
+                setSearchTerm("");
+              },
+              items: visibleTabs.map((tab) => ({
+                value: tab.id,
+                label: tab.label,
+              })),
+              label: "Herkunft der Anfragen",
+            }
+          : undefined
+      }
+      // Der Ladezustand kommt aus dem Gerüst, nicht aus einem eigenen Skelett
+      // im Inhalt.
+      loading={!isReady}
+      loadingLabel="Anfragen werden geladen…"
+      overlays={
+        <RequestFeedDialog
+          isOpen={requestFeedOpen}
+          onClose={() => setRequestFeedOpen(false)}
+        />
+      }
+    >
       {staffActive ? (
-        <MitarbeitendeTab view={view} filters={staffFilters} />
+        <MitarbeitendeTab
+          view={view}
+          filters={staffFilters}
+          onCountChange={handleStaffCount}
+        />
       ) : (
-        <ElternTab view={view} filters={filters} />
+        <ElternTab
+          view={view}
+          filters={filters}
+          onCountChange={handleParentCount}
+        />
       )}
-    </div>
+    </TenantPage>
   );
 }
 
@@ -432,15 +490,22 @@ export default function AnfragenPage() {
 function ElternTab({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
+  onCountChange: (count: number | null, hasMore: boolean) => void;
 }>) {
   return (
     <div className="w-full">
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
-      <AggregatedRequestList key={view} view={view} filters={filters} />
+      <AggregatedRequestList
+        key={view}
+        view={view}
+        filters={filters}
+        onCountChange={onCountChange}
+      />
     </div>
   );
 }
@@ -453,14 +518,21 @@ function ElternTab({
 function MitarbeitendeTab({
   view,
   filters,
+  onCountChange,
 }: Readonly<{
   view: "open" | "history";
   filters: StaffAbsenceRequestFilters;
+  onCountChange: (count: number | null) => void;
 }>) {
   return (
     <div className="w-full">
       {/* key={view}: die Liste mountet beim Umschalten frisch. */}
-      <StaffAbsenceRequestList key={view} view={view} filters={filters} />
+      <StaffAbsenceRequestList
+        key={view}
+        view={view}
+        filters={filters}
+        onCountChange={onCountChange}
+      />
     </div>
   );
 }

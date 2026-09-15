@@ -9,7 +9,6 @@
 //
 //	ARRANGE: Create test fixtures (real database records)
 //	  student := testpkg.CreateTestStudent(t, db, "First", "Last", "1a")
-//	  defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 //
 //	ACT: Perform the operation under test
 //	  result, err := cleanupService.CleanupStaleAttendance(ctx)
@@ -32,12 +31,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // setupCleanupService creates a cleanup service with real database connection
-func setupCleanupService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.CleanupService {
-	repoFactory := repositories.NewFactory(db)
+func setupCleanupService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.CleanupService {
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.ActiveCleanup

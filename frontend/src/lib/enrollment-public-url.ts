@@ -15,8 +15,8 @@ interface BrowserLocationSnapshot {
 /**
  * Builds an absolute public enrollment URL for the current tenant.
  *
- * In subdomain mode the public route is /enroll[/phaseId]. In path mode the
- * tenant slug must stay in the URL: /{tenantSlug}/enroll[/phaseId].
+ * In subdomain mode the public route is /anmeldung[/phaseId]. In path mode the
+ * tenant slug must stay in the URL: /{tenantSlug}/anmeldung[/phaseId].
  */
 export function buildEnrollmentPublicUrl({
   tenantSlug,
@@ -40,7 +40,9 @@ export function buildEnrollmentPublicUrl(
       : null);
   if (!loc || !tenantSlug) return "";
 
-  const path = phaseId ? `/enroll/${encodeURIComponent(phaseId)}` : "/enroll";
+  const path = phaseId
+    ? `/anmeldung/${encodeURIComponent(phaseId)}`
+    : "/anmeldung";
   const inSubdomainMode = loc.hostname.startsWith(`${tenantSlug}.`);
 
   if (inSubdomainMode) {

@@ -24,7 +24,7 @@ import (
 // every weekday the suite runs.
 func futureMondayForStartPull(t *testing.T) timezone.Date {
 	t.Helper()
-	today := timezone.NewDate(2026, 8, 24)
+	today := timezone.NewDate(2030, 8, 26)
 	daysAhead := (int(time.Monday) - int(today.Weekday()) + 7) % 7
 	if daysAhead == 0 {
 		daysAhead = 7
@@ -54,7 +54,7 @@ func startPullUpdateInput(
 		},
 		Weekdays:        weekdays,
 		TimeframeID:     timeframeID,
-		RosterValidFrom: timezone.NewDate(2026, 8, 24),
+		RosterValidFrom: timezone.NewDate(2030, 8, 26),
 		GradeLevelMax:   4,
 		StaffIDs:        []int64{s.staffA},
 		PrimaryStaffID:  &s.staffA,
@@ -118,7 +118,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 
 	// The series-managed roster follows the same boundary.
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
-		assert.Equal(t, newStart, row.ValidFrom, "supervisor valid_from must follow the new start")
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom, "supervisor valid_from must follow the new start")
 	}
 	openEnrollments := 0
 	for _, row := range s.enrollmentRows(t, result.TemplateID) {
@@ -126,7 +126,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesEnvelopeRosterAndMaterializesG
 			continue
 		}
 		openEnrollments++
-		assert.Equal(t, newStart, row.ValidFrom, "enrollment valid_from must follow the new start")
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom, "enrollment valid_from must follow the new start")
 	}
 	require.Positive(t, openEnrollments)
 
@@ -196,7 +196,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 
 	for _, row := range s.openSupervisorRows(t, result.TemplateID) {
 		require.NotNil(t, row.Weekday, "per-weekday mode keeps weekday-scoped staff rows")
-		assert.Equal(t, newStart, row.ValidFrom,
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom,
 			"weekday-scoped supervisor rows must follow the new start")
 	}
 	openEnrollments := 0
@@ -206,7 +206,7 @@ func TestUpdateTemplate_StartDatePullForward_MovesWeekdayScopedRoster(t *testing
 		}
 		openEnrollments++
 		require.NotNil(t, row.Weekday)
-		assert.Equal(t, newStart, row.ValidFrom,
+		assert.Equal(t, activitiesModels.Date(newStart), row.ValidFrom,
 			"weekday-scoped enrollment rows must follow the new start")
 	}
 	require.Equal(t, 2, openEnrollments)
@@ -302,7 +302,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 	require.ErrorIs(t, err, scheduleSvc.ErrTemplateStartNotEarlier,
 		"moving the start later is out of scope and must be rejected")
 
-	past := timezone.NewDate(2026, 8, 24).AddDays(-1)
+	past := timezone.NewDate(2000, 1, 1)
 	err = s.factory.TimetableData.UpdateTemplate(
 		s.ctx,
 		startPullUpdateInput(s, result.TemplateID, result.TimeframeID, name, weekdays, &past),
@@ -329,7 +329,7 @@ func TestUpdateTemplate_StartDatePullForward_Validation(t *testing.T) {
 		RoomID:          s.roomID,
 		CategoryID:      s.categoryID,
 		MaxParticipants: 20,
-		RosterValidFrom: timezone.NewDate(2026, 8, 24),
+		RosterValidFrom: timezone.NewDate(2030, 8, 26),
 		GradeLevelMax:   4,
 		StaffIDs:        []int64{s.staffA},
 		PrimaryStaffID:  &s.staffA,
@@ -365,7 +365,7 @@ func TestUpdateTemplate_StartDatePullForward_RejectsPredecessorOverlap(t *testin
 		RoomID:          s.roomID,
 		CategoryID:      s.categoryID,
 		MaxParticipants: 20,
-		RosterValidFrom: timezone.NewDate(2026, 8, 24),
+		RosterValidFrom: timezone.NewDate(2030, 8, 26),
 		GradeLevelMax:   4,
 		StaffIDs:        []int64{s.staffA},
 		PrimaryStaffID:  &s.staffA,

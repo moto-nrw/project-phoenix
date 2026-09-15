@@ -52,7 +52,7 @@ type devSetup struct {
 func buildDevModule(t *testing.T) *devSetup {
 	t.Helper()
 	clock := func() time.Time { return timezone.NewDate(2030, 8, 26).BerlinMidnight().Add(12 * time.Hour) }
-	db, serviceFactory := testutil.SetupAPITest(t, clock)
+	db, serviceFactory := testutil.SetupTimetableModule(t, clock)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -69,7 +69,7 @@ func buildDevModule(t *testing.T) *devSetup {
 	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db, clock),
-		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: usersRepo.NewStaffRepository(db)}),
+		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: mustTimetableTestRepositories(db).Staff}),
 		InstanceService: mock,
 		Now:             clock,
 		DB:              db,
@@ -94,6 +94,7 @@ func devRouter(parentCtx context.Context, res *Resource) chi.Router {
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(testpkg.TenantTxMiddleware(res.DB))
 	r.Post("/instances/{id}/deviations", res.applyDeviations)
 	return r
 }

@@ -105,6 +105,7 @@ interface ServerFetchOptions {
   body?: unknown;
   idempotencyKey?: string;
   returnVoidOn204?: boolean;
+  signal?: AbortSignal;
 }
 
 async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
@@ -176,6 +177,7 @@ async function serverFetchWithRetry<T>(
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
       cache: "no-store", // Prevent Next.js from caching API responses
+      ...(options.signal && { signal: options.signal }),
     });
 
   try {
@@ -292,8 +294,15 @@ function extractTokenContext(token: string): {
  * @param token Authentication token
  * @returns Promise with the response data
  */
-export async function apiGet<T>(endpoint: string, token: string): Promise<T> {
-  return serverFetchWithRetry<T>(endpoint, token, { method: "GET" });
+export async function apiGet<T>(
+  endpoint: string,
+  token: string,
+  options?: { signal?: AbortSignal },
+): Promise<T> {
+  return serverFetchWithRetry<T>(endpoint, token, {
+    method: "GET",
+    signal: options?.signal,
+  });
 }
 
 /**

@@ -92,6 +92,16 @@ describe("Button", () => {
     expect(button.className).toContain("hover:bg-moto-red-strong");
   });
 
+  it("applies warning variant styles", () => {
+    render(<Button variant="warning">Warning</Button>);
+
+    const button = screen.getByRole("button");
+    expect(button.className).toContain("bg-moto-orange");
+    // Dunkler Text wie bei success: Weiss auf moto-orange erreicht nur 2,4:1.
+    expect(button.className).toContain("text-gray-950");
+    expect(button.className).toContain("hover:bg-moto-orange-hover");
+  });
+
   it("applies success variant styles", () => {
     render(<Button variant="success">Success</Button>);
 

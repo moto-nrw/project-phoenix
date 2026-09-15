@@ -7,10 +7,11 @@
 import { Suspense } from "react";
 
 import { VertretungView } from "~/components/timetable/vertretung-view";
+import { VertretungContentSkeleton } from "~/components/timetable/vertretung-skeleton";
 
 export default function VertretungPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<VertretungContentSkeleton withBar />}>
       <VertretungView />
     </Suspense>
   );

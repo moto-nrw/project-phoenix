@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -15,9 +14,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func buildDeviceLocationService(t *testing.T, db *bun.DB) activeSvc.Service {
+func buildDeviceLocationService(t *testing.T, db *testpkg.DB) activeSvc.Service {
 	t.Helper()
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
@@ -29,7 +28,7 @@ func TestDeviceLocation_UpdatedOnSessionStart(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := buildDeviceLocationService(t, db)
-	deviceRepo := repositories.NewFactory(db).Device
+	deviceRepo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Device
 	ctx := testpkg.Ctx(t)
 
 	t.Run("session start updates device room_id", func(t *testing.T) {

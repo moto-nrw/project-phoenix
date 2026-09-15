@@ -1,6 +1,7 @@
 "use client";
 
 import { Skeleton } from "~/components/ui/skeleton";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 
 // Mirrors the loaded page: back button, student header (name + plain
 // two-span meta line), a two-column chart grid, then the history table
@@ -16,13 +17,8 @@ export function RoomHistorySkeleton() {
     >
       <Skeleton className="mb-4 h-9 w-24 rounded-lg" />
 
-      <div className="mb-6 ml-6">
-        <Skeleton className="h-8 w-48 rounded" />
-        <div className="mt-2 flex items-center gap-2">
-          <Skeleton className="h-4 w-20 rounded" />
-          <Skeleton className="h-4 w-24 rounded" />
-        </div>
-      </div>
+      {/* Spiegelt die Kopfkarte des geladenen Zustands. */}
+      <TenantPageHeaderSkeleton leading />
 
       <div className="mb-4 grid grid-cols-1 gap-4 md:mb-6 md:grid-cols-2 md:gap-6">
         {Array.from({ length: 2 }, (_, i) => (

@@ -16,10 +16,25 @@ vi.mock("vaul", async () => {
       Root: ({
         children,
         direction,
+        onOpenChange,
       }: {
         children: React.ReactNode;
         direction?: string;
-      }) => <div data-direction={direction}>{children}</div>,
+        onOpenChange?: (open: boolean) => void;
+      }) => (
+        <div data-direction={direction}>
+          {/* Vaul schließt selbst bei Escape und Klick auf den Hintergrund und
+              meldet das über onOpenChange. Das echte Vaul lässt sich in jsdom
+              nicht fahren, prüfbar ist aber das, was uns gehört: dass der
+              Rückruf beim Aufrufer ankommt. */}
+          <button
+            type="button"
+            data-testid="vaul-dismiss"
+            onClick={() => onOpenChange?.(false)}
+          />
+          {children}
+        </div>
+      ),
       Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
       Overlay: React.forwardRef<
         HTMLDivElement,
@@ -49,7 +64,7 @@ vi.mock("vaul", async () => {
   };
 });
 
-import { SlideOver, SlideOverContent } from "./slide-over";
+import { SlideOver, SlideOverBody, SlideOverContent } from "./slide-over";
 
 function StatefulContent() {
   const [value, setValue] = useState("");
@@ -99,6 +114,21 @@ describe("SlideOver", () => {
     });
   });
 
+  it("dims and blurs the page with the shared overlay backdrop", () => {
+    const { container } = render(
+      <SlideOver open>
+        <SlideOverContent>Inhalt</SlideOverContent>
+      </SlideOver>,
+    );
+
+    const overlay = container.querySelector(".fixed.inset-0");
+    expect(overlay).not.toBeNull();
+    // Same tint as Modal, FormModal and Drawer — no slate-tinted or lighter
+    // backdrop that would dim the page in a different gray (#2932).
+    expect(overlay).toHaveClass("bg-black/40", "backdrop-blur-sm");
+    expect(overlay?.className).not.toContain("bg-slate-900");
+  });
+
   it("keeps unsaved child state when the viewport changes while open", () => {
     const { rerender } = render(
       <SlideOver open>
@@ -135,5 +165,63 @@ describe("SlideOver", () => {
         screen.getByLabelText("Entwurf").closest("[data-direction]"),
       ).toHaveAttribute("data-direction", "bottom");
     });
+  });
+
+  it("meldet ein Schließen durch Vaul (Escape, Klick auf den Hintergrund) an den Aufrufer", () => {
+    // Beim Wechsel von Modal auf Panel ist diese Zusicherung je Verbrauchsstelle
+    // entfallen, weil sie dort nicht mehr prüfbar war. Sie gehört ohnehin hierher:
+    // einmal für alle Panels statt einmal je Aufrufer.
+    const onOpenChange = vi.fn();
+
+    render(
+      <SlideOver open onOpenChange={onOpenChange}>
+        <SlideOverContent>Inhalt</SlideOverContent>
+      </SlideOver>,
+    );
+
+    fireEvent.click(screen.getByTestId("vaul-dismiss"));
+
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it("renders the body error slot as an alert above the children", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverBody
+            error="Bitte einen Titel eintragen."
+            className="space-y-4"
+          >
+            <p>Formularfelder</p>
+          </SlideOverBody>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Bitte einen Titel eintragen.");
+    expect(
+      alert.compareDocumentPosition(screen.getByText("Formularfelder")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getByText("Formularfelder").parentElement).toHaveClass(
+      "flex-1",
+      "overflow-y-auto",
+      "space-y-4",
+    );
+  });
+
+  it("renders the body without an alert when there is no error", () => {
+    render(
+      <SlideOver open>
+        <SlideOverContent>
+          <SlideOverBody>
+            <p>Formularfelder</p>
+          </SlideOverBody>
+        </SlideOverContent>
+      </SlideOver>,
+    );
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

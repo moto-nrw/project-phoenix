@@ -15,7 +15,7 @@ func TestStudentRepositoryListWithOptionsPreservesHydrationOrderAndEmptySlice(t 
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).Student
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 	person := testpkg.CreateTestPerson(t, db, "Student list", "Hydrated")
 	hydrated := &userModels.Student{
@@ -46,7 +46,7 @@ func TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySl
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).GuardianProfile
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianProfile
 	ctx := testpkg.Ctx(t)
 	zulu := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-zulu")
 	alpha := testpkg.CreateTestGuardianProfile(t, db, "guardian-list-alpha")

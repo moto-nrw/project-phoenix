@@ -2,8 +2,8 @@ package auth_test
 
 import (
 	"fmt"
-	"log/slog"
 	"net/http"
+	"strconv"
 	"testing"
 	"time"
 
@@ -14,7 +14,6 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -115,7 +114,8 @@ func TestPlatformScopeCanMutateGlobalPermissionCatalog(t *testing.T) {
 	createResp := testutil.ExecuteWithAuthPermissions(t, router, createReq, claims, permissions)
 	require.Equal(t, http.StatusCreated, createResp.Code, "Body: %s", createResp.Body.String())
 	data := testutil.ParseJSONResponse(t, createResp.Body.Bytes())["data"].(map[string]interface{})
-	permissionID := int64(data["id"].(float64))
+	permissionID, err := strconv.ParseInt(data["id"].(string), 10, 64)
+	require.NoError(t, err)
 
 	updateReq := testutil.NewJSONRequest(t, http.MethodPut, fmt.Sprintf("/auth/permissions/%d", permissionID), map[string]string{
 		"name":        resource + ":write",
@@ -139,8 +139,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, serveDB.Close()) })
 
-	repos := repositories.NewFactory(serveDB)
-	svc, err := services.NewFactoryForTests(repos, serveDB, slog.Default())
+	svc, err := services.NewAuthTestModule(serveDB, testpkg.TenantRuntime(t, serveDB))
 	require.NoError(t, err)
 	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, serveDB)
 	router := testutil.NewTenantRouter(serveDB)

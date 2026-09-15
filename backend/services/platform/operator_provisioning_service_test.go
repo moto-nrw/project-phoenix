@@ -17,10 +17,10 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -93,6 +93,139 @@ func (m *mockOrganizationRepo) Restore(ctx context.Context, id int64) error {
 		return m.restoreFn(ctx, id)
 	}
 	return nil
+}
+
+func (m *mockOrganizationRepo) CreateOrganization(ctx context.Context, input organizationtenancy.CreateOrganization) (organizationtenancy.Organization, error) {
+	if m.findBySlugFn != nil {
+		existing, err := m.FindBySlug(ctx, input.Slug)
+		if err != nil {
+			return organizationtenancy.Organization{}, err
+		}
+		if existing != nil {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+	}
+	org := &platformModels.Organization{Name: input.Name, Slug: input.Slug, Active: input.Active}
+	if err := org.Validate(); err != nil {
+		return organizationtenancy.Organization{}, &organizationtenancy.InvalidOrganizationError{Reason: err.Error()}
+	}
+	if err := m.Create(ctx, org); err != nil {
+		if base.IsUniqueViolation(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return publicOrganization(org), nil
+}
+
+func (m *mockOrganizationRepo) UpdateOrganization(ctx context.Context, input organizationtenancy.UpdateOrganization) (organizationtenancy.Organization, error) {
+	if m.findBySlugFn != nil {
+		existing, err := m.FindBySlug(ctx, input.Slug)
+		if err != nil {
+			return organizationtenancy.Organization{}, err
+		}
+		if existing != nil && existing.ID != input.ID {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+	}
+	org := &platformModels.Organization{Model: base.Model{ID: input.ID}, Name: input.Name, Slug: input.Slug, Active: input.Active}
+	if err := m.Update(ctx, org); err != nil {
+		if base.IsUniqueViolation(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return publicOrganization(org), nil
+}
+
+func (m *mockOrganizationRepo) SoftDeleteOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := m.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	if org.IsDeleted() {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationAlreadyDeleted
+	}
+	if err := m.SoftDelete(ctx, id); err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	return publicOrganization(org), nil
+}
+
+func (m *mockOrganizationRepo) RestoreOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := m.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	if !org.IsDeleted() {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotDeleted
+	}
+	if err := m.Restore(ctx, id); err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	return publicOrganization(org), nil
+}
+
+func (m *mockOrganizationRepo) FindOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := m.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	return publicOrganization(org), nil
+}
+func (m *mockOrganizationRepo) FindOrganizationForMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return m.FindOrganization(ctx, id)
+}
+func (m *mockOrganizationRepo) FindOrganizationForSchoolMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return m.FindOrganization(ctx, id)
+}
+func (m *mockOrganizationRepo) FindOrganizationBySlug(ctx context.Context, slug string) (organizationtenancy.Organization, error) {
+	org, err := m.FindBySlug(ctx, slug)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	return publicOrganization(org), nil
+}
+func (m *mockOrganizationRepo) ListOrganizations(ctx context.Context) ([]organizationtenancy.Organization, error) {
+	orgs, err := m.List(ctx)
+	result := make([]organizationtenancy.Organization, 0, len(orgs))
+	for _, org := range orgs {
+		result = append(result, publicOrganization(org))
+	}
+	return result, err
+}
+func (m *mockOrganizationRepo) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+	result := make([]organizationtenancy.Organization, 0, len(ids))
+	for _, id := range ids {
+		org, err := m.FindOrganization(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, org)
+	}
+	return result, nil
+}
+func (m *mockOrganizationRepo) CountOrganizationsByID(ctx context.Context, ids []int64) (int, error) {
+	return m.CountByIDs(ctx, ids)
+}
+
+func publicOrganization(org *platformModels.Organization) organizationtenancy.Organization {
+	if org == nil {
+		return organizationtenancy.Organization{}
+	}
+	return organizationtenancy.Organization{ID: org.ID, CreatedAt: org.CreatedAt, UpdatedAt: org.UpdatedAt, Name: org.Name, Slug: org.Slug, Active: org.Active, DeletedAt: org.DeletedAt, Settings: org.Settings}
 }
 
 type mockDeviceRepo struct {
@@ -195,7 +328,7 @@ func (m *mockCategoryRepo) UpdateIfActive(context.Context, *activityModels.Categ
 	return true, nil
 }
 func (m *mockCategoryRepo) Delete(context.Context, interface{}) error { return nil }
-func (m *mockCategoryRepo) List(context.Context, *base.QueryOptions) ([]*activityModels.Category, error) {
+func (m *mockCategoryRepo) List(context.Context, *activityModels.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil
 }
 func (m *mockCategoryRepo) FindByName(context.Context, string) (*activityModels.Category, error) {
@@ -208,10 +341,6 @@ func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category,
 	return nil, nil
 }
 
-func (m *mockCategoryRepo) SetShiftTypeForCategories(context.Context, int64, []int64) error {
-	return nil
-}
-
 func (m *mockCategoryRepo) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
 	return 1, nil
 }
@@ -222,6 +351,9 @@ func (m *mockRoleRepo) FindByID(ctx context.Context, id interface{}) (*authModel
 		return m.findByIDFn(ctx, id)
 	}
 	return nil, nil
+}
+func (m *mockRoleRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Role, error) {
+	return m.FindByID(ctx, id)
 }
 func (m *mockRoleRepo) Update(context.Context, *authModels.Role) error { return nil }
 func (m *mockRoleRepo) Delete(context.Context, interface{}) error      { return nil }
@@ -354,6 +486,7 @@ func (m *mockAuthService) ListRoles(context.Context, map[string]interface{}) ([]
 	return nil, nil
 }
 func (m *mockAuthService) AssignRoleToAccount(context.Context, int, int) error   { return nil }
+func (m *mockAuthService) ReplaceAccountRole(context.Context, int, int) error    { return nil }
 func (m *mockAuthService) RemoveRoleFromAccount(context.Context, int, int) error { return nil }
 func (m *mockAuthService) GetAccountRoles(context.Context, int) ([]*authModels.Role, error) {
 	return nil, nil
@@ -390,8 +523,9 @@ func (m *mockAuthService) GetAccountPermissions(context.Context, int) ([]*authMo
 func (m *mockAuthService) GetAccountDirectPermissions(context.Context, int) ([]*authModels.Permission, error) {
 	return nil, nil
 }
-func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error   { return nil }
-func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error { return nil }
+func (m *mockAuthService) AssignPermissionToRole(context.Context, int, int) error     { return nil }
+func (m *mockAuthService) ReplaceRolePermissions(context.Context, int, []int64) error { return nil }
+func (m *mockAuthService) RemovePermissionFromRole(context.Context, int, int) error   { return nil }
 func (m *mockAuthService) GetRolePermissions(context.Context, int) ([]*authModels.Permission, error) {
 	return nil, nil
 }
@@ -423,6 +557,7 @@ func (m *mockAuthService) ResetPassword(context.Context, string, string) error {
 func (m *mockAuthService) CleanupExpiredRateLimits(context.Context) (int, error) {
 	return 0, nil
 }
+func (m *mockAuthService) CountExpiredTokens(context.Context) (int, error)   { return 0, nil }
 func (m *mockAuthService) CleanupExpiredTokens(context.Context) (int, error) { return 0, nil }
 func (m *mockAuthService) CleanupExpiredPasswordResetTokens(context.Context) (int, error) {
 	return 0, nil
@@ -433,8 +568,17 @@ func (m *mockAuthService) RevokeTokensByTenantID(context.Context, int64) (int, e
 func (m *mockAuthService) GetActiveTokens(context.Context, int) ([]*authModels.Token, error) {
 	return nil, nil
 }
-func (m *mockAuthService) SwitchTenant(context.Context, int64, string) (string, string, error) {
+func (m *mockAuthService) SwitchTenant(context.Context, int64, string, string) (string, string, error) {
 	return "", "", nil
+}
+func (m *mockAuthService) StartStaffPreview(context.Context, int64, int64, int64, string, string, string) (*authSvc.StaffPreviewSession, error) {
+	return nil, nil
+}
+func (m *mockAuthService) EndStaffPreview(context.Context, string, string, string) (int64, error) {
+	return 0, nil
+}
+func (m *mockAuthService) ListStaffPreviewCandidates(context.Context, int64, int64) ([]authSvc.StaffPreviewCandidate, error) {
+	return nil, nil
 }
 func (m *mockAuthService) LinkAccountToTenant(context.Context, string, *int64, int64) (*authModels.Account, error) {
 	return nil, nil
@@ -578,7 +722,7 @@ func TestOperatorProvisioningService_CreateSchool_AllowsDuplicateSlugAcrossOrgan
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org B", Slug: "org-b", Active: true}, nil
 			},
@@ -631,7 +775,7 @@ func TestOperatorProvisioningService_CreateOrganization_Success(t *testing.T) {
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 				return nil, nil
 			},
@@ -644,7 +788,7 @@ func TestOperatorProvisioningService_CreateOrganization_Success(t *testing.T) {
 		DB:           bunDB,
 	})
 
-	org, err := service.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := service.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name:   "Stadt Koeln",
 		Slug:   "stadt-koeln",
 		Active: true,
@@ -654,19 +798,55 @@ func TestOperatorProvisioningService_CreateOrganization_Success(t *testing.T) {
 	require.Equal(t, int64(77), org.ID)
 }
 
+func TestOperatorProvisioningService_CreateOrganization_AuditFailureRollsBack(t *testing.T) {
+	t.Parallel()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	bunDB := bun.NewDB(sqlDB, pgdialect.New())
+	t.Cleanup(func() {
+		mock.ExpectClose()
+		require.NoError(t, bunDB.Close())
+		require.NoError(t, sqlDB.Close())
+		require.NoError(t, mock.ExpectationsWereMet())
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+	wantErr := errors.New("audit persistence failed")
+	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{createFn: func(_ context.Context, organization *platformModels.Organization) error {
+			organization.ID = 77
+			return nil
+		}},
+		AuditLogRepo: &mockAuditLogRepoShared{createFn: func(context.Context, *platformModels.OperatorAuditLog) error {
+			return wantErr
+		}},
+		DB: bunDB,
+	})
+
+	organization, err := service.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
+		Name: "Stadt Koeln", Slug: "stadt-koeln", Active: true,
+	}, 7, net.IPv4(127, 0, 0, 1))
+
+	require.Nil(t, organization)
+	require.ErrorIs(t, err, wantErr)
+}
+
 func TestOperatorProvisioningService_CreateOrganization_Conflict(t *testing.T) {
 	t.Parallel()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 5}, Name: "Existing", Slug: "stadt-koeln", Active: true}, nil
 			},
 		},
 	})
 
-	org, err := service.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := service.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name:   "Stadt Koeln",
 		Slug:   "stadt-koeln",
 		Active: true,
@@ -680,14 +860,14 @@ func TestOperatorProvisioningService_CreateOrganization_Conflict(t *testing.T) {
 func TestOperatorProvisioningService_ListOrganizations(t *testing.T) {
 	t.Parallel()
 
-	expected := []*platformModels.Organization{
-		{Model: base.Model{ID: 1}, Name: "Org A", Slug: "org-a", Active: true},
+	expected := []organizationtenancy.Organization{
+		{ID: 1, Name: "Org A", Slug: "org-a", Active: true},
 	}
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			listFn: func(context.Context) ([]*platformModels.Organization, error) {
-				return expected, nil
+				return []*platformModels.Organization{{Model: base.Model{ID: 1}, Name: "Org A", Slug: "org-a", Active: true}}, nil
 			},
 		},
 	})
@@ -781,9 +961,9 @@ func TestOperatorProvisioningService_CreateSchool_OrganizationNotFound(t *testin
 	t.Parallel()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
-		SchoolRepo:       &testpkg.SchoolRepoMock{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
+		SchoolRepo:    &testpkg.SchoolRepoMock{},
 	})
 
 	school, err := service.CreateSchool(context.Background(), &platformModels.School{
@@ -805,7 +985,7 @@ func TestOperatorProvisioningService_CreateSchool_OrganizationDeleted(t *testing
 	now := time.Now()
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
@@ -834,7 +1014,7 @@ func TestOperatorProvisioningService_CreateSchool_SlugConflict(t *testing.T) {
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -864,7 +1044,7 @@ func TestOperatorProvisioningService_CreateSchool_SubdomainConflict(t *testing.T
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -999,7 +1179,7 @@ func TestOperatorProvisioningService_ListOrganizationAccounts_Success(t *testing
 	}
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: orgID}, Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -1022,8 +1202,8 @@ func TestOperatorProvisioningService_ListOrganizationAccounts_OrgNotFound(t *tes
 	t.Parallel()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 	})
 
 	accounts, err := service.ListOrganizationAccounts(context.Background(), 999)
@@ -1121,8 +1301,8 @@ func TestOperatorProvisioningService_ListOrganizationDevices_OrgNotFound(t *test
 	t.Parallel()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 	})
 
 	devices, err := service.ListOrganizationDevices(context.Background(), 999)
@@ -1153,7 +1333,7 @@ func TestOperatorProvisioningService_CreateOrganization_UniqueViolationOnCreate(
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 				return nil, nil // slug appears available
 			},
@@ -1166,7 +1346,7 @@ func TestOperatorProvisioningService_CreateOrganization_UniqueViolationOnCreate(
 		DB:           bunDB,
 	})
 
-	org, err := service.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := service.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name:   "Race Org",
 		Slug:   "race-org",
 		Active: true,
@@ -1230,7 +1410,7 @@ func TestOperatorProvisioningService_CreateSchool_DeviceCreateError(t *testing.T
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -1274,7 +1454,7 @@ func TestOperatorProvisioningService_CreateSchool_CategorySeedError(t *testing.T
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 2}, Name: "Org", Slug: "org", Active: true}, nil
 			},
@@ -1395,7 +1575,7 @@ func TestOperatorProvisioningService_UpdateOrganization_Success(t *testing.T) {
 	var updatedOrg *platformModels.Organization
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "Old Name", Slug: "old-slug", Active: true}, nil
 			},
@@ -1422,7 +1602,11 @@ func TestOperatorProvisioningService_UpdateOrganization_Success(t *testing.T) {
 	assert.Equal(t, "New Name", org.Name)
 	assert.Equal(t, "new-slug", org.Slug)
 	assert.False(t, org.Active)
-	assert.Equal(t, updatedOrg, org)
+	require.NotNil(t, updatedOrg)
+	assert.Equal(t, org.ID, updatedOrg.ID)
+	assert.Equal(t, org.Name, updatedOrg.Name)
+	assert.Equal(t, org.Slug, updatedOrg.Slug)
+	assert.Equal(t, org.Active, updatedOrg.Active)
 }
 
 func TestOperatorProvisioningService_UpdateOrganization_NotFound(t *testing.T) {
@@ -1444,7 +1628,7 @@ func TestOperatorProvisioningService_UpdateOrganization_NotFound(t *testing.T) {
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return nil, nil // not found
 			},
@@ -1484,7 +1668,7 @@ func TestOperatorProvisioningService_UpdateOrganization_AlreadyDeleted(t *testin
 	deletedAt := time.Now()
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model:     base.Model{ID: 10},
@@ -1534,7 +1718,7 @@ func TestOperatorProvisioningService_UpdateOrganization_SlugConflict(t *testing.
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "My Org", Slug: "my-org", Active: true}, nil
 			},
@@ -1577,7 +1761,7 @@ func TestOperatorProvisioningService_UpdateOrganization_SameSlugNoConflict(t *te
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "Old Name", Slug: "same-slug", Active: true}, nil
 			},
@@ -1626,8 +1810,8 @@ func TestOperatorProvisioningService_UpdateSchool_Success(t *testing.T) {
 
 	var updatedSchool *platformModels.School
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1694,8 +1878,8 @@ func TestOperatorProvisioningService_UpdateSchool_NotFound(t *testing.T) {
 	mock.ExpectRollback()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 				return nil, nil // not found
@@ -1736,8 +1920,8 @@ func TestOperatorProvisioningService_UpdateSchool_SlugConflict(t *testing.T) {
 	mock.ExpectRollback()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1789,8 +1973,8 @@ func TestOperatorProvisioningService_UpdateSchool_SubdomainConflict(t *testing.T
 	mock.ExpectRollback()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -1846,7 +2030,7 @@ func TestOperatorProvisioningService_UpdateSchool_OrganizationNotFound(t *testin
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return nil, nil // org not found
 			},
@@ -1902,7 +2086,7 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization_Deleted(t *
 	updateCalled := false
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				if id == newOrgID {
 					return &platformModels.Organization{
@@ -1968,7 +2152,7 @@ func TestOperatorProvisioningService_UpdateSchool_ChangeOrganization(t *testing.
 	var updatedSchool *platformModels.School
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				if id == newOrgID {
 					return &platformModels.Organization{Model: base.Model{ID: newOrgID}, Name: "New Org", Slug: "new-org", Active: true}, nil
@@ -2035,7 +2219,7 @@ func TestOperatorProvisioningService_UpdateOrganization_UpdateError(t *testing.T
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{Model: base.Model{ID: 10}, Name: "Old Name", Slug: "old-slug", Active: true}, nil
 			},
@@ -2077,8 +2261,8 @@ func TestOperatorProvisioningService_UpdateSchool_UpdateError(t *testing.T) {
 	mock.ExpectRollback()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
 		SchoolRepo: &testpkg.SchoolRepoMock{
 			FindByIDFn: func(_ context.Context, id int64) (*platformModels.School, error) {
 				return &platformModels.School{
@@ -3273,7 +3457,7 @@ func TestOperatorProvisioningService_RestoreSchool_Success(t *testing.T) {
 				return nil
 			},
 		},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
@@ -3308,7 +3492,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgDeleted(t *testing.T
 				return nil
 			},
 		},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
@@ -3358,7 +3542,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_Success(t *testing.T
 	softDeleteCalled := false
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Test Org", Slug: "test-org", Active: true,
@@ -3369,11 +3553,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_Success(t *testing.T
 				return nil
 			},
 		},
-		SchoolRepo: &testpkg.SchoolRepoMock{
-			CountNonDeletedByOrganizationIDFn: func(_ context.Context, _ int64) (int, error) {
-				return 0, nil
-			},
-		},
+		SchoolRepo:   &testpkg.SchoolRepoMock{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 	})
 
@@ -3386,10 +3566,10 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_NotFound(t *testing.
 	t.Parallel()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
-		SchoolRepo:       &testpkg.SchoolRepoMock{},
-		AuditLogRepo:     &mockAuditLogRepoShared{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
+		SchoolRepo:    &testpkg.SchoolRepoMock{},
+		AuditLogRepo:  &mockAuditLogRepoShared{},
 	})
 
 	err := service.SoftDeleteOrganization(context.Background(), 999999, 10, nil)
@@ -3404,7 +3584,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_AlreadyDeleted(t *te
 	now := time.Now()
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Test", Slug: "test", DeletedAt: &now,
@@ -3426,18 +3606,17 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_HasActiveSchools(t *
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Test Org", Slug: "test-org", Active: true,
 				}, nil
 			},
-		},
-		SchoolRepo: &testpkg.SchoolRepoMock{
-			CountNonDeletedByOrganizationIDFn: func(_ context.Context, _ int64) (int, error) {
-				return 3, nil
+			softDeleteFn: func(context.Context, int64) error {
+				return &organizationtenancy.OrganizationHasSchoolsError{SchoolCount: 3}
 			},
 		},
+		SchoolRepo:   &testpkg.SchoolRepoMock{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 	})
 
@@ -3455,7 +3634,7 @@ func TestOperatorProvisioningService_RestoreOrganization_Success(t *testing.T) {
 	now := time.Now()
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Test", Slug: "test", DeletedAt: &now,
@@ -3479,10 +3658,10 @@ func TestOperatorProvisioningService_RestoreOrganization_NotFound(t *testing.T) 
 	t.Parallel()
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
-		SummariesRepo:    &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{},
-		SchoolRepo:       &testpkg.SchoolRepoMock{},
-		AuditLogRepo:     &mockAuditLogRepoShared{},
+		SummariesRepo: &mockSummariesRepo{},
+		Organizations: &mockOrganizationRepo{},
+		SchoolRepo:    &testpkg.SchoolRepoMock{},
+		AuditLogRepo:  &mockAuditLogRepoShared{},
 	})
 
 	err := service.RestoreOrganization(context.Background(), 999999, 10, nil)
@@ -3496,7 +3675,7 @@ func TestOperatorProvisioningService_RestoreOrganization_NotDeleted(t *testing.T
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Test", Slug: "test", Active: true,
@@ -3536,7 +3715,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgLookupFails(t *testi
 				return nil
 			},
 		},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, lookupErr
 			},
@@ -3571,7 +3750,7 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgMissing(t *testing.T
 				return nil
 			},
 		},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 				return nil, nil
 			},
@@ -3590,35 +3769,26 @@ func TestOperatorProvisioningService_RestoreSchool_ParentOrgMissing(t *testing.T
 func TestOperatorProvisioningService_SoftDeleteOrganization_CountSchoolsFails(t *testing.T) {
 	t.Parallel()
 
-	// Covers the CountNonDeletedByOrganizationID error branch in
-	// SoftDeleteOrganization: the repo error must be wrapped and returned,
-	// and the org must not be soft-deleted.
+	// Capability persistence failures must remain visible to the caller.
 	countErr := errors.New("count query failed")
-	softDeleteCalled := false
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
 				}, nil
 			},
 			softDeleteFn: func(context.Context, int64) error {
-				softDeleteCalled = true
-				return nil
+				return countErr
 			},
 		},
-		SchoolRepo: &testpkg.SchoolRepoMock{
-			CountNonDeletedByOrganizationIDFn: func(context.Context, int64) (int, error) {
-				return 0, countErr
-			},
-		},
+		SchoolRepo:   &testpkg.SchoolRepoMock{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 	})
 
 	err := service.SoftDeleteOrganization(context.Background(), 100, 10, nil)
 	require.ErrorIs(t, err, countErr)
-	assert.False(t, softDeleteCalled, "must not soft-delete when count query fails")
 }
 
 func TestOperatorProvisioningService_SoftDeleteOrganization_RepoErrorFallsThrough(t *testing.T) {
@@ -3629,7 +3799,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_RepoErrorFallsThroug
 	softDeleteErr := errors.New("unexpected db error")
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
@@ -3639,11 +3809,7 @@ func TestOperatorProvisioningService_SoftDeleteOrganization_RepoErrorFallsThroug
 				return softDeleteErr
 			},
 		},
-		SchoolRepo: &testpkg.SchoolRepoMock{
-			CountNonDeletedByOrganizationIDFn: func(context.Context, int64) (int, error) {
-				return 0, nil
-			},
-		},
+		SchoolRepo:   &testpkg.SchoolRepoMock{},
 		AuditLogRepo: &mockAuditLogRepoShared{},
 	})
 
@@ -3660,7 +3826,7 @@ func TestOperatorProvisioningService_RestoreOrganization_RepoErrorFallsThrough(t
 	restoreErr := errors.New("unexpected db error")
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
-		OrganizationRepo: &mockOrganizationRepo{
+		Organizations: &mockOrganizationRepo{
 			findByIDFn: func(_ context.Context, id int64) (*platformModels.Organization, error) {
 				return &platformModels.Organization{
 					Model: base.Model{ID: id}, Name: "Org", Slug: "org", Active: true,
@@ -3693,6 +3859,10 @@ func (m *mockDeviceRepoWithFind) FindByID(ctx context.Context, id interface{}) (
 		return m.findByIDFn(ctx, id)
 	}
 	return nil, nil
+}
+
+func (m *mockDeviceRepoWithFind) FindByIDForUpdate(ctx context.Context, id int64) (*iotModels.Device, error) {
+	return m.FindByID(ctx, id)
 }
 
 // ---------------------------------------------------------------------------
@@ -3834,7 +4004,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsDeletedSchool(t *tes
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 				d := &iotModels.Device{
-					Model:      base.Model{ID: 200},
+					ID:         200,
 					DeviceID:   "device-200",
 					DeviceType: "rfid",
 					Status:     iotModels.DeviceStatusActive,
@@ -3878,7 +4048,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsNilSchool(t *testing
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
 				d := &iotModels.Device{
-					Model:      base.Model{ID: 200},
+					ID:         200,
 					DeviceID:   "device-200",
 					DeviceType: "rfid",
 					Status:     iotModels.DeviceStatusActive,
@@ -3914,7 +4084,7 @@ func TestOperatorProvisioningService_SetDeviceAPIKey_RejectsInactiveSchool(t *te
 		DeviceRepo: &mockDeviceRepoWithFind{
 			findByIDFn: func(_ context.Context, _ interface{}) (*iotModels.Device, error) {
 				d := &iotModels.Device{
-					Model:      base.Model{ID: 200},
+					ID:         200,
 					DeviceID:   "device-200",
 					DeviceType: "rfid",
 					Status:     iotModels.DeviceStatusActive,
@@ -3951,7 +4121,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsBlockers(t *
 
 	now := time.Now()
 	device := &iotModels.Device{
-		Model:      base.Model{ID: 200},
+		ID:         200,
 		DeviceID:   "BURBACH-2",
 		DeviceType: "terminal",
 		Status:     iotModels.DeviceStatusActive,
@@ -3996,7 +4166,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_ReportsProtectedDev
 	t.Parallel()
 
 	device := &iotModels.Device{
-		Model:    base.Model{ID: 200},
+		ID:       200,
 		DeviceID: iotModels.WebManualDeviceID,
 	}
 	device.SetTenantID(10)
@@ -4019,7 +4189,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 	t.Parallel()
 
 	startedAt := time.Now().Add(-time.Hour)
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	device.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4030,8 +4200,8 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_IncludesSessionName
 			return &activeModels.Group{
 				Model:       base.Model{ID: 300},
 				StartTime:   startedAt,
-				ActualGroup: &activityModels.Group{Name: "Mensa"},
-				Room:        &facilitiesModels.Room{Name: "Speisesaal"},
+				ActualGroup: &activeModels.SessionActivity{Name: "Mensa"},
+				Room:        &activeModels.SessionRoom{Name: "Speisesaal"},
 			}, nil
 		}},
 	})
@@ -4084,7 +4254,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_NilDeviceIsNotFound
 func TestOperatorProvisioningService_GetDeviceTransferStatus_SessionLookupFailure(t *testing.T) {
 	t.Parallel()
 
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	device.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4106,7 +4276,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_UsesTenantOnlineWin
 	t.Parallel()
 
 	lastSeen := time.Now().Add(-10 * time.Minute)
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
 	device.SetTenantID(10)
 
 	var resolvedTenantID int64
@@ -4139,7 +4309,7 @@ func TestOperatorProvisioningService_GetDeviceTransferStatus_OnlineWindowResolve
 	t.Parallel()
 
 	lastSeen := time.Now().Add(-10 * time.Minute)
-	device := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
+	device := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2", LastSeen: &lastSeen}
 	device.SetTenantID(10)
 
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
@@ -4168,7 +4338,7 @@ func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesId
 	apiKey := "dev_existing-key"
 	deviceName := "Burbach 2"
 	source := &iotModels.Device{
-		Model:      base.Model{ID: 200},
+		ID:         200,
 		DeviceID:   "BURBACH-2",
 		DeviceType: "terminal",
 		Name:       &deviceName,
@@ -4239,7 +4409,7 @@ func TestOperatorProvisioningService_TransferDevice_ArchivesSourceAndPreservesId
 func TestOperatorProvisioningService_TransferDevice_RejectsDifferentOrganization(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2", DeviceType: "terminal", Status: iotModels.DeviceStatusActive}
+	source := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2", DeviceType: "terminal", Status: iotModels.DeviceStatusActive}
 	source.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4262,7 +4432,7 @@ func TestOperatorProvisioningService_TransferDevice_OnlineDeviceDoesNotWrite(t *
 
 	now := time.Now()
 	source := &iotModels.Device{
-		Model:      base.Model{ID: 200},
+		ID:         200,
 		DeviceID:   "BURBACH-2",
 		DeviceType: "terminal",
 		Status:     iotModels.DeviceStatusActive,
@@ -4301,7 +4471,7 @@ func TestOperatorProvisioningService_TransferDevice_OnlineDeviceDoesNotWrite(t *
 func TestOperatorProvisioningService_TransferDevice_RejectsSameSchool(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	source := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	source.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4320,7 +4490,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsSameSchool(t *testing
 func TestOperatorProvisioningService_TransferDevice_RejectsProtectedDevice(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: iotModels.WebManualDeviceID}
+	source := &iotModels.Device{ID: 200, DeviceID: iotModels.WebManualDeviceID}
 	source.SetTenantID(10)
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{
 		SummariesRepo: &mockSummariesRepo{},
@@ -4353,7 +4523,7 @@ func TestOperatorProvisioningService_TransferDevice_RejectsInvalidIDs(t *testing
 func TestOperatorProvisioningService_TransferDevice_ActiveSessionDoesNotWrite(t *testing.T) {
 	t.Parallel()
 
-	source := &iotModels.Device{Model: base.Model{ID: 200}, DeviceID: "BURBACH-2"}
+	source := &iotModels.Device{ID: 200, DeviceID: "BURBACH-2"}
 	source.SetTenantID(10)
 	writes := 0
 	service := newTestOperatorProvisioningService(t, platformSvc.OperatorProvisioningServiceConfig{

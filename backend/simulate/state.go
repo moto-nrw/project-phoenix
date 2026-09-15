@@ -1,19 +1,21 @@
 package simulate
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
+	"sort"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/demoprofile"
 )
 
-const DefaultSeedStatePath = ".seed-state.json"
+const DefaultSeedStatePath = demoprofile.DefaultSeedStatePath
+const DefaultProfileKey = demoprofile.DefaultProfileKey
 
 type SeedState struct {
 	Version     string                `json:"version"`
 	CreatedAt   time.Time             `json:"created_at"`
 	BaseURL     string                `json:"base_url"`
+	ProfileKey  string                `json:"profile_key,omitempty"`
+	Bootstrap   SeedStateBootstrap    `json:"bootstrap"`
 	DevicePIN   string                `json:"device_pin"`
 	Accounts    SeedStateAccounts     `json:"accounts"`
 	Devices     map[string]SeedDevice `json:"devices"`
@@ -34,6 +36,10 @@ type SeedState struct {
 		Activities map[string]int64 `json:"activities"`
 		Groups     map[string]int64 `json:"groups"`
 	} `json:"lookups"`
+}
+
+type SeedStateBootstrap struct {
+	TenantSlug string `json:"tenant_slug"`
 }
 
 type SeedStateAccounts struct {
@@ -64,20 +70,75 @@ type SeedStudent struct {
 	Class     string `json:"class"`
 }
 
-func LoadSeedState(path string) (*SeedState, error) {
-	data, err := os.ReadFile(filepath.Clean(path))
+func LoadSeedStateProfile(path, profileKey string) (*SeedState, error) {
+	contract, err := demoprofile.LoadSeedState(path)
 	if err != nil {
-		return nil, fmt.Errorf("read seed state: %w", err)
+		return nil, err
 	}
-	var state SeedState
-	if err := json.Unmarshal(data, &state); err != nil {
-		return nil, fmt.Errorf("unmarshal seed state: %w", err)
+	profile, err := contract.SelectProfile(profileKey)
+	if err != nil {
+		return nil, err
 	}
-	if state.Version != "" && state.Version != "2" {
-		return nil, fmt.Errorf("unsupported seed state version: %s", state.Version)
-	}
+	state := seedStateFromProfile(contract, profile)
 	state.normalize()
-	return &state, nil
+	return state, nil
+}
+
+func seedStateFromProfile(contract *demoprofile.SeedState, profile *demoprofile.SeedProfile) *SeedState {
+	state := &SeedState{
+		Version: contract.Version, CreatedAt: contract.CreatedAt, BaseURL: contract.BaseURL,
+		ProfileKey: profile.Key, Bootstrap: SeedStateBootstrap{TenantSlug: profile.School.TenantSlug},
+		DevicePIN: profile.Credentials.DevicePIN,
+		Accounts: SeedStateAccounts{
+			Admin:    simulationAccounts(profile.Credentials.Accounts.Admin),
+			Betreuer: simulationAccounts(profile.Credentials.Accounts.Betreuer),
+		},
+		Devices:    make(map[string]SeedDevice),
+		Rooms:      simulationEntityIDs(profile.Entities.Rooms),
+		Activities: simulationEntityIDs(profile.Entities.Activities),
+		Groups:     simulationEntityIDs(profile.Entities.Groups),
+	}
+	for key, device := range profile.Devices {
+		if device.APIKey != "" {
+			state.Devices[key] = SeedDevice{APIKey: device.APIKey, Name: device.Name}
+		}
+	}
+	studentKeys := make([]string, 0, len(profile.Entities.Students))
+	for key := range profile.Entities.Students {
+		studentKeys = append(studentKeys, key)
+	}
+	sort.Strings(studentKeys)
+	for _, key := range studentKeys {
+		student := profile.Entities.Students[key]
+		state.Students = append(state.Students, SeedStudent{
+			ID: student.ID, FirstName: student.FirstName, LastName: student.LastName,
+			GroupKey: student.GroupKey, Class: student.Class,
+		})
+	}
+	return state
+}
+
+func simulationAccounts(accounts []demoprofile.AccountCredentials) []AccountCredentials {
+	result := make([]AccountCredentials, 0, len(accounts))
+	for _, account := range accounts {
+		result = append(result, AccountCredentials{
+			Email: account.Email, Password: account.Password, PIN: account.PIN, Name: account.Name,
+			StaffID: account.StaffID, TeacherID: account.TeacherID, Group: account.Group,
+		})
+	}
+	return result
+}
+
+func simulationEntityIDs(entities map[string]demoprofile.SeedEntityRef) map[string]int64 {
+	result := make(map[string]int64, len(entities))
+	for key, entity := range entities {
+		name := entity.Name
+		if name == "" {
+			name = key
+		}
+		result[name] = entity.ID
+	}
+	return result
 }
 
 func (s *SeedState) normalize() {

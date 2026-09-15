@@ -2,6 +2,14 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import GuardianList from "./guardian-list";
 
+// Zeilenaktionen liegen im Kebab der Karte (Bauart 1 Regel 4).
+function rowMenuTriggers() {
+  return screen.getAllByRole("button", { name: /^Aktionen für/ });
+}
+function closeRowMenu() {
+  fireEvent.keyDown(document, { key: "Escape" });
+}
+
 vi.mock("@/lib/guardian-helpers", () => ({
   getGuardianFullName: (g: { firstName?: string; lastName?: string }) =>
     `${g.firstName ?? ""} ${g.lastName ?? ""}`.trim(),
@@ -169,8 +177,17 @@ describe("GuardianList", () => {
     const onEdit = vi.fn();
     render(<GuardianList guardians={mockGuardians} onEdit={onEdit} />);
 
-    const editButtons = screen.getAllByText("Bearbeiten");
-    expect(editButtons.length).toBe(2);
+    // Zeilenaktionen liegen im Kebab der Karte (Bauart 1 Regel 4): jede
+    // Karte hat ein Menü, jedes Menü bietet Bearbeiten an.
+    const triggers = rowMenuTriggers();
+    expect(triggers.length).toBe(2);
+    for (const trigger of triggers) {
+      fireEvent.click(trigger);
+      expect(
+        screen.getByRole("menuitem", { name: "Bearbeiten" }),
+      ).toBeInTheDocument();
+      closeRowMenu();
+    }
   });
 
   it("hides action buttons when readOnly", () => {
@@ -182,6 +199,9 @@ describe("GuardianList", () => {
       />,
     );
 
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Bearbeiten")).not.toBeInTheDocument();
   });
 
@@ -189,8 +209,8 @@ describe("GuardianList", () => {
     const onEdit = vi.fn();
     render(<GuardianList guardians={mockGuardians} onEdit={onEdit} />);
 
-    const editButtons = screen.getAllByText("Bearbeiten");
-    fireEvent.click(editButtons[0]!);
+    fireEvent.click(rowMenuTriggers()[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Bearbeiten" }));
 
     expect(onEdit).toHaveBeenCalledWith(mockGuardians[0]);
   });
@@ -223,8 +243,8 @@ describe("GuardianList", () => {
     expect(
       screen.getByText("Konto aktiv, kein Portalzugriff"),
     ).toBeInTheDocument();
-    const grantButton = screen.getByText("Zugriff gewähren");
-    fireEvent.click(grantButton);
+    fireEvent.click(rowMenuTriggers()[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff gewähren" }));
     expect(onInvite).toHaveBeenCalledWith(guardian);
   });
 
@@ -236,6 +256,9 @@ describe("GuardianList", () => {
     };
     render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
 
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Einladen")).not.toBeInTheDocument();
     expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
   });
@@ -248,7 +271,10 @@ describe("GuardianList", () => {
     render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
 
     expect(screen.getByText("Einladung offen")).toBeInTheDocument();
-    expect(screen.getByText("Erneut einladen")).toBeInTheDocument();
+    fireEvent.click(rowMenuTriggers()[0]!);
+    expect(
+      screen.getByRole("menuitem", { name: "Erneut einladen" }),
+    ).toBeInTheDocument();
   });
 
   it("hides the invite action while an account holder's upgrade approval is pending", () => {
@@ -261,6 +287,11 @@ describe("GuardianList", () => {
     render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
 
     expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+    // Ohne Einladen und ohne Bearbeiten gibt es keinen Eintrag, also auch
+    // kein Menü (Bauart 2 Regel 7).
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Erneut einladen")).not.toBeInTheDocument();
     expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
   });
@@ -273,6 +304,9 @@ describe("GuardianList", () => {
     };
     render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
 
+    expect(
+      screen.queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
     expect(screen.queryByText("Einladen")).not.toBeInTheDocument();
   });

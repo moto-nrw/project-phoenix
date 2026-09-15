@@ -19,9 +19,9 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/services/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,7 +36,13 @@ func buildReadService(t *testing.T, enabled bool) (parentService.Service, *testp
 func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	// Child names come from the People Directory composition (#2661); bind
+	// it before the school projections, as the service graph does.
+	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
+	require.NoError(t, err)
+	organizationTenancy, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
+	repos.BindOrganizationTenancy(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
@@ -56,6 +62,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 		MessageThreadRepo:     repos.ParentMessageThread,
 		MessageRepo:           repos.ParentMessage,
 		MessageReadRepo:       repos.ParentMessageRead,
+		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		DB:                    db,
 		Logger:                slog.Default(),
@@ -67,8 +74,9 @@ type recordingStaffParentMessageNotifier struct {
 	reports []notificationsSvc.StaffParentMessageReport
 }
 
-func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report notificationsSvc.StaffParentMessageReport) {
+func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report notificationsSvc.StaffParentMessageReport) error {
 	n.reports = append(n.reports, report)
+	return nil
 }
 
 // seedStaffReply inserts a staff-authored message into the guardian's child
@@ -92,7 +100,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *repositories.Factory, chain
 	m.SetTenantID(chain.TenantID)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, parentmessaging.AppendMessage(ctx, repos.ParentMessage, repos.ParentMessageThread, m))
+	require.NoError(t, communicationtest.NewParentConversationCore(repos.ParentMessageThread, repos.ParentMessage, repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
 	return thread.ID, staffAccount.ID
 }
 
@@ -291,6 +299,7 @@ func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
 	assert.Equal(t, notificationsSvc.StaffParentMessageReport{
 		TenantID:       chain.TenantID,
 		ThreadID:       view.ThreadID,
+		MessageID:      view.Messages[0].ID,
 		StudentID:      chain.StudentID,
 		ActorAccountID: chain.AccountID,
 	}, notifier.reports[0])

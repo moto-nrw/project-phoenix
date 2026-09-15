@@ -47,7 +47,7 @@ type studentDaySetup struct {
 // arrival / pickup / visit rows on top.
 func buildStudentDaySetup(t *testing.T) *studentDaySetup {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t)
 
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
@@ -513,37 +513,24 @@ func TestGetStudentWeek_MissingParams_Returns400(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "from and to are required")
 }
 
-// queryCounterHook counts every SELECT the handler issues during a /week
-// call. Exists purely to regression-guard the N+1 fix: /week over any valid
-// range must stay at or below the 7-query ceiling.
-type queryCounterHook struct{ n int64 }
-
-func (h *queryCounterHook) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
-	h.n++
-	return ctx
-}
-func (h *queryCounterHook) AfterQuery(context.Context, *bun.QueryEvent) {}
-
 // TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne locks in the N+1 fix:
 // a 14-day /week must fire at most 7 DB queries (enrolled + instances +
 // visits + 2 schedules + 2 exceptions). Previously this was ~98.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := buildStudentDaySetup(t)
 
-	hook := &queryCounterHook{}
-	s.db.AddQueryHook(hook)
+	counter := testpkg.CaptureQueries(t, s.db)
 
 	router := adminRouter(s.ctx, s.res)
 	w := doGet(t, router, fmt.Sprintf("/student/%d/week?from=2026-04-01&to=2026-04-14", s.studentID))
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	// FindByID (student resolution) + up to 7 preload queries = 8. Allow a
-	// little headroom for implicit bun/pg metadata queries; assert we're
-	// far below the pre-fix 14*7=98 regime.
-	assert.LessOrEqual(t, hook.n, int64(12),
-		"14-day /week must stay under the batched ceiling, got %d", hook.n)
-	t.Logf("14-day /week fired %d queries", hook.n)
+	// FindByID (student resolution) + up to 7 preload queries = 8, plus the
+	// one batched class-exception lookup of the arrival projection (#2962).
+	// The register entry leaves a little headroom for implicit bun/pg
+	// metadata queries and stays far below the pre-fix 14*7=98 regime.
+	t.Logf("14-day /week fired %d queries", counter.Total())
+	testpkg.AssertQueryBudget(t, "api.timetable.student_week.14d", counter.Queries())
 }

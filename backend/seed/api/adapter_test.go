@@ -85,7 +85,7 @@ func seedTestAPIAuth(auth AuthRef) testpkg.APIAuth {
 func seedTestError(err error) error {
 	var requestErr *testpkg.APIRequestError
 	if errors.As(err, &requestErr) {
-		return &APIError{Method: requestErr.Method, Path: requestErr.Path, StatusCode: requestErr.StatusCode, Message: requestErr.Message, Body: requestErr.Body}
+		return &APIError{Method: requestErr.Method, Path: requestErr.Path, StatusCode: requestErr.StatusCode, Code: requestErr.Code, Message: requestErr.Message, Body: requestErr.Body}
 	}
 	return err
 }

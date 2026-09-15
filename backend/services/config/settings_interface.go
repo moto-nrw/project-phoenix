@@ -116,14 +116,14 @@ type SettingsService interface {
 	// LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
 	// that guards the Ganztag pickup-cutoff pair. The cutoff writer holds it while
 	// it validates the pair; a reader that must observe both cutoffs consistently
-	// (services/slotlists) takes it before resolving them, so a concurrent lowering
+	// (the class-day projection, modules/classday) takes it before resolving them, so a concurrent lowering
 	// of both boundaries cannot interleave with the read and expose an inverted
 	// short/long pair under READ COMMITTED. Best-effort: without an ambient
 	// transaction the xact lock is meaningless, so it is skipped rather than failing.
 	LockSlotListCutoffPair(ctx context.Context) error
 
 	// LockSlotListCutoffPairShared is the SHARED-mode counterpart taken by read
-	// paths (services/slotlists pickupBuckets). Shared holders do not block one
+	// paths (the class-day projection, modules/classday). Shared holders do not block one
 	// another, so concurrent option loads, pickup previews and exports run in
 	// parallel instead of serializing behind the exclusive writer lock; it still
 	// conflicts with LockSlotListCutoffPair so a cutoff write cannot expose a
@@ -158,6 +158,20 @@ type SettingsService interface {
 	// TenantTxMiddleware and carry the resolved school in an argument, not in
 	// the context. Same best-effort tx semantics.
 	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
+
+	// LockParentPickupChangePolicy takes the per-tenant transaction-scoped
+	// EXCLUSIVE advisory lock guarding the parent pickup-change enablement and
+	// same-day cutoff settings. SetValue and ResetValue take it before either
+	// setting changes, so a guardian write cannot commit based on a policy
+	// combination that was never committed. Same best-effort tx semantics.
+	LockParentPickupChangePolicy(ctx context.Context) error
+
+	// LockParentPickupChangePolicySharedForTenant is the SHARED counterpart
+	// taken by guardian pickup-change writes before they re-read both settings
+	// at their write boundary. The tenant is explicit because the child lookup
+	// determines the tenant outside the parent transaction. Same best-effort tx
+	// semantics.
+	LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error
 }
 
 // BatchSettingsService extends SettingsService with query-coalescing reads.

@@ -134,6 +134,20 @@ func (r *MFAEmailChallengeRepository) MarkConsumed(ctx context.Context, id int64
 	return base.AssertRowsAffected(res, 1, "mark mfa email challenge consumed")
 }
 
+func (r *MFAEmailChallengeRepository) MarkActive(ctx context.Context, id int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.MFAEmailChallenge)(nil)).
+		ModelTableExpr(mfaEmailChallengeTable).
+		Set("consumed_at = NULL").
+		Where(whereID, id).
+		Where("consumed_at IS NOT NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark mfa email challenge active", Err: base.TranslateNotFound(err)}
+	}
+	return base.AssertRowsAffected(res, 1, "mark mfa email challenge active")
+}
+
 // CountRecentByAccountID returns the number of challenges issued to the account at or after `since`.
 func (r *MFAEmailChallengeRepository) CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error) {
 	count, err := base.GetDB(ctx, r.db).NewSelect().

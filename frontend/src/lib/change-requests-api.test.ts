@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-import { fetchPendingChangeRequestCount } from "./change-requests-api";
+import {
+  fetchChangeRequestAccess,
+  fetchPendingChangeRequestCount,
+} from "./change-requests-api";
 
 const originalFetch = globalThis.fetch;
 
@@ -67,5 +70,19 @@ describe("fetchPendingChangeRequestCount", () => {
   it("returns 0 on a 500 with a non-JSON body", async () => {
     mockFetch(async () => new Response("boom", { status: 500 }));
     expect(await fetchPendingChangeRequestCount()).toBe(0);
+  });
+});
+
+describe("fetchChangeRequestAccess", () => {
+  it("liefert die serverseitig ausgewertete Elternanfragen-Freigabe", async () => {
+    mockFetch(async () =>
+      jsonResponse({ data: { review_access: "group_leader" } }),
+    );
+
+    await expect(fetchChangeRequestAccess()).resolves.toBe("group_leader");
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/students/change-requests/access",
+      expect.objectContaining({ method: "GET", cache: "no-store" }),
+    );
   });
 });

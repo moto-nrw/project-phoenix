@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,7 +73,7 @@ func TestApplyAndClearLiveStatusForToday(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 5, 25, 9, 30, 0, 0, time.UTC)
-	student := &userModels.Student{}
+	student := &activeService.StudentRecord{}
 
 	activeService.ApplyLiveStatusForToday(student, activeModels.StudentStatusDaySick, now)
 	require.NotNil(t, student.Sick)

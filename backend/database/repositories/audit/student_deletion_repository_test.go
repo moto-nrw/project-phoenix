@@ -1,12 +1,10 @@
-package audit_test
+package audit
 
 import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,13 +14,13 @@ func TestStudentDeletionRepository_Create(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repo := repositories.NewFactory(db).StudentDeletionAudit
+	repo := NewStudentDeletionRepository(NewRuntime(db, auditTestTenantID))
 
 	assert.ErrorContains(t, repo.Create(context.Background(), nil), "audit event is required")
 
 	event := &auditModels.StudentDeletion{StudentID: 99, ActorAccountID: 42, Reason: "test_data"}
 	ctx := testpkg.Ctx(t)
-	expectedTenantID := tenant.FromContext(ctx)
+	expectedTenantID := auditModels.TenantIDFromContext(ctx)
 	require.NoError(t, repo.Create(ctx, event))
 	assert.Equal(t, expectedTenantID, event.TenantID)
 	assert.Positive(t, event.ID)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import {
@@ -150,6 +151,7 @@ export function OfferingRequestReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
+  const t = useTranslations("parentMasterData");
   const toast = useToast();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
@@ -414,7 +416,7 @@ export function OfferingRequestReviewItem({
       <div className="sm:grid sm:grid-cols-[minmax(0,1fr)_minmax(0,17rem)] sm:items-start sm:gap-x-3">
         <ReviewDiffPanel title="Änderungen">
           {row.diff.length === 0 && (
-            <span className="text-sm text-gray-500">—</span>
+            <span className="text-sm text-gray-500">–</span>
           )}
           {row.diff.map((entry) => {
             const previewSelection = previewByOffering.get(entry.offering_id);
@@ -431,12 +433,13 @@ export function OfferingRequestReviewItem({
                 className={`text-sm ${isRemoved ? "opacity-50" : ""}`}
               >
                 <span className="text-xs text-gray-500">{entry.label}: </span>
+                {/* Eine Kursanfrage sieht sonst aus wie jede andere
+                    Angebotsänderung (#3075). */}
+                {entry.is_course && (
+                  <StatusBadge tone="green" label={t("courses.title")} />
+                )}
                 {entry.automatic && (
-                  <StatusBadge
-                    tone="blue"
-                    label="Automatisch mitgebucht"
-                    showDot={false}
-                  />
+                  <StatusBadge tone="blue" label="Automatisch mitgebucht" />
                 )}
                 <div className="flex flex-wrap items-baseline gap-2">
                   <span className="text-gray-400 line-through">

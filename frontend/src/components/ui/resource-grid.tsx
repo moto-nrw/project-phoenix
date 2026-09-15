@@ -7,13 +7,11 @@ import type { ReactNode } from "react";
 import { PlanAddAffordance } from "~/components/ui/plan-add-affordance";
 
 /**
- * ResourceGrid is the generic rows-by-columns planning grid of the planning
- * redesign — the table skeleton spec'd in
- * docs/planung-redesign/docs/04-designsprache.md Abschnitt 6.2. It carries no
+ * ResourceGrid is the generic rows-by-columns planning grid. It carries no
  * domain knowledge: rows are opaque objects, columns are plain data, and every
  * cell/header is a render-prop slot filled by the caller. The mapping of any
- * domain entity onto a row or a cell lives in the screen views, never here
- * (Fertig-Kriterium Y7). The half-year view and other consumers reuse the same
+ * domain entity onto a row or a cell lives in the screen views, never here.
+ * The half-year view and other consumers reuse the same
  * grid with entirely different cell content.
  */
 
@@ -73,6 +71,12 @@ interface ResourceGridProps<TRow> {
   readonly onEmptyCellClick?: (row: TRow, column: ResourceGridColumn) => void;
   /** Footer slot rendered inside <tfoot>, e.g. a CapacityStrip row. */
   readonly footer?: ReactNode;
+  /**
+   * Legende des Rasters. Sie sitzt als Fußband IN der Rasterfläche, nicht
+   * darunter auf dem Grund: auf dem gemusterten Hintergrund steht kein Text
+   * (BAUARTEN-SPEC Teil 3). Dieselbe Bauart wie bei Wochen- und Monatsraster.
+   */
+  readonly legend?: ReactNode;
   /** Accessible label for the scroll region. */
   readonly ariaLabel?: string;
   /**
@@ -162,6 +166,7 @@ export function ResourceGrid<TRow>({
   emptyCellLabel,
   onEmptyCellClick,
   footer,
+  legend,
   ariaLabel,
   scrollHintId,
   className,
@@ -301,6 +306,9 @@ export function ResourceGrid<TRow>({
           {footer && <tfoot>{footer}</tfoot>}
         </table>
       </div>
+      {legend && (
+        <div className="border-t border-gray-200 px-3 py-2">{legend}</div>
+      )}
     </div>
   );
 }

@@ -16,6 +16,8 @@ interface AlertProps {
    * bleibt.
    */
   readonly action?: ReactNode;
+  /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
+  readonly className?: string;
 }
 
 export function Alert({
@@ -24,6 +26,7 @@ export function Alert({
   message,
   announce,
   action,
+  className = "",
 }: Readonly<AlertProps>) {
   if (!message) return null;
   const isAssertive = type === "error" || type === "warning";
@@ -112,7 +115,7 @@ export function Alert({
             ? "alert"
             : "status"
       }
-      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]}`}
+      className={`flex items-center rounded-lg border p-4 text-sm shadow-sm ${action ? "flex-wrap gap-y-2" : ""} ${styles[type]} ${className}`}
     >
       {icons[type]}
       {/* Mit Aktion darf die Meldung schrumpfen (min-w-0 flex-1), sonst würde

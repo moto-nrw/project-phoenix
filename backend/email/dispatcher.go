@@ -1,8 +1,8 @@
 package email
 
 import (
-	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -57,22 +57,37 @@ type DeliveryRequest struct {
 	BackoffPolicy []time.Duration
 }
 
-// Dispatcher manages asynchronous email delivery with retry behaviour.
+// ErrDeliveryUnavailable reports a missing synchronous transport.
+var ErrDeliveryUnavailable = errors.New("email delivery is unavailable")
+
+// DeliveryObserver records one completed synchronous Delivery call. Type and
+// Template are stable labels; neither contains a recipient or message body.
+type DeliveryObserver func(transport, template, caller string, duration time.Duration, err error)
+
+// Dispatcher manages asynchronous and fail-closed email delivery with retry behaviour.
 type Dispatcher struct {
 	mailer         Mailer
 	logger         *slog.Logger
+	observe        DeliveryObserver
 	defaultRetry   int
 	defaultBackoff []time.Duration
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (d *Dispatcher) getLogger() *slog.Logger {
-	return cmp.Or(d.logger, slog.Default())
+	return loggerOrDefault(d.logger)
+}
+
+func loggerOrDefault(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return slog.Default()
+	}
+	return logger
 }
 
 // NewDispatcher constructs a Dispatcher with sensible defaults.
-func NewDispatcher(mailer Mailer, logger *slog.Logger) *Dispatcher {
-	return &Dispatcher{
+func NewDispatcher(mailer Mailer, logger *slog.Logger, observers ...DeliveryObserver) *Dispatcher {
+	dispatcher := &Dispatcher{
 		mailer:       mailer,
 		logger:       logger,
 		defaultRetry: 3,
@@ -82,6 +97,10 @@ func NewDispatcher(mailer Mailer, logger *slog.Logger) *Dispatcher {
 			15 * time.Minute,
 		},
 	}
+	if len(observers) > 0 {
+		dispatcher.observe = observers[0]
+	}
+	return dispatcher
 }
 
 // SetDefaults overrides the default retry behaviour; primarily used in tests.
@@ -103,7 +122,7 @@ func (d *Dispatcher) SetDefaults(maxAttempts int, backoff []time.Duration) {
 // The message is copied before async delivery to avoid races if caller mutates the request.
 // Pass context.Background() if no specific context is needed for callbacks.
 func (d *Dispatcher) Dispatch(ctx context.Context, req DeliveryRequest) {
-	if d.mailer == nil {
+	if d == nil || d.mailer == nil {
 		return
 	}
 
@@ -113,6 +132,80 @@ func (d *Dispatcher) Dispatch(ctx context.Context, req DeliveryRequest) {
 
 	cfg := d.resolveConfigWithMessage(req, messageCopy)
 	go d.deliverWithRetry(ctx, cfg)
+}
+
+// Deliver sends an email synchronously. It returns only after the transport
+// accepts the message or the retry policy is exhausted/cancelled. Fail-closed
+// callers must use this method and must never fall back to Dispatch.
+func (d *Dispatcher) Deliver(ctx context.Context, req DeliveryRequest) (err error) {
+	started := time.Now()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("panic in synchronous email delivery: %v", recovered)
+			d.getLogger().Error("synchronous email delivery panic recovered", slog.Any("panic", recovered))
+			sentry.CurrentHub().Recover(recovered)
+		}
+		if d != nil && d.observe != nil {
+			d.observe("email", req.Message.Template, req.Metadata.Type, time.Since(started), err)
+		}
+	}()
+
+	if d == nil || d.mailer == nil {
+		return ErrDeliveryUnavailable
+	}
+	if ctx == nil {
+		return fmt.Errorf("email delivery: context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	cfg := d.resolveConfigWithMessage(req, req.Message)
+	return d.deliverSynchronously(ctx, cfg)
+}
+
+func (d *Dispatcher) deliverSynchronously(ctx context.Context, cfg dispatchConfig) error {
+	for attempt := 1; attempt <= cfg.maxAttempts; attempt++ {
+		sendErr := d.send(ctx, cfg.message)
+		if sendErr == nil {
+			d.invokeCallback(ctx, cfg, attempt, DeliveryStatusSent, nil, true)
+			return nil
+		}
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			sendErr = ctxErr
+		}
+
+		final := attempt == cfg.maxAttempts || ctx.Err() != nil
+		d.invokeCallback(ctx, cfg, attempt, DeliveryStatusFailed, sendErr, final)
+		if final {
+			return fmt.Errorf("email delivery failed after %d attempt(s): %w", attempt, sendErr)
+		}
+		if waitErr := waitForBackoff(ctx, backoffDuration(cfg.backoff, attempt)); waitErr != nil {
+			return waitErr
+		}
+	}
+	return ErrDeliveryUnavailable
+}
+
+func (d *Dispatcher) send(ctx context.Context, message Message) error {
+	if mailer, ok := d.mailer.(ContextMailer); ok {
+		return mailer.SendContext(ctx, message)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	return d.mailer.Send(message)
+}
+
+func waitForBackoff(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // dispatchConfig holds resolved configuration for a delivery attempt

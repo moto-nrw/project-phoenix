@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
 
@@ -18,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -89,7 +91,7 @@ type AdminRequestSchemaLegalBlock struct {
 
 // AdminRequestSchemaField is the slim form-field shape the admin UI
 // needs to render parent-submitted answers with their original label
-// + target hint. Mirrors enrollmentModels.FormField but stringified
+// + target hint. Mirrors capability.FormField but stringified
 // + tagged for JSON.
 type AdminRequestSchemaField struct {
 	Key            string                          `json:"key"`
@@ -100,7 +102,7 @@ type AdminRequestSchemaField struct {
 	Options        []AdminRequestSchemaFieldOption `json:"options,omitempty"`
 }
 
-// AdminRequestSchemaFieldOption mirrors enrollmentModels.FormFieldOption
+// AdminRequestSchemaFieldOption mirrors capability.FormFieldOption
 // so the admin renderer can turn a stored value (e.g. "picked_up")
 // back into its human-readable label (e.g. "Wird abgeholt").
 type AdminRequestSchemaFieldOption struct {
@@ -211,7 +213,7 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 			ID:                strconv.FormatInt(c.ID, 10),
 			FirstName:         c.FirstName,
 			LastName:          c.LastName,
-			DateOfBirth:       c.DateOfBirth.String(),
+			DateOfBirth:       string(c.DateOfBirth),
 			TargetGradeLevel:  c.TargetGradeLevel,
 			TargetSchoolClass: c.TargetSchoolClass,
 			Status:            c.Status,
@@ -387,7 +389,7 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 // the request's care-offering rows, matching admin children to summary
 // children positionally. Children beyond the summary or without rows are
 // left untouched.
-func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentModels.RequestChild, childOfferings map[int64]enrollmentService.ChildOfferingSet) {
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentService.RequestChild, childOfferings map[int64]enrollmentService.ChildOfferingSet) {
 	for i := range children {
 		if i >= len(summaryChildren) {
 			continue
@@ -416,10 +418,10 @@ func toAdminChildOfferings(rows []enrollmentService.ChildOfferingRow) []AdminReq
 	return out
 }
 
-func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
+func toAdminSchemaMetadata(fs *capability.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
 	schemaFields := make([]AdminRequestSchemaField, 0, len(fs.Fields))
 	for _, f := range fs.Fields {
-		if f.Type == enrollmentModels.FormFieldInfo {
+		if f.Type == capability.FormFieldInfo {
 			continue
 		}
 		opts := make([]AdminRequestSchemaFieldOption, 0, len(f.Options))
@@ -630,12 +632,12 @@ func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
 // newAdminRequestChild maps a decided child model onto the wire shape
 // returned by the decide endpoint (no CustomData / Offerings — those are
 // detail-endpoint concerns).
-func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChild {
+func newAdminRequestChild(child *enrollmentService.RequestChild) AdminRequestChild {
 	return AdminRequestChild{
 		ID:                strconv.FormatInt(child.ID, 10),
 		FirstName:         child.FirstName,
 		LastName:          child.LastName,
-		DateOfBirth:       child.DateOfBirth.String(),
+		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
 		Status:            child.Status,
@@ -708,13 +710,13 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 
 func (rs *Resource) applyAdminOfferingUpdate(
 	r *http.Request, requestID, childID int64, body *AdminUpdateOfferingsRequest,
-) (*enrollmentModels.RequestChild, error) {
+) (*enrollmentService.RequestChild, error) {
 	selections, effectiveFrom, err := parseAdminOfferingUpdate(body)
 	if err != nil {
 		return nil, err
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	var updated *enrollmentModels.RequestChild
+	var updated *enrollmentService.RequestChild
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		child, updateErr := rs.DecisionService.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
 			RequestID: requestID, ChildID: childID, Offerings: selections, Reason: body.Reason,

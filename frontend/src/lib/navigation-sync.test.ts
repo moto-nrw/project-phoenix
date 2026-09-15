@@ -52,7 +52,7 @@ const CATALOGS: readonly {
   { name: "Planung", root: PLANNING_SECTION, pages: PLANNING_SUB_PAGES },
   { name: "Eltern", root: PARENT_SECTION, pages: PARENT_SUB_PAGES },
   {
-    name: "Kommunikation",
+    name: "Team",
     root: COMMUNICATION_SECTION,
     pages: COMMUNICATION_SUB_PAGES,
   },

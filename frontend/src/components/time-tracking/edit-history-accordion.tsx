@@ -3,6 +3,7 @@
 import { SquarePen } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { EmptyState } from "~/components/ui/empty-state";
 import type { WorkSessionEdit } from "~/lib/time-tracking-helpers";
 import { formatTime } from "~/lib/time-tracking-helpers";
 
@@ -70,9 +71,7 @@ export function EditHistoryAccordion({
   }
 
   if (edits.length === 0) {
-    return (
-      <p className="py-2 text-xs text-gray-400">Keine Änderungen vorhanden.</p>
-    );
+    return <EmptyState variant="compact" title="Keine Änderungen vorhanden" />;
   }
 
   // Group edits by createdAt timestamp — edits from the same save action

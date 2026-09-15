@@ -34,16 +34,16 @@ func (e *Emitter) OtherPortalGuardianAccountIDs(
 	ctx context.Context,
 	studentID, submitterAccountID int64,
 ) ([]int64, error) {
-	if e == nil || e.threadRepo == nil || studentID <= 0 {
+	if e == nil || e.events == nil || studentID <= 0 {
 		return nil, nil
 	}
-	guardians, err := e.threadRepo.ListGuardiansForStudent(ctx, studentID)
+	guardians, err := e.events.PortalGuardians(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
 	accountIDs := make([]int64, 0, len(guardians))
 	for _, guardian := range guardians {
-		if guardian == nil || guardian.AccountID <= 0 || guardian.AccountID == submitterAccountID {
+		if guardian.AccountID <= 0 || guardian.AccountID == submitterAccountID {
 			continue
 		}
 		accountIDs = append(accountIDs, guardian.AccountID)

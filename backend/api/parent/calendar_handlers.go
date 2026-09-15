@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 )
 
 type parentCalendarResponseRequest struct {
@@ -27,7 +27,7 @@ func (rs *Resource) listMyCalendar(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	events, err := rs.CalendarService.ListMyParentEvents(r.Context(), accountID, from, to)
+	events, err := rs.CalendarService.ListMyParentEvents(r.Context(), accountID, calendarService.Date(from), calendarService.Date(to))
 	if err != nil {
 		renderParentCalendarError(w, r, err)
 		return

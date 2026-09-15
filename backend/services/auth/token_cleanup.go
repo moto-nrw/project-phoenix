@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -14,6 +13,15 @@ import (
 )
 
 // Token Management
+
+// CountExpiredTokens reports how many refresh tokens a cleanup would remove.
+func (s *Service) CountExpiredTokens(ctx context.Context) (int, error) {
+	count, err := s.repos.Token.CountExpiredTokens(ctx)
+	if err != nil {
+		return 0, &AuthError{Op: "count expired tokens", Err: err}
+	}
+	return count, nil
+}
 
 // CleanupExpiredTokens removes expired authentication tokens
 func (s *Service) CleanupExpiredTokens(ctx context.Context) (int, error) {
@@ -172,7 +180,7 @@ func (s *Service) GetActiveTokens(ctx context.Context, accountID int) ([]*auth.T
 }
 
 // logAuthEvent logs an authentication event for audit purposes
-func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string) {
+func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType string, success bool, ipAddress, userAgent string, errorMessage string) error {
 	event := audit.NewAuthEvent(accountID, eventType, success, ipAddress)
 
 	// Login/refresh/logout are public routes — tenant.FromContext is 0.
@@ -189,36 +197,20 @@ func (s *Service) logAuthEvent(ctx context.Context, accountID int64, eventType s
 		event.ErrorMessage = errorMessage
 	}
 
-	detachedCtx := detachedTenantContext(s.withTenantRuntime(ctx))
-	// Log asynchronously to avoid blocking auth operations
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				err := fmt.Errorf("panic in auth event logging: %v", r)
-				s.getLogger().Error("goroutine panic recovered", slog.String("error", err.Error()))
-				sentry.CurrentHub().Recover(r)
-				sentry.Flush(2 * time.Second)
-			}
-		}()
-		if tenantID == 0 {
-			s.getLogger().Warn("skipping auth event logging: no tenant context",
-				"account_id", accountID,
-				"event_type", eventType,
-			)
-			return
-		}
-
-		logCtx, cancel := context.WithTimeout(
-			tenant.WithTenantID(detachedCtx, tenantID),
-			5*time.Second,
-		)
-		defer cancel()
-
-		err := tenant.WithTenantTx(s.withTenantRuntime(logCtx), s.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-			return s.repos.AuthEvent.Create(ctx, event)
-		})
-		if err != nil {
-			s.getLogger().Error("failed to log auth event", "error", err)
-		}
-	}()
+	if tenantID <= 0 {
+		return fmt.Errorf("audit auth event: tenant is required")
+	}
+	if s.audit == nil {
+		return fmt.Errorf("audit auth event: command is not configured")
+	}
+	if hasAmbientTx(ctx) {
+		return s.audit.Append(ctx, event)
+	}
+	if s.db == nil {
+		return fmt.Errorf("audit auth event: database is not configured")
+	}
+	auditCtx := tenant.WithTenantID(s.withTenantRuntime(ctx), tenantID)
+	return tenant.WithTenantTx(auditCtx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return s.audit.Append(txCtx, event)
+	})
 }

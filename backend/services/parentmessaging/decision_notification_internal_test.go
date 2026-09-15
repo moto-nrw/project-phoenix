@@ -5,7 +5,6 @@ package parentmessaging
 import (
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,35 +12,35 @@ func TestIsStaffDecisionPill(t *testing.T) {
 	t.Parallel()
 
 	decision := ChildEvent{
-		EventType:     usersModels.ParentMessageEventRequestStatus,
-		ActorKind:     usersModels.ParentMessageSenderStaff,
-		RequestStatus: usersModels.ParentMessageRequestStatusDone,
-		RequestType:   usersModels.ParentMessageRequestCareSchedule,
+		EventType:     EventRequestStatus,
+		ActorKind:     ActorStaff,
+		RequestStatus: RequestStatusDone,
+		RequestType:   "care_schedule",
 	}
 
 	t.Run("a staff decision qualifies", func(t *testing.T) {
 		assert.True(t, isStaffDecisionPill(decision))
 
 		rejected := decision
-		rejected.RequestStatus = usersModels.ParentMessageRequestStatusRejected
+		rejected.RequestStatus = RequestStatusRejected
 		assert.True(t, isStaffDecisionPill(rejected), "a rejection is news too")
 	})
 
 	t.Run("a parent's own actions do not push back at them", func(t *testing.T) {
 		withdrawn := decision
-		withdrawn.ActorKind = usersModels.ParentMessageSenderGuardian
-		withdrawn.RequestStatus = usersModels.ParentMessageRequestStatusWithdrawn
+		withdrawn.ActorKind = ActorGuardian
+		withdrawn.RequestStatus = RequestStatusWithdrawn
 		assert.False(t, isStaffDecisionPill(withdrawn))
 
 		submitted := decision
-		submitted.EventType = usersModels.ParentMessageEventRequestCreated
-		submitted.ActorKind = usersModels.ParentMessageSenderGuardian
+		submitted.EventType = EventRequestCreated
+		submitted.ActorKind = ActorGuardian
 		assert.False(t, isStaffDecisionPill(submitted))
 	})
 
 	t.Run("an unresolved request is not a decision", func(t *testing.T) {
 		open := decision
-		open.RequestStatus = usersModels.ParentMessageRequestStatusOpen
+		open.RequestStatus = RequestStatusOpen
 		assert.False(t, isStaffDecisionPill(open))
 	})
 
@@ -60,34 +59,34 @@ func TestRequestDecisionCopy(t *testing.T) {
 
 	t.Run("names the subject area, never the child", func(t *testing.T) {
 		cases := map[string]string{
-			usersModels.ParentMessageRequestCareSchedule:   "Betreuungszeiten",
-			usersModels.ParentMessageRequestPickupChange:   "Abholzeit",
-			usersModels.ParentMessageRequestMasterData:     "Stammdaten",
-			usersModels.ParentMessageRequestExcusedAbsence: "Abmeldung",
-			usersModels.ParentMessageRequestSickAbsence:    "Krankmeldung",
+			"care_schedule":   "Betreuungszeiten",
+			"pickup_change":   "Abholzeit",
+			"master_data":     "Stammdaten",
+			"excused_absence": "Abmeldung",
+			"sick_absence":    "Krankmeldung",
 		}
 		for requestType, expected := range cases {
-			title, body := requestDecisionCopy("de", requestType, usersModels.ParentMessageRequestStatusDone)
+			title, body := requestDecisionCopy("de", requestType, RequestStatusDone)
 			assert.Equal(t, "Anfrage genehmigt", title)
 			assert.Contains(t, body, expected)
 		}
 	})
 
 	t.Run("an unknown request type still reads as a sentence", func(t *testing.T) {
-		title, body := requestDecisionCopy("de", "something_new", usersModels.ParentMessageRequestStatusDone)
+		title, body := requestDecisionCopy("de", "something_new", RequestStatusDone)
 		assert.Equal(t, "Anfrage genehmigt", title)
 		assert.Equal(t, "Ihre Anfrage wurde genehmigt.", body,
 			"a future request type must degrade to generic copy, not to an empty push")
 	})
 
 	t.Run("a rejection says so", func(t *testing.T) {
-		title, body := requestDecisionCopy("de", usersModels.ParentMessageRequestCareSchedule, usersModels.ParentMessageRequestStatusRejected)
+		title, body := requestDecisionCopy("de", "care_schedule", RequestStatusRejected)
 		assert.Equal(t, "Anfrage abgelehnt", title)
 		assert.Contains(t, body, "abgelehnt")
 	})
 
 	t.Run("uses the guardian locale", func(t *testing.T) {
-		title, body := requestDecisionCopy("en", usersModels.ParentMessageRequestCareSchedule, usersModels.ParentMessageRequestStatusDone)
+		title, body := requestDecisionCopy("en", "care_schedule", RequestStatusDone)
 		assert.Equal(t, "Request approved", title)
 		assert.Equal(t, "Your care schedule request was approved.", body)
 	})

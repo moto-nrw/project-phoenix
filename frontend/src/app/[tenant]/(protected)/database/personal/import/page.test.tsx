@@ -8,17 +8,26 @@ import {
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import StaffImportPage from "./page";
 
-// Mock next-auth/react
+// Mock next-auth/react. The default session may change existing records
+// (#2906); the mode switcher only renders for that permission pair.
+const personnelSession = {
+  data: {
+    user: {
+      token: "test-token",
+      permissions: ["users:create", "staff:manage", "staff:stammdaten"],
+    },
+  },
+  status: "authenticated",
+};
 vi.mock("next-auth/react", () => ({
-  useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
-    status: "authenticated",
-  })),
+  useSession: vi.fn(() => personnelSession),
 }));
 
 // Mock next/navigation
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
+  // BackButton (via useTenantRouter) braucht useRouter.
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 // Mock ToastContext
@@ -181,11 +190,13 @@ describe("StaffImportPage", () => {
     render(<StaffImportPage />);
 
     expect(
-      screen.getByText("Schritt 1: Vorlage herunterladen"),
+      screen.getByRole("heading", { name: "Vorlage herunterladen" }),
     ).toBeInTheDocument();
     // Regression: the alignment spacer must not duplicate this label.
     expect(screen.getByText("Format wählen")).toBeInTheDocument();
-    expect(screen.getByText("Vorlage herunterladen")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    ).toBeInTheDocument();
   });
 
   it("renders the upload section", () => {
@@ -225,7 +236,9 @@ describe("StaffImportPage", () => {
 
     render(<StaffImportPage />);
 
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    );
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -243,7 +256,9 @@ describe("StaffImportPage", () => {
     });
 
     render(<StaffImportPage />);
-    fireEvent.click(screen.getByText("Vorlage herunterladen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: /Vorlage herunterladen/ }),
+    );
 
     await waitFor(() => {
       expect(screen.getByTestId("alert-error")).toBeInTheDocument();
@@ -615,6 +630,186 @@ describe("StaffImportPage", () => {
     });
   });
 
+  it("shows saved rows and the blocking row on import_batch_failed", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: 205,
+              CreatedCount: 205,
+              UpdatedCount: 0,
+              ErrorCount: 0,
+              Errors: [],
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Import fehlgeschlagen",
+            code: "import_batch_failed",
+            details: {
+              result: {
+                TotalRows: 205,
+                CreatedCount: 100,
+                UpdatedCount: 0,
+                ErrorCount: 1,
+                Errors: [
+                  {
+                    RowNumber: 152,
+                    Data: {
+                      first_name: "Refused",
+                      last_name: "Batch",
+                      email: "",
+                      role_name: "Betreuung",
+                    },
+                    Errors: [
+                      {
+                        field: "create",
+                        message: "Anlegen fehlgeschlagen",
+                        code: "creation_failed",
+                        severity: "error",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          }),
+      });
+
+    render(<StaffImportPage />);
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+
+    await waitFor(() => {
+      expect(screen.getByText("205 Mitarbeiter anlegen")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("205 Mitarbeiter anlegen"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/100 Zeilen sind gespeichert/),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Zeile 152 hat den Rest angehalten/),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("stat-new")).toHaveTextContent("100");
+    expect(screen.getByTestId("stat-errors")).toHaveTextContent("1");
+    expect(screen.getByText("Refused Batch")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Erneut versuchen" }),
+    ).toBeEnabled();
+    expect(screen.queryByText("Fehler beim Import")).not.toBeInTheDocument();
+  });
+
+  it("keeps import enabled after re-uploading a file whose first rows already exist", async () => {
+    (global.fetch as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: 205,
+              CreatedCount: 205,
+              UpdatedCount: 0,
+              ErrorCount: 0,
+              Errors: [],
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: false,
+        json: () =>
+          Promise.resolve({
+            status: "error",
+            error: "Import fehlgeschlagen",
+            code: "import_batch_failed",
+            details: {
+              result: {
+                TotalRows: 205,
+                CreatedCount: 100,
+                UpdatedCount: 0,
+                ErrorCount: 1,
+                Errors: [
+                  {
+                    RowNumber: 152,
+                    Data: {
+                      first_name: "Refused",
+                      last_name: "Batch",
+                      email: "",
+                      role_name: "Betreuung",
+                    },
+                    Errors: [
+                      {
+                        field: "create",
+                        message: "Anlegen fehlgeschlagen",
+                        code: "creation_failed",
+                        severity: "error",
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              TotalRows: 205,
+              CreatedCount: 105,
+              UpdatedCount: 0,
+              ErrorCount: 100,
+              Errors: Array.from({ length: 100 }, (_, index) => ({
+                RowNumber: index + 2,
+                Data: {
+                  first_name: `Person${index}`,
+                  last_name: "Batch",
+                  email: "",
+                  role_name: "Betreuung",
+                },
+                Errors: [
+                  {
+                    code: "already_exists",
+                    severity: "error",
+                    message: "Mitarbeiter existiert bereits",
+                    field: "duplicate",
+                  },
+                ],
+              })),
+            },
+          }),
+      });
+
+    render(<StaffImportPage />);
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+    await waitFor(() => {
+      expect(screen.getByText("205 Mitarbeiter anlegen")).toBeInTheDocument();
+    });
+    fireEvent.click(screen.getByText("205 Mitarbeiter anlegen"));
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "Erneut versuchen" }),
+      ).toBeEnabled();
+    });
+
+    fireEvent.click(screen.getByTestId("file-select-trigger"));
+    await waitFor(() => {
+      expect(screen.getByText("105 Mitarbeiter anlegen")).toBeInTheDocument();
+    });
+    expect(screen.getByText("105 Mitarbeiter anlegen")).toBeEnabled();
+    expect(screen.getByTestId("stat-new")).toHaveTextContent("105");
+    expect(screen.getByTestId("stat-existing")).toHaveTextContent("100");
+    expect(screen.getByTestId("stat-errors")).toHaveTextContent("0");
+  });
+
   it("toggles isDragging on dragEnter/dragLeave", () => {
     render(<StaffImportPage />);
 
@@ -713,6 +908,57 @@ describe("StaffImportPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Keine Authentifizierung")).toBeInTheDocument();
     });
+  });
+
+  it("keeps a create-only user in create mode and says so (#2906)", async () => {
+    const useSession = await import("next-auth/react");
+    vi.mocked(useSession.useSession).mockReturnValue({
+      data: { user: { token: "test-token", permissions: ["users:create"] } },
+      status: "authenticated",
+      update: vi.fn(),
+    } as unknown as ReturnType<typeof useSession.useSession>);
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            TotalRows: 1,
+            CreatedCount: 1,
+            UpdatedCount: 0,
+            ErrorCount: 0,
+            Errors: [],
+          },
+        }),
+    });
+
+    try {
+      render(<StaffImportPage />);
+      expect(
+        screen.queryByRole("button", { name: "Beides" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Nur bestehende aktualisieren" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/legt der Import nur neue Mitarbeiter an/),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByTestId("file-select-trigger"));
+      await waitFor(() => {
+        expect(screen.getByText("1 Mitarbeiter anlegen")).toBeInTheDocument();
+      });
+      const previewCall = (
+        global.fetch as ReturnType<typeof vi.fn>
+      ).mock.calls.find((call) => call[0] === "/api/import/teachers/preview");
+      expect(previewCall).toBeDefined();
+      expect((previewCall![1] as { body: FormData }).body.get("mode")).toBe(
+        "create",
+      );
+    } finally {
+      vi.mocked(useSession.useSession).mockReturnValue(
+        personnelSession as unknown as ReturnType<typeof useSession.useSession>,
+      );
+    }
   });
 
   it("sends the chosen import mode with the preview and relabels the button", async () => {

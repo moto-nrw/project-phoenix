@@ -46,10 +46,6 @@ func TestPermissionRepository_LockAccountPermissionSourcesForTenant(t *testing.T
 	rolePermission := testpkg.CreateTestPermission(t, db, fmt.Sprintf("perm-lock-role-%d", unique), "perm_lock_role", "read")
 
 	// Cleanup is LIFO: the association rows go first, the tenant last.
-	t.Cleanup(func() { testpkg.CleanupTestTenant(t, db, tenantID) })
-	t.Cleanup(func() { testpkg.CleanupAuthFixtures(t, db, account.ID) })
-	t.Cleanup(func() { testpkg.CleanupPermissionRecords(t, db, directPermission.ID, rolePermission.ID) })
-	t.Cleanup(func() { testpkg.CleanupRoleRecords(t, db, role.ID) })
 
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 

@@ -183,8 +183,6 @@ type CareLifecycleService interface {
 	GetPendingWithdrawal(ctx context.Context, id int64) (*userModels.CareWithdrawalCompletion, error)
 	PreviewWithdrawalCareEnd(ctx context.Context, completionID int64, input CareExitInput) (*CareExitPreview, error)
 	ConfirmWithdrawalCareEnd(ctx context.Context, completionID int64, token string, input CareExitInput, actorAccountID int64) (*CareExitResult, error)
-	PreviewWithdrawalDeletion(ctx context.Context, completionID int64) (*StudentDeletionPreview, error)
-	DeleteWithdrawal(ctx context.Context, completionID int64, input StudentDeletionInput) (*StudentDeletionResult, error)
 }
 
 // CareParticipationResolution is the service-owned dated visibility decision
@@ -206,7 +204,6 @@ type careLifecycleService struct {
 	tagReleaser           CareExitTagReleaser
 	auditService          StudentAuditService
 	lockCareBookingWrites func(context.Context) error
-	studentDeletion       StudentDeletionService
 	txHandler             *tenant.TransactionRunner
 	logger                *slog.Logger
 	today                 func() timezone.Date
@@ -215,14 +212,13 @@ type careLifecycleService struct {
 // CareLifecycleDependencies wires the service. Every field is required except
 // the logger; a nil collaborator would silently skip a documented effect.
 type CareLifecycleDependencies struct {
-	StudentRepo     userModels.StudentRepository
-	PersonRepo      userModels.PersonRepository
-	CareExitRepo    userModels.CareExitRepository
-	CleanupRepo     userModels.CareExitCleanupRepository
-	WithdrawalRepo  userModels.CareWithdrawalCompletionRepository
-	TagReleaser     CareExitTagReleaser
-	AuditService    StudentAuditService
-	StudentDeletion StudentDeletionService
+	StudentRepo    userModels.StudentRepository
+	PersonRepo     userModels.PersonRepository
+	CareExitRepo   userModels.CareExitRepository
+	CleanupRepo    userModels.CareExitCleanupRepository
+	WithdrawalRepo userModels.CareWithdrawalCompletionRepository
+	TagReleaser    CareExitTagReleaser
+	AuditService   StudentAuditService
 	// LockCareBookingWrites is the same transaction-scoped gate used by
 	// authoritative offering adjustments. Taking it before any plan lock makes
 	// rebooking and care-end confirmation a total order instead of allowing a
@@ -248,69 +244,11 @@ func NewCareLifecycleService(deps CareLifecycleDependencies) CareLifecycleServic
 		bookingsAuthoritative: deps.BookingsAuthoritative,
 		tagReleaser:           deps.TagReleaser,
 		auditService:          deps.AuditService,
-		studentDeletion:       deps.StudentDeletion,
 		lockCareBookingWrites: deps.LockCareBookingWrites,
 		txHandler:             tenant.NewTransactionRunner(),
 		logger:                deps.Logger,
 		today:                 deps.Today,
 	}
-}
-
-// WireCareWithdrawalDeletion attaches the deletion service after both
-// services have been constructed by the factory.
-func WireCareWithdrawalDeletion(lifecycle CareLifecycleService, deletion StudentDeletionService) {
-	setter, ok := lifecycle.(interface{ SetStudentDeletionService(StudentDeletionService) })
-	if !ok {
-		panic("care lifecycle service does not support student-deletion wiring")
-	}
-	setter.SetStudentDeletionService(deletion)
-}
-
-func (s *careLifecycleService) SetStudentDeletionService(deletion StudentDeletionService) {
-	s.studentDeletion = deletion
-}
-
-func (s *careLifecycleService) PreviewWithdrawalDeletion(ctx context.Context, completionID int64) (*StudentDeletionPreview, error) {
-	completion, err := s.GetPendingWithdrawal(ctx, completionID)
-	if err != nil {
-		return nil, err
-	}
-	if s.studentDeletion == nil {
-		return nil, errors.New("care lifecycle: student deletion service is not configured")
-	}
-	return s.studentDeletion.Preview(ctx, *completion.StudentID)
-}
-
-func (s *careLifecycleService) DeleteWithdrawal(ctx context.Context, completionID int64, input StudentDeletionInput) (*StudentDeletionResult, error) {
-	if s.studentDeletion == nil {
-		return nil, errors.New("care lifecycle: student deletion service is not configured")
-	}
-	var result *StudentDeletionResult
-	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
-		if s.lockCareBookingWrites != nil {
-			if err := s.lockCareBookingWrites(txCtx); err != nil {
-				return fmt.Errorf("care lifecycle: lock care booking writes for deletion: %w", err)
-			}
-		}
-		completion, err := s.withdrawalRepo.FindByIDForUpdate(txCtx, completionID)
-		if err != nil {
-			return err
-		}
-		if completion == nil || completion.State != userModels.CareWithdrawalStatePending || completion.StudentID == nil {
-			return userModels.ErrCareWithdrawalAlreadyResolved
-		}
-		input.StudentID = *completion.StudentID
-		resolved, err := s.withdrawalRepo.MarkDeleted(txCtx, completionID, input.ActorAccountID, time.Now())
-		if err != nil {
-			return err
-		}
-		if !resolved {
-			return userModels.ErrCareWithdrawalAlreadyResolved
-		}
-		result, err = s.studentDeletion.Delete(txCtx, input)
-		return err
-	})
-	return result, err
 }
 
 func (s *careLifecycleService) getLogger() *slog.Logger {

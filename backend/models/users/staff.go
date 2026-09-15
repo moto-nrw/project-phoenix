@@ -20,6 +20,12 @@ const (
 // service layer maps 23505 on it to a stable conflict error.
 const PersonnelNumberUniqueConstraintName = "uq_staff_tenant_personnel_number"
 
+// ErrPersonnelNumberConflict is the repository-level classification of that
+// duplicate. The staff repository is a composition over the School Membership
+// owner, which classifies the unique violation itself, so the service layer
+// matches on this sentinel instead of the raw 23505 it can no longer see.
+var ErrPersonnelNumberConflict = errors.New("personnel number is already assigned")
+
 // Staff represents a staff member in the system
 type Staff struct {
 	base.Model `bun:"schema:users,table:staff"`

@@ -28,6 +28,7 @@ func busColumnExists(t *testing.T, db *testpkg.DB) bool {
 // Up drops the legacy bus column, Down rebuilds it from bus_days, and the
 // bus_days source of truth survives the round-trip unchanged.
 func TestStudentsDropBusColumnMigration(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 
@@ -41,8 +42,8 @@ func TestStudentsDropBusColumnMigration(t *testing.T) {
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
+	testpkg.OwnTenantRows(t, db, tenantID)
 	t.Cleanup(func() {
-		testpkg.CleanupTenantTestData(t, db, tenantID)
 		if busColumnExists(t, db) {
 			require.NoError(t, studentsDropBusColumnUp(ctx, db))
 		}

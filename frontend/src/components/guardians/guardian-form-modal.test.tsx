@@ -13,29 +13,47 @@ vi.stubGlobal("crypto", {
   randomUUID: () => `test-uuid-${++uuidCounter}`,
 });
 
-// Mock the Modal component
-vi.mock("~/components/ui/modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    title,
-    children,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    title: string;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal">
-        <h1>{title}</h1>
-        <button type="button" onClick={onClose} data-testid="close-modal">
-          Close
-        </button>
-        {children}
-      </div>
-    ) : null,
-}));
+// SlideOver läuft über Vaul; in jsdom ersetzt dieser Mock die Bibliothek.
+vi.mock("vaul", async () => {
+  const React = await import("react");
+
+  return {
+    Drawer: {
+      Root: ({
+        children,
+        open,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+      }) => (open === false ? null : <div>{children}</div>),
+      Portal: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+      Overlay: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Content: React.forwardRef<
+        HTMLDivElement,
+        React.HTMLAttributes<HTMLDivElement>
+      >((props, ref) => <div ref={ref} {...props} />),
+      Close: React.forwardRef<
+        HTMLButtonElement,
+        React.ButtonHTMLAttributes<HTMLButtonElement>
+      >((props, ref) => <button ref={ref} {...props} />),
+      Title: React.forwardRef<
+        HTMLHeadingElement,
+        React.HTMLAttributes<HTMLHeadingElement>
+      >(({ children, ...props }, ref) => (
+        <h2 ref={ref} {...props}>
+          {children ?? "Titel"}
+        </h2>
+      )),
+      Description: React.forwardRef<
+        HTMLParagraphElement,
+        React.HTMLAttributes<HTMLParagraphElement>
+      >((props, ref) => <p ref={ref} {...props} />),
+    },
+  };
+});
 
 // Reset uuid counter before each test
 beforeEach(() => {
@@ -339,7 +357,11 @@ describe("GuardianFormModal", () => {
       />,
     );
 
-    expect(screen.queryByTestId("modal")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Erziehungsberechtigte/n hinzufügen",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("renders modal when isOpen is true", () => {
@@ -352,7 +374,11 @@ describe("GuardianFormModal", () => {
       />,
     );
 
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: "Erziehungsberechtigte/n hinzufügen",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("displays create title in create mode", () => {
@@ -563,16 +589,16 @@ describe("GuardianFormModal", () => {
 
     // First name input should have red border
     const firstNameInput = screen.getByPlaceholderText("Max");
-    expect(firstNameInput.className).toContain("border-red-400");
+    expect(firstNameInput.className).toContain("border-moto-red/40");
 
     // Last name input should NOT have red border
-    expect(lastNameInput.className).not.toContain("border-red-400");
+    expect(lastNameInput.className).not.toContain("border-moto-red/40");
 
     // Email should NOT have red border
     const emailInput = screen.getByPlaceholderText(
       "max.mustermann@example.com",
     );
-    expect(emailInput.className).not.toContain("border-red-400");
+    expect(emailInput.className).not.toContain("border-moto-red/40");
   });
 
   it("highlights only the last-name field when last name is empty", async () => {
@@ -595,8 +621,8 @@ describe("GuardianFormModal", () => {
     });
 
     const lastNameInput = screen.getByPlaceholderText("Mustermann");
-    expect(lastNameInput.className).toContain("border-red-400");
-    expect(firstNameInput.className).not.toContain("border-red-400");
+    expect(lastNameInput.className).toContain("border-moto-red/40");
+    expect(firstNameInput.className).not.toContain("border-moto-red/40");
   });
 
   it("highlights email and phone fields when no contact method provided", async () => {
@@ -628,10 +654,10 @@ describe("GuardianFormModal", () => {
     const emailInput = screen.getByPlaceholderText(
       "max.mustermann@example.com",
     );
-    expect(emailInput.className).toContain("border-red-400");
+    expect(emailInput.className).toContain("border-moto-red/40");
 
     const phoneInput = screen.getByPlaceholderText("+49 170 1234567");
-    expect(phoneInput.className).toContain("border-red-400");
+    expect(phoneInput.className).toContain("border-moto-red/40");
   });
 
   it("clears field errors on next submit attempt", async () => {
@@ -652,7 +678,7 @@ describe("GuardianFormModal", () => {
     });
 
     const firstNameInput = screen.getByPlaceholderText("Max");
-    expect(firstNameInput.className).toContain("border-red-400");
+    expect(firstNameInput.className).toContain("border-moto-red/40");
 
     // Fill first name and submit again — first name error should clear, last name error appears
     fireEvent.change(firstNameInput, { target: { value: "Test" } });
@@ -663,7 +689,7 @@ describe("GuardianFormModal", () => {
     });
 
     // First name should no longer be highlighted
-    expect(firstNameInput.className).not.toContain("border-red-400");
+    expect(firstNameInput.className).not.toContain("border-moto-red/40");
   });
 
   it("shows contact validation error when no contact provided", async () => {

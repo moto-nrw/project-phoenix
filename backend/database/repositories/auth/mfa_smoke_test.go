@@ -26,7 +26,6 @@ func TestMFARepositoriesSmoke(t *testing.T) {
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-smoke@test.local")
-	defer testpkg.CleanupAccount(t, db, account.ID)
 
 	credentialRepo := authRepo.NewMFACredentialRepository(db)
 	challengeRepo := authRepo.NewMFAEmailChallengeRepository(db)

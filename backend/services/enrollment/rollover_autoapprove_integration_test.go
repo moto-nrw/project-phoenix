@@ -2,15 +2,19 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"log/slog"
 	"testing"
 	"time"
+
+	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -45,50 +49,50 @@ func setupAutoApproveIntegrationEnvWithSettings(
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
 
-	repoFactory := repositories.NewFactory(env.db)
+	repoFactory := testRepositories(t, env.db)
 
 	decision := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
-		RequestRepo:              repoFactory.Request,
-		RequestChildRepo:         repoFactory.RequestChild,
-		RequestChildOfferingRepo: repoFactory.RequestChildOffering,
-		CareOfferingRepo:         repoFactory.CareOffering,
-		PhaseRepo:                repoFactory.Phase,
-		PersonRepo:               repoFactory.Person,
-		StaffRepo:                repoFactory.Staff,
-		StudentRepo:              repoFactory.Student,
-		StudentGuardianRepo:      repoFactory.StudentGuardian,
-		GuardianProfileRepo:      repoFactory.GuardianProfile,
-		StudentEnrollmentRepo:    repoFactory.StudentEnrollment,
-		ActivityGroupRepo:        repoFactory.ActivityGroup,
-		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
-		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
-		TimeframeRepo:            repoFactory.Timeframe,
-		ActivityExceptionRepo:    repoFactory.ActivityException,
-		AccountRepo:              repoFactory.Account,
-		AccountTenantRepo:        repoFactory.AccountTenant,
-		AccountRoleRepo:          repoFactory.AccountRole,
-		RoleRepo:                 repoFactory.Role,
-		OutboxEnqueuer:           env.outbox,
-		StudentAudit:             usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
-		FrontendURL:              "http://localhost:3000",
-		ParentsURL:               "http://parents.localhost:3000",
-		Settings:                 settings,
-		Logger:                   slog.Default(),
+		Requests:                  repoFactory.Enrollment(),
+		Children:                  repoFactory.Enrollment(),
+		ApprovedOfferings:         approvedOfferingTestProjection(repoFactory),
+		CareOfferingRepo:          repoFactory.CareOffering,
+		Phases:                    repoFactory.Enrollment(),
+		PersonRepo:                repoFactory.Person,
+		StaffRepo:                 repoFactory.Staff,
+		StudentRepo:               repoFactory.Student,
+		StudentGuardianRepo:       repoFactory.StudentGuardian,
+		GuardianProfileRepo:       repoFactory.GuardianProfile,
+		StudentEnrollmentRepo:     repoFactory.StudentEnrollment,
+		ActivityGroupRepo:         repoFactory.ActivityGroup,
+		ActivityScheduleRepo:      repoFactory.ActivitySchedule,
+		CalendarPeriodRepo:        repoFactory.CalendarPeriod,
+		TimeframeRepo:             repoFactory.Timeframe,
+		ActivityExceptionRepo:     repoFactory.ActivityException,
+		GuardianAccess:            testGuardianAccess(env.db),
+		StudentEnrollment:         testStudentEnrollment(env.db),
+		DepartureCompanions:       repoFactory.StudentCompanion,
+		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
+		OutboxEnqueuer:            env.outbox,
+		StudentAudit:              usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		FrontendURL:               "http://localhost:3000",
+		ParentsURL:                "http://parents.localhost:3000",
+		Settings:                  settings,
+		Logger:                    slog.Default(),
 	})
 
 	// Rebuild the rollover service so DecisionService is injected.
 	env.rolloverSvc = enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
-		PhaseRepo:                env.repos.Phase,
-		RequestRepo:              env.repos.Request,
-		RequestChildRepo:         env.repos.RequestChild,
-		RequestChildOfferingRepo: env.repos.RequestChildOffering,
-		OfferingCatalogCloner:    env.offeringCloner,
-		OutboxEnqueuer:           env.outbox,
-		Settings:                 env.settings,
-		DecisionService:          decision,
-		ParentsURL:               "http://parents.localhost:3000",
-		DB:                       env.db,
-		Logger:                   slog.Default(),
+		Bookings:              requestTestBookingCommands(),
+		Phases:                env.repos.Enrollment(),
+		Requests:              env.repos.Enrollment(),
+		Children:              env.repos.Enrollment(),
+		OfferingCatalogCloner: env.offeringCloner,
+		OutboxEnqueuer:        env.outbox,
+		Settings:              env.settings,
+		DecisionService:       decision,
+		ParentsURL:            "http://parents.localhost:3000",
+		DB:                    env.db,
+		Logger:                slog.Default(),
 	})
 
 	return env, cleanup
@@ -105,7 +109,7 @@ func seedApprovedChildWithStudent(
 	guardianFirst, guardianLast, guardianEmail string,
 	childFirst, childLast string,
 	grade int16,
-) (sourceChild *enrollmentModels.RequestChild, existingStudent *usersModels.Student) {
+) (sourceChild *enrollmentService.RequestChild, existingStudent *usersModels.Student) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
 
@@ -145,8 +149,8 @@ func seedApprovedChildWithStudent(
 	person.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.Person.Create(ctx, person))
 
-	startDate := env.sourcePhase.ServiceStartDate
-	endDate := env.sourcePhase.ServiceEndDate
+	startDate := timezone.Date(env.sourcePhase.ServiceStartDate)
+	endDate := timezone.Date(env.sourcePhase.ServiceEndDate)
 	guardianEmailCopy := guardianEmail
 	classFromGrade := classForGrade(grade)
 	student := &usersModels.Student{
@@ -161,12 +165,12 @@ func seedApprovedChildWithStudent(
 	require.NoError(t, env.repos.Student.Create(ctx, student))
 
 	// 3. Link the source child to the student and stamp approved.
-	require.NoError(t, env.repos.RequestChild.LinkCreatedStudent(ctx, sourceChildID, student.ID))
-	require.NoError(t, env.repos.RequestChild.UpdateStatus(
+	require.NoError(t, env.repos.Enrollment().LinkCreatedStudent(ctx, sourceChildID, student.ID))
+	require.NoError(t, env.repos.Enrollment().UpdateChildStatus(
 		ctx, sourceChildID, enrollmentModels.ChildStatusApproved, nil, env.creatorID,
 	))
 
-	loaded, err := env.repos.RequestChild.FindByID(ctx, sourceChildID)
+	loaded, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), sourceChildID)
 	require.NoError(t, err)
 	return loaded, student
 }
@@ -195,11 +199,9 @@ func countStudentsForPerson(t *testing.T, env *rolloverTestEnv, personID int64) 
 	return len(rows)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -225,7 +227,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	require.Equal(t, 1, result.RequestCount)
 
 	// Sanity: before the worker runs, the new row is auto_renewed.
-	preWorker, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	preWorker, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
 		[]string{enrollmentModels.ChildStatusAutoRenewed},
 	)
@@ -244,7 +246,7 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
 	// The new row is now approved AND linked to the SAME student id.
-	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
 		[]string{enrollmentModels.ChildStatusApproved},
 	)
@@ -265,20 +267,18 @@ func TestRolloverService_AutoApprove_EndToEndUpdatesExistingStudent(t *testing.T
 	assert.Equal(t, classForGrade(2), refreshed.SchoolClass,
 		"grade was bumped 1 → 2; school_class must follow")
 	require.NotNil(t, refreshed.EnrolledFrom)
-	assert.Equal(t, result.Phase.ServiceStartDate, *refreshed.EnrolledFrom,
+	assert.Equal(t, timezone.Date(result.Phase.ServiceStartDate), *refreshed.EnrolledFrom,
 		"enrolled_from must follow the new phase's service window")
 	require.NotNil(t, refreshed.EnrolledUntil)
-	assert.Equal(t, result.Phase.ServiceEndDate, *refreshed.EnrolledUntil)
+	assert.Equal(t, timezone.Date(result.Phase.ServiceEndDate), *refreshed.EnrolledUntil)
 	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
-	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
+	assert.Equal(t, timezone.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActive(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
@@ -306,7 +306,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
 
-	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
 		[]string{enrollmentModels.ChildStatusApproved},
 	)
@@ -320,11 +320,9 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
 		mode: configModel.EnrollmentActivationModeImmediate,
 	})
@@ -360,11 +358,9 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	assert.Equal(t, auditModels.StudentFieldEditSystemActorName, history[0].EditedByName)
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecomesPending(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -394,7 +390,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.StudentStatusPending, refreshed.Status)
 
-	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
 		[]string{enrollmentModels.ChildStatusApproved},
 	)
@@ -402,14 +398,12 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentFutureScheduledBecom
 	require.Len(t, approved, 1)
 	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
-	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
+	assert.Equal(t, timezone.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
 }
 
-// Deliberately NOT parallel: the code under test sweeps rows across tenants.
-// These service-level tests call it with a plain tenant context instead of a
-// tenant transaction, so RLS never narrows the query and the sweep also picks
-// up the rows of every test running beside it.
 func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomesActive(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -425,14 +419,15 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
-	req.RolloverDeadline = time.Now().Add(-1 * time.Hour)
-	req.ServiceStartDate = timezone.TodayDate().AddDays(-1)
+	now := decisionTestToday.BerlinMidnight().Add(12 * time.Hour)
+	req.RolloverDeadline = now.Add(-1 * time.Hour)
+	req.ServiceStartDate = decisionTestToday.AddDays(-1)
 	req.ServiceEndDate = timezone.NewDate(req.ServiceStartDate.Year(), req.ServiceStartDate.Month()+10, req.ServiceStartDate.Day())
 	req.Name = "inactive-scheduled-past-target"
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, req)
 	require.NoError(t, err)
 
-	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, time.Now())
+	summary, err := env.rolloverSvc.RunDeadlineWorker(ctx, now)
 	require.NoError(t, err)
 	assert.Equal(t, 1, summary.AutoRenewedToApproved)
 	assert.Equal(t, 0, summary.AutoApproveErrors)
@@ -441,7 +436,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 	require.NoError(t, err)
 	assert.Equal(t, usersModels.StudentStatusActive, refreshed.Status)
 
-	approved, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	approved, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx, result.Phase.ID,
 		[]string{enrollmentModels.ChildStatusApproved},
 	)
@@ -449,7 +444,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentPastScheduledBecomes
 	require.Len(t, approved, 1)
 	assert.Equal(t, enrollmentModels.ChildActivationScheduled, approved[0].ActivationMode)
 	require.NotNil(t, approved[0].ActivateOn)
-	assert.Equal(t, result.Phase.ServiceStartDate.Format("2006-01-02"), approved[0].ActivateOn.Format("2006-01-02"))
+	assert.Equal(t, timezone.Date(result.Phase.ServiceStartDate).Format("2006-01-02"), string(*approved[0].ActivateOn))
 }
 
 func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
@@ -486,6 +481,7 @@ func TestRolloverService_AutoApprove_DoesNotDuplicateStudents(t *testing.T) {
 
 func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *testing.T) {
 	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 
 	env, cleanup := setupAutoApproveIntegrationEnv(t)
 	defer cleanup()
@@ -526,14 +522,14 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
-	offering.SetTenantID(testpkg.Tenant(t))
+	offering.TenantID = testpkg.Tenant(t)
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
-	link := &enrollmentModels.RequestChildOffering{
+	link := &capability.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.RequestChildOffering.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
 
 	req := validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true)
 	req.RolloverAutoApprove = true
@@ -552,7 +548,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		Exec(ctx)
 	require.NoError(t, updErr)
 
-	rolled, err := env.repos.RequestChild.ListByPhaseAndStatuses(
+	rolled, err := env.repos.Enrollment().ChildrenByPhaseStatuses(
 		ctx,
 		result.Phase.ID,
 		[]string{enrollmentModels.ChildStatusAutoRenewed},
@@ -584,7 +580,7 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 	assert.Equal(t, originalUntil, *refreshed.EnrolledUntil,
 		"failed approval must not commit the target enrollment end")
 
-	rolledAfter, err := env.repos.RequestChild.FindByID(ctx, rolledChildID)
+	rolledAfter, err := enrollmentService.ReadOwnerChildForTest(ctx, env.repos.Enrollment(), rolledChildID)
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusAutoRenewed, rolledAfter.Status)
 	assert.Nil(t, rolledAfter.CreatedStudentID, "failed approval must not link the existing student")

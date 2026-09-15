@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -18,7 +18,7 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 	authorID := int64(41)
 	reason := "Vertraulicher Grund"
 	rows := []*scheduleModels.StudentPickupException{{
-		ExceptionDate:     timezone.TodayDate(),
+		ExceptionDate:     scheduleModels.Date(timezone.TodayDate()),
 		Reason:            &reason,
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &authorID,
@@ -44,7 +44,7 @@ func TestPendingCareRequest_HidesAnotherGuardiansRequest(t *testing.T) {
 func TestOwnExcusedRequests_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
-	requests := []*activeModels.ExcusedAbsenceRequest{
+	requests := []*careplan.ExcusedAbsenceRequest{
 		{SubmittedBy: 41, Note: "private"},
 		{SubmittedBy: 42, Note: "mine"},
 	}

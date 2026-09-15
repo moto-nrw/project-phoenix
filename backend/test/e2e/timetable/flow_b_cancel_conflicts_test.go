@@ -25,10 +25,9 @@ import (
 //
 // Tenant-isolation: the neighbor tenant sees an empty conflict list.
 // Query-budget: ≤ 22 queries per B13.
-// Deliberately NOT parallel: the test installs a query hook on the SHARED
-// package pool and asserts a query budget, so any test running beside it is
-// counted too.
 func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	s := setupTimetableScenarioModule(t)
 
 	// --- Setup: target Monday at 13:00–14:00 -------------------------------
@@ -79,7 +78,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	// --- Step 2: insert cancelled exception --------------------------------
 	cancelledExc := &scheduleModel.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   target,
+		ExceptionDate:   scheduleModel.Date(target),
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		Reason:          testpkg.StrPtr("Heizung kaputt"),
 	}
@@ -112,13 +111,11 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 
 	// --- Step 4: /exception-conflicts surfaces cancelled warnings ---------
 	// Attach the query counter now so we measure a real request.
-	qc := &queryCounter{}
-	s.db.AddQueryHook(qc)
-	qc.reset()
+	qc := testpkg.CaptureQueries(t, s.db)
 
 	path := fmt.Sprintf("/exception-conflicts?date=%s&date_to=%s", fromS, fromS)
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	cancelledQueryCount := qc.get()
+	cancelledQueries := qc.Queries()
 
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts body=%s", rr.Body.String())
 
@@ -155,8 +152,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	// Query-budget — PR #1304 guarantees ≤ 22 queries regardless of fan-out.
 	// We include the TenantTxMiddleware SET LOCAL overhead in this count;
 	// the production repo budget is ≤ 22 for the handler body.
-	assert.LessOrEqual(t, cancelledQueryCount, int64(22),
-		"/exception-conflicts (cancelled) query count %d exceeds budget of 22", cancelledQueryCount)
+	testpkg.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.cancelled", cancelledQueries)
 
 	// --- Step 5: swap in a modified exception ------------------------------
 	_, err = s.db.NewDelete().
@@ -169,7 +165,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	modifiedStart := parseHHMM(t, "12:30")
 	modifiedExc := &scheduleModel.ActivityException{
 		ActivityGroupID: tmpl.group.ID,
-		ExceptionDate:   target,
+		ExceptionDate:   scheduleModel.Date(target),
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &modifiedStart,
 		Reason:          testpkg.StrPtr("Fruehschluss"),
@@ -181,9 +177,9 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		Exec(s.tenantCtx())
 	require.NoError(t, err, "insert modified exception")
 
-	qc.reset()
+	qc.Reset()
 	rr = s.do("GET", path, nil, s.primaryAdminClaims())
-	modifiedQueryCount := qc.get()
+	modifiedQueries := qc.Queries()
 	require.Equal(t, http.StatusOK, rr.Code, "exception-conflicts(modified) body=%s", rr.Body.String())
 
 	var modResp struct {
@@ -213,8 +209,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	assert.True(t, studentsSeen[bob.ID])
 	assert.False(t, studentsSeen[cleo.ID], "cleo is absent → modified mismatch suppressed too")
 
-	assert.LessOrEqual(t, modifiedQueryCount, int64(22),
-		"/exception-conflicts (modified) query count %d exceeds budget of 22", modifiedQueryCount)
+	testpkg.AssertQueryBudget(t, "e2e.timetable.exception_conflicts.modified", modifiedQueries)
 
 	// --- Step 6: tenant isolation -----------------------------------------
 	rr = s.do("GET", path, nil, s.secondaryAdminClaims())

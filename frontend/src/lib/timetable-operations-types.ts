@@ -139,6 +139,15 @@ export interface TimetableRoster {
    * Null when no move happened; older backends omit the field.
    */
   movedFrom?: string | null;
+  /**
+   * Whether the caller may act on this block (#3167). False for staff who
+   * only see it through the all_staff overview. Older backends omit it.
+   */
+  canOperate?: boolean;
+  /** Attendance writes do not grant lifecycle or planning authority. */
+  canEditAttendance?: boolean;
+  /** Sick/excused markers, separate from other block statuses. */
+  canReportAbsence?: boolean;
 }
 
 export interface StartOperationResult {
@@ -248,6 +257,9 @@ export interface BackendTimetableRoster {
   pickup_times_loaded?: boolean;
   pickup_times_redacted?: boolean;
   moved_from?: string | null;
+  can_operate?: boolean;
+  can_edit_attendance?: boolean;
+  can_report_absence?: boolean;
 }
 
 export interface BackendStartOperationResult {
@@ -366,6 +378,13 @@ export function mapRoster(raw: BackendTimetableRoster): TimetableRoster {
       ? {}
       : { pickupTimesRedacted: raw.pickup_times_redacted }),
     movedFrom: raw.moved_from ?? null,
+    ...(raw.can_operate === undefined ? {} : { canOperate: raw.can_operate }),
+    ...(raw.can_edit_attendance === undefined
+      ? {}
+      : { canEditAttendance: raw.can_edit_attendance }),
+    ...(raw.can_report_absence === undefined
+      ? {}
+      : { canReportAbsence: raw.can_report_absence }),
   };
 }
 

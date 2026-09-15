@@ -11,6 +11,7 @@ Entity pages use a shared configuration object and service factory, then compose
 ### 1. Entity Configuration (`configs/`)
 
 Each entity has a configuration file that defines:
+
 - Form fields and sections
 - Detail view layout
 - List view appearance
@@ -30,6 +31,7 @@ Example: `configs/students.config.tsx`
 ### 3. Service Factory
 
 The `service-factory.ts` automatically generates CRUD services from configuration:
+
 - getList (with pagination)
 - getOne
 - create
@@ -44,25 +46,25 @@ The `service-factory.ts` automatically generates CRUD services from configuratio
 // configs/rooms.config.tsx
 export const roomsConfig = defineEntityConfig<Room>({
   name: {
-    singular: 'Raum',
-    plural: 'Räume'
+    singular: "Raum",
+    plural: "Räume",
   },
-  
-  concept: 'rooms',
-  
+
+  concept: "rooms",
+
   api: {
-    basePath: '/api/rooms',
+    basePath: "/api/rooms",
   },
-  
+
   form: {
     sections: [
       {
-        title: 'Raumdetails',
+        title: "Raumdetails",
         fields: [
           {
-            name: 'name',
-            label: 'Raumname',
-            type: 'text',
+            name: "name",
+            label: "Raumname",
+            type: "text",
             required: true,
           },
           // ... more fields
@@ -70,14 +72,14 @@ export const roomsConfig = defineEntityConfig<Room>({
       },
     ],
   },
-  
+
   detail: {
     sections: [
       {
-        title: 'Raumdetails',
+        title: "Raumdetails",
         items: [
           {
-            label: 'Raumname',
+            label: "Raumname",
             value: (room) => room.name,
           },
           // ... more items
@@ -85,10 +87,10 @@ export const roomsConfig = defineEntityConfig<Room>({
       },
     ],
   },
-  
+
   list: {
-    title: 'Raum auswählen',
-    searchPlaceholder: 'Raum suchen...',
+    title: "Raum auswählen",
+    searchPlaceholder: "Raum suchen...",
     item: {
       title: (room) => room.name,
       subtitle: (room) => `Etage ${room.floor}`,
@@ -106,18 +108,28 @@ export const roomsConfig = defineEntityConfig<Room>({
 import { useMemo, useState } from "react";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { DatabaseFormModal } from "~/components/ui/database/database-form-modal";
-import { RoomsMasterDetail } from "@/components/rooms/rooms-master-detail";
+import { RoomsList } from "@/components/rooms/rooms-list";
 import { roomsConfig } from "@/components/database/configs/rooms.config";
 import { createCrudService } from "@/lib/database/service-factory";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export default function RoomsPage() {
   const service = useMemo(() => createCrudService(roomsConfig), []);
+  const tenantPath = useTenantAwarePath();
   const [showCreateModal, setShowCreateModal] = useState(false);
 
   return (
     <DatabasePageLayout loading={loading} sessionLoading={sessionLoading}>
-      {/* Fetch with service.getList(), then render the page-specific controls. */}
-      <RoomsMasterDetail {...masterDetailProps} />
+      {/* Fetch with service.getList(), then render the page-specific controls.
+          Every row links to the type's object route (BAUARTEN-SPEC Bauart 1
+          Regel 2); `?from=` carries the way back to this register. Editing
+          and deleting live on that route, not next to the list. */}
+      <RoomsList
+        groupDefinitions={groupDefinitions}
+        objectHref={(room) =>
+          tenantPath(`/rooms/${room.id}?from=${encodeURIComponent("/database/rooms")}`)
+        }
+      />
       <DatabaseFormModal<Room>
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
@@ -135,6 +147,7 @@ modal; `mode` picks the `createModalTitle` / `editModalTitle` label (the label
 for the used mode is required — the modal fails loudly when it is missing).
 
 The configuration and service factory provide the shared CRUD behavior. Each page still owns its own data loading, selection state, filters, and entity-specific UI:
+
 - List view with search and filters
 - Create modal with form validation
 - Detail view with edit/delete actions
@@ -168,6 +181,7 @@ adding a new entity means picking an existing `MotoConceptKey` or adding one to
 ### Hooks
 
 Optional lifecycle hooks for business logic:
+
 - `beforeCreate`: Transform data before creation
 - `afterCreate`: Side effects after creation
 - `beforeUpdate`: Validate/transform updates

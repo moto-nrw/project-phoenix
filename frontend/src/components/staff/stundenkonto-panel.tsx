@@ -13,8 +13,13 @@ import { Banknote, Clock4, Flag, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { Textarea } from "~/components/ui/textarea";
 import { useToast } from "~/contexts/ToastContext";
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
@@ -181,16 +186,20 @@ export function StundenkontoPanel({
                 <span className="text-sm font-medium text-gray-900 tabular-nums">
                   {formatSignedDuration(adjustment.minutesDelta)}
                 </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setDeleteTarget(adjustment)}
-                  aria-label={`Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)} löschen`}
-                  title="Buchung löschen"
-                >
-                  <Trash2 className="h-4 w-4" aria-hidden />
-                </Button>
+                {/* Zeilenaktion nur im Kebab der Zeile (BAUARTEN-SPEC
+                    Bauart 1 Regel 4); Löschen fragt weiter im
+                    ConfirmDeleteModal nach. */}
+                <OverflowMenu
+                  ariaLabel={`Aktionen für Buchung ${balanceAdjustmentTypeLabel(adjustment.type)} vom ${formatDate(adjustment.effectiveDate)}`}
+                  items={[
+                    {
+                      label: "Buchung löschen",
+                      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                      destructive: true,
+                      onClick: () => setDeleteTarget(adjustment),
+                    },
+                  ]}
+                />
               </div>
             </li>
           ))}
@@ -310,16 +319,18 @@ function AdjustmentModal({
   const maxEffectiveDateKey = toISODate(horizon);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const handleSubmit = async () => {
+    setError(null);
     const h = Number.parseFloat(hours.replace(",", "."));
     if (Number.isNaN(h) || h <= 0 || h > 1000) {
-      toast.error("Stundenangabe ungültig.");
+      setError("Stundenangabe ungültig.");
       return;
     }
     if (!effectiveDate) {
-      toast.error("Datum fehlt.");
+      setError("Datum fehlt.");
       return;
     }
     setSubmitting(true);
@@ -333,9 +344,7 @@ function AdjustmentModal({
       toast.success(copy.success);
       await onSaved();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Buchung fehlgeschlagen.",
-      );
+      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -359,6 +368,7 @@ function AdjustmentModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">{copy.hint}</p>
         <div>
           <label
@@ -367,16 +377,16 @@ function AdjustmentModal({
           >
             {copy.amountLabel}
           </label>
-          <input
+          <Input
             id="adjustment-hours"
             type="number"
             min="0.25"
             max="1000"
             step="0.25"
+            controlSize="compact"
             value={hours}
             onChange={(e) => setHours(e.target.value)}
             placeholder="z. B. 8"
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <div>
@@ -424,6 +434,7 @@ function ResetModal({
   const [carryoverHours, setCarryoverHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const carryover = Number.parseFloat(carryoverHours.replace(",", "."));
@@ -431,12 +442,13 @@ function ResetModal({
     !Number.isNaN(carryover) && carryover >= 0 && carryover <= 10_000;
 
   const handleSubmit = async () => {
+    setError(null);
     if (!carryoverValid) {
-      toast.error("Übertrag ungültig.");
+      setError("Übertrag ungültig.");
       return;
     }
     if (!effectiveDate) {
-      toast.error("Datum fehlt.");
+      setError("Datum fehlt.");
       return;
     }
     setSubmitting(true);
@@ -449,7 +461,7 @@ function ResetModal({
       toast.success("Stundenkonto zurückgesetzt.");
       await onSaved();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Reset fehlgeschlagen.");
+      setError(err instanceof Error ? err.message : "Reset fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -473,6 +485,7 @@ function ResetModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">
           Setzt das Stundenkonto zum gewählten Stichtag auf den angegebenen
           Übertrag zurück (Schuljahresende: 31.07.). Der Server berechnet den
@@ -523,14 +536,14 @@ function ResetModal({
           >
             Verbleibender Übertrag (Stunden)
           </label>
-          <input
+          <Input
             id="reset-carryover"
             type="number"
             min="0"
             step="0.25"
+            controlSize="compact"
             value={carryoverHours}
             onChange={(e) => setCarryoverHours(e.target.value)}
-            className="focus:border-moto-green w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:outline-none"
           />
         </div>
         <NoteField note={note} onChange={setNote} />
@@ -563,6 +576,7 @@ function OpeningModal({
   const [openingHours, setOpeningHours] = useState("0");
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useFormError();
   const toast = useToast();
 
   const opening = parseDecimalInput(openingHours);
@@ -570,12 +584,13 @@ function OpeningModal({
     opening !== null && opening >= -10_000 && opening <= 10_000;
 
   const handleSubmit = async () => {
+    setError(null);
     if (opening === null || opening < -10_000 || opening > 10_000) {
-      toast.error("Eröffnungssaldo ungültig.");
+      setError("Eröffnungssaldo ungültig.");
       return;
     }
     if (!effectiveDate) {
-      toast.error("Datum fehlt.");
+      setError("Datum fehlt.");
       return;
     }
     setSubmitting(true);
@@ -588,9 +603,7 @@ function OpeningModal({
       toast.success("Eröffnungssaldo gebucht.");
       await onSaved();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Buchung fehlgeschlagen.",
-      );
+      setError(err instanceof Error ? err.message : "Buchung fehlgeschlagen.");
     } finally {
       setSubmitting(false);
     }
@@ -614,6 +627,7 @@ function OpeningModal({
       }
     >
       <div className="space-y-4">
+        <FormErrorAlert message={error} />
         <p className="text-sm text-gray-500">
           Der Eröffnungssaldo setzt den Übernahme-Stand aus dem Altsystem. Das
           Stundenkonto steht zum Stichtag danach exakt auf dem eingetragenen
@@ -666,14 +680,14 @@ function OpeningModal({
           >
             Übernommener Saldo (Stunden)
           </label>
-          <input
+          <Input
             id="opening-balance"
             type="text"
             inputMode="decimal"
+            controlSize="compact"
             value={openingHours}
             onChange={(e) => setOpeningHours(e.target.value)}
             placeholder="z. B. 12,5 oder -3"
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
           />
         </div>
         <NoteField
@@ -741,13 +755,12 @@ function NoteField({
       >
         Begründung (Pflicht)
       </label>
-      <textarea
+      <Textarea
         id="adjustment-note"
         value={note}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
         placeholder={placeholder}
-        className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-[#83CD2D] focus:outline-none"
       />
     </div>
   );

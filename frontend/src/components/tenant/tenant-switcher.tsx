@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import Link from "next/link";
+import Link from "~/components/ui/navigation-link";
 import { signIn, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import {
@@ -10,11 +10,13 @@ import {
   TenantSwitchError,
   type TenantSummary,
 } from "~/lib/tenant-api";
+import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
+import { useShellSeed } from "~/lib/shell-seed";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
 import { trackTenantEvent } from "~/lib/analytics";
-import { env } from "~/env";
+import { clientEnv } from "~/env.client";
 import { Alert } from "~/components/ui/alert";
 import {
   BrandLink,
@@ -25,9 +27,10 @@ import {
 const logger = createLogger({ component: "BrandTenantSwitcher" });
 
 interface BrandTenantSwitcherProps {
-  readonly isScrolled?: boolean;
   readonly href?: string;
   readonly label?: string | null;
+  /** Unterhalb dieser Breite nur das Logo zeigen, siehe `BrandLink`. */
+  readonly hideLabelBelow?: "md" | "lg";
 }
 
 /**
@@ -38,7 +41,7 @@ interface BrandTenantSwitcherProps {
  * the dropdown trigger (#2011), replacing the separate switcher element
  * that used to overflow the header on mobile.
  *
- * Switch flow (per spec 04-frontend.md):
+ * Switch flow:
  * 1. Call switchTenant(slug) to get new JWT tokens
  * 2. Update NextAuth session via signIn("credentials", { internalRefresh: true })
  * 3. Clear SWR cache to prevent stale cross-tenant data
@@ -46,22 +49,27 @@ interface BrandTenantSwitcherProps {
  * 5. Hard-navigate to new tenant URL
  */
 export function BrandTenantSwitcher({
-  isScrolled = false,
-  href = "/dashboard",
+  href = "/home",
   label,
+  hideLabelBelow,
 }: BrandTenantSwitcherProps) {
-  const [tenants, setTenants] = useState<TenantSummary[]>([]);
+  // The tenant layout preloads the list on the server (#2973); without a
+  // seed the list is fetched once the session is authenticated.
+  const seededTenants = useShellSeed()?.accountTenants;
+  const [tenants, setTenants] = useState<TenantSummary[]>(
+    () => seededTenants ?? [],
+  );
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const [schoolPortalUrl, setSchoolPortalUrl] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const currentSlug = useTenantSlugSafe();
-  const { status } = useSession();
+  const { status, data: session, update } = useSession();
 
   // Fetch available tenants once authenticated
   useEffect(() => {
-    if (status !== "authenticated") return;
+    if (status !== "authenticated" || seededTenants) return;
     listAvailableTenants()
       .then(setTenants)
       .catch((err: unknown) => {
@@ -69,7 +77,7 @@ export function BrandTenantSwitcher({
           error: err instanceof Error ? err.message : String(err),
         });
       });
-  }, [status]);
+  }, [status, seededTenants]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -96,6 +104,12 @@ export function BrandTenantSwitcher({
       setSchoolPortalUrl(null);
 
       try {
+        // Ein Schulwechsel beendet die Mitarbeiter-Vorschau (#2893): erst
+        // die Admin-Sitzung wiederherstellen, dann mit deren Token wechseln
+        // — das Vorschau-Token selbst darf den Wechsel nicht ausführen.
+        if (session?.user?.isPreview) {
+          await performEndStaffPreview(session.user.token, update, mutate);
+        }
         // The backend resolves the switch target by SUBDOMAIN (same as
         // login), so pass targetTenant.subdomain — the slug column can
         // legitimately differ from it (#1975).
@@ -113,10 +127,10 @@ export function BrandTenantSwitcher({
         // Always use subdomain routing — the proxy rewrites subdomains
         // to path segments, so navigating to a path directly on the old
         // subdomain creates a broken double-prefixed URL.
-        const tenantDomain = env.NEXT_PUBLIC_TENANT_DOMAIN;
+        const tenantDomain = clientEnv.NEXT_PUBLIC_TENANT_DOMAIN;
         const port = window.location.port ? `:${window.location.port}` : "";
         const protocol = window.location.protocol;
-        window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/dashboard`;
+        window.location.href = `${protocol}//${targetTenant.subdomain}.${tenantDomain}${port}/home`;
       } catch (err) {
         logger.error("tenant_switch_failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -148,12 +162,14 @@ export function BrandTenantSwitcher({
         setIsSwitching(false);
       }
     },
-    [isSwitching, currentSlug],
+    [isSwitching, currentSlug, session, update],
   );
 
   // Single (or unknown) tenant: plain brand link, no dropdown
   if (tenants.length <= 1) {
-    return <BrandLink isScrolled={isScrolled} href={href} label={label} />;
+    return (
+      <BrandLink href={href} label={label} hideLabelBelow={hideLabelBelow} />
+    );
   }
 
   // currentSlug comes from the URL, which is the tenant's subdomain — so
@@ -185,10 +201,18 @@ export function BrandTenantSwitcher({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label="Einrichtung wechseln"
-        className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
+        className="-mx-1.5 flex max-w-[200px] min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 transition-colors hover:bg-gray-100 disabled:opacity-50 sm:max-w-[260px] lg:max-w-[300px]"
       >
         <BrandLogo />
-        <span className={brandLabelClass(isScrolled, true)}>
+        <span
+          className={`${brandLabelClass(true)} ${
+            hideLabelBelow === "md"
+              ? "hidden md:inline-block"
+              : hideLabelBelow === "lg"
+                ? "hidden lg:inline-block"
+                : ""
+          }`}
+        >
           {displayLabel}
         </span>
         <svg

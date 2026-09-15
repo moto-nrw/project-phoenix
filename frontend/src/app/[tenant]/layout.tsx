@@ -1,7 +1,11 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
+import type { Session } from "next-auth";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { TenantProviders } from "./providers";
+import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
+import type { ShellBootstrap } from "~/lib/shell-seed";
+import { readTenantSessionSnapshot } from "~/lib/tenant-session-snapshot.server";
 import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
 import {
   normalizeOverviewScope,
@@ -26,6 +30,7 @@ interface TenantResolveResponse {
   parent_messaging_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  caldav_enabled?: boolean;
   care_offerings_enabled?: boolean;
   attendance_web_enabled?: boolean;
   attendance_log_enabled?: boolean;
@@ -74,6 +79,7 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
     messagingEnabled: data.parent_messaging_enabled === true,
     staffMessagingEnabled: data.staff_messaging_enabled === true,
     displayEnabled: data.display_enabled === true,
+    caldavEnabled: data.caldav_enabled === true,
     careOfferingsEnabled: data.care_offerings_enabled !== false,
     attendanceWebEnabled: data.attendance_web_enabled === true,
     attendanceLogEnabled: data.attendance_log_enabled === true,
@@ -109,6 +115,30 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
   if (!currentHost) return false;
   const hostname = currentHost.split(":")[0] ?? "";
   return hostname === `${subdomain}.${env.TENANT_DOMAIN}`;
+}
+
+/**
+ * Preload the app shell for a session that belongs to this tenant (#2973).
+ * A mismatched tenant is TenantGuard's job (auto-switch), an errored session
+ * ends in a sign-out; both fetch nothing here and keep the client path.
+ */
+async function loadShell(
+  session: Session | null,
+  tenant: TenantInfo,
+): Promise<ShellBootstrap | null> {
+  // Only a tenant-staff scope ("" or "org") may read these endpoints; every
+  // other scope is rejected by TenantMiddleware, so asking would produce a
+  // burst of guaranteed 401s.
+  const scope = session?.user?.scope ?? "";
+  if (
+    !session?.user?.token ||
+    session.error ||
+    (scope !== "" && scope !== "org") ||
+    session.user.tenantId !== tenant.tenantId
+  ) {
+    return null;
+  }
+  return loadShellBootstrap(session, tenant);
 }
 
 async function redirectToTenantSelection(): Promise<never> {
@@ -165,11 +195,20 @@ export default async function TenantLayout({
     ? "subdomain"
     : "path";
 
+  // Read-only JWT decode: auth() may rotate a refresh token, but a Server
+  // Component cannot persist the replacement cookie (#1938). The snapshot
+  // safely hydrates SessionProvider; later polls and refreshes use its
+  // response-aware route handler.
+  const session = await readTenantSessionSnapshot();
+  const shell = await loadShell(session, tenant);
+
   return (
     <TenantProviders
       tenantSlug={tenantSlug}
       tenant={tenant}
       routingMode={routingMode}
+      session={session}
+      shell={shell}
     >
       <TenantGuard>{children}</TenantGuard>
     </TenantProviders>

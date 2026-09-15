@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import { getRelativeTime } from "~/lib/format-utils";
 import { createLogger } from "~/lib/logger";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 
 const logger = createLogger({ component: "SoftDeleteShared" });
@@ -29,8 +30,6 @@ interface UseSoftDeletableOptions<T extends SoftDeletable> {
 export interface SoftDeletableState<T extends SoftDeletable> {
   readonly deleteTarget: T | null;
   readonly setDeleteTarget: (target: T | null) => void;
-  readonly deleteConfirmInput: string;
-  readonly setDeleteConfirmInput: (value: string) => void;
   readonly restoreTarget: T | null;
   readonly setRestoreTarget: (target: T | null) => void;
   readonly isProcessing: boolean;
@@ -55,7 +54,6 @@ export function useSoftDeletable<T extends SoftDeletable>(
   } = options;
 
   const [deleteTarget, setDeleteTargetRaw] = useState<T | null>(null);
-  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [restoreTarget, setRestoreTargetRaw] = useState<T | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [softDeleteError, setSoftDeleteError] = useState("");
@@ -63,7 +61,6 @@ export function useSoftDeletable<T extends SoftDeletable>(
 
   const setDeleteTarget = useCallback((target: T | null) => {
     setDeleteTargetRaw(target);
-    setDeleteConfirmInput("");
     setSoftDeleteError("");
   }, []);
 
@@ -151,8 +148,6 @@ export function useSoftDeletable<T extends SoftDeletable>(
   return {
     deleteTarget,
     setDeleteTarget,
-    deleteConfirmInput,
-    setDeleteConfirmInput,
     restoreTarget,
     setRestoreTarget,
     isProcessing,
@@ -229,12 +224,8 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   target,
   entityLabel,
   entityArticleAccusative,
-  nameLabel,
   warningTitle,
   warningBullets,
-  inputId,
-  confirmInput,
-  onConfirmInputChange,
   errorMessage,
   isProcessing,
   onCancel,
@@ -245,12 +236,8 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   readonly target: T;
   readonly entityLabel: string;
   readonly entityArticleAccusative: string;
-  readonly nameLabel: string;
   readonly warningTitle: string;
   readonly warningBullets: readonly string[];
-  readonly inputId: string;
-  readonly confirmInput: string;
-  readonly onConfirmInputChange: (value: string) => void;
   readonly errorMessage: string;
   readonly isProcessing: boolean;
   readonly onCancel: () => void;
@@ -258,83 +245,48 @@ export function SoftDeleteConfirmationModal<T extends SoftDeletable>({
   readonly confirmDisabled?: boolean;
   readonly confirmDisabledReason?: string;
 }) {
+  // Soft-Delete mit Papierkorb (#3110): wiederherstellbar, deshalb die
+  // zweistufige Rückfrage und keine Namenseingabe. Person löschen
+  // (anonymisiert, unwiderruflich) behält die Texteingabe-Stufe in
+  // delete-person-modal.tsx.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {entityLabel} löschen
-        </h3>
-        <p className="mt-2 text-sm text-gray-600">
+    <ConfirmDeleteModal
+      isOpen
+      title={`${entityLabel} löschen`}
+      description={
+        <p>
           Möchten Sie {entityArticleAccusative}{" "}
           <span className="font-medium">{target.name}</span> wirklich löschen?
         </p>
-        {warningBullets.length > 0 && (
-          <div className="bg-moto-amber-soft text-moto-amber-strong mt-3 rounded-lg px-3 py-2 text-sm">
-            <p className="font-medium">{warningTitle}</p>
-            <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-              {warningBullets.map((b) => (
-                <li key={b}>{b}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="mt-4">
-          <label
-            htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700"
-          >
-            {nameLabel}
-          </label>
-          <p className="mb-1 text-sm font-medium text-gray-900">
-            {target.name}
-          </p>
-          <input
-            id={inputId}
-            type="text"
-            value={confirmInput}
-            onChange={(e) => onConfirmInputChange(e.target.value)}
-            placeholder={target.name}
-            className="focus:ring-moto-red w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            autoComplete="off"
-          />
+      }
+      warningSlot={
+        <div className="space-y-3">
+          {warningBullets.length > 0 && (
+            <div className="bg-moto-amber-soft text-moto-amber-strong rounded-lg px-3 py-2 text-sm">
+              <p className="font-medium">{warningTitle}</p>
+              <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
+                {warningBullets.map((bullet) => (
+                  <li key={bullet}>{bullet}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {confirmDisabled && confirmDisabledReason && (
+            <div className="bg-moto-red-soft text-moto-red rounded-lg px-3 py-2 text-sm">
+              {confirmDisabledReason}
+            </div>
+          )}
         </div>
-
-        {confirmDisabled && confirmDisabledReason && (
-          <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-            {confirmDisabledReason}
-          </div>
-        )}
-
-        {errorMessage && (
-          <div className="bg-moto-red-soft text-moto-red mt-3 rounded-lg px-3 py-2 text-sm">
-            {errorMessage}
-          </div>
-        )}
-
-        <div className="mt-5 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isProcessing}
-            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={
-              isProcessing || confirmInput !== target.name || confirmDisabled
-            }
-            title={confirmDisabled ? confirmDisabledReason : undefined}
-            className="bg-moto-red hover:bg-moto-red-hover rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {isProcessing ? "Wird gelöscht..." : "Löschen"}
-          </button>
-        </div>
-      </div>
-    </div>
+      }
+      gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
+      confirmDisabled={confirmDisabled}
+      confirmLabel="Endgültig löschen"
+      loadingLabel="Wird gelöscht..."
+      onConfirm={onConfirm}
+      onClose={onCancel}
+      loading={isProcessing}
+      error={errorMessage}
+    />
   );
 }
 

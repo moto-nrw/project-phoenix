@@ -37,7 +37,11 @@ describe("RemindersPage", () => {
       data: { reminders: [], count: 0, enabled: false },
     });
     render(<RemindersPage />);
-    expect(screen.getByText("Keine aktiven Erinnerungen")).toBeInTheDocument();
+    // Leerzustand ohne Aktion und Symbol = EIN Satz: Titel mit Schlusspunkt,
+    // Beschreibung dahinter.
+    expect(
+      screen.getByText(/Keine aktiven Erinnerungen\./),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Erinnerungstypen werden in den Einstellungen/),
     ).toBeInTheDocument();
@@ -55,7 +59,7 @@ describe("RemindersPage", () => {
     render(<RemindersPage />);
     expect(
       screen.getByText(
-        "Erinnerungen aktiviert. Aktuell gibt es keine aktiven Erinnerungen.",
+        /Erinnerungen aktiviert\. Aktuell gibt es keine aktiven Erinnerungen\./,
       ),
     ).toBeInTheDocument();
     expect(
@@ -109,9 +113,8 @@ describe("RemindersPage", () => {
 
   it("shows a loading indicator before the first data arrives", () => {
     set({ reminders: [], count: 0, isLoading: true });
-    render(<RemindersPage />);
-    expect(
-      screen.getByLabelText("Erinnerungen werden geladen…"),
-    ).toBeInTheDocument();
+    // Der Ladezustand kommt aus dem Seitengerüst (TenantPage).
+    const { container } = render(<RemindersPage />);
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
   });
 });

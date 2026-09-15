@@ -46,7 +46,7 @@ export function useRequirePermission(
         );
 
   if (status === "authenticated" && !allowed) {
-    redirect(tenantPath("/dashboard"));
+    redirect(tenantPath("/home"));
   }
 
   return {

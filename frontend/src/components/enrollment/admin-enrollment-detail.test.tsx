@@ -819,6 +819,186 @@ describe("ChildOfferings", () => {
 });
 
 describe("ChildOfferingAdjustment", () => {
+  // Bauart 2 Regel 3 (#3119): bearbeitet wird am Objekt. „Bearbeiten"
+  // schaltet die Fläche in den Bearbeiten-Zustand, kein Dialog, kein
+  // Scroll-Lock; „Abbrechen" schaltet zurück und zeigt den Einstieg wieder.
+  it("switches the panel into an in-place edit state and back", async () => {
+    mocks.listCareOfferings.mockResolvedValue([catalogOffering()]);
+    renderAdjustment(adjustmentChild());
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+
+    expect(
+      await screen.findByRole("checkbox", { name: /Ganztag/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(document.documentElement.style.overflow).not.toBe("hidden");
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Nachbearbeitung")).toBeVisible();
+    expect(screen.getByLabelText("Begründung")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+
+    expect(
+      screen.queryByRole("checkbox", { name: /Ganztag/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Begründung")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Bearbeiten" })).toBeVisible();
+    expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
+  });
+
+  it("toggles a parent-choice day in place and saves the picked days", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "offering-1",
+        name: "Ganztag",
+        days_of_week_mode: "parent_choice",
+        available_days: ["mon", "tue"],
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-1",
+            offering_name: "Ganztag",
+            days_of_week_mode: "parent_choice",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon", "tue"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const tuesday = await screen.findByRole("button", {
+      name: "Di",
+      pressed: false,
+    });
+    expect(screen.getByRole("button", { name: "Mo" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    fireEvent.click(tuesday);
+    expect(tuesday).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Dienstag ergänzt" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({
+          reason: "Dienstag ergänzt",
+          offerings: [
+            { offering_id: "offering-1", selected_days: ["mon", "tue"] },
+          ],
+        }),
+      );
+    });
+  });
+
+  // Bauart 2 Regel 5: der Fehler steht oben im Bearbeiten-Bereich, die
+  // Fläche bleibt im Bearbeiten-Zustand, damit die Eingabe nicht verloren geht.
+  it("keeps the edit state and shows a failed save in the alert", async () => {
+    mocks.listCareOfferings.mockResolvedValue([catalogOffering()]);
+    mocks.updateAdminChildOfferings.mockRejectedValue(
+      new Error("Speichern kaputt"),
+    );
+    renderAdjustment(adjustmentChild());
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await screen.findByRole("checkbox", { name: /Ganztag/ });
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Testgrund" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Speichern kaputt",
+    );
+    expect(screen.getByLabelText("Begründung")).toHaveValue("Testgrund");
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("requires a reason before saving and says so in place", async () => {
+    mocks.listCareOfferings.mockResolvedValue([catalogOffering()]);
+    renderAdjustment(adjustmentChild());
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await screen.findByRole("checkbox", { name: /Ganztag/ });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Bitte eine Begründung eintragen.",
+    );
+    expect(mocks.updateAdminChildOfferings).not.toHaveBeenCalled();
+  });
+
+  // #2774 (kein Dialog über einem Dialog) gilt weiter, nur andersherum: die
+  // Rückfrage ist jetzt der einzige Dialog und liegt über dem
+  // Bearbeiten-Zustand. „Zurück" lässt Auswahl und Begründung stehen.
+  it("returns from the withdrawal confirmation into the untouched edit state", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ counts_as_care: true }),
+    ]);
+    mocks.updateAdminChildOfferings.mockRejectedValueOnce(
+      Object.assign(new Error("confirmation required"), {
+        code: "enrollment.complete_withdrawal_confirmation_required",
+      }),
+    );
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-1",
+            offering_name: "Ganztag",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Alle Betreuungstage entfernen",
+      }),
+    );
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Kein Betreuungsbedarf mehr" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const dialog = await screen.findByRole("dialog", {
+      name: "Alle Betreuungstage entfernen?",
+    });
+    // Nur ein Dialog: der Bearbeiten-Zustand darunter ist keine zweite Ebene.
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Zurück" }));
+
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Begründung")).toHaveValue(
+      "Kein Betreuungsbedarf mehr",
+    );
+    expect(screen.getByRole("checkbox", { name: /Ganztag/ })).not.toBeChecked();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeVisible();
+    expect(mocks.updateAdminChildOfferings).toHaveBeenCalledOnce();
+  });
+
   it("requires the exact confirmation before removing the final care day", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       catalogOffering({ counts_as_care: true }),

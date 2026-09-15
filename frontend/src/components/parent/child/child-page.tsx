@@ -20,6 +20,8 @@ import {
 import { BookedCareSection } from "~/components/parent/child/booked-care-section";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ChildDayCard } from "~/components/parent/child/child-day-card";
+import { ChildConsentsSection } from "~/components/parent/child/child-consents-section";
+import { CoursesSection } from "~/components/parent/child/courses-section";
 import {
   ChildSwitcher,
   type ChildSwitcherItem,
@@ -244,12 +246,15 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
   const hasPendingPickupRequest = care.pickupChangeRequests.some(
     (request) => request.status === "pending",
   );
+  const canReportAbsence =
+    care.features.sick_note_enabled ||
+    (care.features.excused_note_enabled ?? care.features.sick_note_enabled);
   const canManageExistingPickup =
     (hasGuardianPickup || hasPendingPickupRequest) &&
     care.features.pickup_manage_allowed === true;
   useEffect(() => {
     if (care.loading || !requestedAction) return;
-    if (requestedAction === "sick" && care.features.sick_note_enabled) {
+    if (requestedAction === "sick" && canReportAbsence) {
       setModal("sick");
     } else if (
       requestedAction === "pickup" &&
@@ -262,6 +267,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
     requestedAction,
     care,
     canManageExistingPickup,
+    canReportAbsence,
     router,
     child.student_id,
   ]);
@@ -302,9 +308,7 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
                   canManageExistingPickup,
               }
         }
-        onSick={
-          care.features.sick_note_enabled ? () => setModal("sick") : undefined
-        }
+        onSick={canReportAbsence ? () => setModal("sick") : undefined}
         onPickup={
           care.features.pickup_change_enabled || canManageExistingPickup
             ? () => setModal("pickup")
@@ -326,11 +330,16 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
         onCareRefresh={care.refresh}
       />
 
-      {modal === "sick" && (
+      {modal === "sick" && canReportAbsence && (
         <SickNoteModal
           studentId={child.student_id}
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
+          sickEnabled={care.features.sick_note_enabled}
+          excusedEnabled={
+            care.features.excused_note_enabled ??
+            care.features.sick_note_enabled
+          }
           sickRequiresApproval={care.features.sick_requires_approval}
           reasonRequired={requiresGuardianReason(care.features)}
           excusedRequiresApproval={care.features.excused_requires_approval}
@@ -350,6 +359,9 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
           onSubmit={care.saveCareException}
           onRemove={care.removeCareException}
           reasonRequired={requiresGuardianReason(care.features)}
+          cutoffTime={care.features.pickup_change_cutoff_time}
+          todayClosed={care.features.pickup_change_today_closed}
+          onCutoffPassed={care.refresh}
         />
       )}
     </>
@@ -440,6 +452,10 @@ function ChildAreaTabs({
           enrolledUntil={child.enrolled_until}
           reasonRequired={reasonRequired}
         />
+        {/* Kurse (#3075): eigener Abschnitt, damit eine Kursanfrage nicht
+            zwischen Mittagessen und Betreuungszeiten verschwindet. Schaltet
+            die Schule sie aus, rendert der Abschnitt nichts. */}
+        <CoursesSection studentId={child.student_id} careEnded={careEnded} />
         <ChildMasterDataView
           studentId={child.student_id}
           childName={childName}
@@ -459,6 +475,7 @@ function ChildAreaTabs({
           area="details"
           masterData={masterData}
         />
+        <ChildConsentsSection studentId={child.student_id} />
       </TabsContent>
 
       <TabsContent

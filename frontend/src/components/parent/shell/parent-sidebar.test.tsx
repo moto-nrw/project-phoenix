@@ -71,7 +71,7 @@ describe("ParentSidebar", () => {
       "Nachrichten",
       "Kalender",
       "Elternbriefe",
-      "Essensplan",
+      "Mittagessen",
       "Neue Anmeldung",
       "Einstellungen",
       "Abmelden",
@@ -146,6 +146,15 @@ describe("ParentSidebar", () => {
     expect(
       screen.getByRole("navigation", { name: "Hauptnavigation" }),
     ).toBeInTheDocument();
+  });
+
+  it("starts below the compact header with the shared sidebar spacing", () => {
+    const { container } = renderSidebar();
+
+    expect(container.querySelector("aside > div")).toHaveClass(
+      "top-[57px]",
+      "h-[calc(100vh-57px)]",
+    );
   });
 
   it("asks for confirmation before signing out from the pinned navigation", async () => {

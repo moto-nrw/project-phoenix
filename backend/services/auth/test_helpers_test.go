@@ -745,6 +745,7 @@ func (r *stubInvitationTokenRepository) UpdateDeliveryResult(_ context.Context, 
 	if !exists {
 		return sql.ErrNoRows
 	}
+	token.UpdatedAt = time.Now()
 	token.EmailRetryCount = retryCount
 	if sentAt != nil {
 		token.EmailSentAt = sentAt
@@ -782,6 +783,10 @@ func (noopRoleRepository) Create(context.Context, *authModel.Role) error {
 
 func (noopRoleRepository) FindByID(context.Context, interface{}) (*authModel.Role, error) {
 	panic("FindByID not implemented")
+}
+
+func (noopRoleRepository) FindByIDForUpdate(context.Context, int64) (*authModel.Role, error) {
+	panic("FindByIDForUpdate not implemented")
 }
 
 func (noopRoleRepository) Update(context.Context, *authModel.Role) error {
@@ -842,6 +847,10 @@ func (r *stubRoleRepository) FindByID(_ context.Context, id interface{}) (*authM
 		}
 	}
 	return nil, sql.ErrNoRows
+}
+
+func (r *stubRoleRepository) FindByIDForUpdate(ctx context.Context, id int64) (*authModel.Role, error) {
+	return r.FindByID(ctx, id)
 }
 
 func (r *stubRoleRepository) FindByName(_ context.Context, name string) (*authModel.Role, error) {
@@ -1198,6 +1207,10 @@ func (noopTokenRepository) FindByAccountIDAndIdentifier(context.Context, int64, 
 	panic("FindByAccountIDAndIdentifier not implemented")
 }
 
+func (noopTokenRepository) CountExpiredTokens(context.Context) (int, error) {
+	panic("CountExpiredTokens not implemented")
+}
+
 func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
 	panic("DeleteExpiredTokens not implemented")
 }
@@ -1232,6 +1245,10 @@ func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface
 
 func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, string, int) ([]*authModel.Token, error) {
 	panic("CleanupOldTokensForAccountReturning not implemented")
+}
+
+func (noopTokenRepository) RetireFamily(context.Context, int64, string, time.Time) error {
+	panic("RetireFamily not implemented")
 }
 
 func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {
@@ -1670,19 +1687,19 @@ func newStubRFIDCardRepository(ids ...string) *stubRFIDCardRepository {
 
 // FindByID mirrors the real repository, which reports an unknown card as a clean
 // (nil, nil) rather than an error.
-func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*userModel.RFIDCard, error) {
+func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*authModel.RFIDCard, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if !r.cards[id] {
 		return nil, nil
 	}
-	return &userModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
+	return &authModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
 }
 
-func (r *stubRFIDCardRepository) Create(context.Context, *userModel.RFIDCard) error { return nil }
-func (r *stubRFIDCardRepository) Update(context.Context, *userModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Create(context.Context, *authModel.RFIDCard) error { return nil }
+func (r *stubRFIDCardRepository) Update(context.Context, *authModel.RFIDCard) error { return nil }
 func (r *stubRFIDCardRepository) Delete(context.Context, string) error              { return nil }
 func (r *stubRFIDCardRepository) Deactivate(context.Context, string) error          { return nil }
-func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*userModel.RFIDCard, error) {
+func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*authModel.RFIDCard, error) {
 	return nil, nil
 }

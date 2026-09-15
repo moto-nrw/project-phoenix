@@ -26,13 +26,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	notificationsService "github.com/moto-nrw/project-phoenix/services/notifications"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
-	pwaService "github.com/moto-nrw/project-phoenix/services/pwa"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -131,6 +131,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(jwtauth.Verifier(tokenAuth.JwtAuth))
 		r.Use(jwt.Authenticator)
+		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(jwt.ParentMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)
 
@@ -209,7 +210,14 @@ func (rs *Resource) Router() chi.Router {
 		//   - care-exception: set or clear a one-day pickup time
 		r.Get("/me/children/{studentId}/features", rs.getChildFeatures)
 		r.Get("/me/children/{studentId}/today", rs.getChildTodayStatus)
+		r.Get("/me/children/{studentId}/consents", rs.getChildConsents)
+		r.Put("/me/children/{studentId}/consents/photo", rs.grantPhotoConsent)
+		r.Delete("/me/children/{studentId}/consents/photo", rs.withdrawPhotoConsent)
 		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
+		r.Get("/me/children/{studentId}/meal-participation", rs.getMealParticipation)
+		r.Put("/me/children/{studentId}/meal-participation", rs.replaceMealParticipation)
+		r.Put("/me/children/{studentId}/meal-participation/{date}", rs.setMealParticipationDay)
+		r.Delete("/me/children/{studentId}/meal-participation/{date}", rs.clearMealParticipationDay)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
 		// Excused-absence approval requests (#1845): pending/decided requests the
@@ -270,6 +278,14 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/care-offerings/catalog", rs.getChildOfferingCatalog)
 		r.Post("/me/children/{studentId}/care-offerings/requests", rs.createOfferingChangeRequest)
 		r.Put("/me/children/{studentId}/care-offerings/requests/{requestId}", rs.editOfferingChangeRequest)
+
+		// Kurse (#3075, SH 4.3). Ein Kurs ist eine AG, die über ein
+		// Betreuungsangebot erreichbar ist; die Anfrage ist deshalb dieselbe
+		// Änderungsanfrage und wird in der bestehenden Freigabeansicht
+		// entschieden. Gated by enrollment.parent_course_requests_enabled.
+		r.Get("/me/children/{studentId}/courses", rs.getChildCourses)
+		r.Post("/me/children/{studentId}/courses/requests", rs.createCourseRequest)
+		r.Post("/me/children/{studentId}/courses/requests/{requestId}/withdraw", rs.withdrawCourseRequest)
 
 		// Stammdaten — structured view of the child's master data plus the
 		// calling guardian's own contact data. Track A direct edits apply

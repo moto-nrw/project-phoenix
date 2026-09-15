@@ -187,6 +187,98 @@ export function endOfBerlinDayISO(date: Date): string {
 }
 
 /**
+ * Serializes a calendar day plus a wall-clock time ("08:00") as that moment in
+ * the school's Europe/Berlin timezone. Same construction as
+ * `endOfBerlinDayISO`: the Date carries the picker's calendar fields, only the
+ * resulting instant is pinned to Berlin, so a person scheduling from another
+ * timezone still gets "08:00 in Berlin".
+ */
+export function berlinDateTimeISO(date: Date, time: string): string {
+  const [hourRaw, minuteRaw] = time.split(":");
+  const hour = Number(hourRaw ?? "0");
+  const minute = Number(minuteRaw ?? "0");
+  if (
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    throw new RangeError("invalid Berlin wall-clock time");
+  }
+  const nominalUtc = new Date(
+    Date.UTC(
+      date.getFullYear(),
+      date.getMonth(),
+      date.getDate(),
+      hour,
+      minute,
+      0,
+    ),
+  );
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(nominalUtc);
+  const get = (type: string) =>
+    Number(parts.find((part) => part.type === type)?.value ?? "0");
+  const berlinWallClockAsUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour"),
+    get("minute"),
+    get("second"),
+  );
+  const berlinOffsetMs = berlinWallClockAsUtc - nominalUtc.getTime();
+  const instant = new Date(nominalUtc.getTime() - berlinOffsetMs);
+  const resolved = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(instant);
+  const resolvedPart = (type: string) =>
+    Number(resolved.find((part) => part.type === type)?.value ?? "0");
+  if (
+    resolvedPart("year") !== date.getFullYear() ||
+    resolvedPart("month") !== date.getMonth() + 1 ||
+    resolvedPart("day") !== date.getDate() ||
+    resolvedPart("hour") !== hour ||
+    resolvedPart("minute") !== minute
+  ) {
+    // 02:00–02:59 on the Berlin spring-forward day does not exist. The
+    // autumn repeat resolves to the second (CET) occurrence, which is the
+    // instant this construction yields and is stable when reopened.
+    throw new RangeError("nonexistent Berlin wall-clock time");
+  }
+  const oneHourEarlier = new Date(instant.getTime() - 60 * 60 * 1000);
+  const earlier =
+    BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(oneHourEarlier);
+  const earlierPart = (type: string) =>
+    Number(earlier.find((part) => part.type === type)?.value ?? "0");
+  if (
+    earlierPart("year") === date.getFullYear() &&
+    earlierPart("month") === date.getMonth() + 1 &&
+    earlierPart("day") === date.getDate() &&
+    earlierPart("hour") === hour &&
+    earlierPart("minute") === minute
+  ) {
+    // There is no unambiguous instant for a repeated wall-clock value. The
+    // picker has no way to express first versus second occurrence, so require
+    // a time outside the repeated hour instead of making that choice silently.
+    throw new RangeError("ambiguous Berlin wall-clock time");
+  }
+  return instant.toISOString();
+}
+
+/**
+ * The Berlin wall-clock time ("08:00") of an instant, for seeding a time field
+ * from a moment written by `berlinDateTimeISO`. Returns "" for an unparseable
+ * value so a malformed timestamp renders as an empty field, not a crash.
+ */
+export function berlinClockFromISO(value: string): string {
+  const instant = new Date(value);
+  if (Number.isNaN(instant.getTime())) return "";
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(instant);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("hour")}:${get("minute")}`;
+}
+
+/**
  * Groups items by date, sorted in descending order (newest first)
  * @param items Array of items with timestamp properties
  * @param timestampKey The key to access the timestamp property
@@ -431,4 +523,25 @@ export function relativeDaysLabel(
   if (days === 0) return "heute";
   if (days === 1) return "gestern";
   return `vor ${days} Tagen`;
+}
+
+const STATUS_WEEKDAYS = [
+  "Sonntag",
+  "Montag",
+  "Dienstag",
+  "Mittwoch",
+  "Donnerstag",
+  "Freitag",
+  "Samstag",
+] as const;
+
+/**
+ * Kurzform für Statuszeilen unter Seitentiteln: "Mittwoch, 27.08.2026".
+ * Nimmt einen ISO-Kalendertag ("YYYY-MM-DD"); ohne Argument der heutige Tag
+ * in Berlin.
+ */
+export function formatStatusDate(iso: string = berlinTodayISO()): string {
+  const d = parseISODate(iso);
+  const [y, m, day] = iso.split("-");
+  return `${STATUS_WEEKDAYS[d.getDay()]}, ${day}.${m}.${y}`;
 }

@@ -60,7 +60,7 @@ func TestDirectOfferingAdjustment_PreviewRejectsCompleteWithdrawalWhenBookingsAr
 	require.True(t, ok)
 	fx := setupOfferingChangeFixture(t, env, "DirectPreviewNonAuthoritativeWithdrawal")
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
 
@@ -322,7 +322,7 @@ func TestOfferingChangeRequestService_ListPending_MarksRequiredCareWithdrawal(t 
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RequiredFullWithdrawal")
 	env.sourcePhase.CareOfferingSelectionMode = enrollmentModels.PhaseCareOfferingSelectionAtLeastOne
-	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentService.OwnerPhaseForTest(env.sourcePhase)))
 	fx.oldOffering.IsRequired = true
 	require.NoError(t, env.repos.CareOffering.Update(ctx, fx.oldOffering))
 

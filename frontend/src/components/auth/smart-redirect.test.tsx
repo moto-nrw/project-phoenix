@@ -169,7 +169,11 @@ describe("SmartRedirect", () => {
     });
   });
 
-  it("passes supervision context to useSmartRedirectPath", () => {
+  // Seit #2180 hängt das Ziel an nichts mehr ausser der Sitzung: alle Rollen
+  // landen auf der Startseite, deren Zusammensetzung die Rechte entscheiden.
+  // Aufsichtsstand und Anwesenheitsmodus reicht die Komponente deshalb nicht
+  // mehr weiter.
+  it("passes only the session to useSmartRedirectPath", () => {
     vi.mocked(useSupervision).mockReturnValue({
       hasGroups: true,
       isLoadingGroups: false,
@@ -180,32 +184,13 @@ describe("SmartRedirect", () => {
       groups: [],
       refresh: vi.fn(),
     });
-
-    render(<SmartRedirect />);
-
-    expect(useSmartRedirectPath).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        hasGroups: true,
-        isSupervising: true,
-      }),
-      "detailed",
-      false,
-      true,
-    );
-  });
-
-  it("passes binary presence mode to useSmartRedirectPath", () => {
     vi.mocked(usePresenceMode).mockReturnValue("binary");
 
     render(<SmartRedirect />);
 
+    expect(useSmartRedirectPath).toHaveBeenCalledTimes(1);
     expect(useSmartRedirectPath).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.anything(),
-      "binary",
-      false,
-      true,
+      expect.objectContaining({ user: expect.anything() }),
     );
   });
 });

@@ -37,7 +37,7 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *services.Factory) {
 func setupServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
 
-	factory, err := services.NewFactoryForTests(repositories.NewFactory(db), db, slog.Default())
+	factory, err := services.NewFactoryForTests(repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)), db, slog.Default())
 	require.NoError(t, err)
 	return factory
 }
@@ -300,11 +300,11 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.Equal(t, "Lovelace", person.LastName)
 
-	staff, err := repositories.NewFactory(db).Staff.FindByPersonID(ctx, person.ID)
+	staff, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Staff.FindByPersonID(ctx, person.ID)
 	require.NoError(t, err)
 	require.NotNil(t, staff)
 
-	teacher, err := repositories.NewFactory(db).Teacher.FindByStaffID(ctx, staff.ID)
+	teacher, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Teacher.FindByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.NotNil(t, teacher)
 	assert.Equal(t, "Betreuungskraft", teacher.Role)
@@ -336,10 +336,9 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, true, after["has_teacher"])
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := context.WithValue(
 		testpkg.Ctx(t),
@@ -434,10 +433,9 @@ func TestCaregiverCapability_DisableRejectsMissingUnitOfWork(t *testing.T) {
 	assert.Nil(t, state)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -472,10 +470,9 @@ func TestCaregiverCapability_DisableUsesTenantScopedRoles(t *testing.T) {
 	)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -526,10 +523,9 @@ func TestCaregiverCapability_DisableAllowsCustomTenantRoleToRemain(t *testing.T)
 	assert.False(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "user"))
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -552,7 +548,7 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroupForTenant(t, db, testpkg.Tenant(t), "Blocked Activity")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activityGroup.ID, room.ID)
 
-	testpkg.CreateTestGroupSupervisor(
+	supervision := testpkg.CreateTestGroupSupervisor(
 		t,
 		db,
 		teacher.Staff.ID,
@@ -583,7 +579,11 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	require.NotNil(t, state)
 	assert.True(t, state.DisableBlocked)
 	assert.Len(t, state.DisableBlockers, 4)
-	assert.Len(t, state.ActiveSupervisions, 1)
+	require.Len(t, state.ActiveSupervisions, 1)
+	assert.Equal(t, supervision.ID, state.ActiveSupervisions[0].ID)
+	assert.Equal(t, activeGroup.ID, state.ActiveSupervisions[0].GroupID)
+	assert.Equal(t, supervision.StartDate.String(), state.ActiveSupervisions[0].StartDate)
+	assert.NotEmpty(t, state.ActiveSupervisions[0].GroupName)
 	assert.Len(t, state.ActiveSubstitutions, 1)
 	assert.Len(t, state.ActivitySupervisions, 1)
 	assert.Len(t, state.GroupAssignments, 1)
@@ -600,10 +600,9 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 	assert.Equal(t, state.DisableBlockers, blockedErr.Reasons)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableWaitsForConcurrentBindings(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -751,10 +750,9 @@ func TestCaregiverCapability_GetSupportsPersonWithoutStaffProfile(t *testing.T) 
 	assert.False(t, state.IsActiveCaregiver)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableReturnsStateWhenUserRoleIsAlreadyMissing(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -772,10 +770,9 @@ func TestCaregiverCapability_DisableReturnsStateWhenUserRoleIsAlreadyMissing(t *
 	assert.False(t, state.IsActiveCaregiver)
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableRemovesLegacyTeacherRoleWhenAdminRemains(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -796,10 +793,9 @@ func TestCaregiverCapability_DisableRemovesLegacyTeacherRoleWhenAdminRemains(t *
 	assert.False(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "teacher"))
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	ctx := testpkg.Ctx(t)
 
@@ -829,13 +825,12 @@ func TestCaregiverCapability_DisableBlocksLegacyTeacherOnlyAccount(t *testing.T)
 	assert.True(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "teacher"))
 }
 
-// Deliberately NOT parallel: assigning a SYSTEM role creates a row in
-// auth.roles, whose name is unique across the whole clone (idx_roles_name_system
-// has no tenant in it). Two tests inserting the same system role collide.
 func TestCaregiverDirectory_ListAndFindActiveCaregiversIncludingLegacyTeacherRole(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
 	db, factory := setupCaregiverFactory(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 
 	activeTeacher, activeAccount := createTestTeacherWithAccountForTenant(t, db, tenantID, "Active", "Caregiver")
 	testpkg.EnsureAccountTenant(t, db, activeAccount.ID, tenantID)
@@ -912,7 +907,7 @@ func TestCaregiverDirectory_ExcludesTenantScopedUserRole(t *testing.T) {
 
 	db, factory := setupCaregiverFactory(t)
 	tenantID := testpkg.UniqueTestTenantID(t)
-	ctx := testpkg.TenantContext(tenantID)
+	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 
 	_, account := createTestTeacherWithAccountForTenant(t, db, tenantID, "Tenant", "UserRole")
 	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)

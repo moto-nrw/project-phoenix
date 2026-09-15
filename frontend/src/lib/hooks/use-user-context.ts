@@ -58,9 +58,11 @@ interface UseUserContextReturn {
  * - React Strict Mode safe (no double-fetch)
  * - Pre-computed derived data (group IDs, room names)
  */
+export const USER_CONTEXT_SWR_KEY = "user-context";
+
 export function useUserContext(): UseUserContextReturn {
   const { data, isLoading, error } = useImmutableSWR<UserContextResponse>(
-    "user-context",
+    USER_CONTEXT_SWR_KEY,
     async () => {
       const response = await fetch("/api/user-context", {
         credentials: "include",

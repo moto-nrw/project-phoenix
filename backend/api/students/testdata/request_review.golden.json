@@ -1,0 +1,1997 @@
+[
+  {
+    "name": "open/page-1",
+    "path": "/change-requests?view=open&search=Golda&limit=2",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "access_revoked",
+            "bulk_ineligible_text": "Der Zugang der einreichenden Person ist nicht mehr aktiv.",
+            "conflict_keys": [
+              "absence:2099-05-04",
+              "absence:2099-05-05"
+            ],
+            "current_status_by_date": {
+              "2099-05-04": "present",
+              "2099-05-05": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T14:00:00+01:00",
+              "dates": [
+                "2099-05-04",
+                "2099-05-05"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-birke>",
+              "last_name": "Birke",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T13:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T14:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ],
+        "next_cursor": {
+          "_normal": null,
+          "care_schedule": null,
+          "excused": {
+            "i": "<request:excused:open-birke>",
+            "u": "2026-03-02T14:00:00+01:00"
+          },
+          "master_data": null,
+          "offering": null
+        }
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open/page-2",
+    "path": "/change-requests?view=open&search=Golda&limit=2&cursor=<next_cursor of page 1>",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Angebote müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "offer:<offering:ganztag>",
+              "offer:<offering:mittag>"
+            ],
+            "data": {
+              "created_at": "2026-03-02T13:00:00+01:00",
+              "diff": [
+                {
+                  "label": "<offering-name:ganztag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:ganztag>",
+                  "old": "nicht gebucht"
+                },
+                {
+                  "label": "<offering-name:mittag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:mittag>",
+                  "old": "nicht gebucht"
+                }
+              ],
+              "earliest_effective_from": "<bound of the run date>",
+              "effective_from": "2099-08-03",
+              "id": "<request:offering:open-birke>",
+              "latest_effective_from": "<bound of the run date>",
+              "status": "pending",
+              "student_id": "<student:birke>",
+              "student_name": "Golda Birke"
+            },
+            "expected_version": "2026-03-02T12:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T13:00:00+01:00",
+            "past": false,
+            "request_type": "offering",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:last_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "field_key": "last_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-birke>",
+              "last_name": "Birke",
+              "new_value": "Birkenfeld",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ],
+        "next_cursor": {
+          "_normal": null,
+          "care_schedule": null,
+          "excused": {
+            "i": "<request:excused:open-birke>",
+            "u": "2026-03-02T14:00:00+01:00"
+          },
+          "master_data": {
+            "i": "<request:master_data:open-birke>",
+            "u": "2026-03-02T12:00:00+01:00"
+          },
+          "offering": {
+            "i": "<request:offering:open-birke>",
+            "u": "2026-03-02T13:00:00+01:00"
+          }
+        }
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open/page-3",
+    "path": "/change-requests?view=open&search=Golda&limit=2&cursor=<next_cursor of page 2>",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Betreuungszeiten müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "pickup:2099-05-04"
+            ],
+            "data": {
+              "affected_blocks": [],
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "diff": [
+                {
+                  "care_kind": "pickup",
+                  "label": "04.05.2099 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "first_name": "Golda",
+              "id": "<request:care_schedule:open-aster>",
+              "impact_available": true,
+              "impact_token": "<impact-token>",
+              "last_name": "Aster",
+              "request_kind": "pickup_change",
+              "request_reason": "Arzttermin",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:first_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T11:00:00+01:00",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-aster>",
+              "last_name": "Aster",
+              "new_value": "Goldi",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T10:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T11:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open-defaults/page-1",
+    "path": "/change-requests?search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "access_revoked",
+            "bulk_ineligible_text": "Der Zugang der einreichenden Person ist nicht mehr aktiv.",
+            "conflict_keys": [
+              "absence:2099-05-04",
+              "absence:2099-05-05"
+            ],
+            "current_status_by_date": {
+              "2099-05-04": "present",
+              "2099-05-05": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T14:00:00+01:00",
+              "dates": [
+                "2099-05-04",
+                "2099-05-05"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-birke>",
+              "last_name": "Birke",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T13:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T14:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Angebote müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "offer:<offering:ganztag>",
+              "offer:<offering:mittag>"
+            ],
+            "data": {
+              "created_at": "2026-03-02T13:00:00+01:00",
+              "diff": [
+                {
+                  "label": "<offering-name:ganztag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:ganztag>",
+                  "old": "nicht gebucht"
+                },
+                {
+                  "label": "<offering-name:mittag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:mittag>",
+                  "old": "nicht gebucht"
+                }
+              ],
+              "earliest_effective_from": "<bound of the run date>",
+              "effective_from": "2099-08-03",
+              "id": "<request:offering:open-birke>",
+              "latest_effective_from": "<bound of the run date>",
+              "status": "pending",
+              "student_id": "<student:birke>",
+              "student_name": "Golda Birke"
+            },
+            "expected_version": "2026-03-02T12:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T13:00:00+01:00",
+            "past": false,
+            "request_type": "offering",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:last_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "field_key": "last_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-birke>",
+              "last_name": "Birke",
+              "new_value": "Birkenfeld",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Betreuungszeiten müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "pickup:2099-05-04"
+            ],
+            "data": {
+              "affected_blocks": [],
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "diff": [
+                {
+                  "care_kind": "pickup",
+                  "label": "04.05.2099 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "first_name": "Golda",
+              "id": "<request:care_schedule:open-aster>",
+              "impact_available": true,
+              "impact_token": "<impact-token>",
+              "last_name": "Aster",
+              "request_kind": "pickup_change",
+              "request_reason": "Arzttermin",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:first_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T11:00:00+01:00",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-aster>",
+              "last_name": "Aster",
+              "new_value": "Goldi",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T10:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T11:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open-excused",
+    "path": "/change-requests?view=open&search=Golda&types=excused",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "access_revoked",
+            "bulk_ineligible_text": "Der Zugang der einreichenden Person ist nicht mehr aktiv.",
+            "conflict_keys": [
+              "absence:2099-05-04",
+              "absence:2099-05-05"
+            ],
+            "current_status_by_date": {
+              "2099-05-04": "present",
+              "2099-05-05": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T14:00:00+01:00",
+              "dates": [
+                "2099-05-04",
+                "2099-05-05"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-birke>",
+              "last_name": "Birke",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T13:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T14:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open-care-and-master-data",
+    "path": "/change-requests?view=open&search=Golda&types=care_schedule,master_data",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:last_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "field_key": "last_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-birke>",
+              "last_name": "Birke",
+              "new_value": "Birkenfeld",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Betreuungszeiten müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "pickup:2099-05-04"
+            ],
+            "data": {
+              "affected_blocks": [],
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "diff": [
+                {
+                  "care_kind": "pickup",
+                  "label": "04.05.2099 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "first_name": "Golda",
+              "id": "<request:care_schedule:open-aster>",
+              "impact_available": true,
+              "impact_token": "<impact-token>",
+              "last_name": "Aster",
+              "request_kind": "pickup_change",
+              "request_reason": "Arzttermin",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:first_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T11:00:00+01:00",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-aster>",
+              "last_name": "Aster",
+              "new_value": "Goldi",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T10:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T11:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open-student",
+    "path": "/change-requests?view=open&student_id=<student:aster>",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Betreuungszeiten müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "pickup:2099-05-04"
+            ],
+            "data": {
+              "affected_blocks": [],
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "diff": [
+                {
+                  "care_kind": "pickup",
+                  "label": "04.05.2099 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "first_name": "Golda",
+              "id": "<request:care_schedule:open-aster>",
+              "impact_available": true,
+              "impact_token": "<impact-token>",
+              "last_name": "Aster",
+              "request_kind": "pickup_change",
+              "request_reason": "Arzttermin",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:first_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T11:00:00+01:00",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-aster>",
+              "last_name": "Aster",
+              "new_value": "Goldi",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T10:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T11:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open-no-match",
+    "path": "/change-requests?view=open&search=Niemand",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": []
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "open-corrections-only",
+    "path": "/change-requests?view=open&search=Golda&types=direct_correction",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": []
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history/page-1",
+    "path": "/change-requests?view=history&search=Golda&limit=2",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-02T08:00:00+01:00",
+              "decided_at": "2026-03-02T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:approved-aster>",
+              "last_name": "Aster",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-02T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-02T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-02T07:00:00+01:00",
+              "decided_at": "2026-03-02T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:care_schedule:rejected-birke>",
+              "last_name": "Birke",
+              "request_kind": "pickup_change",
+              "requested": [
+                {
+                  "care_kind": "pickup",
+                  "label": "20.01.2026 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "status": "rejected",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-02T08:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ],
+        "next_cursor": {
+          "care_schedule": {
+            "i": "<request:care_schedule:rejected-birke>",
+            "u": "2026-03-02T08:00:00+01:00"
+          },
+          "excused": null,
+          "master_data": {
+            "i": "<request:master_data:approved-aster>",
+            "u": "2026-03-02T09:00:00+01:00"
+          },
+          "offering": null
+        }
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history/page-2",
+    "path": "/change-requests?view=history&search=Golda&limit=2&cursor=<next_cursor of page 1>",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-01T08:00:00+01:00",
+              "decided_at": "2026-03-01T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:rejected-birke>",
+              "last_name": "Birke",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-01T09:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-01T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "data": {
+              "created_at": "2026-03-01T07:00:00+01:00",
+              "decided_at": "2026-03-01T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "diff": [],
+              "effective_from": "2026-02-02",
+              "id": "<request:offering:rejected-birke>",
+              "requested": [
+                {
+                  "label": "<offering-name:ganztag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:ganztag>"
+                },
+                {
+                  "label": "<offering-name:mittag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:mittag>"
+                }
+              ],
+              "reviewed_at": "2026-03-01T08:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "student_name": "Golda Birke"
+            },
+            "expected_version": "2026-03-01T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T08:00:00+01:00",
+            "past": false,
+            "request_type": "offering",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ],
+        "next_cursor": {
+          "care_schedule": {
+            "i": "<request:care_schedule:rejected-birke>",
+            "u": "2026-03-02T08:00:00+01:00"
+          },
+          "excused": null,
+          "master_data": {
+            "i": "<request:master_data:rejected-birke>",
+            "u": "2026-03-01T09:00:00+01:00"
+          },
+          "offering": {
+            "i": "<request:offering:rejected-birke>",
+            "u": "2026-03-01T08:00:00+01:00"
+          }
+        }
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history/page-3",
+    "path": "/change-requests?view=history&search=Golda&limit=2&cursor=<next_cursor of page 2>",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "absence_status": "sick",
+              "created_at": "2026-02-28T08:00:00+01:00",
+              "dates": [
+                "2026-01-05"
+              ],
+              "decided_at": "2026-02-28T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:excused:approved-aster>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "reviewed_at": "2026-02-28T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-02-28T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-02-28T09:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history-rejected",
+    "path": "/change-requests?view=history&search=Golda&status=rejected",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-02T07:00:00+01:00",
+              "decided_at": "2026-03-02T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:care_schedule:rejected-birke>",
+              "last_name": "Birke",
+              "request_kind": "pickup_change",
+              "requested": [
+                {
+                  "care_kind": "pickup",
+                  "label": "20.01.2026 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "status": "rejected",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-02T08:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-01T08:00:00+01:00",
+              "decided_at": "2026-03-01T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:rejected-birke>",
+              "last_name": "Birke",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-01T09:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-01T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "data": {
+              "created_at": "2026-03-01T07:00:00+01:00",
+              "decided_at": "2026-03-01T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "diff": [],
+              "effective_from": "2026-02-02",
+              "id": "<request:offering:rejected-birke>",
+              "requested": [
+                {
+                  "label": "<offering-name:ganztag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:ganztag>"
+                },
+                {
+                  "label": "<offering-name:mittag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:mittag>"
+                }
+              ],
+              "reviewed_at": "2026-03-01T08:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "student_name": "Golda Birke"
+            },
+            "expected_version": "2026-03-01T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T08:00:00+01:00",
+            "past": false,
+            "request_type": "offering",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history-approved-or-withdrawn",
+    "path": "/change-requests?view=history&search=Golda&status=approved,withdrawn",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-02T08:00:00+01:00",
+              "decided_at": "2026-03-02T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:approved-aster>",
+              "last_name": "Aster",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-02T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-02T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "absence_status": "sick",
+              "created_at": "2026-02-28T08:00:00+01:00",
+              "dates": [
+                "2026-01-05"
+              ],
+              "decided_at": "2026-02-28T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:excused:approved-aster>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "reviewed_at": "2026-02-28T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-02-28T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-02-28T09:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history-sunday",
+    "path": "/change-requests?view=history&search=Golda&from=2026-03-01&to=2026-03-01",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-01T08:00:00+01:00",
+              "decided_at": "2026-03-01T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:rejected-birke>",
+              "last_name": "Birke",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-01T09:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-01T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "data": {
+              "created_at": "2026-03-01T07:00:00+01:00",
+              "decided_at": "2026-03-01T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "diff": [],
+              "effective_from": "2026-02-02",
+              "id": "<request:offering:rejected-birke>",
+              "requested": [
+                {
+                  "label": "<offering-name:ganztag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:ganztag>"
+                },
+                {
+                  "label": "<offering-name:mittag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:mittag>"
+                }
+              ],
+              "reviewed_at": "2026-03-01T08:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "student_name": "Golda Birke"
+            },
+            "expected_version": "2026-03-01T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T08:00:00+01:00",
+            "past": false,
+            "request_type": "offering",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history-excused",
+    "path": "/change-requests?view=history&search=Golda&types=excused",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "absence_status": "sick",
+              "created_at": "2026-02-28T08:00:00+01:00",
+              "dates": [
+                "2026-01-05"
+              ],
+              "decided_at": "2026-02-28T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:excused:approved-aster>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "reviewed_at": "2026-02-28T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-02-28T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-02-28T09:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "history-student",
+    "path": "/change-requests?view=history&student_id=<student:birke>",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-02T07:00:00+01:00",
+              "decided_at": "2026-03-02T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:care_schedule:rejected-birke>",
+              "last_name": "Birke",
+              "request_kind": "pickup_change",
+              "requested": [
+                {
+                  "care_kind": "pickup",
+                  "label": "20.01.2026 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "status": "rejected",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-02T08:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-01T08:00:00+01:00",
+              "decided_at": "2026-03-01T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:rejected-birke>",
+              "last_name": "Birke",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-01T09:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-01T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "data": {
+              "created_at": "2026-03-01T07:00:00+01:00",
+              "decided_at": "2026-03-01T08:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "diff": [],
+              "effective_from": "2026-02-02",
+              "id": "<request:offering:rejected-birke>",
+              "requested": [
+                {
+                  "label": "<offering-name:ganztag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:ganztag>"
+                },
+                {
+                  "label": "<offering-name:mittag>",
+                  "new": "alle Betreuungstage",
+                  "offering_id": "<offering:mittag>"
+                }
+              ],
+              "reviewed_at": "2026-03-01T08:00:00+01:00",
+              "status": "rejected",
+              "student_id": "<student:birke>",
+              "student_name": "Golda Birke"
+            },
+            "expected_version": "2026-03-01T07:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-01T08:00:00+01:00",
+            "past": false,
+            "request_type": "offering",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "invalid-view",
+    "path": "/change-requests?view=everything",
+    "status": 400,
+    "body": {
+      "error": "invalid change request list query",
+      "status": "error"
+    }
+  },
+  {
+    "name": "invalid-type",
+    "path": "/change-requests?types=unknown",
+    "status": 400,
+    "body": {
+      "error": "invalid change request list query",
+      "status": "error"
+    }
+  },
+  {
+    "name": "invalid-open-status",
+    "path": "/change-requests?view=open&status=approved",
+    "status": 400,
+    "body": {
+      "error": "invalid change request list query",
+      "status": "error"
+    }
+  },
+  {
+    "name": "invalid-range",
+    "path": "/change-requests?view=history&from=2026-03-02&to=2026-03-01",
+    "status": 400,
+    "body": {
+      "error": "invalid change request list query",
+      "status": "error"
+    }
+  },
+  {
+    "name": "invalid-limit",
+    "path": "/change-requests?limit=0",
+    "status": 400,
+    "body": {
+      "error": "invalid change request list query",
+      "status": "error"
+    }
+  },
+  {
+    "name": "invalid-cursor",
+    "path": "/change-requests?view=open&cursor=not-a-cursor",
+    "status": 400,
+    "body": {
+      "error": "invalid change request list query",
+      "status": "error"
+    }
+  },
+  {
+    "name": "pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 200,
+    "body": {
+      "data": {
+        "pending_count": 6
+      },
+      "message": "Pending change request count retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-leader/open",
+    "path": "/change-requests?view=open&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": []
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-leader/history",
+    "path": "/change-requests?view=history&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": []
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-leader/pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 200,
+    "body": {
+      "data": {
+        "pending_count": 0
+      },
+      "message": "Pending change request count retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "absence-reviewer/open",
+    "path": "/change-requests?view=open&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "access_revoked",
+            "bulk_ineligible_text": "Der Zugang der einreichenden Person ist nicht mehr aktiv.",
+            "conflict_keys": [
+              "absence:2099-05-04",
+              "absence:2099-05-05"
+            ],
+            "current_status_by_date": {
+              "2099-05-04": "present",
+              "2099-05-05": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T14:00:00+01:00",
+              "dates": [
+                "2099-05-04",
+                "2099-05-05"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-birke>",
+              "last_name": "Birke",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:birke>"
+            },
+            "expected_version": "2026-03-02T13:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:b>",
+            "occurred_at": "2026-03-02T14:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:birke>",
+            "student_name": "Golda Birke",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "absence-reviewer/open-master-data",
+    "path": "/change-requests?view=open&search=Golda&types=master_data",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": []
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "absence-reviewer/history",
+    "path": "/change-requests?view=history&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "absence_status": "sick",
+              "created_at": "2026-02-28T08:00:00+01:00",
+              "dates": [
+                "2026-01-05"
+              ],
+              "decided_at": "2026-02-28T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:excused:approved-aster>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "reviewed_at": "2026-02-28T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-02-28T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-02-28T09:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "absence-reviewer/pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 200,
+    "body": {
+      "data": {
+        "pending_count": 2
+      },
+      "message": "Pending change request count retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "absence-only/open",
+    "path": "/change-requests?view=open&search=Golda",
+    "status": 403,
+    "body": {
+      "code": "absence_read_required",
+      "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
+      "status": "error"
+    }
+  },
+  {
+    "name": "absence-only/history",
+    "path": "/change-requests?view=history&search=Golda",
+    "status": 403,
+    "body": {
+      "code": "absence_read_required",
+      "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
+      "status": "error"
+    }
+  },
+  {
+    "name": "absence-only/pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 403,
+    "body": {
+      "code": "absence_read_required",
+      "error": "Für Elternanfragen zu Abwesenheiten brauchen Sie zusätzlich das Recht „Kinder sehen“.",
+      "status": "error"
+    }
+  },
+  {
+    "name": "read-only/open",
+    "path": "/change-requests?view=open&search=Golda",
+    "status": 403,
+    "body": {
+      "status": "Forbidden"
+    }
+  },
+  {
+    "name": "read-only/pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 403,
+    "body": {
+      "status": "Forbidden"
+    }
+  },
+  {
+    "name": "group-leader-enabled/open",
+    "path": "/change-requests?view=open&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "single_only",
+            "bulk_ineligible_text": "Betreuungszeiten müssen einzeln geprüft werden.",
+            "conflict_keys": [
+              "pickup:2099-05-04"
+            ],
+            "data": {
+              "affected_blocks": [],
+              "created_at": "2026-03-02T12:00:00+01:00",
+              "diff": [
+                {
+                  "care_kind": "pickup",
+                  "label": "04.05.2099 · Abholzeit",
+                  "new": "14:30",
+                  "old": ""
+                }
+              ],
+              "first_name": "Golda",
+              "id": "<request:care_schedule:open-aster>",
+              "impact_available": true,
+              "impact_token": "<impact-token>",
+              "last_name": "Aster",
+              "request_kind": "pickup_change",
+              "request_reason": "Arzttermin",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T11:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T12:00:00+01:00",
+            "past": false,
+            "request_type": "care_schedule",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "stale",
+            "bulk_ineligible_text": "Der aktuelle Wert wurde nach der Anfrage geändert.",
+            "conflict_keys": [
+              "md:person:first_name"
+            ],
+            "current_value_changed": true,
+            "data": {
+              "created_at": "2026-03-02T11:00:00+01:00",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:open-aster>",
+              "last_name": "Aster",
+              "new_value": "Goldi",
+              "old_value": null,
+              "status": "pending",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T10:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T11:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-leader-enabled/history",
+    "path": "/change-requests?view=history&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "created_at": "2026-03-02T08:00:00+01:00",
+              "decided_at": "2026-03-02T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "field_key": "first_name",
+              "first_name": "Golda",
+              "id": "<request:master_data:approved-aster>",
+              "last_name": "Aster",
+              "new_value": "Neu",
+              "old_value": null,
+              "reviewed_at": "2026-03-02T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>",
+              "target": "person"
+            },
+            "expected_version": "2026-03-02T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-03-02T09:00:00+01:00",
+            "past": false,
+            "request_type": "master_data",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          },
+          {
+            "bulk_eligible": false,
+            "can_correct": true,
+            "data": {
+              "absence_status": "sick",
+              "created_at": "2026-02-28T08:00:00+01:00",
+              "dates": [
+                "2026-01-05"
+              ],
+              "decided_at": "2026-02-28T09:00:00+01:00",
+              "decided_by_name": "Golden Admin",
+              "first_name": "Golda",
+              "id": "<request:excused:approved-aster>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "reviewed_at": "2026-02-28T09:00:00+01:00",
+              "status": "approved",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-02-28T08:00:00Z",
+            "family_protected": false,
+            "occurred_at": "2026-02-28T09:00:00+01:00",
+            "past": false,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-leader-enabled/pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 200,
+    "body": {
+      "data": {
+        "pending_count": 3
+      },
+      "message": "Pending change request count retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-absence-reviewer/open",
+    "path": "/change-requests?view=open&search=Golda",
+    "status": 200,
+    "body": {
+      "data": {
+        "items": [
+          {
+            "bulk_eligible": false,
+            "bulk_ineligible_reason": "past",
+            "bulk_ineligible_text": "Diese Anfrage betrifft nur vergangene Tage.",
+            "conflict_keys": [
+              "absence:2026-01-12"
+            ],
+            "current_status_by_date": {
+              "2026-01-12": "present"
+            },
+            "current_value_changed": false,
+            "data": {
+              "absence_status": "excused",
+              "created_at": "2026-03-02T15:00:00+01:00",
+              "dates": [
+                "2026-01-12"
+              ],
+              "first_name": "Golda",
+              "id": "<request:excused:open-aster-past>",
+              "last_name": "Aster",
+              "note": "Familienfeier",
+              "status": "pending",
+              "student_id": "<student:aster>"
+            },
+            "expected_version": "2026-03-02T14:00:00Z",
+            "family_protected": false,
+            "group_name": "<group-name:a>",
+            "occurred_at": "2026-03-02T15:00:00+01:00",
+            "past": true,
+            "request_type": "excused",
+            "student_id": "<student:aster>",
+            "student_name": "Golda Aster",
+            "urgent_today": false
+          }
+        ]
+      },
+      "message": "Change requests retrieved",
+      "status": "success"
+    }
+  },
+  {
+    "name": "group-absence-reviewer/pending-count",
+    "path": "/change-requests/pending-count",
+    "status": 200,
+    "body": {
+      "data": {
+        "pending_count": 1
+      },
+      "message": "Pending change request count retrieved",
+      "status": "success"
+    }
+  }
+]

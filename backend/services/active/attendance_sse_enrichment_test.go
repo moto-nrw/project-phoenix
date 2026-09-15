@@ -14,19 +14,18 @@
 package active_test
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,7 +35,7 @@ import (
 
 // firstOfType returns the first event of the given type seen across every
 // recorded broadcast call, in call order, or nil if none matches.
-func firstOfType(b *testpkg.RecordingBroadcaster, t realtime.EventType) *realtime.Event {
+func firstOfType(b *testpkg.RecordingBroadcaster, t active.BroadcastEventType) *active.BroadcastEvent {
 	events := b.EventsOfType(t)
 	if len(events) == 0 {
 		return nil
@@ -49,7 +48,8 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
@@ -61,27 +61,23 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
-		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
+		SchoolPresence:     testSchoolPresence(t, db),
+		StudentRepo:        services.PresenceStudents(repos.Student),
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
+	svc.SetSettingsService(defaultPresenceSettings())
 
 	// Fixtures: activity + room + active.group + student + staff + device.
 	// CreateVisit requires staff + device on ctx for attendance FK.
@@ -95,7 +91,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// Create an instance bridged to the active.group and an instance_students
 	// row in 'expected' — exactly what the syncer is designed to flip.
 	instance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &activity.ID,
 		Title:           fmt.Sprintf("E2E-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -108,7 +104,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	_, err := db.NewInsert().Model(instance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
 	require.NoError(t, err)
 
-	isRepo := scheduleRepo.NewInstanceStudentRepository(db)
+	isRepo := repos.InstanceStudent
 	row := &scheduleModels.InstanceStudent{
 		InstanceID: instance.ID,
 		StudentID:  student.ID,
@@ -118,10 +114,10 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// ACT: drive a check-in through the service.
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
@@ -131,7 +127,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	// ASSERT: student_checkin event carries attendance_status=present.
 	// This is the load-bearing assertion — it's what protects against
 	// someone silently removing applyAttendanceSnapshot from visit_helpers.go.
-	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, active.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	require.NotNil(t, ev.Data.AttendanceStatus,
 		"attendance_status must be populated when the visit bridges to an instance_students row")
@@ -155,7 +151,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
 
 	targetInstance := &scheduleModels.ActivityInstance{
-		Date:            timezone.NewDate(2026, 4, 21),
+		Date:            scheduleModels.NewDate(2026, 4, 21),
 		ActivityGroupID: &targetActivity.ID,
 		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
 		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
@@ -212,7 +208,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := time.Now().UnixNano()
 	syncer := scheduleSvc.NewAttendanceSyncService(
 		repos.ActivityInstance,
@@ -221,27 +217,23 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
-		VisitRepo:          repos.ActiveVisit,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
-		AttendanceRepo:     repos.Attendance,
-		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
+		SchoolPresence:     testSchoolPresence(t, db),
+		StudentRepo:        services.PresenceStudents(repos.Student),
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
+	svc.SetSettingsService(defaultPresenceSettings())
 
 	// NO instance bridges to this active.group — it's a walk-in session.
 	activity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Walk-%d", suffix))
@@ -252,17 +244,17 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
 
 	ctx := testpkg.Ctx(t)
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, iotDevice)
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
-	visit := &activeModels.Visit{
+	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
 		EntryTime:     time.Now(),
 	}
 	require.NoError(t, svc.CreateVisit(deviceCtx, visit))
 
-	ev := firstOfType(broadcaster, realtime.EventStudentCheckIn)
+	ev := firstOfType(broadcaster, active.EventStudentCheckIn)
 	require.NotNil(t, ev, "expected student_checkin event to be broadcast")
 	assert.Nil(t, ev.Data.AttendanceStatus, "walk-in must not stamp attendance_status")
 	assert.Nil(t, ev.Data.AttendanceSubstatus)

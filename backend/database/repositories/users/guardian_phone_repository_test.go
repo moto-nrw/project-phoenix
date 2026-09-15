@@ -20,7 +20,7 @@ func TestGuardianPhoneNumberRepository_Create(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates phone number with valid data", func(t *testing.T) {
@@ -97,7 +97,7 @@ func TestGuardianPhoneNumberRepository_FindByID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds existing phone number", func(t *testing.T) {
@@ -136,7 +136,7 @@ func TestGuardianPhoneNumberRepository_FindByGuardianID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("finds all phone numbers for guardian", func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestGuardianPhoneNumberRepository_Update(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates phone number fields", func(t *testing.T) {
@@ -260,7 +260,7 @@ func TestGuardianPhoneNumberRepository_Delete(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes existing phone number", func(t *testing.T) {
@@ -300,7 +300,7 @@ func TestGuardianPhoneNumberRepository_SetPrimary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("sets phone as primary and unsets others", func(t *testing.T) {
@@ -361,7 +361,7 @@ func TestGuardianPhoneNumberRepository_UnsetAllPrimary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("unsets all primary flags", func(t *testing.T) {
@@ -405,7 +405,7 @@ func TestGuardianPhoneNumberRepository_CountByGuardianID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("counts phone numbers correctly", func(t *testing.T) {
@@ -447,7 +447,7 @@ func TestGuardianPhoneNumberRepository_DeleteByGuardianID(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes all phone numbers for guardian", func(t *testing.T) {
@@ -493,7 +493,7 @@ func TestGuardianPhoneNumberRepository_GetNextPriority(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repositories.NewFactory(db).GuardianPhoneNumber
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianPhoneNumber
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns 1 for guardian with no phones", func(t *testing.T) {

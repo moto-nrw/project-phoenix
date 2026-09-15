@@ -3,8 +3,6 @@ package schedule
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestDateframe_Validate(t *testing.T) {
@@ -338,13 +336,13 @@ func TestDateframe_GetID(t *testing.T) {
 	t.Parallel()
 
 	df := &Dateframe{
-		Model:     base.Model{ID: 42},
+		Model:     Model{ID: 42},
 		StartDate: time.Now(),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
 
-	if got, ok := df.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", df.GetID())
+	if df.ID != 42 {
+		t.Errorf("ID = %v, want 42", df.ID)
 	}
 }
 
@@ -353,12 +351,12 @@ func TestDateframe_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	df := &Dateframe{
-		Model:     base.Model{CreatedAt: now},
+		Model:     Model{CreatedAt: now},
 		StartDate: time.Now(),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
 
-	if got := df.GetCreatedAt(); !got.Equal(now) {
+	if got := df.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -368,12 +366,12 @@ func TestDateframe_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	df := &Dateframe{
-		Model:     base.Model{UpdatedAt: now},
+		Model:     Model{UpdatedAt: now},
 		StartDate: time.Now(),
 		EndDate:   time.Now().AddDate(0, 0, 1),
 	}
 
-	if got := df.GetUpdatedAt(); !got.Equal(now) {
+	if got := df.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

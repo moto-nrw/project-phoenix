@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 )
 
 // Time-tracking audit log sources (#1417). One value per change trail that
@@ -60,8 +58,8 @@ type TimeTrackingAuditLogCursor struct {
 
 // TimeTrackingAuditLogFilter narrows the feed. Zero values mean "no filter".
 type TimeTrackingAuditLogFilter struct {
-	From    *timezone.Date
-	To      *timezone.Date
+	From    *Date
+	To      *Date
 	StaffID int64
 	// ActorStaffID filters by acting person (staff id). The absence trail
 	// stores account ids; the query resolves them to staff ids so this

@@ -77,7 +77,7 @@ docker compose run server go run . cleanup visits
 docker compose run server go run . cleanup preview
 docker compose run server go run . cleanup stats
 docker compose run server go run . gendoc
-docker compose run server go run . simulate live
+docker compose run server go run . simulate live --profile vollbetrieb
 ```
 
 ## Setup

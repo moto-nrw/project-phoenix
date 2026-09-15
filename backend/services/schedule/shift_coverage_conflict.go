@@ -73,11 +73,11 @@ type CalendarPeriodByIDReader interface {
 }
 
 type ActivityGroupInstanceRangeReader interface {
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*scheduleModel.ActivityInstance, error)
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to scheduleModel.Date) ([]*scheduleModel.ActivityInstance, error)
 }
 
 type ActivityExceptionRangeReader interface {
-	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*scheduleModel.ActivityException, error)
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to scheduleModel.Date) ([]*scheduleModel.ActivityException, error)
 }
 
 type ActivityScheduleGroupReader interface {
@@ -95,8 +95,8 @@ type ShiftCoverageDependencies struct {
 }
 
 type StaffShiftCoverageReader interface {
-	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []timezone.Date) ([]*scheduleModel.StaffShift, error)
-	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
+	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []scheduleModel.Date) ([]*scheduleModel.StaffShift, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end scheduleModel.Date) ([]scheduleModel.Date, error)
 }
 
 // DetectShiftCoverageWarnings checks every effective occurrence with a fixed
@@ -211,7 +211,7 @@ func resolveSeriesCoverageDates(
 	if err != nil {
 		return nil, fmt.Errorf("load series recurrence envelope: %w", err)
 	}
-	envelope := &activitiesModel.Schedule{ValidFrom: validFrom, ValidUntil: validUntil}
+	envelope := &activitiesModel.Schedule{ValidFrom: activityDatePtr(validFrom), ValidUntil: activityDatePtr(validUntil)}
 	filtered := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {
 		if scheduleNotStartedOn(envelope, date) || scheduleEndedOn(envelope, date) {
@@ -298,8 +298,8 @@ func resolveSeriesEffectiveCoverageDays(
 	instances, err := deps.Instances.FindByActivityGroupAndDateRange(
 		ctx,
 		activityGroupID,
-		dates[0],
-		dates[len(dates)-1],
+		scheduleModel.Date(dates[0]),
+		scheduleModel.Date(dates[len(dates)-1]),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series occurrences: %w", err)
@@ -307,8 +307,8 @@ func resolveSeriesEffectiveCoverageDays(
 	exceptions, err := deps.Exceptions.FindByActivityGroupAndDateRange(
 		ctx,
 		activityGroupID,
-		dates[0],
-		dates[len(dates)-1],
+		scheduleModel.Date(dates[0]),
+		scheduleModel.Date(dates[len(dates)-1]),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series exceptions: %w", err)
@@ -437,10 +437,11 @@ func preservedDeviationCandidates(
 			instance.Status != scheduleModel.InstanceStatusPlanned || instance.IsSpontaneous {
 			continue
 		}
-		if _, selected := requested[instance.Date]; !selected {
+		date := timezone.Date(instance.Date)
+		if _, selected := requested[date]; !selected {
 			continue
 		}
-		candidates[instance.Date] = append(candidates[instance.Date], instance)
+		candidates[date] = append(candidates[date], instance)
 		instanceIDs = append(instanceIDs, instance.ID)
 	}
 	return candidates, instanceIDs
@@ -460,8 +461,9 @@ func effectiveSeriesExceptions(
 		if exception == nil || exception.ActivityGroupID != activityGroupID {
 			continue
 		}
-		if _, selected := requested[exception.ExceptionDate]; selected {
-			byDate[exception.ExceptionDate] = exception
+		date := timezone.Date(exception.ExceptionDate)
+		if _, selected := requested[date]; selected {
+			byDate[date] = exception
 		}
 	}
 	return byDate
@@ -480,7 +482,7 @@ func survivingInstanceBlocksSeriesCandidate(
 ) bool {
 	effectiveStart = timezone.NormalizeWallClock(effectiveStart)
 	for _, instance := range instances {
-		if instance == nil || instance.ActivityGroupID == nil || *instance.ActivityGroupID != activityGroupID || instance.Date != date {
+		if instance == nil || instance.ActivityGroupID == nil || *instance.ActivityGroupID != activityGroupID || timezone.Date(instance.Date) != date {
 			continue
 		}
 		deletedByReplan := instance.Status == scheduleModel.InstanceStatusPlanned && !instance.IsSpontaneous
@@ -607,15 +609,23 @@ func containsCoverageDate(dates []timezone.Date, target timezone.Date) bool {
 func loadShiftCoverageData(ctx context.Context, shifts StaffShiftCoverageReader, dates []timezone.Date, staffIDs []int64) ([]*scheduleModel.StaffShift, map[timezone.Date]bool, error) {
 	firstWeekFrom, _ := containingCalendarWeek(dates[0])
 	_, lastWeekTo := containingCalendarWeek(dates[len(dates)-1])
-	rows, err := shifts.FindByStaffIDsAndDates(ctx, staffIDs, dates)
+	scheduleDates := make([]scheduleModel.Date, len(dates))
+	for index, date := range dates {
+		scheduleDates[index] = scheduleModel.Date(date)
+	}
+	rows, err := shifts.FindByStaffIDsAndDates(ctx, staffIDs, scheduleDates)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load staff shifts for coverage: %w", err)
 	}
-	weeks, err := shifts.FindUsedCalendarWeeks(ctx, firstWeekFrom, lastWeekTo)
+	weeks, err := shifts.FindUsedCalendarWeeks(ctx, scheduleModel.Date(firstWeekFrom), scheduleModel.Date(lastWeekTo))
 	if err != nil {
 		return nil, nil, fmt.Errorf("load used staff-shift weeks for coverage: %w", err)
 	}
-	return rows, indexCalendarWeeks(weeks), nil
+	weekDates := make([]timezone.Date, len(weeks))
+	for index, week := range weeks {
+		weekDates[index] = timezone.Date(week)
+	}
+	return rows, indexCalendarWeeks(weekDates), nil
 }
 
 type pendingShiftCoverageWarning struct {
@@ -819,7 +829,7 @@ func invalidShiftCoverageQuery(detail string) error {
 func filterShiftCoverageDates(dates []timezone.Date, period *scheduleModel.CalendarPeriod, weekPattern int) []timezone.Date {
 	filtered := make([]timezone.Date, 0, len(dates))
 	for _, date := range dates {
-		if period.ContainsDay(date) && ShouldMaterializeWeekPattern(weekPattern, date, period) {
+		if period.ContainsDay(scheduleModel.Date(date)) && ShouldMaterializeWeekPattern(weekPattern, date, period) {
 			filtered = append(filtered, date)
 		}
 	}

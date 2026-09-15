@@ -333,8 +333,8 @@ func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T
 		_, err := db.ExecContext(ctx,
 			`INSERT INTO platform.operator_email_change_tokens
 			 (operator_id, new_email, token, expiry, used)
-			 VALUES (?, ?, ?, ?, false)`,
-			operatorID, "exp@test.local", tokenStr, time.Now().Add(-5*time.Minute),
+			 VALUES (?, ?, ?, NOW() - INTERVAL '5 minutes', false)`,
+			operatorID, "exp@test.local", tokenStr,
 		)
 		require.NoError(t, err)
 

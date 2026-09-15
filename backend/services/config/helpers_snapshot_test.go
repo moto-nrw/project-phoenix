@@ -20,8 +20,8 @@ func helperSnapshot(
 	override json.RawMessage,
 ) *SettingsSnapshot {
 	t.Helper()
-	setupTest(t)
-	registerTestSetting(key, fieldType, defaultValue)
+	registry := setupTest(t)
+	registerTestSetting(registry, key, fieldType, defaultValue)
 
 	repo := newMockValueRepo()
 	if override != nil {
@@ -30,7 +30,7 @@ func helperSnapshot(
 		repo.values[repo.key(value.TenantID, key)] = value
 	}
 
-	service := createService(repo, &mockAuditRepo{})
+	service := createService(registry, repo, &mockAuditRepo{})
 	batch, ok := service.(BatchSettingsService)
 	require.True(t, ok)
 	snapshot, err := batch.ResolveMany(tenantCtx(41), []string{key})
@@ -43,6 +43,7 @@ func snapshotMock(snapshot *SettingsSnapshot, err error) *fakeSettingsService {
 }
 
 func TestResolveOrDefaultReturnsFallbackForSnapshotFailures(t *testing.T) {
+	t.Parallel()
 	fallbackErr := errors.New("settings unavailable")
 	logger := slog.New(slog.DiscardHandler)
 

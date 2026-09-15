@@ -12,6 +12,10 @@ import "@testing-library/jest-dom/vitest";
 const mocks = vi.hoisted(() => ({
   getChildFeatures: vi.fn(),
   getChildMealPlan: vi.fn(),
+  getMealParticipation: vi.fn(),
+  replaceMealParticipationSchedule: vi.fn(),
+  setMealParticipationDay: vi.fn(),
+  clearMealParticipationDay: vi.fn(),
   listMyChildren: vi.fn(),
   today: "2026-08-12",
 }));
@@ -19,6 +23,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("~/lib/parent-api", () => ({
   getChildFeatures: mocks.getChildFeatures,
   getChildMealPlan: mocks.getChildMealPlan,
+  getMealParticipation: mocks.getMealParticipation,
+  replaceMealParticipationSchedule: mocks.replaceMealParticipationSchedule,
+  setMealParticipationDay: mocks.setMealParticipationDay,
+  clearMealParticipationDay: mocks.clearMealParticipationDay,
   listMyChildren: mocks.listMyChildren,
 }));
 
@@ -36,10 +44,15 @@ describe("ParentMealPlanPage", () => {
       {
         student_id: "child-1",
         tenant_id: "school-1",
+        first_name: "Mia",
+        last_name: "Muster",
         school_name: "OGS Am Berg",
       },
     ]);
-    mocks.getChildFeatures.mockResolvedValue({ meal_plan_enabled: true });
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: false,
+    });
     mocks.getChildMealPlan.mockResolvedValue([]);
   });
 
@@ -49,7 +62,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage />);
 
     expect(
-      screen.getByRole("heading", { name: "Essensplan", level: 1 }),
+      screen.getByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     const loadingStatus = screen.getByRole("status", {
       name: "Essensplan wird geladen",
@@ -70,7 +83,7 @@ describe("ParentMealPlanPage", () => {
     render(<ParentMealPlanPage />);
 
     expect(
-      await screen.findByRole("heading", { name: "Essensplan", level: 1 }),
+      await screen.findByRole("heading", { name: "Mittagessen", level: 1 }),
     ).toBeInTheDocument();
     expect(screen.getByText("Essen in der OGS")).toBeInTheDocument();
 
@@ -184,6 +197,184 @@ describe("ParentMealPlanPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("combines meals and participation while keeping regular days compact", async () => {
+    mocks.listMyChildren.mockResolvedValue([
+      {
+        student_id: "child-1",
+        tenant_id: "school-1",
+        first_name: "Mia",
+        last_name: "Muster",
+        school_name: "OGS Am Berg",
+      },
+      {
+        student_id: "child-2",
+        tenant_id: "school-2",
+        first_name: "Noah",
+        last_name: "Beispiel",
+        school_name: "OGS Am Park",
+      },
+    ]);
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getChildMealPlan.mockResolvedValue([
+      {
+        date: "2026-08-12",
+        position: 0,
+        dish: "Gemüse-Lasagne",
+        note: "mit Salat",
+      },
+    ]);
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [1, 3],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [
+        {
+          date: "2026-08-12",
+          participating: false,
+          source: "none",
+          changeable: true,
+        },
+        {
+          date: "2026-08-14",
+          participating: true,
+          source: "override",
+          changeable: true,
+        },
+      ],
+    });
+    mocks.replaceMealParticipationSchedule.mockResolvedValue({
+      effective_from: "2026-08-17",
+    });
+    mocks.setMealParticipationDay.mockResolvedValue(undefined);
+    mocks.clearMealParticipationDay.mockResolvedValue(undefined);
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Wann isst Mia Muster mit?",
+      }),
+    ).toBeInTheDocument();
+    const childSelect = screen.getByRole("combobox", { name: "Kind" });
+    expect(
+      await screen.findByText(
+        "Sie können die Anmeldung am selben Tag bis 09:00 Uhr ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Montag und Mittwoch")).toBeInTheDocument();
+    expect(screen.getByText("Gemüse-Lasagne")).toBeInTheDocument();
+    expect(screen.getByText("mit Salat")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Eine bestätigte Krankmeldung bis 09:00 Uhr meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("parentMealPlan.participationSickness"),
+    ).not.toBeInTheDocument();
+
+    expect(
+      screen.queryByRole("checkbox", { name: "Dienstag" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    expect(childSelect).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Nächste Woche" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Speichern oder abbrechen, bevor Sie ein anderes Kind oder eine andere Woche wählen.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Dienstag" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.replaceMealParticipationSchedule).toHaveBeenCalledWith(
+        "child-1",
+        [1, 2, 3],
+      );
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Anmelden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Anmeldungen ändern" }),
+    ).not.toBeInTheDocument();
+
+    const editWednesday = screen.getByRole("button", {
+      name: "Anmeldung ändern: Mittwoch, 12. August",
+    });
+    editWednesday.focus();
+    fireEvent.click(editWednesday);
+    expect(
+      screen.getByRole("group", {
+        name: "Anmeldung ändern: Mittwoch, 12. August",
+      }),
+    ).toHaveFocus();
+    expect(childSelect).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Nächste Woche" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Speichern oder abbrechen, bevor Sie ein anderes Kind oder eine andere Woche wählen.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    expect(mocks.setMealParticipationDay).not.toHaveBeenCalled();
+    expect(mocks.clearMealParticipationDay).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(
+      screen.queryByRole("button", { name: "Anmelden" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Nächste Woche" })).toBeEnabled();
+    expect(childSelect).toBeEnabled();
+    expect(
+      screen.getByRole("button", {
+        name: "Anmeldung ändern: Mittwoch, 12. August",
+      }),
+    ).toHaveFocus();
+    expect(mocks.setMealParticipationDay).not.toHaveBeenCalled();
+    expect(mocks.clearMealParticipationDay).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Anmeldung ändern: Mittwoch, 12. August",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.setMealParticipationDay).toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-12",
+        true,
+      );
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Anmeldung ändern: Freitag, 14. August",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Feste Anmeldung verwenden" }),
+    );
+    expect(mocks.clearMealParticipationDay).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.clearMealParticipationDay).toHaveBeenCalledWith(
+        "child-1",
+        "2026-08-14",
+      );
+    });
+  });
+
   it("distinguishes missing children from a disabled school meal plan", async () => {
     mocks.listMyChildren.mockResolvedValue([]);
 
@@ -205,7 +396,10 @@ describe("ParentMealPlanPage", () => {
         school_name: "OGS Am Berg",
       },
     ]);
-    mocks.getChildFeatures.mockResolvedValue({ meal_plan_enabled: false });
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: false,
+      meal_registration_enabled: false,
+    });
     rerender(<ParentMealPlanPage key="disabled-school" />);
 
     expect(

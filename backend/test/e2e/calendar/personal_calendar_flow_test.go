@@ -10,11 +10,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	calendarAPI "github.com/moto-nrw/project-phoenix/api/calendar"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,9 +23,8 @@ import (
 
 func setupPersonalCalendarRoute(t *testing.T) (*bun.DB, chi.Router) {
 	t.Helper()
-	testutil.SeedTestJWTConfig()
-	db, serviceFactory := testutil.SetupAPITest(t)
-	resource := calendarAPI.NewResource(serviceFactory.Calendar, db, slog.Default())
+	db, serviceFactory := testutil.SetupCalendarModule(t)
+	resource := calendarAPI.NewResource(serviceFactory.Calendar, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
 	router.Mount("/calendar", resource.Router())
@@ -87,10 +86,8 @@ type calendarListE2EResponse struct {
 	} `json:"data"`
 }
 
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
+	t.Parallel()
 	db, router := setupPersonalCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "Organizer")
@@ -144,10 +141,8 @@ func TestPersonalCalendarHTTPFlow_StaffInvitationRSVP(t *testing.T) {
 
 // TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS drives the full lifecycle
 // (create → edit → .ics export → cancel → delete) through the real router.
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
+	t.Parallel()
 	db, router := setupPersonalCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "LifecycleOrg")
@@ -220,10 +215,8 @@ func TestPersonalCalendarHTTPFlow_EditCancelDeleteAndICS(t *testing.T) {
 
 // TestPersonalCalendarHTTPFlow_ForbiddenEdit confirms a non-organizer cannot
 // edit or delete someone else's appointment through the HTTP layer.
-// Deliberately NOT parallel: the test reaches process-global state (env
-// variables, viper keys, the settings registry, os.Stdout) that the whole
-// test binary shares.
 func TestPersonalCalendarHTTPFlow_ForbiddenEdit(t *testing.T) {
+	t.Parallel()
 	db, router := setupPersonalCalendarRoute(t)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "E2E", "OwnerOrg")

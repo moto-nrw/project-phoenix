@@ -14,7 +14,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { InfoCard } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
-import { PageHeader } from "~/components/ui/page-header/PageHeader";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useToast } from "~/contexts/ToastContext";
 import { readableApiMessage } from "~/lib/api-error-message";
@@ -858,7 +858,7 @@ type OverviewContentProps = Readonly<{
 
 function OverviewContent(props: OverviewContentProps) {
   if (props.data.error?.name === "SubstitutionAccessError") {
-    return <ForbiddenPage />;
+    return <ForbiddenPage embedded />;
   }
   if (props.data.error) {
     return (
@@ -919,30 +919,33 @@ function usePageDialogs(data: ReturnType<typeof useOverviewData>) {
 function LoadedPage({ session, data, openCare }: LoadedPageProps) {
   const dialogs = usePageDialogs(data);
   return (
-    <>
-      <PageHeader title="Vertretungen" concept="groupAccess" />
-      <div className="space-y-4">
-        <OverviewContent
+    // Die Kopfkarte des Gerüsts ersetzt den früheren PageHeader; Dialoge
+    // stehen im overlays-Slot, damit sie in jedem Zustand gemountet bleiben.
+    <TenantPage
+      title="Vertretungen"
+      overlays={
+        <PageOverlays
           data={data}
-          openCare={openCare}
-          onAssignGroup={dialogs.openAssign}
-          onAssignRunning={dialogs.setRunningId}
-          onEndGroup={dialogs.openEnd}
+          admin={hasEffectiveAdminScope(session)}
+          assignOpen={dialogs.assignOpen}
+          runningId={dialogs.runningId}
+          ending={dialogs.ending}
+          assignAction={dialogs.assignAction}
+          endAction={dialogs.endAction}
+          closeAssign={() => dialogs.setAssignOpen(false)}
+          closeRunning={() => dialogs.setRunningId(null)}
+          closeEnding={() => dialogs.setEnding(null)}
         />
-      </div>
-      <PageOverlays
+      }
+    >
+      <OverviewContent
         data={data}
-        admin={hasEffectiveAdminScope(session)}
-        assignOpen={dialogs.assignOpen}
-        runningId={dialogs.runningId}
-        ending={dialogs.ending}
-        assignAction={dialogs.assignAction}
-        endAction={dialogs.endAction}
-        closeAssign={() => dialogs.setAssignOpen(false)}
-        closeRunning={() => dialogs.setRunningId(null)}
-        closeEnding={() => dialogs.setEnding(null)}
+        openCare={openCare}
+        onAssignGroup={dialogs.openAssign}
+        onAssignRunning={dialogs.setRunningId}
+        onEndGroup={dialogs.openEnd}
       />
-    </>
+    </TenantPage>
   );
 }
 
@@ -960,9 +963,13 @@ function SubstitutionPageContent() {
 
 function LoadingFallback() {
   return (
-    <SkeletonRegion label="Vertretungen werden geladen">
-      <ListSkeleton rows={6} />
-    </SkeletonRegion>
+    <TenantPage
+      title="Vertretungen"
+      // Das Gerüst trägt die vorlesbare Ankündigung selbst — ein zweites
+      // role="status" darunter wäre eine doppelte Meldung.
+      loading={<ListSkeleton rows={6} />}
+      loadingLabel="Vertretungen werden geladen"
+    />
   );
 }
 

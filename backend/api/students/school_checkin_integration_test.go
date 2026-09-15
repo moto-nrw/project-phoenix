@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -179,7 +180,9 @@ func TestSchoolCheckin_CheckOut_AlsoEndsOpenVisit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 
 	// Confirm the visit is now closed (ExitTime set).
-	updatedVisit, err := tc.resource.ActiveService.GetVisit(t.Context(), visit.ID)
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: tc.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	updatedVisit, err := presence.FindVisit(testpkg.Ctx(t), visit.ID)
 	require.NoError(t, err)
 	require.NotNil(t, updatedVisit)
 	assert.NotNil(t, updatedVisit.ExitTime, "open visit must be closed after web checkout")

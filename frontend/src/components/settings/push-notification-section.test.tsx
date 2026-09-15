@@ -15,6 +15,7 @@ const pushApi = vi.hoisted(() => ({
 const pwaInstall = vi.hoisted(() => ({
   canPromptInstall: vi.fn(),
   isAndroidDevice: vi.fn(),
+  isDesktopDevice: vi.fn(),
   isSamsungInternet: vi.fn(),
   isInstallationCompleted: vi.fn(),
   subscribeInstallPrompt: vi.fn(() => () => undefined),
@@ -23,13 +24,27 @@ const pwaInstall = vi.hoisted(() => ({
 const notificationApi = vi.hoisted(() => ({
   sendTestNotification: vi.fn(),
 }));
+const shellAuth = vi.hoisted(() => ({ useShellAuthSafe: vi.fn() }));
 
 vi.mock("~/lib/push-api", () => pushApi);
 vi.mock("~/lib/pwa-install-prompt", () => pwaInstall);
 vi.mock("~/lib/notification-api", () => notificationApi);
+vi.mock("~/components/notifications/notification-setup-dialog", () => ({
+  NotificationSetupDialog: () => <div data-testid="setup-dialog" />,
+}));
+vi.mock("~/lib/shell-auth-context", () => shellAuth);
 
 function stubNotificationPermission(permission: NotificationPermission) {
   vi.stubGlobal("Notification", { permission });
+}
+
+// Testversand und Neustart der Einrichtung liegen seit dem Mobil-Fix im
+// Kebab-Menü des Kartenkopfs, damit drei Textknöpfe die Karte auf dem Telefon
+// nicht mehr sprengen.
+async function openSecondaryMenu() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Weitere Aktionen" }),
+  );
 }
 
 describe("PushNotificationSection", () => {
@@ -43,10 +58,15 @@ describe("PushNotificationSection", () => {
     pushApi.verifyPushConfiguration.mockResolvedValue(undefined);
     pwaInstall.canPromptInstall.mockReturnValue(false);
     pwaInstall.isAndroidDevice.mockReturnValue(false);
+    pwaInstall.isDesktopDevice.mockReturnValue(false);
     pwaInstall.isSamsungInternet.mockReturnValue(false);
     pwaInstall.isInstallationCompleted.mockReturnValue(false);
     pwaInstall.triggerInstallPrompt.mockResolvedValue("accepted");
     notificationApi.sendTestNotification.mockResolvedValue(undefined);
+    shellAuth.useShellAuthSafe.mockReturnValue({
+      status: "authenticated",
+      user: { id: "42" },
+    });
     stubNotificationPermission("default");
   });
 
@@ -72,8 +92,9 @@ describe("PushNotificationSection", () => {
     ).toHaveClass("text-sm", "leading-6");
   });
 
-  it("shows the iOS install hint when the push API is missing in a Safari tab", async () => {
+  it("shows the iOS install hint before checking generic push support", async () => {
     pushApi.needsIOSInstall.mockReturnValue(true);
+    pushApi.isPushSupported.mockReturnValue(false);
     render(<PushNotificationSection />);
     expect(await screen.findByText(/Zum Home-Bildschirm/)).toBeInTheDocument();
     expect(screen.getByText(/Auf iPhone und iPad funktionieren/)).toHaveClass(
@@ -96,6 +117,10 @@ describe("PushNotificationSection", () => {
         "Öffnen Sie moto in Safari, Chrome, Edge oder Firefox und versuchen Sie es dort erneut.",
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("moto als App geöffnet")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("moto darf Sie benachrichtigen"),
+    ).not.toBeInTheDocument();
   });
 
   it("guides parent users through Android installation before push", async () => {
@@ -140,8 +165,13 @@ describe("PushNotificationSection", () => {
 
     render(<PushNotificationSection portal="parent" />);
 
+    // Seit #2831 dieselben nummerierten Schritte wie auf iPhone und iPad
+    // statt eines Fließtextes.
     expect(
-      await screen.findByText(/Öffnen Sie das Browser-Menü/),
+      await screen.findByText(/Tippen Sie oben rechts im Browser/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Zum Startbildschirm hinzufügen/),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "App installieren" }),
@@ -291,16 +321,21 @@ describe("PushNotificationSection", () => {
     });
 
     const { rerender } = render(<PushNotificationSection portal="tenant" />);
-    const testButton = await screen.findByRole("button", {
-      name: "Testbenachrichtigung senden",
-    });
-    expect(testButton).toHaveClass("h-8", "text-xs", "bg-transparent");
-    expect(testButton).not.toHaveClass("ring-1", "shadow-md");
+    await openSecondaryMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
+    ).toBeInTheDocument();
+    // Der Kartenkopf trägt nur noch eine Schaltfläche plus Menü; die
+    // Testaktion ist kein zweiter Textknopf mehr.
+    expect(
+      screen.queryByRole("button", { name: "Testbenachrichtigung senden" }),
+    ).not.toBeInTheDocument();
 
     rerender(<PushNotificationSection portal="parent" />);
+    await openSecondaryMenu();
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", {
+        screen.queryByRole("menuitem", {
           name: "Testbenachrichtigung senden",
         }),
       ).not.toBeInTheDocument(),
@@ -313,10 +348,9 @@ describe("PushNotificationSection", () => {
     });
 
     render(<PushNotificationSection />);
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
     await waitFor(() =>
@@ -340,19 +374,22 @@ describe("PushNotificationSection", () => {
     );
 
     render(<PushNotificationSection />);
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
-    expect(
-      await screen.findByRole("button", { name: "Wird gesendet …" }),
-    ).toBeDisabled();
+    // Der Ladezustand steckte früher im Knopf. Im Menü kann er das nicht,
+    // deshalb nennt ihn die Karte selbst.
+    expect(await screen.findByText("Wird gesendet …")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "Benachrichtigungen ausschalten",
       }),
+    ).toBeDisabled();
+    await openSecondaryMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     ).toBeDisabled();
 
     finishRequest?.();
@@ -368,10 +405,9 @@ describe("PushNotificationSection", () => {
     );
 
     render(<PushNotificationSection />);
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
     expect(
@@ -379,5 +415,118 @@ describe("PushNotificationSection", () => {
         "Ihre Schule hat Benachrichtigungen derzeit deaktiviert.",
       ),
     ).toBeInTheDocument();
+  });
+  // #2831: die Karte beantwortet die beiden Fragen, die niemand am Gerät
+  // selbst beantworten kann, und startet die Einrichtung neu.
+  it("shows install and permission state for this device", async () => {
+    stubNotificationPermission("granted");
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    expect(
+      await screen.findByText("moto als App geöffnet"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nein")).toBeInTheDocument();
+    expect(
+      screen.getByText("moto darf Sie benachrichtigen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ja")).toBeInTheDocument();
+  });
+
+  it("marks a blocked browser permission as blocked", async () => {
+    stubNotificationPermission("denied");
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    expect(await screen.findByText("Blockiert")).toBeInTheDocument();
+  });
+
+  it("guides staff through Android installation too, not only parents", async () => {
+    pwaInstall.isAndroidDevice.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    expect(
+      await screen.findByRole("button", { name: "App installieren" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers installation on a desktop browser that can install", async () => {
+    pwaInstall.isDesktopDevice.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "moto installieren" }),
+    );
+    await waitFor(() =>
+      expect(pwaInstall.triggerInstallPrompt).toHaveBeenCalledOnce(),
+    );
+  });
+
+  it("keeps the desktop offer away from an installed app", async () => {
+    pwaInstall.isDesktopDevice.mockReturnValue(true);
+    pwaInstall.canPromptInstall.mockReturnValue(true);
+    pushApi.isStandaloneApp.mockReturnValue(true);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    await screen.findByText("moto als App geöffnet");
+    expect(
+      screen.queryByRole("button", { name: "moto installieren" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("restarts the guided setup from the card", async () => {
+    render(<PushNotificationSection portal="tenant" />);
+
+    await openSecondaryMenu();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Einrichtung erneut starten" }),
+    );
+
+    expect(await screen.findByTestId("setup-dialog")).toBeInTheDocument();
+  });
+
+  it("hides the restart action without a known account", async () => {
+    shellAuth.useShellAuthSafe.mockReturnValue(undefined);
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    await screen.findByText("moto als App geöffnet");
+    // Ohne Konto bleibt im nicht abonnierten Zustand keine Zweitaktion übrig,
+    // also erscheint auch kein Menü.
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Der Fix gegen die aus der Karte ragende Knopfreihe: der Kartenkopf trägt
+  // im eingeschalteten Zustand genau eine Schaltfläche plus Menü.
+  it("keeps the card head at one action plus menu when push is active", async () => {
+    stubNotificationPermission("granted");
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    const disableButton = await screen.findByRole("button", {
+      name: "Benachrichtigungen ausschalten",
+    });
+    const menuTrigger = screen.getByRole("button", {
+      name: "Weitere Aktionen",
+    });
+    const actionArea = disableButton.parentElement;
+    expect(actionArea).not.toBeNull();
+    expect(actionArea?.contains(menuTrigger)).toBe(true);
+    // Genau diese beiden Bedienelemente stehen im Kartenkopf; alles Weitere
+    // liegt hinter dem Menü.
+    expect(actionArea?.querySelectorAll("button")).toHaveLength(2);
   });
 });

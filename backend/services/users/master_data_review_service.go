@@ -627,7 +627,9 @@ func (s *masterDataReviewService) rejectMasterDataRequest(
 		slog.Int64("student_id", req.StudentID),
 		slog.Int64("reviewed_by", input.ReviewedBy),
 	)
-	s.deferDecisionPill(ctx, req, input, false)
+	if err := s.deferDecisionPill(ctx, req, input, false); err != nil {
+		return nil, err
+	}
 	return s.reloadMasterDataReviewItem(ctx, req.ID, "rejected")
 }
 
@@ -655,7 +657,9 @@ func (s *masterDataReviewService) approveMasterDataRequest(
 		slog.String("field", req.FieldKey),
 		slog.Int64("reviewed_by", input.ReviewedBy),
 	)
-	s.deferDecisionPill(ctx, req, input, true)
+	if err := s.deferDecisionPill(ctx, req, input, true); err != nil {
+		return nil, err
+	}
 	s.deferStudentUpdated(ctx, req.StudentID)
 	// Only when the write actually trimmed a "läuft mit" link — those links are
 	// rows on ANOTHER child's card too. Everything else stays silent: the event
@@ -705,13 +709,11 @@ func (s *masterDataReviewService) enrichReviewItem(ctx context.Context, row *use
 	return item, nil
 }
 
-// deferDecisionPill posts the parent-visible decision pill into the child's
-// chat thread after the decision commits. Best-effort: the emitter self-gates
-// on the messaging setting and opens its own detached tenant transaction, so
-// a pill failure never affects the decision.
-func (s *masterDataReviewService) deferDecisionPill(ctx context.Context, req *userModels.StudentDataChangeRequest, input MasterDataReviewDecideInput, approved bool) {
+// deferDecisionPill writes the durable decision intent in the decision
+// transaction, then posts the best-effort chat pill after commit.
+func (s *masterDataReviewService) deferDecisionPill(ctx context.Context, req *userModels.StudentDataChangeRequest, input MasterDataReviewDecideInput, approved bool) error {
 	if s.emitter == nil {
-		return
+		return nil
 	}
 	tenantID := tenant.FromContext(ctx)
 	body := "Anfrage bestätigt, Stammdaten übernommen"
@@ -739,12 +741,16 @@ func (s *masterDataReviewService) deferDecisionPill(ctx context.Context, req *us
 		RefTable:       "users.student_data_change_requests",
 		RefID:          &refID,
 	}
+	if err := s.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, ev); err != nil {
+		return fmt.Errorf("review: enqueue master-data request decision: %w", err)
+	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		s.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, ev)
 	})
 	// Every other guardian of this child hears about the decision: the full
 	// pill for explicit share recipients, a neutral line for the rest.
 	s.notifyOtherGuardiansAfterCommit(ctx, req, ev)
+	return nil
 }
 
 func (s *masterDataReviewService) deferStudentUpdated(ctx context.Context, studentID int64) {

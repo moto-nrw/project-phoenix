@@ -11,6 +11,7 @@ import (
 )
 
 func TestParentMessageTeamHandledMigrationLeavesExistingHistoryOpen(t *testing.T) {
+	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
 	require.NoError(t, parentMessageTeamHandledDown(ctx, db))

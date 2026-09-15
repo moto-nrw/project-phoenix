@@ -30,6 +30,8 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -75,25 +77,41 @@ func (f *careFixture) emitter(
 	t *testing.T,
 	messageRepo usersModels.ParentMessageRepository,
 	settings parentmessaging.TenantSettingsResolver,
-	broadcaster parentmessaging.Broadcaster,
+	broadcaster realtime.Broadcaster,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
-	testpkg.SetTenantRuntime(t, emitter, f.db)
+	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
 	return emitter
+}
+
+func newPickupChangePresence(t *testing.T, db *bun.DB) interface {
+	schedule.PickupChangePresence
+	schedule.InstancePresence
+} {
+	t.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return presence
 }
 
 func newCareFixture(t *testing.T) *careFixture {
 	t.Helper()
+	return newCareFixtureWithEmitter(t, nil)
+}
+
+// newCareFixtureWithEmitter builds the same service with a pill emitter, so a
+// test can assert what the message thread receives (#3135).
+func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter) *careFixture {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	sf, err := services.NewFactoryForTests(repos, db, slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
-		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, repos.RequestChildOffering, repos.CareOffering),
+		scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 		repos.InstanceStudent,
 		db,
 	)
@@ -104,11 +122,11 @@ func newCareFixture(t *testing.T) *careFixture {
 		sf.ArrivalSchedule,
 		sf.PickupSchedule,
 		repos.StudentPickupException,
-		repos.Attendance,
+		newPickupChangePresence(t, db),
 		autoExcusal,
 		sf.UserContext,
-		nil, // emitter — pill emission is best-effort and after-commit; nil no-ops
-		nil, // broadcaster — cache-invalidation fan-out; nil no-ops
+		emitter, // pill emission is best-effort and after-commit; nil no-ops
+		nil,     // broadcaster — cache-invalidation fan-out; nil no-ops
 		testpkg.RequestReviewPolicy{UserContext: sf.UserContext},
 		nil,
 		slog.Default(),
@@ -148,9 +166,9 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.
 			return err
 		}
 		exception := &scheduleModels.StudentPickupException{
-			TenantModel:       modelBase.TenantModel{TenantID: f.chain.TenantID},
+			TenantModel:       scheduleModels.TenantModel{TenantID: f.chain.TenantID},
 			StudentID:         f.chain.StudentID,
-			ExceptionDate:     date,
+			ExceptionDate:     scheduleModels.Date(date),
 			PickupTime:        &pickupTime,
 			Source:            scheduleModels.ExceptionSourceGuardian,
 			CreatedByGuardian: &f.chain.AccountID,
@@ -593,7 +611,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	f := newCareFixture(t)
 	// This test actually writes pills (created + status) from the separate staff
 	// account, whose sender_account_id FKs auth.accounts without cascade. Register
-	// the clear LAST so it runs FIRST (LIFO) ahead of CleanupAuthFixtures(staff).
+	// the clear LAST so it runs FIRST (LIFO) before fixture ownership.
 	settings := &toggleSettings{enabled: true}
 	svc := newCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest,

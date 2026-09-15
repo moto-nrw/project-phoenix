@@ -31,7 +31,7 @@ func createWithdrawalCompletion(
 		Trigger:               userModels.CareWithdrawalTriggerDirectSchool,
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(testpkg.Ctx(t), row))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(testpkg.Ctx(t), row))
 	return row
 }
 
@@ -103,7 +103,7 @@ func TestCareWithdrawalLifecycle_CompletionEndsBookingsFromEveryEnrollmentReques
 		SourceRequestChildID:  &requestChildIDs[0],
 		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
 	}
-	require.NoError(t, repositories.NewFactory(db).CareWithdrawal.UpsertPending(ctx, completion))
+	require.NoError(t, repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.UpsertPending(ctx, completion))
 
 	input := userService.CareExitInput{
 		LastCareDay: timezone.NewDate(2026, 8, 24), Reason: userModels.CareExitReasonNoCareNeed,
@@ -132,126 +132,6 @@ func bookingEndDates(t *testing.T, db *bun.DB, ctx context.Context, studentID in
 		result[i] = row.ValidUntil
 	}
 	return result
-}
-
-func TestCareWithdrawalLifecycle_DeletesStudentAndRedactsCompletionAtomically(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
-	actorID := careActor(t, db)
-	student := testpkg.CreateTestStudent(t, db, "Lina", "Loeschung", "2a")
-	completion := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
-	deletion := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
-	svc := newCareLifecycleServiceWithDeletion(t, db, deletion)
-
-	preview, err := svc.PreviewWithdrawalDeletion(ctx, completion.ID)
-	require.NoError(t, err)
-	input := userService.StudentDeletionInput{
-		ActorAccountID:      actorID,
-		ExpectedFingerprint: "stale",
-		ConfirmationName:    preview.ConfirmationName,
-		Reason:              userService.StudentDeletionReasonPrivacyRequest,
-		Acknowledged:        true,
-	}
-	_, err = svc.DeleteWithdrawal(ctx, completion.ID, input)
-	require.ErrorIs(t, err, userService.ErrStudentDeletionPreviewChanged)
-	stillPending, err := repos.CareWithdrawal.FindByID(ctx, completion.ID)
-	require.NoError(t, err)
-	assert.Equal(t, userModels.CareWithdrawalStatePending, stillPending.State)
-
-	input.ExpectedFingerprint = preview.Fingerprint
-	result, err := svc.DeleteWithdrawal(ctx, completion.ID, input)
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	redacted, err := repos.CareWithdrawal.FindByID(ctx, completion.ID)
-	require.NoError(t, err)
-	require.NotNil(t, redacted)
-	assert.Equal(t, userModels.CareWithdrawalStateResolved, redacted.State)
-	require.NotNil(t, redacted.Outcome)
-	assert.Equal(t, userModels.CareWithdrawalOutcomeDeleted, *redacted.Outcome)
-	assert.Nil(t, redacted.StudentID)
-	assert.Nil(t, redacted.SourceAdjustmentID)
-	assert.Nil(t, redacted.SourceRequestChildID)
-	assert.Empty(t, redacted.SourceOfferings)
-}
-
-func TestStudentDeletion_RedactsPendingWithdrawalOutsideCompletionFlow(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-	repos := repositories.NewFactory(db)
-	actorID := careActor(t, db)
-	student := testpkg.CreateTestStudent(t, db, "Noah", "Direktloeschung", "3b")
-	resolved := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
-	resolvedAt := time.Now().Add(-2 * time.Hour)
-	changed, err := repos.CareWithdrawal.MarkResolved(ctx, resolved.ID, actorID, resolvedAt)
-	require.NoError(t, err)
-	require.True(t, changed)
-
-	obsolete := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate().AddDays(1))
-	obsoleteAt := time.Now().Add(-time.Hour)
-	changed, err = repos.CareWithdrawal.MarkObsoleteForRebooking(
-		ctx, student.ID, timezone.TodayDate(), obsoleteAt,
-	)
-	require.NoError(t, err)
-	require.True(t, changed)
-
-	pending := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate().AddDays(2))
-	deletion := newStudentDeletionTestService(db, repos.DataDeletion, repos.StudentDeletionAudit)
-	userService.WireStudentDeletionCareWithdrawals(deletion, repos.CareWithdrawal)
-
-	preview, err := deletion.Preview(ctx, student.ID)
-	require.NoError(t, err)
-	_, err = deletion.Delete(ctx, userService.StudentDeletionInput{
-		StudentID: student.ID, ActorAccountID: actorID,
-		ExpectedFingerprint: preview.Fingerprint, ConfirmationName: preview.ConfirmationName,
-		Reason: userService.StudentDeletionReasonPrivacyRequest, Acknowledged: true,
-	})
-	require.NoError(t, err)
-	redacted, err := repos.CareWithdrawal.FindByID(ctx, pending.ID)
-	require.NoError(t, err)
-	require.NotNil(t, redacted)
-	assert.Equal(t, userModels.CareWithdrawalStateResolved, redacted.State)
-	require.NotNil(t, redacted.Outcome)
-	assert.Equal(t, userModels.CareWithdrawalOutcomeDeleted, *redacted.Outcome)
-	assert.Nil(t, redacted.StudentID)
-	assert.Nil(t, redacted.SourceRequestChildID)
-	assert.Empty(t, redacted.SourceOfferings)
-
-	redactedResolved, err := repos.CareWithdrawal.FindByID(ctx, resolved.ID)
-	require.NoError(t, err)
-	assert.Equal(t, userModels.CareWithdrawalStateResolved, redactedResolved.State)
-	require.NotNil(t, redactedResolved.Outcome)
-	assert.Equal(t, userModels.CareWithdrawalOutcomeCareEnded, *redactedResolved.Outcome)
-	assert.Equal(t, resolvedAt.Unix(), redactedResolved.ResolvedAt.Unix())
-	assert.Nil(t, redactedResolved.StudentID)
-
-	redactedObsolete, err := repos.CareWithdrawal.FindByID(ctx, obsolete.ID)
-	require.NoError(t, err)
-	assert.Equal(t, userModels.CareWithdrawalStateObsolete, redactedObsolete.State)
-	assert.Nil(t, redactedObsolete.Outcome)
-	require.NotNil(t, redactedObsolete.ObsoleteReason)
-	assert.Equal(t, userModels.CareWithdrawalObsoleteRebooked, *redactedObsolete.ObsoleteReason)
-	assert.Equal(t, obsoleteAt.Unix(), redactedObsolete.ResolvedAt.Unix())
-	assert.Nil(t, redactedObsolete.StudentID)
-}
-
-func newCareLifecycleServiceWithDeletion(
-	t *testing.T,
-	db *bun.DB,
-	deletion userService.StudentDeletionService,
-) userService.CareLifecycleService {
-	t.Helper()
-	repos := repositories.NewFactory(db)
-	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
-		StudentRepo: repos.Student, PersonRepo: repos.Person,
-		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
-		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.GradeTransition,
-		AuditService:    userService.NewStudentAuditService(repos.StudentFieldEdit, nil),
-		StudentDeletion: deletion,
-		DB:              db,
-	})
 }
 
 func TestCareWithdrawalLifecycle_ConcurrentCompletionWritesOneResult(t *testing.T) {
@@ -307,7 +187,7 @@ func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
 	completion := createWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
-	changed, err := repositories.NewFactory(db).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
+	changed, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
 	require.NoError(t, err)
 	require.True(t, changed)
 

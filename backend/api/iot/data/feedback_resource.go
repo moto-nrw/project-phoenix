@@ -1,13 +1,12 @@
 package data
 
 import (
-	"cmp"
 	"context"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 )
 
@@ -16,33 +15,33 @@ type Feedback interface {
 	Submit(context.Context, feedbackModule.CreateEntry) (feedbackModule.Entry, error)
 }
 
-type FeedbackStudentReader interface {
-	GetStudentByIDForUpdate(context.Context, int64) (*usersModel.Student, error)
-}
+type FeedbackStudent = devicescan.FeedbackStudent
+type FeedbackStudentReader = devicescan.FeedbackStudents
 
 // FeedbackResource defines the Feedback API resource
 type FeedbackResource struct {
-	UsersService    FeedbackStudentReader
+	runtime         Runtime
+	Students        FeedbackStudentReader
 	FeedbackService Feedback
 	ObserveResponse func(int, string)
 	Logger          *slog.Logger
 }
 
 // NewFeedbackResource creates a new Feedback resource
-func NewFeedbackResource(usersService FeedbackStudentReader, feedbackService Feedback, observeResponse func(int, string), logger *slog.Logger) *FeedbackResource {
-	if usersService == nil || feedbackService == nil || observeResponse == nil {
+func NewFeedbackResource(students FeedbackStudentReader, feedbackService Feedback, observeResponse func(int, string), runtime Runtime, logger *slog.Logger) *FeedbackResource {
+	if students == nil || feedbackService == nil || observeResponse == nil || !runtime.valid() {
 		panic("IoT feedback: all dependencies are required")
 	}
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return &FeedbackResource{
-		UsersService:    usersService,
+		runtime:         runtime,
+		Students:        students,
 		FeedbackService: feedbackService,
 		ObserveResponse: observeResponse,
 		Logger:          logger,
 	}
-}
-
-func (rs *FeedbackResource) getLogger() *slog.Logger {
-	return cmp.Or(rs.Logger, slog.Default())
 }
 
 // Router returns a configured router for feedback submission endpoints

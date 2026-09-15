@@ -105,3 +105,16 @@ func TestIsNoRowsUsesRepositorySentinelIdentity(t *testing.T) {
 		t.Fatal("an unrelated error with the same text must not classify as not found")
 	}
 }
+
+type markedNotFoundError struct{}
+
+func (markedNotFoundError) Error() string       { return "marked not found" }
+func (markedNotFoundError) RepositoryNotFound() {}
+
+func TestIsNoRowsUsesRepositoryNotFoundMarker(t *testing.T) {
+	t.Parallel()
+
+	if !IsNoRows(fmt.Errorf("lookup: %w", markedNotFoundError{})) {
+		t.Fatal("wrapped RepositoryNotFound marker must classify as not found")
+	}
+}

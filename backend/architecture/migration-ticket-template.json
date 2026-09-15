@@ -1,27 +1,32 @@
 {
-  "schema_version": 1,
-  "prerequisites": ["List only required blocker issue numbers, or explain why none exist."],
-  "owner_and_capability": "Name one owner and one bounded capability.",
-  "affected_packages": ["List every package in the cutover."],
-  "affected_tables": ["List every table, or state that no table is affected."],
+  "schema_version": 2,
+  "prerequisites": [
+    "#2642"
+  ],
+  "owner_and_capability": "Example Owner — Example capability",
+  "affected_packages": [
+    "modules/example"
+  ],
+  "affected_tables": [
+    "example.records"
+  ],
   "exact_ratchet_keys": [],
-  "atomic_cutover": "Describe one cutover with no fallback read chain or application dual write.",
-  "tests": ["List contract, RLS, transaction, and failure tests that apply."],
+  "atomic_cutover": "Switch the only caller and remove the old provider in one deploy.",
+  "tests": [
+    "Facade contract, RLS, rollback, and repository-failure tests."
+  ],
   "runtime_evidence": {
-    "source": "Link the raw tracer export or review attachment.",
-    "workload": "Describe the observation window, environment, volume, and operations.",
-    "thresholds": "State each agreed threshold and why it is safe.",
-    "query_count": "Record query counts per operation.",
-    "latency_p50": "Record p50 latency per operation.",
-    "latency_p95": "Record p95 latency per operation.",
-    "errors": "Record count and rate by stable operation or error code.",
-    "pool_wait": "Record DB-pool wait count and duration.",
-    "lock_wait": "Record measured lock waits; do not substitute full statement duration.",
-    "deadlocks": "Record deadlocks and serialization retries.",
-    "job_duration": "Record Worker duration, or state why it is not applicable.",
-    "job_retries": "Record Worker retries, or state why they are not applicable.",
-    "job_backlog": "Record Worker backlog, or state why it is not applicable."
+    "source": "Link flow-specific raw evidence.",
+    "workload": "Describe affected flows, environment and observation window.",
+    "thresholds": "Record applicable query budgets and acceptance criteria.",
+    "query_count": "Record query counts per operation or explain non-applicability.",
+    "errors": "Record stable errors and rates.",
+    "failure": "Record failure-path results or explain non-applicability.",
+    "rollback": "Record transaction rollback results or explain non-applicability.",
+    "smoke": "Record affected flow smoke checks and results."
   },
-  "rollback_and_cleanup": "Describe rollback, the observation window, and deletion of replaced code.",
-  "exit_criterion": "Name the measurable proof that the migration and ratchet cleanup are complete."
+  "rollback_and_cleanup": "Revert caller wiring; remove the old adapter after the observation window.",
+  "exit_criterion": "All callers use one provider and the listed ratchet keys are absent.",
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3019"
 }

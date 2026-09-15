@@ -13,7 +13,10 @@ import {
   classDayClassParam,
 } from "~/components/class-day/routes";
 import { Skeleton } from "~/components/ui/skeleton";
-import { fetchClassDaySchool } from "~/lib/school-class-day-api";
+import {
+  fetchClassDayClassesSchool,
+  fetchClassDaySchool,
+} from "~/lib/school-class-day-api";
 
 function ClassFromAddress() {
   const schoolClass = classDayClassParam(
@@ -23,6 +26,7 @@ function ClassFromAddress() {
     <ClassDayClass
       schoolClass={schoolClass}
       fetchClassDay={fetchClassDaySchool}
+      fetchClasses={fetchClassDayClassesSchool}
     />
   );
 }

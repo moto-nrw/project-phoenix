@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -32,10 +33,32 @@ const accessAuditIP = "0.0.0.0"
 
 // AccountTenantRole is one role an account holds at one school.
 type AccountTenantRole struct {
-	ID       int64   `json:"id"`
+	ID       int64   `json:"id,string"`
 	Name     string  `json:"name"`
 	IsSystem bool    `json:"is_system"`
 	BaseRole *string `json:"base_role,omitempty"`
+}
+
+// OperatorRoleOption is the role projection used by operator role pickers.
+// IDs remain decimal strings in JSON so frontend code never loses int64
+// precision while parsing a response.
+type OperatorRoleOption struct {
+	ID       int64  `json:"id,string"`
+	Name     string `json:"name"`
+	IsSystem bool   `json:"is_system"`
+}
+
+// OperatorRoleOptions projects auth roles at the service boundary, keeping
+// operator HTTP handlers independent of the identity-access persistence model.
+func OperatorRoleOptions(roles []*authModels.Role) []OperatorRoleOption {
+	options := make([]OperatorRoleOption, 0, len(roles))
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		options = append(options, OperatorRoleOption{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem})
+	}
+	return options
 }
 
 // AccountTenantAccessEntry is one school an account has (or had) access to,
@@ -230,6 +253,11 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		}
 
 		tenantCtx := tenant.WithTenantID(adminCtx, schoolID)
+		for _, existing := range current {
+			if existing.IsSystem && strings.EqualFold(existing.Name, "lehrkraft") && !authSvc.IsLehrkraftSystemRole(role) {
+				return &InvalidDataError{Err: authSvc.ErrLehrkraftRoleImmutable}
+			}
+		}
 		// Server-side mirror of the UI guards (role-management-modal,
 		// account-tenant-access-modal): switching an account whose school
 		// identity includes a caregiver profile to Lehrkraft would strand
@@ -411,6 +439,10 @@ func (s *operatorProvisioningService) loadAccountTenantAccess(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	rows, err = s.enrichAccountTenantOrganizations(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
 
 	rolesByTenant, err := s.rolesByTenant(ctx, accountID)
 	if err != nil {
@@ -426,6 +458,44 @@ func (s *operatorProvisioningService) loadAccountTenantAccess(ctx context.Contex
 		entries = append(entries, AccountTenantAccessEntry{AccountTenantAccessInfo: row, Roles: roles})
 	}
 	return entries, nil
+}
+
+func (s *operatorProvisioningService) enrichAccountTenantOrganizations(ctx context.Context, rows []authModels.AccountTenantAccessInfo) ([]authModels.AccountTenantAccessInfo, error) {
+	organizationIDs := make([]int64, 0, len(rows))
+	seenOrganizationIDs := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		if _, seen := seenOrganizationIDs[row.OrganizationID]; !seen {
+			seenOrganizationIDs[row.OrganizationID] = struct{}{}
+			organizationIDs = append(organizationIDs, row.OrganizationID)
+		}
+	}
+	organizations, err := s.Organizations.ListOrganizationsByID(ctx, organizationIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load organizations for account tenant access: %w", err)
+	}
+	organizationNames := make(map[int64]string, len(organizations))
+	organizationRanks := make(map[int64]int, len(organizations))
+	rank := -1
+	previousName := ""
+	for index, organization := range organizations {
+		if index == 0 || organization.Name != previousName {
+			rank++
+			previousName = organization.Name
+		}
+		organizationNames[organization.ID] = organization.Name
+		organizationRanks[organization.ID] = rank
+	}
+	for index := range rows {
+		name, found := organizationNames[rows[index].OrganizationID]
+		if !found {
+			return nil, fmt.Errorf("organization %d missing from account tenant access query", rows[index].OrganizationID)
+		}
+		rows[index].OrganizationName = name
+	}
+	sort.SliceStable(rows, func(left, right int) bool {
+		return organizationRanks[rows[left].OrganizationID] < organizationRanks[rows[right].OrganizationID]
+	})
+	return rows, nil
 }
 
 // rolesByTenant groups an account's role assignments by school. The context

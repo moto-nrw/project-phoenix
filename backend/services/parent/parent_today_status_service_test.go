@@ -12,8 +12,8 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
@@ -28,14 +28,14 @@ import (
 func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:      repos.ParentChild,
-		AttendanceRepo: repos.Attendance,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		DB:             db,
-		Logger:         slog.Default(),
+		ChildRepo:     repos.ParentChild,
+		Attendance:    parentAttendance(t, db),
+		StatusDayRepo: repos.StudentStatusDay,
+		StudentRepo:   repos.Student,
+		DB:            db,
+		Logger:        slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},
@@ -47,12 +47,12 @@ func buildTodayStatusService(t *testing.T) (parentService.Service, *bun.DB) {
 func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db)
+	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:      repos.ParentChild,
-		AttendanceRepo: repos.Attendance,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
+		ChildRepo:     repos.ParentChild,
+		Attendance:    parentAttendance(t, db),
+		StatusDayRepo: repos.StudentStatusDay,
+		StudentRepo:   repos.Student,
 		ArrivalSchedules: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
 			repos.StudentArrivalSchedule,
 			repos.StudentArrivalException,
@@ -74,7 +74,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (parentService.Service, *
 			nil,
 			scheduletest.NewPickupBaselineService(
 				repos.StudentPickupSchedule,
-				repos.RequestChildOffering,
+				approvedOfferingProjection(t),
 				repos.CareOffering,
 			),
 			db,
@@ -101,11 +101,11 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 	row.SetTenantID(tenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repositories.NewFactory(db).StudentPickupSchedule.Create(txCtx, row)
+		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.Create(txCtx, row)
 	}))
 	t.Cleanup(func() {
 		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			return repositories.NewFactory(db).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
+			return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentPickupSchedule.DeleteByStudentID(txCtx, studentID)
 		})
 	})
 	return true
@@ -166,78 +166,17 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date) {
 	t.Helper()
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "attendance-history-fixture")
-
 	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
 	checkOut := date.BerlinMidnight().Add(15 * time.Hour)
-	row := &activeModels.Attendance{
-		StudentID:    studentID,
-		Date:         date,
-		CheckInTime:  checkIn,
-		CheckOutTime: &checkOut,
-		DeviceID:     device.ID,
-	}
-	row.SetTenantID(tenantID)
-
-	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
-	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-		_, insertErr := tx.NewInsert().
-			Model(row).
-			ModelTableExpr(`active.attendance`).
-			Exec(txCtx)
-		return insertErr
-	})
-	require.NoError(t, err, "historische Anwesenheit konnte nicht angelegt werden")
-
-	t.Cleanup(func() {
-		cleanupCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
-		_ = testpkg.WithTenantTx(t, cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-			_, delErr := tx.NewDelete().
-				Model((*activeModels.Attendance)(nil)).
-				ModelTableExpr(`active.attendance`).
-				Where("student_id = ? AND date = ?", studentID, date).
-				Exec(txCtx)
-			return delErr
-		})
-	})
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, 0, device.ID, date, checkIn, &checkOut)
 }
 
 // openAttendanceToday schreibt eine offene Anwesenheitszeile fuer heute. Sie
 // laeuft im Tenant-Kontext, damit RLS greift wie im Betrieb.
 func openAttendanceToday(t *testing.T, db *bun.DB, tenantID, studentID int64, checkIn time.Time) {
 	t.Helper()
-	// Echtes Geraet statt einer geratenen ID: active.attendance haelt einen
-	// zusammengesetzten Fremdschluessel auf (tenant_id, device_id).
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "today-status-fixture")
-
-	row := &activeModels.Attendance{
-		StudentID:   studentID,
-		Date:        timezone.NewDate(2026, 8, 24),
-		CheckInTime: checkIn,
-		DeviceID:    device.ID,
-	}
-	row.SetTenantID(tenantID)
-
-	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
-	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-		_, insertErr := tx.NewInsert().
-			Model(row).
-			ModelTableExpr(`active.attendance`).
-			Exec(txCtx)
-		return insertErr
-	})
-	require.NoError(t, err, "Anwesenheitszeile konnte nicht angelegt werden")
-
-	t.Cleanup(func() {
-		cleanupCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
-		_ = testpkg.WithTenantTx(t, cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
-			_, delErr := tx.NewDelete().
-				Model((*activeModels.Attendance)(nil)).
-				ModelTableExpr(`active.attendance`).
-				Where("student_id = ?", studentID).
-				Exec(txCtx)
-			return delErr
-		})
-	})
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, 0, device.ID, timezone.NewDate(2026, 8, 24), checkIn, nil)
 }
 
 // TestGetChildTodayStatusRejectsForeignChild ist die Mandantengrenze: ein
@@ -429,12 +368,12 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")
 	exception := &scheduleModels.StudentArrivalException{
-		StudentID: chain.StudentID, ExceptionDate: timezone.NewDate(2026, 8, 24), ExpectedArrival: nil, CreatedBy: staff.ID,
+		StudentID: chain.StudentID, ExceptionDate: scheduleModels.NewDate(2026, 8, 24), ExpectedArrival: nil, CreatedBy: staff.ID,
 	}
 	exception.SetTenantID(chain.TenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return repositories.NewFactory(db).StudentArrivalException.Create(txCtx, exception)
+		return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).StudentArrivalException.Create(txCtx, exception)
 	}))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -442,4 +381,11 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, parentService.DayStateNoCare, status.State)
 	assert.Empty(t, status.ExpectedFrom)
+}
+
+func parentAttendance(t *testing.T, db *bun.DB) parentService.AttendanceReader {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
 }

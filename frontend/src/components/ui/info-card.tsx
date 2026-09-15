@@ -18,6 +18,7 @@ export function InfoCard({
   headingLevel = 2,
   loading = false,
   loadingRows = 3,
+  actions,
 }: Readonly<{
   title: string;
   children: React.ReactNode;
@@ -26,6 +27,8 @@ export function InfoCard({
   headingLevel?: 1 | 2;
   loading?: boolean;
   loadingRows?: number;
+  /** Weiterlink oder Aktion rechts in der Kopfzeile, wie bei SectionCard. */
+  actions?: React.ReactNode;
 }>) {
   const Heading = headingLevel === 1 ? "h1" : "h2";
 
@@ -35,7 +38,7 @@ export function InfoCard({
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
           {icon}
         </div>
-        <div>
+        <div className="min-w-0">
           {eyebrow && (
             <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
               {eyebrow}
@@ -45,10 +48,19 @@ export function InfoCard({
             {title}
           </Heading>
         </div>
+        {actions != null ? (
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            {actions}
+          </div>
+        ) : null}
       </div>
       {/* flex-1 lets a child opt into bottom-pinning via mt-auto (e.g. an action
-          row that should align across cards of different content length). */}
-      <div className="flex flex-1 flex-col space-y-3">
+          row that should align across cards of different content length).
+          min-h-0 lets it SHRINK as well: ohne das behält ein Flex-Kind seine
+          Inhaltshöhe als Mindesthöhe, und eine Karte in einer Fläche mit fester
+          Zellenhöhe (Startseite) wächst über ihren Rahmen hinaus, statt ihren
+          Inhalt scrollen zu lassen. */}
+      <div className="flex min-h-0 flex-1 flex-col space-y-3">
         {loading ? (
           <>
             <output aria-live="polite" className="sr-only">

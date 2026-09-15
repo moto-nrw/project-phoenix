@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 
 import type { StaffHistorySession, StaffSchedule } from "~/lib/staff-api";
 import type { DayProjection } from "~/lib/time-tracking-helpers";
@@ -210,7 +211,13 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     const onEditDay = vi.fn();
     renderTable({ onEditDay });
 
-    fireEvent.click(screen.getByLabelText("Block 2 bearbeiten"));
+    // Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Block 2" }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Block 2 bearbeiten" }),
+    );
 
     expect(onEditDay).toHaveBeenCalledTimes(1);
     const [, session] = onEditDay.mock.calls[0] as [
@@ -233,7 +240,10 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     };
     renderTable({ sessions: [nightBlock], onEditDay });
 
-    fireEvent.click(screen.getByLabelText("Eintrag bearbeiten"));
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für \d/ }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Eintrag bearbeiten" }),
+    );
 
     const [date, session] = onEditDay.mock.calls[0] as [
       Date,
@@ -253,7 +263,9 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
     const onEditDay = vi.fn();
     renderTable({ onEditDay });
 
-    fireEvent.click(screen.getByLabelText("Block nachtragen"));
+    // Das Menü der Tageszeile (nicht der Blockzeilen) bietet das Nachtragen an.
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für \d/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Block nachtragen" }));
 
     expect(onEditDay).toHaveBeenCalledTimes(1);
     const [, session] = onEditDay.mock.calls[0] as [
@@ -269,7 +281,10 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
 
     expect(screen.queryByText("Block 1")).not.toBeInTheDocument();
     expect(screen.queryByText("2 Blöcke")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Eintrag bearbeiten")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Aktionen für \d/ }));
+    expect(
+      screen.getByRole("menuitem", { name: "Eintrag bearbeiten" }),
+    ).toBeInTheDocument();
   });
 
   it("markiert den Tag als eingestempelt, wenn ein Block offen ist", () => {
@@ -286,13 +301,8 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
   // erfindet 23:59.
   describe("gekappte Blöcke", () => {
     beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["Date"] });
       // 06.01.2026, 09:00 Berlin.
-      vi.setSystemTime(new Date("2026-01-06T08:00:00Z"));
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
+      setTestClock(new Date("2026-01-06T08:00:00Z"));
     });
 
     it("zeigt beim Checkout in der Zukunft das gekappte Ende statt 23:59", () => {
@@ -366,13 +376,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
   // ohne dass sich die Sessions ändern, muss der laufende Nachtblock trotzdem
   // auf dem neuen Tag ankommen — sonst hängt er für immer am Vortag.
   describe("Tageswechsel bei offener Seite", () => {
-    beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["Date"] });
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
+    beforeEach(() => {});
 
     it("zieht einen laufenden Nachtblock nach Mitternacht auf den neuen Tag", () => {
       const runningNight: StaffHistorySession = {
@@ -389,7 +393,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
         sessions: [runningNight],
       };
 
-      vi.setSystemTime(new Date("2026-01-05T22:30:00Z")); // 23:30 Berlin
+      setTestClock(new Date("2026-01-05T22:30:00Z")); // 23:30 Berlin
       const view = render(
         tableElement({ ...props, today: new Date(2026, 0, 5) }),
       );
@@ -397,7 +401,7 @@ describe("StaffSessionTable Arbeitsblöcke (#2402)", () => {
         "00:00",
       );
 
-      vi.setSystemTime(new Date("2026-01-05T23:30:00Z")); // 00:30 Berlin, neuer Tag
+      setTestClock(new Date("2026-01-05T23:30:00Z")); // 00:30 Berlin, neuer Tag
       view.rerender(tableElement({ ...props, today: new Date(2026, 0, 6) }));
 
       expect(screen.getByText("06.01.").closest("tr")).toHaveTextContent(

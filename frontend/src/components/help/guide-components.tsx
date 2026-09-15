@@ -29,10 +29,29 @@ const TALL_LETTER_SCREENSHOTS = new Set([
   "/help/screens/elternbrief-status.webp",
 ]);
 
+const GUIDE_SCREENSHOT_DIMENSIONS: Readonly<
+  Record<string, { readonly width: number; readonly height: number }>
+> = {
+  "/help/screens/tagesinformationen-anlegen.webp": {
+    width: 1440,
+    height: 1020,
+  },
+  "/help/screens/tagesinformationen-bestaetigungen.webp": {
+    width: 1440,
+    height: 1020,
+  },
+  "/help/screens/lehrkraft-tagesinformationen.webp": {
+    width: 1440,
+    height: 620,
+  },
+};
+
 function getGuideScreenshotDimensions(image: string): {
   width: number;
   height: number;
 } {
+  const dimensions = GUIDE_SCREENSHOT_DIMENSIONS[image];
+  if (dimensions) return dimensions;
   if (image === "/help/screens/anmeldung-loeschen.png") {
     return { width: 1440, height: 1100 };
   }
@@ -85,11 +104,11 @@ const coverByPath: Record<
 > = {
   ersteinrichtung: {
     label: "Setup Guide",
-    chips: ["Zugang", "Datenverwaltung", "Go-Live"],
+    chips: ["Zugang", "Stammdaten", "Go-Live"],
   },
   funktionen: {
     label: "App Guide",
-    chips: ["Aufsicht", "Suche", "Verwaltung"],
+    chips: ["Aufsicht", "Kinder", "Verwaltung"],
   },
   nfc: {
     label: "Tablet Guide",
@@ -161,9 +180,9 @@ const toneClasses: Record<
     border: "border-moto-red/20",
   },
   purple: {
-    soft: "bg-[#7C3AED]/10",
-    text: "text-[#6D28D9]",
-    border: "border-[#7C3AED]/20",
+    soft: "bg-moto-purple/10",
+    text: "text-moto-purple-strong",
+    border: "border-moto-purple/20",
   },
   gray: {
     soft: "bg-gray-100",
@@ -267,7 +286,7 @@ export function HelpHeader({
     <header className="sticky top-3 z-30 print:hidden">
       <div
         className={[
-          "rounded-2xl border border-gray-200 bg-white/92 p-3 shadow-sm backdrop-blur-md sm:relative sm:p-4",
+          "moto-content-surface rounded-2xl border p-3 shadow-sm sm:relative sm:p-4",
           pdf
             ? "flex items-center justify-between gap-3"
             : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
@@ -387,7 +406,7 @@ export function GuideShell({
             ) : null}
 
             <nav
-              className="mt-6 rounded-2xl border border-gray-200 bg-white/80 p-3 shadow-sm backdrop-blur-md"
+              className="moto-content-surface mt-6 rounded-2xl border p-3 shadow-sm"
               aria-label="Auf dieser Seite"
             >
               <div className="mb-2.5 flex items-center gap-2 px-1">
@@ -794,7 +813,7 @@ function ScreenshotGallery({
       {items.map((item) => (
         <figure
           key={item.image}
-          className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none"
+          className="moto-content-surface overflow-hidden rounded-xl border shadow-sm print:[break-inside:avoid] print:border-gray-300 print:shadow-none"
         >
           <Image
             src={item.image}

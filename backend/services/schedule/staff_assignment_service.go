@@ -92,7 +92,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 	// instances those rows reference are loaded. Any time_tracking:own user
 	// can request the full 62-day range, so the cost must stay proportional
 	// to one person's plan — never the whole tenant timetable.
-	mine, err := s.deps.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
+	mine, err := s.deps.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return nil, err
 	}
@@ -139,7 +139,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 			Title:           inst.Title,
 			GroupName:       groupNameFor(inst.ActivityGroupID, groupNames),
 			RoomName:        roomNames[roomID],
-			Date:            inst.Date,
+			Date:            timezone.Date(inst.Date),
 			StartTime:       timezone.NormalizeWallClock(inst.StartTime),
 			EndTime:         timezone.NormalizeWallClock(inst.EndTime),
 			Status:          inst.Status,

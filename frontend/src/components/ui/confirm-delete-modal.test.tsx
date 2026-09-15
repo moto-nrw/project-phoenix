@@ -1,5 +1,7 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { releaseFakeTimers } from "~/test/clock";
 
 import { ConfirmDeleteModal } from "./confirm-delete-modal";
 import { Modal } from "./modal";
@@ -43,6 +45,78 @@ function getOverlay() {
 }
 
 describe("ConfirmDeleteModal", () => {
+  // #2932: the footer is the kit Button (size="md") — danger for the
+  // destructive step, outline for Abbrechen — not hand-rolled class strings.
+  it("renders its footer from the kit Button variants", () => {
+    render(
+      <ModalProvider>
+        <ConfirmDeleteModal
+          isOpen
+          title="Eintrag löschen"
+          description="Diese Aktion kann nicht rückgängig gemacht werden."
+          gate={{ mode: "twoStep" }}
+          onConfirm={vi.fn()}
+          onClose={vi.fn()}
+          loading={false}
+          error=""
+        />
+      </ModalProvider>,
+    );
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    const firstStep = screen.getByRole("button", { name: "Ja, löschen" });
+
+    expect(cancel).toHaveClass("ring-1", "ring-gray-300", "text-gray-700");
+    expect(firstStep).toHaveClass("bg-moto-red", "text-white");
+    expect(firstStep.className).not.toContain("FF3130");
+
+    for (const button of [cancel, firstStep]) {
+      expect(button).toHaveClass("rounded-lg", "px-4", "py-2", "text-sm");
+    }
+
+    fireEvent.click(firstStep);
+
+    const finalStep = screen.getByRole("button", {
+      name: "Endgültig löschen",
+    });
+    expect(finalStep).toHaveClass("bg-moto-red", "text-white", "px-4", "py-2");
+  });
+
+  it("exposes a named dialog and closes on Escape", async () => {
+    vi.useFakeTimers();
+    const onClose = vi.fn();
+
+    try {
+      render(
+        <ModalProvider>
+          <ConfirmDeleteModal
+            isOpen
+            title="Eintrag löschen"
+            description="Diese Aktion kann nicht rückgängig gemacht werden."
+            gate={{ mode: "twoStep" }}
+            onConfirm={vi.fn()}
+            onClose={onClose}
+            loading={false}
+            error=""
+          />
+        </ModalProvider>,
+      );
+
+      expect(
+        screen.getByRole("dialog", { name: "Eintrag löschen" }),
+      ).toBeInTheDocument();
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(onClose).toHaveBeenCalledOnce();
+    } finally {
+      releaseFakeTimers();
+    }
+  });
+
   it("renders into document.body instead of the card it is declared in", () => {
     const { container } = renderInsideCard();
 
@@ -112,5 +186,230 @@ describe("ConfirmDeleteModal", () => {
       cancelButton.focus();
     });
     expect(document.activeElement).toBe(cancelButton);
+  });
+});
+
+// #3110: the scope slot replaces a ChoiceModal stacked in front of the
+// deletion. Picking a scope is the first deliberate step, so the confirm
+// button runs the deletion directly once a scope is chosen.
+describe("ConfirmDeleteModal scope slot", () => {
+  function renderScoped(
+    overrides: Partial<{
+      value: string | null;
+      onChange: (value: string) => void;
+      onConfirm: () => void;
+      gate: React.ComponentProps<typeof ConfirmDeleteModal>["gate"];
+    }> = {},
+  ) {
+    const onChange = overrides.onChange ?? vi.fn();
+    const onConfirm = overrides.onConfirm ?? vi.fn();
+    render(
+      <ModalProvider>
+        <ConfirmDeleteModal
+          isOpen
+          title="Termin löschen"
+          description="Der Termin gehört zu einer Reihe."
+          gate={overrides.gate ?? { mode: "twoStep" }}
+          scope={{
+            label: "Was soll gelöscht werden?",
+            name: "delete-scope",
+            value: overrides.value ?? null,
+            onChange,
+            options: [
+              { value: "occurrence", label: "Nur dieser Termin" },
+              {
+                value: "series",
+                label: "Ganze Reihe",
+                description: "Alle Termine dieser Reihe.",
+              },
+            ],
+          }}
+          confirmLabel="Löschen"
+          onConfirm={onConfirm}
+          onClose={vi.fn()}
+          loading={false}
+          error=""
+        />
+      </ModalProvider>,
+    );
+    return { onChange, onConfirm };
+  }
+
+  it("keeps the deletion blocked until a scope is chosen", () => {
+    const { onChange } = renderScoped();
+
+    expect(screen.getByText("Was soll gelöscht werden?")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ja, löschen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Löschen" })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Ganze Reihe/ }));
+    expect(onChange).toHaveBeenCalledWith("series");
+  });
+
+  it("runs the deletion directly once a scope is selected", () => {
+    const { onConfirm } = renderScoped({ value: "series" });
+
+    expect(screen.getByRole("radio", { name: /Ganze Reihe/ })).toBeChecked();
+    const confirm = screen.getByRole("button", { name: "Löschen" });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the typed gate on top of the scope", () => {
+    const { onConfirm } = renderScoped({
+      value: "series",
+      gate: {
+        mode: "textConfirm",
+        expected: "Reihe",
+        inputId: "scoped-confirm",
+        label: "Zum Bestätigen Reihe eingeben",
+      },
+    });
+
+    const confirm = screen.getByRole("button", { name: "Löschen" });
+    expect(confirm).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Zum Bestätigen Reihe eingeben"), {
+      target: { value: "Reihe" },
+    });
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it("clears a typed confirmation when the scope changes", () => {
+    function Harness() {
+      const [value, setValue] = useState<string | null>("series");
+
+      return (
+        <ModalProvider>
+          <ConfirmDeleteModal
+            isOpen
+            title="Termin löschen"
+            description="Der Termin gehört zu einer Reihe."
+            gate={{
+              mode: "textConfirm",
+              expected: "Reihe",
+              inputId: "scope-reset-confirm",
+              label: "Zum Bestätigen Reihe eingeben",
+            }}
+            scope={{
+              label: "Was soll gelöscht werden?",
+              name: "scope-reset",
+              value,
+              onChange: setValue,
+              options: [
+                { value: "occurrence", label: "Nur dieser Termin" },
+                { value: "series", label: "Ganze Reihe" },
+              ],
+            }}
+            onConfirm={vi.fn()}
+            onClose={vi.fn()}
+            loading={false}
+            error=""
+          />
+        </ModalProvider>
+      );
+    }
+
+    render(<Harness />);
+
+    const input = screen.getByLabelText("Zum Bestätigen Reihe eingeben");
+    const confirm = screen.getByRole("button", {
+      name: "Endgültig löschen",
+    });
+    fireEvent.change(input, { target: { value: "Reihe" } });
+    expect(confirm).toBeEnabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Nur dieser Termin/ }));
+    expect(input).toHaveValue("");
+    expect(confirm).toBeDisabled();
+
+    fireEvent.click(screen.getByRole("radio", { name: /Ganze Reihe/ }));
+    expect(input).toHaveValue("");
+    expect(confirm).toBeDisabled();
+  });
+
+  it("never opens the typed gate while the expected value is still empty", () => {
+    render(
+      <ModalProvider>
+        <ConfirmDeleteModal
+          isOpen
+          title="Kind löschen"
+          description="Vorschau wird geladen."
+          gate={{
+            mode: "textConfirm",
+            expected: "",
+            inputId: "empty-expected",
+            label: "Name erneut eingeben",
+          }}
+          onConfirm={vi.fn()}
+          onClose={vi.fn()}
+          loading={false}
+          error=""
+        />
+      </ModalProvider>,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Endgültig löschen" }),
+    ).toBeDisabled();
+  });
+});
+
+// #3109: the dialog also serves the localized parents portal, so every
+// visible label is a prop and the sheet presentation follows the modal it
+// opens from.
+describe("ConfirmDeleteModal localized labels", () => {
+  it("renders translated cancel, close, step and confirm labels", () => {
+    render(
+      <ConfirmDeleteModal
+        isOpen
+        title="Undo the change?"
+        description="The pick-up time will be removed."
+        gate={{ mode: "twoStep", firstStepLabel: "Yes, undo" }}
+        confirmLabel="Undo permanently"
+        loadingLabel="Undoing…"
+        cancelLabel="Cancel"
+        closeLabel="Close"
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+        loading={false}
+        error=""
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Yes, undo" }));
+    expect(
+      screen.getByRole("button", { name: "Undo permanently" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Abbrechen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the cancel button on narrow screens in sheet mode", () => {
+    render(
+      <ConfirmDeleteModal
+        isOpen
+        title="Änderung zurücknehmen?"
+        description="Weg damit."
+        gate={{ mode: "twoStep" }}
+        mobileSheet
+        onConfirm={vi.fn()}
+        onClose={vi.fn()}
+        loading={false}
+        error=""
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toHaveClass(
+      "hidden",
+      "sm:inline-flex",
+    );
   });
 });

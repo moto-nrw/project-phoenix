@@ -7,7 +7,7 @@
 // und nur eine Zahl zu zeigen, macht die Seite leer und die Vorbereitung
 // unmöglich. Rein zum Lesen: gebucht wird erst, wenn die Aufsicht läuft.
 
-import { StatusDotBadge } from "~/components/ui/status-dot-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Alert } from "~/components/ui/alert";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
@@ -68,7 +68,7 @@ function ChildRow({
           )}
         </span>
         {absence ? (
-          <StatusDotBadge label={absence} color={LOCATION_COLORS.EXCUSED} />
+          <StatusColorBadge label={absence} color={LOCATION_COLORS.EXCUSED} />
         ) : null}
       </button>
     </li>

@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -43,8 +44,10 @@ type ActiveSupervisorCreator interface {
 }
 
 type SubstitutionDependencies struct {
-	Groups                  GroupStore
-	Substitutions           GroupHandoverStore
+	Groups        GroupStore
+	Substitutions GroupHandoverStore
+	// Persons resolves the staff names the overview shows (#2661).
+	Persons                 PersonQuery
 	Teachers                userModels.TeacherRepository
 	Staff                   StaffLockStore
 	Actors                  ActorResolver
@@ -186,7 +189,14 @@ func (s *substitutionModule) listOverviewRows(ctx context.Context, tenantID int6
 		filter.GreaterThanOrEqual("end_date", today)
 	}
 	options.Filter = filter
-	return s.deps.Substitutions.ListWithRelations(ctx, options)
+	rows, err := s.deps.Substitutions.ListWithRelations(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	if err := attachSubstitutionPersons(ctx, s.deps.Persons, rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 func (s *substitutionModule) projectOverview(ctx context.Context, tenantID int64, access substitutionAccess, rows []*educationModels.GroupSubstitution, includeTargets bool) (*OverviewResult, error) {
@@ -294,7 +304,7 @@ func (s *substitutionModule) Assign(ctx context.Context, caller SubstitutionCall
 	if err != nil {
 		return nil, err
 	}
-	realtime.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
+	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
 	return &result, nil
 }
 
@@ -398,7 +408,7 @@ func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller,
 	if err != nil {
 		return err
 	}
-	realtime.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_end")
+	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_end")
 	return nil
 }
 
@@ -667,10 +677,10 @@ func projectAssignment(row *educationModels.GroupSubstitution, group *educationM
 }
 
 func auditChange(row *educationModels.GroupSubstitution, actorID int64, action string) *auditModels.SubstitutionChange {
-	endDate := row.EndDate
+	endDate := auditModels.Date(row.EndDate)
 	return &auditModels.SubstitutionChange{SubstitutionID: row.ID, TargetType: string(TargetGroupHandover), Action: action,
 		GroupID: row.GroupID, TargetStaffID: row.SubstituteStaffID, ActorAccountID: actorID,
-		StartDate: row.StartDate, EndDate: &endDate}
+		StartDate: auditModels.Date(row.StartDate), EndDate: &endDate}
 }
 
 func contains(ids []int64, id int64) bool {

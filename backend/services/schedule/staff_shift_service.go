@@ -14,6 +14,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -144,7 +145,7 @@ func (s *staffShiftService) SetBroadcaster(broadcaster realtime.Broadcaster) {
 }
 
 func (s *staffShiftService) broadcastTimeTrackingChanged(ctx context.Context) {
-	realtime.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
+	realtimeevents.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 // lockShiftWrites takes the per-staff advisory lock before the overlap
@@ -219,7 +220,7 @@ func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByDateRange(ctx, start, end)
+	shifts, err := s.repo.FindByDateRange(ctx, scheduleModels.Date(start), scheduleModels.Date(end))
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +237,7 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
-	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, start, end)
+	shifts, err := s.repo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(start), scheduleModels.Date(end))
 	if err != nil {
 		return nil, err
 	}

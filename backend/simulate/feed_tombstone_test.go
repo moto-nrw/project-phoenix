@@ -16,7 +16,8 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 
 	berlin, err := time.LoadLocation("Europe/Berlin")
 	require.NoError(t, err)
-	today, err := time.ParseInLocation("2006-01-02", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).In(berlin).Format("2006-01-02"), berlin)
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	today, err := time.ParseInLocation("2006-01-02", now.In(berlin).Format("2006-01-02"), berlin)
 	require.NoError(t, err)
 	periodStart := today.AddDate(0, 0, 14)
 	for periodStart.Weekday() == time.Saturday || periodStart.Weekday() == time.Sunday {
@@ -70,7 +71,7 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 			if body["student_rfid"] == "DEMO-UNREGISTERED-TAG" {
 				w.WriteHeader(404)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag"})
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": "unknown tag", "code": "rfid_tag_not_found"})
 				return
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": 1}})
@@ -92,12 +93,17 @@ func TestRunFullDaySeedsStaffFeedTombstone(t *testing.T) {
 			Betreuer: []AccountCredentials{{StaffID: 10, Name: "Julia Klein"}},
 		},
 		Devices:    map[string]SeedDevice{"device": {APIKey: "key", Name: "Scanner"}},
+		Students:   []SeedStudent{{ID: 1, FirstName: "Felix", LastName: "Schneider"}},
 		Rooms:      map[string]int64{"OGS-Raum 1": 1},
 		Activities: map[string]int64{"Hausaufgaben": 50},
 	}
 	require.NoError(t, WriteSeedState(state, statePath))
 
-	require.NoError(t, RunFullDay(context.Background(), FullDayOptions{Client: newTestClientFactory, StatePath: statePath}))
+	require.NoError(t, RunFullDay(context.Background(), FullDayOptions{
+		Client:    newTestClientFactory,
+		StatePath: statePath,
+		Now:       func() time.Time { return now },
+	}))
 	require.True(t, bootstrappedPeriods)
 	require.Equal(t, []int64{10}, createdStaffIDs)
 	createdDay, err := time.ParseInLocation("2006-01-02", createdDate, berlin)

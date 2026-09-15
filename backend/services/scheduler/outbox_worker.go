@@ -6,6 +6,7 @@ import (
 	"time"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // scheduleOutboxWorkerTask registers the platform email outbox tick.
@@ -40,12 +41,13 @@ func (s *Scheduler) resolveOutboxInterval() time.Duration {
 }
 
 // runOutboxOnce calls the worker. Re-entry is guarded by task.Running
-// so a slow tick can't overlap. MaxAttempts is pushed from the
+// so a slow tick can't overlap. MaxAttempts is passed per run from the
 // `enrollment.outbox_max_attempts` setting on each tick — admins can
 // tune retry budget without restart.
 func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	started := time.Now()
 	if !s.tenantRuntimeConfigured {
+		recordJobCommandFailure(ctx, tenant.ErrRuntimeRequired)
 		s.observeTenantRuntime("missing_tenant")
 		s.getLogger().Error("outbox worker runtime is not configured")
 		return
@@ -64,15 +66,15 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 	}()
 
 	maxAttempts := s.resolveIntSetting(context.Background(), configModel.KeyEnrollmentOutboxMaxAttempts, "", 6)
-	s.outboxWorker.SetMaxAttempts(maxAttempts)
 
 	ctx, cancel := s.taskContext(ctx, 5*time.Minute)
 	defer cancel()
 	ctx = s.withUnitOfWork(ctx)
 
 	const batchSize = 25
-	processed, err := s.outboxWorker.RunOnce(ctx, batchSize)
+	processed, err := s.outboxWorker.RunOnce(ctx, batchSize, maxAttempts)
 	if err != nil {
+		recordJobCommandFailure(ctx, err)
 		s.traceWorkerFailure(ctx, "email-outbox", "run_failure", err)
 		s.getLogger().Error("outbox worker tick failed",
 			slog.String("job_id", "email-outbox"),
@@ -86,6 +88,7 @@ func (s *Scheduler) runOutboxOnce(ctx context.Context, task *ScheduledTask) {
 func (s *Scheduler) recordOutboxResult(ctx context.Context, processed int, started time.Time) {
 	backlog, err := s.outboxWorker.Backlog(ctx)
 	if err != nil {
+		recordJobCommandFailure(ctx, err)
 		s.traceWorkerFailure(ctx, "email-outbox", "backlog_failure", err)
 		s.getLogger().Error("outbox worker backlog query failed",
 			slog.String("job_id", "email-outbox"),

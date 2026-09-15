@@ -19,7 +19,9 @@ type settingsService struct {
 	schoolStore   SchoolSettingsStore
 	runtime       Runtime
 	logger        *slog.Logger
+	registry      *config.Registry
 	observeLookup SettingsLookupObserver
+	homeLayouts   *HomeLayoutService
 	// classRestrictionGuard, when set, reports whether the tenant in
 	// context currently has an active enrollment phase that restricts
 	// eligibility to specific school classes. It gates disabling the
@@ -55,6 +57,63 @@ func (s *settingsService) SetLookupObserver(observer SettingsLookupObserver) {
 
 func (s *settingsService) SetRuntime(runtime Runtime) { s.runtime = runtime }
 
+func (s *settingsService) homeLayoutService() (*HomeLayoutService, error) {
+	if s == nil || s.homeLayouts == nil {
+		return nil, ErrHomeLayoutUnavailable
+	}
+	return s.homeLayouts, nil
+}
+
+// HomeLayout returns the caller's start-page composition plus the school's
+// prescription. It is an optional public capability of the settings platform
+// so unrelated settings test doubles remain narrow.
+func (s *settingsService) HomeLayout(ctx context.Context, tenantID, accountID int64, permissions []string) (any, error) {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return nil, err
+	}
+	return homeLayouts.View(ctx, tenantID, accountID, permissions)
+}
+
+func (s *settingsService) SetHomeLayout(ctx context.Context, tenantID, accountID int64, overrides map[string]bool, order []string, spans map[string]int, cols map[string]int, rows map[string]int, replaceBlocks bool) error {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	if !replaceBlocks {
+		return homeLayouts.SetOverridesKeepingBlocks(ctx, tenantID, accountID, overrides)
+	}
+	// Order, width, column and row arrive apart from the HTTP layer and become
+	// the stored arrangement here. A key without a width keeps span 0 and is
+	// rejected by the placement validation rather than silently defaulting to
+	// some size; a key without a cell lands in the top-left corner.
+	blocks := make([]config.HomeBlockPlacement, 0, len(order))
+	for _, key := range order {
+		blocks = append(blocks, config.HomeBlockPlacement{Key: key, Span: spans[key], Col: cols[key], Row: rows[key]})
+	}
+	return homeLayouts.SetOverrides(ctx, tenantID, accountID, overrides, blocks)
+}
+
+func (s *settingsService) ResetHomeLayout(ctx context.Context, tenantID, accountID int64) error {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	return homeLayouts.ResetOverrides(ctx, tenantID, accountID)
+}
+
+func (s *settingsService) SetHomeBlockPolicies(ctx context.Context, tenantID, accountID int64, permissions []string, policies map[string]string) error {
+	homeLayouts, err := s.homeLayoutService()
+	if err != nil {
+		return err
+	}
+	parsed := make(map[string]config.BlockPolicy, len(policies))
+	for key, policy := range policies {
+		parsed[key] = config.BlockPolicy(policy)
+	}
+	return homeLayouts.SetPolicies(ctx, tenantID, accountID, permissions, parsed)
+}
+
 // SetClassRestrictionGuard wires the enrollment class-restriction probe used
 // by the concrete-class collection guard. Kept off the constructor (and off
 // the SettingsService interface) so existing call sites and tests are
@@ -84,14 +143,55 @@ func NewSettingsService(
 	schoolStore SchoolSettingsStore,
 	runtime Runtime,
 	logger *slog.Logger,
+	registries ...*config.Registry,
 ) SettingsService {
+	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, nil, registries...)
+}
+
+// NewSettingsServiceWithHomeLayouts wires the settings platform's start-page
+// capability at construction time. Keeping it on this owner avoids widening
+// the legacy TenantOperations composition graph.
+func NewSettingsServiceWithHomeLayouts(
+	valueRepo config.SettingValueRepository,
+	auditRepo config.SettingAuditRepository,
+	schoolStore SchoolSettingsStore,
+	runtime Runtime,
+	logger *slog.Logger,
+	homeLayouts *HomeLayoutService,
+	registries ...*config.Registry,
+) SettingsService {
+	return newSettingsService(valueRepo, auditRepo, schoolStore, runtime, logger, homeLayouts, registries...)
+}
+
+func newSettingsService(
+	valueRepo config.SettingValueRepository,
+	auditRepo config.SettingAuditRepository,
+	schoolStore SchoolSettingsStore,
+	runtime Runtime,
+	logger *slog.Logger,
+	homeLayouts *HomeLayoutService,
+	registries ...*config.Registry,
+) SettingsService {
+	registry := config.DefaultRegistry()
+	if len(registries) > 0 && registries[0] != nil {
+		registry = registries[0]
+	}
 	return &settingsService{
 		valueRepo:   valueRepo,
 		auditRepo:   auditRepo,
 		schoolStore: schoolStore,
 		runtime:     runtime,
 		logger:      logger.With("service", "settings"),
+		registry:    registry,
+		homeLayouts: homeLayouts,
 	}
+}
+
+func definitionFor(settings SettingsService, key string) *config.Definition {
+	if service, ok := settings.(*settingsService); ok {
+		return service.registry.GetDefinition(key)
+	}
+	return config.GetDefinition(key)
 }
 
 // Resolve returns the value for a setting: tenant override if it exists,
@@ -133,13 +233,13 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 	}
 
 	if tenantID <= 0 || len(keys) == 0 {
-		return newSettingsSnapshot(tenantID, keys, nil)
+		return newSettingsSnapshot(s.registry, tenantID, keys, nil)
 	}
 
 	// Validate every key up front so an unknown key fails deterministically
 	// regardless of which keys happen to be cached already.
 	for _, key := range keys {
-		if config.GetDefinition(key) == nil {
+		if s.registry.GetDefinition(key) == nil {
 			return nil, &SettingsError{
 				Op:  "resolve_many",
 				Err: &DefinitionNotFoundError{Key: key},
@@ -153,7 +253,7 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 		if err != nil {
 			return nil, &SettingsError{Op: "resolve_many", Err: err}
 		}
-		return newSettingsSnapshot(tenantID, keys, stored)
+		return newSettingsSnapshot(s.registry, tenantID, keys, stored)
 	}
 
 	resolved, missing := cache.lookup(tenantID, keys)
@@ -168,7 +268,7 @@ func (s *settingsService) ResolveMany(ctx context.Context, keys []string) (resul
 		if err != nil {
 			return nil, &SettingsError{Op: "resolve_many", Err: err}
 		}
-		loaded, err := newSettingsSnapshot(tenantID, missing, stored)
+		loaded, err := newSettingsSnapshot(s.registry, tenantID, missing, stored)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +309,7 @@ func (s *settingsService) ResolveManyForTenant(ctx context.Context, tenantID int
 		(ctxTenant == 0 || ctxTenant == tenantID) {
 		if cache := requestCacheFromContext(ctx); cache != nil {
 			for _, key := range keys {
-				if config.GetDefinition(key) == nil {
+				if s.registry.GetDefinition(key) == nil {
 					return nil, &SettingsError{
 						Op:  "resolve_many",
 						Err: &DefinitionNotFoundError{Key: key},
@@ -298,7 +398,7 @@ func (s *settingsService) ResolveManyForTenants(ctx context.Context, tenantIDs [
 		}
 	}
 	for _, tenantID := range uniqueTenantIDs {
-		snapshot, err := newSettingsSnapshot(tenantID, keys, storedByTenant[tenantID])
+		snapshot, err := newSettingsSnapshot(s.registry, tenantID, keys, storedByTenant[tenantID])
 		if err != nil {
 			return nil, err
 		}
@@ -358,7 +458,7 @@ func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenant
 			Err: fmt.Errorf("resolving %q inside a transaction requires an ambient transaction", key),
 		}
 	}
-	if config.GetDefinition(key) == nil {
+	if s.registry.GetDefinition(key) == nil {
 		return "", &SettingsError{Op: "resolve_in_tx", Err: &DefinitionNotFoundError{Key: key}}
 	}
 
@@ -366,7 +466,7 @@ func (s *settingsService) ResolveStringForTenantInTx(ctx context.Context, tenant
 	if err != nil {
 		return "", &SettingsError{Op: "resolve_in_tx", Err: err}
 	}
-	snapshot, err := newSettingsSnapshot(tenantID, []string{key}, stored)
+	snapshot, err := newSettingsSnapshot(s.registry, tenantID, []string{key}, stored)
 	if err != nil {
 		return "", err
 	}
@@ -507,7 +607,7 @@ func (s *settingsService) tenantID(ctx context.Context) int64 {
 // unknown key yields *DefinitionNotFoundError, an AccessAdminOnly key yields
 // ErrOperatorAdminOnly, everything else is writable.
 func (s *settingsService) CheckOperatorWritable(key string) error {
-	def := config.GetDefinition(key)
+	def := s.registry.GetDefinition(key)
 	if def == nil {
 		return &DefinitionNotFoundError{Key: key}
 	}
@@ -518,7 +618,7 @@ func (s *settingsService) CheckOperatorWritable(key string) error {
 }
 
 func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error {
-	def := config.GetDefinition(key)
+	def := s.registry.GetDefinition(key)
 	if def == nil {
 		return &SettingsError{
 			Op:  "set_value",
@@ -528,6 +628,9 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 
 	if err := checkWritePermission(def, userPermissions); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
+	}
+	if mode, ok := value.(string); ok && parentReportApprovalKey(key) != "" {
+		return s.setParentReportMode(ctx, key, mode, changedBy, userPermissions)
 	}
 
 	if err := validateValue(def, value); err != nil {
@@ -546,10 +649,28 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if tenantID <= 0 {
 		return &SettingsError{Op: "set_value", Err: fmt.Errorf("no tenant context")}
 	}
+	if isAttendanceScopeKey(key) || isParentReportSettingKey(key) {
+		if s.runtime == nil {
+			return &SettingsError{Op: "set_value", Err: ErrRuntimeUnavailable}
+		}
+		if !s.runtime.HasTransaction(ctx) {
+			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return s.SetValue(txCtx, key, value, changedBy, userPermissions)
+			})
+		}
+	}
+	if isParentReportSettingKey(key) {
+		if err := s.lockParentReportModes(ctx); err != nil {
+			return err
+		}
+	}
 
 	// Serialize a security.mfa_mode change against session mints that are
 	// re-deciding their MFA gate right now — see lockMFAPolicy.
 	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "set_value", Err: err}
+	}
+	if err := s.lockParentPickupChangePolicyForWrite(ctx, key); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
 	}
 
@@ -617,7 +738,7 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 
 // ResetValue removes a tenant override, falling back to the registry default.
 func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error {
-	def := config.GetDefinition(key)
+	def := s.registry.GetDefinition(key)
 	if def == nil {
 		return &SettingsError{
 			Op:  "reset_value",
@@ -633,10 +754,31 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	if tenantID <= 0 {
 		return &SettingsError{Op: "reset_value", Err: fmt.Errorf("no tenant context")}
 	}
+	if parentReportApprovalKey(key) != "" && ctx.Value(parentReportResetContextKey{}) != true {
+		return s.resetParentReportMode(ctx, key, changedBy, userPermissions)
+	}
+	if isAttendanceScopeKey(key) || isParentReportSettingKey(key) {
+		if s.runtime == nil {
+			return &SettingsError{Op: "reset_value", Err: ErrRuntimeUnavailable}
+		}
+		if !s.runtime.HasTransaction(ctx) {
+			return s.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
+				return s.ResetValue(txCtx, key, changedBy, userPermissions)
+			})
+		}
+	}
+	if isParentReportSettingKey(key) {
+		if err := s.lockParentReportModes(ctx); err != nil {
+			return err
+		}
+	}
 
 	// A reset restores the registry default, which changes the effective mode
 	// exactly like a write does — same lock, same reason (see lockMFAPolicy).
 	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "reset_value", Err: err}
+	}
+	if err := s.lockParentPickupChangePolicyForWrite(ctx, key); err != nil {
 		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
@@ -738,6 +880,10 @@ func validateValue(def *config.Definition, value any) error {
 		if !ok {
 			return fmt.Errorf("expected a time string")
 		}
+		defaultValue, optional := def.Default.(string)
+		if optional && defaultValue == "" && strings.TrimSpace(str) == "" {
+			return nil
+		}
 		if err := validateTimeFormat(str); err != nil {
 			return err
 		}
@@ -783,6 +929,8 @@ func validateValue(def *config.Definition, value any) error {
 // order — never blocks a reachable configuration.
 func (s *settingsService) validateCrossField(ctx context.Context, key string, value any) error {
 	switch key {
+	case config.KeyOperationalOverviewScope, config.KeyAttendanceEditScope:
+		return s.validateAttendanceScopePair(ctx, key, value)
 	case config.KeySlotListShortDayCutoff, config.KeySlotListLongDayCutoff:
 		return s.validateSlotListCutoffPair(ctx, key, value)
 	case config.KeyEnrollmentCollectGradeLevel, config.KeyEnrollmentCollectSchoolClass:
@@ -978,7 +1126,7 @@ func (s *settingsService) validateSlotListCutoffPair(ctx context.Context, key st
 // LockSlotListCutoffPair takes the per-tenant transaction-scoped advisory lock
 // that guards the Ganztag pickup-cutoff pair. Both the pair validator on the
 // write path (validateSlotListCutoffPair) and the slot-list reader on the read
-// path (services/slotlists pickupBuckets) take it, so a concurrent lowering of
+// path (the class-day projection, modules/classday) take it, so a concurrent lowering of
 // both cutoffs cannot interleave with a read and expose an inverted short/long
 // pair under READ COMMITTED (#1565 review). Best-effort: without an ambient
 // transaction the xact lock is meaningless — the settings read/write paths always
@@ -1010,7 +1158,7 @@ func (s *settingsService) flushRequestCacheForLock(ctx context.Context) {
 }
 
 // LockSlotListCutoffPairShared takes the SHARED variant of the Ganztag cutoff
-// lock for read paths (services/slotlists pickupBuckets). Shared holders never
+// lock for read paths (the class-day projection, modules/classday). Shared holders never
 // block one another, so concurrent /options, pickup-preview and export requests
 // no longer serialize behind a single exclusive lock — a slow export scanning
 // rosters or rendering a PDF/XLSX cannot stall every other reader in the tenant.
@@ -1136,6 +1284,52 @@ func (s *settingsService) lockMFAPolicyForWrite(ctx context.Context, key string)
 		return nil
 	}
 	return s.LockMFAPolicy(ctx)
+}
+
+// LockParentPickupChangePolicy takes the exclusive per-tenant policy lock on
+// the parent pickup-change switch and its same-day cutoff. The corresponding
+// guardian write takes the shared side before it re-reads both values.
+func (s *settingsService) LockParentPickupChangePolicy(ctx context.Context) error {
+	return s.lockParentPickupChangePolicy(ctx, s.tenantID(ctx), false)
+}
+
+// LockParentPickupChangePolicySharedForTenant takes the shared side of the
+// parent pickup-change policy lock for a guardian write transaction.
+func (s *settingsService) LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	return s.lockParentPickupChangePolicy(ctx, tenantID, true)
+}
+
+// lockParentPickupChangePolicy serializes settings writes with guardian
+// pickup-change writes. Without the shared lock, the enabled flag and cutoff
+// can be read on separate READ COMMITTED snapshots, or a settings write can
+// commit after their re-read but before the parent write commits.
+func (s *settingsService) lockParentPickupChangePolicy(ctx context.Context, tenantID int64, shared bool) error {
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictTenant(tenantID)
+	}
+	if tenantID <= 0 || s.runtime == nil || !s.runtime.HasTransaction(ctx) {
+		return nil
+	}
+	if err := s.runtime.AcquireLock(ctx, parentPickupChangePolicyLockKey(tenantID), shared); err != nil {
+		return fmt.Errorf("lock parent pickup-change policy: %w", err)
+	}
+	return nil
+}
+
+// parentPickupChangePolicyLockKey is shared by writes to both settings and by
+// guardian writes that consume their effective policy. It is per tenant so
+// one school's settings update never stalls another school's families.
+func parentPickupChangePolicyLockKey(tenantID int64) string {
+	return fmt.Sprintf("parent-pickup-change-policy:%d", tenantID)
+}
+
+// lockParentPickupChangePolicyForWrite takes the exclusive policy lock for
+// either setting before the write reads the old value or changes the override.
+func (s *settingsService) lockParentPickupChangePolicyForWrite(ctx context.Context, key string) error {
+	if key != config.KeyParentPickupChangeEnabled && key != config.KeyParentPickupChangeCutoffTime {
+		return nil
+	}
+	return s.LockParentPickupChangePolicy(ctx)
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

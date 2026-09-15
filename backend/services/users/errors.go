@@ -44,9 +44,9 @@ var (
 	// fields of someone who is already in the directory, which is an edit — and
 	// POST /api/staff is gated on users:create alone.
 	//
-	// Every role that can create staff carries users:update as well (the user
-	// role gets both in migration 1.5.3, admin holds the wildcard), so this
-	// refuses the direct-API case, not the staff form.
+	// Since #2906 the required authority is staff:manage — the same one
+	// PUT /api/staff/{id} needs. Admins hold it through the admin:* wildcard,
+	// so this refuses the direct-API case, not the staff form.
 	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
 
 	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was
@@ -147,19 +147,6 @@ var (
 	// owned by the financial permission, so users:update alone must not reach
 	// it through a plain unlink.
 	ErrPayerRemovalRequiresFinancial = errors.New("Diese Person ist als Zahler für das Kind eingetragen. Zum Entfernen ist die Berechtigung für Bankverbindungen nötig. Bitte wenden Sie sich an die Schulleitung.") //nolint:staticcheck // ST1005: user-facing German message
-
-	// ErrStudentDeletionPreviewChanged refuses a permanent deletion when the
-	// dependent row counts or the student/person record changed after the admin
-	// reviewed the impact.
-	ErrStudentDeletionPreviewChanged = errors.New("Die Daten haben sich seit der Vorschau geändert. Bitte Auswirkungen erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
-
-	// ErrStudentDeletionConfirmationMismatch means the typed name does not
-	// exactly match the currently stored child name.
-	ErrStudentDeletionConfirmationMismatch = errors.New("Der eingegebene Name stimmt nicht mit dem Kind überein.") //nolint:staticcheck // ST1005: user-facing German message
-
-	ErrStudentDeletionNotAcknowledged = errors.New("Die Unwiderruflichkeit der Löschung muss bestätigt werden.")    //nolint:staticcheck // ST1005: user-facing German message
-	ErrStudentDeletionInvalidReason   = errors.New("Ungültiger Löschgrund.")                                        //nolint:staticcheck // ST1005: user-facing German message
-	ErrStudentDeletionAlumnus         = errors.New("Abgänger werden über den Jahrgangswechsel endgültig gelöscht.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // GuardianStillLinkedError signals that a guardian delete was refused because the

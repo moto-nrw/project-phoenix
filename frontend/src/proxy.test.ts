@@ -90,6 +90,53 @@ describe("proxy env validation", () => {
 });
 
 describe("proxy", () => {
+  describe("legacy collection selections", () => {
+    it("nests database room filters in the return path", () => {
+      const response = proxy(
+        makeRequest(
+          "http://localhost:3000/database/rooms?room=7&groupBy=floor&search=Musik",
+          "localhost:3000",
+        ),
+      );
+
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/rooms/7");
+      expect(location.searchParams.get("tab")).toBe("stammdaten");
+      expect(location.searchParams.get("from")).toBe(
+        "/database/rooms?groupBy=floor&search=Musik",
+      );
+    });
+
+    it("preserves the tenant prefix and account tab in path routing", () => {
+      const response = proxy(
+        makeRequest(
+          "http://localhost:3000/school-a/database/personal?staff=4&groupBy=role",
+          "localhost:3000",
+        ),
+      );
+
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/school-a/staff/4");
+      expect(location.searchParams.get("tab")).toBe("konto");
+      expect(location.searchParams.get("from")).toBe(
+        "/database/personal?groupBy=role",
+      );
+    });
+
+    it("keeps room filters when opening the legacy transit panel", () => {
+      const response = proxy(
+        makeRequest(
+          "http://localhost:3000/rooms?room=__transit__&building=Nord",
+          "localhost:3000",
+        ),
+      );
+
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe("/rooms/unterwegs");
+      expect(location.searchParams.get("from")).toBe("/rooms?building=Nord");
+    });
+  });
+
   it("allows the configured PostHog ingestion origin in connect-src", () => {
     const res = proxy(
       makeRequest("http://school.localhost:3000/dashboard", "school.localhost"),
@@ -448,6 +495,19 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites /tagesinformationen to /school/tagesinformationen (#2208)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${SCHOOL_HOSTNAME}/tagesinformationen`,
+          SCHOOL_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/school/tagesinformationen",
+      );
+    });
+
     it("rewrites a class page to /school/klasse (#2294)", () => {
       // Klasse und Tag stehen als Query-Parameter in der Adresse; die
       // Umschreibung muss sie unverändert mitnehmen.
@@ -690,7 +750,7 @@ describe("proxy", () => {
     it("localizes tenant-prefixed enrollment paths on tenant subdomains", () => {
       const res = proxy(
         makeRequest(
-          `http://${TENANT_SUBDOMAIN_HOST}/school-a/enroll/phase-1`,
+          `http://${TENANT_SUBDOMAIN_HOST}/school-a/anmeldung/phase-1`,
           TENANT_SUBDOMAIN_HOST,
         ),
       );
@@ -770,7 +830,7 @@ describe("proxy", () => {
     it("localizes tenant-prefixed enrollment paths on the bare domain", () => {
       const res = proxy(
         makeRequest(
-          `http://localhost:3000/school-a/enroll/phase-1`,
+          `http://localhost:3000/school-a/anmeldung/phase-1`,
           "localhost:3000",
         ),
       );
@@ -791,6 +851,92 @@ describe("proxy", () => {
       );
 
       expect(getForwardedRequestHeader(res, LOCALE_SCOPE_HEADER)).toBeNull();
+    });
+  });
+
+  // Elternbriefe und E-Mails, die vor der Umbenennung verschickt wurden,
+  // zeigen weiter auf /enroll. Der Proxy muss sie auf jedem Host, der die
+  // Anmeldung ausliefert, auf /anmeldung umleiten (#2829).
+  describe("legacy /enroll links", () => {
+    const TENANT_SUBDOMAIN_HOST = "school-a.localhost:3000";
+
+    it("redirects the enrollment landing page on a tenant subdomain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/enroll`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.status).toBe(308);
+      expect(new URL(res.headers.get("location")!).pathname).toBe("/anmeldung");
+    });
+
+    it("keeps phase and query string when redirecting", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/enroll/phase-1?ref=brief`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      const location = new URL(res.headers.get("location")!);
+      expect(res.status).toBe(308);
+      expect(location.pathname).toBe("/anmeldung/phase-1");
+      expect(location.search).toBe("?ref=brief");
+    });
+
+    it("redirects the status link on the parents host", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/enroll/status/tok`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      expect(res.status).toBe(308);
+      expect(new URL(res.headers.get("location")!).pathname).toBe(
+        "/anmeldung/status/tok",
+      );
+    });
+
+    it("redirects parent portal links rendered before the route rename", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/parents/enroll/status/tok/edit?source=email`,
+          PARENTS_HOSTNAME,
+        ),
+      );
+
+      const location = new URL(res.headers.get("location")!);
+      expect(res.status).toBe(308);
+      expect(location.pathname).toBe("/parents/anmeldung/status/tok/edit");
+      expect(location.search).toBe("?source=email");
+    });
+
+    it("redirects tenant-prefixed paths on the bare domain", () => {
+      const res = proxy(
+        makeRequest(
+          `http://localhost:3000/school-a/enroll/phase-1`,
+          "localhost:3000",
+        ),
+      );
+
+      expect(res.status).toBe(308);
+      expect(new URL(res.headers.get("location")!).pathname).toBe(
+        "/school-a/anmeldung/phase-1",
+      );
+    });
+
+    it("leaves unrelated paths alone", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TENANT_SUBDOMAIN_HOST}/enrollment-phases`,
+          TENANT_SUBDOMAIN_HOST,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
     });
   });
 

@@ -1,58 +1,20 @@
 package iot
 
-import (
-	"errors"
-	"fmt"
-)
+import "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 
-// Common error types
 var (
-	ErrDeviceNotFound    = errors.New("device not found")
-	ErrInvalidDeviceData = errors.New("invalid device data")
-	ErrDuplicateDeviceID = errors.New("Diese Geräte-ID ist bereits vergeben") //nolint:staticcheck // ST1005: user-facing German message
-	ErrInvalidStatus     = errors.New("invalid device status")
-	ErrDeviceOffline     = errors.New("device is offline")
-	ErrNetworkScanFailed = errors.New("network scan failed")
-	ErrDatabaseOperation = errors.New("database operation failed")
-	ErrDeviceProtected   = errors.New("Systemgerät kann nicht geändert oder gelöscht werden") //nolint:staticcheck // ST1005: user-facing German message
+	ErrDeviceNotFound    = devicefleet.ErrAdministrationDeviceNotFound
+	ErrInvalidDeviceData = devicefleet.ErrAdministrationInvalidDeviceData
+	ErrDuplicateDeviceID = devicefleet.ErrAdministrationDuplicateDeviceID
+	ErrInvalidStatus     = devicefleet.ErrAdministrationInvalidStatus
+	ErrDeviceOffline     = devicefleet.ErrAdministrationDeviceOffline
+	ErrNetworkScanFailed = devicefleet.ErrAdministrationNetworkScanFailed
+	ErrDatabaseOperation = devicefleet.ErrAdministrationDatabaseOperation
+	ErrDeviceProtected   = devicefleet.ErrAdministrationDeviceProtected
 )
 
-// IoTError wraps IoT service errors with operation context
-type IoTError struct {
-	Op  string // The operation that failed
-	Err error  // The underlying error
-}
+type IoTError = devicefleet.AdministrationError
 
-func (e *IoTError) Error() string {
-	return fmt.Sprintf("IoT service error in %s: %v", e.Op, e.Err)
-}
+type DeviceNotFoundError = devicefleet.AdministrationDeviceNotFoundError
 
-func (e *IoTError) Unwrap() error {
-	return e.Err
-}
-
-// DeviceNotFoundError wraps a device not found error
-type DeviceNotFoundError struct {
-	DeviceID string
-}
-
-func (e *DeviceNotFoundError) Error() string {
-	return fmt.Sprintf("device not found: %s", e.DeviceID)
-}
-
-func (e *DeviceNotFoundError) Unwrap() error {
-	return ErrDeviceNotFound
-}
-
-// DuplicateDeviceIDError wraps a duplicate device ID error
-type DuplicateDeviceIDError struct {
-	DeviceID string
-}
-
-func (e *DuplicateDeviceIDError) Error() string {
-	return fmt.Sprintf("Die Geräte-ID %q ist bereits vergeben", e.DeviceID)
-}
-
-func (e *DuplicateDeviceIDError) Unwrap() error {
-	return ErrDuplicateDeviceID
-}
+type DuplicateDeviceIDError = devicefleet.AdministrationDuplicateDeviceIDError

@@ -402,17 +402,25 @@ export function OgsConversation({
       {/* Structured actions use their own status and request flows, so they do
           not create cards in the conversation. The child-care hook updates its
           own local state, so no conversation refetch is needed. */}
-      {activeModal === "sick" && (
-        <SickNoteModal
-          studentId={studentId}
-          onClose={() => setActiveModal(null)}
-          onSubmit={async (dates, reason, status, recipientIds) => {
-            return care.reportSick(dates, reason, status, recipientIds);
-          }}
-          sickRequiresApproval={care.features.sick_requires_approval}
-          excusedRequiresApproval={care.features.excused_requires_approval}
-        />
-      )}
+      {activeModal === "sick" &&
+        (care.features.sick_note_enabled ||
+          (care.features.excused_note_enabled ??
+            care.features.sick_note_enabled)) && (
+          <SickNoteModal
+            studentId={studentId}
+            onClose={() => setActiveModal(null)}
+            onSubmit={async (dates, reason, status, recipientIds) => {
+              return care.reportSick(dates, reason, status, recipientIds);
+            }}
+            sickEnabled={care.features.sick_note_enabled}
+            excusedEnabled={
+              care.features.excused_note_enabled ??
+              care.features.sick_note_enabled
+            }
+            sickRequiresApproval={care.features.sick_requires_approval}
+            excusedRequiresApproval={care.features.excused_requires_approval}
+          />
+        )}
       {activeModal === "pickup" && (
         <PickupTimeModal
           studentId={studentId}
@@ -430,6 +438,9 @@ export function OgsConversation({
           onRemove={async (date) => {
             await care.removeCareException(date);
           }}
+          cutoffTime={care.features.pickup_change_cutoff_time}
+          todayClosed={care.features.pickup_change_today_closed}
+          onCutoffPassed={care.refresh}
         />
       )}
     </div>
@@ -448,7 +459,7 @@ function RequestItem({
 }: Readonly<{ message: ParentMessage; locale: string }>) {
   const t = useTranslations("parentOgsMessaging");
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
+    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-gray-900">
@@ -580,7 +591,7 @@ function ConversationComposerSkeleton() {
   return (
     <div
       data-testid="parent-conversation-composer-skeleton"
-      className="rounded-xl border border-gray-200 bg-white p-3"
+      className="moto-content-surface rounded-xl border p-3 shadow-sm"
       aria-hidden="true"
     >
       <Skeleton className="h-16 w-full rounded-lg" />

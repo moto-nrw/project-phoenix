@@ -3,8 +3,6 @@ package schedule
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 func TestRecurrenceRule_Validate(t *testing.T) {
@@ -366,7 +364,7 @@ func TestRecurrenceRule_Clone(t *testing.T) {
 	now := time.Now()
 
 	original := &RecurrenceRule{
-		Model: base.Model{
+		Model: Model{
 			ID:        123,
 			CreatedAt: now,
 			UpdatedAt: now.Add(time.Hour),
@@ -468,13 +466,13 @@ func TestRecurrenceRule_GetID(t *testing.T) {
 	t.Parallel()
 
 	r := &RecurrenceRule{
-		Model:         base.Model{ID: 42},
+		Model:         Model{ID: 42},
 		Frequency:     FrequencyDaily,
 		IntervalCount: 1,
 	}
 
-	if got, ok := r.GetID().(int64); !ok || got != 42 {
-		t.Errorf("GetID() = %v, want 42", r.GetID())
+	if r.ID != 42 {
+		t.Errorf("ID = %v, want 42", r.ID)
 	}
 }
 
@@ -483,12 +481,12 @@ func TestRecurrenceRule_GetCreatedAt(t *testing.T) {
 
 	now := time.Now()
 	r := &RecurrenceRule{
-		Model:         base.Model{CreatedAt: now},
+		Model:         Model{CreatedAt: now},
 		Frequency:     FrequencyDaily,
 		IntervalCount: 1,
 	}
 
-	if got := r.GetCreatedAt(); !got.Equal(now) {
+	if got := r.CreatedAt; !got.Equal(now) {
 		t.Errorf("GetCreatedAt() = %v, want %v", got, now)
 	}
 }
@@ -498,12 +496,12 @@ func TestRecurrenceRule_GetUpdatedAt(t *testing.T) {
 
 	now := time.Now()
 	r := &RecurrenceRule{
-		Model:         base.Model{UpdatedAt: now},
+		Model:         Model{UpdatedAt: now},
 		Frequency:     FrequencyDaily,
 		IntervalCount: 1,
 	}
 
-	if got := r.GetUpdatedAt(); !got.Equal(now) {
+	if got := r.UpdatedAt; !got.Equal(now) {
 		t.Errorf("GetUpdatedAt() = %v, want %v", got, now)
 	}
 }

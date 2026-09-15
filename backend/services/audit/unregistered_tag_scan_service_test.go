@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,13 +53,71 @@ func (r *fakeUnregisteredTagScanRepo) DeleteOlderThan(_ context.Context, cutoff 
 	return r.deleteResult, r.deleteErr
 }
 
+type testTenantKey struct{}
+
+type fakeOrganizationQuery struct {
+	listByIDsFn                 func(context.Context, []int64) ([]organizationtenancy.Organization, error)
+	listSchoolsByIDsFn          func(context.Context, []int64) ([]organizationtenancy.School, error)
+	listSchoolsByOrganizationFn func(context.Context, int64) ([]organizationtenancy.School, error)
+}
+
+func (q *fakeOrganizationQuery) ListSchoolsByID(ctx context.Context, ids []int64) ([]organizationtenancy.School, error) {
+	if q.listSchoolsByIDsFn != nil {
+		return q.listSchoolsByIDsFn(ctx, ids)
+	}
+	schools := make([]organizationtenancy.School, 0, len(ids))
+	for _, id := range ids {
+		schools = append(schools, organizationtenancy.School{ID: id, OrganizationID: id / 2})
+	}
+	return schools, nil
+}
+
+func (q *fakeOrganizationQuery) ListSchoolsByOrganization(ctx context.Context, id int64) ([]organizationtenancy.School, error) {
+	if q.listSchoolsByOrganizationFn != nil {
+		return q.listSchoolsByOrganizationFn(ctx, id)
+	}
+	return []organizationtenancy.School{{ID: id * 2, OrganizationID: id}}, nil
+}
+
+func (q *fakeOrganizationQuery) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+	if q.listByIDsFn != nil {
+		return q.listByIDsFn(ctx, ids)
+	}
+	organizations := make([]organizationtenancy.Organization, 0, len(ids))
+	for _, id := range ids {
+		organizations = append(organizations, organizationtenancy.Organization{ID: id})
+	}
+	return organizations, nil
+}
+
+func newUnregisteredTagScanService(t *testing.T, repo *fakeUnregisteredTagScanRepo) UnregisteredTagScanService {
+	return newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{})
+}
+
+func newUnregisteredTagScanServiceWithOrganizations(t *testing.T, repo *fakeUnregisteredTagScanRepo, organizations OrganizationNameQuery) UnregisteredTagScanService {
+	t.Helper()
+	service, err := NewUnregisteredTagScanService(repo, organizations, UnregisteredTagScanRuntime{
+		TenantID: func(ctx context.Context) int64 {
+			id, _ := ctx.Value(testTenantKey{}).(int64)
+			return id
+		},
+		WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
+	})
+	require.NoError(t, err)
+	return service
+}
+
+func withTestTenant(id int64) context.Context {
+	return context.WithValue(context.Background(), testTenantKey{}, id)
+}
+
 func TestUnregisteredTagScanRecordTrimsAndStampsTenant(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeUnregisteredTagScanRepo{}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
 	deviceID := int64(42)
-	ctx := tenant.WithTenantID(context.Background(), 99)
+	ctx := withTestTenant(99)
 
 	err := service.Record(ctx, "  ABC123  ", &deviceID)
 
@@ -76,7 +133,7 @@ func TestUnregisteredTagScanRecordRequiresTenant(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeUnregisteredTagScanRepo{}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
 
 	err := service.Record(context.Background(), "ABC123", nil)
 
@@ -88,8 +145,8 @@ func TestUnregisteredTagScanRecordRequiresTagUID(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeUnregisteredTagScanRepo{}
-	service := NewUnregisteredTagScanService(repo, nil)
-	ctx := tenant.WithTenantID(context.Background(), 99)
+	service := newUnregisteredTagScanService(t, repo)
+	ctx := withTestTenant(99)
 
 	err := service.Record(ctx, "   ", nil)
 
@@ -102,8 +159,8 @@ func TestUnregisteredTagScanRecordPropagatesRepositoryError(t *testing.T) {
 
 	wantErr := errors.New("insert failed")
 	repo := &fakeUnregisteredTagScanRepo{createErr: wantErr}
-	service := NewUnregisteredTagScanService(repo, nil)
-	ctx := tenant.WithTenantID(context.Background(), 99)
+	service := newUnregisteredTagScanService(t, repo)
+	ctx := withTestTenant(99)
 
 	err := service.Record(ctx, "ABC123", nil)
 
@@ -116,9 +173,18 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 
 	schoolID := int64(10)
 	orgID := schoolID / 2
-	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123"}}
+	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123", SchoolID: schoolID}}
 	repo := &fakeUnregisteredTagScanRepo{listResult: want}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+			require.Equal(t, []int64{orgID}, ids)
+			return []organizationtenancy.Organization{{ID: orgID, Name: "Organization"}}, nil
+		},
+		listSchoolsByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.School, error) {
+			require.Equal(t, []int64{schoolID}, ids)
+			return []organizationtenancy.School{{ID: schoolID, Name: "School", OrganizationID: orgID}}, nil
+		},
+	})
 
 	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{
 		SchoolID:       &schoolID,
@@ -128,9 +194,48 @@ func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Equal(t, want, got)
+	require.Equal(t, "Organization", got[0].OrganizationName)
+	require.Equal(t, "School", got[0].SchoolName)
 	require.Equal(t, &schoolID, repo.listFilter.SchoolID)
 	require.Equal(t, &orgID, repo.listFilter.OrganizationID)
 	require.True(t, repo.listFilter.UnresolvedOnly)
+}
+
+func TestUnregisteredTagScanOrganizationFilterKeepsDeletedSchoolHistory(t *testing.T) {
+	t.Parallel()
+
+	deletedAt := time.Now()
+	organizationID := time.Now().UnixNano()
+	schoolID := organizationID + 1
+	repo := &fakeUnregisteredTagScanRepo{}
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listSchoolsByOrganizationFn: func(_ context.Context, id int64) ([]organizationtenancy.School, error) {
+			require.Equal(t, organizationID, id)
+			return []organizationtenancy.School{{ID: schoolID, OrganizationID: id, DeletedAt: &deletedAt}}, nil
+		},
+	})
+
+	_, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{OrganizationID: &organizationID})
+
+	require.NoError(t, err)
+	require.Equal(t, []int64{schoolID}, repo.listFilter.SchoolIDs)
+}
+
+func TestUnregisteredTagScanOrganizationFilterReturnsEmptyWithoutSchools(t *testing.T) {
+	t.Parallel()
+
+	organizationID := time.Now().UnixNano()
+	repo := &fakeUnregisteredTagScanRepo{listErr: errors.New("repository must not be called")}
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listSchoolsByOrganizationFn: func(context.Context, int64) ([]organizationtenancy.School, error) {
+			return []organizationtenancy.School{}, nil
+		},
+	})
+
+	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{OrganizationID: &organizationID})
+
+	require.NoError(t, err)
+	require.Empty(t, got)
 }
 
 func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.T) {
@@ -138,7 +243,23 @@ func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.
 
 	wantErr := errors.New("list failed")
 	repo := &fakeUnregisteredTagScanRepo{listErr: wantErr}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
+
+	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{})
+
+	require.ErrorIs(t, err, wantErr)
+	require.Nil(t, got)
+}
+
+func TestUnregisteredTagScanListForOperatorPropagatesOrganizationQueryError(t *testing.T) {
+	t.Parallel()
+	wantErr := errors.New("organization query failed")
+	repo := &fakeUnregisteredTagScanRepo{listResult: []*auditModels.UnregisteredTagScan{{SchoolID: 84}}}
+	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
+		listByIDsFn: func(context.Context, []int64) ([]organizationtenancy.Organization, error) {
+			return nil, wantErr
+		},
+	})
 
 	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{})
 
@@ -149,7 +270,7 @@ func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.
 func TestUnregisteredTagScanResolveValidatesIDs(t *testing.T) {
 	t.Parallel()
 
-	service := NewUnregisteredTagScanService(&fakeUnregisteredTagScanRepo{}, nil)
+	service := newUnregisteredTagScanService(t, &fakeUnregisteredTagScanRepo{})
 
 	_, err := service.Resolve(context.Background(), 0, 15, nil)
 	require.ErrorContains(t, err, "scan ID is required")
@@ -163,7 +284,7 @@ func TestUnregisteredTagScanResolveNormalizesNoteAndReturnsScan(t *testing.T) {
 
 	scan := &auditModels.UnregisteredTagScan{TagUID: "ABC123"}
 	repo := &fakeUnregisteredTagScanRepo{resolveResult: scan}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
 	note := "  replacement issued  "
 
 	got, err := service.Resolve(context.Background(), 300, 15, &note)
@@ -181,7 +302,7 @@ func TestUnregisteredTagScanResolvePropagatesRepositoryError(t *testing.T) {
 
 	wantErr := errors.New("resolve failed")
 	repo := &fakeUnregisteredTagScanRepo{resolveErr: wantErr}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
 
 	got, err := service.Resolve(context.Background(), 300, 15, nil)
 
@@ -193,7 +314,7 @@ func TestUnregisteredTagScanDeleteOlderThanUsesDefaultRetention(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeUnregisteredTagScanRepo{deleteResult: 3}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
 	before := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays)
 
 	deleted, err := service.DeleteOlderThan(context.Background(), 0)
@@ -210,7 +331,7 @@ func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *t
 
 	wantErr := errors.New("delete failed")
 	repo := &fakeUnregisteredTagScanRepo{deleteErr: wantErr}
-	service := NewUnregisteredTagScanService(repo, nil)
+	service := newUnregisteredTagScanService(t, repo)
 	before := time.Now().AddDate(0, 0, -7)
 
 	deleted, err := service.DeleteOlderThan(context.Background(), 7)
@@ -227,9 +348,9 @@ func TestNormalizeNote(t *testing.T) {
 
 	note := "  assigned to replacement card  "
 
-	require.Nil(t, strutil.TrimPtrToNil(nil))
-	require.Nil(t, strutil.TrimPtrToNil(pointerToString("   ")))
-	require.Equal(t, "assigned to replacement card", *strutil.TrimPtrToNil(&note))
+	require.Nil(t, trimPtrToNil(nil))
+	require.Nil(t, trimPtrToNil(pointerToString("   ")))
+	require.Equal(t, "assigned to replacement card", *trimPtrToNil(&note))
 }
 
 func pointerToString(value string) *string {

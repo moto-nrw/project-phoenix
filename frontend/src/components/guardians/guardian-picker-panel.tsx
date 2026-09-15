@@ -49,6 +49,9 @@ interface GuardianPickerPanelProps {
   // Guardian profile ids already added to / linked with this child. Shown
   // greyed-out so the same person can't be added twice.
   readonly excludeProfileIds?: readonly string[];
+  // Inside a FormModal the dialog carries title and close button; the panel
+  // then renders only its body (#3112).
+  readonly embedded?: boolean;
 }
 
 // Stable empty default so the prop keeps referential equality across renders.
@@ -74,6 +77,7 @@ export default function GuardianPickerPanel({
   onSelect,
   onCancel,
   excludeProfileIds = EMPTY_PROFILE_IDS,
+  embedded = false,
 }: GuardianPickerPanelProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Guardian[]>([]);
@@ -159,23 +163,29 @@ export default function GuardianPickerPanel({
   return (
     <div
       data-testid="guardian-picker-panel"
-      className="border-moto-blue/40 space-y-3 rounded-xl border bg-blue-50/40 p-3 md:p-4"
+      className={
+        embedded
+          ? "space-y-3"
+          : "border-moto-blue/40 bg-moto-blue-soft/40 space-y-3 rounded-xl border p-3 md:p-4"
+      }
     >
-      {/* Panel header */}
-      <div className="flex items-center justify-between">
-        <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
-          <Search className="h-3.5 w-3.5 text-blue-600 md:h-4 md:w-4" />
-          Vorhandene/n suchen
-        </h4>
-        <button
-          type="button"
-          onClick={onCancel}
-          aria-label="Suche schließen"
-          className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/60 hover:text-gray-600"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
+      {/* Panel header; im Dialog trägt ihn der Dialog selbst. */}
+      {!embedded && (
+        <div className="flex items-center justify-between">
+          <h4 className="flex items-center gap-2 text-xs font-semibold text-gray-900 md:text-sm">
+            <Search className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4" />
+            Vorhandene/n suchen
+          </h4>
+          <button
+            type="button"
+            onClick={onCancel}
+            aria-label="Suche schließen"
+            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/60 hover:text-gray-600"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {selected ? (
         <div className="space-y-3">
@@ -253,8 +263,8 @@ export default function GuardianPickerPanel({
           </div>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-2 md:p-3">
-              <p className="text-xs text-red-800 md:text-sm">{error}</p>
+            <div className="border-moto-red/20 bg-moto-red-soft rounded-lg border p-2 md:p-3">
+              <p className="text-moto-red-strong text-xs md:text-sm">{error}</p>
             </div>
           )}
 
@@ -298,7 +308,7 @@ export default function GuardianPickerPanel({
                   className={`flex w-full items-start gap-2 rounded-lg border p-2 text-left transition-colors md:p-3 ${
                     isExcluded
                       ? "cursor-not-allowed border-gray-100 bg-gray-50 opacity-60"
-                      : "hover:border-moto-blue border-gray-100 bg-white hover:bg-blue-50/40"
+                      : "hover:border-moto-blue hover:bg-moto-blue-soft/40 border-gray-100 bg-white"
                   }`}
                 >
                   <MotoConceptIcon

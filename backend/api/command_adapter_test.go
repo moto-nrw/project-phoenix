@@ -701,12 +701,14 @@ func TestAPIError_Error_MessagePrecedence(t *testing.T) {
 func TestParseHTTPError_WithMessage(t *testing.T) {
 	t.Parallel()
 
-	body := `{"status":"error","message":"not found"}`
+	body := `{"status":"error","message":"not found","code":"rfid_tag_not_found"}`
 	err := parseHTTPError("GET", "/test", 404, []byte(body))
 	var apiErr *APIError
 	require.ErrorAs(t, err, &apiErr)
 	assert.Equal(t, "not found", apiErr.Message)
 	assert.Equal(t, 404, apiErr.StatusCode)
+	assert.Equal(t, "rfid_tag_not_found", apiErr.Code)
+	assert.Contains(t, apiErr.Error(), "rfid_tag_not_found")
 }
 
 func TestParseHTTPError_WithErrorField(t *testing.T) {

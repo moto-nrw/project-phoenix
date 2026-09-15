@@ -10,8 +10,8 @@ import (
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	pwaSvc "github.com/moto-nrw/project-phoenix/services/pwa"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 		t.Skip("skipping to avoid minute-boundary race on timeMatchesNow")
 	}
 
-	repos := repoFactory.NewFactory(db)
+	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
 	cleanup := pwaSvc.NewUsageService(
 		db,
 		repos.PWAStandaloneUsage,

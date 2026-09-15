@@ -3,9 +3,9 @@ package platform
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/models/iot"
+	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/services/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 )
 
 // Type aliases keep existing service callers (e.g. api/operator) referencing
@@ -59,12 +59,9 @@ func (s *operatorProvisioningService) ListSchoolSummaries(ctx context.Context) (
 // does not exist.
 func (s *operatorProvisioningService) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error) {
 	return adminTxValue(ctx, s, func(adminCtx context.Context) ([]*SchoolSummary, error) {
-		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
+		_, findErr := s.Organizations.FindOrganization(adminCtx, organizationID)
 		if findErr != nil {
-			return nil, findErr
-		}
-		if org == nil {
-			return nil, &OrganizationNotFoundError{OrganizationID: organizationID}
+			return nil, mapOrganizationCapabilityError(findErr, organizationID)
 		}
 		return s.SummariesRepo.SchoolSummariesByOrganization(adminCtx, organizationID)
 	})
@@ -110,9 +107,9 @@ func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, sch
 		for _, row := range rows {
 			portalUsage := PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
 			switch row.Portal {
-			case iot.PushPortalStaff:
+			case deliveryModels.PushPortalStaff:
 				usage.Staff = portalUsage
-			case iot.PushPortalParent:
+			case deliveryModels.PushPortalParent:
 				usage.Parent = portalUsage
 			}
 		}
@@ -127,12 +124,9 @@ func (s *operatorProvisioningService) GetSchoolPWAUsage(ctx context.Context, sch
 func (s *operatorProvisioningService) ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error) {
 	var result []OperatorPersonInfo
 	err := s.withAdminTx(ctx, func(adminCtx context.Context) error {
-		org, findErr := s.OrganizationRepo.FindByID(adminCtx, organizationID)
+		_, findErr := s.Organizations.FindOrganization(adminCtx, organizationID)
 		if findErr != nil {
-			return findErr
-		}
-		if org == nil {
-			return &OrganizationNotFoundError{OrganizationID: organizationID}
+			return mapOrganizationCapabilityError(findErr, organizationID)
 		}
 		persons, scanErr := s.SummariesRepo.PersonsByOrganization(adminCtx, organizationID)
 		if scanErr != nil {

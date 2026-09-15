@@ -18,9 +18,10 @@ import {
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { BooleanField } from "./fields/boolean-field";
 import { NumberField } from "./fields/number-field";
-import { TimeField } from "./fields/time-field";
+import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
 import { TextareaField } from "./fields/textarea-field";
@@ -134,6 +135,57 @@ function validateLocally(
 const AUTO_SAVE_DELAY_MS = 3000;
 const HIGHLIGHT_FLASH_MS = 2200;
 const EMPTY_CATEGORY_ITEMS: ResolvedSetting[] = [];
+
+interface AttendanceScopeChange {
+  readonly key: string;
+  readonly value: string;
+  readonly writable: boolean;
+  readonly title: string;
+  readonly body: string;
+  readonly confirmText: string;
+}
+
+function attendanceScopePrerequisite(
+  key: string,
+  value: unknown,
+  items: ResolvedSetting[],
+): AttendanceScopeChange | null {
+  const visibility = items.find(
+    (item) => item.key === "operations.operational_overview_scope",
+  );
+  const attendance = items.find(
+    (item) => item.key === "operations.attendance_edit_scope",
+  );
+  if (
+    key === attendance?.key &&
+    value === "all_staff" &&
+    visibility?.value === "own"
+  ) {
+    return {
+      key: visibility.key,
+      value: "all_staff",
+      writable: visibility.writable,
+      title: "Auch den Sichtbereich erweitern?",
+      body: "Überall an- und abmelden geht nur mit schulweitem Überblick. Das Team sieht danach alle Gruppen und Blöcke.",
+      confirmText: "Beides erweitern",
+    };
+  }
+  if (
+    key === visibility?.key &&
+    value === "own" &&
+    attendance?.value === "all_staff"
+  ) {
+    return {
+      key: attendance.key,
+      value: "own",
+      writable: attendance.writable,
+      title: "Auch die Bearbeitung begrenzen?",
+      body: "Eigene Zuständigkeiten als Sichtbereich erfordern denselben Bereich für An- und Abmelden. Vorhandene Sonderzugänge bleiben erhalten.",
+      confirmText: "Beides begrenzen",
+    };
+  }
+  return null;
+}
 
 interface SettingsFieldProps {
   readonly setting: ResolvedSetting;
@@ -404,16 +456,35 @@ export function SettingsField({
   const enableConfig = CONFIRM_ON_ENABLE[setting.key];
   const disableConfig = CONFIRM_ON_DISABLE[setting.key];
   const pendingValueRef = useRef<unknown>(null);
+  const pendingScopeChangeRef = useRef<AttendanceScopeChange | null>(null);
   const fieldRef = useRef<HTMLDivElement | null>(null);
   const activeConfirmConfig =
-    enableConfig && pendingValueRef.current === true
+    pendingScopeChangeRef.current ??
+    (enableConfig && pendingValueRef.current === true
       ? enableConfig
       : disableConfig && pendingValueRef.current === false
         ? disableConfig
-        : null;
+        : null);
 
   const handleImmediateSave = useCallback(
     async (value: unknown) => {
+      const prerequisite = attendanceScopePrerequisite(
+        setting.key,
+        value,
+        categoryItems,
+      );
+      if (prerequisite) {
+        if (!prerequisite.writable) {
+          setError(
+            "Dafür muss zuerst die andere Einstellung geändert werden. Bitte wenden Sie sich an die OGS-Leitung.",
+          );
+          return;
+        }
+        pendingScopeChangeRef.current = prerequisite;
+        pendingValueRef.current = value;
+        setConfirmOpen(true);
+        return;
+      }
       if (legalActivationTextKey && value === true) {
         setLegalActivationText(toStr(legalActivationTextSetting?.value));
         setLegalActivationDocumentURL(legalDocumentURL);
@@ -445,6 +516,7 @@ export function SettingsField({
     },
     [
       doSave,
+      categoryItems,
       enableConfig,
       disableConfig,
       legalDocumentURL,
@@ -570,11 +642,22 @@ export function SettingsField({
 
   const handleConfirm = useCallback(async () => {
     setConfirmOpen(false);
-    if (pendingValueRef.current != null) {
-      await doSave(pendingValueRef.current);
-      pendingValueRef.current = null;
+    const value = pendingValueRef.current;
+    const prerequisite = pendingScopeChangeRef.current;
+    pendingValueRef.current = null;
+    pendingScopeChangeRef.current = null;
+    if (value != null) {
+      if (prerequisite) {
+        const failure = await onSave(prerequisite.key, prerequisite.value);
+        if (failure) {
+          setError(failure);
+          toastError(failure);
+          return;
+        }
+      }
+      await doSave(value);
     }
-  }, [doSave]);
+  }, [doSave, onSave, toastError]);
 
   // Local change — for text/number/time (debounce auto-save)
   const handleLocalChange = useCallback(
@@ -666,7 +749,7 @@ export function SettingsField({
             </span>
           )}
           {!setting.writable && (
-            <span className="rounded bg-yellow-50 px-1.5 py-0.5 text-xs text-yellow-700">
+            <span className="bg-moto-amber-soft text-moto-amber-strong rounded px-1.5 py-0.5 text-xs">
               Nur Lesen
             </span>
           )}
@@ -680,22 +763,22 @@ export function SettingsField({
           </p>
         )}
         {legalTextWarning && (
-          <p className="mt-1 text-xs font-medium text-amber-700">
+          <p className="text-moto-amber-strong mt-1 text-xs font-medium">
             {legalTextWarning}
           </p>
         )}
         {legalTextStoredStatus && (
           <p className="mt-1 text-xs text-gray-500">{legalTextStoredStatus}</p>
         )}
-        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
         {legalDocumentError && (
-          <p className="mt-1 text-xs font-medium text-red-600">
+          <p className="text-moto-red mt-1 text-xs font-medium">
             {legalDocumentError}
           </p>
         )}
       </div>
 
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-3 sm:flex-nowrap">
         {isEnrollmentLegalTextSetting
           ? renderEnrollmentLegalTextEditor(
               localValue,
@@ -736,19 +819,19 @@ export function SettingsField({
           onClose={() => {
             setConfirmOpen(false);
             pendingValueRef.current = null;
+            pendingScopeChangeRef.current = null;
           }}
           onConfirm={handleConfirm}
           title={activeConfirmConfig.title}
           confirmText={
-            pendingValueRef.current === false
+            pendingScopeChangeRef.current?.confirmText ??
+            (pendingValueRef.current === false
               ? (disableConfig?.confirmText ?? "Deaktivieren")
-              : "Aktivieren"
+              : "Aktivieren")
           }
           cancelText="Abbrechen"
-          confirmButtonClass={
-            pendingValueRef.current === false
-              ? "bg-moto-red hover:bg-moto-red-strong"
-              : "bg-gray-900 hover:bg-gray-700"
+          confirmVariant={
+            pendingValueRef.current === false ? "danger" : "primary"
           }
         >
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
@@ -823,7 +906,7 @@ export function SettingsField({
             </label>
           )}
           {legalActivationError && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-moto-red text-xs font-medium">
               {legalActivationError}
             </p>
           )}
@@ -904,7 +987,7 @@ export function SettingsField({
               )
             : !hasEnrollmentLegalTextContent(legalTextEditDraft)) ||
             legalTextEditError) && (
-            <p className="text-xs font-medium text-red-600">
+            <p className="text-moto-red text-xs font-medium">
               {legalTextEditError ??
                 (setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
                   ? selectedAGBSourceError(legalTextEditMode)
@@ -1039,14 +1122,12 @@ function renderAGBSourceEditor({
   return (
     <div className="space-y-4">
       <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT}
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT)}
-          className={`rounded-xl border p-4 text-left transition-colors ${
-            mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-4"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" aria-hidden="true" />
@@ -1060,15 +1141,13 @@ function renderAGBSourceEditor({
               Text gespeichert
             </span>
           )}
-        </button>
-        <button
-          type="button"
+        </ChoiceTile>
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF}
           onClick={() => onModeChange(ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF)}
-          className={`rounded-xl border p-4 text-left transition-colors ${
-            mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_PDF
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-4"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileUp className="h-4 w-4" aria-hidden="true" />
@@ -1082,7 +1161,7 @@ function renderAGBSourceEditor({
               PDF gespeichert
             </span>
           )}
-        </button>
+        </ChoiceTile>
       </div>
 
       {mode === ENROLLMENT_LEGAL_AGB_DISPLAY_MODE_TEXT ? (
@@ -1242,7 +1321,7 @@ function renderEnrollmentLegalTextEditor(
         className={`rounded-xl border p-3 text-sm leading-6 ${
           hasContent
             ? "border-gray-100 bg-gray-50 text-gray-700"
-            : "border-amber-200 bg-amber-50 text-amber-800"
+            : "border-moto-amber/30 bg-moto-amber-soft text-moto-amber-strong"
         }`}
       >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1381,7 +1460,7 @@ function renderField(
       );
     case "time":
       return (
-        <TimeField
+        <SettingsTimeField
           ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}

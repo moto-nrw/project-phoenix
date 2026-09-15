@@ -15,12 +15,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -42,6 +42,15 @@ type internalOrgRepoStub struct {
 	listFn       func(context.Context) ([]*platformModels.Organization, error)
 	softDeleteFn func(context.Context, int64) error
 	restoreFn    func(context.Context, int64) error
+}
+
+type orderedOrganizationCapability struct {
+	organizationtenancy.Capability
+	organizations []organizationtenancy.Organization
+}
+
+func (c orderedOrganizationCapability) ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error) {
+	return c.organizations, nil
 }
 
 func (s *internalOrgRepoStub) Create(ctx context.Context, org *platformModels.Organization) error {
@@ -91,6 +100,159 @@ func (s *internalOrgRepoStub) Restore(ctx context.Context, id int64) error {
 		return s.restoreFn(ctx, id)
 	}
 	return nil
+}
+
+func (s *internalOrgRepoStub) CreateOrganization(ctx context.Context, input organizationtenancy.CreateOrganization) (organizationtenancy.Organization, error) {
+	if s.findBySlugFn != nil {
+		existing, err := s.FindBySlug(ctx, input.Slug)
+		if err != nil {
+			return organizationtenancy.Organization{}, err
+		}
+		if existing != nil {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+	}
+	org := &platformModels.Organization{Name: input.Name, Slug: input.Slug, Active: input.Active}
+	if err := org.Validate(); err != nil {
+		return organizationtenancy.Organization{}, &organizationtenancy.InvalidOrganizationError{Reason: err.Error()}
+	}
+	if err := s.Create(ctx, org); err != nil {
+		if modelBase.IsUniqueViolation(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationSlugConflict
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) UpdateOrganization(ctx context.Context, input organizationtenancy.UpdateOrganization) (organizationtenancy.Organization, error) {
+	org := &platformModels.Organization{Model: modelBase.Model{ID: input.ID}, Name: input.Name, Slug: input.Slug, Active: input.Active}
+	if err := s.Update(ctx, org); err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) SoftDeleteOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := s.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	if org.IsDeleted() {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationAlreadyDeleted
+	}
+	if err := s.SoftDelete(ctx, id); err != nil {
+		if isRowsAffectedMismatch(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationAlreadyDeleted
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) RestoreOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := s.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	if !org.IsDeleted() {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotDeleted
+	}
+	if err := s.Restore(ctx, id); err != nil {
+		if isRowsAffectedMismatch(err) {
+			return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotDeleted
+		}
+		return organizationtenancy.Organization{}, err
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) FindOrganization(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	org, err := s.FindByID(ctx, id)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) FindOrganizationForMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return s.FindOrganization(ctx, id)
+}
+
+func (s *internalOrgRepoStub) FindOrganizationForSchoolMutation(ctx context.Context, id int64) (organizationtenancy.Organization, error) {
+	return s.FindOrganization(ctx, id)
+}
+
+func (s *internalOrgRepoStub) FindOrganizationBySlug(ctx context.Context, slug string) (organizationtenancy.Organization, error) {
+	org, err := s.FindBySlug(ctx, slug)
+	if err != nil {
+		return organizationtenancy.Organization{}, err
+	}
+	if org == nil {
+		return organizationtenancy.Organization{}, organizationtenancy.ErrOrganizationNotFound
+	}
+	return internalPublicOrganization(org), nil
+}
+
+func (s *internalOrgRepoStub) ListOrganizations(ctx context.Context) ([]organizationtenancy.Organization, error) {
+	orgs, err := s.List(ctx)
+	result := make([]organizationtenancy.Organization, 0, len(orgs))
+	for _, org := range orgs {
+		result = append(result, internalPublicOrganization(org))
+	}
+	return result, err
+}
+
+func (s *internalOrgRepoStub) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
+	result := make([]organizationtenancy.Organization, 0, len(ids))
+	for _, id := range ids {
+		org, err := s.FindOrganization(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, org)
+	}
+	return result, nil
+}
+
+func (s *internalOrgRepoStub) CountOrganizationsByID(ctx context.Context, ids []int64) (int, error) {
+	return s.CountByIDs(ctx, ids)
+}
+
+func internalPublicOrganization(org *platformModels.Organization) organizationtenancy.Organization {
+	if org == nil {
+		return organizationtenancy.Organization{}
+	}
+	return organizationtenancy.Organization{ID: org.ID, CreatedAt: org.CreatedAt, UpdatedAt: org.UpdatedAt, Name: org.Name, Slug: org.Slug, Active: org.Active, DeletedAt: org.DeletedAt, Settings: org.Settings}
+}
+
+// internalSummariesStub serves the operator device listing without a
+// database. iot.devices belongs to the Device Fleet owner (#2676), so
+// ListDeviceRows is assembled above this repository from the owner query and
+// the school summaries; its statements are covered by the composition
+// integration tests in this package.
+type internalSummariesStub struct {
+	platformModels.OperatorSummariesRepository
+	rows []platformModels.OperatorDeviceRow
+	err  error
+}
+
+func internalStringPtr(value string) *string { return &value }
+
+func (s *internalSummariesStub) ListDeviceRows(
+	context.Context,
+	platformModels.OperatorDeviceFilter,
+) ([]platformModels.OperatorDeviceRow, error) {
+	return s.rows, s.err
 }
 
 type internalDeviceRepoStub struct {
@@ -184,7 +346,7 @@ func (s *internalCategoryRepoStub) UpdateIfActive(context.Context, *activityMode
 	return true, nil
 }
 func (s *internalCategoryRepoStub) Delete(context.Context, interface{}) error { return nil }
-func (s *internalCategoryRepoStub) List(context.Context, *modelBase.QueryOptions) ([]*activityModels.Category, error) {
+func (s *internalCategoryRepoStub) List(context.Context, *activityModels.QueryOptions) ([]*activityModels.Category, error) {
 	return nil, nil
 }
 func (s *internalCategoryRepoStub) FindByName(context.Context, string) (*activityModels.Category, error) {
@@ -195,10 +357,6 @@ func (s *internalCategoryRepoStub) FindByNameIncludingArchivedForShare(context.C
 }
 func (s *internalCategoryRepoStub) ListAll(context.Context) ([]*activityModels.Category, error) {
 	return nil, nil
-}
-
-func (s *internalCategoryRepoStub) SetShiftTypeForCategories(context.Context, int64, []int64) error {
-	return nil
 }
 
 func (s *internalCategoryRepoStub) UpdateColumns(context.Context, *activityModels.Category, ...string) (int64, error) {
@@ -232,6 +390,9 @@ type internalRoleRepoStub struct {
 func (s *internalRoleRepoStub) Create(context.Context, *authModels.Role) error { return nil }
 func (s *internalRoleRepoStub) FindByID(context.Context, interface{}) (*authModels.Role, error) {
 	return nil, nil
+}
+func (s *internalRoleRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Role, error) {
+	return s.FindByID(ctx, id)
 }
 func (s *internalRoleRepoStub) Update(context.Context, *authModels.Role) error { return nil }
 func (s *internalRoleRepoStub) Delete(context.Context, interface{}) error      { return nil }
@@ -349,6 +510,33 @@ func TestMapSchoolCreateConflict_SubdomainConflict(t *testing.T) {
 	var conflictErr *ConflictError
 	require.ErrorAs(t, err, &conflictErr)
 	assert.Contains(t, err.Error(), "school subdomain already exists")
+}
+
+func TestMapSchoolCapabilityErrorPreservesOperatorContracts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want any
+	}{
+		{name: "subdomain conflict", err: organizationtenancy.ErrSchoolDomainConflict, want: &ConflictError{}},
+		{name: "slug conflict", err: organizationtenancy.ErrSchoolSlugConflict, want: &ConflictError{}},
+		{name: "missing school", err: organizationtenancy.ErrSchoolNotFound, want: &SchoolNotFoundError{}},
+		{name: "deleted school", err: organizationtenancy.ErrSchoolAlreadyDeleted, want: &SchoolAlreadyDeletedError{}},
+		{name: "active school restore", err: organizationtenancy.ErrSchoolNotDeleted, want: &SchoolNotDeletedError{}},
+		{name: "deleted organization", err: organizationtenancy.ErrOrganizationDeleted, want: &OrganizationDeletedError{}},
+		{name: "missing organization", err: organizationtenancy.ErrOrganizationNotFound, want: &OrganizationNotFoundError{}},
+		{name: "invalid school", err: organizationtenancy.ErrInvalidSchool, want: &InvalidDataError{}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mapped := mapSchoolCapabilityError(tt.err, 17, 23)
+			require.IsType(t, tt.want, mapped)
+		})
+	}
+	require.Nil(t, mapSchoolCapabilityError(errors.New("database unavailable"), 17, 23))
 }
 
 func TestWithAdminTx_WithoutHandlerRunsCallback(t *testing.T) {
@@ -794,8 +982,8 @@ func TestCreateOrganization_NilInput(t *testing.T) {
 func TestCreateOrganization_ValidationError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{}}}
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "",
 		Slug: "test",
 	}, 1, net.IPv4(127, 0, 0, 1))
@@ -807,13 +995,13 @@ func TestCreateOrganization_ValidationError(t *testing.T) {
 func TestCreateOrganization_FindBySlugError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
 	}},
 	}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "Test", Slug: "test", Active: true,
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -823,7 +1011,7 @@ func TestCreateOrganization_FindBySlugError(t *testing.T) {
 func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, nil
 		},
@@ -832,7 +1020,7 @@ func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 		},
 	}},
 	}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "Test", Slug: "test", Active: true,
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -843,7 +1031,7 @@ func TestCreateOrganization_UniqueViolationOnCreate(t *testing.T) {
 func TestCreateOrganization_CreateError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findBySlugFn: func(context.Context, string) (*platformModels.Organization, error) {
 			return nil, nil
 		},
@@ -852,7 +1040,7 @@ func TestCreateOrganization_CreateError(t *testing.T) {
 		},
 	}},
 	}
-	org, err := svc.CreateOrganization(context.Background(), &platformModels.Organization{
+	org, err := svc.CreateOrganization(context.Background(), &organizationtenancy.CreateOrganization{
 		Name: "Test", Slug: "test", Active: true,
 	}, 1, net.IPv4(127, 0, 0, 1))
 	require.Nil(t, org)
@@ -891,7 +1079,7 @@ func TestCreateSchool_ValidationError(t *testing.T) {
 func TestCreateSchool_OrgFindByIDError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
@@ -911,7 +1099,7 @@ func TestCreateSchool_OrgFindByIDError(t *testing.T) {
 func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -936,7 +1124,7 @@ func TestCreateSchool_UniqueViolationOnCreate(t *testing.T) {
 func TestCreateSchool_DeviceCreateError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -967,7 +1155,7 @@ func TestCreateSchool_WithDeviceSuccess(t *testing.T) {
 	t.Parallel()
 
 	var deviceCreated bool
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -1097,7 +1285,7 @@ func TestEnsureSchoolSubdomainAvailable_RepoError(t *testing.T) {
 func TestCreateSchool_CreateNonUniqueError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 1}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -1268,13 +1456,7 @@ func TestQueryDevices_NoWhereClause(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1292,13 +1474,7 @@ func TestQueryDevices_WithWhereClause(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{SchoolID: testpkg.Int64Ptr(42)})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1316,9 +1492,7 @@ func TestQueryDevices_ScanError(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{err: assert.AnError}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.queryDevices(context.Background(), platformModels.OperatorDeviceFilter{})
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -1344,13 +1518,7 @@ func TestQueryDevices_UsesTransactionFromContext(t *testing.T) {
 	ctx := tenant.WithUnitOfWork(context.Background(), *runtime)
 	ctx = tenant.WithTransactionForTest(ctx, &tx)
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: runtime}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: runtime}
 	result, err := svc.queryDevices(ctx, platformModels.OperatorDeviceFilter{})
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1378,14 +1546,9 @@ func TestListAllDevices_Success(t *testing.T) {
 	// withAdminTx starts a tx; then queryDevices runs the SELECT inside it
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 	result, err := svc.ListAllDevices(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, result)
@@ -1409,14 +1572,9 @@ func TestListSchoolDevices_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1452,14 +1610,9 @@ func TestListOrganizationDevices_Success(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}, Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{Model: modelBase.Model{ID: 5}, Name: "Org", Slug: "org", Active: true}, nil
 		},
@@ -1609,18 +1762,9 @@ func TestCreateDevice_Success_AutoKey(t *testing.T) {
 	// withAdminTx opens tx; queryDeviceSingle runs SELECT inside it
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", "Test Reader", "active", "dev_autokey",
-		nil, time.Now(), time.Now(),
-		int64(42), "Test School", int64(1), "Test Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: internalStringPtr("Test Reader"), Status: "active", APIKey: internalStringPtr("dev_autokey"), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "Test School", OrganizationID: int64(1), OrganizationName: "Test Org"}}}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1677,18 +1821,9 @@ func TestCreateDevice_Success_ManualKey(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(11), "dev-2", "rfid", nil, "active", manualKey,
-		nil, time.Now(), time.Now(),
-		int64(42), "Test School", int64(1), "Test Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(11), DeviceID: "dev-2", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr(manualKey), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "Test School", OrganizationID: int64(1), OrganizationName: "Test Org"}}}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1769,18 +1904,9 @@ func TestCreateDevice_AutoKeyCollisionRetry(t *testing.T) {
 	attempt := 0
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", nil, "active", "dev_somekey",
-		nil, time.Now(), time.Now(),
-		int64(42), "School", int64(1), "Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), SchoolRepo: &testpkg.SchoolRepoMock{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr("dev_somekey"), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "School", OrganizationID: int64(1), OrganizationName: "Org"}}}, SchoolRepo: &testpkg.SchoolRepoMock{
 		FindByIDFn: func(context.Context, int64) (*platformModels.School, error) {
 			return &platformModels.School{
 				Model:          modelBase.Model{ID: 42},
@@ -1937,21 +2063,12 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", nil, "active", "dev_newkey",
-		nil, time.Now(), time.Now(),
-		int64(42), "School", int64(1), "Org",
-	))
 	mock.ExpectCommit()
 
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   "dev-1",
 				DeviceType: "rfid",
 				Status:     iotModels.DeviceStatusActive,
@@ -1965,7 +2082,7 @@ func TestSetDeviceAPIKey_Success_AutoKey(t *testing.T) {
 		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
 			return &platformModels.School{Active: true}, nil
 		},
-	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
+	}, AuditLogRepo: &internalAuditLogRepoStub{}, SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr("dev_newkey"), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "School", OrganizationID: int64(1), OrganizationName: "Org"}}}, Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB),
 	}
 
 	result, err := svc.SetDeviceAPIKey(context.Background(), 10, nil, 1, net.IPv4(127, 0, 0, 1))
@@ -2000,21 +2117,12 @@ func TestSetDeviceAPIKey_Success_ManualKey(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectExec("SET LOCAL ROLE phoenix_admin").WillReturnResult(sqlmock.NewResult(0, 0))
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}).AddRow(
-		int64(10), "dev-1", "rfid", nil, "active", manualKey,
-		nil, time.Now(), time.Now(),
-		int64(42), "School", int64(1), "Org",
-	))
 	mock.ExpectCommit()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), DeviceRepo: &internalDeviceRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{rows: []platformModels.OperatorDeviceRow{{ID: int64(10), DeviceID: "dev-1", DeviceType: "rfid", Name: nil, Status: "active", APIKey: internalStringPtr(manualKey), LastSeen: nil, CreatedAt: time.Now(), UpdatedAt: time.Now(), SchoolID: int64(42), SchoolName: "School", OrganizationID: int64(1), OrganizationName: "Org"}}}, DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   "dev-1",
 				DeviceType: "rfid",
 				Status:     iotModels.DeviceStatusActive,
@@ -2051,7 +2159,7 @@ func TestSetDeviceAPIKey_ManualKeyConflict(t *testing.T) {
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(_ context.Context, id interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   "dev-1",
 				DeviceType: "rfid",
 				Status:     iotModels.DeviceStatusActive,
@@ -2090,9 +2198,7 @@ func TestQueryDeviceSingle_RequeryFailure(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnError(assert.AnError)
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB)}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{err: assert.AnError}}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 
 	result, err := svc.queryDeviceSingle(context.Background(), "CreateDevice", int64(10))
 	require.Nil(t, result)
@@ -2113,13 +2219,7 @@ func TestQueryDeviceSingle_NoRows(t *testing.T) {
 		require.NoError(t, sqlDB.Close())
 	})
 
-	mock.ExpectQuery("SELECT").WillReturnRows(sqlmock.NewRows([]string{
-		"id", "device_id", "device_type", "name", "status", "api_key",
-		"last_seen", "created_at", "updated_at",
-		"school_id", "school_name", "organization_id", "organization_name",
-	}))
-
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: platformRepo.NewOperatorSummariesRepository(bunDB), Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{SummariesRepo: &internalSummariesStub{}, Logger: slog.Default()}, txHandler: tenant.NewTransactionRunner(), tenantRuntime: newMockTenantRuntimePtr(t, bunDB)}
 
 	result, err := svc.queryDeviceSingle(context.Background(), "SetDeviceAPIKey", int64(10))
 	require.Nil(t, result)
@@ -2190,7 +2290,7 @@ func TestDeleteDevice_ProtectedDevice(t *testing.T) {
 	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{DeviceRepo: &internalDeviceRepoStub{
 		findByIDFn: func(context.Context, interface{}) (*iotModels.Device, error) {
 			return &iotModels.Device{
-				Model:      modelBase.Model{ID: 10},
+				ID:         10,
 				DeviceID:   iotModels.WebManualDeviceID,
 				DeviceType: iotModels.DeviceTypeVirtual,
 			}, nil
@@ -2209,7 +2309,7 @@ func TestDeleteDevice_DeleteErrors(t *testing.T) {
 
 	t.Run("foreign key violation becomes device in use", func(t *testing.T) {
 		device := &iotModels.Device{
-			Model:      modelBase.Model{ID: 10},
+			ID:         10,
 			DeviceID:   "reader-10",
 			DeviceType: "rfid",
 		}
@@ -2233,7 +2333,7 @@ func TestDeleteDevice_DeleteErrors(t *testing.T) {
 
 	t.Run("generic delete error is wrapped", func(t *testing.T) {
 		device := &iotModels.Device{
-			Model:      modelBase.Model{ID: 10},
+			ID:         10,
 			DeviceID:   "reader-10",
 			DeviceType: "rfid",
 		}
@@ -2262,7 +2362,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 	var deletedID interface{}
 	var auditEntry *platformModels.OperatorAuditLog
 	device := &iotModels.Device{
-		Model:      modelBase.Model{ID: 10},
+		ID:         10,
 		DeviceID:   "reader-10",
 		DeviceType: "rfid",
 	}
@@ -2374,7 +2474,7 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 				Err: errors.New("expected 1 rows affected, got 0"),
 			}
 		},
-	}, OrganizationRepo: &internalOrgRepoStub{
+	}, Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
 				Model:  modelBase.Model{ID: 1},
@@ -2398,7 +2498,7 @@ func TestRestoreSchool_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
@@ -2412,7 +2512,7 @@ func TestSoftDeleteOrganization_FindByIDError(t *testing.T) {
 func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
 				Model:  modelBase.Model{ID: 42},
@@ -2427,10 +2527,6 @@ func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 				Err: errors.New("expected 1 rows affected, got 0"),
 			}
 		},
-	}, SchoolRepo: &testpkg.SchoolRepoMock{
-		CountNonDeletedByOrganizationIDFn: func(context.Context, int64) (int, error) {
-			return 0, nil
-		},
 	}},
 	}
 
@@ -2442,7 +2538,7 @@ func TestSoftDeleteOrganization_RowsAffectedMismatch(t *testing.T) {
 func TestRestoreOrganization_FindByIDError(t *testing.T) {
 	t.Parallel()
 
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return nil, assert.AnError
 		},
@@ -2457,7 +2553,7 @@ func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 	t.Parallel()
 
 	deletedAt := time.Now()
-	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{OrganizationRepo: &internalOrgRepoStub{
+	svc := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{Organizations: &internalOrgRepoStub{
 		findByIDFn: func(context.Context, int64) (*platformModels.Organization, error) {
 			return &platformModels.Organization{
 				Model:     modelBase.Model{ID: 42},
@@ -2519,6 +2615,29 @@ func TestIsPlatformCaregiverRole(t *testing.T) {
 		base := authModels.BaseRoleUser
 		assert.False(t, authSvc.IsPlatformCaregiverRole(&authModels.Role{Name: "OGS-Kraft", BaseRole: &base}))
 	})
+}
+
+func TestEnrichAccountTenantOrganizationsPreservesDatabaseNameOrdering(t *testing.T) {
+	t.Parallel()
+
+	service := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{
+		Organizations: orderedOrganizationCapability{organizations: []organizationtenancy.Organization{
+			{ID: 3, Name: "Alpha"},
+			{ID: 1, Name: "Same"},
+			{ID: 2, Name: "Same"},
+		}},
+	}}
+	rows := []authModels.AccountTenantAccessInfo{
+		{OrganizationID: 2, SchoolName: "A"},
+		{OrganizationID: 3, SchoolName: "B"},
+		{OrganizationID: 1, SchoolName: "C"},
+	}
+
+	got, err := service.enrichAccountTenantOrganizations(context.Background(), rows)
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	assert.Equal(t, []int64{3, 2, 1}, []int64{got[0].OrganizationID, got[1].OrganizationID, got[2].OrganizationID})
+	assert.Equal(t, []string{"Alpha", "Same", "Same"}, []string{got[0].OrganizationName, got[1].OrganizationName, got[2].OrganizationName})
 }
 
 // ---------------------------------------------------------------------------

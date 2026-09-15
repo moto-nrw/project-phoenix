@@ -19,7 +19,7 @@ import (
 func setupEducationService(t *testing.T, db *bun.DB) educationSvc.Service {
 	t.Helper()
 
-	repoFactory := repositories.NewFactory(db)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 
 	return educationSvc.NewService(
 		repoFactory.Group,

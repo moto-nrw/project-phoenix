@@ -4,8 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { Mail, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { suggestCurrentDeviceLabel } from "~/lib/device-label";
 import {
   isPasskeySupported,
@@ -37,6 +40,11 @@ export function PasskeySettingsSection({
   const [name, setName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Ein Passkey ist ein Zugangsmittel: die Zeilenaktion öffnet erst die
+  // Rückfrage (BAUARTEN-SPEC Bauart 2 Regel 6, #3109); entfernt wird im Dialog.
+  const [revokeTarget, setRevokeTarget] =
+    useState<PasskeyCredentialSummary | null>(null);
+  const [revokeError, setRevokeError] = useState("");
 
   const loadCredentials = useCallback(async () => {
     setLoading(true);
@@ -104,16 +112,24 @@ export function PasskeySettingsSection({
     }
   };
 
-  const revoke = async (id: string) => {
-    setBusy(true);
+  const beginRevoke = (credential: PasskeyCredentialSummary) => {
     setError(null);
     setMessage(null);
+    setRevokeError("");
+    setRevokeTarget(credential);
+  };
+
+  const revoke = async () => {
+    if (!revokeTarget) return;
+    setBusy(true);
+    setRevokeError("");
     try {
-      await revokePasskey(scope, id);
+      await revokePasskey(scope, revokeTarget.id);
+      setRevokeTarget(null);
       setMessage("Passkey wurde entfernt.");
       await loadCredentials();
     } catch (err) {
-      setError(
+      setRevokeError(
         err instanceof Error
           ? err.message
           : "Passkey konnte nicht entfernt werden.",
@@ -156,9 +172,12 @@ export function PasskeySettingsSection({
       />
 
       {!supported && (
-        <p className="text-sm text-gray-600">
-          Passkeys werden von diesem Browser nicht unterstützt.
-        </p>
+        <div className="mb-3">
+          <Alert
+            type="info"
+            message="Passkeys werden von diesem Browser nicht unterstützt."
+          />
+        </div>
       )}
 
       {error && (
@@ -273,7 +292,15 @@ export function PasskeySettingsSection({
       {loading ? (
         <p className="text-sm text-gray-500">Laden...</p>
       ) : credentials.length === 0 ? (
-        <p className="text-sm text-gray-600">Keine Passkeys hinterlegt.</p>
+        <EmptyState
+          variant="compact"
+          title="Keine Passkeys hinterlegt."
+          description={
+            supported
+              ? "Legen Sie über „Hinzufügen“ einen Passkey an, um sich ohne Passwort anzumelden."
+              : undefined
+          }
+        />
       ) : (
         <div className="space-y-2">
           {credentials.map((credential) => (
@@ -291,19 +318,47 @@ export function PasskeySettingsSection({
                     : `Erstellt: ${formatDate(credential.created_at)}`}
                 </p>
               </div>
-              <button
-                type="button"
-                aria-label="Passkey entfernen"
-                disabled={busy}
-                onClick={() => void revoke(credential.id)}
-                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 text-gray-600 transition-colors hover:bg-red-50 hover:text-red-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Trash2 className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <OverflowMenu
+                ariaLabel={`Aktionen für ${credential.name || "Passkey"}`}
+                items={[
+                  {
+                    label: "Entfernen",
+                    icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+                    destructive: true,
+                    disabled: busy,
+                    onClick: () => beginRevoke(credential),
+                  },
+                ]}
+              />
             </div>
           ))}
         </div>
       )}
+
+      <ConfirmDeleteModal
+        isOpen={revokeTarget !== null}
+        title="Passkey entfernen?"
+        description={
+          <>
+            Der Passkey{" "}
+            <span className="font-medium text-gray-900">
+              {revokeTarget?.name || "Passkey"}
+            </span>{" "}
+            wird entfernt. Die Anmeldung damit ist danach nicht mehr möglich.
+            Sie können jederzeit einen neuen Passkey hinzufügen.
+          </>
+        }
+        gate={{ mode: "twoStep", firstStepLabel: "Ja, entfernen" }}
+        confirmLabel="Endgültig entfernen"
+        loadingLabel="Wird entfernt…"
+        loading={busy}
+        error={revokeError}
+        onConfirm={() => void revoke()}
+        onClose={() => {
+          setRevokeTarget(null);
+          setRevokeError("");
+        }}
+      />
     </div>
   );
 }

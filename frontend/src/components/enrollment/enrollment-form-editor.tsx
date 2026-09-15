@@ -30,11 +30,21 @@ import {
 } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useToast } from "~/contexts/ToastContext";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { Modal } from "~/components/ui/modal";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { SectionCard } from "~/components/ui/section-card";
+import { Textarea } from "~/components/ui/textarea";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { SegmentedControl } from "~/components/ui/segmented-control";
+import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import {
@@ -66,6 +76,7 @@ import {
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   copyStableObjectKey,
   getStableObjectKey,
@@ -324,9 +335,16 @@ function isRenameOf(
   return Boolean(schema) && trimmed.length > 0 && trimmed !== schema?.name;
 }
 
-export function EnrollmentFormEditor() {
+export function EnrollmentFormEditor({
+  onTemplateCountChange,
+}: {
+  /** Meldet die Zahl der Vorlagen an den Seitenkopf, damit dessen Statuszeile
+   *  aus denselben Daten stammt statt aus einem zweiten Request. */
+  readonly onTemplateCountChange?: (count: number | null) => void;
+} = {}) {
   const toast = useToast();
   const tenantSlug = useTenantSlugSafe();
+  const tenantPath = useTenantAwarePath();
   const [allSchemas, setAllSchemas] = useState<FormSchema[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedKey, setSelectedKey] = useState<string>(NEW_SCHEMA_VALUE);
@@ -343,7 +361,7 @@ export function EnrollmentFormEditor() {
   );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
   const [mode, setMode] = useState<EditorMode>("overview");
   const [pendingNavigation, setPendingNavigation] =
     useState<PendingNavigation | null>(null);
@@ -391,7 +409,7 @@ export function EnrollmentFormEditor() {
     } finally {
       setLoading(false);
     }
-  }, [tenantSlug]);
+  }, [setError, tenantSlug]);
 
   useEffect(() => {
     void loadAll();
@@ -559,7 +577,7 @@ export function EnrollmentFormEditor() {
     if (selectedKey === renameTarget.id) {
       setName(updated.name);
     }
-    toast.success(`Vorlage in „${updated.name}" umbenannt.`);
+    toast.success(`Vorlage in „${updated.name}“ umbenannt.`);
     setRenameTarget(null);
   };
 
@@ -716,12 +734,10 @@ export function EnrollmentFormEditor() {
       });
       if (validationMessage) {
         setError(validationMessage);
-        toast.error(validationMessage);
         return null;
       }
       if (hasPendingLegalDocumentUpload) {
         setError(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
-        toast.error(LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE);
         return null;
       }
 
@@ -794,7 +810,6 @@ export function EnrollmentFormEditor() {
       } else {
         logger.error("schema_save_failed", { error: message });
         setError(message);
-        toast.error(message);
       }
       return null;
     } finally {
@@ -835,7 +850,7 @@ export function EnrollmentFormEditor() {
 
   const openPreviewWindow = (schemaId: string) => {
     window.open(
-      `/enroll/preview?schemaId=${encodeURIComponent(schemaId)}`,
+      tenantPath(`/anmeldung/preview?schemaId=${encodeURIComponent(schemaId)}`),
       "_blank",
       "noopener,noreferrer",
     );
@@ -874,7 +889,7 @@ export function EnrollmentFormEditor() {
       if (previewWindow) {
         previewWindow.opener = null;
         previewWindow.document.title = "Vorschau wird geöffnet";
-        previewWindow.document.body.textContent = "Vorschau wird geöffnet...";
+        previewWindow.document.body.textContent = "Vorschau wird geöffnet…";
       }
     }
 
@@ -892,7 +907,9 @@ export function EnrollmentFormEditor() {
       return;
     }
     if (pending === "preview") {
-      const href = `/enroll/preview?schemaId=${encodeURIComponent(savedSchema.id)}`;
+      const href = tenantPath(
+        `/anmeldung/preview?schemaId=${encodeURIComponent(savedSchema.id)}`,
+      );
       if (previewWindow) {
         previewWindow.location.href = href;
       } else {
@@ -901,8 +918,17 @@ export function EnrollmentFormEditor() {
     }
   };
 
+  useEffect(() => {
+    if (!onTemplateCountChange) return;
+    onTemplateCountChange(loading ? null : latestByName.length);
+  }, [loading, latestByName, onTemplateCountChange]);
+
   if (loading) {
-    return <p className="text-sm text-gray-500">Wird geladen...</p>;
+    return (
+      <SkeletonRegion label="Anmeldeformulare werden geladen">
+        <FormSkeleton fields={6} />
+      </SkeletonRegion>
+    );
   }
 
   if (mode === "overview") {
@@ -916,7 +942,7 @@ export function EnrollmentFormEditor() {
           onPreview={previewSchema}
           onRename={requestRenameSchema}
           onDelete={requestRemoveSchema}
-          error={error}
+          error={error?.message ?? null}
         />
         <DeleteSchemaDialog
           schema={deleteTarget}
@@ -947,21 +973,30 @@ export function EnrollmentFormEditor() {
   }
 
   return (
-    <div className="space-y-5">
+    // Flex-Spalte (wie die beiden anderen Ansichten dieser Seite): als
+    // Editor-Wurzel einer Tenant-Seite reicht sie den Platz an die letzte
+    // Fläche weiter, die bis zur Unterkante wächst (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-5">
       <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
         <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={requestBackToOverview}
             disabled={saving || hasPendingLegalDocumentUpload}
-            className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex items-center gap-2"
           >
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             Zurück zur Übersicht
-          </button>
+          </Button>
         </div>
         <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_380px] xl:grid-cols-[minmax(0,1fr)_430px]">
           <div className="space-y-6 p-5 sm:p-6">
+            {/* Speicher- und Prüffehler stehen oben im Bearbeiten-Bereich
+                (Bauart 2 Regel 5); der Alert holt sich selbst ins Bild. */}
+            <FormErrorAlert message={error} />
+
             <FormBuilderIntro />
 
             <BuilderTemplateSummary
@@ -994,45 +1029,40 @@ export function EnrollmentFormEditor() {
             <section className="space-y-4">
               <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                    Zusatzfragen
-                  </p>
-                  <h2 className="mt-1 text-base font-semibold text-gray-900">
+                  <h2 className="text-base font-semibold text-gray-900">
                     Was Eltern zusätzlich beantworten sollen
                   </h2>
                   <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                    Wähle feste Vorschläge, wenn die Antwort später in den
+                    Wählen Sie feste Vorschläge, wenn die Antwort später in den
                     Stammdaten stehen soll. Freie Zusatzfragen bleiben nur bei
                     der Anmeldung.
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <button
+                  <Button
                     type="button"
                     onClick={addInfoField}
                     disabled={saving}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="outline"
+                    size="md"
+                    className="inline-flex items-center justify-center gap-2"
                   >
                     <Info className="h-4 w-4" aria-hidden="true" />
                     Infotext
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
                     onClick={addField}
                     disabled={saving}
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="outline"
+                    size="md"
+                    className="inline-flex items-center justify-center gap-2"
                   >
                     <Plus className="h-4 w-4" aria-hidden="true" />
                     Freie Zusatzfrage
-                  </button>
+                  </Button>
                 </div>
               </div>
-
-              {error ? (
-                <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-                  {error}
-                </div>
-              ) : null}
 
               <TargetSuggestions
                 fields={fields}
@@ -1060,26 +1090,30 @@ export function EnrollmentFormEditor() {
               ) : null}
 
               <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-4">
-                <button
+                <Button
                   type="button"
                   onClick={requestStartNew}
                   disabled={saving || hasPendingLegalDocumentUpload}
-                  className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                  variant="outline"
+                  size="md"
+                  className="inline-flex items-center justify-center"
                 >
                   Zurücksetzen
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={handleSave}
                   disabled={saving || hasPendingLegalDocumentUpload}
-                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  variant="primary"
+                  size="md"
+                  className="inline-flex items-center justify-center"
                 >
                   {saving
-                    ? "Speichert..."
+                    ? "Speichert…"
                     : isCreating
                       ? "Formularvorlage erstellen"
                       : "Änderungen speichern"}
-                </button>
+                </Button>
               </div>
             </section>
           </div>
@@ -1094,7 +1128,9 @@ export function EnrollmentFormEditor() {
               isSaved={currentSchema !== null}
               previewHref={
                 currentSchema && !hasUnsavedChanges
-                  ? `/enroll/preview?schemaId=${encodeURIComponent(currentSchema.id)}`
+                  ? tenantPath(
+                      `/anmeldung/preview?schemaId=${encodeURIComponent(currentSchema.id)}`,
+                    )
                   : undefined
               }
               onPreviewClick={requestExternalPreview}
@@ -1145,39 +1181,40 @@ function EnrollmentFormsOverview({
   ).length;
 
   return (
-    <div className="space-y-5">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+    // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
+    // Platz an die Fläche weiter, die bis zur Unterkante wächst
+    // (`.moto-tenant-body`).
+    <div className="flex flex-col space-y-5">
+      {/* Karte als Flex-Spalte und das Raster darin `flex-1`: wächst die
+          Karte bis zur Unterkante, läuft die graue Seitenspalte mit bis
+          dorthin, statt über dem Kartenrand zu enden. */}
+      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="space-y-6 p-5 sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                  Formularübersicht
-                </p>
-                <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-gray-900">
                   Anmeldeformulare verwalten
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                  Das Basisformular ist immer vorhanden. Eigene Vorlagen nutzt
-                  du, wenn eine Anmeldephase abweichende Pflichtangaben oder
+                  Das Basisformular ist immer vorhanden. Eigene Vorlagen nutzen
+                  Sie, wenn eine Anmeldephase abweichende Pflichtangaben oder
                   Zusatzfragen braucht.
                 </p>
               </div>
-              <button
+              <Button
                 type="button"
                 onClick={onCreate}
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                variant="primary"
+                size="md"
+                className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
                 Neue Vorlage
-              </button>
+              </Button>
             </div>
 
-            {error ? (
-              <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong rounded-lg border p-3 text-sm">
-                {error}
-              </div>
-            ) : null}
+            {error ? <Alert type="error" message={error} /> : null}
 
             <section className="space-y-3">
               <div className="flex items-end justify-between gap-3">
@@ -1254,6 +1291,8 @@ function TemplateOverviewList({
 }
 
 function BaseTemplateOverviewRow() {
+  const tenantPath = useTenantAwarePath();
+
   return (
     <article className="grid gap-4 px-4 py-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
       <div className="min-w-0">
@@ -1279,7 +1318,7 @@ function BaseTemplateOverviewRow() {
       </div>
       <div className="flex justify-start gap-2 md:justify-end">
         <a
-          href="/enroll/preview?base=1"
+          href={tenantPath("/anmeldung/preview?base=1")}
           target="_blank"
           rel="noreferrer"
           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -1307,6 +1346,7 @@ function TemplateOverviewRow({
   onDelete: () => void;
   isAssigned: boolean;
 }>) {
+  const tenantPath = useTenantAwarePath();
   const requiredCount = schema.fields.filter((field) =>
     Boolean(field.required),
   ).length;
@@ -1350,7 +1390,9 @@ function TemplateOverviewRow({
               icon: <ExternalLink className="h-4 w-4" aria-hidden />,
               onClick: () => {
                 window.open(
-                  `/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                  tenantPath(
+                    `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                  ),
                   "_blank",
                   "noopener,noreferrer",
                 );
@@ -1430,23 +1472,23 @@ function OverviewGuide({
   return (
     <div className="sticky top-6 space-y-4">
       <div>
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Startpunkt
-        </p>
-        <h2 className="mt-1 text-base font-semibold text-gray-900">
+        <h2 className="text-base font-semibold text-gray-900">
           Erst prüfen, dann erweitern
         </h2>
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          Lege nur dann eine eigene Vorlage an, wenn das Basisformular nicht
-          reicht. So bleibt die Elternansicht kurz und verständlich.
+          Legen Sie nur dann eine eigene Vorlage an, wenn das Basisformular
+          nicht reicht. So bleibt die Elternansicht kurz und verständlich.
         </p>
       </div>
 
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm">
-        <h3 className="text-sm font-semibold text-gray-900">
-          Nächste Schritte
-        </h3>
-        <div className="mt-4 space-y-3">
+      {/* Der Erklärtext stand als freier Absatz unter der Karte und ist jetzt
+          ihre description. */}
+      <SectionCard
+        title="Nächste Schritte"
+        description="Für eine neue Halbjahresanmeldung brauchen Sie oft keine eigene Formularvorlage. Anmeldephase und Betreuungsangebote steuern den eigentlichen Ablauf."
+        headingLevel={3}
+      >
+        <div className="space-y-3">
           <GuideStep
             icon={<MotoConceptIcon concept="permissions" size={18} />}
             title="Basisformular prüfen"
@@ -1463,13 +1505,7 @@ function OverviewGuide({
             done={assignedTemplateCount > 0}
           />
         </div>
-      </div>
-
-      <p className="text-sm leading-6 text-gray-500">
-        Für eine neue Halbjahresanmeldung brauchst du oft keine eigene
-        Formularvorlage. Anmeldephase und Betreuungsangebote steuern den
-        eigentlichen Ablauf.
-      </p>
+      </SectionCard>
     </div>
   );
 }
@@ -1485,6 +1521,7 @@ function FormTemplateDetail({
   onEdit: () => void;
   assignedPhases: Phase[];
 }>) {
+  const tenantPath = useTenantAwarePath();
   const requiredCount = schema.fields.filter((field) =>
     Boolean(field.required),
   ).length;
@@ -1493,43 +1530,45 @@ function FormTemplateDetail({
   ).length;
 
   return (
-    <div className="space-y-5">
-      <section className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+    // Flex-Spalte, siehe die Übersicht derselben Seite.
+    <div className="flex flex-col space-y-5">
+      <section className="moto-content-surface flex flex-col overflow-hidden rounded-2xl border shadow-sm backdrop-blur-md">
+        <div className="grid flex-1 gap-0 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
           <div>
             <div className="border-b border-gray-100 px-5 py-3 sm:px-6">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="compact"
                 onClick={onBack}
-                className="inline-flex h-8 items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                className="inline-flex items-center gap-2"
               >
                 <ArrowLeft className="h-4 w-4" aria-hidden="true" />
                 Zurück zur Übersicht
-              </button>
+              </Button>
             </div>
             <div className="space-y-5 p-5 sm:p-6">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
-                  <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-                    Formular prüfen
-                  </p>
-                  <h2 className="mt-1 text-xl font-semibold text-gray-900">
+                  <h2 className="text-xl font-semibold text-gray-900">
                     {schema.name}
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                    Prüfe die Formularvorschau und ordne diese Vorlage einer
-                    Anmeldephase zu, wenn Eltern die angepassten Pflichtangaben
-                    oder Zusatzfragen sehen sollen.
+                    Prüfen Sie die Formularvorschau und ordnen Sie diese Vorlage
+                    einer Anmeldephase zu, wenn Eltern die angepassten
+                    Pflichtangaben oder Zusatzfragen sehen sollen.
                   </p>
                 </div>
-                <button
+                <Button
                   type="button"
                   onClick={onEdit}
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 text-sm font-medium whitespace-nowrap text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  variant="primary"
+                  size="md"
+                  className="inline-flex items-center justify-center gap-2 whitespace-nowrap"
                 >
                   <Pencil className="h-4 w-4" aria-hidden="true" />
                   Bearbeiten
-                </button>
+                </Button>
               </div>
 
               <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
@@ -1562,7 +1601,9 @@ function FormTemplateDetail({
                 templateName={schema.name}
                 isActive={schema.is_active}
                 isSaved
-                previewHref={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
+                previewHref={tenantPath(
+                  `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                )}
                 assignedPhaseCount={assignedPhases.length}
                 sticky={false}
               />
@@ -1572,10 +1613,7 @@ function FormTemplateDetail({
           <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-6 lg:border-t-0 lg:border-l">
             <div className="sticky top-6 space-y-4">
               <div>
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Nächster Schritt
-                </p>
-                <h2 className="mt-1 text-base font-semibold text-gray-900">
+                <h2 className="text-base font-semibold text-gray-900">
                   {assignedPhases.length > 0
                     ? "In Anmeldephase verwendet"
                     : "In Anmeldephase verwenden"}
@@ -1607,7 +1645,9 @@ function FormTemplateDetail({
               </ButtonLink>
 
               <a
-                href={`/enroll/preview?schemaId=${encodeURIComponent(schema.id)}`}
+                href={tenantPath(
+                  `/anmeldung/preview?schemaId=${encodeURIComponent(schema.id)}`,
+                )}
                 target="_blank"
                 rel="noreferrer"
                 className="moto-content-surface flex items-start gap-3 rounded-2xl border p-3 text-left shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
@@ -1696,28 +1736,28 @@ function DeleteSchemaDialog({
   onConfirm: () => void;
 }>) {
   return (
-    <ConfirmationModal
+    <ConfirmDeleteModal
       isOpen={schema !== null}
-      onClose={onClose}
+      title="Formularvorlage löschen"
+      description={
+        <div className="space-y-3 leading-6">
+          <p>
+            Die Vorlage{" "}
+            <span className="font-semibold text-gray-900">{schema?.name}</span>{" "}
+            wird dauerhaft gelöscht.
+          </p>
+          <p>
+            Dabei werden alle Versionen dieser Vorlage entfernt. Bereits
+            verwendete Vorlagen können nicht gelöscht werden.
+          </p>
+        </div>
+      }
+      gate={{ mode: "twoStep" }}
       onConfirm={onConfirm}
-      title="Formularvorlage löschen?"
-      confirmText="Löschen"
-      cancelText="Abbrechen"
-      isConfirmLoading={deleting}
-      confirmButtonClass="bg-moto-red hover:bg-moto-red-strong"
-    >
-      <div className="space-y-3 text-sm leading-6 text-gray-600">
-        <p>
-          Die Vorlage{" "}
-          <span className="font-semibold text-gray-900">{schema?.name}</span>{" "}
-          wird dauerhaft gelöscht.
-        </p>
-        <p>
-          Dabei werden alle Versionen dieser Vorlage entfernt. Bereits
-          verwendete Vorlagen können nicht gelöscht werden.
-        </p>
-      </div>
-    </ConfirmationModal>
+      onClose={onClose}
+      loading={deleting}
+      error=""
+    />
   );
 }
 
@@ -1732,7 +1772,7 @@ function RenameSchemaDialog({
 }>) {
   const [value, setValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useFormError();
 
   // Reset the field to the current name each time the dialog opens for a
   // schema so the admin edits from the existing value.
@@ -1742,7 +1782,7 @@ function RenameSchemaDialog({
       setError(null);
       setSubmitting(false);
     }
-  }, [schema]);
+  }, [schema, setError]);
 
   const isOpen = schema !== null;
   const trimmed = value.trim();
@@ -1768,6 +1808,7 @@ function RenameSchemaDialog({
       onClose={onClose}
       title="Formular umbenennen"
       size="sm"
+      error={error}
       footer={
         <div className="flex justify-end gap-2">
           <Button
@@ -1805,8 +1846,8 @@ function RenameSchemaDialog({
           type="text"
           value={value}
           onChange={(event) => setValue(event.target.value)}
+          error={error?.message}
           placeholder="z. B. Ferienbetreuung Sommer 2026"
-          error={error ?? undefined}
           autoFocus
         />
         <p className="text-xs leading-5 text-gray-500">
@@ -1838,36 +1879,42 @@ function UnsavedChangesDialog({
   const isPreview = pendingNavigation === "preview";
   const footer = (
     <>
-      <button
+      <Button
         type="button"
         onClick={onCancel}
         disabled={saving}
-        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        variant="outline"
+        size="md"
+        className="inline-flex items-center justify-center"
       >
         Abbrechen
-      </button>
+      </Button>
       {!isPreview ? (
-        <button
+        <Button
           type="button"
           onClick={onDiscard}
           disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          variant="outline"
+          size="md"
+          className="inline-flex items-center justify-center"
         >
           Verwerfen
-        </button>
+        </Button>
       ) : null}
-      <button
+      <Button
         type="button"
         onClick={onSave}
         disabled={saving || Boolean(saveBlockedMessage)}
-        className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+        variant="primary"
+        size="md"
+        className="inline-flex items-center justify-center"
       >
         {saving
-          ? "Speichert..."
+          ? "Speichert…"
           : isPreview
             ? "Speichern und Vorschau öffnen"
             : "Speichern und fortfahren"}
-      </button>
+      </Button>
     </>
   );
 
@@ -1880,13 +1927,10 @@ function UnsavedChangesDialog({
       isDismissDisabled={saving}
       footer={footer}
     >
-      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Ungespeicherte Änderungen
-      </p>
-      <p className="mt-2 text-sm leading-6 text-gray-600">
+      <p className="text-sm leading-6 text-gray-600">
         {isPreview
           ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
-          : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
+          : "Sie haben Änderungen an dieser Vorlage. Speichern Sie sie, bevor Sie den Bereich verlassen, oder verwerfen Sie sie bewusst."}
       </p>
       {saveBlockedMessage ? (
         <div className="border-moto-red/20 bg-moto-red/10 text-moto-red-strong mt-4 rounded-lg border px-3 py-2 text-sm font-medium">
@@ -1900,16 +1944,13 @@ function UnsavedChangesDialog({
 function FormBuilderIntro() {
   return (
     <header>
-      <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-        Formular-Konfigurator
-      </p>
-      <h2 className="mt-1 text-xl font-semibold text-gray-900">
+      <h2 className="text-xl font-semibold text-gray-900">
         Formularvorlage bearbeiten
       </h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-        Lege fest, welche optionalen Basisfelder verpflichtend sind, und ergänze
-        bei Bedarf Zusatzfragen. Die Vorlage wird später in einer Anmeldephase
-        ausgewählt.
+        Legen Sie fest, welche optionalen Basisfelder verpflichtend sind, und
+        ergänzen Sie bei Bedarf Zusatzfragen. Die Vorlage wird später in einer
+        Anmeldephase ausgewählt.
       </p>
     </header>
   );
@@ -1967,15 +2008,12 @@ function BuilderTemplateSummary({
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm">
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_280px]">
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Vorlage
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             {isCreating ? "Neue Formularvorlage" : name}
           </h2>
           <p className="mt-1 max-w-2xl text-sm text-gray-600">
             {isCreating
-              ? "Gib der Vorlage einen eindeutigen Namen. Danach kannst du Pflichtangaben und Zusatzfragen festlegen."
+              ? "Geben Sie der Vorlage einen eindeutigen Namen. Danach können Sie Pflichtangaben und Zusatzfragen festlegen."
               : "Der Name lässt sich hier ändern und gilt für alle Versionen. Bestehende Anmeldungen bleiben nachvollziehbar."}
           </p>
         </div>
@@ -2043,15 +2081,12 @@ function CoreFieldsSection({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Basisformular
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Pflichtstatus der Basisfelder
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             Fest gesetzte Felder bleiben immer Pflicht. Optionale Basisfelder
-            kannst du hier verpflichtend machen.
+            können Sie hier verpflichtend machen.
           </p>
         </div>
         <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
@@ -2244,7 +2279,7 @@ function LegalBlocksSection({
   }) => (
     <div
       key={`${block.key}-${index}-editor`}
-      className="rounded-xl border border-gray-200 bg-white p-4"
+      className="moto-content-surface rounded-xl border p-4 shadow-sm"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <StyledCheckboxButton
@@ -2297,20 +2332,18 @@ function LegalBlocksSection({
         </label>
       </div>
 
-      <label className="mt-3 block">
-        <span className="text-xs font-medium text-gray-700">
-          Text neben der Checkbox oder dem Hinweis
-        </span>
-        <textarea
+      <div className="mt-3">
+        <Textarea
+          id={`legal-block-label-${block.key}`}
+          label="Text neben der Checkbox oder dem Hinweis"
           value={block.label}
           disabled={disabled}
           rows={2}
           onChange={(event) =>
             updateBlock(index, { label: event.target.value })
           }
-          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
         />
-      </label>
+      </div>
 
       {block.key === "agb" && block.source === "standard" ? (
         <AGBTemplateSourceEditor
@@ -2325,20 +2358,18 @@ function LegalBlocksSection({
           onDocumentRemove={() => void removeAGBDocument(index)}
         />
       ) : (
-        <label className="mt-3 block">
-          <span className="text-xs font-medium text-gray-700">
-            Rechtstext / Erklärung
-          </span>
-          <textarea
+        <div className="mt-3">
+          <Textarea
+            id={`legal-block-text-${block.key}`}
+            label="Rechtstext / Erklärung"
             value={block.text}
             disabled={disabled}
             rows={4}
             onChange={(event) =>
               updateBlock(index, { text: event.target.value })
             }
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
           />
-        </label>
+        </div>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -2398,16 +2429,13 @@ function LegalBlocksSection({
     <section className="moto-content-surface rounded-2xl border p-5 shadow-sm">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Zustimmungen
-          </p>
-          <h2 className="mt-1 text-base font-semibold text-gray-900">
+          <h2 className="text-base font-semibold text-gray-900">
             Rechtstexte und Einwilligungen
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
             Die vier Standardblöcke starten mit den Texten aus den
-            Einstellungen. Hier blendest du sie für diese Vorlage aus oder
-            bearbeitest bewusst eine Abweichung. Eigene Zustimmungen bleiben
+            Einstellungen. Hier blenden Sie sie für diese Vorlage aus oder
+            bearbeiten bewusst eine Abweichung. Eigene Zustimmungen bleiben
             direkt an diese Vorlage gebunden.
           </p>
         </div>
@@ -2417,11 +2445,13 @@ function LegalBlocksSection({
       !blocks.some(
         (block) => block.key === "data_processing" && block.enabled,
       ) ? (
-        <p className="border-moto-amber/30 bg-moto-amber/10 mt-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
-          Hinweis: Die Datenschutzinformation ist in dieser Vorlage deaktiviert.
-          Stelle sicher, dass Eltern die Datenschutzhinweise auf anderem Weg
-          erhalten, zum Beispiel über den Elternbrief.
-        </p>
+        <div className="mt-3">
+          <Alert
+            type="warning"
+            announce="off"
+            message="Die Datenschutzinformation ist in dieser Vorlage deaktiviert. Stellen Sie sicher, dass Eltern die Datenschutzhinweise auf anderem Weg erhalten, zum Beispiel über den Elternbrief."
+          />
+        </div>
       ) : null}
 
       <div className="mt-4 space-y-3">
@@ -2443,7 +2473,7 @@ function LegalBlocksSection({
           return (
             <div
               key={`${block.key}-${index}`}
-              className="rounded-xl border border-gray-200 bg-white p-4"
+              className="moto-content-surface rounded-xl border p-4 shadow-sm"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -2480,16 +2510,18 @@ function LegalBlocksSection({
                     disabled={disabled}
                     ariaLabel={`${block.title} in dieser Vorlage anzeigen`}
                   />
-                  <button
-                    type="button"
-                    aria-label={`${block.title} abweichend bearbeiten`}
-                    title="Abweichend bearbeiten"
-                    onClick={() => editStandardBlock(block.key)}
-                    disabled={disabled}
-                    className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
+                  <OverflowMenu
+                    ariaLabel={`Aktionen für ${block.title}`}
+                    triggerSize="sm"
+                    items={[
+                      {
+                        label: "Abweichend bearbeiten",
+                        icon: <Pencil className="h-4 w-4" aria-hidden="true" />,
+                        onClick: () => editStandardBlock(block.key),
+                        disabled,
+                      },
+                    ]}
+                  />
                 </div>
               </div>
             </div>
@@ -2515,15 +2547,17 @@ function LegalBlocksSection({
       </div>
 
       <div className="mt-4">
-        <button
+        <Button
           type="button"
           onClick={addCustomBlock}
           disabled={disabled}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          variant="outline"
+          size="md"
+          className="inline-flex items-center justify-center gap-2"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Eigene Zustimmung hinzufügen
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -2571,15 +2605,13 @@ function AGBTemplateSourceEditor({
   return (
     <div className="mt-3 space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
-        <button
-          type="button"
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT}
           onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_TEXT)}
           disabled={disabled}
-          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-3"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileText className="h-4 w-4" aria-hidden="true" />
@@ -2593,16 +2625,14 @@ function AGBTemplateSourceEditor({
               Text gespeichert
             </span>
           ) : null}
-        </button>
-        <button
-          type="button"
+        </ChoiceTile>
+        <ChoiceTile
+          as="button"
+          tone="blue"
+          selected={mode === LEGAL_BLOCK_DISPLAY_MODE_PDF}
           onClick={() => onModeChange(LEGAL_BLOCK_DISPLAY_MODE_PDF)}
           disabled={disabled}
-          className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            mode === LEGAL_BLOCK_DISPLAY_MODE_PDF
-              ? "border-moto-blue bg-moto-blue/10 text-gray-950 shadow-sm"
-              : "hover:border-moto-blue/40 hover:bg-moto-blue/5 border-gray-200 bg-white text-gray-700"
-          }`}
+          className="block p-3"
         >
           <span className="flex items-center gap-2 text-sm font-semibold">
             <FileUp className="h-4 w-4" aria-hidden="true" />
@@ -2616,22 +2646,20 @@ function AGBTemplateSourceEditor({
               PDF gespeichert
             </span>
           ) : null}
-        </button>
+        </ChoiceTile>
       </div>
 
       {mode === LEGAL_BLOCK_DISPLAY_MODE_TEXT ? (
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">
-            Rechtstext / Erklärung
-          </span>
-          <textarea
+        <div>
+          <Textarea
+            id="agb-template-text"
+            label="Rechtstext / Erklärung"
             value={textValue}
             disabled={disabled}
             rows={4}
             onChange={(event) => onTextChange(event.target.value)}
-            className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
           />
-        </label>
+        </div>
       ) : (
         <div className="border-moto-blue/20 bg-moto-blue/5 rounded-xl border p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2709,33 +2737,15 @@ function LegalBlockModeControl({
   onModeChange: (isNotice: boolean) => void;
 }>) {
   return (
-    <div
-      className="inline-flex rounded-xl border border-gray-200 bg-gray-50 p-1"
-      aria-label="Darstellung im Elternformular"
-    >
-      {[
-        { label: "Mit Checkbox", isNotice: false },
-        { label: "Nur Hinweis", isNotice: true },
-      ].map((option) => {
-        const selected = option.isNotice === isNotice;
-        return (
-          <button
-            key={option.label}
-            type="button"
-            disabled={disabled}
-            aria-pressed={selected}
-            onClick={() => onModeChange(option.isNotice)}
-            className={`h-8 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 ${
-              selected
-                ? "bg-white text-gray-900 shadow-sm"
-                : "text-gray-600 hover:text-gray-900"
-            }`}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
+    <SegmentedControl
+      ariaLabel="Darstellung im Elternformular"
+      value={isNotice ? "hinweis" : "checkbox"}
+      onChange={(next) => onModeChange(next === "hinweis")}
+      items={[
+        { value: "checkbox", label: "Mit Checkbox", disabled },
+        { value: "hinweis", label: "Nur Hinweis", disabled },
+      ]}
+    />
   );
 }
 
@@ -2839,9 +2849,7 @@ function CoreFieldGroup({
   return (
     <div className="border-b border-gray-100 last:border-b-0">
       <div className="bg-gray-50/80 px-4 py-2">
-        <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          {title}
-        </h3>
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
       </div>
       <ul className="divide-y divide-gray-100">
         {fields.map((field) => (
@@ -2941,7 +2949,7 @@ function TargetSuggestions({
             Stammdaten-Vorschläge
           </h3>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600">
-            Diese Fragen sind mit vorhandenen Stammdaten verbunden. Du kannst
+            Diese Fragen sind mit vorhandenen Stammdaten verbunden. Sie können
             sie hinzufügen oder entfernen; Label und Typ sind fest vorgegeben.
           </p>
         </div>
@@ -2955,16 +2963,13 @@ function TargetSuggestions({
         {TARGET_PICKER_ORDER.map((target) => {
           const selected = selectedTargets.has(target);
           return (
-            <button
+            <ChoiceTile
               key={target}
-              type="button"
-              onClick={() => onAdd(target)}
+              as="button"
+              selected={selected}
               disabled={disabled || selected}
-              className={`flex min-h-24 items-start gap-3 rounded-xl border p-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-default ${
-                selected
-                  ? "border-gray-200 bg-white text-gray-500"
-                  : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50"
-              }`}
+              onClick={() => onAdd(target)}
+              className="min-h-24 items-start p-3 shadow-sm"
             >
               <span
                 className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${
@@ -2986,11 +2991,11 @@ function TargetSuggestions({
                 <span className="mt-1 block text-xs leading-5 text-gray-500">
                   {targetSuggestionDescriptions[target]}
                 </span>
-                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                <span className="mt-2 inline-flex rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                   {selected ? "Ist drin" : "Hinzufügen"}
                 </span>
               </span>
-            </button>
+            </ChoiceTile>
           );
         })}
       </div>
@@ -3174,21 +3179,21 @@ function FieldEditorRow({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                <p className="text-sm font-semibold text-gray-900">
                   {isInfo ? "Infotext" : "Frage"} {index + 1}
                 </p>
                 {isInfo ? (
-                  <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium">
+                  <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium">
                     <Info className="h-3 w-3" aria-hidden="true" />
                     Hinweis
                   </span>
                 ) : isTargetField ? (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                     <Lock className="h-3 w-3" aria-hidden="true" />
                     Fester Vorschlag
                   </span>
                 ) : (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600">
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                     Freie Zusatzfrage
                   </span>
                 )}
@@ -3234,8 +3239,8 @@ function FieldEditorRow({
                 Wird Eltern als Hinweis angezeigt.
               </p>
               <p className="mt-0.5">
-                Ein Infotext sammelt keine Antwort. Nutze ihn für Erklärungen,
-                Hinweise oder Zwischenüberschriften.
+                Ein Infotext sammelt keine Antwort. Nutzen Sie ihn für
+                Erklärungen, Hinweise oder Zwischenüberschriften.
               </p>
             </div>
           ) : isTargetField ? (
@@ -3244,9 +3249,9 @@ function FieldEditorRow({
                 Wird bei bestätigter Anmeldung in die Stammdaten übernommen.
               </p>
               <p className="mt-0.5">
-                Du kannst die angezeigte Frage umbenennen. Inhalt und Typ sind
-                fest vorgegeben. Entferne den Vorschlag, wenn diese Angabe nicht
-                abgefragt werden soll.
+                Sie können die angezeigte Frage umbenennen. Inhalt und Typ sind
+                fest vorgegeben. Entfernen Sie den Vorschlag, wenn diese Angabe
+                nicht abgefragt werden soll.
               </p>
             </div>
           ) : (
@@ -3276,11 +3281,10 @@ function FieldEditorRow({
                   className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 />
               </label>
-              <label className="block">
-                <span className="text-xs font-medium text-gray-700">
-                  Infotext für Eltern
-                </span>
-                <textarea
+              <div>
+                <Textarea
+                  id={`field-info-content-${index}`}
+                  label="Infotext für Eltern"
                   value={field.content ?? ""}
                   onChange={(event) =>
                     onChange({ content: event.target.value })
@@ -3288,9 +3292,8 @@ function FieldEditorRow({
                   placeholder="Dieser Text wird Eltern im Formular angezeigt."
                   disabled={disabled}
                   rows={3}
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                 />
-              </label>
+              </div>
               <div className="grid gap-2 sm:grid-cols-2">
                 <FormChoice
                   checked={Boolean(field.applies_to_child)}
@@ -3344,7 +3347,7 @@ function FieldEditorRow({
                   <span className="text-xs font-medium text-gray-700">
                     Typ
                     {isTargetField ? (
-                      <span className="ml-1 text-[11px] font-normal text-gray-500">
+                      <span className="ml-1 text-sm font-normal text-gray-500">
                         (automatisch festgelegt)
                       </span>
                     ) : null}
@@ -3385,19 +3388,17 @@ function FieldEditorRow({
               </label>
 
               {field.type === "select" ? (
-                <label className="block">
-                  <span className="text-xs font-medium text-gray-700">
-                    Auswahloptionen
-                  </span>
-                  <textarea
+                <div>
+                  <Textarea
+                    id={`field-options-${index}`}
+                    label="Auswahloptionen"
                     value={optionsDraft}
                     onChange={(event) => updateOptions(event.target.value)}
                     placeholder={"Eine Option pro Zeile\nz. B. Ja\nz. B. Nein"}
                     disabled={disabled || isTargetField}
                     rows={3}
-                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   />
-                </label>
+                </div>
               ) : null}
 
               {field.target === "schedule.pickup" ? (
@@ -3410,15 +3411,17 @@ function FieldEditorRow({
                     hinterlegt sind, wählen Eltern pro Wochentag nur aus dieser
                     Liste.
                   </p>
-                  <button
+                  <Button
                     type="button"
                     onClick={addAllowedTime}
                     disabled={disabled}
-                    className="mt-2 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="outline"
+                    size="md"
+                    className="mt-2 inline-flex items-center justify-center gap-2"
                   >
                     <Plus className="h-4 w-4" aria-hidden="true" />
                     Zeit hinzufügen
-                  </button>
+                  </Button>
                   {allowedTimesRows.length > 0 ? (
                     <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {allowedTimesRows.map((row, index) => (
@@ -3433,15 +3436,24 @@ function FieldEditorRow({
                             aria-label={`Auswahlzeit ${index + 1}`}
                             className="h-10 w-full min-w-0 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                           />
-                          <button
-                            type="button"
-                            onClick={() => removeAllowedTime(index)}
-                            disabled={disabled}
-                            className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 focus-visible:ring-moto-red/30 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40"
-                            aria-label={`Auswahlzeit ${index + 1} entfernen`}
-                          >
-                            <Trash2 className="h-4 w-4" aria-hidden="true" />
-                          </button>
+                          <OverflowMenu
+                            ariaLabel={`Aktionen für Auswahlzeit ${index + 1}`}
+                            triggerSize="sm"
+                            items={[
+                              {
+                                label: "Auswahlzeit entfernen",
+                                icon: (
+                                  <Trash2
+                                    className="h-4 w-4"
+                                    aria-hidden="true"
+                                  />
+                                ),
+                                onClick: () => removeAllowedTime(index),
+                                destructive: true,
+                                disabled,
+                              },
+                            ]}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -3459,8 +3471,8 @@ function FieldEditorRow({
                       Nur ein Heimweg pro Wochentag (optional)
                     </span>
                     <p className="mt-1 text-xs leading-5 text-gray-500">
-                      Trage Jahrgänge ein, deren Eltern pro Wochentag nur einen
-                      Heimweg auswählen dürfen, zum Beispiel „1“ für die
+                      Tragen Sie Jahrgänge ein, deren Eltern pro Wochentag nur
+                      einen Heimweg auswählen dürfen, zum Beispiel „1“ für die
                       Erstklässler. Ohne Eintrag bleibt die Mehrfachauswahl für
                       alle Jahrgänge erlaubt. Voraussetzung: Die Abfrage der
                       Klassenstufe ist in den Einstellungen aktiv.
@@ -3649,18 +3661,22 @@ function ConditionEditor({
 
   if (!canEnable && !condition) {
     return (
-      <p className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2 text-xs leading-5 text-gray-500">
-        Eine Sichtbarkeitsregel ist möglich, sobald es eine Ja/Nein- oder
-        Auswahlfrage gibt
-        {field.applies_to_child
-          ? "."
-          : " (oder dieses Feld pro Kind angezeigt wird)."}
-      </p>
+      <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50/60 px-3 py-2">
+        <EmptyState
+          variant="compact"
+          title="Keine Sichtbarkeitsregel möglich"
+          description={`Eine Sichtbarkeitsregel ist möglich, sobald es eine Ja/Nein- oder Auswahlfrage gibt${
+            field.applies_to_child
+              ? "."
+              : " (oder dieses Feld pro Kind angezeigt wird)."
+          }`}
+        />
+      </div>
     );
   }
 
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-3">
+    <div className="moto-content-surface rounded-xl border p-3 shadow-sm">
       <FormChoice
         checked={condition !== null}
         onChange={(checked) =>
@@ -3932,7 +3948,7 @@ function ConditionOfferingControls({
         disabled={disabled}
         className={conditionInputClass}
       />
-      <span className="mt-1 block text-[11px] leading-4 text-gray-500">
+      <span className="mt-1 block text-sm leading-5 text-gray-500">
         Sichtbar, wenn ein gewähltes Betreuungsangebot diesen Namen trägt.
       </span>
     </label>
@@ -3979,10 +3995,7 @@ function FormPreview({
     <div className={sticky ? "sticky top-6 space-y-4" : "space-y-4"}>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            Vorschau
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-semibold text-gray-900">
               Elternformular
             </h2>
@@ -4052,7 +4065,7 @@ function FormPreview({
               Vorschau öffnen
             </span>
             <span className="mt-0.5 block text-xs leading-5 text-gray-500">
-              Speichere die Vorlage zuerst.
+              Speichern Sie die Vorlage zuerst.
             </span>
           </span>
         </div>
@@ -4060,10 +4073,7 @@ function FormPreview({
 
       <div className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
         <div className="border-b border-gray-100 px-4 py-4">
-          <p className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Online-Anmeldung
-          </p>
-          <h3 className="mt-1 text-lg font-semibold text-gray-900">
+          <h3 className="text-lg font-semibold text-gray-900">
             {templateName.trim() || "Basisformular"}
           </h3>
           <p className="mt-1 text-sm leading-6 text-gray-500">
@@ -4155,7 +4165,7 @@ function FormPreview({
                             <span className="text-sm font-medium text-gray-900">
                               {block.title.trim() || block.label}
                             </span>
-                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+                            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
                               {block.kind === "notice"
                                 ? "Hinweis"
                                 : block.required
@@ -4167,7 +4177,7 @@ function FormPreview({
                             {block.label}
                           </p>
                           {previewText.trim() !== "" ? (
-                            <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-gray-400">
+                            <p className="mt-1 line-clamp-2 text-sm leading-5 text-gray-400">
                               {previewText}
                             </p>
                           ) : null}
@@ -4180,12 +4190,9 @@ function FormPreview({
             </section>
           ) : null}
 
-          <button
-            type="button"
-            className="h-9 w-full rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm"
-          >
+          <Button type="button" variant="primary" size="md" className="w-full">
             Anmeldung absenden
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -4205,7 +4212,7 @@ function PreviewSection({
             key={field}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2"
           >
-            <span className="block text-[11px] font-medium text-gray-500">
+            <span className="block text-sm font-medium text-gray-500">
               {field}
             </span>
             <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
@@ -4219,7 +4226,7 @@ function PreviewSection({
 function ConditionalBadge({ field }: Readonly<{ field: FormField }>) {
   if (!field.visible_when) return null;
   return (
-    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium">
+    <span className="bg-moto-blue/10 text-moto-blue-hover inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-sm font-medium">
       bedingt
     </span>
   );
@@ -4263,7 +4270,7 @@ function PreviewCustomField({ field }: Readonly<{ field: FormField }>) {
         <div className="flex shrink-0 items-center gap-1.5">
           <ConditionalBadge field={field} />
           {field.required ? (
-            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600">
+            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-sm font-medium text-gray-600">
               Pflicht
             </span>
           ) : null}
@@ -4355,7 +4362,7 @@ function getPreviewStatus({
 
   return {
     label: "Entwurf",
-    hint: "Speichere die Vorlage zuerst. Danach kannst du sie in einer Anmeldephase auswählen.",
+    hint: "Speichern Sie die Vorlage zuerst. Danach können Sie sie in einer Anmeldephase auswählen.",
     className: "bg-gray-100 text-gray-600",
     dotClassName: "bg-gray-300",
   };
