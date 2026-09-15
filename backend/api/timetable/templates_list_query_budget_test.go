@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestListTemplatesQueryBudget keeps the roster-maintenance lookup batched:
-// the list must not add a query for each returned Regeltermin.
+// TestListTemplatesQueryBudget keeps the period-scoped roster-maintenance
+// lookup batched: the list must not add a query for each returned Regeltermin.
 func TestListTemplatesQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
@@ -34,11 +34,14 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	require.True(t, ok)
 	s.res.OfferingSourceOptions = lister
 	router := templateQueryBudgetRouter(t, s.ctx, s.res)
+	period := createTemplateTestPeriod(t, s.db, "Tpl-Query-Budget-Period")
 
 	created := 0
 	addTemplates := func(n int) {
 		for range n {
-			w := doTemplateJSON(t, router, http.MethodPost, "/templates", createTemplateBody(s, fmt.Sprintf("Budget-Regeltermin-%d", created)))
+			body := createTemplateBody(s, fmt.Sprintf("Budget-Regeltermin-%d", created))
+			body["calendar_period_id"] = period.ID
+			w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 			require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 			created++
 		}
@@ -47,9 +50,14 @@ func TestListTemplatesQueryBudget(t *testing.T) {
 	counter := testpkg.CaptureQueries(t, s.db)
 	run := func() int {
 		counter.Reset()
-		w := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
+		w := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates?period_id=%d", period.ID), nil)
 		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
-		require.Len(t, decodeTemplateData[listTemplatesResponse](t, w).Templates, created)
+		templates := decodeTemplateData[listTemplatesResponse](t, w).Templates
+		require.Len(t, templates, created)
+		for _, template := range templates {
+			require.NotNil(t, template.RosterMaintenance,
+				"period-scoped list must include the roster-maintenance indicator")
+		}
 		return counter.Total()
 	}
 

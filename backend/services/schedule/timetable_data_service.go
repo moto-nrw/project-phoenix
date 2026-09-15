@@ -582,6 +582,9 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 	if err != nil {
 		return err
 	}
+	if !hasTemplateTargets(targetsByGroup) {
+		return nil
+	}
 	targetStudentsByGroup, err := targetRepo.FindTargetStudentIDsByGroupIDs(ctx, templateIDs)
 	if err != nil {
 		return err
@@ -591,6 +594,15 @@ func (s *TimetableDataService) attachTemplateTargets(ctx context.Context, rows [
 		rows[i].EnrollmentCount = unionCount(rows[i].StudentIDs, targetStudentsByGroup[rows[i].TemplateID])
 	}
 	return nil
+}
+
+func hasTemplateTargets(targetsByGroup map[int64][]*activitiesModel.GroupTarget) bool {
+	for _, targets := range targetsByGroup {
+		if len(targets) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func unionCount(left, right []int64) int {
