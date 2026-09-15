@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,6 +15,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// The retained token repository contract is an adapter over the Identity &
+// Access account-session capability (#2720). These tests pin the contract
+// the auth service still consumes: validation on the retained model, the
+// DatabaseError shape, IsNoRows on missing lookups, tenant scoping, the
+// session cap, rotation hand-offs and the audited revocations.
 
 // ============================================================================
 // CRUD Tests
@@ -61,29 +66,6 @@ func TestTokenRepository_Create(t *testing.T) {
 	})
 }
 
-func TestTokenRepository_FindByID(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds existing token", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "tokenFindByID")
-		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-
-		found, err := repo.FindByID(ctx, token.ID)
-		require.NoError(t, err)
-		assert.Equal(t, token.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent token", func(t *testing.T) {
-		_, err := repo.FindByID(ctx, int64(999999))
-		require.Error(t, err)
-	})
-}
-
 func TestTokenRepository_FindByToken(t *testing.T) {
 	t.Parallel()
 
@@ -107,30 +89,6 @@ func TestTokenRepository_FindByToken(t *testing.T) {
 	})
 }
 
-func TestTokenRepository_Update(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Token
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates token identifier", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "tokenUpdate")
-		token := testpkg.CreateTestToken(t, db, account.ID, "refresh")
-
-		identifier := "updated-identifier"
-		token.Identifier = &identifier
-		err := repo.Update(ctx, token)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, token.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found.Identifier)
-		assert.Equal(t, identifier, *found.Identifier)
-	})
-}
-
 func TestTokenRepository_Delete(t *testing.T) {
 	t.Parallel()
 
@@ -146,7 +104,7 @@ func TestTokenRepository_Delete(t *testing.T) {
 		err := repo.Delete(ctx, token.ID)
 		require.NoError(t, err)
 
-		_, err = repo.FindByID(ctx, token.ID)
+		_, err = repo.FindByToken(ctx, token.Token)
 		require.Error(t, err)
 	})
 }
@@ -243,11 +201,12 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 		assert.GreaterOrEqual(t, deleted, 1)
 
 		// Verify expired token is gone
-		_, err = repo.FindByID(ctx, expiredTokenID)
+		_, err = repo.FindByToken(ctx, expiredTokenStr)
 		require.Error(t, err)
+		_ = expiredTokenID
 
 		// Verify valid token still exists
-		_, err = repo.FindByID(ctx, validToken.ID)
+		_, err = repo.FindByToken(ctx, validToken.Token)
 		require.NoError(t, err)
 	})
 }
@@ -337,9 +296,9 @@ func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 		require.Len(t, deleted, 2)
 
 		// Verify tokens are gone
-		_, err = repo.FindByID(ctx, token1.ID)
+		_, err = repo.FindByToken(ctx, token1.Token)
 		require.Error(t, err)
-		_, err = repo.FindByID(ctx, token2.ID)
+		_, err = repo.FindByToken(ctx, token2.Token)
 		require.Error(t, err)
 	})
 }
@@ -375,7 +334,7 @@ func TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx(t *
 		return nil
 	}))
 
-	_, err = repo.FindByID(testpkg.TenantContext(secondaryTenantID), other.ID)
+	_, err = repo.FindByToken(testpkg.TenantContext(secondaryTenantID), other.Token)
 	require.NoError(t, err)
 }
 
@@ -532,7 +491,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, deleted)
 	for _, token := range activeTokens {
-		_, err := repo.FindByID(ctx, token.ID)
+		_, err := repo.FindByToken(ctx, token.Token)
 		require.NoError(t, err, "rotated and expired rows must not displace active sessions")
 	}
 
@@ -560,9 +519,9 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	assert.NotContains(t, currentIDs, activeTokens[0].ID, "the oldest active session must be evicted")
 	assert.Contains(t, currentIDs, newest.ID, "the newly created session must survive cap enforcement")
 
-	_, err = repo.FindByID(ctx, rotated.ID)
+	_, err = repo.FindByToken(ctx, rotated.Token)
 	require.NoError(t, err, "session-cap cleanup must leave recovery handoffs alone")
-	_, err = repo.FindByID(ctx, expired.ID)
+	_, err = repo.FindByToken(ctx, expired.Token)
 	require.NoError(t, err, "session-cap cleanup must leave expired-token cleanup to its own lifecycle")
 }
 
@@ -597,7 +556,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal(t *testin
 	require.NoError(t, err)
 	require.Empty(t, deleted)
 
-	_, err = repo.FindByID(ctx, parent.ID)
+	_, err = repo.FindByToken(ctx, parent.Token)
 	require.NoError(t, err, "a parent-portal session must not be evicted by the tenant session cap")
 }
 
@@ -635,10 +594,10 @@ func TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolat
 	require.Empty(t, deleted)
 
 	for _, token := range unknown {
-		_, err = repo.FindByID(ctx, token.ID)
+		_, err = repo.FindByToken(ctx, token.Token)
 		require.NoError(t, err, "unknown sessions must stay outside a known portal cap")
 	}
-	_, err = repo.FindByID(ctx, newest.ID)
+	_, err = repo.FindByToken(ctx, newest.Token)
 	require.NoError(t, err)
 }
 
@@ -676,7 +635,7 @@ func TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg
 	require.Len(t, deleted, 1)
 	require.Equal(t, orgTokens[0].ID, deleted[0].ID)
 
-	_, err = repo.FindByID(ctx, newest.ID)
+	_, err = repo.FindByToken(ctx, newest.Token)
 	require.NoError(t, err)
 }
 
@@ -785,10 +744,10 @@ func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
 	validPredecessor, validSuccessor := createHandoff(time.Now().Add(time.Hour))
 	require.NoError(t, repo.DeleteExpiredRotatedForAccount(ctx, account.ID, time.Now()))
 
-	_, err := repo.FindByID(ctx, expiredPredecessor.ID)
+	_, err := repo.FindByToken(ctx, expiredPredecessor.Token)
 	assert.Error(t, err)
 	for _, token := range []*auth.Token{expiredSuccessor, validPredecessor, validSuccessor} {
-		_, err = repo.FindByID(ctx, token.ID)
+		_, err = repo.FindByToken(ctx, token.Token)
 		require.NoError(t, err, "cleanup must preserve current sessions and unexpired replay evidence")
 	}
 }
@@ -886,6 +845,13 @@ func TestTokenRepository_ListWithFilters(t *testing.T) {
 		assert.True(t, found)
 	})
 
+	t.Run("refuses conflicting or unknown filters", func(t *testing.T) {
+		_, err := repo.List(ctx, map[string]interface{}{"active": true, "expired": true})
+		require.Error(t, err, "active and expired together would depend on map order")
+		_, err = repo.List(ctx, map[string]interface{}{"identifier": "x"})
+		require.Error(t, err, "an unsupported filter must not silently widen the result")
+	})
+
 	t.Run("filters by active", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "activeFilter")
 
@@ -948,7 +914,7 @@ func TestTokenRepository_DeleteByTenantID(t *testing.T) {
 		assert.Len(t, deleted, 1)
 
 		// Verify the token is actually gone
-		_, findErr := repo.FindByID(ctx, token.ID)
+		_, findErr := repo.FindByToken(ctx, token.Token)
 		assert.Error(t, findErr, "token should no longer exist after DeleteByTenantID")
 	})
 
@@ -970,7 +936,7 @@ func TestTokenRepository_CountExpiredTokens(t *testing.T) {
 
 	db := testpkg.SetupIsolatedTestDB(t)
 
-	repo := authRepo.NewTokenRepository(db)
+	repo := repositories.NewTokenRepository(db)
 	ctx := testpkg.Ctx(t)
 	account := testpkg.CreateTestAccount(t, db, "countExpiredToken")
 

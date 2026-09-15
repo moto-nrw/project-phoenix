@@ -2061,11 +2061,11 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount",
       "target": "database/repositories.NewFactory",
       "lines": [
-        500
+        459
       ],
       "tables": [
         "auth.tokens"
@@ -2073,48 +2073,38 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        688
+        647
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown",
       "target": "database/repositories.NewFactory",
       "lines": [
-        732
+        691
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal",
       "target": "database/repositories.NewFactory",
       "lines": [
-        574
+        533
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        650
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated",
       "target": "database/repositories.NewFactory",
       "lines": [
         609
@@ -2123,28 +2113,136 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        568
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        34
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        911
+        877
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_Delete",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        97
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        346
+      ],
+      "tables": [
+        "auth.tokens"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteByAccountID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        286
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        374
+      ],
+      "tables": [
+        "auth.tokens"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        311
+      ],
+      "tables": [
+        "auth.tokens"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteByFamilyID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        415
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteByTenantID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        896
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteExpiredRotatedForAccount",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        718
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_DeleteExpiredTokens",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        178
+      ],
+      "tables": [
+        "auth.tokens"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/token_adapter_test.go",
+      "declaration": "TestTokenRepository_FindByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
         139
@@ -2153,179 +2251,61 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        387
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        327
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        415
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        352
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteByFamilyID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        456
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteByTenantID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        930
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteExpiredRotatedForAccount",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        759
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_DeleteExpiredTokens",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        220
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_FindByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        181
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        69
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_FindByToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        92
+        74
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_GetLatestTokenInFamily",
       "target": "database/repositories.NewFactory",
       "lines": [
-        801
+        760
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_HasLiveTokensCreatedAfter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        260
+        219
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        163
+        121
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        858
+        817
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
+      "file": "database/repositories/auth/token_adapter_test.go",
       "declaration": "TestTokenRepository_RotationHandoffLifecycle",
       "target": "database/repositories.NewFactory",
       "lines": [
-        280
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_repository_test.go",
-      "declaration": "TestTokenRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        115
+        239
       ],
       "tables": []
     },
@@ -10473,7 +10453,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        463
+        462
       ],
       "tables": []
     },
@@ -10483,7 +10463,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        209
+        208
       ],
       "tables": []
     },

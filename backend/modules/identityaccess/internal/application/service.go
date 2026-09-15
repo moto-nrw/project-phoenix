@@ -17,16 +17,17 @@ import (
 type Service struct {
 	store     ports.Store
 	operators ports.OperatorStore
+	sessions  ports.AccountSessionStore
 	tx        ports.Transaction
 	tenantOf  func(context.Context) int64
 	observe   ports.Observer
 }
 
-func New(store ports.Store, operators ports.OperatorStore, tx ports.Transaction, tenantOf func(context.Context) int64, observe ports.Observer) *Service {
-	if store == nil || operators == nil || tx == nil || tenantOf == nil || observe == nil {
+func New(store ports.Store, operators ports.OperatorStore, sessions ports.AccountSessionStore, tx ports.Transaction, tenantOf func(context.Context) int64, observe ports.Observer) *Service {
+	if store == nil || operators == nil || sessions == nil || tx == nil || tenantOf == nil || observe == nil {
 		panic("identity access application: all dependencies are required")
 	}
-	return &Service{store: store, operators: operators, tx: tx, tenantOf: tenantOf, observe: observe}
+	return &Service{store: store, operators: operators, sessions: sessions, tx: tx, tenantOf: tenantOf, observe: observe}
 }
 
 func (s *Service) FindAccount(ctx context.Context, id int64) (result domain.Account, err error) {
