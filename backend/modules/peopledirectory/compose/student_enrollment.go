@@ -16,6 +16,10 @@ func (e engine) LockEnrollmentClassWrites(ctx context.Context) error {
 	return mapError(e.students.LockEnrollmentClassWrites(ctx))
 }
 
+func (e engine) LockEnrollmentClassWritesExclusive(ctx context.Context) error {
+	return mapError(e.students.LockEnrollmentClassWritesExclusive(ctx))
+}
+
 func (e engine) ApplyEnrollmentProfile(ctx context.Context, id int64, input peopledirectory.EnrollmentProfilePatch) error {
 	return mapError(e.students.ApplyEnrollmentProfile(ctx, id, domain.EnrollmentProfilePatch(input)))
 }

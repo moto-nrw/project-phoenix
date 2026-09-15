@@ -219,7 +219,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
 	})
-	grade.GradeTransition.SetOfferingSourceResyncer(enrollmentDecisionService.(education.OfferingSourceResyncer))
+	grade.BindOfferingResync(enrollmentDecisionService.(education.OfferingSourceResyncer))
 	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
 	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(

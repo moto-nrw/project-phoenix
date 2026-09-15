@@ -2,10 +2,8 @@ package repositories
 
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/uptrace/bun"
@@ -16,7 +14,7 @@ type CareLifecycleTestRepositories struct {
 	CareExit         usersModels.CareExitRepository
 	CareExitCleanup  usersModels.CareExitCleanupRepository
 	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
-	GradeTransition  educationModels.GradeTransitionRepository
+	TagReleaser      StudentTagReleaser
 	StudentFieldEdit auditModels.StudentFieldEditRepository
 }
 
@@ -35,7 +33,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	}
 	r := &Factory{db: db,
 		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: tt.Timetable}, newStudentPresence(db)),
-		CareWithdrawal: usersRepo.NewCareWithdrawalCompletionRepository(db), GradeTransition: educationRepo.NewGradeTransitionRepository(db),
+		CareWithdrawal: usersRepo.NewCareWithdrawalCompletionRepository(db),
 	}
 	r.BindPeopleDirectory(people)
 	r.bindDefaultFacilities(db)
@@ -47,6 +45,6 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	r.bindCarePlanAdapters(care)
 	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: tt.Timetable})
 	return CareLifecycleTestRepositories{TimetableTestRepositories: tt, CareExit: r.CareExit, CareExitCleanup: r.CareExitCleanup,
-		CareWithdrawal: r.CareWithdrawal, GradeTransition: r.GradeTransition,
+		CareWithdrawal: r.CareWithdrawal, TagReleaser: NewStudentTagReleaser(people),
 		StudentFieldEdit: studentFieldEditCommand{auditRepo.NewStudentFieldEditRepository(newTestAuditRuntime(db)), command}}, nil
 }
