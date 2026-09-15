@@ -14,12 +14,13 @@ import (
 // interface, keeping the tests honest about what the services touch.
 type parentSettingsStub struct {
 	configService.SettingsService
-	boolValues   map[string]bool
-	boolDefault  bool  // returned for keys not in boolValues
-	boolErr      error // returned by every bool lookup when set
-	stringValues map[string]string
-	stringErr    error
-	stringInTxFn func(string) (string, error)
+	boolValues               map[string]bool
+	boolDefault              bool  // returned for keys not in boolValues
+	boolErr                  error // returned by every bool lookup when set
+	stringValues             map[string]string
+	stringErr                error
+	stringInTxFn             func(string) (string, error)
+	lockPickupChangePolicyFn func(context.Context, int64) error
 }
 
 func (s parentSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
@@ -53,4 +54,11 @@ func (s parentSettingsStub) ResolveStringForTenantInTx(_ context.Context, _ int6
 		return strconv.FormatBool(value), nil
 	}
 	return s.stringValues[key], nil
+}
+
+func (s parentSettingsStub) LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	if s.lockPickupChangePolicyFn != nil {
+		return s.lockPickupChangePolicyFn(ctx, tenantID)
+	}
+	return nil
 }

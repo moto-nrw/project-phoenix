@@ -670,6 +670,9 @@ func (s *settingsService) SetValue(ctx context.Context, key string, value any, c
 	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
 		return &SettingsError{Op: "set_value", Err: err}
 	}
+	if err := s.lockParentPickupChangePolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "set_value", Err: err}
+	}
 
 	// Cross-field invariants the per-field validation above cannot express.
 	// Rejecting the pair here is what keeps an unusable configuration from ever
@@ -773,6 +776,9 @@ func (s *settingsService) ResetValue(ctx context.Context, key string, changedBy 
 	// A reset restores the registry default, which changes the effective mode
 	// exactly like a write does — same lock, same reason (see lockMFAPolicy).
 	if err := s.lockMFAPolicyForWrite(ctx, key); err != nil {
+		return &SettingsError{Op: "reset_value", Err: err}
+	}
+	if err := s.lockParentPickupChangePolicyForWrite(ctx, key); err != nil {
 		return &SettingsError{Op: "reset_value", Err: err}
 	}
 
@@ -1274,6 +1280,52 @@ func (s *settingsService) lockMFAPolicyForWrite(ctx context.Context, key string)
 		return nil
 	}
 	return s.LockMFAPolicy(ctx)
+}
+
+// LockParentPickupChangePolicy takes the exclusive per-tenant policy lock on
+// the parent pickup-change switch and its same-day cutoff. The corresponding
+// guardian write takes the shared side before it re-reads both values.
+func (s *settingsService) LockParentPickupChangePolicy(ctx context.Context) error {
+	return s.lockParentPickupChangePolicy(ctx, s.tenantID(ctx), false)
+}
+
+// LockParentPickupChangePolicySharedForTenant takes the shared side of the
+// parent pickup-change policy lock for a guardian write transaction.
+func (s *settingsService) LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	return s.lockParentPickupChangePolicy(ctx, tenantID, true)
+}
+
+// lockParentPickupChangePolicy serializes settings writes with guardian
+// pickup-change writes. Without the shared lock, the enabled flag and cutoff
+// can be read on separate READ COMMITTED snapshots, or a settings write can
+// commit after their re-read but before the parent write commits.
+func (s *settingsService) lockParentPickupChangePolicy(ctx context.Context, tenantID int64, shared bool) error {
+	if cache := requestCacheFromContext(ctx); cache != nil {
+		cache.evictTenant(tenantID)
+	}
+	if tenantID <= 0 || s.runtime == nil || !s.runtime.HasTransaction(ctx) {
+		return nil
+	}
+	if err := s.runtime.AcquireLock(ctx, parentPickupChangePolicyLockKey(tenantID), shared); err != nil {
+		return fmt.Errorf("lock parent pickup-change policy: %w", err)
+	}
+	return nil
+}
+
+// parentPickupChangePolicyLockKey is shared by writes to both settings and by
+// guardian writes that consume their effective policy. It is per tenant so
+// one school's settings update never stalls another school's families.
+func parentPickupChangePolicyLockKey(tenantID int64) string {
+	return fmt.Sprintf("parent-pickup-change-policy:%d", tenantID)
+}
+
+// lockParentPickupChangePolicyForWrite takes the exclusive policy lock for
+// either setting before the write reads the old value or changes the override.
+func (s *settingsService) lockParentPickupChangePolicyForWrite(ctx context.Context, key string) error {
+	if key != config.KeyParentPickupChangeEnabled && key != config.KeyParentPickupChangeCutoffTime {
+		return nil
+	}
+	return s.LockParentPickupChangePolicy(ctx)
 }
 
 // validateTimeFormat checks that a string is a valid HH:MM time.

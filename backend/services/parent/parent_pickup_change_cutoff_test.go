@@ -165,6 +165,69 @@ func TestSubmitPickupChangeRequestRechecksCutoffAtWriteBoundary(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed)
 }
 
+// A switch-off that commits after the initial feature gate but before the
+// parent write reaches its transaction must still reject the new request.
+func TestSubmitPickupChangeRequestRechecksEnablementAtWriteBoundary(t *testing.T) {
+	t.Parallel()
+
+	d := newCutoffServiceDeps(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
+	lockTaken := false
+	settings := cutoffStub(true, "11:00")
+	settings.stringInTxFn = func(key string) (string, error) {
+		if key == configModels.KeyParentPickupChangeEnabled {
+			return "false", nil
+		}
+		return settings.stringValues[key], nil
+	}
+	settings.lockPickupChangePolicyFn = func(ctx context.Context, tenantID int64) error {
+		_, inTx := tenant.TransactionFromContext(ctx)
+		require.True(t, inTx, "the policy lock must be held by the parent write transaction")
+		require.Equal(t, chain.TenantID, tenantID)
+		lockTaken = true
+		return nil
+	}
+
+	_, err := d.service(t, settings, berlinClock(10, 59)).SubmitPickupChangeRequest(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		cutoffToday,
+		cutoffPickupTime(),
+		"Arzttermin",
+		nil,
+	)
+	require.ErrorIs(t, err, parentService.ErrPickupChangeDisabled)
+	assert.True(t, lockTaken)
+}
+
+// The unrouted direct exception path is a guardian write too, so it must not
+// commit after the feature switch changed between its first check and write.
+func TestSubmitCareExceptionRechecksEnablementAtWriteBoundary(t *testing.T) {
+	t.Parallel()
+
+	d := newCutoffServiceDeps(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
+	settings := cutoffStub(true, "11:00")
+	settings.stringInTxFn = func(key string) (string, error) {
+		if key == configModels.KeyParentPickupChangeEnabled {
+			return "false", nil
+		}
+		return settings.stringValues[key], nil
+	}
+	pickupTime := cutoffPickupTime()
+
+	_, err := d.service(t, settings, berlinClock(10, 59)).SubmitCareExceptionWithReason(
+		testpkg.WithPackageTenantRuntime(context.Background()),
+		chain.AccountID,
+		chain.StudentID,
+		cutoffToday,
+		&pickupTime,
+		"Arzttermin",
+	)
+	require.ErrorIs(t, err, parentService.ErrPickupChangeDisabled)
+}
+
 // A request that came in before the cutoff cannot be edited afterwards; the
 // guardian's today is closed completely.
 func TestEditPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {

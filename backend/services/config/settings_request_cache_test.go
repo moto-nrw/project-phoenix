@@ -279,6 +279,9 @@ func TestLockHelpersFlushTenantCache(t *testing.T) {
 		{"class_collection", func(svc SettingsService, ctx context.Context) error {
 			return svc.LockClassCollectionPair(ctx)
 		}},
+		{"parent_pickup_change_policy", func(svc SettingsService, ctx context.Context) error {
+			return svc.LockParentPickupChangePolicy(ctx)
+		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

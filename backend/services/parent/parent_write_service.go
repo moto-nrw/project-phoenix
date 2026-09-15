@@ -1276,9 +1276,12 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 		if alreadyLeft {
 			return ErrCareExceptionAlreadyLeft
 		}
-		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		policy, err := s.pickupChangePolicyInTx(txCtx, child.tenantID)
 		if err != nil {
 			return err
+		}
+		if !policy.enabled {
+			return ErrPickupChangeDisabled
 		}
 		created, createErr := s.CareRequests.CreatePickupChange(txCtx, scheduleService.PickupChangeCreateInput{
 			StudentID:         studentID,
@@ -1289,7 +1292,7 @@ func (s *service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 			// The reason is mandatory only while the school asks the family
 			// for one (#2267, story 28).
 			ReasonRequired: reasonRequired,
-			Cutoff:         cutoff,
+			Cutoff:         policy.cutoff,
 		})
 		if createErr != nil {
 			return createErr
@@ -1449,11 +1452,14 @@ func (s *service) submitCareException(ctx context.Context, accountID, studentID 
 		if staffOwned {
 			return ErrCareExceptionConflict
 		}
-		cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.tenantID)
+		policy, err := s.pickupChangePolicyInTx(txCtx, child.tenantID)
 		if err != nil {
 			return err
 		}
-		if cutoff.Closed(date) {
+		if !policy.enabled {
+			return ErrPickupChangeDisabled
+		}
+		if policy.cutoff.Closed(date) {
 			return ErrPickupChangeCutoffPassed
 		}
 

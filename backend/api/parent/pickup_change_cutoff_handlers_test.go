@@ -38,6 +38,10 @@ func (s cutoffPassedSettings) ResolveStringForTenantInTx(ctx context.Context, te
 	return s.ResolveStringForTenant(ctx, tenantID, key)
 }
 
+func (cutoffPassedSettings) LockParentPickupChangePolicySharedForTenant(context.Context, int64) error {
+	return nil
+}
+
 // #3163: a client that skips the portal's lock still gets refused, with a
 // code of its own rather than a generic 400.
 func TestDeleteCareExceptionEndpoint_RejectsTodayAfterCutoff(t *testing.T) {

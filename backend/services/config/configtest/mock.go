@@ -18,33 +18,35 @@ import (
 
 // Mock is a func-field test double for config.SettingsService.
 type Mock struct {
-	EnrollmentEnabledForTenantsFn  func(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
-	GetSchemaFn                    func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
-	GetSchemaForOperatorFn         func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
-	ResolveFn                      func(ctx context.Context, key string) (any, error)
-	ResolveManyFn                  func(ctx context.Context, keys []string) (*config.SettingsSnapshot, error)
-	ResolveManyForTenantFn         func(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error)
-	ResolveManyForTenantsFn        func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error)
-	ResolveStringFn                func(ctx context.Context, key string) (string, error)
-	ResolveStringForTenantFn       func(ctx context.Context, tenantID int64, key string) (string, error)
-	ResolveStringForTenantInTxFn   func(ctx context.Context, tenantID int64, key string) (string, error)
-	ResolveBoolFn                  func(ctx context.Context, key string) (bool, error)
-	ResolveBoolsFn                 func(ctx context.Context, keys []string) (map[string]bool, error)
-	ResolveBoolForTenantFn         func(ctx context.Context, tenantID int64, key string) (bool, error)
-	ResolveIntFn                   func(ctx context.Context, key string) (int, error)
-	ResolveIntForTenantFn          func(ctx context.Context, tenantID int64, key string) (int, error)
-	HasTenantOverrideFn            func(ctx context.Context, key string) (bool, error)
-	SetValueFn                     func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
-	ResetValueFn                   func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
-	CheckOperatorWritableFn        func(key string) error
-	GetLoginImageURLFn             func(ctx context.Context, tenantID int64) (string, error)
-	SetLoginImageURLFn             func(ctx context.Context, tenantID int64, imageURL string) (string, error)
-	ClearLoginImageURLFn           func(ctx context.Context, tenantID int64) (string, error)
-	LockSlotListCutoffPairFn       func(ctx context.Context) error
-	LockSlotListCutoffPairSharedFn func(ctx context.Context) error
-	LockClassCollectionPairFn      func(ctx context.Context) error
-	LockMFAPolicyFn                func(ctx context.Context) error
-	LockMFAPolicySharedForTenantFn func(ctx context.Context, tenantID int64) error
+	EnrollmentEnabledForTenantsFn                 func(ctx context.Context, tenantIDs []int64) (map[int64]bool, error)
+	GetSchemaFn                                   func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
+	GetSchemaForOperatorFn                        func(ctx context.Context, userPermissions []string) (*config.SettingsSchema, error)
+	ResolveFn                                     func(ctx context.Context, key string) (any, error)
+	ResolveManyFn                                 func(ctx context.Context, keys []string) (*config.SettingsSnapshot, error)
+	ResolveManyForTenantFn                        func(ctx context.Context, tenantID int64, keys []string) (*config.SettingsSnapshot, error)
+	ResolveManyForTenantsFn                       func(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]*config.SettingsSnapshot, error)
+	ResolveStringFn                               func(ctx context.Context, key string) (string, error)
+	ResolveStringForTenantFn                      func(ctx context.Context, tenantID int64, key string) (string, error)
+	ResolveStringForTenantInTxFn                  func(ctx context.Context, tenantID int64, key string) (string, error)
+	ResolveBoolFn                                 func(ctx context.Context, key string) (bool, error)
+	ResolveBoolsFn                                func(ctx context.Context, keys []string) (map[string]bool, error)
+	ResolveBoolForTenantFn                        func(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveIntFn                                  func(ctx context.Context, key string) (int, error)
+	ResolveIntForTenantFn                         func(ctx context.Context, tenantID int64, key string) (int, error)
+	HasTenantOverrideFn                           func(ctx context.Context, key string) (bool, error)
+	SetValueFn                                    func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
+	ResetValueFn                                  func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+	CheckOperatorWritableFn                       func(key string) error
+	GetLoginImageURLFn                            func(ctx context.Context, tenantID int64) (string, error)
+	SetLoginImageURLFn                            func(ctx context.Context, tenantID int64, imageURL string) (string, error)
+	ClearLoginImageURLFn                          func(ctx context.Context, tenantID int64) (string, error)
+	LockSlotListCutoffPairFn                      func(ctx context.Context) error
+	LockSlotListCutoffPairSharedFn                func(ctx context.Context) error
+	LockClassCollectionPairFn                     func(ctx context.Context) error
+	LockMFAPolicyFn                               func(ctx context.Context) error
+	LockMFAPolicySharedForTenantFn                func(ctx context.Context, tenantID int64) error
+	LockParentPickupChangePolicyFn                func(ctx context.Context) error
+	LockParentPickupChangePolicySharedForTenantFn func(ctx context.Context, tenantID int64) error
 }
 
 func (m *Mock) EnrollmentEnabledForTenants(ctx context.Context, tenantIDs []int64) (map[int64]bool, error) {
@@ -249,6 +251,20 @@ func (m *Mock) LockMFAPolicy(ctx context.Context) error {
 func (m *Mock) LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error {
 	if m.LockMFAPolicySharedForTenantFn != nil {
 		return m.LockMFAPolicySharedForTenantFn(ctx, tenantID)
+	}
+	return nil
+}
+
+func (m *Mock) LockParentPickupChangePolicy(ctx context.Context) error {
+	if m.LockParentPickupChangePolicyFn != nil {
+		return m.LockParentPickupChangePolicyFn(ctx)
+	}
+	return nil
+}
+
+func (m *Mock) LockParentPickupChangePolicySharedForTenant(ctx context.Context, tenantID int64) error {
+	if m.LockParentPickupChangePolicySharedForTenantFn != nil {
+		return m.LockParentPickupChangePolicySharedForTenantFn(ctx, tenantID)
 	}
 	return nil
 }
