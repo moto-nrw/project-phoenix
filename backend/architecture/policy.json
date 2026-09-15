@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 8,
+  "policy_epoch": 9,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -3386,6 +3386,10 @@
     },
     {
       "name": "auth.accounts",
+      "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.accounts_parents",
       "write_owner": "identity-access"
     },
     {
