@@ -1,0 +1,160 @@
+{
+  "issue": "https://github.com/moto-nrw/project-phoenix/issues/2737",
+  "status": "incomplete",
+  "evidence_date": "2026-09-15",
+  "evidence_scope": "Current worktree after the presence inbound relocation, the work-schedule port cut and the settings-stub cut: the active routes are served from the presence inbound package, the retained work-session service names its schedule rows, work-time templates and Soll derivations in the presence vocabulary, and the package-internal tests ask the settings ports by question instead of by registry key.",
+  "remaining_keys": [
+    "external_test|database/repositories/active -> database/repositories",
+    "external_test|database/repositories/active -> database/repositories/active",
+    "external_test|database/repositories/active -> internal/timezone",
+    "external_test|database/repositories/active -> models/active",
+    "external_test|database/repositories/active -> models/base",
+    "external_test|services/active -> database/repositories",
+    "external_test|services/active -> internal/timezone",
+    "external_test|services/active -> models/active",
+    "external_test|services/active -> models/audit",
+    "external_test|services/active -> models/base",
+    "external_test|services/active -> models/schedule",
+    "external_test|services/active -> services",
+    "external_test|services/active -> services/active",
+    "external_test|services/active -> services/config",
+    "external_test|services/active -> services/schedule",
+    "external_test|services/active -> services/users",
+    "external_test|services/active -> tenant",
+    "internal_test|models/active -> internal/timezone",
+    "internal_test|services/active -> internal/timezone",
+    "internal_test|services/active -> models/base",
+    "internal_test|services/active -> tenant",
+    "internal_test|services/statistics -> internal/timezone",
+    "production|database/repositories/active -> internal/timezone",
+    "production|models/active -> internal/timezone",
+    "production|models/active -> models/base",
+    "production|services/active -> internal/timezone",
+    "production|services/active -> models/base",
+    "production|services/active -> tenant",
+    "production|services/statistics -> internal/timezone"
+  ],
+  "retired_service_methods": {
+    "names": [
+      "CheckTeacherStudentAccess",
+      "CountActiveVisitsByRoomID",
+      "FindCombinedGroupsByTimeRange",
+      "GetVisit",
+      "ListActiveGroups",
+      "FindActiveGroupsByGroupID",
+      "FindActiveGroupsByRoomID",
+      "GetActiveGroupVisits",
+      "FindVisitsByActiveGroupID",
+      "GetActiveGroupWithSupervisors",
+      "ListGroupSupervisors",
+      "FindSupervisorsByStaffID",
+      "FindSupervisorsByActiveGroupID",
+      "FindSupervisorsByActiveGroupIDs",
+      "GetStaffActiveSupervisions",
+      "GetGroupSupervisor",
+      "GetCombinedGroupWithGroups",
+      "CombinedGroupDetails",
+      "CombinedGroupMapping"
+    ],
+    "verification": "Current Go declarations and call sites must be checked per symbol; historical error operation strings and HTTP route names can remain. This list is incomplete for the entire migration."
+  },
+  "latest_verification": {
+    "scope": "packages touched by the relocation, the port cut and the settings cuts",
+    "tests": "go test ./services/... ./test/... ./modules/... ./api/... -count=1 green; scripts/test-changed.sh origin/development green over 190 packages",
+    "architecture": {
+      "legacy_keys": 1453,
+      "composition_field_setter_targets": 779
+    },
+    "lint": {
+      "issues": 0,
+      "scope": "backend"
+    },
+    "deadcode": "go tool deadcode clean in both the production and the test-entry-point pass",
+    "limitation": "Pull-request CI is the authoritative run; the numbers above are from this worktree."
+  },
+  "incomplete_requirements": [
+    "Remove all 68 remaining exact keys without new keys or ownership widening.",
+    "Complete the generated caller inventory for every removed symbol and provider; the retired-symbol list here is not an exhaustive inventory.",
+    "Record affected startup, route and job smoke results and p95/error-rate evidence.",
+    "Run the final required checks after the last implementation edit, including before-push test-changed when pushing.",
+    "Complete code review and commit the implementation on the current branch."
+  ],
+  "next_boundary": "No settings edge is left. What remains are the internal/timezone programme decision (7 keys here, 70 across the baseline), the two external test packages importing the package they test (unremovable by construction, to be struck from the ticket), and the models/base, models/active, models/audit, models/schedule, tenant, repositories and sibling-service edges, each of which is a capability cut of its own size.",
+  "reassessment": {
+    "reason": "User requested a credible completion estimate after prolonged incremental work.",
+    "remaining_key_count": 29,
+    "production_keys": 11,
+    "test_keys": 47,
+    "import_locations": 650,
+    "affected_files": 249,
+    "graph": "/var/folders/j7/7kqbqjhd4832k7mfwk0httlw0000gn/T/phoenix-backend-architecture-3337068393/architecture.json",
+    "groups": [
+      {
+        "source": "api/active",
+        "production": 4,
+        "internal_test": 10,
+        "external_test": 9
+      },
+      {
+        "source": "database/repositories/active",
+        "production": 1,
+        "internal_test": 0,
+        "external_test": 6
+      },
+      {
+        "source": "services/active",
+        "production": 8,
+        "internal_test": 8,
+        "external_test": 17
+      },
+      {
+        "source": "models/active",
+        "production": 2,
+        "internal_test": 1,
+        "external_test": 0
+      },
+      {
+        "source": "services/statistics",
+        "production": 1,
+        "internal_test": 1,
+        "external_test": 0
+      }
+    ],
+    "estimate": "No reliable completion ETA established. Remaining work is live capability/interface migration, not a short import cleanup.",
+    "critical_path": [
+      "Finish native session/supervision reads and consumer-owned command contracts; remove api/active model and legacy-service dependencies without changing HTTP errors or authorization.",
+      "Contract retained workforce and attendance implementations against target owner interfaces, including transactions, settings, directory data and event delivery. Preserve calendar-date types and validated writes.",
+      "Migrate model/repository and test consumers at their allowed target seams; remove obsolete providers rather than relocating violations or weakening policy.",
+      "Verify all 68 exact keys are absent, produce complete zero-caller evidence, run affected runtime smoke/metrics, perform final review and required checks, then commit."
+    ],
+    "verification_strategy": "Use focused behavior and architecture checks during each coherent migration; defer the next full-suite run until a complete contract cut or a failure requires broader verification. Do not repeat the full suite solely after removing each trivial wrapper."
+  },
+  "retired_repository_contracts": {
+    "names": [
+      "GroupSupervisorRepository.List",
+      "GroupSupervisorListOptions"
+    ],
+    "verification": "Legacy supervision list implementation, interface member, options type and callers removed; native query tests retain active/ended/future date filtering and staff-filter composition."
+  },
+  "completed_supervision_read_cuts": [
+    "HTTP list/detail/staff/group responses, group relation enrichment and staff group-access checks",
+    "Device-scan and kiosk session lifecycle projections; mirror remains successful on trailing response lookup failure",
+    "Checkout attribution preserves unavailable-supervision versus database-failure distinction",
+    "Scheduling conflict and reopen checks; failed reopen supervision lookup retains completed state and allows retry",
+    "Facilities projections no longer depend on the active service",
+    "Reminder delivery and SSE use native staff supervision reads",
+    "Dashboard staff-group projection uses native IDs; user-context test module no longer constructs an active service for SSE",
+    "api/active no longer imports services/active or models/active: a consumer-owned PresenceOperations port (studentpresence public values and sentinels) is bound to the retained service by services.NewPresenceOperations; single-session, supervision-row and combination-group reads are native presence queries",
+    "services/active sentinel errors alias the studentpresence public sentinels; RoomCapacityError lives in the owner package; services/active no longer imports cmp",
+    "services/active no longer imports bun: the retained services keep a DatabaseHandle presence marker and the status-day writes use the generic tenant transaction entry point",
+    "services/active no longer imports realtime: every presence broadcast goes through named producers in the Delivery realtimeevents application package and the retained services hold an EventPublisher port that embeds the Delivery publisher contract",
+    "services/active -> models/users removed in all three scopes: StudentRecord, StudentLifecycle, PersonName and StaffScheduleBinding are presence-owned; adapters live in services/student_records.go, services/status_day_students.go and api/students/status_day_students.go",
+    "internal_test services/active -> database/repositories removed by moving the bulk status-day test to the external test package",
+    "settings: all five presence settings ports now name their questions; the registry keys live in services/presence_settings.go, clearing 9 of the 11 models/config files",
+    "work session contract: five zero-caller schedule methods removed from the public interface",
+    "the active HTTP adapter moved into the Student Presence module as student-presence/http (authorised by the relocation subissue): nine exact keys and the root-composition entry of the root-api ticket left the baseline; routes, status codes and error strings are unchanged and the remaining legacy edges are recorded as compatibility permissions with their conversion condition",
+    "production services/active to the settings models package removed: WorkScheduleRow, WorkTimeTemplate and the pure Soll derivations are presence-owned on timezone.Date, and the services root binds the schedule and template ports to the retained repositories",
+    "internal_test services/active to the settings models package removed: the presence and time-tracking settings stubs answer questions instead of registry keys, and the DB-writing schedule fixtures create their rows through CreateTestStaffWorkScheduleForTenant",
+    "external_test services/active to the settings models package removed: the DATEV export test scripts a school's payroll configuration and the schedule adapter tests script their rows through the new settings test support, which owns the registry-key and ORM vocabulary; the payroll status service and the composition adapters stay under test unchanged"
+  ]
+}

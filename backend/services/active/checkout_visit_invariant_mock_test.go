@@ -22,7 +22,7 @@ func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	lookupErr := errors.New("connection reset")
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return nil, lookupErr
 		},
@@ -50,7 +50,7 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	openView := *endedVisit
 	openView.ExitTime = nil
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return &openView, nil
 		},
@@ -77,7 +77,7 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 	}
 	endCalled := false
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return openVisit, nil
 		},
@@ -112,7 +112,7 @@ func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 		EntryTime: time.Now().Add(-1 * time.Hour),
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return openVisit, nil
 		},
@@ -138,7 +138,7 @@ func TestEndOpenVisitForStudent_NextDayVisitIsLeftAlone(t *testing.T) {
 	// attendance; a room visit the student started AFTER that day belongs to
 	// the new day's session and must stay open (review #2372).
 	endCalled := false
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: &mockVisitRepository{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(context.Context, int64) (*studentpresence.Visit, error) {
 			return &studentpresence.Visit{
 				ID:        4715,

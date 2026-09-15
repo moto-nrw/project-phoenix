@@ -85,3 +85,39 @@ func (e engine) CloseAttendance(ctx context.Context, input studentpresence.Atten
 	}
 	return attendanceRowsToPublic(rows), nil
 }
+
+func (e engine) ListAttendanceDays(ctx context.Context, from, to string) ([]studentpresence.AttendanceDay, error) {
+	start, err := timezone.ParseDate(from)
+	if err != nil {
+		return nil, err
+	}
+	end, err := timezone.ParseDate(to)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := e.Service.ListAttendanceDays(ctx, start, end)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]studentpresence.AttendanceDay, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, studentpresence.AttendanceDay{StudentID: row.StudentID, Date: row.Date.String()})
+	}
+	return result, nil
+}
+
+func (e engine) RoomUtilization(ctx context.Context, windows []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, error) {
+	input := make([]ports.StudentVisitWindow, 0, len(windows))
+	for _, window := range windows {
+		input = append(input, ports.StudentVisitWindow(window))
+	}
+	rows, err := e.Service.RoomUtilization(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]studentpresence.RoomUtilization, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, studentpresence.RoomUtilization(row))
+	}
+	return result, nil
+}

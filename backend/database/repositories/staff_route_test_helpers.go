@@ -2,24 +2,15 @@ package repositories
 
 import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	workforceRepo "github.com/moto-nrw/project-phoenix/database/repositories/workforce"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/uptrace/bun"
 )
 
-type AbsenceTypeTestRepositories struct {
-	Types      activeModels.StaffAbsenceTypeRepository
-	Allowances activeModels.StaffAbsenceTypeAllowanceRepository
-	Changes    activeModels.StaffAbsenceTypeAllowanceChangeRepository
-	Absences   activeModels.StaffAbsenceRepository
-}
-
-func NewAbsenceTypeTestRepositories(db *bun.DB) AbsenceTypeTestRepositories {
+func NewAbsenceTypeTestCapability(db *bun.DB) workforce.Capability {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(err)
@@ -28,12 +19,7 @@ func NewAbsenceTypeTestRepositories(db *bun.DB) AbsenceTypeTestRepositories {
 	if err != nil {
 		panic(err)
 	}
-	return AbsenceTypeTestRepositories{
-		Types:      workforceLegacy.NewStaffAbsenceTypeRepository(workTime),
-		Allowances: workforceRepo.NewStaffAbsenceTypeAllowanceRepository(db),
-		Changes:    workforceRepo.NewStaffAbsenceTypeAllowanceChangeRepository(db),
-		Absences:   workforceLegacy.NewStaffAbsenceRepository(workTime),
-	}
+	return workTime
 }
 
 type ShiftTypeTestRepositories struct {

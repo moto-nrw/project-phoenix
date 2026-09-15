@@ -15,7 +15,6 @@ import (
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -76,7 +75,7 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
 	}
-	group := activeRepo.NewGroupRepository(db, activeDeviceDirectory{devices: fleet})
+	group := activeRepo.NewGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}))
 	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
 	rooms, err := NewFacilities(db)
 	if err != nil {
@@ -84,22 +83,21 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	}
 	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
 	return SessionCleanupRepositories{
-		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(db), Device: device,
+		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
 		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
 	}
 }
 
 type RetentionCleanupRepositories struct {
 	Supervisor activeModels.GroupSupervisorRepository
-	Consent    usersModels.PrivacyConsentRepository
 	Deletion   auditModels.DataDeletionRepository
 }
 
 func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
-		Supervisor: activeRepo.NewGroupSupervisorRepository(db), Consent: activeRepo.NewPrivacyConsentRepository(db),
-		Deletion: RouteDataDeletionWrites(deletions, command),
+		Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
+		Deletion:   RouteDataDeletionWrites(deletions, command),
 	}
 }
 

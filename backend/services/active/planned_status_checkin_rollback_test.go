@@ -6,15 +6,13 @@ import (
 	"testing"
 	"time"
 
-	deviceAuth "github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -51,7 +49,7 @@ func (r *plannedStatusFault) MarkClearedByID(ctx context.Context, id int64, at t
 }
 
 type plannedStudentFault struct {
-	userModels.StudentRepository
+	activeService.PresenceStudents
 	writeErr error
 	writes   int
 }
@@ -68,8 +66,8 @@ func (r *checkinAttributionFault) FindActiveByDeviceID(ctx context.Context, id i
 	return r.GroupRepository.FindActiveByDeviceID(ctx, id)
 }
 
-func (r *plannedStudentFault) Update(ctx context.Context, student *userModels.Student) error {
-	if err := r.StudentRepository.Update(ctx, student); err != nil {
+func (r *plannedStudentFault) UpdateLiveStatus(ctx context.Context, student *activeService.StudentRecord) error {
+	if err := r.PresenceStudents.UpdateLiveStatus(ctx, student); err != nil {
 		return err
 	}
 	r.writes++
@@ -113,46 +111,47 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	require.NoError(t, err)
 	devices, err := repositories.NewDeviceRepository(db)
 	require.NoError(t, err)
-	deviceFault := activeService.NewCheckinDeviceFault(devices)
+	deviceFault := activeService.NewCheckinDeviceFault(services.NewSessionDeviceDirectory(devices, nil, nil))
 	groupFault := &checkinAttributionFault{GroupRepository: repos.ActiveGroup}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: repos.StudentStatusDay}
-	students := &plannedStudentFault{StudentRepository: repos.Student}
+	students := &plannedStudentFault{PresenceStudents: services.PresenceStudents(repos.Student)}
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := activeService.NewService(activeService.ServiceDependencies{
+	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
-		StaffRepo: repos.Staff, PersonRepo: repos.Person, TeacherRepo: repos.Teacher,
-		EducationGroupRepo: repos.Group, GroupRepo: groupFault, DeviceRepo: deviceFault,
-		RoomRepo: repos.Room, ActivityGroupRepo: repos.ActivityGroup,
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
+		RoomRepo: services.NewAttendanceRooms(repos.Room), ActivityGroupRepo: repositories.NewSessionActivities(repos.ActivityGroup),
 		DB: db, Broadcaster: broadcaster,
 	})
 	testpkg.SetTenantRuntime(t, svc, db)
 	var settingsErr error
-	svc.SetSettingsService(&configtest.Mock{
-		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			if settingsErr != nil && stage == "presence setting" && key == configModel.KeyPresenceMode {
+	clearMode := func(failingStage string) (string, error) {
+		if settingsErr != nil && stage == failingStage {
+			return "", settingsErr
+		}
+		if kind != "planned" {
+			return activeService.ClearModeNextCheckin, nil
+		}
+		return "manual", nil
+	}
+	svc.SetSettingsService(presenceSettingsStub{
+		presenceModeFn: func() (string, error) {
+			if settingsErr != nil && stage == "presence setting" {
 				return "", settingsErr
 			}
-			if settingsErr != nil && ((stage == "sick setting" && key == configModel.KeySickClearMode) || (stage == "excused setting" && key == configModel.KeyExcusedClearMode)) {
-				return "", settingsErr
+			if mode == "visit" {
+				return activeService.PresenceModeDetailed, nil
 			}
-			if key == configModel.KeyPresenceMode {
-				if mode == "visit" {
-					return "detailed", nil
-				}
-				return "binary", nil
-			}
-			if kind != "planned" {
-				return "next_checkin", nil
-			}
-			return "manual", nil
+			return activeService.PresenceModeBinary, nil
 		},
+		sickClearModeFn:    func() (string, error) { return clearMode("sick setting") },
+		excusedClearModeFn: func() (string, error) { return clearMode("excused setting") },
 	})
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
-	ctx = context.WithValue(ctx, deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-	ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
+	ctx = services.WithAttendanceDevice(ctx, device.ID, device.TenantID)
+	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	student := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
 	var groupID int64
 	if mode == "visit" {
@@ -189,10 +188,10 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		checkinCtx, deviceID := ctx, device.ID
 		if stage == "device lookup" {
 			deviceID = 0
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxStaff, staffPrincipal(staff))
+			checkinCtx = services.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
 		}
 		if stage == "staff attribution" {
-			checkinCtx = context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
+			checkinCtx = services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
 		}
 		if mode == "visit" {
 			return svc.CreateVisit(checkinCtx, &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: groupID, EntryTime: time.Now()})

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/assert"
@@ -23,24 +22,53 @@ import (
 // stubSettingsResolver implements the minimal SettingsResolver surface
 // the service uses. Real SettingsService is heavier than we need here.
 type stubSettingsResolver struct {
-	// Key → (value, error) — unset key returns "" with no error, mimicking
-	// how ResolveString behaves for a missing override.
+	// Question → (value, error) — an unscripted question returns "" with no
+	// error, mimicking how a missing override resolves.
 	stringValues map[string]string
 	stringErr    error
 	intValues    map[string]int
 }
 
-func (s *stubSettingsResolver) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (s *stubSettingsResolver) ResolveString(_ context.Context, key string) (string, error) {
+// The questions the service asks. The registry keys they resolve to are named
+// and tested where the settings ports are bound, in the services root.
+const (
+	presenceModeQuestion             = "presence mode"
+	sickClearModeQuestion            = "sick clear mode"
+	excusedClearModeQuestion         = "excused clear mode"
+	attendanceEditScopeQuestion      = "attendance edit scope"
+	operationalOverviewScopeQuestion = "operational overview scope"
+	sessionInactivityTimeoutQuestion = "session inactivity timeout"
+)
+
+func (s *stubSettingsResolver) resolveString(question string) (string, error) {
 	if s.stringErr != nil {
 		return "", s.stringErr
 	}
-	return s.stringValues[key], nil
+	return s.stringValues[question], nil
 }
-func (s *stubSettingsResolver) ResolveInt(_ context.Context, key string) (int, error) {
-	return s.intValues[key], nil
+
+func (s *stubSettingsResolver) PresenceMode(context.Context) (string, error) {
+	return s.resolveString(presenceModeQuestion)
+}
+
+func (s *stubSettingsResolver) SickClearMode(context.Context) (string, error) {
+	return s.resolveString(sickClearModeQuestion)
+}
+
+func (s *stubSettingsResolver) ExcusedClearMode(context.Context) (string, error) {
+	return s.resolveString(excusedClearModeQuestion)
+}
+
+func (s *stubSettingsResolver) AttendanceEditScope(context.Context) (string, error) {
+	return s.resolveString(attendanceEditScopeQuestion)
+}
+
+func (s *stubSettingsResolver) OperationalOverviewScope(context.Context) (string, error) {
+	return s.resolveString(operationalOverviewScopeQuestion)
+}
+
+func (s *stubSettingsResolver) SessionInactivityTimeoutMinutes(context.Context) (int, error) {
+	return s.intValues[sessionInactivityTimeoutQuestion], nil
 }
 
 func TestResolvePresenceModeRejectsFailuresAndInvalidValues(t *testing.T) {
@@ -55,9 +83,9 @@ func TestResolvePresenceModeRejectsFailuresAndInvalidValues(t *testing.T) {
 		{name: "missing wiring", wantErr: true},
 		{name: "read error", resolver: &stubSettingsResolver{stringErr: injected}, wantErr: true},
 		{name: "empty", resolver: &stubSettingsResolver{}, wantErr: true},
-		{name: "invalid", resolver: &stubSettingsResolver{stringValues: map[string]string{configModel.KeyPresenceMode: "manual"}}, wantErr: true},
-		{name: "detailed", resolver: &stubSettingsResolver{stringValues: map[string]string{configModel.KeyPresenceMode: PresenceModeDetailed}}, want: PresenceModeDetailed},
-		{name: "binary", resolver: &stubSettingsResolver{stringValues: map[string]string{configModel.KeyPresenceMode: PresenceModeBinary}}, want: PresenceModeBinary},
+		{name: "invalid", resolver: &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: "manual"}}, wantErr: true},
+		{name: "detailed", resolver: &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeDetailed}}, want: PresenceModeDetailed},
+		{name: "binary", resolver: &stubSettingsResolver{stringValues: map[string]string{presenceModeQuestion: PresenceModeBinary}}, want: PresenceModeBinary},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc := &service{settings: tc.resolver}
@@ -83,8 +111,8 @@ func TestService_CreateVisit_BinaryMode_IsNoOp(t *testing.T) {
 	// proves the short-circuit — if the gate leaks, this would panic. Visit
 	// must pass Validate() (StudentID/ActiveGroupID/EntryTime), since the
 	// gate is placed after validation to preserve caller-contract errors.
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
-		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{presenceModeQuestion: "binary"},
 	},
 	}
 	visit := &studentpresence.Visit{
@@ -102,8 +130,8 @@ func TestService_EndVisit_BinaryMode_IsNoOp(t *testing.T) {
 
 	// Same contract for EndVisit — stale visit IDs from before a mode
 	// switch hit the no-op path instead of a missing-row error.
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
-		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{presenceModeQuestion: "binary"},
 	},
 	}
 
@@ -114,8 +142,8 @@ func TestService_EndVisit_BinaryMode_IsNoOp(t *testing.T) {
 func TestService_EndDailySessions_BinaryMode_ReturnsEmptySuccess(t *testing.T) {
 	t.Parallel()
 
-	s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
-		stringValues: map[string]string{"operations.presence_mode": "binary"},
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
+		stringValues: map[string]string{presenceModeQuestion: "binary"},
 	},
 	}
 

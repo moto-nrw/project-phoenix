@@ -11,6 +11,7 @@ import (
 	"time"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -36,7 +37,7 @@ import (
 func CreateTestRoomCapacityError(tb testing.TB) error {
 	tb.Helper()
 	room := CreateTestRoom(tb, SetupTestDB(tb), "capacity error")
-	return &active.RoomCapacityError{
+	return &studentpresence.RoomCapacityError{
 		RoomID: room.ID, RoomName: room.Name,
 		CurrentOccupancy: 43, MaxCapacity: 43,
 	}
@@ -528,6 +529,15 @@ func CreateTestClassTeacher(tb testing.TB, db *bun.DB, staffID int64, schoolClas
 // Active Domain Fixtures (Sessions and Visits)
 // ============================================================================
 
+// fixtureInstant is the clock every fixture that writes a TIMESTAMPTZ and hands
+// the row back should use. PostgreSQL stores microseconds, so a bare time.Now()
+// leaves the returned struct holding nanosecond digits the database dropped —
+// and a test comparing the fixture against a re-read row then fails on Linux,
+// whose clock has that resolution, while passing on macOS, whose clock does not.
+func fixtureInstant() time.Time {
+	return time.Now().Round(time.Microsecond)
+}
+
 // CreateTestActiveGroup creates a real active group (session) in the database.
 // This requires an ActivityGroup (activities.groups) and Room to exist.
 // Use this for testing session management and visit tracking.
@@ -537,7 +547,7 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	now := time.Now()
+	now := fixtureInstant()
 	activeGroup := &active.Group{
 		GroupID:        &activityGroupID,
 		RoomID:         roomID,
@@ -2156,7 +2166,7 @@ func CreateTestActiveGroupWithIDsForTenant(tb testing.TB, db *bun.DB, tenantID, 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	now := time.Now()
+	now := fixtureInstant()
 	activeGroup := &active.Group{
 		GroupID:        &activityGroupID,
 		RoomID:         roomID,

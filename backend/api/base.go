@@ -26,7 +26,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
-	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -39,6 +38,7 @@ import (
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
+	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
 	importCompose "github.com/moto-nrw/project-phoenix/api/import/compose"
@@ -672,7 +672,7 @@ type API struct {
 	Display          *displayHTTPAdapter.Resource
 	Schedules        *timetableHTTPAdapter.SchedulesResource
 	Settings         *configAPI.SettingsResource
-	Active           *activeAPI.Resource
+	Active           *presenceAPI.Resource
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
@@ -1404,7 +1404,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(
 		workforceShiftPlanning.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
-	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(api.Services.StaffAbsenceType), db, api.currentStaffID)
+	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -1431,7 +1431,20 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
 	presence := newStudentPresence(db, logger)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"), presence)
+	teacherGroupIDs := func(ctx context.Context, teacherID int64) ([]int64, error) {
+		groups, err := api.Services.Education.GetTeacherGroups(ctx, teacherID)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(groups))
+		for _, group := range groups {
+			if group != nil {
+				ids = append(ids, group.ID)
+			}
+		}
+		return ids, nil
+	}
+	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization())
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
 	if err != nil {
@@ -1474,7 +1487,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			return school.Name, nil
 		}),
 		SessionEnd:              sessionEnd,
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DB:                      db,
 		DeviceAuthenticator:     deviceAuth.Device(),

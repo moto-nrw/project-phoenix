@@ -2,7 +2,6 @@ package students
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"net/http"
 	"slices"
@@ -208,7 +207,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := rs.StudentStatusDayService.DeleteByID(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), statusDayID, student.ID); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if common.IsNotFound(err) {
 			renderError(w, r, common.ErrorNotFound(errors.New("student status day not found")))
 			return
 		}
@@ -229,13 +228,12 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) activeService.StatusDayWriteContext {
 	tenantID := tenant.FromContext(r.Context())
 	return activeService.StatusDayWriteContext{
-		DB:             rs.DB,
-		TenantID:       tenantID,
-		StudentService: rs.StudentService,
-		Authorize: func(ctx context.Context, student *users.Student, status string) bool {
+		DB:       rs.DB,
+		TenantID: tenantID,
+		StudentService: newStatusDayStudents(rs.StudentService, func(ctx context.Context, student *users.Student, status string) bool {
 			ok, _ := rs.canManageStudentStatus(ctx, userPermissions, student, status)
 			return ok
-		},
+		}),
 		AfterCommit: func(studentID int64) {
 			rs.broadcastStudentUpdated(tenantID, studentID)
 			// Also wake the child's guardians so an open parents-app tab reflects

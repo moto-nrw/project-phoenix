@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -31,7 +32,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	repos := newStudentTestRepositories(tc.db)
 	studentService := userService.NewStudentService(
 		repos.Student,
-		repos.PrivacyConsent,
+		repositories.NewStudentPrivacyConsentStore(tc.db),
 		repos.StudentCompanion,
 		nil,
 	)

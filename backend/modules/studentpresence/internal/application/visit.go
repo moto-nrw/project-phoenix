@@ -83,3 +83,12 @@ func (s *Service) CloseVisits(ctx context.Context, ids []int64, at time.Time) (r
 	})
 	return result, err
 }
+
+func (s *Service) ListOpenVisitStudentIDs(ctx context.Context, hostingTenantID int64) (result []int64, err error) {
+	err = s.run("list_open_visit_student_ids", func() (ports.Stats, error) {
+		var stats ports.Stats
+		result, stats, err = s.store.ListOpenVisitStudentIDs(ctx, hostingTenantID)
+		return stats, err
+	})
+	return result, err
+}

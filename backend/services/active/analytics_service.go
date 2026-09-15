@@ -45,13 +45,13 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 
 	// Phase 4: Load students with groups for home room calculation
 	studentIDs := extractUniqueStudentIDs(baseData.activeVisits)
-	studentsWithGroups, err := s.loadStudentsWithGroups(ctx, studentIDs)
+	studentGroups, err := s.EducationGroupRepo.StudentGroupIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDashboardAnalytics", Err: ErrDatabaseOperation}
 	}
 
 	// Phase 5: Build group-related maps
-	groupData := s.buildEducationGroupMaps(baseData.allEducationGroups, studentsWithGroups)
+	groupData := s.buildEducationGroupMaps(baseData.allEducationGroups, studentGroups)
 
 	// Phase 6: Process active groups and calculate group metrics
 	activeGroupsCount, ogsGroupsCount, uniqueStudentsInRoomsOverall := processActiveGroups(

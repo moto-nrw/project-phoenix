@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,13 +23,11 @@ func (r *recordingTracker) Capture(distinctID, event string, props map[string]an
 	r.calls++
 }
 
-func (r *recordingTracker) Close() error { return nil }
-
 func TestTrackProductEventCapturesTenantScopedEvent(t *testing.T) {
 	t.Parallel()
 
 	rec := &recordingTracker{}
-	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 
 	svc.trackProductEvent(ctx, "student_checked_in", map[string]any{"method": "rfid"})
@@ -49,7 +46,7 @@ func TestTrackProductEventSkipsWithoutTenant(t *testing.T) {
 	t.Parallel()
 
 	rec := &recordingTracker{}
-	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Tracker: rec}}
 
 	svc.trackProductEvent(context.Background(), "student_checked_in", nil)
 
@@ -60,7 +57,7 @@ func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
 	t.Parallel()
 
 	rec := &recordingTracker{}
-	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 7)
 
 	svc.trackProductEvent(ctx, "room_transfer", nil)
@@ -75,7 +72,7 @@ func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
 	t.Parallel()
 
 	rec := &recordingTracker{}
-	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 	ctx, drain := tenant.WithAfterCommitHooksForTest(ctx)
 
@@ -94,10 +91,11 @@ func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
 func TestAttendanceMethod(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "manual", attendanceMethod(context.Background()))
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal}}
+	assert.Equal(t, "manual", svc.attendanceMethod(context.Background()))
 
-	iotCtx := context.WithValue(context.Background(), device.CtxIsIoTDevice, true)
-	assert.Equal(t, "rfid", attendanceMethod(iotCtx))
+	iotCtx := context.WithValue(context.Background(), attendancePrincipalTestKey{}, RequestPrincipal{IsIoT: true})
+	assert.Equal(t, "rfid", svc.attendanceMethod(iotCtx))
 }
 
 func TestTrackProductEventNilTrackerIsSafe(t *testing.T) {

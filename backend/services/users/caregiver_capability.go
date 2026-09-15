@@ -584,7 +584,15 @@ func (s *caregiverCapabilityService) listActiveGroupSupervisions(
 	staffID int64,
 	tenantID int64,
 ) ([]userModels.BlockerSupervision, error) {
-	return s.GroupSupervisorRepo.ListActiveSupervisionBlockers(ctx, staffID, tenantID)
+	rows, err := s.GroupSupervisorRepo.ListActiveSupervisionBlockers(ctx, staffID)
+	if rows == nil {
+		return nil, err
+	}
+	result := make([]userModels.BlockerSupervision, len(rows))
+	for i, row := range rows {
+		result[i] = userModels.BlockerSupervision{ID: row.ID, GroupID: row.GroupID, GroupName: row.GroupName, StartDate: row.StartDate}
+	}
+	return result, err
 }
 
 func (s *caregiverCapabilityService) listActiveGroupSubstitutions(

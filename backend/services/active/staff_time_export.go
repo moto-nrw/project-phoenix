@@ -1,7 +1,6 @@
 package active
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -11,9 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Cross-staff time-tracking export (#1417 Tranche 2b).
@@ -116,13 +112,24 @@ type StaffTimeExportService interface {
 	DatevReport(ctx context.Context, req TimeExportRequest) (*DatevExportReport, error)
 }
 
+type TimeExportStaff struct {
+	ID        int64
+	FirstName string
+	LastName  string
+}
+
+type TimeExportStaffQuery interface {
+	ListExportStaff(context.Context) ([]TimeExportStaff, error)
+}
+
 type staffTimeExportService struct {
-	overview      StaffOverviewService
-	sessions      WorkSessionService
-	staffRepo     userModels.StaffRepository
-	auditRepo     auditModels.DataAccessLogRepository
-	payrollStatus configSvc.PayrollStatusGetter
-	logger        *slog.Logger
+	overview       StaffOverviewService
+	sessions       WorkSessionService
+	staffRepo      TimeExportStaffQuery
+	auditRepo      DataAccessAudit
+	payrollStatus  PayrollConfigurationReader
+	logger         *slog.Logger
+	renderWorkbook TimeTrackingWorkbookRenderer
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
 	todayFunc func() timezone.Date
@@ -133,18 +140,20 @@ type staffTimeExportService struct {
 func NewStaffTimeExportService(
 	overview StaffOverviewService,
 	sessions WorkSessionService,
-	staffRepo userModels.StaffRepository,
-	auditRepo auditModels.DataAccessLogRepository,
-	payrollStatus configSvc.PayrollStatusGetter,
+	staffRepo TimeExportStaffQuery,
+	auditRepo DataAccessAudit,
+	payrollStatus PayrollConfigurationReader,
 	logger *slog.Logger,
+	renderWorkbook TimeTrackingWorkbookRenderer,
 ) *staffTimeExportService {
 	return &staffTimeExportService{
-		overview:      overview,
-		sessions:      sessions,
-		staffRepo:     staffRepo,
-		auditRepo:     auditRepo,
-		payrollStatus: payrollStatus,
-		logger:        logger,
+		overview:       overview,
+		sessions:       sessions,
+		staffRepo:      staffRepo,
+		auditRepo:      auditRepo,
+		payrollStatus:  payrollStatus,
+		logger:         logger,
+		renderWorkbook: renderWorkbook,
 	}
 }
 
@@ -273,7 +282,7 @@ func (s *staffTimeExportService) exportMonths(ctx context.Context, req TimeExpor
 
 	var file ExportFile
 	if req.Format == ExportFormatXLSX {
-		file.Data, err = writeMonthXLSX(rows, req.TimeFormat)
+		file.Data, err = writeMonthXLSX(rows, req.TimeFormat, s.renderWorkbook)
 		file.ContentType = contentTypeXLSX
 	} else {
 		file.Data, err = writeMonthCSV(rows, req.TimeFormat)
@@ -291,11 +300,11 @@ func (s *staffTimeExportService) exportMonths(ctx context.Context, req TimeExpor
 // exportDays renders the ArbZG evidence view: the per-day rows of the existing
 // single-staff export, one block per staff member, prefixed with the name.
 func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportRequest, from, to timezone.Date) (*ExportFile, int, int, error) {
-	staffMembers, err := s.staffRepo.ListAllWithPerson(ctx)
+	staffMembers, err := s.staffRepo.ListExportStaff(ctx)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to list staff for export: %w", err)
 	}
-	sortStaffByName(staffMembers)
+	slices.SortStableFunc(staffMembers, compareExportStaff)
 
 	staffIDs := make([]int64, len(staffMembers))
 	for i, staff := range staffMembers {
@@ -308,11 +317,10 @@ func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportR
 
 	var rows []dayExportBlockRow
 	for _, staff := range staffMembers {
-		firstName, lastName := staffNames(staff)
 		for _, dayRow := range dayRowsByStaff[staff.ID] {
 			rows = append(rows, dayExportBlockRow{
-				LastName:  lastName,
-				FirstName: firstName,
+				LastName:  staff.LastName,
+				FirstName: staff.FirstName,
 				Cells:     dayRow.Cells,
 			})
 		}
@@ -320,7 +328,7 @@ func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportR
 
 	var file ExportFile
 	if req.Format == ExportFormatXLSX {
-		file.Data, err = writeDayXLSX(rows)
+		file.Data, err = writeDayXLSX(rows, s.renderWorkbook)
 		file.ContentType = contentTypeXLSX
 	} else {
 		file.Data, err = writeDayCSV(rows)
@@ -357,7 +365,7 @@ func (s *staffTimeExportService) writeAudit(
 	if strings.TrimSpace(actorRole) == "" {
 		actorRole = "unknown"
 	}
-	entry := &auditModels.DataAccessLog{
+	entry := &DataAccessEvent{
 		ActorAccountID: actorAccountID,
 		ActorRole:      actorRole,
 		ResourceType:   "time_tracking_export",
@@ -393,23 +401,9 @@ func exportFilename(base string, req TimeExportRequest) string {
 	return fmt.Sprintf("%s_%s.%s", base, period, req.Format)
 }
 
-func staffNames(staff *userModels.Staff) (firstName, lastName string) {
-	if staff.Person != nil {
-		return staff.Person.FirstName, staff.Person.LastName
-	}
-	return "", ""
-}
-
-// sortStaffByName orders like the overview list: last name, first name, with
-// the staff-ID tiebreak that keeps repeated exports byte-identical.
-func sortStaffByName(staffMembers []*userModels.Staff) {
-	slices.SortStableFunc(staffMembers, func(a, b *userModels.Staff) int {
-		aFirst, aLast := staffNames(a)
-		bFirst, bLast := staffNames(b)
-		order := cmp.Compare(
-			strings.ToLower(aLast+" "+aFirst),
-			strings.ToLower(bLast+" "+bFirst),
-		)
-		return cmp.Or(order, cmp.Compare(a.ID, b.ID))
-	})
+// compareExportStaff preserves name ordering and the staff-ID tiebreak across
+// daily and monthly exports.
+func compareExportStaff(a, b TimeExportStaff) int {
+	order := compareOrdered(strings.ToLower(a.LastName+" "+a.FirstName), strings.ToLower(b.LastName+" "+b.FirstName))
+	return orderOr(order, compareOrdered(a.ID, b.ID))
 }

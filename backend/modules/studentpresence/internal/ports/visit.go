@@ -40,6 +40,7 @@ type VisitFilter struct {
 }
 
 type VisitStore interface {
+	ListOpenVisitStudentIDs(context.Context, int64) ([]int64, Stats, error)
 	VisitLocationStore
 	VisitRetentionStore
 	CloseGroupVisits(context.Context, []int64) (Stats, error)

@@ -11,9 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // Sentinel errors for handler mapping (#1420).
@@ -112,9 +110,9 @@ type StaffBalanceAdjustmentService interface {
 }
 
 // adjustmentFreezeReader is implemented by
-// active.StaffMonthBalanceSnapshotRepository (#1417).
+// MonthSnapshots (#1417).
 type adjustmentFreezeReader interface {
-	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error)
+	LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*MonthSnapshot, error)
 }
 
 type staffBalanceAdjustmentService struct {
@@ -123,8 +121,8 @@ type staffBalanceAdjustmentService struct {
 	monthService   WorkTimeMonthService
 	settings       monthSettingsResolver
 	snapshotRepo   adjustmentFreezeReader
-	deletionRepo   auditModels.TimeTrackingDeletionRepository
-	broadcaster    realtime.Broadcaster
+	deletionRepo   TimeTrackingDeletionAudit
+	broadcaster    EventPublisher
 	logger         *slog.Logger
 }
 
@@ -139,13 +137,13 @@ func (s *staffBalanceAdjustmentService) SetSnapshotReader(reader adjustmentFreez
 // injection like SetBroadcaster so existing API-layer mocks stay unchanged;
 // a nil repository makes DeleteAdjustment fail — deletes without a trace are
 // exactly the hole this closes.
-func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo auditModels.TimeTrackingDeletionRepository) {
+func (s *staffBalanceAdjustmentService) SetDeletionAudit(repo TimeTrackingDeletionAudit) {
 	s.deletionRepo = repo
 }
 
 // SetBroadcaster injects the tenant-wide SSE broadcaster. It stays outside
 // StaffBalanceAdjustmentService so existing API-layer mocks stay unchanged.
-func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster realtime.Broadcaster) {
+func (s *staffBalanceAdjustmentService) SetBroadcaster(broadcaster EventPublisher) {
 	s.broadcaster = broadcaster
 }
 
@@ -208,7 +206,7 @@ func (s *staffBalanceAdjustmentService) rejectFrozenMonth(ctx context.Context, s
 		return nil
 	}
 	year, month := effectiveDate.Year(), int(effectiveDate.Month())
-	snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, year, month)
+	snapshot, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, year, month)
 	if err != nil {
 		return fmt.Errorf("failed to check month close state for adjustment: %w", err)
 	}
@@ -366,9 +364,9 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if err != nil {
 		return fmt.Errorf("failed to snapshot adjustment for deletion audit: %w", err)
 	}
-	if err := s.deletionRepo.Create(ctx, &auditModels.TimeTrackingDeletion{
+	if err := s.deletionRepo.Create(ctx, &TimeTrackingDeletionEvent{
 		StaffID:   staffID,
-		Source:    auditModels.TimeTrackingDeletionSourceBalanceAdjustment,
+		Source:    "balance_adjustment",
 		SourceID:  adjustment.ID,
 		DeletedBy: deletedBy,
 		Payload:   payload,

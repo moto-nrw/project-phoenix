@@ -2,12 +2,9 @@ package active
 
 import (
 	"context"
-	"log/slog"
 	"strconv"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 )
 
 // broadcastSupervisionRefresh sends the tenant-wide refresh used by attendance
@@ -17,27 +14,7 @@ import (
 // Carries no child identity (#2085). The scoped student_checkin /
 // student_checkout emitted alongside it still carry the id.
 func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID, reason string, eduGroupIDs []string) {
-	if s.Broadcaster == nil {
-		return
-	}
-
-	data := realtime.EventData{
-		Reason: &reason,
-	}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-
-	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventDashboardCountsChanged, activeGroupID, data)
-	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("SSE combined supervision broadcast failed",
-			slog.String("error", err.Error()),
-			slog.String("active_group_id", activeGroupID),
-			slog.String("reason", reason),
-			slog.Int64("tenant_id", tenantID),
-		)
-	}
+	realtimeevents.PublishSupervisionRefresh(ctx, s.Broadcaster, s.getLogger(), activeGroupID, reason, eduGroupIDs)
 }
 
 // broadcastDashboardCountsChanged sends the tenant-wide dashboard refresh
@@ -51,33 +28,14 @@ func (s *service) broadcastSupervisionRefresh(ctx context.Context, activeGroupID
 // check-in traffic out to every other school's clients, multiplying the
 // refetch herd across tenants.
 func (s *service) broadcastDashboardCountsChanged(ctx context.Context, eduGroupIDs []string) {
-	if s.Broadcaster == nil {
-		return
-	}
-
-	data := realtime.EventData{}
-	if len(eduGroupIDs) > 0 {
-		data.GroupIDs = &eduGroupIDs
-	}
-
-	tenantID := tenant.FromContext(ctx)
-	event := realtime.NewEvent(realtime.EventDashboardCountsChanged, "", data)
-	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-		s.getLogger().Warn("SSE dashboard counts broadcast failed",
-			slog.String("error", err.Error()),
-			slog.Int64("tenant_id", tenantID),
-		)
-	}
+	realtimeevents.PublishDashboardCountsChanged(ctx, s.Broadcaster, s.getLogger(), eduGroupIDs)
 }
 
-// eduGroupIDsOf returns the educational group id of a student as a slice for
-// tenant invalidations / EventData.GroupIDs, or nil when unknown
-// (nil student — e.g. a repository error during routing-data lookup — or a student
-// without an OGS group). nil keeps the field absent so clients fall back to a
-// broad refresh instead of scoping to nothing.
-func eduGroupIDsOf(student *userModels.Student) []string {
-	if student == nil || student.GroupID == nil {
+// eduGroupIDsOf formats the known routing group for tenant invalidations.
+// Nil keeps the field absent so clients fall back to a broad refresh.
+func eduGroupIDsOf(groupID *int64) []string {
+	if groupID == nil {
 		return nil
 	}
-	return []string{strconv.FormatInt(*student.GroupID, 10)}
+	return []string{strconv.FormatInt(*groupID, 10)}
 }

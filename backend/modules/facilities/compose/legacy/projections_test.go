@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -15,12 +14,11 @@ import (
 )
 
 type occupancyGroupsStub struct {
-	activeModels.GroupRepository
-	facts []activeModels.RoomOccupancy
+	facts []RoomOccupancyFact
 	err   error
 }
 
-func (s occupancyGroupsStub) ListRoomOccupancy(context.Context, []int64) ([]activeModels.RoomOccupancy, error) {
+func (s occupancyGroupsStub) ListRoomOccupancy(context.Context, []int64) ([]RoomOccupancyFact, error) {
 	return s.facts, s.err
 }
 
@@ -56,7 +54,7 @@ func (s personQueryStub) ListPersonsByID(context.Context, []int64) ([]peopledire
 func TestOccupancyProjectionBuildsStableBatchProjection(t *testing.T) {
 	t.Parallel()
 	rooms := []facilitiesModule.Room{{ID: 2, Name: "Fuchsbau"}, {ID: 1, Name: "Igelraum"}}
-	facts := []activeModels.RoomOccupancy{{
+	facts := []RoomOccupancyFact{{
 		RoomID: 2, ActivityGroupIDs: []int64{20, 10, 30}, StudentCount: 3,
 		SupervisorStaffIDs: []int64{7, 6, 7},
 	}}
@@ -87,7 +85,7 @@ func TestOccupancyProjectionPropagatesDependencyErrors(t *testing.T) {
 	t.Parallel()
 	want := errors.New("dependency failed")
 	room := []facilitiesModule.Room{{ID: 1}}
-	fact := []activeModels.RoomOccupancy{{RoomID: 1, ActivityGroupIDs: []int64{1}, SupervisorStaffIDs: []int64{2}}}
+	fact := []RoomOccupancyFact{{RoomID: 1, ActivityGroupIDs: []int64{1}, SupervisorStaffIDs: []int64{2}}}
 	tests := []struct {
 		name       string
 		groups     occupancyGroupsStub

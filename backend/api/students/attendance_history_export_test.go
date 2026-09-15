@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,24 +54,24 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 	morningCheckIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
 	unassignedCheckIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
 	sick := scheduleModel.AttendanceSubstatusSick
-	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
+	rows := attendanceExportRows([]*activeService.HistorySlot{
 		{
-			Instance: &scheduleModel.ActivityInstance{
-				Date: scheduleModel.Date(date), Title: "Morgenbetreuung",
+			Instance: &activeService.HistorySlotInstance{
+				Date: timezone.Date(date), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},
-			Attendance: &scheduleModel.InstanceStudent{
+			Attendance: &activeService.HistorySlotAttendance{
 				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &morningCheckIn,
 			},
 		},
 		{
-			Instance: &scheduleModel.ActivityInstance{
-				Date: scheduleModel.Date(date), Title: "Nachmittagsbetreuung",
+			Instance: &activeService.HistorySlotInstance{
+				Date: timezone.Date(date), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
-			Attendance: &scheduleModel.InstanceStudent{
+			Attendance: &activeService.HistorySlotAttendance{
 				Status: scheduleModel.AttendanceStatusAbsent, Substatus: &sick,
 			},
 		},
@@ -100,14 +101,14 @@ func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 	firstCheckIn := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
 	reentryCheckIn := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
 
-	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
+	rows := attendanceExportRows([]*activeService.HistorySlot{
 		{
-			Instance: &scheduleModel.ActivityInstance{
-				Date: scheduleModel.Date(date), Title: "Ganztagsbetreuung",
+			Instance: &activeService.HistorySlotInstance{
+				Date: timezone.Date(date), Title: "Ganztagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
-			Attendance: &scheduleModel.InstanceStudent{
+			Attendance: &activeService.HistorySlotAttendance{
 				// Reopened slot: checked_in_at re-stamped with the re-entry.
 				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &reentryCheckIn,
 			},
@@ -188,24 +189,24 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	day1Unassigned := time.Date(2026, 7, 14, 9, 30, 0, 0, timezone.Berlin)
 	day2CheckIn := time.Date(2026, 7, 15, 12, 5, 0, 0, timezone.Berlin)
 
-	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
+	rows := attendanceExportRows([]*activeService.HistorySlot{
 		{
-			Instance: &scheduleModel.ActivityInstance{
-				Date: scheduleModel.Date(day2), Title: "Nachmittagsbetreuung",
+			Instance: &activeService.HistorySlotInstance{
+				Date: timezone.Date(day2), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
-			Attendance: &scheduleModel.InstanceStudent{
+			Attendance: &activeService.HistorySlotAttendance{
 				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &day2CheckIn,
 			},
 		},
 		{
-			Instance: &scheduleModel.ActivityInstance{
-				Date: scheduleModel.Date(day1), Title: "Morgenbetreuung",
+			Instance: &activeService.HistorySlotInstance{
+				Date: timezone.Date(day1), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},
-			Attendance: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusAbsent},
+			Attendance: &activeService.HistorySlotAttendance{Status: scheduleModel.AttendanceStatusAbsent},
 		},
 	}, []*studentpresence.Attendance{
 		{Date: day1.String(), CheckInTime: day1Unassigned},

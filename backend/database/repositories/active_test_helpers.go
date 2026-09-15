@@ -1,20 +1,21 @@
 package repositories
 
 import (
+	"context"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/uptrace/bun"
 )
 
 type ActiveTestRepositories struct {
 	TimetableTestRepositories
-	SessionStartLock activeModels.SessionStartLocker
-	CombinedGroup    activeModels.CombinedGroupRepository
-	GroupMapping     activeModels.GroupMappingRepository
-	CrossTenant      CrossTenantQuery
+	SessionStartLock interface {
+		LockSessionStart(context.Context, int64) error
+	}
+	GroupMapping *studentpresence.Module
+	CrossTenant  CrossTenantQuery
 }
 
 func NewActiveTestRepositories(db *bun.DB, clocks ...func() time.Time) (ActiveTestRepositories, error) {
@@ -38,11 +39,10 @@ func NewActiveTestRepositories(db *bun.DB, clocks ...func() time.Time) (ActiveTe
 	if err != nil {
 		return ActiveTestRepositories{}, err
 	}
-	r := &Factory{db: db, CrossTenant: activeRepo.NewCrossTenantRepository(db),
-		CombinedGroup: activeRepo.NewCombinedGroupRepository(db), GroupMapping: activeRepo.NewGroupMappingRepository(db)}
+	r := &Factory{db: db, CrossTenant: &visitorProjection{visits: newStudentPresence(db)}}
 	r.bindStaffProjections(lazyStaffLookup{get: func() schoolmembership.Capability { return membership }}, workTime)
 	r.BindPeopleDirectory(people)
 	r.BindSchoolStructure(groups)
 	return ActiveTestRepositories{TimetableTestRepositories: tt,
-		SessionStartLock: activeRepo.NewSessionStartLocker(db), CombinedGroup: r.CombinedGroup, GroupMapping: r.GroupMapping, CrossTenant: r.CrossTenant}, nil
+		SessionStartLock: newStudentPresence(db), GroupMapping: newStudentPresence(db), CrossTenant: r.CrossTenant}, nil
 }

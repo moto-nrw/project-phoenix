@@ -5,24 +5,25 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/active"
 )
 
 // DirectoryRoom is the Facilities projection this package reads.
 // facilities.rooms belongs to that owner (#2665); the composition root binds
 // the directory behind RoomDirectory instead of the former SQL joins.
 type DirectoryRoom struct {
-	ID        int64
-	TenantID  int64
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Name      string
-	Building  string
-	Floor     *int
-	Capacity  *int
-	Category  *string
-	Color     *string
-	IsSystem  bool
+	ID         int64
+	TenantID   int64
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+	Name       string
+	Building   string
+	Floor      *int
+	Capacity   *int
+	Category   *string
+	Color      *string
+	IsSystem   bool
+	IsOpenRoom bool
 }
 
 // RoomDirectory is the owner query the active repositories read rooms
@@ -66,21 +67,22 @@ func roomsByID(ctx context.Context, directory RoomDirectory, ids []int64) (map[i
 	return result, nil
 }
 
-// legacy rebuilds the full facilities.Room row the former batch load
+// legacy rebuilds the full active.SessionRoom row the former batch load
 // scanned, so group consumers (location snapshot colours included) see the
 // same shape as before.
-func (r DirectoryRoom) legacy() *facilities.Room {
-	room := &facilities.Room{
-		ID:        r.ID,
-		CreatedAt: r.CreatedAt,
-		UpdatedAt: r.UpdatedAt,
-		Name:      r.Name,
-		Building:  r.Building,
-		Floor:     r.Floor,
-		Capacity:  r.Capacity,
-		Category:  r.Category,
-		Color:     r.Color,
-		IsSystem:  r.IsSystem,
+func (r DirectoryRoom) legacy() *active.SessionRoom {
+	room := &active.SessionRoom{
+		ID:         r.ID,
+		CreatedAt:  r.CreatedAt,
+		UpdatedAt:  r.UpdatedAt,
+		Name:       r.Name,
+		Building:   r.Building,
+		Floor:      r.Floor,
+		Capacity:   r.Capacity,
+		Category:   r.Category,
+		Color:      r.Color,
+		IsSystem:   r.IsSystem,
+		IsOpenRoom: r.IsOpenRoom,
 	}
 	room.SetTenantID(r.TenantID)
 	return room

@@ -29,12 +29,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // MaxRangeDays caps a single report window (a school year plus a day).
@@ -190,43 +184,32 @@ type closingDayDates interface {
 	ClosingDayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
 }
 
-type calendarPeriods interface {
-	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end scheduleModels.Date, excludeID int64) ([]*scheduleModels.CalendarPeriod, error)
-}
-
 type studentReader interface {
-	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*userModels.StudentWithGroupInfo, error)
+	FindOverlappingWithGroups(ctx context.Context, from, to, today timezone.Date) ([]*ReportStudent, error)
 }
 
-type roomReader interface {
-	List(ctx context.Context, filters map[string]any) ([]*facilityModels.Room, error)
-}
-
-type accessLog interface {
-	Create(ctx context.Context, entry *auditModels.DataAccessLog) error
-	ExistsSince(ctx context.Context, actorAccountID int64, resourceType string, metadata map[string]string, since time.Time) (bool, error)
-}
-
-type intResolver interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
+type retentionPolicy interface {
+	RoomRetentionDays(context.Context) (int, error)
+	CourseRetentionDays(context.Context) (int, error)
 }
 
 type retentionSettingsReader interface {
-	ListAcceptedRetentionSettings(ctx context.Context) ([]userModels.StudentRetentionSetting, error)
+	ListAcceptedRetentionSettings(ctx context.Context) ([]RetentionSetting, error)
 }
 
 // Config wires the service dependencies.
 type Config struct {
-	Statistics      activeModels.StatisticsRepository
-	Courses         scheduleModels.CourseStatisticsRepository
+	Statistics      roomUtilization
+	Attendance      attendanceDays
+	StatusDays      statusDays
+	Courses         courseStatistics
 	Holidays        holidayDates
 	ClosingDays     closingDayDates
 	Periods         calendarPeriods
 	Students        studentReader
 	Rooms           roomReader
 	AccessLog       accessLog
-	Settings        intResolver
+	Retention       retentionPolicy
 	PrivacyConsents retentionSettingsReader
 	Logger          *slog.Logger
 	// Now is injectable for tests; nil means time.Now.
@@ -316,19 +299,19 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 	var (
 		careDays   map[timezone.Date]bool
 		excluded   ExcludedDays
-		attendance []activeModels.AttendanceDayRow
-		statusDays []activeModels.StatusDayRow
+		attendance []AttendanceDay
+		statusDays []StatusDay
 	)
 	if filters.wants(SectionAttendance) {
 		careDays, excluded, err = s.careDays(ctx, filters.From, filters.To)
 		if err != nil {
 			return nil, err
 		}
-		attendance, err = s.cfg.Statistics.AttendanceDays(ctx, filters.From, filters.To)
+		attendance, err = s.cfg.Attendance.AttendanceDays(ctx, filters.From, filters.To)
 		if err != nil {
 			return nil, fmt.Errorf("load attendance days: %w", err)
 		}
-		statusDays, err = s.cfg.Statistics.StatusDays(ctx, filters.From, filters.To)
+		statusDays, err = s.cfg.StatusDays.StatusDays(ctx, filters.From, filters.To)
 		if err != nil {
 			return nil, fmt.Errorf("load status days: %w", err)
 		}
@@ -351,7 +334,7 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 	}
 
 	if filters.wants(SectionRooms) {
-		rooms, err := s.roomRows(ctx, filters, today)
+		rooms, err := s.roomRows(ctx, filters, today, students)
 		if err != nil {
 			return nil, err
 		}
@@ -364,7 +347,10 @@ func (s *service) compute(ctx context.Context, filters Filters) (*Report, error)
 	}
 
 	if filters.wants(SectionCourses) {
-		report.CourseDataDays = s.courseRetentionDays(ctx)
+		report.CourseDataDays, err = s.courseRetentionDays(ctx)
+		if err != nil {
+			return nil, err
+		}
 		report.CourseDataFrom = today.AddDays(-report.CourseDataDays)
 		// Read no further back than the cutoff the screen names, whether or
 		// not the cleanup job has caught up with it yet.
@@ -406,7 +392,7 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 		closing = set
 	}
 	if s.cfg.Periods != nil {
-		periods, err := s.cfg.Periods.FindActiveOverlappingByType(ctx, scheduleModels.PeriodTypeHoliday, scheduleModels.Date(from), scheduleModels.Date(to), 0)
+		periods, err := s.cfg.Periods.StatisticsHolidayPeriods(ctx, from, to)
 		if err != nil {
 			return nil, excluded, fmt.Errorf("load holiday periods: %w", err)
 		}
@@ -415,10 +401,10 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 			// its overlap with [from, to] can ever be a care day.
 			start, end := p.StartDate, p.EndDate
 			if start.Before(from) {
-				start = scheduleModels.Date(from)
+				start = from
 			}
 			if end.After(to) {
-				end = scheduleModels.Date(to)
+				end = to
 			}
 			for d := start; !d.After(end); d = d.AddDays(1) {
 				vacation[timezone.Date(d)] = true
@@ -453,7 +439,7 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 	return care, excluded, nil
 }
 
-func filterStudentsByGroup(students []*userModels.StudentWithGroupInfo, groupIDs []int64) []*userModels.StudentWithGroupInfo {
+func filterStudentsByGroup(students []*ReportStudent, groupIDs []int64) []*ReportStudent {
 	if len(groupIDs) == 0 {
 		return students
 	}
@@ -461,9 +447,9 @@ func filterStudentsByGroup(students []*userModels.StudentWithGroupInfo, groupIDs
 	for _, id := range groupIDs {
 		wanted[id] = true
 	}
-	out := make([]*userModels.StudentWithGroupInfo, 0, len(students))
+	out := make([]*ReportStudent, 0, len(students))
 	for _, st := range students {
-		if st == nil || st.Student == nil {
+		if st == nil || st.EnrolledOn == nil {
 			continue
 		}
 		if (st.GroupID == nil && wanted[0]) || (st.GroupID != nil && wanted[*st.GroupID]) {
@@ -478,7 +464,7 @@ type dayKey struct {
 	date      timezone.Date
 }
 
-func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[timezone.Date]bool, attendance []activeModels.AttendanceDayRow, statusDays []activeModels.StatusDayRow, today timezone.Date) []StudentRow {
+func buildStudentRows(students []*ReportStudent, careDays map[timezone.Date]bool, attendance []AttendanceDay, statusDays []StatusDay, today timezone.Date) []StudentRow {
 	present := make(map[dayKey]bool, len(attendance))
 	for _, row := range attendance {
 		present[dayKey{row.StudentID, row.Date}] = true
@@ -499,7 +485,7 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 
 	rows := make([]StudentRow, 0, len(students))
 	for _, st := range students {
-		if st == nil || st.Student == nil {
+		if st == nil || st.EnrolledOn == nil {
 			continue
 		}
 		row := StudentRow{
@@ -508,12 +494,10 @@ func buildStudentRows(students []*userModels.StudentWithGroupInfo, careDays map[
 			GroupID:     st.GroupID,
 			GroupName:   st.GroupName,
 		}
-		if st.Person != nil {
-			row.FirstName = st.Person.FirstName
-			row.LastName = st.Person.LastName
-		}
+		row.FirstName = st.FirstName
+		row.LastName = st.LastName
 		for day := range careDays {
-			if !userModels.EnrolledOn(st.Student, day, today) {
+			if !st.EnrolledOn(day, today) {
 				continue
 			}
 			row.CareDays++
@@ -621,26 +605,21 @@ func rate(numerator, denominator int) *float64 {
 	return &v
 }
 
-func (s *service) roomRows(ctx context.Context, filters Filters, today timezone.Date) ([]RoomRow, error) {
-	start := filters.From.BerlinMidnight()
-	end := filters.To.AddDays(1).BerlinMidnight()
-	agg, err := s.cfg.Statistics.RoomUtilization(ctx, start, end, today, filters.GroupIDs)
+func (s *service) roomRows(ctx context.Context, filters Filters, today timezone.Date, students []*ReportStudent) ([]RoomRow, error) {
+	agg, err := s.cfg.Statistics.RoomUtilization(ctx, visitWindows(students, filters.From, filters.To, today))
 	if err != nil {
 		return nil, fmt.Errorf("load room utilization: %w", err)
 	}
-	rooms, err := s.cfg.Rooms.List(ctx, nil)
+	rooms, err := s.cfg.Rooms.StatisticsRooms(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load rooms: %w", err)
 	}
-	byID := make(map[int64]activeModels.RoomUtilizationRow, len(agg))
+	byID := make(map[int64]RoomUtilization, len(agg))
 	for _, row := range agg {
 		byID[row.RoomID] = row
 	}
 	out := make([]RoomRow, 0, len(rooms))
 	for _, room := range rooms {
-		if room == nil {
-			continue
-		}
 		row := RoomRow{RoomID: room.ID, Name: room.Name, Capacity: room.Capacity}
 		if a, ok := byID[room.ID]; ok {
 			row.DaysUsed = a.DaysUsed
@@ -677,9 +656,12 @@ func (s *service) roomRows(ctx context.Context, filters Filters, today timezone.
 // none of the covered children has a consent, the configured default is the
 // only honest statement about how long visits are kept.
 func (s *service) roomRetentionDays(ctx context.Context, students []StudentRow) (int, error) {
-	defaultDays := userModels.DefaultDataRetentionDays
-	if s.cfg.Settings != nil {
-		defaultDays = configService.ResolveIntOrDefault(ctx, s.cfg.Settings, configModel.KeyPrivacyConsentRetentionDays, defaultDays, s.cfg.Logger)
+	if s.cfg.Retention == nil {
+		return 0, errors.New("statistics retention policy is required")
+	}
+	defaultDays, err := s.cfg.Retention.RoomRetentionDays(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load room retention: %w", err)
 	}
 	if s.cfg.PrivacyConsents == nil {
 		return defaultDays, nil
@@ -740,7 +722,7 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 	}
 	now := s.cfg.Now()
 	if dedup {
-		exists, err := s.cfg.AccessLog.ExistsSince(ctx, actor.AccountID, auditModels.ResourceTypeAttendanceStatistics, meta, now.Add(-viewDedupWindow))
+		exists, err := s.cfg.AccessLog.SeenStatisticsAccessSince(ctx, actor.AccountID, meta, now.Add(-viewDedupWindow))
 		if err != nil {
 			return fmt.Errorf("%w: %v", ErrAuditFailed, err)
 		}
@@ -748,22 +730,19 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 			return nil
 		}
 	}
-	entry := &auditModels.DataAccessLog{
+	entry := AccessEvent{
 		ActorAccountID: actor.AccountID,
 		ActorRole:      role,
-		ResourceType:   auditModels.ResourceTypeAttendanceStatistics,
 		RangeStart:     filters.From.BerlinMidnight(),
 		RangeEnd:       filters.To.EndOfDay(),
 		AccessedAt:     now,
 	}
-	for k, v := range meta {
-		entry.SetMetadata(k, v)
-	}
+	entry.Metadata = meta
 	if format != "" {
-		entry.SetMetadata("format", format)
+		entry.Metadata["format"] = format
 	}
 
-	if err := s.cfg.AccessLog.Create(ctx, entry); err != nil {
+	if err := s.cfg.AccessLog.RecordStatisticsAccess(ctx, entry); err != nil {
 		s.cfg.Logger.Error("statistics audit write failed",
 			slog.String("action", action),
 			slog.String("error", err.Error()),
@@ -771,4 +750,34 @@ func (s *service) recordAccess(ctx context.Context, filters Filters, actor Actor
 		return fmt.Errorf("%w: %v", ErrAuditFailed, err)
 	}
 	return nil
+}
+
+// visitWindows uses the owner's eligibility answer for every report date.
+// Adjacent eligible days form one interval so visits spanning midnight are
+// counted once and Berlin daylight-saving transitions preserve elapsed time.
+func visitWindows(students []*ReportStudent, from, to, today timezone.Date) []StudentVisitWindow {
+	windows := make([]StudentVisitWindow, 0, len(students))
+	for _, student := range students {
+		if student == nil || student.EnrolledOn == nil {
+			continue
+		}
+		var current *StudentVisitWindow
+		for day := from; !day.After(to); day = day.AddDays(1) {
+			if !student.EnrolledOn(day, today) {
+				if current != nil {
+					windows = append(windows, *current)
+					current = nil
+				}
+				continue
+			}
+			if current == nil {
+				current = &StudentVisitWindow{StudentID: student.ID, StartAt: day.BerlinMidnight()}
+			}
+			current.EndAt = day.AddDays(1).BerlinMidnight()
+		}
+		if current != nil {
+			windows = append(windows, *current)
+		}
+	}
+	return windows
 }

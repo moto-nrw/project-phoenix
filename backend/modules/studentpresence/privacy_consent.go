@@ -29,16 +29,20 @@ type PrivacyConsent struct {
 	DurationDays            *int
 	RenewalRequired         bool
 	DataRetentionDays       int
+	// Details is the recorded JSON document, not a query-filter map.
+	Details []byte
 }
 
 // PrivacyConsentQuery reads the recorded consents of a student.
 type PrivacyConsentQuery interface {
+	ListAcceptedRetentionSettings(context.Context) ([]StudentRetentionSetting, error)
 	ListPrivacyConsents(context.Context, int64) ([]PrivacyConsent, error)
 }
 
 // PrivacyConsentCommand appends consents. RecordPrivacyConsent joins the
 // caller's tenant transaction and never rewrites an existing row.
 type PrivacyConsentCommand interface {
+	RevisePrivacyConsent(context.Context, PrivacyConsent) (PrivacyConsent, error)
 	RecordPrivacyConsent(context.Context, PrivacyConsent) (PrivacyConsent, error)
 }
 
@@ -48,4 +52,17 @@ func (m *Module) ListPrivacyConsents(ctx context.Context, studentID int64) ([]Pr
 
 func (m *Module) RecordPrivacyConsent(ctx context.Context, value PrivacyConsent) (PrivacyConsent, error) {
 	return m.engine.RecordPrivacyConsent(ctx, value)
+}
+
+type StudentRetentionSetting struct {
+	StudentID         int64
+	DataRetentionDays int
+}
+
+func (m *Module) ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error) {
+	return m.engine.ListAcceptedRetentionSettings(ctx)
+}
+
+func (m *Module) RevisePrivacyConsent(ctx context.Context, value PrivacyConsent) (PrivacyConsent, error) {
+	return m.engine.RevisePrivacyConsent(ctx, value)
 }

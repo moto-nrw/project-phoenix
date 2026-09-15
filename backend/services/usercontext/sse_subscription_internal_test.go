@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -56,10 +55,10 @@ func failingScopeSettings() *configtest.Mock {
 
 type mockActiveSvcForSSE struct {
 	getStaffFunc func(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error)
-	listFunc     func(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error)
+	listFunc     func(ctx context.Context) ([]*activeModel.Group, error)
 }
 
-func (m *mockActiveSvcForSSE) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilityModels.Room, error) {
+func (m *mockActiveSvcForSSE) GetRoomsByIDs(_ context.Context, _ []int64) ([]*activeModel.SessionRoom, error) {
 	return nil, nil
 }
 
@@ -75,11 +74,19 @@ func (m *mockActiveSvcForSSE) ConfirmDailyCheckout(_ context.Context, _, _ int64
 	return nil, nil
 }
 
-func (m *mockActiveSvcForSSE) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
+func (m *mockActiveSvcForSSE) GetStaffActiveGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {
 	if m.getStaffFunc != nil {
-		return m.getStaffFunc(ctx, staffID)
+		rows, err := m.getStaffFunc(ctx, staffID)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.GroupID)
+		}
+		return ids, nil
 	}
-	return []*activeModel.GroupSupervisor{}, nil
+	return []int64{}, nil
 }
 
 func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
@@ -103,205 +110,22 @@ func (m *mockActiveSvcForSSE) UpdateActiveGroup(_ context.Context, _ *activeMode
 	return nil
 }
 func (m *mockActiveSvcForSSE) DeleteActiveGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ListActiveGroups(ctx context.Context, opts *base.QueryOptions) ([]*activeModel.Group, error) {
+func (m *mockActiveSvcForSSE) ListSSEGroups(ctx context.Context) ([]studentpresence.LiveGroup, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, opts)
+		groups, err := m.listFunc(ctx)
+		var rows []studentpresence.LiveGroup
+		for _, group := range groups {
+			rows = append(rows, studentpresence.LiveGroup{ID: group.ID, EndTime: group.EndTime})
+		}
+		return rows, err
 	}
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindActiveGroupsByRoomID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
 	return nil, nil
 }
 func (m *mockActiveSvcForSSE) FindDeviceActiveGroupInRoom(_ context.Context, _, _ int64) (*activeModel.Group, error) {
 	return nil, nil
 }
-func (m *mockActiveSvcForSSE) FindActiveGroupsByGroupID(_ context.Context, _ int64) ([]*activeModel.Group, error) {
-	return nil, nil
-}
 func (m *mockActiveSvcForSSE) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) DeleteVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) EndVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeSvc.VisitWithRoom, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
-}
-func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
-}
-func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetGroupSupervisor(_ context.Context, _ int64) (*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CreateGroupSupervisor(_ context.Context, _ *activeModel.GroupSupervisor) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) UpdateGroupSupervisor(_ context.Context, _ *activeModel.GroupSupervisor) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) DeleteGroupSupervisor(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ListGroupSupervisors(_ context.Context, _ *base.QueryOptions) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindSupervisorsByStaffID(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindSupervisorsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindSupervisorsByActiveGroupIDs(_ context.Context, _ []int64) ([]*activeModel.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) EndSupervision(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) GetCombinedGroup(_ context.Context, _ int64) (*activeModel.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CreateCombinedGroup(_ context.Context, _ *activeModel.CombinedGroup) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) UpdateCombinedGroup(_ context.Context, _ *activeModel.CombinedGroup) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ListCombinedGroups(_ context.Context, _ *base.QueryOptions) ([]*activeModel.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindActiveCombinedGroups(_ context.Context) ([]*activeModel.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) FindCombinedGroupsByTimeRange(_ context.Context, _, _ time.Time) ([]*activeModel.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) EndCombinedGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) GetCombinedGroupWithGroups(_ context.Context, _ int64) (*activeModel.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CreateCombinedGroupWithGroups(_ context.Context, _ *activeModel.CombinedGroup, _ []int64) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) AddGroupToCombination(_ context.Context, _, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) RemoveGroupFromCombination(_ context.Context, _, _ int64) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) GetGroupMappingsByActiveGroupID(_ context.Context, _ int64) ([]*activeModel.GroupMapping, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetGroupMappingsByCombinedGroupID(_ context.Context, _ int64) ([]*activeModel.GroupMapping, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CheckActivityConflict(_ context.Context, _, _ int64) (*activeSvc.ActivityConflictInfo, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) EndActivitySession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetDeviceCurrentSession(_ context.Context, _ int64) (*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) UpdateActiveGroupSupervisors(_ context.Context, _ int64, _ []int64) (*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) ProcessSessionTimeout(_ context.Context, _ int64) (*activeSvc.TimeoutResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) UpdateSessionActivity(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveSvcForSSE) ValidateSessionTimeout(_ context.Context, _ int64, _ int) error {
-	return nil
-}
-func (m *mockActiveSvcForSSE) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeSvc.SessionTimeoutInfo, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CleanupAbandonedSessions(_ context.Context, _ time.Duration) (int, error) {
-	return 0, nil
-}
-func (m *mockActiveSvcForSSE) EndDailySessions(_ context.Context) (*activeSvc.DailySessionCleanupResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetDashboardAnalytics(_ context.Context) (*activeSvc.DashboardAnalytics, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetActiveGroupsByIDs(_ context.Context, _ []int64) (map[int64]*activeModel.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetStudentAttendanceStatus(_ context.Context, _ int64) (*activeSvc.AttendanceStatus, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeSvc.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeSvc.SchoolCheckinBatchResult, error) {
-	return nil, nil
-}
-func (m *mockActiveSvcForSSE) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
-	return false, nil
-}
+
 func (m *mockActiveSvcForSSE) GetUnclaimedActiveGroups(_ context.Context) ([]*activeModel.Group, error) {
 	return nil, nil
 }
@@ -376,7 +200,7 @@ func TestResolveSSESubscription_WildcardAdminWithoutStaff(t *testing.T) {
 				staffRepo:   &sseStaffRepoStub{},
 				sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 				sseActiveSvc: &mockActiveSvcForSSE{
-					listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+					listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 						return nil, nil
 					},
 				},
@@ -409,7 +233,7 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	rs := &userContextService{
 		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				return activeGroups, nil
 			},
 		},
@@ -421,8 +245,8 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
-	assert.Equal(t, int64(10), result[0].GroupID)
-	assert.Equal(t, int64(11), result[1].GroupID)
+	assert.Equal(t, int64(10), result[0])
+	assert.Equal(t, int64(11), result[1])
 }
 
 func TestResolveSupervisions_AdminWithOwnScope(t *testing.T) {
@@ -436,7 +260,7 @@ func TestResolveSupervisions_AdminWithOwnScope(t *testing.T) {
 	rs := &userContextService{
 		sseSettings: scopeSettings(configModel.OverviewScopeOwn),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				return activeGroups, nil
 			},
 		},
@@ -448,7 +272,7 @@ func TestResolveSupervisions_AdminWithOwnScope(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
-	assert.Equal(t, int64(20), result[0].GroupID)
+	assert.Equal(t, int64(20), result[0])
 }
 
 func TestResolveSupervisions_NonAdmin(t *testing.T) {
@@ -618,7 +442,7 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 	rs := &userContextService{
 		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")
 			},
 		},
@@ -635,7 +459,7 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 // TestResolveSupervisions_AdminIncludesUnclaimedGroups verifies that active
 // groups without supervisor rows (e.g. Schulhof without a current claim) are
 // included in the SSE topic list — closing the prior divergence between
-// HTTP (/supervisors/all → ListActiveGroups) and SSE (→ FindAllActive).
+// HTTP and SSE when they used different session and supervision queries.
 func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	t.Parallel()
 
@@ -650,7 +474,7 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	rs := &userContextService{
 		sseSettings: scopeSettings(configModel.OverviewScopeAdmins),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				return activeGroups, nil
 			},
 		},
@@ -661,8 +485,8 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	result, err := rs.resolveSSESupervisions(ctx, 42)
 	require.NoError(t, err)
 	require.Len(t, result, 2)
-	assert.Equal(t, int64(50), result[0].GroupID)
-	assert.Equal(t, int64(51), result[1].GroupID)
+	assert.Equal(t, int64(50), result[0])
+	assert.Equal(t, int64(51), result[1])
 }
 
 // TestResolveSupervisions_AllStaffScopeSubscribesNonAdmin closes the gap the
@@ -681,7 +505,7 @@ func TestResolveSupervisions_AllStaffScopeSubscribesNonAdmin(t *testing.T) {
 	rs := staffBackedService(
 		scopeSettings(configModel.OverviewScopeAllStaff),
 		&mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				return activeGroups, nil
 			},
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
@@ -695,8 +519,8 @@ func TestResolveSupervisions_AllStaffScopeSubscribesNonAdmin(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, result, 2)
-	assert.Equal(t, int64(60), result[0].GroupID)
-	assert.Equal(t, int64(61), result[1].GroupID)
+	assert.Equal(t, int64(60), result[0])
+	assert.Equal(t, int64(61), result[1])
 }
 
 // A caller without a staff record (guardian, guest) stays on their own
@@ -713,7 +537,7 @@ func TestResolveSupervisions_AllStaffScopeDeniesNonStaff(t *testing.T) {
 		staffRepo:   &sseStaffRepoStub{},
 		sseSettings: scopeSettings(configModel.OverviewScopeAllStaff),
 		sseActiveSvc: &mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				t.Fatal("a non-staff caller must never enumerate all active groups")
 				return nil, nil
 			},
@@ -728,7 +552,7 @@ func TestResolveSupervisions_AllStaffScopeDeniesNonStaff(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	assert.Equal(t, int64(70), result[0].GroupID)
+	assert.Equal(t, int64(70), result[0])
 }
 
 // TestResolveSupervisions_OwnScopeKeepsCaregiverNarrow is the deactivation
@@ -744,7 +568,7 @@ func TestResolveSupervisions_OwnScopeKeepsCaregiverNarrow(t *testing.T) {
 	rs := staffBackedService(
 		scopeSettings(configModel.OverviewScopeOwn),
 		&mockActiveSvcForSSE{
-			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
+			listFunc: func(_ context.Context) ([]*activeModel.Group, error) {
 				t.Fatal("the own scope must never enumerate all active groups")
 				return nil, nil
 			},
@@ -758,7 +582,7 @@ func TestResolveSupervisions_OwnScopeKeepsCaregiverNarrow(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, result, 1)
-	assert.Equal(t, int64(80), result[0].GroupID)
+	assert.Equal(t, int64(80), result[0])
 }
 
 // =============================================================================
@@ -791,4 +615,130 @@ func TestSSESetupError_AsDistinguishesErrors(t *testing.T) {
 	var setupErr *SSESetupError
 	assert.False(t, errors.As(assert.AnError, &setupErr),
 		"Regular error should not match *SSESetupError")
+}
+
+func (m *mockActiveSvcForSSE) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) EndVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeSvc.VisitWithRoom, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
+func (m *mockActiveSvcForSSE) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.TransitAssignResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeSvc.StudentMoveAuthorization) (*activeSvc.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CreateGroupSupervisor(_ context.Context, _ *activeModel.GroupSupervisor) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) UpdateGroupSupervisor(_ context.Context, _ *activeModel.GroupSupervisor) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) DeleteGroupSupervisor(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) EndSupervision(_ context.Context, _ int64) error        { return nil }
+func (m *mockActiveSvcForSSE) CreateCombinedGroup(_ context.Context, _ *studentpresence.CombinedGroup) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) UpdateCombinedGroup(_ context.Context, _ *studentpresence.CombinedGroup) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) EndCombinedGroup(_ context.Context, _ int64) error    { return nil }
+func (m *mockActiveSvcForSSE) CreateCombinedGroupWithGroups(_ context.Context, _ *studentpresence.CombinedGroup, _ []int64) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CheckActivityConflict(_ context.Context, _, _ int64) (*activeSvc.ActivityConflictInfo, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) EndActivitySession(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetDeviceCurrentSession(_ context.Context, _ int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) UpdateActiveGroupSupervisors(_ context.Context, _ int64, _ []int64) (*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ProcessSessionTimeout(_ context.Context, _ int64) (*activeSvc.TimeoutResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) UpdateSessionActivity(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveSvcForSSE) ValidateSessionTimeout(_ context.Context, _ int64, _ int) error {
+	return nil
+}
+func (m *mockActiveSvcForSSE) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeSvc.SessionTimeoutInfo, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CleanupAbandonedSessions(_ context.Context, _ time.Duration) (int, error) {
+	return 0, nil
+}
+func (m *mockActiveSvcForSSE) EndDailySessions(_ context.Context) (*activeSvc.DailySessionCleanupResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetDashboardAnalytics(_ context.Context) (*activeSvc.DashboardAnalytics, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetActiveGroupsByIDs(_ context.Context, _ []int64) (map[int64]*activeModel.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetStudentAttendanceStatus(_ context.Context, _ int64) (*activeSvc.AttendanceStatus, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeSvc.AttendanceStatus, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeSvc.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveSvcForSSE) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeSvc.SchoolCheckinBatchResult, error) {
+	return nil, nil
 }

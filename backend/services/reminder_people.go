@@ -3,8 +3,12 @@ package services
 import (
 	"context"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+
 	active "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
@@ -49,22 +53,40 @@ func (r reminderPersonReader) FindByIDs(ctx context.Context, ids []int64) (map[i
 }
 
 type reminderSupervisionReader struct {
+	presence interface {
+		QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+	}
 	source interface {
-		GetStaffActiveSupervisions(context.Context, int64) ([]*active.GroupSupervisor, error)
 		GetActiveGroupsByIDs(context.Context, []int64) (map[int64]*active.Group, error)
 	}
 }
 
 func (r reminderSupervisionReader) GetStaffActiveSupervisions(ctx context.Context, id int64) ([]*ports.GroupSupervisor, error) {
-	values, err := r.source.GetStaffActiveSupervisions(ctx, id)
+	day := timezone.TodayDate().String()
+	values, err := r.presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &id, ActiveOn: &day})
 	if err != nil {
-		return nil, err
+		return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
 	}
 	result := make([]*ports.GroupSupervisor, 0, len(values))
+	today := timezone.TodayDate()
 	for _, value := range values {
-		if value != nil {
-			result = append(result, &ports.GroupSupervisor{StaffID: value.StaffID, GroupID: value.GroupID})
+		start, err := timezone.ParseDate(value.StartDate)
+		if err != nil {
+			return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
 		}
+		if start.After(today) {
+			continue
+		}
+		if value.EndDate != nil {
+			end, err := timezone.ParseDate(*value.EndDate)
+			if err != nil {
+				return nil, &activeService.ActiveError{Op: "GetStaffActiveSupervisions", Err: activeService.ErrDatabaseOperation}
+			}
+			if !today.Before(end) {
+				continue
+			}
+		}
+		result = append(result, &ports.GroupSupervisor{StaffID: value.StaffID, GroupID: value.GroupID})
 	}
 	return result, nil
 }

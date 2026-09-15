@@ -18,48 +18,6 @@ import (
 // ErrInvalidTenantID reports a missing or non-positive projection tenant.
 var ErrInvalidTenantID = errors.New("timetable projection: tenant ID must be positive")
 
-func GroupNames(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) (map[int64]string, error) {
-	if tenantID <= 0 {
-		return nil, ErrInvalidTenantID
-	}
-	result := make(map[int64]string, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	var rows []struct {
-		ID   int64  `bun:"id"`
-		Name string `bun:"name"`
-	}
-	query := db.NewSelect().
-		TableExpr(`activities.groups AS "group"`).
-		ColumnExpr(`"group".id, "group".name`).
-		Where(`"group".id IN (?)`, bun.List(ids)).
-		Where(`"group".tenant_id = ?`, tenantID)
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, fmt.Errorf("timetable projection: list group names: %w", err)
-	}
-	for _, row := range rows {
-		result[row.ID] = row.Name
-	}
-	return result, nil
-}
-
-func ActivityGroupsByID(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) ([]*activitiesModels.Group, error) {
-	if tenantID <= 0 {
-		return nil, ErrInvalidTenantID
-	}
-	if len(ids) == 0 {
-		return []*activitiesModels.Group{}, nil
-	}
-	var groups []*activitiesModels.Group
-	err := db.NewSelect().Model(&groups).ModelTableExpr(`activities.groups AS "group"`).
-		Where(`"group".tenant_id = ?`, tenantID).Where(`"group".id IN (?)`, bun.List(ids)).Scan(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("timetable projection: list activity groups: %w", err)
-	}
-	return groups, nil
-}
-
 // CourseGroupsForOfferings projects active activity templates that a care
 // offering reaches, through either its legacy group id or a source-offering
 // declaration. Enrollment consumes this named, tenant-safe projection instead

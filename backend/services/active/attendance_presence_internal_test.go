@@ -24,7 +24,7 @@ func TestEnsureStaffPresenceKeepsCheckInFailureBestEffort(t *testing.T) {
 			return nil, errors.New("check-in failed")
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		WorkSessionService: workSessions,
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
@@ -44,7 +44,7 @@ func TestEnsureStaffPresenceAcceptsClosedSessionSkip(t *testing.T) {
 			return nil, nil
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		WorkSessionService: workSessions,
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
@@ -64,7 +64,7 @@ func TestEnsureStaffPresenceForAttendanceResultSkipsIdempotentCheckout(t *testin
 			return nil, nil
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		WorkSessionService: workSessions,
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
@@ -86,7 +86,7 @@ func TestEnsureStaffPresenceForAttendanceResultStampsMutatingCheckout(t *testing
 			return nil, nil
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		WorkSessionService: workSessions,
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
@@ -122,7 +122,7 @@ func TestEnsureStaffPresenceRollsBackFailedCheckInToSavepoint(t *testing.T) {
 			return nil, errors.New("check-in failed")
 		},
 	}
-	svc := &service{ServiceDependencies: ServiceDependencies{
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		WorkSessionService: workSessions,
 		Logger:             slog.New(slog.DiscardHandler),
 	}}

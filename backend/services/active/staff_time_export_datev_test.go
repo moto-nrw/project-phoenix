@@ -14,10 +14,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,37 +35,33 @@ var updateDatevGoldens = flag.Bool("update-datev-goldens", false, "rewrite the D
 
 // datevFullConfig configures every category: hours for the pure minute sums
 // and Urlaub, days for Krank and Fortbildung — both unit paths in one file.
-func datevFullConfig() map[string]string {
-	return map[string]string{
-		configModel.KeyPayrollLohnartRegelarbeit:       "100",
-		configModel.KeyPayrollLohnartPlusStunden:       "110",
-		configModel.KeyPayrollLohnartAuszahlung:        "120",
-		configModel.KeyPayrollLohnartFreizeitausgleich: "130",
-		configModel.KeyPayrollLohnartKrank:             "200",
-		configModel.KeyPayrollLohnartUrlaub:            "210",
-		configModel.KeyPayrollLohnartFortbildung:       "220",
-		configModel.KeyPayrollEinheitKrank:             configModel.PayrollUnitDays,
-		configModel.KeyPayrollEinheitUrlaub:            configModel.PayrollUnitHours,
-		configModel.KeyPayrollEinheitFortbildung:       configModel.PayrollUnitDays,
-		configModel.KeyPayrollDatevBeraternummer:       "1234567",
-		configModel.KeyPayrollDatevMandantennummer:     "54321",
+func datevFullConfig() settingstest.Values {
+	return settingstest.Values{
+		LohnartRegelarbeit:       "100",
+		LohnartPlusStunden:       "110",
+		LohnartAuszahlung:        "120",
+		LohnartFreizeitausgleich: "130",
+		LohnartKrank:             "200",
+		LohnartUrlaub:            "210",
+		LohnartFortbildung:       "220",
+		EinheitKrank:             settingstest.UnitDays,
+		EinheitUrlaub:            settingstest.UnitHours,
+		EinheitFortbildung:       settingstest.UnitDays,
+		DatevBeraternummer:       "1234567",
+		DatevMandantennummer:     "54321",
 	}
 }
 
-func (f *overviewFixture) newDatevExportService(values map[string]string) active.StaffTimeExportService {
-	settings := &configtest.Mock{
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			return values[key], nil
-		},
-	}
-	payrollStatus := configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff))
+func (f *overviewFixture) newDatevExportService(values settingstest.Values) active.StaffTimeExportService {
+	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(values), testpkg.PersonnelNumberCounter(f.repos.Staff))
 	return active.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		f.repos.Staff,
-		f.repos.DataAccessLog,
-		payrollStatus,
+		services.TimeExportStaff(f.repos.Staff),
+		services.NewDataAccessAudit(f.repos.DataAccessLog),
+		services.PayrollExportSettings{Source: payrollStatus},
 		nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -84,18 +80,18 @@ func (f *overviewFixture) setPersonnelNumber(t *testing.T, staffID int64, number
 // staff[0] also has data for every booking category.
 func newDatevFixture(t *testing.T) *overviewFixture {
 	f := newOverviewFixture(t, 2)
-	f.setPersonnelNumber(t, f.staff[0].ID, "1001")
-	f.setPersonnelNumber(t, f.staff[1].ID, "1002")
+	f.setPersonnelNumber(t, f.staff[0], "1001")
+	f.setPersonnelNumber(t, f.staff[1], "1002")
 
 	// June 2026 bookings for staff[0]: 2×8h work, 1 sick day, 2 vacation
 	// days, 1 training day, one payout and one comp-time booking.
-	f.addSession(t, f.staff[0].ID, timezone.NewDate(2026, time.June, 1), 8*time.Hour)
-	f.addSession(t, f.staff[0].ID, timezone.NewDate(2026, time.June, 2), 8*time.Hour)
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported,
+	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 1), 8*time.Hour)
+	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 2), 8*time.Hour)
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeSick, activeModels.AbsenceStatusReported,
 		timezone.NewDate(2026, time.June, 3), timezone.NewDate(2026, time.June, 3))
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeVacation, activeModels.AbsenceStatusApproved,
 		timezone.NewDate(2026, time.June, 4), timezone.NewDate(2026, time.June, 5))
-	f.addAbsence(t, f.staff[0].ID, activeModels.AbsenceTypeTraining, activeModels.AbsenceStatusApproved,
+	f.addAbsence(t, f.staff[0], activeModels.AbsenceTypeTraining, activeModels.AbsenceStatusApproved,
 		timezone.NewDate(2026, time.June, 8), timezone.NewDate(2026, time.June, 8))
 	for _, adj := range []struct {
 		typ   string
@@ -105,12 +101,12 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 		{activeModels.BalanceAdjustmentTypeCompTime, -120},
 	} {
 		adjustment := &activeModels.StaffBalanceAdjustment{
-			StaffID:       f.staff[0].ID,
+			StaffID:       f.staff[0],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
 			EffectiveDate: timezone.NewDate(2026, time.June, 10),
 			Note:          "Buchung",
-			DecidedBy:     f.staff[0].ID,
+			DecidedBy:     f.staff[0],
 			DecidedAt:     time.Now(),
 		}
 		adjustment.SetTenantID(f.tenantID)
@@ -176,7 +172,7 @@ func TestDatevExport_PinsAgainstMonthSummary(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
 
-	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0].ID, 2026, 6)
+	summary, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff[0], 2026, 6)
 	require.NoError(t, err)
 
 	file, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLug), actorID, "admin")
@@ -224,7 +220,7 @@ func TestDatevExport_RefusesStaffWithoutPersonnelNumber(t *testing.T) {
 	t.Parallel()
 
 	f := newDatevFixture(t)
-	f.setPersonnelNumber(t, f.staff[1].ID, "")
+	f.setPersonnelNumber(t, f.staff[1], "")
 	actorID := f.newActorAccount(t)
 	f.cleanupAccessLogs(t)
 	svc := f.newDatevExportService(datevFullConfig())
@@ -261,7 +257,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 
 	// LODAS without Berater-/Mandantennummer → refused; LuG does not need them.
 	config := datevFullConfig()
-	delete(config, configModel.KeyPayrollDatevBeraternummer)
+	config.DatevBeraternummer = ""
 	svc := f.newDatevExportService(config)
 	_, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")
 	require.ErrorIs(t, err, active.ErrPayrollConfigIncomplete)
@@ -269,9 +265,9 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	require.NoError(t, err, "Lohn und Gehalt does not need the LODAS header")
 
 	// No configured category at all → refused for both.
-	svc = f.newDatevExportService(map[string]string{
-		configModel.KeyPayrollDatevBeraternummer:   "1234567",
-		configModel.KeyPayrollDatevMandantennummer: "54321",
+	svc = f.newDatevExportService(settingstest.Values{
+		DatevBeraternummer:   "1234567",
+		DatevMandantennummer: "54321",
 	})
 	_, err = svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")
 	require.ErrorIs(t, err, active.ErrPayrollConfigIncomplete)
@@ -279,7 +275,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	// A category whose number is set but whose required unit is missing does
 	// not count as configured and exports no line.
 	config = datevFullConfig()
-	delete(config, configModel.KeyPayrollEinheitKrank)
+	config.EinheitKrank = ""
 	svc = f.newDatevExportService(config)
 	report, err := svc.DatevReport(f.ctx, datevRequest(active.ExportFormatDatevLug))
 	require.NoError(t, err)
@@ -309,7 +305,7 @@ func TestDatevExport_RequiresSingleMonth(t *testing.T) {
 func TestDatevReport_RejectsNonDatevFormats(t *testing.T) {
 	t.Parallel()
 
-	svc := active.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil)
+	svc := active.NewStaffTimeExportService(nil, nil, nil, nil, nil, nil, services.RenderTimeTrackingWorkbook)
 
 	for _, format := range []string{"", active.ExportFormatCSV, active.ExportFormatXLSX} {
 		_, err := svc.DatevReport(context.Background(), active.TimeExportRequest{
@@ -327,14 +323,11 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
-	settings := &configtest.Mock{
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			return datevFullConfig()[key], nil
-		},
-	}
+	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(datevFullConfig()), testpkg.PersonnelNumberCounter(f.repos.Staff))
 	svc := active.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), f.repos.Staff, failingAccessLogRepo{},
-		configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff)), nil,
+		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
+		services.PayrollExportSettings{Source: payrollStatus}, nil,
+		services.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")
