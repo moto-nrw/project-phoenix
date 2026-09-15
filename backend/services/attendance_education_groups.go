@@ -27,11 +27,6 @@ func (r attendanceEducationGroups) StudentGroupID(ctx context.Context, id int64)
 	return student.GroupID, nil
 }
 
-// NewAttendanceTeacherGroups supplies assignment IDs for the active route composer.
-func NewAttendanceTeacherGroups(records schoolStructure.TeacherGroupRecords) *schoolStructure.TeacherGroupIDs {
-	return schoolStructure.NewTeacherGroupIDs(records)
-}
-
 // NewAttendanceEducationGroups projects the tenant's group-to-room directory.
 func NewAttendanceEducationGroups(groups schoolStructure.GroupRoomRecords, students attendanceGroupStudents) active.AttendanceEducationGroups {
 	return attendanceEducationGroups{groups: schoolStructure.NewGroupRoomDirectory(groups), students: students}

@@ -19,11 +19,6 @@ func NewHistorySlots(records timetableCompose.AttendanceHistoryRecords) active.H
 	return historySlots{source: timetableCompose.NewAttendanceHistory(records)}
 }
 
-// HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) active.HistorySlotReader {
-	return NewHistorySlots(records)
-}
-
 func (r historySlots) Slots(ctx context.Context, studentID int64, from, to timezone.Date) ([]*active.HistorySlot, error) {
 	rows, err := r.source.Slots(ctx, studentID, from.String(), to.String())
 	if rows == nil {

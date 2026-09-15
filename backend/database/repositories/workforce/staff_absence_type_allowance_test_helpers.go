@@ -2,7 +2,6 @@ package workforce
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -10,6 +9,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// The allowance rows are owned and written by the Workforce module. These
+// retained repositories read them back per tenant, which is how the RLS
+// isolation test verifies that neither the claim nor its audit crosses the
+// tenant boundary.
 const (
 	tableStaffAbsenceTypeAllowances      = "active.staff_absence_type_allowances"
 	tableStaffAbsenceTypeAllowanceChange = "active.staff_absence_type_allowance_changes"
@@ -30,27 +33,6 @@ func (r *StaffAbsenceTypeAllowanceRepository) List(ctx context.Context, options 
 	return r.ListWithOptions(ctx, options)
 }
 
-func (r *StaffAbsenceTypeAllowanceRepository) Upsert(ctx context.Context, allowance *active.StaffAbsenceTypeAllowance) error {
-	if allowance == nil {
-		return fmt.Errorf("allowance cannot be nil")
-	}
-	if err := allowance.Validate(); err != nil {
-		return err
-	}
-	base.EnsureTenantID(ctx, allowance)
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(allowance).
-		ModelTableExpr(tableStaffAbsenceTypeAllowances).
-		On("CONFLICT (tenant_id, staff_id, absence_type_id, year) DO UPDATE").
-		Set("entitled_days = EXCLUDED.entitled_days").
-		Set("updated_at = CURRENT_TIMESTAMP").
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "upsert staff absence type allowance", Err: base.TranslateNotFound(err)}
-	}
-	return nil
-}
-
 type StaffAbsenceTypeAllowanceChangeRepository struct {
 	*base.Repository[*active.StaffAbsenceTypeAllowanceChange]
 }
@@ -63,14 +45,4 @@ func NewStaffAbsenceTypeAllowanceChangeRepository(db *bun.DB) active.StaffAbsenc
 
 func (r *StaffAbsenceTypeAllowanceChangeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsenceTypeAllowanceChange, error) {
 	return r.ListWithOptions(ctx, options)
-}
-
-func (r *StaffAbsenceTypeAllowanceChangeRepository) Create(ctx context.Context, change *active.StaffAbsenceTypeAllowanceChange) error {
-	if change == nil {
-		return fmt.Errorf("allowance change cannot be nil")
-	}
-	if err := change.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, change)
 }

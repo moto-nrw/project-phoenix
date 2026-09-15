@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -89,9 +87,6 @@ func (s studentPrivacyConsents) write(ctx context.Context, value *users.PrivacyC
 	return nil
 }
 
-func NewStudentPrivacyConsentStore(db *bun.DB) *studentPrivacyConsents {
-	return StudentPrivacyConsentCapability(newStudentPresence(db))
-}
 func StudentPrivacyConsentCapability(presence *studentpresence.Module) *studentPrivacyConsents {
 	return &studentPrivacyConsents{presence: presence}
 }

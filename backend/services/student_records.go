@@ -86,18 +86,6 @@ func (p presenceStudents) UpdateLiveStatus(ctx context.Context, record *active.S
 	return nil
 }
 
-// applyStudentLiveStatus copies the presence flags onto the owner's row so a
-// caller holding the full row can persist them through the owner's write path.
-func applyStudentLiveStatus(row *users.Student, record *active.StudentRecord) {
-	if row == nil || record == nil {
-		return
-	}
-	row.Sick = record.Sick
-	row.SickSince = record.SickSince
-	row.Excused = record.Excused
-	row.ExcusedSince = record.ExcusedSince
-}
-
 // studentLifecycle maps the owner's lifecycle status onto the three states the
 // presence flows branch on. Every other status, today only "pending", is
 // StudentLifecycleOther and is treated as not-yet-active, which is what the

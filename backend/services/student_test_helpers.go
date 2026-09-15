@@ -19,6 +19,7 @@ import (
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -396,4 +397,9 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 // module's users service.
 func (m StudentTestModule) StatusDayOverviewPeople() active.StatusDayOverviewPeople {
 	return StatusDayOverviewPeople(m.Users)
+}
+
+// HistorySlots supplies the same owner projection to narrow student route fixtures.
+func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) active.HistorySlotReader {
+	return NewHistorySlots(records)
 }

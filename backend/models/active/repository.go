@@ -243,7 +243,6 @@ type StaffAbsenceAuditRepository interface {
 
 type StaffAbsenceTypeAllowanceRepository interface {
 	base.Repository[*StaffAbsenceTypeAllowance]
-	Upsert(ctx context.Context, allowance *StaffAbsenceTypeAllowance) error
 }
 
 type StaffAbsenceTypeAllowanceChangeRepository interface {

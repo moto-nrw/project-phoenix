@@ -105,3 +105,15 @@ func (s *statusDayStudents) UpdateLiveStatus(ctx context.Context, record *active
 	applyStudentLiveStatus(row, record)
 	return s.source.Update(ctx, row)
 }
+
+// applyStudentLiveStatus copies the presence flags onto the owner's row so a
+// caller holding the full row can persist them through the owner's write path.
+func applyStudentLiveStatus(row *users.Student, record *active.StudentRecord) {
+	if row == nil || record == nil {
+		return
+	}
+	row.Sick = record.Sick
+	row.SickSince = record.SickSince
+	row.Excused = record.Excused
+	row.ExcusedSince = record.ExcusedSince
+}

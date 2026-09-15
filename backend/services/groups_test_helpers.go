@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -57,4 +58,11 @@ func NewGroupsTestModule(db *bun.DB, unit tenant.UnitOfWork) (GroupsTestModule, 
 	})
 
 	return GroupsTestModule{Education: groups, Active: presence, Users: persons, UserContext: identity.UserContext}, nil
+}
+
+// NewAttendanceTeacherGroups supplies assignment IDs the way the active route
+// composer did before the presence cutover; the behaviour tests still drive
+// that seam.
+func NewAttendanceTeacherGroups(records schoolStructure.TeacherGroupRecords) *schoolStructure.TeacherGroupIDs {
+	return schoolStructure.NewTeacherGroupIDs(records)
 }
