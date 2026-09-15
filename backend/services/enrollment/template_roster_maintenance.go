@@ -77,8 +77,10 @@ type TemplateRosterMaintenance struct {
 	// no source feeds the roster.
 	GradeLevels   []int
 	SchoolClasses []string
-	// InactiveOfferings are configured sources that are switched off. One
-	// inactive source stops the whole source rule: the resync rejects it.
+	// InactiveOfferings are configured sources or linked offerings that are
+	// switched off. One inactive source stops the whole source rule: the
+	// resync rejects it. An inactive link also prevents it from maintaining
+	// later approvals.
 	InactiveOfferings []RosterMaintenanceOffering
 	// DynamicTargetsManual is true when a Klasse/Jahrgang/Gruppe target
 	// exists; children joining it later are not added to existing occurrences.
@@ -103,10 +105,12 @@ func DeriveTemplateRosterMaintenance(in TemplateRosterMaintenanceInput) Template
 	}
 
 	sourceIntact := len(in.Feeds.Sources) > 0
+	inactiveSeen := make(map[int64]bool)
 	for _, source := range in.Feeds.Sources {
 		if !source.IsActive {
 			sourceIntact = false
 			result.InactiveOfferings = append(result.InactiveOfferings, RosterMaintenanceOffering{ID: source.ID, Name: source.Name})
+			inactiveSeen[source.ID] = true
 		}
 	}
 	seen := make(map[int64]bool)
@@ -119,7 +123,14 @@ func DeriveTemplateRosterMaintenance(in TemplateRosterMaintenanceInput) Template
 		result.SchoolClasses = append([]string(nil), in.SourceSchoolClasses...)
 	}
 	for _, linked := range in.Feeds.LinkedOfferings {
-		if !linked.IsActive || seen[linked.ID] {
+		if !linked.IsActive {
+			if !inactiveSeen[linked.ID] {
+				result.InactiveOfferings = append(result.InactiveOfferings, RosterMaintenanceOffering{ID: linked.ID, Name: linked.Name})
+				inactiveSeen[linked.ID] = true
+			}
+			continue
+		}
+		if seen[linked.ID] {
 			continue
 		}
 		seen[linked.ID] = true

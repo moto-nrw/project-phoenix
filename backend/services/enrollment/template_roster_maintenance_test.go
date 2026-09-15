@@ -83,6 +83,32 @@ func TestDeriveTemplateRosterMaintenance(t *testing.T) {
 		assert.True(t, got.DynamicTargetsManual)
 	})
 
+	t.Run("inactive offering link is named", func(t *testing.T) {
+		t.Parallel()
+		got := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
+			Feeds: enrollmentService.TemplateRosterFeeds{
+				CareOfferingsEnabled: true,
+				LinkedOfferings:      []enrollmentService.TemplateRosterFeedOffering{inactive(3, "Mittagessen")},
+			},
+		})
+		assert.Equal(t, enrollmentService.RosterMaintenanceManual, got.Mode)
+		assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: 3, Name: "Mittagessen"}}, got.InactiveOfferings)
+	})
+
+	t.Run("inactive offering link beside an active link is partial", func(t *testing.T) {
+		t.Parallel()
+		got := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
+			Feeds: enrollmentService.TemplateRosterFeeds{
+				CareOfferingsEnabled: true,
+				LinkedOfferings: []enrollmentService.TemplateRosterFeedOffering{
+					active(3, "Mittagessen"), inactive(4, "Spätbetreuung"),
+				},
+			},
+		})
+		assert.Equal(t, enrollmentService.RosterMaintenancePartial, got.Mode)
+		assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: 4, Name: "Spätbetreuung"}}, got.InactiveOfferings)
+	})
+
 	t.Run("inactive offering is not automatic", func(t *testing.T) {
 		t.Parallel()
 		got := enrollmentService.DeriveTemplateRosterMaintenance(enrollmentService.TemplateRosterMaintenanceInput{
@@ -100,7 +126,10 @@ func TestDeriveTemplateRosterMaintenance(t *testing.T) {
 			"one inactive source stops the whole source rule")
 		assert.Empty(t, got.Offerings)
 		assert.Empty(t, got.GradeLevels)
-		assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{{ID: 8, Name: "Musik"}}, got.InactiveOfferings)
+		assert.Equal(t, []enrollmentService.RosterMaintenanceOffering{
+			{ID: 8, Name: "Musik"},
+			{ID: 9, Name: "Alt"},
+		}, got.InactiveOfferings)
 	})
 
 	t.Run("broken source beside a working link is partial", func(t *testing.T) {
