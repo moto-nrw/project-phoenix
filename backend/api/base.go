@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -39,6 +41,7 @@ import (
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 
 	importAPI "github.com/moto-nrw/project-phoenix/api/import"
+	importCompose "github.com/moto-nrw/project-phoenix/api/import/compose"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
@@ -1380,8 +1383,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.FileStore = filestoreAPI.NewResource(api.Services.FileStore, db, logger.With("handler", "filestore"))
 	api.Groups = groupsAPI.NewResource(api.Services.Education, api.Services.Active, api.Services.Users, api.Services.UserContext, db)
 	api.Guardians = newGuardiansResource(api.Services.PeopleDirectory, api.Services.NewGuardianDirectoryRuntime(db), db, viper.GetString("app_env"), logger.With("handler", "guardians"))
-	api.Import = importAPI.NewResource(api.Services.Import, api.Services.StaffImport, api.Services.ClassListImport, api.Services.Users, db)
-	api.Import.SetOpeningBalanceImportFactory(api.Services.OpeningBalanceImport)
+	api.Import = importAPI.NewResource(importAPI.Dependencies{
+		Students: api.Services.Import, Staff: api.Services.StaffImport, ClassList: api.Services.ClassListImport,
+		Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, api.Services.PeopleDirectory, api.membership, api.Services.OpeningBalanceImport),
+	})
 	api.Activities = timetableHTTPAdapter.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	staffResource, staffAdmin, err := newStaffComposition(api.membership, workforce, api.Services, db, logger.With("handler", "staff"))
 	if err != nil {

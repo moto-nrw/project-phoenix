@@ -121,6 +121,7 @@ type ChangeRequestService interface {
 }
 
 type ChangeRequestServiceConfig struct {
+	Bookings  CareBookingChanges
 	Requests  ChangeRequestIntakeRequests
 	Children  IntakeChildren
 	Guardians IntakeGuardians
@@ -1547,9 +1548,9 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 			}
 			continue
 		}
-		replacement := make([]*capability.RequestChildOffering, 0, len(selections))
+		replacement := make([]*RequestChildOffering, 0, len(selections))
 		for _, selection := range selections {
-			replacement = append(replacement, &capability.RequestChildOffering{
+			replacement = append(replacement, &RequestChildOffering{
 				RequestChildID:        existing.ID,
 				CareOfferingID:        selection.OfferingID,
 				SelectedDays:          selection.SelectedDays,
@@ -1557,7 +1558,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *Cha
 				AutomaticSelectedDays: selection.AutomaticSelectedDays,
 			})
 		}
-		if err := s.Children.ReplaceRequestChildOfferings(ctx, existing.ID, replacement); err != nil {
+		if err := changeCareBookings(ctx, s.Bookings, existing.ID, phase, nil, replacement); err != nil {
 			return err
 		}
 		if status, ok := childStatusOverrides[i]; ok {

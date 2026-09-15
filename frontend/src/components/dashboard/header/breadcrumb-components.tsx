@@ -72,20 +72,16 @@ function BreadcrumbCurrent({ children }: BreadcrumbCurrentProps) {
 }
 
 /**
- * Breadcrumb container with responsive text sizing
+ * Breadcrumb container. Eine feste Textgröße für die 48px hohe Kopfzeile
+ * (#2827): das Schrumpfen beim Scrollen ist mit ihr entfallen.
  */
 interface BreadcrumbNavProps {
   readonly children: React.ReactNode;
-  readonly isScrolled?: boolean;
 }
 
-function BreadcrumbNav({ children, isScrolled = false }: BreadcrumbNavProps) {
+function BreadcrumbNav({ children }: BreadcrumbNavProps) {
   return (
-    <nav
-      className={`hidden items-center space-x-2 transition-all duration-300 md:flex ${
-        isScrolled ? "text-sm" : "text-base"
-      }`}
-    >
+    <nav className="hidden items-center space-x-2 text-sm md:flex">
       {children}
     </nav>
   );
@@ -96,19 +92,11 @@ function BreadcrumbNav({ children, isScrolled = false }: BreadcrumbNavProps) {
  */
 interface PageTitleDisplayProps {
   readonly title: string;
-  readonly isScrolled?: boolean;
 }
 
-export function PageTitleDisplay({
-  title,
-  isScrolled = false,
-}: PageTitleDisplayProps) {
+export function PageTitleDisplay({ title }: PageTitleDisplayProps) {
   return (
-    <span
-      className={`hidden font-medium text-gray-600 transition-all duration-300 md:inline ${
-        isScrolled ? "text-sm" : "text-base"
-      }`}
-    >
+    <span className="hidden text-sm font-medium text-gray-600 md:inline">
       {title}
     </span>
   );
@@ -128,7 +116,6 @@ interface SectionBreadcrumbProps {
   readonly pageLabel: string;
   readonly pageHref?: string;
   readonly deepLabel?: string;
-  readonly isScrolled?: boolean;
 }
 
 export function SectionBreadcrumb({
@@ -137,10 +124,9 @@ export function SectionBreadcrumb({
   pageLabel,
   pageHref,
   deepLabel,
-  isScrolled = false,
 }: SectionBreadcrumbProps) {
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       {sectionHref ? (
         <BreadcrumbLink href={sectionHref}>{sectionLabel}</BreadcrumbLink>
       ) : (
@@ -170,30 +156,21 @@ export function SectionBreadcrumb({
  * nur der Bereichsname als Seitentitel.
  *
  * Die beiden Bereiche hatten diese Struktur vorher je einmal von Hand
- * nachgebaut — und dabei `isScrolled` nicht durchgereicht, weshalb ihre
- * Kopfzeile als einzige beim Scrollen nicht mitschrumpfte.
+ * nachgebaut; eine Komponente hält sie deckungsgleich.
  */
 interface AccordionSectionBreadcrumbProps {
   readonly sectionLabel: string;
   readonly itemName?: string;
-  readonly isScrolled?: boolean;
 }
 
 function AccordionSectionBreadcrumb({
   sectionLabel,
   itemName,
-  isScrolled = false,
 }: AccordionSectionBreadcrumbProps) {
   if (!itemName) {
-    return <PageTitleDisplay title={sectionLabel} isScrolled={isScrolled} />;
+    return <PageTitleDisplay title={sectionLabel} />;
   }
-  return (
-    <SectionBreadcrumb
-      sectionLabel={sectionLabel}
-      pageLabel={itemName}
-      isScrolled={isScrolled}
-    />
-  );
+  return <SectionBreadcrumb sectionLabel={sectionLabel} pageLabel={itemName} />;
 }
 
 /**
@@ -201,18 +178,13 @@ function AccordionSectionBreadcrumb({
  */
 interface OgsGroupsBreadcrumbProps {
   readonly groupName?: string;
-  readonly isScrolled?: boolean;
 }
 
-export function OgsGroupsBreadcrumb({
-  groupName,
-  isScrolled,
-}: OgsGroupsBreadcrumbProps) {
+export function OgsGroupsBreadcrumb({ groupName }: OgsGroupsBreadcrumbProps) {
   return (
     <AccordionSectionBreadcrumb
       sectionLabel="Meine Gruppe"
       itemName={groupName}
-      isScrolled={isScrolled}
     />
   );
 }
@@ -222,18 +194,15 @@ export function OgsGroupsBreadcrumb({
  */
 interface ActiveSupervisionsBreadcrumbProps {
   readonly supervisionName?: string;
-  readonly isScrolled?: boolean;
 }
 
 export function ActiveSupervisionsBreadcrumb({
   supervisionName,
-  isScrolled,
 }: ActiveSupervisionsBreadcrumbProps) {
   return (
     <AccordionSectionBreadcrumb
       sectionLabel="Aktuelle Aufsicht"
       itemName={supervisionName}
-      isScrolled={isScrolled}
     />
   );
 }
@@ -241,13 +210,11 @@ export function ActiveSupervisionsBreadcrumb({
 interface EnrollmentBreadcrumbProps {
   readonly current: string;
   readonly pathname?: string;
-  readonly isScrolled?: boolean;
 }
 
 export function EnrollmentBreadcrumb({
   current,
   pathname,
-  isScrolled = false,
 }: EnrollmentBreadcrumbProps) {
   const nestedCurrent =
     pathname?.startsWith("/admin/enrollments/phases/") ||
@@ -256,7 +223,7 @@ export function EnrollmentBreadcrumb({
       : null;
 
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       <BreadcrumbLink href={ENROLLMENT_SECTION.href}>
         {ENROLLMENT_SECTION.label}
       </BreadcrumbLink>
@@ -278,16 +245,14 @@ export function EnrollmentBreadcrumb({
 
 interface ParentChildBreadcrumbProps {
   readonly childName: string;
-  readonly isScrolled?: boolean;
 }
 
 export function ParentChildBreadcrumb({
   childName,
-  isScrolled = false,
 }: ParentChildBreadcrumbProps) {
   const t = useTranslations("parentNav");
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       <BreadcrumbLink href="/parents/children">{t("children")}</BreadcrumbLink>
       <BreadcrumbSeparator />
       <BreadcrumbCurrent>{childName}</BreadcrumbCurrent>
@@ -304,7 +269,6 @@ interface StudentHistoryBreadcrumbProps {
   readonly pathname: string;
   readonly studentName: string;
   readonly historyType: string;
-  readonly isScrolled?: boolean;
   readonly subSectionName?: string;
 }
 
@@ -314,11 +278,10 @@ export function StudentHistoryBreadcrumb({
   pathname,
   studentName,
   historyType,
-  isScrolled = false,
   subSectionName,
 }: StudentHistoryBreadcrumbProps) {
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       <BreadcrumbLink href={referrer}>{breadcrumbLabel}</BreadcrumbLink>
       <BreadcrumbSeparator />
       {subSectionName ? (
@@ -343,7 +306,6 @@ interface StudentDetailBreadcrumbProps {
   readonly referrer: string;
   readonly breadcrumbLabel: string;
   readonly studentName: string;
-  readonly isScrolled?: boolean;
   readonly subSectionName?: string;
 }
 
@@ -351,11 +313,10 @@ export function StudentDetailBreadcrumb({
   referrer,
   breadcrumbLabel,
   studentName,
-  isScrolled = false,
   subSectionName,
 }: StudentDetailBreadcrumbProps) {
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       <BreadcrumbLink href={referrer}>{breadcrumbLabel}</BreadcrumbLink>
       <BreadcrumbSeparator />
       {subSectionName ? (
@@ -377,17 +338,15 @@ interface StaffDetailBreadcrumbProps {
   readonly staffName: string;
   /** Die Sammlung, aus der die Personalakte geöffnet wurde (`?from=`). */
   readonly referrer?: string;
-  readonly isScrolled?: boolean;
 }
 
 export function StaffDetailBreadcrumb({
   staffName,
   referrer = "/staff",
-  isScrolled = false,
 }: StaffDetailBreadcrumbProps) {
   const fromDatabase = referrer.startsWith("/database/personal");
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       {fromDatabase ? (
         <>
           <BreadcrumbLink href="/database">Datenverwaltung</BreadcrumbLink>
@@ -407,17 +366,15 @@ interface AnnouncementDetailBreadcrumbProps {
   readonly title: string;
   /** Die Liste samt Reiter, aus der die Seite geöffnet wurde (`?from=`). */
   readonly referrer: string;
-  readonly isScrolled?: boolean;
 }
 
 /** Die Mitteilungsseite /parent-announcements/[id] (#3115): Mitteilungen / Titel. */
 export function AnnouncementDetailBreadcrumb({
   title,
   referrer,
-  isScrolled = false,
 }: AnnouncementDetailBreadcrumbProps) {
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       <BreadcrumbLink href={referrer}>Mitteilungen</BreadcrumbLink>
       <BreadcrumbSeparator />
       <BreadcrumbCurrent>{title}</BreadcrumbCurrent>
@@ -429,7 +386,6 @@ interface RoomDetailBreadcrumbProps {
   readonly roomName: string;
   /** Die Sammlung, aus der die Raumseite geöffnet wurde (`?from=`). */
   readonly referrer: string;
-  readonly isScrolled?: boolean;
 }
 
 /**
@@ -440,11 +396,10 @@ interface RoomDetailBreadcrumbProps {
 export function RoomDetailBreadcrumb({
   roomName,
   referrer,
-  isScrolled = false,
 }: RoomDetailBreadcrumbProps) {
   const fromDatabase = referrer.startsWith("/database/rooms");
   return (
-    <BreadcrumbNav isScrolled={isScrolled}>
+    <BreadcrumbNav>
       {fromDatabase ? (
         <>
           <BreadcrumbLink href="/database">Datenverwaltung</BreadcrumbLink>

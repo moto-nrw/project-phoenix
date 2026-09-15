@@ -2,6 +2,9 @@ package enrollment_test
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories"
+
 	"testing"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -153,7 +156,7 @@ func TestOfferingChangeRequestService_ListPending_IncludesUnchangedGrandfathered
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "QueueUnchangedAuto")
 	auto := createAutoAddTarget(t, env, "QueueUnchangedAuto", fx.oldOffering.ID)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        auto.ID,
 		SelectedDays:          []string{"mon", "tue"},
@@ -276,7 +279,7 @@ func TestOfferingChangeRequestService_Decide_SnapshotMatchesGrandfatheredAutomat
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "GrandfatheredSnapshot")
 	automatic := createAutoAddTarget(t, env, "GrandfatheredSnapshot", fx.oldOffering.ID)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        automatic.ID,
 		SelectedDays:          []string{"mon"},
@@ -571,7 +574,7 @@ func TestOfferingChangeRequestService_Decide_RejectionFallsBackToPayloadSnapshot
 	svc := newOfferingChangeServiceForTest(t, env)
 	fx := setupOfferingChangeFixture(t, env, "RejectSnapshotFailure")
 	auto := createAutoAddTarget(t, env, "RejectSnapshotFailure", fx.oldOffering.ID)
-	require.NoError(t, env.repos.Enrollment().InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
+	require.NoError(t, repositories.NewEnrollmentBookingFixture(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
 		RequestChildID:        fx.childID,
 		CareOfferingID:        auto.ID,
 		SelectedDays:          []string{"mon"},

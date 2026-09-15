@@ -13,6 +13,7 @@ import { GroupedList } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { useGroupedItems } from "~/components/database/use-grouped-items";
 import { DatabaseForm } from "~/components/ui/database/database-form";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { groupsConfig } from "@/components/database/configs/groups.config";
@@ -195,7 +196,7 @@ function GroupSummary({ group }: { group: Group }) {
       : "Keine Gruppenleitung zugewiesen";
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
+    <section className="moto-content-surface rounded-xl border p-4 shadow-sm">
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
           {group.room_name ?? "Kein Gruppenraum"}
@@ -205,14 +206,13 @@ function GroupSummary({ group }: { group: Group }) {
         </span>
       </div>
 
-      <dl className="mt-4">
-        <div>
-          <dt className="text-xs font-medium text-gray-500">Gruppenleitung</dt>
-          <dd className="mt-0.5 text-sm whitespace-pre-wrap text-gray-900">
-            {supervisorNames}
-          </dd>
-        </div>
-      </dl>
+      <div className="mt-4">
+        <DataGrid>
+          <DataField label="Gruppenleitung" fullWidth>
+            <span className="whitespace-pre-wrap">{supervisorNames}</span>
+          </DataField>
+        </DataGrid>
+      </div>
     </section>
   );
 }

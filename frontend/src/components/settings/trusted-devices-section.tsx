@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
+import { Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Skeleton } from "~/components/ui/skeleton";
 import { SectionCard } from "~/components/ui/section-card";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -155,18 +156,26 @@ export function TrustedDevicesSection({
                   {d.ip_address && <> · IP: {d.ip_address}</>}
                 </div>
               </div>
-              <Button
-                type="button"
-                variant="outline_danger"
-                size="sm"
-                disabled={revokingId === d.id}
-                onClick={() => {
-                  setRevokeError("");
-                  setRevokeTarget(d);
-                }}
-              >
-                Entfernen
-              </Button>
+              {/* Zeilenaktionen nur im Kebab der Zeile (BAUARTEN-SPEC
+                  Bauart 1 Regel 4); Entfernen fragt weiter im
+                  ConfirmDeleteModal nach. */}
+              <div className="flex shrink-0 justify-end">
+                <OverflowMenu
+                  ariaLabel={`Aktionen für ${formatDeviceLabelFromUserAgent(d.user_agent)}`}
+                  items={[
+                    {
+                      label: "Entfernen",
+                      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+                      destructive: true,
+                      disabled: revokingId === d.id,
+                      onClick: () => {
+                        setRevokeError("");
+                        setRevokeTarget(d);
+                      },
+                    },
+                  ]}
+                />
+              </div>
             </li>
           ))}
         </ul>

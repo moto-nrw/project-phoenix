@@ -30,7 +30,7 @@ const sampleTeacher: Teacher = {
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-15T00:00:00Z",
   person_id: "100",
-  account_id: 50,
+  account_id: "50",
   is_teacher: true,
   staff_id: "1",
   teacher_id: "10",

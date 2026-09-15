@@ -1,7 +1,10 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Announcement } from "~/lib/parent-announcements-api";
+import {
+  updateAnnouncement,
+  type Announcement,
+} from "~/lib/parent-announcements-api";
 import ParentAnnouncementsPage from "./page";
 
 const { searchParams, pushMock, updateUrlParamsMock, listState } = vi.hoisted(
@@ -50,6 +53,7 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
   return {
     ...actual,
     fetchAnnouncements: vi.fn(() => Promise.resolve([])),
+    updateAnnouncement: vi.fn(() => Promise.resolve({ id: "1" })),
     fetchAnnouncementAttachments: vi.fn(() =>
       Promise.resolve({
         attachments: [],
@@ -107,6 +111,14 @@ const letter: Announcement = {
   title: "Elternbrief zum Sommerfest",
   status: "published",
   delivery_mode: "letter",
+};
+
+const draftPoll: Announcement = {
+  ...poll,
+  id: "4",
+  title: "Kommt Ihr Kind am Montag?",
+  status: "draft",
+  published_at: undefined,
 };
 
 describe("ParentAnnouncementsPage (#3115)", () => {
@@ -191,5 +203,98 @@ describe("ParentAnnouncementsPage (#3115)", () => {
       expect(updateUrlParamsMock).toHaveBeenCalledWith({ bearbeiten: null }),
     );
     expect(screen.queryByText("Umfrage bearbeiten")).not.toBeInTheDocument();
+  });
+});
+
+describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams.delete("art");
+    searchParams.delete("bearbeiten");
+    listState.isLoading = false;
+    listState.error = null;
+  });
+
+  it("shows the reminder state in the list", async () => {
+    listState.data = [
+      {
+        ...base,
+        status: "published",
+        published_at: "2026-09-02T10:00:00Z",
+        reminder_at: "2026-09-24T06:00:00Z",
+      },
+    ];
+    render(<ParentAnnouncementsPage />);
+
+    expect(
+      (await screen.findAllByText("Erinnerung am 24.09.2026, 08:00 Uhr"))
+        .length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("offers the reminder in the Mitteilung wizard but not in the Umfrage wizard", async () => {
+    listState.data = [
+      { ...base, reminder_at: "2026-09-24T06:00:00Z" },
+      draftPoll,
+    ];
+    searchParams.set("bearbeiten", "1");
+    const { unmount } = render(<ParentAnnouncementsPage />);
+
+    expect(
+      await screen.findByText("Elternmitteilung bearbeiten"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Erinnern am (optional)")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal.",
+      ),
+    ).toBeInTheDocument();
+    unmount();
+
+    searchParams.set("art", "umfragen");
+    searchParams.set("bearbeiten", "4");
+    render(<ParentAnnouncementsPage />);
+
+    expect(await screen.findByText("Umfrage bearbeiten")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Erinnern am (optional)"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("saves a draft with an elapsed reminder", async () => {
+    listState.data = [
+      {
+        ...base,
+        reminder_at: "2026-09-08T06:00:00Z",
+      },
+    ];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Weiter" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Als Entwurf speichern" }),
+    );
+
+    await waitFor(() => expect(updateAnnouncement).toHaveBeenCalledTimes(1));
+  });
+
+  it("shows a validation error for an incomplete reminder time in a draft", async () => {
+    listState.data = [
+      {
+        ...base,
+        reminder_at: "2026-09-24T06:00:00Z",
+      },
+    ];
+    searchParams.set("bearbeiten", "1");
+    render(<ParentAnnouncementsPage />);
+
+    fireEvent.change(await screen.findByRole("textbox", { name: /Uhrzeit/ }), {
+      target: { value: "8" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Uhrzeit");
+    expect(updateAnnouncement).not.toHaveBeenCalled();
   });
 });

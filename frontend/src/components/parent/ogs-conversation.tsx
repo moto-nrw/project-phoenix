@@ -438,6 +438,9 @@ export function OgsConversation({
           onRemove={async (date) => {
             await care.removeCareException(date);
           }}
+          cutoffTime={care.features.pickup_change_cutoff_time}
+          todayClosed={care.features.pickup_change_today_closed}
+          onCutoffPassed={care.refresh}
         />
       )}
     </div>

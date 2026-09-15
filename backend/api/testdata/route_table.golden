@@ -985,6 +985,7 @@ PUT /api/me/profile
 PUT /api/meal-plan/{date}
 PUT /api/notifications/preferences/{type}
 PUT /api/parent-announcements/{announcementId}
+PUT /api/parent-announcements/{announcementId}/reminder
 PUT /api/rooms/{id}
 PUT /api/schedules/dateframes/{id}
 PUT /api/schedules/recurrence-rules/{id}
@@ -1036,11 +1037,13 @@ PUT /auth/accounts/{accountId}/
 PUT /auth/accounts/{accountId}/activate
 PUT /auth/accounts/{accountId}/deactivate
 PUT /auth/accounts/{accountId}/mfa/override
+PUT /auth/accounts/{accountId}/roles/
 PUT /auth/parent-accounts/{id}/
 PUT /auth/parent-accounts/{id}/activate
 PUT /auth/parent-accounts/{id}/deactivate
 PUT /auth/permissions/{id}/
 PUT /auth/roles/{id}/
+PUT /auth/roles/{roleId}/permissions/
 PUT /internal/metrics
 PUT /operator/accounts/{accountId}/mfa/global-override
 PUT /operator/accounts/{accountId}/tenants/{tenantId}

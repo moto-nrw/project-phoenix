@@ -18,7 +18,7 @@ func (r *Store) PhaseExpirySnapshots(ctx context.Context, input enrollment.Phase
 		return nil, err
 	}
 	var rows []*enrollment.PhaseExpirySnapshot
-	err = db.NewRaw(phaseExpiryQuery, tenantID, input.AsOf, input.WarningThrough, input.OfferingsJSON,
+	err = db.NewRaw(phaseExpiryQuery, tenantID, input.AsOf, input.WarningThrough, input.OfferingsJSON, input.BookingsJSON,
 		pgdialect.Array(input.StudentIDs), pgdialect.Array(input.StudentStatuses), pgdialect.Array(input.EnrolledFrom), pgdialect.Array(input.EnrolledUntil)).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("list phase expiry snapshots for tenant %d: %w", tenantID, err)
@@ -37,6 +37,12 @@ care_offerings AS (
     SELECT * FROM jsonb_to_recordset(?::jsonb) AS offering(
         id bigint, tenant_id bigint, phase_id bigint, days_of_week_mode text,
         available_days jsonb, is_active boolean
+    )
+),
+care_bookings AS (
+    SELECT * FROM jsonb_to_recordset(?::jsonb) AS booking(
+        id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
+        selected_days jsonb, valid_from date, valid_until date
     )
 ),
 -- The tenant's non-alumni students as the People Directory projects them
@@ -71,7 +77,7 @@ effective_source_bookings AS (
      AND request_child.status = 'approved'
     JOIN directory_students AS student
       ON student.id = COALESCE(request_child.created_student_id, request_child.matched_student_id)
-    JOIN enrollment.request_child_offerings AS child_offering
+    JOIN care_bookings AS child_offering
       ON child_offering.tenant_id = request_child.tenant_id
      AND child_offering.request_child_id = request_child.id
     JOIN care_offerings AS care_offering
@@ -261,7 +267,7 @@ SELECT
                             AND phase.successor_end_date >= source_student.first_affected_date
                             AND EXISTS (
                                 SELECT 1
-                                FROM enrollment.request_child_offerings AS target_child_offering
+                                FROM care_bookings AS target_child_offering
                                 JOIN care_offerings AS target_offering
                                   ON target_offering.tenant_id = target_child_offering.tenant_id
                                  AND target_offering.id = target_child_offering.care_offering_id

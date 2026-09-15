@@ -2,6 +2,11 @@
 
 import { useMemo } from "react";
 import {
+  DataField,
+  DataGrid,
+  InfoSection,
+} from "~/components/ui/detail-modal-components";
+import {
   buildEnrollmentChangeRequestDiffGroups,
   formatEnrollmentChangeRequestValue,
   type EnrollmentChangeRequestDiffCopy,
@@ -48,7 +53,7 @@ export function EnrollmentChangeRequestDiff({
   }
 
   return (
-    <dl className={cn("space-y-3", className)}>
+    <div className={cn("space-y-3", className)}>
       {groups.map((group) => (
         <DiffGroup
           key={group.key}
@@ -59,7 +64,7 @@ export function EnrollmentChangeRequestDiff({
           copy={copy}
         />
       ))}
-    </dl>
+    </div>
   );
 }
 
@@ -77,52 +82,34 @@ function DiffGroup({
   readonly copy?: EnrollmentChangeRequestDiffCopy;
 }) {
   return (
-    <div className="grid gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3 sm:grid-cols-[12rem_1fr]">
-      <dt className="text-sm font-semibold text-gray-900">{group.label}</dt>
-      <dd className="space-y-2 text-sm">
+    <InfoSection title={group.label}>
+      <div className="space-y-2">
         {group.rows.map((row) => (
           <div key={row.id} className="rounded-lg bg-white px-3 py-2">
             <p className="text-xs font-medium break-words text-gray-500 uppercase">
               {row.label}
             </p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              <DiffValue
-                label={beforeLabel}
-                value={row.before}
-                emptyLabel={emptyLabel}
-                copy={copy}
-              />
-              <DiffValue
-                label={afterLabel}
-                value={row.after}
-                emptyLabel={emptyLabel}
-                copy={copy}
-              />
+            <div className="mt-2">
+              <DataGrid>
+                <DataField label={beforeLabel}>
+                  {formatEnrollmentChangeRequestValue(
+                    row.before,
+                    emptyLabel,
+                    copy,
+                  )}
+                </DataField>
+                <DataField label={afterLabel}>
+                  {formatEnrollmentChangeRequestValue(
+                    row.after,
+                    emptyLabel,
+                    copy,
+                  )}
+                </DataField>
+              </DataGrid>
             </div>
           </div>
         ))}
-      </dd>
-    </div>
-  );
-}
-
-function DiffValue({
-  emptyLabel,
-  label,
-  value,
-  copy,
-}: {
-  readonly label: string;
-  readonly value: unknown;
-  readonly emptyLabel: string;
-  readonly copy?: EnrollmentChangeRequestDiffCopy;
-}) {
-  return (
-    <div className="rounded-lg bg-gray-50 px-3 py-2">
-      <p className="text-xs font-medium text-gray-500 uppercase">{label}</p>
-      <p className="mt-1 text-sm break-words text-gray-900">
-        {formatEnrollmentChangeRequestValue(value, emptyLabel, copy)}
-      </p>
-    </div>
+      </div>
+    </InfoSection>
   );
 }

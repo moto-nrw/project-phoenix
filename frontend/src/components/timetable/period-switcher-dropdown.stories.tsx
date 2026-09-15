@@ -60,7 +60,6 @@ const meta = {
     periods,
     weekDays,
     onCreate: fn(),
-    onEdit: fn(),
     onSelect: fn(),
   },
 } satisfies Meta<typeof PeriodSwitcherDropdown>;

@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
+
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -76,7 +78,7 @@ func createCareBooking(
 		link.ValidUntil = &until
 	}
 	link.TenantID = scope.TenantID
-	require.NoError(t, enrollmentFixture.New().InsertRequestChildOffering(testpkg.WithTenantRuntime(t, scope.Context(), db), link))
+	require.NoError(t, bookingFixtures.NewEnrollmentBookingFixture().InsertRequestChildOffering(testpkg.WithTenantRuntime(t, scope.Context(), db), link))
 	// These scenarios include legacy unbounded bookings. The owner defaults new
 	// bookings to the phase window, so restore only the intentional legacy nulls.
 	if validFrom == nil || validUntil == nil {

@@ -14,6 +14,126 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// finalizeRequestChildStorage keeps the final delta, checksums and schema switch
+// in one transaction. The same advisory lock excludes resumable backfills and
+// their destructive restart for the entire switch.
+func finalizeRequestChildStorage(ctx context.Context, db *bun.DB, switchSchema func(context.Context, bun.Tx) error) error {
+	release, err := lockRequestChildStorageBackfill(ctx, db)
+	if err != nil {
+		return err
+	}
+	defer release()
+	if err := assertRequestChildStorageSource(ctx, db); err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '30s';
+			LOCK TABLE enrollment.request_child_offerings,
+				enrollment.request_child_offering_selections, enrollment.care_offering_bookings
+				IN ACCESS EXCLUSIVE MODE`); err != nil {
+			return fmt.Errorf("lock request child storage for cutover: %w", err)
+		}
+		var tenants []int64
+		if err := tx.NewRaw(`SELECT id FROM platform.schools ORDER BY id`).Scan(ctx, &tenants); err != nil {
+			return err
+		}
+		for _, tenantID := range tenants {
+			if err := reconcileRequestChildStorageFinalDelta(ctx, tx, tenantID); err != nil {
+				return err
+			}
+		}
+		if err := alignCareOfferingBookingSequence(ctx, tx); err != nil {
+			return err
+		}
+		return switchSchema(ctx, tx)
+	})
+}
+
+func reconcileRequestChildStorageFinalDelta(ctx context.Context, tx bun.Tx, tenantID int64) error {
+	var ready bool
+	if err := tx.NewRaw(`SELECT NOT EXISTS (
+		SELECT 1 FROM enrollment.request_child_offerings WHERE tenant_id = ?0
+	) OR EXISTS (
+		SELECT 1 FROM enrollment.request_child_storage_backfill_checkpoints WHERE tenant_id = ?0 AND complete
+	)`, tenantID).Scan(ctx, &ready); err != nil {
+		return err
+	}
+	if !ready {
+		return fmt.Errorf("request child storage cutover: tenant %d requires a complete backfill checkpoint", tenantID)
+	}
+	// Include every source ID and target pair: a deleted legacy row may have no
+	// source ID left, and a changed interval can conflict with a stale sibling.
+	var ids []int64
+	if err := tx.NewRaw(`SELECT id FROM enrollment.request_child_offerings WHERE tenant_id = ? ORDER BY id`, tenantID).Scan(ctx, &ids); err != nil {
+		return err
+	}
+	var pairs []struct {
+		ChildID    int64 `bun:"request_child_id"`
+		OfferingID int64 `bun:"care_offering_id"`
+	}
+	if err := tx.NewRaw(`SELECT request_child_id, care_offering_id FROM enrollment.care_offering_bookings WHERE tenant_id = ?0
+		UNION SELECT request_child_id, care_offering_id FROM enrollment.request_child_offering_selections WHERE tenant_id = ?0`, tenantID).Scan(ctx, &pairs); err != nil {
+		return err
+	}
+	children, offerings := make([]int64, 0, len(pairs)), make([]int64, 0, len(pairs))
+	for _, pair := range pairs {
+		children, offerings = append(children, pair.ChildID), append(offerings, pair.OfferingID)
+	}
+	deletedBookings, err := rowsAffected(tx.NewRaw(staleBookingDelete, tenantID, sqlBigintArray(ids), sqlBigintArray(children), sqlBigintArray(offerings)).Exec(ctx))
+	if err != nil {
+		return fmt.Errorf("delete stale final bookings for tenant %d: %w", tenantID, err)
+	}
+	insertedBookings, err := rowsAffected(tx.NewRaw(missingBookingInsert, tenantID, sqlBigintArray(ids)).Exec(ctx))
+	if err != nil {
+		return fmt.Errorf("insert final bookings for tenant %d: %w", tenantID, err)
+	}
+	deletedSelections, err := rowsAffected(tx.NewRaw(staleSelectionDelete, tenantID, sqlBigintArray(ids), sqlBigintArray(children), sqlBigintArray(offerings)).Exec(ctx))
+	if err != nil {
+		return fmt.Errorf("delete stale final selections for tenant %d: %w", tenantID, err)
+	}
+	insertedSelections, err := rowsAffected(tx.NewRaw(missingSelectionInsert, tenantID, sqlBigintArray(ids), sqlBigintArray(children), sqlBigintArray(offerings)).Exec(ctx))
+	if err != nil {
+		return fmt.Errorf("insert final selections for tenant %d: %w", tenantID, err)
+	}
+	verification, err := verifyRequestChildStorageTenant(ctx, tx, tenantID, nil)
+	if err != nil {
+		return err
+	}
+	if !verification.Equal() {
+		return fmt.Errorf("request child storage cutover: tenant %d has checksum drift or %d mismatches", tenantID, verification.Mismatches())
+	}
+	if _, err := tx.NewRaw(`INSERT INTO enrollment.request_child_storage_backfill_checkpoints (tenant_id)
+		VALUES (?) ON CONFLICT (tenant_id) DO NOTHING`, tenantID).Exec(ctx); err != nil {
+		return err
+	}
+	var highWaterMark int64
+	if len(ids) > 0 {
+		highWaterMark = ids[len(ids)-1]
+	}
+	_, err = tx.NewRaw(`UPDATE enrollment.request_child_storage_backfill_checkpoints SET
+		high_water_mark = GREATEST(high_water_mark, ?1),
+		rows_scanned = rows_scanned + ?2, rows_copied = rows_copied + ?3,
+		rows_deleted = rows_deleted + ?4, rows_skipped = rows_skipped + ?5,
+		batches_completed = batches_completed + 1,
+		source_bookings = ?6, target_bookings = ?7, source_selections = ?8, target_selections = ?9,
+		source_bookings_checksum = ?10, target_bookings_checksum = ?11,
+		source_selections_checksum = ?12, target_selections_checksum = ?13,
+		verified_at = ?14, verification_snapshot = ?15, provenance_policy = ?16,
+		mismatch_count = 0, orphan_count = 0, day_differences = 0, oldest_unmigrated_seconds = 0,
+		stable = TRUE, complete = TRUE, updated_at = NOW()
+		WHERE tenant_id = ?0`, tenantID, highWaterMark, len(ids)+len(pairs), insertedBookings+insertedSelections,
+		deletedBookings+deletedSelections, int64(len(ids))-insertedBookings,
+		verification.SourceBookings, verification.TargetBookings, verification.SourceSelections, verification.TargetSelections,
+		verification.SourceBookingsChecksum, verification.TargetBookingsChecksum, verification.SourceSelectionsChecksum, verification.TargetSelectionsChecksum,
+		verification.VerifiedAt, verification.Snapshot, verification.ProvenancePolicy).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("persist final request child storage checksums for tenant %d: %w", tenantID, err)
+	}
+	return nil
+}
+
 // Request-child storage backfill (#2713).
 //
 // enrollment.request_child_offerings stays the only production authority until
@@ -351,7 +471,7 @@ func restartRequestChildStorageBackfill(ctx context.Context, db *bun.DB, tenantI
 
 // alignCareOfferingBookingSequence moves the bookings sequence past the copied
 // legacy ids so a later application insert cannot collide with them.
-func alignCareOfferingBookingSequence(ctx context.Context, db *bun.DB) error {
+func alignCareOfferingBookingSequence(ctx context.Context, db bun.IDB) error {
 	_, err := db.ExecContext(ctx, `SELECT setval('enrollment.care_offering_bookings_id_seq',
 		GREATEST((SELECT COALESCE(MAX(id), 0) FROM enrollment.care_offering_bookings) + 1,
 			(SELECT last_value FROM enrollment.care_offering_bookings_id_seq)), false)`)

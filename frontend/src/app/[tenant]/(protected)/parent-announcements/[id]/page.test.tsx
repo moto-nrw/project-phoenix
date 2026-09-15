@@ -83,6 +83,14 @@ vi.mock("~/components/announcements/announcement-detail", () => ({
   ),
 }));
 
+vi.mock("~/components/announcements/announcement-reminder-dialog", () => ({
+  AnnouncementReminderDialog: ({
+    announcement,
+  }: {
+    announcement: Announcement;
+  }) => <div data-testid="reminder-dialog">{announcement.title}</div>,
+}));
+
 vi.mock("~/components/ui/confirm-delete-modal", () => ({
   ConfirmDeleteModal: ({
     isOpen,
@@ -271,5 +279,46 @@ describe("AnnouncementDetailPage", () => {
     expect(
       screen.getByText("Elternmitteilung nicht gefunden."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("AnnouncementDetailPage: scheduled reminder (#3162)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    searchParams.delete("from");
+    swrState.isLoading = false;
+    swrState.error = null;
+  });
+
+  it("shows the planned reminder in the status line", () => {
+    swrState.data = {
+      ...announcement,
+      status: "published",
+      published_at: "2026-09-02T10:00:00Z",
+      reminder_at: "2026-09-24T06:00:00Z",
+    };
+    render(<AnnouncementDetailPage />);
+
+    expect(
+      screen.getByText(/Erinnerung am 24\.09\.2026, 08:00 Uhr/),
+    ).toBeInTheDocument();
+  });
+
+  it("opens the reminder dialog from the actions menu", () => {
+    swrState.data = {
+      ...announcement,
+      status: "published",
+      published_at: "2026-09-02T10:00:00Z",
+    };
+    render(<AnnouncementDetailPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Erinnerung planen" }),
+    );
+
+    expect(screen.getByTestId("reminder-dialog")).toHaveTextContent(
+      "Sommerfest am Freitag",
+    );
   });
 });

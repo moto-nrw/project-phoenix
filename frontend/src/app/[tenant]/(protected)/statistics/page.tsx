@@ -21,6 +21,7 @@ import {
 import type { DateRange } from "react-day-picker";
 import { Alert } from "~/components/ui/alert";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
   buildDefaultPresets,
   DateRangePicker,
@@ -848,35 +849,27 @@ export default function StatisticsPage() {
               frühere Kachelreihe hat drei ihrer sieben Werte dupliziert. */}
           <SectionCard>
             <div className="space-y-4">
-              <div className="flex flex-wrap items-start gap-x-10 gap-y-4">
-                <div>
-                  <p className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                    Quote gesamt
-                  </p>
-                  <p className="mt-1 text-2xl leading-tight font-semibold text-gray-900 tabular-nums">
+              <DataGrid columns={4}>
+                <DataField label="Quote gesamt">
+                  <span className="text-2xl leading-tight font-semibold tabular-nums">
                     {headline.rate}
-                  </p>
-                </div>
-                <dl className="flex flex-wrap items-start gap-x-10 gap-y-4">
-                  {headline.values.map(([label, value, highlight]) => (
-                    <div key={label}>
-                      <dt className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
-                        {label}
-                      </dt>
-                      <dd
-                        className="mt-1 text-lg leading-tight font-semibold tabular-nums"
-                        style={{
-                          color: highlight
-                            ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
-                            : undefined,
-                        }}
-                      >
-                        {value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
+                  </span>
+                </DataField>
+                {headline.values.map(([label, value, highlight]) => (
+                  <DataField key={label} label={label}>
+                    <span
+                      className="text-lg leading-tight font-semibold tabular-nums"
+                      style={{
+                        color: highlight
+                          ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
+                          : undefined,
+                      }}
+                    >
+                      {value}
+                    </span>
+                  </DataField>
+                ))}
+              </DataGrid>
               <p className="text-sm leading-6 text-gray-600">
                 {headline.footnote}
               </p>

@@ -1392,6 +1392,31 @@ func TestSetValue_TimeAcceptsValidTime(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestSetValue_OptionalTimeAcceptsEmpty(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, config.KeyParentPickupChangeCutoffTime, config.FieldTime, "")
+
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+
+	require.NoError(t, svc.SetValue(tenantCtx(1), config.KeyParentPickupChangeCutoffTime, "", nil, nil))
+	value, err := svc.ResolveString(tenantCtx(1), config.KeyParentPickupChangeCutoffTime)
+	require.NoError(t, err)
+	assert.Empty(t, value)
+}
+
+func TestSetValue_RequiredTimeRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	registry := setupTest(t)
+	registerTestSetting(registry, "test.time", config.FieldTime, "18:00")
+
+	svc := createService(registry, newMockValueRepo(), &mockAuditRepo{})
+
+	err := svc.SetValue(tenantCtx(1), "test.time", "", nil, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected time in HH:MM format")
+}
+
 func TestSetValue_DateRejectsInvalidFormat(t *testing.T) {
 	t.Parallel()
 	registry := setupTest(t)

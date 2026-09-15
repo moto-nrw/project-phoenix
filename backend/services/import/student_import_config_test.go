@@ -5,11 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,7 +45,7 @@ func TestEnrollmentStartsInFuture_UsesBusinessDate(t *testing.T) {
 func TestStudentImportConfig_CreateSingleGuardianRelationship_ForwardsRolePreset(t *testing.T) {
 	t.Parallel()
 	guardians := newFakeGuardians()
-	config := NewStudentImportConfig(StudentImportDeps{Guardians: guardians})
+	config := NewStudentImportConfig(StudentImportDeps{Transactions: newTestTransactions(), Guardians: guardians})
 	ctx := context.Background()
 
 	require.NoError(t, config.createSingleGuardianRelationship(ctx, 41, importModels.GuardianImportData{
@@ -62,7 +59,7 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_ForwardsRolePreset
 	assert.Equal(t, "parent", guardians.linked[0].RelationshipType)
 	assert.Empty(t, guardians.linked[0].GuardianRole, "no preset: the owner derives the default role")
 	assert.Equal(t, 1, guardians.linked[0].EmergencyPriority)
-	assert.Equal(t, authorize.GuardianRolePickupOnly, guardians.linked[1].GuardianRole)
+	assert.Equal(t, "pickup_only", guardians.linked[1].GuardianRole)
 	assert.True(t, guardians.linked[1].CanPickup)
 	assert.Equal(t, 3, guardians.linked[1].EmergencyPriority)
 	assert.Len(t, guardians.guardians, 2, "one profile per guardian row")
@@ -77,8 +74,8 @@ func TestStudentImportConfig_CreateSingleGuardianRelationship_ForwardsRolePreset
 
 func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -159,8 +156,8 @@ func TestStudentImportConfig_Validate_RequiredFields(t *testing.T) {
 
 func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -261,8 +258,8 @@ func TestStudentImportConfig_Validate_GuardianValidation(t *testing.T) {
 
 func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -321,8 +318,8 @@ func TestStudentImportConfig_Validate_EnrollmentDates(t *testing.T) {
 
 func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -378,8 +375,8 @@ func TestStudentImportConfig_Validate_ConsentDates(t *testing.T) {
 // the model rejects mid-import.
 func TestStudentImportConfig_Validate_AccompaniedCompanionNote(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -432,8 +429,8 @@ func TestStudentImportConfig_Validate_AccompaniedCompanionNote(t *testing.T) {
 
 func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -500,8 +497,8 @@ func TestStudentImportConfig_Validate_DataRetention(t *testing.T) {
 
 func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 	futureISO := futureBirthdayISOForTests()
@@ -571,8 +568,8 @@ func TestStudentImportConfig_Validate_BirthdayFormat(t *testing.T) {
 
 func TestStudentImportConfig_Validate_ErrorSeverity(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -737,8 +734,8 @@ func TestValidateGuardianLanguage(t *testing.T) {
 
 func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -775,8 +772,8 @@ func TestStudentImportConfig_Validate_GuardianLanguageWarning(t *testing.T) {
 
 func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -868,8 +865,8 @@ func TestStudentImportConfig_Validate_PickupSchedule(t *testing.T) {
 
 func TestStudentImportConfig_Validate_ArrivalSchedule(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -985,8 +982,8 @@ func TestGuardianLanguagePreference(t *testing.T) {
 
 func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1021,8 +1018,8 @@ func TestStudentImportConfig_Validate_CombinedGuardianAndPickupErrors(t *testing
 
 func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1059,8 +1056,8 @@ func TestStudentImportConfig_Validate_MultipleInvalidPickupSchedules(t *testing.
 
 func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1084,8 +1081,8 @@ func TestStudentImportConfig_Validate_PickupScheduleEmptyListIsValid(t *testing.
 
 func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1139,7 +1136,7 @@ func TestStudentImportConfig_Validate_PickupScheduleErrorMessages(t *testing.T) 
 
 func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Schedules: nil}}
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Schedules: nil}}
 
 	schedules := []importModels.ArrivalScheduleImportData{
 		{Weekday: 1, ExpectedArrival: "08:00"},
@@ -1151,7 +1148,7 @@ func TestStudentImportConfig_CreateArrivalSchedules_NilRepo(t *testing.T) {
 
 func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Schedules: nil}}
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Schedules: nil}}
 
 	err := config.createArrivalSchedules(context.Background(), 123, nil)
 	assert.NoError(t, err)
@@ -1162,7 +1159,7 @@ func TestStudentImportConfig_CreateArrivalSchedules_EmptySchedules(t *testing.T)
 
 func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(),
 		// No repo
 		Schedules: nil},
 	}
@@ -1178,7 +1175,7 @@ func TestStudentImportConfig_CreatePickupSchedules_NilRepo(t *testing.T) {
 
 func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(),
 		// Would panic if called, but shouldn't be
 		Schedules: nil},
 	}
@@ -1197,8 +1194,8 @@ func TestStudentImportConfig_CreatePickupSchedules_EmptySchedules(t *testing.T) 
 
 func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesContact(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1239,8 +1236,8 @@ func TestStudentImportConfig_Validate_GuardianWithProfileFieldsStillValidatesCon
 
 func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1292,8 +1289,8 @@ func TestStudentImportConfig_Validate_PickupScheduleBoundaryWeekdays(t *testing.
 
 func TestStudentImportConfig_Validate_PickupTimeBoundaryValues(t *testing.T) {
 	t.Parallel()
-	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Resolver: &RelationshipResolver{
-		groupCache: make(map[string]*education.Group),
+	config := &StudentImportConfig{StudentImportDeps: StudentImportDeps{Transactions: newTestTransactions(), Resolver: &RelationshipResolver{
+		groupCache: make(map[string]Reference),
 	}},
 	}
 
@@ -1403,35 +1400,6 @@ func TestStudentImportConfig_EntityName(t *testing.T) {
 	name := config.EntityName()
 
 	assert.Equal(t, "student", name)
-}
-
-// ============================================================================
-// stringPtr Tests
-// ============================================================================
-
-func TestStringPtr(t *testing.T) {
-	t.Parallel()
-	t.Run("returns pointer to string", func(t *testing.T) {
-		result := strutil.TrimToNil("test")
-		assert.NotNil(t, result)
-		assert.Equal(t, "test", *result)
-	})
-
-	t.Run("returns nil for empty string", func(t *testing.T) {
-		result := strutil.TrimToNil("")
-		assert.Nil(t, result)
-	})
-
-	t.Run("returns nil for whitespace-only string", func(t *testing.T) {
-		result := strutil.TrimToNil("   ")
-		assert.Nil(t, result)
-	})
-
-	t.Run("trims whitespace", func(t *testing.T) {
-		result := strutil.TrimToNil("  test  ")
-		assert.NotNil(t, result)
-		assert.Equal(t, "test", *result)
-	})
 }
 
 // ============================================================================

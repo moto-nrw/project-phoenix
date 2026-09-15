@@ -199,7 +199,7 @@ vi.mock("~/components/students/student-detail-components", () => ({
 }));
 
 // Mock des Bearbeiten-Zustands im Stammdaten-Reiter (kein Modal mehr).
-vi.mock("~/components/students/personal-info-form-modal", () => ({
+vi.mock("~/components/students/personal-info-edit-panel", () => ({
   PersonalInfoEditPanel: ({
     onCancel,
     student,

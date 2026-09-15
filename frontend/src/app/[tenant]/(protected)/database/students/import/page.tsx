@@ -501,9 +501,7 @@ export default function StudentImportPage() {
           : importInterrupted
             ? `${savedCount} gespeichert`
             : `${stats.total} ${stats.total === 1 ? "Zeile" : "Zeilen"}`,
-        !importComplete && stats.errors > 0
-          ? `${stats.errors} ${stats.errors === 1 ? "Fehler" : "Fehler"}`
-          : null,
+        !importComplete && stats.errors > 0 ? `${stats.errors} Fehler` : null,
       ]
         .filter(Boolean)
         .join(" · ")

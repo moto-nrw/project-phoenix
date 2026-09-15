@@ -65,6 +65,27 @@ vi.mock("~/lib/grade-transition-api", async (importOriginal) => {
   };
 });
 
+// Zeilenaktionen liegen im Kebab der Zeile (Bauart 1 Regel 4): Menü einer
+// Zeile öffnen, Eintrag anklicken; Escape schließt ein offenes Menü.
+function rowMenuTriggers() {
+  return screen.getAllByRole("button", { name: /^Aktionen für/ });
+}
+function openRowMenu(index = 0) {
+  fireEvent.click(rowMenuTriggers()[index]!);
+}
+function closeRowMenu() {
+  fireEvent.keyDown(document, { key: "Escape" });
+}
+/** Auslöser der Zeilen, deren Menü den Eintrag anbietet. */
+function rowsOffering(name: RegExp) {
+  return rowMenuTriggers().filter((trigger) => {
+    fireEvent.click(trigger);
+    const offered = screen.queryByRole("menuitem", { name }) !== null;
+    closeRowMenu();
+    return offered;
+  });
+}
+
 const draftTransition: GradeTransition = {
   id: "7",
   academicYear: "2026-2027",
@@ -233,7 +254,8 @@ describe("GradeTransitionsManager", () => {
     const row = await screen.findByText("2026-2027");
     expect(row).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Zurücksetzen/i }));
+    openRowMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Zurücksetzen/i }));
     await screen.findByText(/wirklich zurücksetzen/i);
     fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
 
@@ -279,10 +301,11 @@ describe("GradeTransitionsManager", () => {
 
     await screen.findByText("2026-2027");
     // Exactly one row offers the action, and it is the higher id.
-    const buttons = screen.getAllByRole("button", { name: /Zurücksetzen/i });
-    expect(buttons).toHaveLength(1);
+    const rows = rowsOffering(/Zurücksetzen/i);
+    expect(rows).toHaveLength(1);
 
-    fireEvent.click(buttons[0]!);
+    fireEvent.click(rows[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: /Zurücksetzen/i }));
     await screen.findByText(/wirklich zurücksetzen/i);
     fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
 
@@ -321,10 +344,11 @@ describe("GradeTransitionsManager", () => {
     render(<GradeTransitionsManager />);
 
     await screen.findByText("2026-2027");
-    const buttons = screen.getAllByRole("button", { name: /Zurücksetzen/i });
-    expect(buttons).toHaveLength(1);
+    const rows = rowsOffering(/Zurücksetzen/i);
+    expect(rows).toHaveLength(1);
 
-    fireEvent.click(buttons[0]!);
+    fireEvent.click(rows[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: /Zurücksetzen/i }));
     await screen.findByText(/wirklich zurücksetzen/i);
     fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
 
@@ -349,7 +373,8 @@ describe("GradeTransitionsManager", () => {
     render(<GradeTransitionsManager />);
 
     await screen.findByText("2026-2027");
-    fireEvent.click(screen.getByRole("button", { name: /Zurücksetzen/i }));
+    openRowMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Zurücksetzen/i }));
     await screen.findByText(/wirklich zurücksetzen/i);
     fireEvent.click(screen.getByRole("button", { name: /Ja, zurücksetzen/i }));
 
@@ -370,7 +395,8 @@ describe("GradeTransitionsManager", () => {
     render(<GradeTransitionsManager />);
 
     await screen.findByText("2026-2027");
-    fireEvent.click(screen.getByRole("button", { name: /Löschen/i }));
+    openRowMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /Löschen/i }));
     await screen.findByText(/wird gelöscht/i);
     // Zweistufige Löschbestätigung (ConfirmDeleteModal, #3110).
     fireEvent.click(screen.getByRole("button", { name: /Ja, löschen/i }));
@@ -416,7 +442,9 @@ describe("Abgänge entry point", () => {
     ]);
     render(<GradeTransitionsManager />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /^Abgänge$/i }));
+    await screen.findAllByRole("button", { name: /^Aktionen für/ });
+    openRowMenu();
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Abgänge$/i }));
 
     expect(await screen.findByText("Alma Alumna")).toBeInTheDocument();
     await waitFor(() => {
@@ -429,8 +457,9 @@ describe("Abgänge entry point", () => {
     render(<GradeTransitionsManager />);
 
     await screen.findByText("Entwurf");
+    openRowMenu();
     expect(
-      screen.queryByRole("button", { name: /^Abgänge$/i }),
+      screen.queryByRole("menuitem", { name: /^Abgänge$/i }),
     ).not.toBeInTheDocument();
   });
 });

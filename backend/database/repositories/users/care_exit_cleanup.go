@@ -29,8 +29,8 @@ import (
 // They span schemas no single domain repository owns (users, active,
 // enrollment, schedule, activities), which is the documented exception in
 // backend-conventions rule 11 — the raw SQL lives here, never in the service.
-// Enrollment's application and offering-link facts arrive as owner
-// projections and commands (#2695); the remaining SQL joins those recordsets.
+// Enrollment's application identity and Care Plan's effective bookings arrive
+// through a composed owner capability; the remaining SQL joins those recordsets.
 // Keeping them together also keeps the counting half (the preview) and the
 // writing half (the confirmation) side by side, where a divergence is
 // visible.
@@ -1232,9 +1232,9 @@ func (r *CareExitCleanupRepository) DiscardRemovals(
 	return nil
 }
 
-// CareExitEnrollmentQueries is the Enrollment capability care-exit cleanup
-// reads source applications and their offering links through. The offering
-// link writes (#2695) are Enrollment commands on the caller's transaction.
+// CareExitEnrollmentQueries is the composed application and booking capability
+// used by cleanup. Booking commands belong to Care Plan and participate in the
+// caller's transaction.
 type CareExitEnrollmentQueries interface {
 	CreatedStudentRequestChildIDs(context.Context, []int64) ([]int64, error)
 	CareExitApplicationLinks(context.Context, []int64) ([]enrollment.CareExitApplicationLink, error)

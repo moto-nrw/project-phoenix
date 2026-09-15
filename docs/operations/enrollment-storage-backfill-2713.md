@@ -1,5 +1,9 @@
 # Request-child storage Backfill: operation and evidence
 
+This guide describes the pre-cutover stage. After migration 1.15.385, use
+the [cutover guide](enrollment-storage-cutover-2714.md); the backfill refuses
+to overwrite owner data from the compatibility view.
+
 Migration `1.15.383` copies the legacy request-child rows into the Expand
 targets for #2713. Applied Presence `1.15.381` and Staff `1.15.382` are
 unchanged. All application traffic remains on

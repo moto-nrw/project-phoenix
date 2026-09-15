@@ -45,9 +45,35 @@ describe("DataField", () => {
     const dd = screen.getByText("12345");
     expect(dd).toHaveClass("font-mono");
   });
+
+  it("puts label and value on one line with the value flush right when inline", () => {
+    render(
+      <dl>
+        <DataField label="Stundenkonto danach" inline>
+          +2h 30min
+        </DataField>
+      </dl>,
+    );
+
+    const dd = screen.getByText("+2h 30min");
+    expect(dd).toHaveClass("text-right");
+    expect(dd).not.toHaveClass("mt-0.5");
+    expect(dd.parentElement).toHaveClass("flex", "justify-between");
+  });
 });
 
 describe("InfoSection", () => {
+  it("renders the title without an icon slot when no icon is given", () => {
+    const { container } = render(
+      <InfoSection title="Kind 1">
+        <p>Content here</p>
+      </InfoSection>,
+    );
+
+    expect(screen.getByText("Kind 1")).toBeInTheDocument();
+    expect(container.querySelector("h3 > span")).not.toBeInTheDocument();
+  });
+
   it("renders title and children", () => {
     render(
       <InfoSection title="Personal Information" icon={DetailIcons.person}>
@@ -115,6 +141,29 @@ describe("DataGrid", () => {
 
     const dl = container.querySelector("dl");
     expect(dl).toHaveClass("grid", "grid-cols-1", "sm:grid-cols-2");
+  });
+
+  it("stacks as a single column with columns={1}", () => {
+    const { container } = render(
+      <DataGrid columns={1}>
+        <div>Content</div>
+      </DataGrid>,
+    );
+
+    const dl = container.querySelector("dl");
+    expect(dl).toHaveClass("grid", "grid-cols-1");
+    expect(dl).not.toHaveClass("sm:grid-cols-2");
+  });
+
+  it("lays out four figures per row with columns={4}", () => {
+    const { container } = render(
+      <DataGrid columns={4}>
+        <div>Content</div>
+      </DataGrid>,
+    );
+
+    const dl = container.querySelector("dl");
+    expect(dl).toHaveClass("grid", "grid-cols-2", "sm:grid-cols-4");
   });
 });
 

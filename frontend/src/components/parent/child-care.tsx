@@ -925,6 +925,9 @@ export function PickupTimeModal({
   onSubmit,
   onRemove,
   reasonRequired = true,
+  cutoffTime,
+  todayClosed = false,
+  onCutoffPassed,
 }: Readonly<{
   studentId?: string;
   careExceptions: CareException[];
@@ -944,11 +947,20 @@ export function PickupTimeModal({
   onRemove: (date: string) => Promise<void>;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
+  /** Uhrzeit (HH:MM), bis zu der Eltern heute noch ändern dürfen (#3163). */
+  cutoffTime?: string;
+  /** Die Frist für heute ist vorbei; heute ist für Eltern gesperrt. */
+  todayClosed?: boolean;
+  /** Der Server hat die Frist gemeldet: Daten neu laden. */
+  onCutoffPassed?: () => void;
 }>) {
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = berlinTodayISO();
+  // Meldet der Server die Frist, bevor die Merkmale neu geladen sind, sperrt
+  // der Dialog heute sofort, statt dieselbe Absage noch einmal zu zeigen.
+  const [cutoffReported, setCutoffReported] = useState(false);
   // Ist das Aendern abgeschaltet, oeffnet der Dialog auf dem einzigen Tag, den
   // die Eltern noch bearbeiten koennen. Ein offener Antrag geht dabei vor: er
   // ist der Tag mit dem Zuruecknehmen-Knopf, und ohne diese Vorauswahl stuende
@@ -1001,6 +1013,9 @@ export function PickupTimeModal({
   const pending = request?.status === "pending";
   const staffOwned = existing?.pickup_source === "staff";
   const alreadyHome = date === today && childToday?.state === "left";
+  // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
+  // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
+  const todayLocked = date === today && (todayClosed || cutoffReported);
   // Eine offene eigene Anfrage wird geändert, nicht zurückgezogen (#2267).
   const canEditRequest =
     pending && studentId !== undefined && request?.is_self !== false;
@@ -1039,6 +1054,12 @@ export function PickupTimeModal({
           return t("pickup.reasonTooLong");
         case "care_request_already_pending":
           return t("pickup.statusPending");
+        case "pickup_change_cutoff_passed":
+          setCutoffReported(true);
+          onCutoffPassed?.();
+          return cutoffTime
+            ? t("pickup.cutoffClosed", { time: cutoffTime })
+            : t("pickup.cutoffClosedGeneric");
       }
     }
     return err instanceof Error ? err.message : t("pickup.saveError");
@@ -1177,22 +1198,24 @@ export function PickupTimeModal({
       mobileSheet
       footer={
         <>
-          {!pending && existing?.pickup_source === "guardian" && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="md"
-              className="w-full gap-2 whitespace-nowrap sm:w-auto"
-              onClick={() => {
-                setResetError(null);
-                setConfirmingReset(true);
-              }}
-              disabled={submitting || alreadyHome}
-            >
-              <Trash2 className="size-4" aria-hidden="true" />
-              {t("pickup.reset")}
-            </Button>
-          )}
+          {!pending &&
+            !todayLocked &&
+            existing?.pickup_source === "guardian" && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="md"
+                className="w-full gap-2 whitespace-nowrap sm:w-auto"
+                onClick={() => {
+                  setResetError(null);
+                  setConfirmingReset(true);
+                }}
+                disabled={submitting || alreadyHome}
+              >
+                <Trash2 className="size-4" aria-hidden="true" />
+                {t("pickup.reset")}
+              </Button>
+            )}
           <Button
             type="button"
             variant="outline"
@@ -1208,7 +1231,7 @@ export function PickupTimeModal({
               size="md"
               className="w-full gap-2 whitespace-nowrap shadow-sm max-sm:min-h-11 sm:w-auto"
               onClick={() => void handleSaveEdit()}
-              disabled={submitting}
+              disabled={submitting || todayLocked}
             >
               {submitting && (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -1224,6 +1247,7 @@ export function PickupTimeModal({
               disabled={
                 submitting ||
                 alreadyHome ||
+                todayLocked ||
                 staffOwned ||
                 !pickupChangeEnabled ||
                 !careExceptionsLoaded ||
@@ -1262,6 +1286,24 @@ export function PickupTimeModal({
           />
         </label>
 
+        {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
+            würde er an einem anderen Tag falsch klingen. */}
+        {date === today && cutoffTime && !todayClosed && !cutoffReported && (
+          <p className="text-sm text-gray-600">
+            {t("pickup.cutoffHint", { time: cutoffTime })}
+          </p>
+        )}
+        {todayLocked && (
+          <p
+            role="status"
+            className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600"
+          >
+            {cutoffTime
+              ? t("pickup.cutoffClosed", { time: cutoffTime })
+              : t("pickup.cutoffClosedGeneric")}
+          </p>
+        )}
+
         {pending && (
           <div className="bg-moto-orange-soft text-moto-orange-strong space-y-2 rounded-lg px-3 py-2.5">
             <p className="text-base font-semibold tabular-nums">
@@ -1282,7 +1324,7 @@ export function PickupTimeModal({
                 })}
               </p>
             )}
-            {canEditRequest && !editing && (
+            {canEditRequest && !editing && !todayLocked && (
               <Button
                 type="button"
                 variant="outline"
@@ -1316,7 +1358,8 @@ export function PickupTimeModal({
           </p>
         )}
 
-        {pending && !editing ? null : alreadyHome && childFirstName ? (
+        {(pending && !editing) || todayLocked ? null : alreadyHome &&
+          childFirstName ? (
           <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
             {t("pickup.alreadyHome", { name: childFirstName })}
           </p>
@@ -1381,7 +1424,7 @@ export function PickupTimeModal({
           </div>
         )}
 
-        {existing?.pickup_source === "guardian" && (
+        {existing?.pickup_source === "guardian" && !todayLocked && (
           <p className="text-sm text-gray-500">
             {t("pickup.existingHint", {
               date: formatLocaleDate(date, locale),
@@ -1389,7 +1432,7 @@ export function PickupTimeModal({
           </p>
         )}
 
-        {error && (
+        {error && !todayLocked && (
           <p
             id={errorId}
             role="alert"

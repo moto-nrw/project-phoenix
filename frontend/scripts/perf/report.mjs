@@ -8,7 +8,7 @@ const OUT_DIR = join(process.cwd(), "perf-results");
 // Muss zu BUCKETS in src/lib/backend-proxy-metrics.ts passen.
 const BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10];
 
-/** @param {number[]} values */
+/** @param {(number | null)[]} values */
 function median(values) {
   const sorted = values
     .filter((v) => v !== null && !Number.isNaN(v))
@@ -18,7 +18,7 @@ function median(values) {
   return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-/** @param {number[]} values */
+/** @param {(number | null)[]} values */
 function range(values) {
   const sorted = values.filter((v) => v !== null).sort((a, b) => a - b);
   if (sorted.length === 0) return "";

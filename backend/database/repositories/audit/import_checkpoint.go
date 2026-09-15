@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
 )
 
 // ListImportCheckpoints uses both the ambient tenant and RLS. It deliberately

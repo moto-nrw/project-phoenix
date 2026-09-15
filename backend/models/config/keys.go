@@ -159,6 +159,7 @@ const (
 	KeyParentCareModeRequestEnabled          = "operations.parent_care_mode_request_enabled"
 	KeyParentMessageStaffNameVisible         = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled             = "operations.parent_pickup_change_enabled"
+	KeyParentPickupChangeCutoffTime          = "operations.parent_pickup_change_cutoff_time"
 	KeyParentGuardianManagementEnabled       = "operations.parent_guardian_management_enabled"
 	KeyParentMasterDataEditEnabled           = "operations.parent_master_data_edit_enabled"
 	KeyParentMasterDataRequestEnabled        = "operations.parent_master_data_request_enabled"

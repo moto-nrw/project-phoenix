@@ -16,7 +16,9 @@ import {
 } from "~/components/database/grouped-list";
 import { MasterDetailLayout } from "~/components/database/master-detail-layout";
 import { devicesConfig } from "~/components/database/configs/devices.config";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { DatabaseForm } from "~/components/ui/database/database-form";
 import {
   DataField,
@@ -284,40 +286,42 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
     >
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <input
-            aria-label="API-Schlüssel"
-            type={revealed ? "text" : "password"}
-            value={apiKey}
-            readOnly
-            // Opt out of password manager / browser autosave prompts; this is
-            // a one-shot device key, not a user credential.
-            autoComplete="off"
-            data-1p-ignore
-            data-lpignore="true"
-            data-form-type="other"
-            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-          />
-          <button
+          <div className="min-w-0 flex-1">
+            <Input
+              aria-label="API-Schlüssel"
+              type={revealed ? "text" : "password"}
+              value={apiKey}
+              readOnly
+              controlSize="compact"
+              // Opt out of password manager / browser autosave prompts; this is
+              // a one-shot device key, not a user credential.
+              autoComplete="off"
+              data-1p-ignore
+              data-lpignore="true"
+              data-form-type="other"
+            />
+          </div>
+          <Button
             type="button"
+            variant="outline"
+            size="compact"
             onClick={() => setRevealed((current) => !current)}
-            className="bg-moto-orange hover:bg-moto-orange-hover rounded px-2 py-1 text-xs text-white"
           >
             {revealed ? "Verbergen" : "Anzeigen"}
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="primary"
+            size="compact"
             onClick={() => void copy(apiKey)}
-            className="rounded bg-gray-900 px-2 py-1 text-xs text-white hover:bg-gray-700"
           >
             {copied ? "Kopiert!" : "Kopieren"}
-          </button>
+          </Button>
         </div>
-        <div className="border-moto-amber/20 bg-moto-amber-soft rounded-md border p-2">
-          <div className="text-moto-amber-strong text-xs">
-            Sicherheit: Bewahren Sie diesen Schlüssel sicher auf. Er ist nur bei
-            der Erstellung sichtbar.
-          </div>
-        </div>
+        <Alert
+          type="warning"
+          message="Bewahren Sie diesen Schlüssel sicher auf. Er ist nur bei der Erstellung sichtbar."
+        />
       </div>
     </InfoSection>
   );

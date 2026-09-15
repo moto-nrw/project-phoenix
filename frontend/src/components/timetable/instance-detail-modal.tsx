@@ -218,31 +218,31 @@ interface StatusBadgeProps {
 }
 
 /** Schrift auf den beiden gefüllten Statusflächen (grün, rot). */
-const STATUS_BADGE_ON_COLOR = "#FFFFFF";
+const STATUS_BADGE_ON_CLASS = "text-white";
 
 function StatusBadge({ status }: StatusBadgeProps) {
-  // Alle vier Zeilen kommen aus derselben Quelle: die beiden Statusfarben aus
-  // LOCATION_COLORS, die neutralen Stufen aus der Palette — kein Hex-Literal
-  // neben einem Token in derselben Tabelle.
+  // Flächen aus LOCATION_COLORS bzw. der neutralen Palette, die Schrift als
+  // Tailwind-Klasse (gray-700 = neutral.strong, gray-500 = neutral.base) —
+  // kein Hex-Literal neben einem Token in derselben Tabelle.
   const palette: Record<InstanceStatus, { bg: string; text: string }> = {
     planned: {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: MOTO_COLOR_PALETTE.neutral.strong,
+      text: "text-gray-700",
     },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_COLOR },
+    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_CLASS },
     // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
     // aber die hellere Schrift: erledigt, nicht offen.
     completed: {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
-      text: MOTO_COLOR_PALETTE.neutral.base,
+      text: "text-gray-500",
     },
-    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_COLOR },
+    cancelled: { bg: LOCATION_COLORS.DANGER, text: STATUS_BADGE_ON_CLASS },
   };
   const { bg, text } = palette[status];
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase"
-      style={{ backgroundColor: bg, color: text }}
+      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase ${text}`}
+      style={{ backgroundColor: bg }}
     >
       {status === "active" && (
         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />

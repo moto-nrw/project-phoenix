@@ -23,6 +23,11 @@ func (e *InvalidStudentError) Unwrap() error { return ErrInvalidStudent }
 // roster query of the directory leaves it out.
 const StudentStatusAlumnus = "alumnus"
 
+const (
+	StudentStatusPending = "pending"
+	StudentStatusActive  = "active"
+)
+
 // Student is the directory view of users.students that other owners may
 // read: identity, class and group, lifecycle status, the live absence
 // flags and the photo path. Guardian contact columns stay with the owner.

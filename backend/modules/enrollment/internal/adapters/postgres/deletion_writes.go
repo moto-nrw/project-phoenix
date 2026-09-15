@@ -24,9 +24,6 @@ func (r *Store) DeleteRequestChildTree(ctx context.Context, requestID, childID i
 	if _, err := db.NewRaw(`DELETE FROM enrollment.change_requests WHERE tenant_id = ? AND request_id = ? AND request_child_id = ?`, tenantID, requestID, childID).Exec(ctx); err != nil {
 		return fmt.Errorf("delete enrollment change requests: %w", err)
 	}
-	if _, err := db.NewRaw(`DELETE FROM enrollment.request_child_offerings WHERE tenant_id = ? AND request_child_id IN (SELECT id FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ? AND id = ?)`, tenantID, tenantID, requestID, childID).Exec(ctx); err != nil {
-		return fmt.Errorf("delete enrollment child offerings: %w", err)
-	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ? AND id = ?`, tenantID, requestID, childID).Exec(ctx); err != nil {
 		return fmt.Errorf("delete enrollment request child: %w", err)
 	}
@@ -54,9 +51,6 @@ func (r *Store) DeleteRequestTree(ctx context.Context, requestID int64) error {
 	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.late_invites WHERE tenant_id = ? AND used_request_id = ?`, tenantID, requestID).Exec(ctx); err != nil {
 		return fmt.Errorf("delete enrollment late invites: %w", err)
-	}
-	if _, err := db.NewRaw(`DELETE FROM enrollment.request_child_offerings WHERE tenant_id = ? AND request_child_id IN (SELECT id FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ?)`, tenantID, tenantID, requestID).Exec(ctx); err != nil {
-		return fmt.Errorf("delete enrollment child offerings: %w", err)
 	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.request_guardians WHERE tenant_id = ? AND request_id = ?`, tenantID, requestID).Exec(ctx); err != nil {
 		return fmt.Errorf("delete enrollment request guardians: %w", err)

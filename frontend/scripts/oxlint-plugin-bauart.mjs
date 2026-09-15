@@ -1,6 +1,6 @@
 // Bauarten ratchet (BAUARTEN-SPEC.md, Abschnitt „Ratschen“).
 //
-// Five rules; a production match beyond the tolerated remainder fails
+// Twelve rules; a production match beyond the tolerated remainder fails
 // `pnpm run check`:
 //
 //   bauart/one-delete-confirm — deletion is confirmed by ConfirmDeleteModal
@@ -28,9 +28,10 @@
 //                               („nach oben“) are list actions and pass; an
 //                               icon-only „… entfernen“ button is the chip
 //                               remover of a form value list and passes.
-//                               Shrink-only location baseline
-//                               (ROW_ACTION_BASELINE) for the remainder the
-//                               issue defers to follow-up PRs. Scope is the
+//                               Location-bound exception list
+//                               (ROW_ACTION_BASELINE) for form-internal
+//                               remove buttons only; the #3111 remainder is
+//                               gone since #3119. Scope is the
 //                               tenant portal: operator, parents and school
 //                               portal files are exempt (the spec does not
 //                               cover them).
@@ -86,6 +87,50 @@
 //                               (OWN_OBJECT_ENTRY_EXCEPTIONS) are entries of
 //                               the very object the dialog edits, which
 //                               Bauart 2 Regel 4 allows.
+//
+//   bauart/no-local-field-grid — a label/value pair in a detail view comes
+//                               from `DataField` / `DataGrid` in
+//                               ui/detail-modal-components (Bauart 2 Regel 2,
+//                               issue #3117). The rule flags every hand-
+//                               written `<dt>` outside the kit: the `<dt>` is
+//                               the label cell of a local field grid, and it
+//                               cannot be confused with a kit call, so the
+//                               check stays a plain element count. Hard-zero
+//                               since #3119 (the #3117 remainder is gone);
+//                               tenant portal only.
+//
+//   bauart/no-own-skeleton — loading comes from `TenantPage.loading` with
+//                               the kit skeletons (ui/skeleton,
+//                               ui/page-skeletons); no hand-written pulse
+//                               block (Bauart 1 Regel 7, Bauart 3 Regel 5,
+//                               issue #3118). The rule flags a `className`
+//                               whose static chunks carry `animate-pulse`
+//                               together with a neutral `bg-gray-*` fill —
+//                               the silhouette of a placeholder. A pulsing
+//                               live dot (occupied room, „nähert sich“) has
+//                               no gray fill and passes. Hard-zero since
+//                               #3119; tenant portal only.
+//
+//   bauart/no-raw-status-hex — status and planning colors come from
+//                               LOCATION_COLORS / MOTO_COLOR_PALETTE or a
+//                               `moto-*` class, also as fallback (Querregel
+//                               Farbe, issue #3118). The rule flags every
+//                               string literal or template chunk holding a
+//                               CSS hex color (`#83CD2D`, `text-[#4070C8]`,
+//                               a bare `#666`); one literal counts once.
+//                               The token source itself, the web manifest
+//                               and global-error.tsx (no stylesheet at that
+//                               boundary) are exempt by name
+//                               (HEX_TOKEN_SOURCES). Hard-zero since #3119;
+//                               tenant portal only, src/test/ excluded.
+//
+//   bauart/no-disabled-menu-item — an action that does not exist is not in
+//                               the menu (Bauart 2 Regel 7, issue #3118).
+//                               The rule flags a menu entry object (`label`
+//                               plus `onClick` or `href`) whose `disabled`
+//                               is the literal `true`; a computed
+//                               `disabled: busy` is a state and passes.
+//                               Hard-zero; tenant portal only.
 //
 // Files under src/components/ui/ are exempt (ConfirmDeleteModal is itself
 // built on Modal and owns the final destructive button), as are tests and
@@ -258,35 +303,8 @@ const CHIP_REMOVE_RE = /(?:^|\P{L})entfernen(?:\P{L}|$)/iu;
 // tolerance accidentally. Keys are repo-relative posix paths under src/.
 const ROW_ACTION_BASELINE = new Map(
   Object.entries({
-    // Noch umzuziehen (#3111, Folge-PRs): Objektaktionen je Zeile.
-    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "Bearbeiten@466",
-      "Löschen@476",
-    ],
-    "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx": [
-      "Endgültig löschen@157",
-    ],
-    "src/components/admin/pending-invitations-list.tsx": ["Löschen@251"],
-    "src/components/database/grade-transitions/grade-transitions-manager.tsx": [
-      "Bearbeiten@416",
-      "Löschen@436",
-    ],
-    "src/components/guardians/guardian-list.tsx": ["Bearbeiten@165"],
-    "src/components/planning/calendar-periods-editor.tsx": ["Bearbeiten@225"],
-    "src/components/settings/trusted-devices-section.tsx": ["Entfernen@158"],
-    "src/components/staff/staff-session-table.tsx": [
-      "Eintrag nachtragen Block nachtragen Eintrag bearbeiten@850",
-      "Block bearbeiten@960",
-    ],
-    "src/components/staff/stundenkonto-panel.tsx": ["Buchung vom löschen@188"],
-    "src/components/students/class-arrival-exception-panel.tsx": [
-      "Entfernen@529",
-    ],
-    "src/components/teachers/caregiver-blocker-resolution-panel.tsx": [
-      "Übertragen Entfernen@566",
-      "Übertragen Entfernen@630",
-    ],
-    "src/components/timetable/period-switcher-dropdown.tsx": ["bearbeiten@310"],
+    // Der Bestand aus #3111 ist mit #3119 in den Kebab umgezogen; es gibt
+    // keine tolerierte Objektaktion je Zeile mehr.
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
@@ -295,8 +313,8 @@ const ROW_ACTION_BASELINE = new Map(
       "Gericht entfernen@738",
     ],
     "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
-      "Antwort entfernen@1193",
-      "Entfernen@1465",
+      "Antwort entfernen@1248",
+      "Entfernen@1580",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Bedingung löschen@1974",
@@ -1525,6 +1543,359 @@ const oneDetailPerType = {
   },
 };
 
+// --- bauart/no-edit-overlay --------------------------------------------------
+
+// Overlays that carry their own title: `title` prop on the modals, the
+// `<SlideOverTitle>` / `<DrawerTitle>` element in the slide-over family.
+const EDIT_OVERLAY_TITLE_PROP_ELEMENTS = new Set([
+  "Modal",
+  "FormModal",
+  "ChoiceModal",
+]);
+const EDIT_OVERLAY_TITLE_CHILD_ELEMENTS = new Set([
+  "SlideOverTitle",
+  "DrawerTitle",
+]);
+// `DatabaseFormModal mode="edit"` titles itself „… bearbeiten“ inside the kit.
+const DATABASE_FORM_MODAL = "DatabaseFormModal";
+// Word-bounded on unicode letters (see DELETE_LABEL_RE): „Personal
+// bearbeiten“, „Rolle verwalten: Mila“ match, „Bearbeitung“ does not.
+const EDIT_TITLE_RE = /(?:^|\P{L})(?:bearbeiten|verwalten)(?:\P{L}|$)/iu;
+
+// Shrink-only per-match tolerance, keyed like ROW_ACTION_BASELINE: the static
+// title text at its exact line, so a moved or reworded overlay cannot inherit
+// the tolerance. Keys are repo-relative posix paths under src/. Line 0
+// tolerates the title anywhere in its file — for titles assembled from
+// several branches, whose line shifts with every edit above them.
+const EDIT_OVERLAY_BASELINE = new Map(
+  Object.entries({
+    // Die Feldgruppen an Objektansichten (Urlaubsanspruch, Arbeitszeitmodell,
+    // Wochenplan, Betreuungsangebote der Anmeldung) bearbeiten seit #3119 im
+    // Reiter. Benannte Ausnahme: der Assistent der Elternmitteilung hat zwei
+    // Abschlüsse („Als Entwurf speichern“ und „Veröffentlichen“) und behält
+    // seinen eigenen Fuß (BAUARTEN-SPEC Bauart 2 Regel 4, #3115); die Anzeige
+    // liegt auf der Route `parent-announcements/[id]`.
+    "src/app/[tenant]/(protected)/parent-announcements/page.tsx": [
+      "Umfrage bearbeiten Neue Umfrage Elternbrief bearbeiten Neuer Elternbrief Elternmitteilung bearbeiten Neue Elternmitteilung@1153",
+    ],
+    // Einträge ohne eigene Objektansicht (Termin, Schließtag,
+    // Kalenderzeitraum, Jahrgangswechsel, Klassenlisteneintrag,
+    // Anmeldephase, Betreuungsangebot, Ordner, Tagesinformation): die Spec
+    // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
+    // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
+    "src/app/[tenant]/(protected)/calendar/page.tsx": [
+      "Termin bearbeiten Termin erstellen@918",
+    ],
+    "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@538",
+    ],
+    "src/components/database/grade-transitions/transition-editor.tsx": [
+      "Jahrgangswechsel bearbeiten Neuer Jahrgangswechsel@243",
+    ],
+    "src/components/enrollment/care-offerings-editor.tsx": [
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@936",
+    ],
+    "src/components/enrollment/phases-editor.tsx": [
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@853",
+    ],
+    "src/components/files/folder-modal.tsx": [
+      "Ordner bearbeiten Neuer Ordner@131",
+    ],
+    "src/components/planning/closing-day-modal.tsx": [
+      "Schließtag bearbeiten Schließtag anlegen@89",
+    ],
+    "src/components/staff-notices/staff-notice-modal.tsx": [
+      "Tagesinformation bearbeiten Neue Tagesinformation@182",
+    ],
+    "src/components/timetable/calendar-period-modal.tsx": [
+      "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@380",
+    ],
+    // Kontoaktionen mit eigenem Ablauf (Begründung und Rückfrage bei der
+    // Zwei-Faktor-Authentifizierung, Auflösen offener Zuordnungen bei der
+    // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
+    // Personalakte geöffnet (#3116).
+    "src/components/auth/mfa-admin-override-modal.tsx": [
+      "Zwei-Faktor-Authentifizierung verwalten@314",
+    ],
+    "src/components/teachers/caregiver-capability-modal.tsx": [
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@268",
+    ],
+  }),
+);
+
+function normalizeTitle(chunks) {
+  return chunks.join(" ").replaceAll(/\s+/g, " ").trim();
+}
+
+/** Static text of an attribute, or null when the element has none. */
+function staticAttributeText(openingElement, name) {
+  const attribute = jsxAttribute(openingElement, name);
+  if (!attribute?.value) return null;
+  const chunks = [];
+  collectStaticStrings(attribute.value, chunks);
+  return normalizeTitle(chunks);
+}
+
+const noEditOverlay = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "An object is edited in place: a tab switches into its edit state and back. No modal or slide-over titled „… bearbeiten“ / „… verwalten“ next to the object view.",
+    },
+    messages: {
+      editOverlay:
+        "Overlay „{{title}}“ ist ein Modal je Feldgruppe: Bearbeitet wird am Objekt, ein Reiter wechselt in den Bearbeiten-Zustand mit `EditActions` unten (BAUARTEN-SPEC Bauart 2 Regeln 3 und 4, #3116). Kontoaktionen mit eigenem Ablauf stehen im Kebab des Kopfes. Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.",
+      editFormModal:
+        '`DatabaseFormModal mode="edit"` ist ein Modal für das ganze Objekt: Bearbeitet wird am Objekt, im Bearbeiten-Zustand des Reiters (BAUARTEN-SPEC Bauart 2 Regel 3, #3116). Die Baseline in scripts/oxlint-plugin-bauart.mjs ist shrink-only.',
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key)) return {};
+    const tolerated = new Set(EDIT_OVERLAY_BASELINE.get(key) ?? []);
+
+    function report(node, title, messageId) {
+      if (tolerated.delete(`${title}@${node.loc.start.line}`)) return;
+      context.report({ node, messageId, data: { title } });
+    }
+
+    return {
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === DATABASE_FORM_MODAL) {
+          const mode = jsxAttribute(node, "mode");
+          const chunks = [];
+          if (mode?.value) collectStaticStrings(mode.value, chunks);
+          if (chunks.includes("edit")) {
+            report(node, "mode=edit", "editFormModal");
+          }
+          return;
+        }
+        if (EDIT_OVERLAY_TITLE_PROP_ELEMENTS.has(name)) {
+          const title = staticAttributeText(node, "title");
+          if (title && EDIT_TITLE_RE.test(title)) {
+            report(node, title, "editOverlay");
+          }
+          return;
+        }
+        if (EDIT_OVERLAY_TITLE_CHILD_ELEMENTS.has(name)) {
+          const chunks = [];
+          collectChildText(node.parent, chunks);
+          const title = normalizeTitle(chunks);
+          if (EDIT_TITLE_RE.test(title)) report(node, title, "editOverlay");
+        }
+      },
+    };
+  },
+};
+
+// --- bauart/no-local-field-grid ----------------------------------------------
+
+const noLocalFieldGrid = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Label/value pairs in a detail view come from DataField/DataGrid (ui/detail-modal-components); no hand-written <dt>/<dd> field grid outside the kit.",
+    },
+    messages: {
+      fieldGrid:
+        "Handgebautes Feldgitter (`<dt>`): Felder kommen aus `DataField`/`DataGrid` in ui/detail-modal-components (BAUARTEN-SPEC Bauart 2 Regel 2, #3117).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key)) return {};
+
+    return {
+      JSXOpeningElement(node) {
+        if (jsxName(node.name) !== "dt") return;
+        context.report({ node, messageId: "fieldGrid" });
+      },
+    };
+  },
+};
+
+// --- bauart/no-own-skeleton ---------------------------------------------------
+
+// A loading placeholder is `animate-pulse` on a neutral gray fill — exactly
+// what ui/skeleton renders. `animate-pulse` alone is not enough: the portal
+// also pulses a live dot (occupied room, „nähert sich“ status, running
+// session), and those are indicators, not skeletons.
+const PULSE_CLASS_RE = /(?:^|\s)animate-pulse(?:\s|$)/;
+const PLACEHOLDER_FILL_RE =
+  /(?:^|\s)(?:[^\s:]+:)*bg-gray-\d{2,3}(?:\/[^\s]+)?(?=\s|$)/;
+
+const noOwnSkeleton = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Loading placeholders come from ui/skeleton and ui/page-skeletons via TenantPage.loading; no hand-written animate-pulse block outside the kit.",
+    },
+    messages: {
+      ownSkeleton:
+        "Eigenes Ladeskelett (`animate-pulse` auf grauer Fläche): Laden kommt aus `TenantPage.loading` mit `Skeleton`/`SkeletonRegion` aus ui/page-skeletons (BAUARTEN-SPEC Bauart 1 Regel 7, Bauart 3 Regel 5, #3118).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key)) return {};
+
+    return {
+      JSXAttribute(node) {
+        if (
+          node.name?.type !== "JSXIdentifier" ||
+          node.name.name !== "className" ||
+          !node.value
+        ) {
+          return;
+        }
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        const classes = chunks.join(" ");
+        if (!PULSE_CLASS_RE.test(classes) || !PLACEHOLDER_FILL_RE.test(classes))
+          return;
+        context.report({ node, messageId: "ownSkeleton" });
+      },
+    };
+  },
+};
+
+// --- bauart/no-raw-status-hex --------------------------------------------------
+
+// A CSS hex color in a string: `#83CD2D`, `#83cd2d80`, or a bare `#666`. Six
+// and eight digits match anywhere in the string (`text-[#4070C8]`,
+// `border-[#F78C10]/30`). Three and four digits match as a bare value, in a
+// CSS color declaration, or in a Tailwind arbitrary value (`text-[#666]`),
+// so an issue reference like „#405“ in a label stays out.
+const HEX_COLOR_RE = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?(?![0-9a-zA-Z])/;
+const SHORT_HEX_COLOR_RE = /#[0-9a-fA-F]{3,4}(?![0-9a-zA-Z])/g;
+const CSS_COLOR_DECLARATION_PREFIX_RE =
+  /(?:^|[;{])\s*(?:accent-color|background(?:-color)?|border(?:-[a-z-]+)?|box-shadow|caret-color|color|column-rule-color|fill|outline(?:-color)?|stroke|text(?:-decoration)?-color|text-shadow)\s*:[^;{}]*$/;
+
+function findShortHexColor(text) {
+  for (const match of text.matchAll(SHORT_HEX_COLOR_RE)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (
+      (start === 0 && end === text.length) ||
+      (text[start - 1] === "[" && text[end] === "]") ||
+      CSS_COLOR_DECLARATION_PREFIX_RE.test(text.slice(0, start))
+    ) {
+      return match[0];
+    }
+  }
+  return null;
+}
+
+// Files that define or must emit raw hex by construction. Not a baseline:
+// these do not shrink.
+const HEX_TOKEN_SOURCES = new Set([
+  // Die Quelle der Farbwerte selbst (LOCATION_COLORS, MOTO_COLOR_PALETTE).
+  "src/lib/location-helper.ts",
+  // Web-App-Manifest: theme_color/background_color sind Hex per Spezifikation.
+  "src/lib/favicon-variants.ts",
+  // Ersetzt das Root-Layout samt Stylesheet; es gibt dort keine Klassen.
+  "src/app/global-error.tsx",
+]);
+const TEST_SUPPORT_DIR_RE = /(?:^|\/)src\/test\//;
+
+const noRawStatusHex = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Status and planning colors come from LOCATION_COLORS / MOTO_COLOR_PALETTE or moto-* classes; no raw hex value outside src/lib/location-helper.ts.",
+    },
+    messages: {
+      rawHex:
+        "Roher Hexwert „{{value}}“: Farbe bedeutet Status und kommt aus `LOCATION_COLORS`/`MOTO_COLOR_PALETTE` oder einer `moto-*`-Klasse, auch als Fallback (BAUARTEN-SPEC Querregel Farbe, #3118).",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    const key = fileKey(context);
+    if (OTHER_PORTAL_RE.test(key) || TEST_SUPPORT_DIR_RE.test(key)) return {};
+    if (HEX_TOKEN_SOURCES.has(key)) return {};
+
+    function check(node, text) {
+      const match = HEX_COLOR_RE.exec(text)?.[0] ?? findShortHexColor(text);
+      if (!match) return;
+      context.report({ node, messageId: "rawHex", data: { value: match } });
+    }
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateElement(node) {
+        check(node, node.value.raw);
+      },
+    };
+  },
+};
+
+// --- bauart/no-disabled-menu-item ---------------------------------------------
+
+// A menu entry is an object with a `label` and a target (`onClick` or `href`);
+// that is the shape OverflowMenu (and the header kebab) consume. `disabled:
+// true` as a literal is a placeholder that never becomes clickable; a
+// computed `disabled: busy` is a state and passes.
+function objectProperty(node, name) {
+  return node.properties.find(
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      ((property.key.type === "Identifier" && property.key.name === name) ||
+        (property.key.type === "Literal" && property.key.value === name)),
+  );
+}
+
+const noDisabledMenuItem = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "No permanently disabled menu entry: an action that does not exist is not in the menu.",
+    },
+    messages: {
+      disabledMenuItem:
+        "Dauerhaft deaktivierter Menüeintrag: Was es nicht gibt, steht nicht im Menü (BAUARTEN-SPEC Bauart 2 Regel 7, #3118). Den Eintrag weglassen oder `disabled` an einen Zustand binden.",
+    },
+    schema: [],
+  },
+  create(context) {
+    if (isExempt(context)) return {};
+    if (OTHER_PORTAL_RE.test(fileKey(context))) return {};
+
+    return {
+      ObjectExpression(node) {
+        const disabled = objectProperty(node, "disabled");
+        if (
+          !disabled ||
+          disabled.value?.type !== "Literal" ||
+          disabled.value.value !== true
+        ) {
+          return;
+        }
+        if (!objectProperty(node, "label")) return;
+        if (!objectProperty(node, "onClick") && !objectProperty(node, "href"))
+          return;
+        context.report({ node: disabled, messageId: "disabledMenuItem" });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "bauart" },
   rules: {
@@ -1535,5 +1906,10 @@ export default {
     "no-toast-form-error": noToastFormError,
     "no-manage-surface-in-overlay": noManageSurfaceInOverlay,
     "one-detail-per-type": oneDetailPerType,
+    "no-edit-overlay": noEditOverlay,
+    "no-local-field-grid": noLocalFieldGrid,
+    "no-own-skeleton": noOwnSkeleton,
+    "no-raw-status-hex": noRawStatusHex,
+    "no-disabled-menu-item": noDisabledMenuItem,
   },
 };

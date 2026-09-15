@@ -7,38 +7,35 @@ import (
 	"strings"
 
 	"github.com/agnivade/levenshtein"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
+
+type Reference = importModels.Reference
+type ReferenceLookup = importModels.ReferenceLookup
 
 // RelationshipResolver resolves human-readable names to database IDs with fuzzy matching
 type RelationshipResolver struct {
-	groupRepo education.GroupRepository
-	roomRepo  facilities.RoomRepository
+	groupRepo ReferenceLookup
+	roomRepo  ReferenceLookup
 
 	// In-memory caches (pre-loaded)
-	groupCache map[string]*education.Group // lowercase name → group
-	roomCache  map[string]*facilities.Room // lowercase name → room
+	groupCache map[string]Reference // lowercase name → group
+	roomCache  map[string]Reference // lowercase name → room
 }
 
 // NewRelationshipResolver creates a new relationship resolver
-func NewRelationshipResolver(groupRepo education.GroupRepository, roomRepo facilities.RoomRepository) *RelationshipResolver {
+func NewRelationshipResolver(groupRepo ReferenceLookup, roomRepo ReferenceLookup) *RelationshipResolver {
 	return &RelationshipResolver{
 		groupRepo:  groupRepo,
 		roomRepo:   roomRepo,
-		groupCache: make(map[string]*education.Group),
-		roomCache:  make(map[string]*facilities.Room),
+		groupCache: make(map[string]Reference),
+		roomCache:  make(map[string]Reference),
 	}
 }
 
 // PreloadGroups loads all groups into memory cache (called once before import)
 func (r *RelationshipResolver) PreloadGroups(ctx context.Context) error {
-	options := base.NewQueryOptions()
-	options.WithPagination(1, 1000) // Get up to 1000 groups
-
-	groups, err := r.groupRepo.ListWithOptions(ctx, options)
+	groups, err := r.groupRepo(ctx)
 	if err != nil {
 		return fmt.Errorf("preload groups: %w", err)
 	}
@@ -53,7 +50,7 @@ func (r *RelationshipResolver) PreloadGroups(ctx context.Context) error {
 
 // PreloadRooms loads all rooms into memory cache (called once before import)
 func (r *RelationshipResolver) PreloadRooms(ctx context.Context) error {
-	rooms, err := r.roomRepo.List(ctx, map[string]interface{}{})
+	rooms, err := r.roomRepo(ctx)
 	if err != nil {
 		return fmt.Errorf("preload rooms: %w", err)
 	}

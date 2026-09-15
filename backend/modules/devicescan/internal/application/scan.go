@@ -372,7 +372,10 @@ func (s *Service) applyCheckoutFlags(ctx context.Context, result *devicescan.Sca
 	if currentVisit == nil || (result.Action != devicescan.ScanActionCheckedOut && result.Action != devicescan.ScanActionCheckedOutDaily) {
 		return
 	}
-	result.DailyCheckoutAvailable = s.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
+	// Preserve the already-selected daily outcome even if a subsequent settings
+	// lookup fails. Clients render this flag; they must not infer eligibility.
+	result.DailyCheckoutAvailable = result.Action == devicescan.ScanActionCheckedOutDaily ||
+		s.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
 	if enabled, err := s.settings.FeedbackEnabled(ctx); err == nil {
 		result.FeedbackEnabled = enabled
 	}

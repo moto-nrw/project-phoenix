@@ -6,13 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +45,7 @@ func (b *recordingOpeningBooker) CreateOpeningBalance(_ context.Context, staffID
 	}
 	return &ports.StaffBalanceAdjustment{
 		StaffID:       staffID,
-		Type:          activeModels.BalanceAdjustmentTypeOpening,
+		Type:          ports.BalanceAdjustmentTypeOpening,
 		MinutesDelta:  balanceMinutes,
 		EffectiveDate: effectiveDate,
 		DecidedBy:     decidedBy,
@@ -114,13 +110,6 @@ func (b *recordingVacationBooker) ValidateVacationOpeningAbsencesBefore(_ contex
 	return b.preflightErr
 }
 
-// listerFunc adapts a closure to the repository read side used by the preload.
-type listerFunc[T any] func(ctx context.Context, options *modelBase.QueryOptions) ([]T, error)
-
-func (f listerFunc[T]) List(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
-	return f(ctx, options)
-}
-
 // --- helpers ---------------------------------------------------------------
 
 func float64Ptr(v float64) *float64 { return &v }
@@ -145,7 +134,7 @@ func TestNewOpeningBalanceImportConfig_CarriesRequestScopedValues(t *testing.T) 
 
 	effectiveDate := timezone.NewDate(2026, time.March, 1)
 
-	c := NewOpeningBalanceImportConfig(OpeningBalanceImportDeps{}, effectiveDate, "Übernahme", openingDecidedByID)
+	c := NewOpeningBalanceImportConfig(OpeningBalanceImportDeps{Transactions: newTestTransactions()}, effectiveDate, "Übernahme", openingDecidedByID)
 
 	assert.Equal(t, effectiveDate, c.EffectiveDate)
 	assert.Equal(t, "Übernahme", c.Note)
@@ -165,25 +154,17 @@ func TestPreloadReferenceData_BuildsMatchAndDuplicateCaches(t *testing.T) {
 	staffWithBlankNumber := openingStaff(openingStaffBerndID, "", "Bernd", "Schulz")
 	staffWithBlankNumber.PersonnelNumber = &blankPersonnelNumber
 
-	c := NewOpeningBalanceImportConfig(OpeningBalanceImportDeps{
-		StaffRepo: &testpkg.StaffRepoMock{
-			ListAllWithPersonFn: func(_ context.Context) ([]*userModels.Staff, error) {
-				return []*userModels.Staff{
-					openingStaff(openingStaffAnnaID, "P-100", "Anna", "Lehmann"),
-					staffWithBlankNumber,
-					// No person relation: nothing to key a name match on.
-					{},
-				}, nil
+	c := NewOpeningBalanceImportConfig(OpeningBalanceImportDeps{Transactions: newTestTransactions(),
+		References: importModels.OpeningReferences{
+			Staff: func(context.Context) ([]*importModels.OpeningStaff, error) {
+				return []*importModels.OpeningStaff{openingStaff(openingStaffAnnaID, "P-100", "Anna", "Lehmann"), staffWithBlankNumber, {}}, nil
+			},
+			Hours: func(context.Context) ([]int64, error) { return []int64{openingStaffAnnaID}, nil },
+			Vacation: func(_ context.Context, year int) ([]int64, error) {
+				assert.Equal(t, openingEffectiveYear, year)
+				return []int64{openingStaffBerndID}, nil
 			},
 		},
-		AdjustmentRepo: listerFunc[*activeModels.StaffBalanceAdjustment](
-			func(_ context.Context, _ *modelBase.QueryOptions) ([]*activeModels.StaffBalanceAdjustment, error) {
-				return []*activeModels.StaffBalanceAdjustment{{StaffID: openingStaffAnnaID}}, nil
-			}),
-		VacationOpeningRepo: listerFunc[*activeModels.StaffVacationOpening](
-			func(_ context.Context, _ *modelBase.QueryOptions) ([]*activeModels.StaffVacationOpening, error) {
-				return []*activeModels.StaffVacationOpening{{StaffID: openingStaffBerndID}}, nil
-			}),
 	}, timezone.NewDate(openingEffectiveYear, openingEffectiveMonth, openingEffectiveDay), "Übernahme", openingDecidedByID)
 
 	require.NoError(t, c.PreloadReferenceData(t.Context()))
@@ -199,49 +180,22 @@ func TestPreloadReferenceData_PropagatesRepositoryErrors(t *testing.T) {
 	t.Parallel()
 
 	boom := errors.New("db down")
-	okStaff := &testpkg.StaffRepoMock{
-		ListAllWithPersonFn: func(_ context.Context) ([]*userModels.Staff, error) { return nil, nil },
-	}
-	okAdjustments := listerFunc[*activeModels.StaffBalanceAdjustment](
-		func(_ context.Context, _ *modelBase.QueryOptions) ([]*activeModels.StaffBalanceAdjustment, error) {
-			return nil, nil
-		})
-
+	okStaff := func(context.Context) ([]*importModels.OpeningStaff, error) { return nil, nil }
+	okAdjustments := func(context.Context) ([]int64, error) { return nil, nil }
 	tests := []struct {
 		name    string
 		deps    OpeningBalanceImportDeps
 		wantMsg string
 	}{
-		{
-			name: "staff",
-			deps: OpeningBalanceImportDeps{StaffRepo: &testpkg.StaffRepoMock{
-				ListAllWithPersonFn: func(_ context.Context) ([]*userModels.Staff, error) { return nil, boom },
-			}},
-			wantMsg: "preload staff",
-		},
-		{
-			name: "hours openings",
-			deps: OpeningBalanceImportDeps{
-				StaffRepo: okStaff,
-				AdjustmentRepo: listerFunc[*activeModels.StaffBalanceAdjustment](
-					func(_ context.Context, _ *modelBase.QueryOptions) ([]*activeModels.StaffBalanceAdjustment, error) {
-						return nil, boom
-					}),
-			},
-			wantMsg: "preload hours openings",
-		},
-		{
-			name: "vacation openings",
-			deps: OpeningBalanceImportDeps{
-				StaffRepo:      okStaff,
-				AdjustmentRepo: okAdjustments,
-				VacationOpeningRepo: listerFunc[*activeModels.StaffVacationOpening](
-					func(_ context.Context, _ *modelBase.QueryOptions) ([]*activeModels.StaffVacationOpening, error) {
-						return nil, boom
-					}),
-			},
-			wantMsg: "preload vacation openings",
-		},
+		{name: "staff", deps: OpeningBalanceImportDeps{Transactions: newTestTransactions(), References: importModels.OpeningReferences{
+			Staff: func(context.Context) ([]*importModels.OpeningStaff, error) { return nil, boom },
+		}}, wantMsg: "preload staff"},
+		{name: "hours openings", deps: OpeningBalanceImportDeps{Transactions: newTestTransactions(), References: importModels.OpeningReferences{
+			Staff: okStaff, Hours: func(context.Context) ([]int64, error) { return nil, boom },
+		}}, wantMsg: "preload hours openings"},
+		{name: "vacation openings", deps: OpeningBalanceImportDeps{Transactions: newTestTransactions(), References: importModels.OpeningReferences{
+			Staff: okStaff, Hours: okAdjustments, Vacation: func(context.Context, int) ([]int64, error) { return nil, boom },
+		}}, wantMsg: "preload vacation openings"},
 	}
 
 	for _, tc := range tests {

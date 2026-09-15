@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -143,7 +145,7 @@ func linkApprovedChildToOffering(
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = s.tenantID
-	require.NoError(t, repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db)).Enrollment().InsertRequestChildOffering(s.ctx, link))
+	require.NoError(t, bookingFixtures.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, link))
 	s.extraCleanups = append([]func(){func() {
 	}}, s.extraCleanups...)
 }

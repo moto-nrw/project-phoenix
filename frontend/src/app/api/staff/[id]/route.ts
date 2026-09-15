@@ -36,7 +36,7 @@ interface BackendStaffResponse {
     last_name: string;
     email?: string;
     tag_id?: string;
-    account_id?: number;
+    account_id?: WireID;
     created_at: string;
     updated_at: string;
   };
@@ -121,8 +121,12 @@ export const GET = createGetHandler(
         // Include person_id for updates — as the decimal string it arrived as,
         // so a bigint id still addresses the intended person (#2222).
         person_id: toIdString(staff.person_id),
-        // Include account_id from person object
-        account_id: staff.person?.account_id,
+        // Die Konto-ID braucht denselben int64-sicheren Transport wie die
+        // Personen-ID: sie wird unmittelbar für die Rollenroute verwendet.
+        account_id:
+          staff.person?.account_id === undefined
+            ? undefined
+            : toIdString(staff.person.account_id),
         // Include both IDs for debugging
         staff_id: String(staff.id),
         teacher_id: staff.teacher_id ? String(staff.teacher_id) : undefined,
@@ -167,7 +171,7 @@ interface TeacherResponse {
   created_at: string;
   updated_at: string;
   person_id?: string;
-  account_id?: number;
+  account_id?: string;
   staff_id?: string;
   teacher_id?: string;
   person?: {
@@ -176,7 +180,7 @@ interface TeacherResponse {
     last_name: string;
     email?: string;
     tag_id?: string;
-    account_id?: number;
+    account_id?: WireID;
     created_at: string;
     updated_at: string;
   };
@@ -219,7 +223,10 @@ function mapStaffResponse(response: BackendStaffResponse): TeacherResponse {
     staff_notes: response.staff_notes ?? null,
     created_at: response.created_at,
     updated_at: response.updated_at,
-    account_id: response.person?.account_id,
+    account_id:
+      response.person?.account_id === undefined
+        ? undefined
+        : toIdString(response.person.account_id),
     person_id: toIdString(response.person_id),
     person: response.person,
   };

@@ -63,6 +63,7 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 	queries := newExceptionQueries(store, dependencies.Observe)
 	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
 	module := careplan.NewModule(engine{
+		OfferingBookings: NewOfferingBookings(),
 		exceptionQueries: queries, requests: postgres.NewRequestStore(store), statusDays: statusDays,
 		observe: dependencies.Observe, people: dependencies.People, database: dependencies.DB,
 	})
@@ -105,6 +106,7 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 }
 
 type engine struct {
+	*careplan.OfferingBookings
 	*exceptionQueries
 	requests   RequestStore
 	statusDays StatusDayStore

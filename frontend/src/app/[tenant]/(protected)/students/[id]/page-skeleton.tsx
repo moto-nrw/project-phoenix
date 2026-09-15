@@ -1,5 +1,9 @@
 "use client";
 
+import {
+  DataFieldSkeleton,
+  DataGrid,
+} from "~/components/ui/detail-modal-components";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TenantPage } from "~/components/ui/tenant-page";
 
@@ -67,14 +71,11 @@ function StudentDetailSkeleton() {
       <div className="mt-6 space-y-6 max-sm:mt-3 max-sm:space-y-3">
         <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
           <Skeleton className="mb-4 h-5 w-40 rounded" />
-          <dl className="grid grid-cols-1 gap-x-3 gap-y-2 sm:grid-cols-2 md:gap-x-4 md:gap-y-3">
+          <DataGrid>
             {Array.from({ length: 6 }, (_, field) => (
-              <div key={field} className="space-y-1.5">
-                <Skeleton className="h-3 w-20 rounded" />
-                <Skeleton className="h-4 w-32 rounded" />
-              </div>
+              <DataFieldSkeleton key={field} />
             ))}
-          </dl>
+          </DataGrid>
         </div>
       </div>
     </output>

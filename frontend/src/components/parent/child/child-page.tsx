@@ -359,6 +359,9 @@ function ChildSections({ child }: Readonly<{ child: Child }>) {
           onSubmit={care.saveCareException}
           onRemove={care.removeCareException}
           reasonRequired={requiresGuardianReason(care.features)}
+          cutoffTime={care.features.pickup_change_cutoff_time}
+          todayClosed={care.features.pickup_change_today_closed}
+          onCutoffPassed={care.refresh}
         />
       )}
     </>

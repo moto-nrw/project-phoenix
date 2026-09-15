@@ -67,7 +67,11 @@ import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enro
 import { Button } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
-import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { EditActions } from "~/components/ui/edit-actions";
+import { useFormError } from "~/components/ui/form-error";
+import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { ToggleChip } from "~/components/ui/toggle-chip";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
@@ -1008,11 +1012,11 @@ export function ChildOfferings({
   const rows = [...(offerings ?? []), ...(upcomingOfferings ?? [])];
   if (unavailable) {
     return (
-      <div className="mt-3 rounded-lg border border-[#F78C10]/30 bg-[#FFF4E6] p-3">
+      <div className="border-moto-orange/30 bg-moto-orange-soft mt-3 rounded-lg border p-3">
         <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
           Betreuungsangebote
         </h4>
-        <p className="mt-1.5 text-sm text-[#8A5600]">
+        <p className="text-moto-orange-strong mt-1.5 text-sm">
           Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite
           neu laden, bevor Sie über dieses Kind entscheiden.
         </p>
@@ -1227,7 +1231,9 @@ export function ChildOfferingAdjustment({
   const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
     ? tenant.gradeLevelMax
     : null;
-  const [open, setOpen] = useState(false);
+  // Der Bearbeiten-Zustand der Fläche (Bauart 2 Regel 3, #3119): die
+  // Auswahl erscheint an Ort und Stelle, kein Modal.
+  const [editing, setEditing] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
   // Offerings the child's grade level rules out. Kept separate from `catalog`
   // so payload building and the auto-add preview keep operating on exactly
@@ -1249,7 +1255,8 @@ export function ChildOfferingAdjustment({
   const [loading, setLoading] = useState(false);
   const [catalogLoaded, setCatalogLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Fehler stehen oben im Bearbeiten-Bereich (Bauart 2 Regel 5).
+  const [error, setError] = useFormError();
   const [withdrawalConfirmationOpen, setWithdrawalConfirmationOpen] =
     useState(false);
   const [pendingWithdrawalInput, setPendingWithdrawalInput] = useState<{
@@ -1258,7 +1265,7 @@ export function ChildOfferingAdjustment({
   } | null>(null);
   const [withdrawalCreated, setWithdrawalCreated] = useState(false);
   useEffect(() => {
-    if (!careOfferingsEnabled) setOpen(false);
+    if (!careOfferingsEnabled) setEditing(false);
   }, [careOfferingsEnabled]);
 
   const loadHistory = useCallback(async () => {
@@ -1303,7 +1310,7 @@ export function ChildOfferingAdjustment({
 
   const openEditor = async () => {
     if (!careOfferingsEnabled) return;
-    setOpen(true);
+    setEditing(true);
     setError(null);
     setDays(initialManualOfferingDays(child.offerings));
     // Occupancy is advisory: without it a full offering only announces itself
@@ -1406,7 +1413,7 @@ export function ChildOfferingAdjustment({
   const finishSave = async () => {
     setWithdrawalConfirmationOpen(false);
     setPendingWithdrawalInput(null);
-    setOpen(false);
+    setEditing(false);
     setReason("");
     await loadHistory();
     onSaved();
@@ -1484,6 +1491,11 @@ export function ChildOfferingAdjustment({
     }
   };
 
+  const cancelEditing = () => {
+    setEditing(false);
+    setError(null);
+  };
+
   if (!careOfferingsEnabled && history.length === 0) return null;
 
   return (
@@ -1503,13 +1515,15 @@ export function ChildOfferingAdjustment({
             <p className="mt-1 text-sm text-gray-600">
               {child.offerings_unavailable
                 ? "Die gebuchten Angebote konnten nicht geladen werden. Bitte die Seite neu laden, eine Korrektur würde sonst auf einem unbekannten Stand aufsetzen."
-                : "Angebote können für dieses bestätigte Kind korrigiert werden."}
+                : editing
+                  ? "Auswahl ändern und mit Begründung speichern. Automatisch verknüpfte Angebote werden beim Speichern neu berechnet."
+                  : "Angebote können für dieses bestätigte Kind korrigiert werden."}
             </p>
           </div>
           {/* Correcting on top of an unknown selection would replace the
               family's real bookings with whatever the empty editor holds
               (#2185), so the entry point disappears until the data is back. */}
-          {child.offerings_unavailable ? null : (
+          {child.offerings_unavailable || editing ? null : (
             <Button
               type="button"
               variant="outline"
@@ -1524,77 +1538,13 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
-      {history.length > 0 ? (
-        <div
-          className={
-            careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
-          }
-        >
-          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
-            <MotoConceptIcon concept="changeHistory" size={14} />
-            Änderungshistorie
-          </div>
-          <ul className="mt-2 space-y-2">
-            {history.slice(0, 5).map((entry) => (
-              <li key={entry.id} className="text-xs leading-5 text-gray-600">
-                <span className="font-medium text-gray-900">
-                  {formatDateTime(entry.changed_at)}
-                </span>{" "}
-                von{" "}
-                <span className="font-medium text-gray-900">
-                  {entry.actor_name_snapshot ??
-                    entry.actor_email_snapshot ??
-                    `Account ${entry.actor_account_id}`}
-                </span>
-                : {entry.reason}
-                <span className="block text-gray-500">
-                  {formatAdjustmentDiff(entry)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {/* Ausgeblendet, solange die Abmelde-Bestätigung offen ist — nie zwei
-          eigenständige Dialoge übereinander (#2774). Auswahl und Begründung
-          bleiben erhalten, der State liegt in dieser Komponente. */}
-      <Modal
-        isOpen={careOfferingsEnabled && open && !withdrawalConfirmationOpen}
-        onClose={() => setOpen(false)}
-        title="Betreuungsangebote bearbeiten"
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-2xl"
-        isDismissDisabled={saving}
-        isBackdropDismissDisabled
-        footer={
-          <>
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              onClick={() => setOpen(false)}
-              disabled={saving}
-            >
-              Abbrechen
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="md"
-              onClick={() => void handleSave()}
-              disabled={saving || loading || !catalogLoaded}
-            >
-              {saving ? "Speichert…" : "Speichern"}
-            </Button>
-          </>
-        }
-      >
-        <p className="text-sm text-gray-600">
-          Manuelle Auswahl ändern; automatisch verknüpfte Angebote werden beim
-          Speichern neu berechnet.
-        </p>
-        <div className="mt-4 space-y-4">
-          {error ? <Alert type="error" message={error} /> : null}
+      {/* Der Bearbeiten-Zustand an Ort und Stelle (Bauart 2 Regel 3 und 4,
+          #3119): Auswahl, Begründung und ein `EditActions` unten. Die
+          Abmelde-Rückfrage ist der einzige Dialog und liegt über dieser
+          Fläche; Auswahl und Begründung bleiben darunter erhalten. */}
+      {careOfferingsEnabled && editing ? (
+        <div className="mt-3 space-y-4 border-t border-gray-100 pt-3">
+          <FormErrorAlert message={error} />
           {loading ? (
             <p className="text-sm text-gray-500">Angebote werden geladen…</p>
           ) : (
@@ -1602,18 +1552,33 @@ export function ChildOfferingAdjustment({
               {catalog.map((offering) => {
                 const checked = selected.has(offering.id);
                 const autoDays = preview.automaticDays[offering.id] ?? [];
+                const inputId = `offering-adjustment-${child.id}-${offering.id}`;
                 return (
-                  <div
+                  <OfferingRowShell
                     key={offering.id}
-                    className="rounded-lg border border-gray-200 p-3"
+                    tone={
+                      checked
+                        ? "border-moto-green/40 bg-moto-green/10"
+                        : "border-gray-200 bg-white"
+                    }
                   >
-                    <label className="flex items-start gap-3">
-                      <input
-                        type="checkbox"
+                    {/* Wie in BlockedOfferingRow: das Kit-Checkbox-Feld ist
+                        sr-only, erst das <label> mit htmlFor macht den Klick
+                        auf den Kasten wirksam. */}
+                    <label
+                      htmlFor={inputId}
+                      className={`flex items-start gap-3 ${
+                        offering.is_required
+                          ? "cursor-default"
+                          : "cursor-pointer"
+                      }`}
+                    >
+                      <Checkbox
+                        id={inputId}
+                        className="mt-0.5"
                         checked={checked}
                         disabled={offering.is_required}
                         onChange={() => handleToggle(offering)}
-                        className="text-moto-blue focus:ring-moto-blue mt-1 h-4 w-4 rounded border-gray-300"
                       />
                       <span className="min-w-0 flex-1">
                         <span className="flex flex-wrap items-center gap-2">
@@ -1621,20 +1586,16 @@ export function ChildOfferingAdjustment({
                             {offering.name}
                           </span>
                           {!offering.is_active ? (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                              Inaktiv
-                            </span>
+                            <StatusBadge tone="gray" label="Inaktiv" />
                           ) : null}
                           {offering.is_required ? (
-                            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
-                              Pflichtangebot
-                            </span>
+                            <StatusBadge tone="blue" label="Pflichtangebot" />
                           ) : null}
                           {autoDays.length > 0 ? (
-                            <span className="bg-moto-blue/10 text-moto-blue-strong rounded-full px-2 py-0.5 text-xs">
-                              automatisch mitgebucht:{" "}
-                              {formatAdminDays(autoDays)}
-                            </span>
+                            <StatusBadge
+                              tone="blue"
+                              label={`automatisch mitgebucht: ${formatAdminDays(autoDays)}`}
+                            />
                           ) : null}
                         </span>
                         {offering.description ? (
@@ -1650,24 +1611,21 @@ export function ChildOfferingAdjustment({
 
                     {checked &&
                     offering.days_of_week_mode === "parent_choice" ? (
-                      <div className="mt-3 flex flex-wrap gap-2 pl-7">
+                      <div className="mt-3 flex flex-wrap gap-2 pl-8">
                         {offering.available_days.map((day) => (
-                          <button
+                          <ToggleChip
                             key={day}
-                            type="button"
-                            onClick={() => handleDayToggle(offering, day)}
-                            className={`h-8 rounded-lg border px-3 text-sm font-medium ${
-                              (days[offering.id] ?? []).includes(day)
-                                ? "border-moto-blue bg-moto-blue/10 text-moto-blue-strong"
-                                : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
-                            }`}
+                            pressed={(days[offering.id] ?? []).includes(day)}
+                            onPressedChange={() =>
+                              handleDayToggle(offering, day)
+                            }
                           >
                             {DAY_LABEL_DE[day] ?? day}
-                          </button>
+                          </ToggleChip>
                         ))}
                       </div>
                     ) : null}
-                  </div>
+                  </OfferingRowShell>
                 );
               })}
               {blockedCatalog.length > 0 ? (
@@ -1716,8 +1674,47 @@ export function ChildOfferingAdjustment({
             autoComplete="off"
             placeholder="z. B. Randstunde nach Rücksprache mit der Schule ergänzt"
           />
+          <EditActions
+            onCancel={cancelEditing}
+            onSave={() => void handleSave()}
+            saving={saving}
+            disabled={loading || !catalogLoaded}
+          />
         </div>
-      </Modal>
+      ) : null}
+
+      {history.length > 0 ? (
+        <div
+          className={
+            careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
+          }
+        >
+          <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
+            <MotoConceptIcon concept="changeHistory" size={14} />
+            Änderungshistorie
+          </div>
+          <ul className="mt-2 space-y-2">
+            {history.slice(0, 5).map((entry) => (
+              <li key={entry.id} className="text-xs leading-5 text-gray-600">
+                <span className="font-medium text-gray-900">
+                  {formatDateTime(entry.changed_at)}
+                </span>{" "}
+                von{" "}
+                <span className="font-medium text-gray-900">
+                  {entry.actor_name_snapshot ??
+                    entry.actor_email_snapshot ??
+                    `Account ${entry.actor_account_id}`}
+                </span>
+                : {entry.reason}
+                <span className="block text-gray-500">
+                  {formatAdjustmentDiff(entry)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       <ConfirmationModal
         isOpen={withdrawalConfirmationOpen}
         onClose={() => setWithdrawalConfirmationOpen(false)}

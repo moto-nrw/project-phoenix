@@ -29,7 +29,7 @@ function WarningIcon({ className }: Readonly<{ className?: string }>) {
  */
 function SessionExpiryWarningDesktop() {
   return (
-    <div className="border-moto-red/20 bg-moto-red-soft flex items-center space-x-2 rounded-lg border px-4 py-2">
+    <div className="border-moto-red/20 bg-moto-red-soft flex items-center space-x-2 rounded-lg border px-3 py-1.5">
       <WarningIcon className="text-moto-red h-5 w-5 flex-shrink-0" />
       <span className="text-moto-red-strong text-sm font-medium">
         Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.

@@ -134,14 +134,29 @@ type fakeOutbox struct {
 	enqueueErr         error
 }
 
+type fakePushOutbox struct{ cancelRelatedTypes []string }
+
 type fakeNotifier struct {
-	events []notifications.Event
-	err    error
+	events             []notifications.Event
+	err                error
+	durableAccepted    int
+	durableAcceptedSet bool
 }
 
 func (f *fakeNotifier) Notify(_ context.Context, event notifications.Event) error {
 	f.events = append(f.events, event)
 	return f.err
+}
+
+func (f *fakeNotifier) NotifyDurably(_ context.Context, event notifications.Event) (int, error) {
+	f.events = append(f.events, event)
+	if f.err != nil {
+		return 0, f.err
+	}
+	if f.durableAcceptedSet {
+		return f.durableAccepted, nil
+	}
+	return len(event.Audience.GuardianAccountIDs), nil
 }
 
 func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
@@ -153,6 +168,11 @@ func (f *fakeOutbox) Enqueue(_ context.Context, req platformService.EnqueueReque
 }
 
 func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
+	f.cancelRelatedTypes = append(f.cancelRelatedTypes, relatedType)
+	return 0, nil
+}
+
+func (f *fakePushOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
 	f.cancelRelatedTypes = append(f.cancelRelatedTypes, relatedType)
 	return 0, nil
 }
@@ -256,12 +276,33 @@ func TestUnpublish_CancelsPendingEmails(t *testing.T) {
 	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
 	}
-	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder}; !slices.Equal(got, want) {
 		t.Fatalf("unpublish cancelled related types %v, want %v", got, want)
 	}
 }
 
-func TestDelete_CancelsPendingEmails(t *testing.T) {
+func TestUnpublish_CancelsPendingReminderPushes(t *testing.T) {
+	t.Parallel()
+
+	published := draftAnnouncement(true)
+	now := time.Now()
+	published.PublishedAt = &now
+	repo := &fakeAnnouncementRepo{announcement: published}
+	pushOutbox := &fakePushOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: &fakeOutbox{},
+		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
+	})
+
+	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
+		t.Fatalf("unpublish failed: %v", err)
+	}
+	if got, want := pushOutbox.cancelRelatedTypes, []string{relatedEntityTypeReminder}; !slices.Equal(got, want) {
+		t.Fatalf("unpublish cancelled push related types %v, want %v", got, want)
+	}
+}
+
+func TestDelete_CancelsPendingDeliveries(t *testing.T) {
 	t.Parallel()
 
 	published := draftAnnouncement(true)
@@ -269,13 +310,21 @@ func TestDelete_CancelsPendingEmails(t *testing.T) {
 	published.PublishedAt = &now
 	repo := &fakeAnnouncementRepo{announcement: published}
 	outbox := &fakeOutbox{}
-	svc := newTestService(repo, outbox)
+	pushOutbox := &fakePushOutbox{}
+	svc := NewService(ServiceConfig{
+		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: outbox,
+		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
+	})
+	svc.SetAttachmentPurger(&stubPurger{})
 
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
 		t.Fatalf("delete failed: %v", err)
 	}
-	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder}; !slices.Equal(got, want) {
+	if got, want := outbox.cancelRelatedTypes, []string{relatedEntityTypeAnnouncement, relatedEntityTypePollReminder, relatedEntityTypeReminder}; !slices.Equal(got, want) {
 		t.Fatalf("delete cancelled related types %v, want %v", got, want)
+	}
+	if got, want := pushOutbox.cancelRelatedTypes, []string{relatedEntityTypeReminder}; !slices.Equal(got, want) {
+		t.Fatalf("delete cancelled push related types %v, want %v", got, want)
 	}
 	if repo.deleteCalls != 1 {
 		t.Fatalf("expected exactly one repo delete, got %d", repo.deleteCalls)
@@ -667,6 +716,37 @@ func TestPublish_ConcurrentEditExpires_RollsBack(t *testing.T) {
 	}
 	if len(outbox.requests) != 0 {
 		t.Fatalf("expected no e-mails for an expired-during-publish row, got %d", len(outbox.requests))
+	}
+}
+
+// TestPublish_ConcurrentEditInvalidatesReminder_RollsBack proves that the
+// fresh row is validated again after the atomic publish flip. Otherwise an
+// edit that moves a valid reminder into the past while Publish waits would
+// leave an unsendable reminder on a published announcement.
+func TestPublish_ConcurrentEditInvalidatesReminder_RollsBack(t *testing.T) {
+	t.Parallel()
+
+	future := time.Now().Add(time.Hour)
+	past := time.Now().Add(-time.Hour)
+	initial := draftAnnouncement(true)
+	initial.ReminderAt = &future
+	edited := draftAnnouncement(true)
+	edited.ReminderAt = &past
+	repo := &fakeAnnouncementRepo{
+		announcement:  initial,
+		editOnPublish: edited,
+		recipients: []*usersModels.AnnouncementRecipient{
+			{Email: "a@example.test", FirstName: "Anna", LastName: "A"},
+		},
+	}
+	outbox := &fakeOutbox{}
+	svc := newTestService(repo, outbox)
+
+	if _, err := svc.Publish(context.Background(), initial.ID); !errors.Is(err, ErrValidation) {
+		t.Fatalf("Publish() error = %v, want reminder validation error", err)
+	}
+	if len(outbox.requests) != 0 {
+		t.Fatalf("expected no e-mails for a reminder invalidated during publish, got %d", len(outbox.requests))
 	}
 }
 

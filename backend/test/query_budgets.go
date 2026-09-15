@@ -45,15 +45,9 @@ var queryBudgets = map[string]queryBudget{
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
 	// api/students — GET /students list, 10 students, page_size=50.
-	// 33 since #3074 (#2685): schedule.instance_students moved to the
-	// timetable module, so CareExitCleanupRepository.FindOpenPresence reads
-	// the open roster rows through the owner instead of as a third UNION
-	// branch. Flat at 3 and at 10 students — a boundary cost, not an N+1.
-	"api.students.list": {max: 33},
-	// api/students — #2056: aggregated OGS group view, 10 students. Measured
-	// well below; the cap leaves room for benign changes only.
-	// 42 for the same FindOpenPresence split as api.students.list.
-	"api.students.ogs_group_live": {max: 42},
+	"api.students.list": {max: 31},
+	// api/students — #2056: aggregated OGS group view, 10 students.
+	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.
 	"api.students.ogs_group_live.identity.person":        {max: 1, exact: true},
 	"api.students.ogs_group_live.identity.staff":         {max: 1, exact: true},
@@ -89,6 +83,13 @@ var queryBudgets = map[string]queryBudget{
 	// api/timetable — GET /instances over a week, 8 instances on 3 days:
 	// instances + room + staff batch + student batch + one cutoff read per day.
 	"api.timetable.instances.list": {max: 7},
+	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
+	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
+	// owner (Enrollment phases, Timetable planning tables). The two owner
+	// round trips are the accepted #2580 boundary cost; the count is flat in
+	// the number of periods. Pinned exact so an owner-boundary move fails
+	// here instead of at a runtime checkpoint (#3020).
+	"api.timetable.periods.list": {max: 7, exact: true},
 	// services/schedule — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
@@ -141,6 +142,9 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// database/repositories/users — due announcement reminders read their rows
+	// and targets in two batches, regardless of the number due in one tick.
+	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
 	// modules/workforce/inbound/timetracking — GET
 	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
 	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one

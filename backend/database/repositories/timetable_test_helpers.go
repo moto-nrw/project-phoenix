@@ -105,7 +105,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
 		Student:         usersRepo.NewStudentRepository(db),
-		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, enrollmentCompose.New(), careExitAssignments{capability: bookings}, newStudentPresence(db)),
+		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: bookings}, newStudentPresence(db)),
 		StaffShift:      newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
 		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
@@ -119,7 +119,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		SubmissionRateLimit:       enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)
-	repos.bindSchoolCalendarAdapters(calendar, scheduleRepo.NewCalendarPeriodUsageRepository(db, enrollmentCompose.New(), bookings.CountPlannedSupervisorsByCalendarPeriod))
+	repos.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), bookings))
 	repos.bindStudentDirectories(persons, persons)
 	carePlan, err := NewCarePlan(db, persons, repos.InstanceStudent)
 	if err != nil {
@@ -166,8 +166,10 @@ func timetableTestRepositories(r *Factory) TimetableTestRepositories {
 		StudentStatusDay: r.StudentStatusDay, CareOffering: r.CareOffering,
 		Room: r.Room, DeviationEvent: r.DeviationEvent,
 		ClassArrivalTime: r.ClassArrivalTime, ClassArrivalException: r.ClassArrivalException,
-		enrollment: r.Enrollment(),
+		enrollment: r.SubmissionRateLimit,
 	}
 }
 
-func (r TimetableTestRepositories) Enrollment() *enrollmentCapability.Module { return r.enrollment }
+func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(r.enrollment)
+}

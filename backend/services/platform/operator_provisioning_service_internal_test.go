@@ -391,6 +391,9 @@ func (s *internalRoleRepoStub) Create(context.Context, *authModels.Role) error {
 func (s *internalRoleRepoStub) FindByID(context.Context, interface{}) (*authModels.Role, error) {
 	return nil, nil
 }
+func (s *internalRoleRepoStub) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Role, error) {
+	return s.FindByID(ctx, id)
+}
 func (s *internalRoleRepoStub) Update(context.Context, *authModels.Role) error { return nil }
 func (s *internalRoleRepoStub) Delete(context.Context, interface{}) error      { return nil }
 func (s *internalRoleRepoStub) List(ctx context.Context, filters map[string]interface{}) ([]*authModels.Role, error) {

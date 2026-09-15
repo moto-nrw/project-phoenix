@@ -31,9 +31,9 @@ func apiMock(t *testing.T) *seedHTTPTestServer {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
 				"data": []map[string]any{
-					{"id": 10, "name": "admin"},
-					{"id": 20, "name": "user"},
-					{"id": 30, "name": "guest"},
+					{"id": "10", "name": "admin"},
+					{"id": "20", "name": "user"},
+					{"id": "30", "name": "guest"},
 				},
 			})
 

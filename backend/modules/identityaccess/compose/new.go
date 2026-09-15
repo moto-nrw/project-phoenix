@@ -217,6 +217,8 @@ func mapError(err error) error {
 		return nil
 	case errors.Is(err, domain.ErrAccountNotFound):
 		return identityaccess.ErrAccountNotFound
+	case errors.Is(err, domain.ErrRoleNotFound):
+		return identityaccess.ErrRoleNotFound
 	case errors.Is(err, domain.ErrTenantRequired):
 		return identityaccess.ErrTenantRequired
 	case errors.Is(err, domain.ErrGuardianRoleMissing):

@@ -8,6 +8,7 @@ import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { AnnouncementDetail } from "~/components/announcements/announcement-detail";
+import { AnnouncementReminderDialog } from "~/components/announcements/announcement-reminder-dialog";
 import {
   buildAnnouncementMenuItems,
   DeleteAnnouncementDialog,
@@ -17,6 +18,7 @@ import {
 import {
   announcementCollectionPath,
   AnnouncementStatusBadge,
+  describeReminder,
   kindOf,
   KIND_PARAM,
 } from "~/components/announcements/announcement-meta";
@@ -48,7 +50,7 @@ const BACK_LABEL: Record<AnnouncementKind, string> = {
   poll: "Zurück zu den Umfragen",
 };
 
-type LifecycleAction = "publish" | "unpublish" | "delete" | null;
+type LifecycleAction = "publish" | "unpublish" | "delete" | "reminder" | null;
 
 function editPath(
   referrer: string,
@@ -168,6 +170,7 @@ function AnnouncementDetailPageContent() {
     onEdit: () => router.push(editPath(referrer, kind, announcement.id)),
     onUnpublish: () => setAction("unpublish"),
     onDelete: () => setAction("delete"),
+    onReminder: () => setAction("reminder"),
   });
 
   const statusLine = [
@@ -179,6 +182,7 @@ function AnnouncementDetailPageContent() {
       : announcement.expires_at
         ? `Läuft ab ${formatBerlinDate(announcement.expires_at)}`
         : null,
+    describeReminder(announcement),
   ]
     .filter(Boolean)
     .join(" · ");
@@ -227,6 +231,13 @@ function AnnouncementDetailPageContent() {
               announcement={announcement}
               onClose={() => setAction(null)}
               onDone={refresh}
+            />
+          )}
+          {action === "reminder" && (
+            <AnnouncementReminderDialog
+              announcement={announcement}
+              onClose={() => setAction(null)}
+              onSaved={refresh}
             />
           )}
           {action === "delete" && (

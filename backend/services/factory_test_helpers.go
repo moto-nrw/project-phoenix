@@ -22,7 +22,7 @@ import (
 type ownerCapabilities struct {
 	organizations SchoolCapability
 	persons       peopledirectory.Capability
-	groups        schoolstructure.Query
+	groups        schoolstructure.Capability
 	rooms         facilitiesModule.Capability
 	membership    schoolmembership.Capability
 	calendar      schoolcalendar.Capability

@@ -248,6 +248,28 @@ func TestMealRegistrationSettings(t *testing.T) {
 	assert.Equal(t, true, cutoff.DependsOn.Value)
 }
 
+// #3163: the same-day pickup cutoff is off unless a school sets a time, and it
+// only shows while the one-day pickup change itself is on.
+func TestParentPickupChangeCutoffSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentPickupChangeCutoffTime)
+	require.NotNil(t, def)
+	assert.Equal(t, config.FieldTime, def.Type)
+	assert.Equal(t, "", def.Default, "no cutoff unless a school sets one")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "elternportal", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.DependsOn)
+	assert.Equal(t, config.KeyParentPickupChangeEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+
+	parent := config.GetDefinition(config.KeyParentPickupChangeEnabled)
+	require.NotNil(t, parent)
+	assert.Greater(t, def.SortOrder, parent.SortOrder, "sits below the setting it depends on")
+}
+
 func TestAbsenceApprovalEmailSetting(t *testing.T) {
 	t.Parallel()
 

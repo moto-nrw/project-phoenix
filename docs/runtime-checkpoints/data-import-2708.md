@@ -68,7 +68,8 @@ address, one new guardian with a phone number, a weekly pickup schedule and a
 retention consent. Percentiles use nearest rank over the ten measured
 samples.
 
-Lossless evidence: [raw JSON](data-import-2708.raw.json).
+The results below summarize the recorded run. Raw output is not stored in
+the repository; the command above produces fresh samples for the current code.
 
 | Operation | Statements | Write rows | p50 | p95 |
 | --- | ---: | ---: | ---: | ---: |

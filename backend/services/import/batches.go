@@ -7,21 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	importModels "github.com/moto-nrw/project-phoenix/models/import"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
+	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// BatchAudit identifies the upload for its GDPR records. Options binds
-// request-scoped settings not contained in Rows (for example an opening
-// balance's cutoff and note). It is hashed, never used as a metric label.
-type BatchAudit struct {
-	EntityType string
-	Filename   string
-	AccountID  int64
-	Options    string
-}
 
 type batchRowError struct {
 	RowNumber int
@@ -66,18 +55,21 @@ func snapshotImportRows[T any](rows []T) ([]T, json.RawMessage, error) {
 // tenant transactions. A write or audit failure rolls back the current batch;
 // retrying the identical request resumes after the last durable receipt.
 // Callers must not wrap this entry point in another transaction.
-func (s *ImportService[T]) ImportBatches(ctx context.Context, request importModels.ImportRequest[T], audit BatchAudit) (*importModels.ImportResult[T], error) {
-	if _, active := tenant.TransactionFromContext(ctx); active {
+func (s *ImportService[T]) ImportBatches(ctx context.Context, request importModels.ImportRequest[T], audit importModels.BatchAudit) (*importModels.ImportResult[T], error) {
+	if s.transactions == nil {
+		return nil, fmt.Errorf("import transaction capability not wired")
+	}
+	if s.transactions.HasTransaction(ctx) {
 		return nil, fmt.Errorf("batched import must own its transactions")
 	}
-	if tenant.FromContext(ctx) <= 0 || audit.AccountID <= 0 || audit.EntityType == "" {
+	if s.transactions.TenantID(ctx) <= 0 || audit.AccountID <= 0 || audit.EntityType == "" {
 		return nil, fmt.Errorf("batched import requires tenant, account and entity")
 	}
 	if s.batchSize <= 0 {
 		return nil, fmt.Errorf("import batch size must be positive")
 	}
 	if scoped, ok := s.config.(requestScopedConfig[T]); ok {
-		clone := &ImportService[T]{config: scoped.NewRequestScoped(), batchSize: s.batchSize, audit: s.audit, observe: s.observe, fingerprint: s.fingerprint, checkpoints: s.checkpoints}
+		clone := &ImportService[T]{config: scoped.NewRequestScoped(), batchSize: s.batchSize, audit: s.audit, observe: s.observe, fingerprint: s.fingerprint, checkpoints: s.checkpoints, transactions: s.transactions}
 		if locker, ok := clone.config.(importConfigLocker); ok {
 			locker.ImportLock().Lock()
 			defer locker.ImportLock().Unlock()
@@ -89,20 +81,16 @@ func (s *ImportService[T]) ImportBatches(ctx context.Context, request importMode
 	return s.importBatches(ctx, request, audit)
 }
 
-func (s *ImportService[T]) importBatches(ctx context.Context, request importModels.ImportRequest[T], audit BatchAudit) (*importModels.ImportResult[T], error) {
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return nil, err
-	}
+func (s *ImportService[T]) importBatches(ctx context.Context, request importModels.ImportRequest[T], audit importModels.BatchAudit) (*importModels.ImportResult[T], error) {
 	if request.DryRun {
 		var result *importModels.ImportResult[T]
-		err := tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+		err := s.transactions.WithinCurrent(ctx, func(ctx context.Context) error {
 			var err error
 			result, err = s.importWithConfig(ctx, request)
 			if err != nil {
 				return err
 			}
-			return s.RecordAuditInTransaction(ctx, audit.EntityType, audit.Filename, result, audit.AccountID, true, tenant.FromContext(ctx))
+			return s.RecordAuditInTransaction(ctx, audit.EntityType, audit.Filename, result, audit.AccountID, true, s.transactions.TenantID(ctx))
 		})
 		return result, err
 	}
@@ -124,15 +112,10 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 			s.observe(observation)
 		}
 	}()
-	ctx = tenant.WithAdditionalUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
-		switch event.Kind {
-		case tenant.UnitOfWorkPoolWait:
-			observation.PoolWait += event.Duration
-		case tenant.UnitOfWorkLockWait:
-			observation.LockWait += event.Duration
-		case tenant.UnitOfWorkTransaction:
-			observation.BatchesRetried += event.Retries
-		}
+	ctx = s.transactions.Observe(ctx, func(event importModels.TransactionObservation) {
+		observation.PoolWait += event.PoolWait
+		observation.LockWait += event.LockWait
+		observation.BatchesRetried += event.Retries
 	})
 	if s.fingerprint == nil {
 		return nil, fmt.Errorf("import fingerprint capability not wired")
@@ -161,7 +144,7 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 		order[i] = i
 	}
 	var receipts []auditModels.ImportCheckpoint
-	err = tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+	err = s.transactions.WithinCurrent(ctx, func(ctx context.Context) error {
 		if authorizer, ok := s.config.(importModeAuthorizer); ok {
 			if err := authorizer.AuthorizeImportMode(ctx, request.Mode); err != nil {
 				return err
@@ -179,7 +162,7 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 		for i := range request.Rows {
 			accepted[i], _ = s.validateRow(ctx, request, validated, &request.Rows[i], i+2, batchErrors[i])
 		}
-		if orderer, ok := s.config.(importModels.ProcessingOrderer[T]); ok {
+		if orderer, ok := s.config.(ProcessingOrderer[T]); ok {
 			if candidate := orderer.ProcessingOrder(request.Rows); validProcessingOrder(candidate, len(order)) {
 				order = candidate
 			}
@@ -202,8 +185,8 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 	if request.StopOnError && validated.ErrorCount > 0 && position == 0 {
 		validated.StartedAt, validated.CompletedAt = result.StartedAt, time.Now()
 		result = validated
-		err := tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
-			return s.RecordAuditInTransaction(ctx, audit.EntityType, audit.Filename, result, audit.AccountID, false, tenant.FromContext(ctx))
+		err := s.transactions.WithinCurrent(ctx, func(ctx context.Context) error {
+			return s.RecordAuditInTransaction(ctx, audit.EntityType, audit.Filename, result, audit.AccountID, false, s.transactions.TenantID(ctx))
 		})
 		return result, err
 	}
@@ -212,7 +195,7 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 		var failed *importModels.ImportResult[T]
 		var appended *importModels.ImportResult[T]
 		next := position
-		err = tenant.WithinTenantRetry(ctx, tenantID, func(ctx context.Context) (attemptErr error) {
+		err = s.transactions.WithinRetry(ctx, func(ctx context.Context) (attemptErr error) {
 			appended = nil
 			defer func() {
 				var state interface{ Field(byte) string }
@@ -221,7 +204,7 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 				}
 			}()
 			// Serializes identical uploads across processes, not just goroutines.
-			if err := tenant.AcquireLock(ctx, "data-import:"+key, false); err != nil {
+			if err := s.transactions.AcquireLock(ctx, "data-import:"+key); err != nil {
 				return err
 			}
 			current, err := reader.ListImportCheckpoints(ctx, key)
@@ -302,7 +285,7 @@ func (s *ImportService[T]) importBatches(ctx context.Context, request importMode
 	return result, nil
 }
 
-func importBatchKey[T any](request importModels.ImportRequest[T], rows json.RawMessage, audit BatchAudit, fingerprint func([]byte) string) (string, error) {
+func importBatchKey[T any](request importModels.ImportRequest[T], rows json.RawMessage, audit importModels.BatchAudit, fingerprint func([]byte) string) (string, error) {
 	// Hash before validation resolves IDs or normalizes input. Equivalent
 	// re-uploads carry the same parsed input even after prior batches commit.
 	request.Rows = nil
@@ -310,7 +293,7 @@ func importBatchKey[T any](request importModels.ImportRequest[T], rows json.RawM
 		Version int
 		Request importModels.ImportRequest[T]
 		Rows    json.RawMessage
-		Audit   BatchAudit
+		Audit   importModels.BatchAudit
 	}{1, request, rows, audit})
 	if err != nil {
 		return "", fmt.Errorf("hash import request: %w", err)

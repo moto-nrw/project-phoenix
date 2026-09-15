@@ -18,4 +18,8 @@ type Request = enrollment.Request
 type RequestChild = enrollment.RequestChild
 type RequestChildOffering = enrollment.RequestChildOffering
 
+type CareOfferingLink = enrollment.CareOfferingLink
+
 const ChildStatusSubmitted = enrollment.ChildStatusSubmitted
+
+const ChildStatusApproved = enrollment.ChildStatusApproved

@@ -18,9 +18,9 @@ type ChildCreator interface {
 }
 
 type RolloverChildren interface {
+	capability.SubmittedOfferingCommands
 	RequestChildOfferingsAtDate(context.Context, int64, capability.Date) ([]*capability.RequestChildOffering, error)
 	RequestChildOfferingsForChildrenAtDate(context.Context, []int64, capability.Date) ([]*capability.RequestChildOffering, error)
-	InsertRequestChildOffering(context.Context, *capability.RequestChildOffering) error
 	ChildCreator
 	ChildrenByID(context.Context, []int64) ([]*capability.RequestChild, error)
 	ChildrenByPhaseStatuses(context.Context, int64, []string) ([]*capability.RequestChild, error)
@@ -52,7 +52,6 @@ type DecisionChildren interface {
 	OfferingCapacityReader
 	OfferingSelectionBatchReader
 	OfferingSelectionReader
-	OfferingSelectionWriter
 	ChildIDReader
 	RequestChildrenReader
 	ReportChildren
@@ -72,8 +71,9 @@ func updateDecisionActivationPlan(ctx context.Context, owner DecisionChildren, i
 }
 
 type OfferingChildrenReader interface {
+	OfferingCatalogState(context.Context, int64, int64, capability.Date, capability.Date) (*capability.OfferingCatalogState, error)
 	OfferingCapacityPeak(context.Context, int64, []int64, capability.Date, capability.Date) (int, error)
-	RequestChildOfferingsAtDates(context.Context, map[int64]capability.Date) ([]*capability.RequestChildOffering, error)
+	EffectiveOfferingSelectionsAtDates(context.Context, map[int64]capability.Date) ([]*capability.RequestChildOffering, error)
 	OfferingSelectionReader
 	ChildByID(context.Context, int64) (*capability.RequestChild, error)
 	ChildrenByID(context.Context, []int64) ([]*capability.RequestChild, error)
@@ -137,10 +137,9 @@ func ReadStudentCarePeriods(ctx context.Context, owner StudentCarePeriodReader, 
 
 // IntakeChildren is the Enrollment child capability used by intake and edits.
 type IntakeChildren interface {
+	capability.SubmittedOfferingCommands
 	OfferingSelectionBatchReader
 	OfferingCapacityReader
-	ReplaceRequestChildOfferings(context.Context, int64, []*capability.RequestChildOffering) error
-	InsertRequestChildOffering(context.Context, *capability.RequestChildOffering) error
 	InsertChild(context.Context, *capability.RequestChild) error
 	ChildrenForRequest(context.Context, int64, bool) ([]*capability.RequestChild, error)
 	ChildrenForRequests(context.Context, []int64) ([]*capability.RequestChild, error)
