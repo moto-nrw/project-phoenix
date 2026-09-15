@@ -6,6 +6,8 @@
 //
 // No leading dot: it only repeated what tint and label already say and made
 // rows of pills busier without adding meaning (#2476).
+import type { LucideIcon } from "lucide-react";
+
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type StatusBadgeTone = "blue" | "green" | "orange" | "red" | "gray";
@@ -39,6 +41,9 @@ export function StatusBadge({
   label,
   tone,
   title,
+  icon: Icon,
+  accessibleLabel,
+  compact = false,
 }: {
   readonly label: string;
   readonly tone: StatusBadgeTone;
@@ -49,14 +54,26 @@ export function StatusBadge({
    * carries the text.
    */
   readonly title?: string;
+  /** Optional state icon. Use with a distinct label, never as the only cue. */
+  readonly icon?: LucideIcon;
+  /** Extra screen-reader context for a short visible label. */
+  readonly accessibleLabel?: string;
+  /** Matches compact informational labels that sit inside dense cards. */
+  readonly compact?: boolean;
 }) {
   const styles = TONES[tone];
   return (
     <span
       title={title}
-      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium whitespace-nowrap"
+      className={`inline-flex items-center rounded-full text-xs font-medium whitespace-nowrap ${
+        Icon ? "gap-1" : ""
+      } ${compact ? "px-2 py-0.5" : "px-2.5 py-1"}`}
       style={{ backgroundColor: styles.bg, color: styles.text }}
     >
+      {Icon ? <Icon className="h-3 w-3 shrink-0" aria-hidden="true" /> : null}
+      {accessibleLabel ? (
+        <span className="sr-only">{accessibleLabel}</span>
+      ) : null}
       {label}
     </span>
   );

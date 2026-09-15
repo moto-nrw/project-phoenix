@@ -93,6 +93,7 @@ type enrichedInstance struct {
 	IsSpontaneous          bool                     `json:"is_spontaneous"`
 	IsLive                 bool                     `json:"is_live"`
 	ActivityGroupID        *int64                   `json:"activity_group_id,omitempty"`
+	CalendarPeriodID       *int64                   `json:"calendar_period_id,omitempty"`
 	ListKind               *string                  `json:"list_kind,omitempty"`
 	ActivityType           string                   `json:"activity_type"`
 	PlanningTrackID        *int64                   `json:"planning_track_id,omitempty"`
@@ -557,6 +558,7 @@ func (rs *Resource) enrichInstance(
 		IsSpontaneous:          inst.IsSpontaneous,
 		IsLive:                 inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
 		ActivityGroupID:        inst.ActivityGroupID,
+		CalendarPeriodID:       inst.CalendarPeriodID,
 		ListKind:               inst.ListKind,
 		ActivityType:           meta.activityType,
 		PlanningTrackID:        meta.planningTrackID,
