@@ -166,7 +166,7 @@ func SetupStatisticsModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, s
 func SetupGradeTransitionModule(t *testing.T, clocks ...func() time.Time) (*bun.DB, services.GradeTransitionTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewGradeTransitionTestModule(db, clocks...)
+	module, err := services.NewGradeTransitionTestModule(db, nil, clocks...)
 	require.NoError(t, err)
 	return db, module
 }

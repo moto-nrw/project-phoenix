@@ -28,6 +28,14 @@ func (s *StudentService) LockEnrollmentClassWrites(ctx context.Context) error {
 	})
 }
 
+func (s *StudentService) LockEnrollmentClassWritesExclusive(ctx context.Context) error {
+	return s.run(ctx, "lock_enrollment_class_writes_exclusive", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := s.store.LockEnrollmentClassWritesExclusive(txCtx)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (s *StudentService) ApplyEnrollmentProfile(ctx context.Context, id int64, input domain.EnrollmentProfilePatch) error {
 	return s.run(ctx, "apply_enrollment_profile", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.ApplyEnrollmentProfile(txCtx, id, input)

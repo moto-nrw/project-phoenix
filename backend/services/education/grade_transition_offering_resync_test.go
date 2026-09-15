@@ -7,29 +7,15 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// recordingOfferingResyncer captures every offering-source resync the grade
-// transition triggers (#2137 review): promotions rewrite school classes, so
-// apply AND revert must re-reconcile the Jahrgang-filtered sourced rosters.
-type recordingOfferingResyncer struct {
-	calls []timezone.Date
-}
-
-func (r *recordingOfferingResyncer) ResyncOfferingSourcedTemplates(_ context.Context, effectiveFrom timezone.Date) error {
-	r.calls = append(r.calls, effectiveFrom)
-	return nil
-}
-
-// orderRecordingReconciler and orderRecordingResyncer append to one shared log
-// so the test below can pin the archive/resync ordering (#2147 review round
-// 16): the offering-source resync deletes sourced still-planned rows of the
+// orderRecordingReconciler and the resync closure below append to one shared
+// log so the test can pin the archive/resync ordering (#2147 review round 16):
+// the offering-source resync deletes sourced still-planned rows of the
 // graduates WITHOUT archiving, so the archive pass must run first on apply —
 // and on revert the archive replay must run first, so the resync finds the
 // replayed rows (room, note, non-booking markers intact) and retains them
@@ -53,76 +39,56 @@ func (r *orderRecordingReconciler) CurrentRosterBaseline(_ context.Context) (int
 	return 0, nil
 }
 
-type orderRecordingResyncer struct {
-	log *[]string
-}
-
-func (r *orderRecordingResyncer) ResyncOfferingSourcedTemplates(_ context.Context, _ timezone.Date) error {
-	*r.log = append(*r.log, "resync")
-	return nil
-}
-
-func TestGradeTransitionService_ApplyAndRevert_ArchiveBracketsOfferingResync(t *testing.T) {
+func TestGradeTransitionWorkflow_ApplyAndRevert_ArchiveBracketsOfferingResync(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
 	log := make([]string, 0, 5)
-	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo:   newGradeTransitionRepository(t, db),
-		StudentRepo:      usersRepo.NewStudentRepository(db),
-		PersonRepo:       usersRepo.NewPersonRepository(db),
-		Presence:         graduationPresence(t, db),
-		RosterReconciler: &orderRecordingReconciler{log: &log},
-		DB:               db,
-	})
-	service.SetOfferingSourceResyncer(&orderRecordingResyncer{log: &log})
+	f := newTransitionFixture(t, db)
+	f.deps.Rosters = &orderRecordingReconciler{log: &log}
+	f.deps.ResyncOfferingRosters = func(_ context.Context, _ string) error {
+		log = append(log, "resync")
+		return nil
+	}
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-resync-order@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4order-%s", suffix)
 
 	testpkg.CreateTestStudent(t, db, "Order", "Child", gradClass)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil)
+	transitionID := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"archive", "resync", "baseline"}, log,
 		"apply must archive the graduates' planned rows BEFORE the offering-source resync deletes them unarchived")
 
 	log = log[:0]
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"restore", "resync"}, log,
 		"revert must replay the archived rows BEFORE the resync, so it retains them instead of recreating plain expected rows")
 }
 
-func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *testing.T) {
+// TestGradeTransitionWorkflow_ApplyAndRevert_ResyncOfferingSourcedRosters pins
+// the resync itself (#2137 review): promotions rewrite school classes, so apply
+// AND revert must re-reconcile the Jahrgang-filtered sourced rosters from the
+// workflow's calendar day.
+func TestGradeTransitionWorkflow_ApplyAndRevert_ResyncOfferingSourcedRosters(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: newGradeTransitionRepository(t, db),
-		StudentRepo:    usersRepo.NewStudentRepository(db),
-		PersonRepo:     usersRepo.NewPersonRepository(db),
-		Presence:       graduationPresence(t, db),
-		DB:             db,
-		Today:          func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
-	})
-	resyncer := &recordingOfferingResyncer{}
-	service.SetOfferingSourceResyncer(resyncer)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 20*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-offering-resync@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	fromClass := fmt.Sprintf("2resync-%s", suffix)
@@ -130,18 +96,17 @@ func TestGradeTransitionService_ApplyAndRevert_ResyncOfferingSourcedRosters(t *t
 
 	testpkg.CreateTestStudent(t, db, "Resync", "Child", fromClass)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &toClass)
+	transitionID := f.createDraft(t, ctx, "2025-2026", promote(fromClass, toClass))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
-	require.Len(t, resyncer.calls, 1,
+	require.Len(t, f.resyncCalls, 1,
 		"apply must resync offering-sourced rosters after rewriting school classes")
-	assert.Equal(t, timezone.NewDate(2026, 8, 24), resyncer.calls[0])
+	assert.Equal(t, timezone.NewDate(2026, 8, 24), f.resyncCalls[0])
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
-	require.Len(t, resyncer.calls, 2,
+	require.Len(t, f.resyncCalls, 2,
 		"revert must resync in the opposite direction")
-	assert.Equal(t, timezone.NewDate(2026, 8, 24), resyncer.calls[1])
+	assert.Equal(t, timezone.NewDate(2026, 8, 24), f.resyncCalls[1])
 }

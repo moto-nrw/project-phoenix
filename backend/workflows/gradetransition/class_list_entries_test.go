@@ -1,4 +1,4 @@
-package education
+package gradetransition
 
 import (
 	"testing"
@@ -6,13 +6,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// The lookup resolves exact (trimmed) forms first — the condition students
-// and Klassenlehrer rows move under — and falls back to the normalized class
-// identity entries are matched by everywhere else (#2399 review round 9).
-func TestClassListEntryRenameLookup(t *testing.T) {
+// The lookup resolves exact (trimmed) forms first, the condition students
+// and Klassenlehrer rows move under, and falls back to the normalized class
+// identity entries are matched by everywhere else.
+func TestClassListRenameLookup(t *testing.T) {
 	t.Parallel()
 
-	lookup := newClassListEntryRenameLookup(map[string]string{
+	lookup := newClassListRenameLookup(map[string]string{
 		"1a": "2a",
 		"4a": "", // graduates
 	})
@@ -36,10 +36,10 @@ func TestClassListEntryRenameLookup(t *testing.T) {
 // Two mappings collapsing onto one normalized key with different targets are
 // ambiguous: the exact forms still resolve, but no third display form may
 // pick one of the two targets arbitrarily.
-func TestClassListEntryRenameLookupAmbiguousNormalizedKey(t *testing.T) {
+func TestClassListRenameLookupAmbiguousNormalizedKey(t *testing.T) {
 	t.Parallel()
 
-	lookup := newClassListEntryRenameLookup(map[string]string{
+	lookup := newClassListRenameLookup(map[string]string{
 		"1ab": "2a",
 		"1AB": "2b",
 	})

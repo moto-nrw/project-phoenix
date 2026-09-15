@@ -36,7 +36,7 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	audit := users.NewStudentAuditService(r.StudentFieldEdit, slog.Default())
 	service := users.NewCareLifecycleService(users.CareLifecycleDependencies{
 		StudentRepo: r.Student, PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
-		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.GradeTransition, AuditService: audit,
+		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.TagReleaser, AuditService: audit,
 		LockCareBookingWrites: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)

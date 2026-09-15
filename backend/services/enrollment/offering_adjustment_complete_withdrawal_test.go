@@ -183,7 +183,7 @@ func newWithdrawalLifecycle(env *decisionTestEnv) usersService.CareLifecycleServ
 	return usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
-		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.GradeTransition,
+		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
 		AuditService: usersService.NewStudentAuditService(env.repos.StudentFieldEdit, slog.Default()),
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return env.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
@@ -298,7 +298,7 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 	f.lifecycle = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person,
 		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
-		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.GradeTransition,
+		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.StudentTagReleaser(),
 		AuditService: usersService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: func(ctx context.Context) error {
 			close(f.completionWaiting)

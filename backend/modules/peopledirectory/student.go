@@ -91,6 +91,12 @@ type StudentQuery interface {
 type StudentCommand interface {
 	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
 	LockEnrollmentClassWrites(context.Context) error
+	// LockEnrollmentClassWritesExclusive takes the same per-tenant
+	// class-writes gate exclusively. A grade transition holds it for its
+	// whole transaction so no child can be created in, or moved into, a
+	// mapped class behind the cohort it locked; every ordinary student
+	// writer takes the shared form and therefore waits for the commit.
+	LockEnrollmentClassWritesExclusive(context.Context) error
 	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
 	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
 	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error
@@ -126,6 +132,7 @@ type StudentStatusFlagCapability interface {
 type studentEngine interface {
 	ReadEnrollmentStudent(context.Context, int64, string) (enrollment.Record, error)
 	LockEnrollmentClassWrites(context.Context) error
+	LockEnrollmentClassWritesExclusive(context.Context) error
 	ApplyEnrollmentProfile(context.Context, int64, enrollment.ProfilePatch) error
 	CreateEnrollmentStudent(context.Context, EnrollmentStudent) (CreatedEnrollmentStudent, error)
 	RenewEnrollmentStudent(context.Context, int64, EnrollmentStudent) error

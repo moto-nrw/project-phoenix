@@ -31,9 +31,6 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	if f.ActivitySupervisor != nil {
 		f.ActivitySupervisor = personSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, persons: persons}
 	}
-	if f.GradeTransition != nil {
-		f.GradeTransition = personGradeTransitionRepository{GradeTransitionRepository: f.GradeTransition, persons: persons}
-	}
 	if f.ParentChild != nil {
 		f.ParentChild = personChildRepository{ChildRepository: f.ParentChild, persons: persons}
 	}

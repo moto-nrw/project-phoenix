@@ -85,7 +85,15 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	grade, err := NewGradeTransitionTestModule(db, clocks...)
+	// The offering-roster resync is provided by the enrollment decision
+	// service constructed below; the closure reads it once it exists.
+	var offeringResync education.OfferingSourceResyncer
+	grade, err := NewGradeTransitionTestModule(db, func(ctx context.Context, effectiveFrom timezone.Date) error {
+		if offeringResync == nil {
+			return nil
+		}
+		return offeringResync.ResyncOfferingSourcedTemplates(ctx, effectiveFrom)
+	}, clocks...)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -219,7 +227,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Logger: logger.With("service", "enrollment-decision"),
 		Today:  today,
 	})
-	grade.GradeTransition.SetOfferingSourceResyncer(enrollmentDecisionService.(education.OfferingSourceResyncer))
+	offeringResync = enrollmentDecisionService.(education.OfferingSourceResyncer)
 	enrollmentDecisionApplier := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 	directOfferingApplier := enrollmentDecisionService.(enrollment.DirectOfferingAdjustmentApplier)
 	requestReviewPolicy := usercontext.NewParentRequestReviewPolicy(

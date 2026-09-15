@@ -63,6 +63,7 @@ type engine interface {
 	ListGroupsByID(context.Context, []int64) ([]Group, error)
 	ListGroups(context.Context, int) ([]Group, error)
 	StudentTransitionHistory
+	transitionEngine
 }
 
 func (m *Module) CountStudentTransitionHistory(ctx context.Context, studentID int64) (int, error) {
@@ -122,10 +123,12 @@ func ErrorCode(err error) string {
 	switch {
 	case err == nil:
 		return "none"
-	case errors.Is(err, ErrGroupNotFound):
+	case errors.Is(err, ErrGroupNotFound), errors.Is(err, ErrTransitionNotFound):
 		return "not_found"
-	case errors.Is(err, ErrInvalidGroup):
+	case errors.Is(err, ErrInvalidGroup), errors.Is(err, ErrInvalidTransition):
 		return "invalid"
+	case errors.Is(err, ErrTransitionStateConflict):
+		return "conflict"
 	default:
 		return "internal_error"
 	}

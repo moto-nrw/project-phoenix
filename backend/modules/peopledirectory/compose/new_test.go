@@ -316,3 +316,29 @@ func TestModuleKeepsPersistenceErrorsVisible(t *testing.T) {
 	assert.NotErrorIs(t, err, peopledirectory.ErrInvalidPerson)
 	assert.NotErrorIs(t, err, peopledirectory.ErrPersonNotFound)
 }
+
+// A child given a different bracelet while the graduation stood must keep
+// it: the restore's `tag_id IS NULL` guard means the ledgered old bracelet
+// never silently overwrites the one the child wears today (#2711, ported from
+// the deleted grade-transition repository test).
+func TestModuleRestoreTagKeepsABraceletGivenInTheMeantime(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := buildModule(t, db)
+	ctx := testpkg.Ctx(t)
+	oldCard := testpkg.CreateTestRFIDCard(t, db, "OLDTAG")
+	newCard := testpkg.CreateTestRFIDCard(t, db, "NEWTAG")
+	person := testpkg.CreateTestPerson(t, db, "Neues", "Armband")
+
+	require.NoError(t, module.LinkTag(ctx, person.ID, newCard.ID))
+
+	restored, err := module.RestoreTag(ctx, person.ID, oldCard.ID)
+	require.NoError(t, err)
+	assert.False(t, restored, "the child already wears something; the old bracelet must not overwrite it")
+
+	holder, err := module.FindPersonByTag(ctx, newCard.ID)
+	require.NoError(t, err)
+	assert.Equal(t, person.ID, holder.ID)
+	_, err = module.FindPersonByTag(ctx, oldCard.ID)
+	require.ErrorIs(t, err, peopledirectory.ErrPersonNotFound, "the ledgered bracelet stays free")
+}

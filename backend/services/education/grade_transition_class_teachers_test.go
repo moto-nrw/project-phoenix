@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,20 +29,30 @@ func staffClassNames(t *testing.T, db *bun.DB, ctx context.Context, staffID int6
 	return classes
 }
 
+// countLedgerAction counts the class-teacher ledger rows of one action.
+func countLedgerAction(ledger []schoolstructure.TransitionClassTeacherEntry, action string) int {
+	count := 0
+	for _, entry := range ledger {
+		if entry.Action == action {
+			count++
+		}
+	}
+	return count
+}
+
 // The Klassenlehrer assignments must follow the school-year rollover (#1772):
 // promoted classes carry their teachers along — including chain renames that
 // would collide with the unique index if applied one by one — and graduating
 // classes lose theirs. Revert carries the promotions back.
-func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
+func TestGradeTransitionWorkflow_Apply_RemapsClassTeachers(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-classteacher@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1a-%s", suffix)
@@ -58,23 +69,15 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 	// holds the graduating class.
 	chainTeacher := testpkg.CreateTestStaff(t, db, "Remap", "ChainTeacher")
 	graduateTeacher := testpkg.CreateTestStaff(t, db, "Remap", "GraduateTeacher")
-	defer func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").
-			Where("staff_id IN (?)", bun.List([]int64{chainTeacher.ID, graduateTeacher.ID})).
-			Exec(tenantCtx)
-	}()
 
 	testpkg.CreateTestClassTeacher(t, db, chainTeacher.ID, class1)
 	testpkg.CreateTestClassTeacher(t, db, chainTeacher.ID, class2)
 	testpkg.CreateTestClassTeacher(t, db, graduateTeacher.ID, class3)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class2, testpkg.StrPtr(class3))
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class3, nil) // graduates
+	transitionID := f.createDraft(t, ctx, "2026-2027",
+		promote(class1, class2), promote(class2, class3), graduate(class3))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{class2, class3}, staffClassNames(t, db, ctx, chainTeacher.ID),
@@ -82,7 +85,16 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 	assert.Empty(t, staffClassNames(t, db, ctx, graduateTeacher.ID),
 		"graduating class must lose its teacher assignment")
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	// Every delete and insert is ledgered so the revert replays exactly what
+	// happened rather than reversing the renames.
+	ledger, err := f.deps.Structure.ListTransitionClassTeacherLedger(ctx, transitionID)
+	require.NoError(t, err)
+	assert.Equal(t, 3, countLedgerAction(ledger, schoolstructure.LedgerActionRemoved),
+		"all three affected assignments are ledgered as removed")
+	assert.Equal(t, 2, countLedgerAction(ledger, schoolstructure.LedgerActionCreated),
+		"only the two promoted assignments are re-inserted")
+
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{class1, class2}, staffClassNames(t, db, ctx, chainTeacher.ID),
@@ -95,16 +107,15 @@ func TestGradeTransitionService_Apply_RemapsClassTeachers(t *testing.T) {
 // EXACT (trimmed) from-class match. A teacher assigned "1A" must stay put
 // when the mapping renames "1a" — the "1A" children do not move either, and
 // remapping the teacher would take away sight of their own class.
-func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t *testing.T) {
+func TestGradeTransitionWorkflow_Apply_MatchesClassTeachersExactlyLikeStudents(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-exactmatch@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	classLower := fmt.Sprintf("1a-%s", suffix)
@@ -116,17 +127,11 @@ func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t 
 	testpkg.CreateTestStudent(t, db, "Exact", "Child", classLower)
 
 	teacher := testpkg.CreateTestStaff(t, db, "Exact", "CaseTeacher")
-	defer func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").
-			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
-	}()
 	testpkg.CreateTestClassTeacher(t, db, teacher.ID, classUpper)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, classLower, testpkg.StrPtr(classTarget))
+	transitionID := f.createDraft(t, ctx, "2026-2027", promote(classLower, classTarget))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{classUpper}, staffClassNames(t, db, ctx, teacher.ID),
@@ -136,16 +141,15 @@ func TestGradeTransitionService_Apply_MatchesClassTeachersExactlyLikeStudents(t 
 // A staff member offboarded between apply and revert must not get assignments
 // resurrected: offboarding cleared their class rows, and the soft-deleted
 // staff row would satisfy the FK even though the normal write path 404s on it.
-func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_SkipsOffboardedStaff(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-offboard@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1a-%s", suffix)
@@ -154,17 +158,11 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 	testpkg.CreateTestStudent(t, db, "Offboard", "Child", class1)
 
 	teacher := testpkg.CreateTestStaff(t, db, "Offboard", "Teacher")
-	defer func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").
-			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
-	}()
 	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class1)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	transitionID := f.createDraft(t, ctx, "2026-2027", promote(class1, class2))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 	require.Equal(t, []string{class2}, staffClassNames(t, db, ctx, teacher.ID))
 
@@ -177,7 +175,7 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 		Where("id = ?", teacher.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Empty(t, staffClassNames(t, db, ctx, teacher.ID),
@@ -188,16 +186,15 @@ func TestGradeTransitionService_Revert_SkipsOffboardedStaff(t *testing.T) {
 // removed on revert: the renamed row's disappearance means the admin took the
 // class away, and restoring the pre-apply name would silently re-grant
 // student-data scope.
-func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_RespectsAdminRemovalAfterApply(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-adminremoval@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1a-%s", suffix)
@@ -207,17 +204,11 @@ func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing
 	testpkg.CreateTestStudent(t, db, "AdminRemoval", "Child", class1)
 
 	teacher := testpkg.CreateTestStaff(t, db, "AdminRemoval", "Teacher")
-	defer func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").
-			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
-	}()
 	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class1)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	transitionID := f.createDraft(t, ctx, "2026-2027", promote(class1, class2))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 	require.Equal(t, []string{class2}, staffClassNames(t, db, ctx, teacher.ID))
 
@@ -227,7 +218,7 @@ func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing
 	require.NoError(t, err)
 	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class3)
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{class3}, staffClassNames(t, db, ctx, teacher.ID),
@@ -237,13 +228,9 @@ func TestGradeTransitionService_Revert_RespectsAdminRemovalAfterApply(t *testing
 // setupChainTeacherTransition builds the dual-role rename chain: one teacher
 // holds 1a AND 2a, the mappings rename 1a→2a and 2a→3a, so after the apply
 // the middle class name (2a) is both a created target (the renamed 1a) and a
-// restore source (the pre-apply 2a). Returns the teacher, the three class
-// names, and a fixture cleanup the caller MUST defer AFTER the setup cleanup
-// (defers run LIFO, and the fixture deletes need the still-open DB).
-func setupChainTeacherTransition(t *testing.T, db *bun.DB) (teacherID, transitionID, accountID int64, class1, class2, class3 string, cleanup func()) {
+// restore source (the pre-apply 2a).
+func setupChainTeacherTransition(t *testing.T, ctx context.Context, db *bun.DB, f *transitionFixture) (teacherID, transitionID int64, class1, class2, class3 string) {
 	t.Helper()
-
-	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("transition-chain-%s@test.local", uuid.Must(uuid.NewV4()).String()[:8]))
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 = fmt.Sprintf("1a-%s", suffix)
@@ -257,17 +244,9 @@ func setupChainTeacherTransition(t *testing.T, db *bun.DB) (teacherID, transitio
 	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class1)
 	testpkg.CreateTestClassTeacher(t, db, teacher.ID, class2)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class2, testpkg.StrPtr(class3))
+	transitionID = f.createDraft(t, ctx, "2026-2027", promote(class1, class2), promote(class2, class3))
 
-	cleanup = func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").
-			Where("staff_id = ?", teacher.ID).Exec(tenantCtx)
-	}
-
-	return teacher.ID, transition.ID, account.ID, class1, class2, class3, cleanup
+	return teacher.ID, transitionID, class1, class2, class3
 }
 
 // deleteClassTeacherRow removes one specific assignment, the way an admin
@@ -292,25 +271,25 @@ func deleteClassTeacherRow(t *testing.T, db *bun.DB, ctx context.Context, staffI
 // lock). The teacher deliberately ends with nothing; erring on the side of
 // less scope beats silently re-granting a removed class, and the admin can
 // re-assign.
-func TestGradeTransitionService_Revert_ChainAdminRemovedMiddleClass(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_ChainAdminRemovedMiddleClass(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
 
-	teacherID, transitionID, accountID, _, class2, class3, fixtureCleanup := setupChainTeacherTransition(t, db)
-	defer fixtureCleanup()
+	teacherID, transitionID, _, class2, class3 := setupChainTeacherTransition(t, ctx, db, f)
 
-	_, err := service.Apply(ctx, transitionID, accountID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 	require.Equal(t, []string{class2, class3}, staffClassNames(t, db, ctx, teacherID))
 
 	deleteClassTeacherRow(t, db, ctx, teacherID, class2)
 
-	_, err = service.Revert(ctx, transitionID, accountID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Empty(t, staffClassNames(t, db, ctx, teacherID),
@@ -324,25 +303,25 @@ func TestGradeTransitionService_Revert_ChainAdminRemovedMiddleClass(t *testing.T
 // ledger replay renames back from 3a to 2a are the ones the admin revoked.
 // The class NAMES the admin saw ("kept 2a") shift because every class name
 // rolls back with the students; the SCOPE the admin curated is preserved.
-func TestGradeTransitionService_Revert_ChainAdminRemovedEndClass(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_ChainAdminRemovedEndClass(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
 
-	teacherID, transitionID, accountID, class1, class2, class3, fixtureCleanup := setupChainTeacherTransition(t, db)
-	defer fixtureCleanup()
+	teacherID, transitionID, class1, class2, class3 := setupChainTeacherTransition(t, ctx, db, f)
 
-	_, err := service.Apply(ctx, transitionID, accountID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 	require.Equal(t, []string{class2, class3}, staffClassNames(t, db, ctx, teacherID))
 
 	deleteClassTeacherRow(t, db, ctx, teacherID, class3)
 
-	_, err = service.Revert(ctx, transitionID, accountID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{class1}, staffClassNames(t, db, ctx, teacherID),
@@ -353,16 +332,15 @@ func TestGradeTransitionService_Revert_ChainAdminRemovedEndClass(t *testing.T) {
 // pre-existing assignment of a rename target that the apply never touched
 // must survive the revert untouched, and a merge (teacher held both the from-
 // and the to-class) must round-trip without losing the surviving assignment.
-func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_TouchesOnlyLedgeredClassTeachers(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-ledger@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	class1 := fmt.Sprintf("1a-%s", suffix)
@@ -375,21 +353,14 @@ func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testi
 	// bystander holds only the pre-existing 2a the apply never touches.
 	mergeTeacher := testpkg.CreateTestStaff(t, db, "Ledger", "MergeTeacher")
 	bystander := testpkg.CreateTestStaff(t, db, "Ledger", "Bystander")
-	defer func() {
-		tenantCtx := testpkg.Ctx(t)
-		_, _ = db.NewDelete().TableExpr("education.class_teachers").
-			Where("staff_id IN (?)", bun.List([]int64{mergeTeacher.ID, bystander.ID})).
-			Exec(tenantCtx)
-	}()
 
 	testpkg.CreateTestClassTeacher(t, db, mergeTeacher.ID, class1)
 	testpkg.CreateTestClassTeacher(t, db, mergeTeacher.ID, class2)
 	testpkg.CreateTestClassTeacher(t, db, bystander.ID, class2)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
+	transitionID := f.createDraft(t, ctx, "2026-2027", promote(class1, class2))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, transitionID, "")
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{class2}, staffClassNames(t, db, ctx, mergeTeacher.ID),
@@ -397,7 +368,7 @@ func TestGradeTransitionService_Revert_TouchesOnlyLedgeredClassTeachers(t *testi
 	assert.Equal(t, []string{class2}, staffClassNames(t, db, ctx, bystander.ID),
 		"apply must not touch the bystander's pre-existing 2a")
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, transitionID)
 	require.NoError(t, err)
 
 	assert.Equal(t, []string{class1, class2}, staffClassNames(t, db, ctx, mergeTeacher.ID),

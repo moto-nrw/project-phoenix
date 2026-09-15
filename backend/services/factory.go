@@ -85,6 +85,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
+	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
@@ -125,28 +127,30 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 
 // Factory provides access to all services
 type Factory struct {
-	settingsRuntimeDB         *bun.DB
-	Auth                      auth.AuthService
-	Audit                     auditModels.Command
-	StaffPINAuth              auth.StaffPINAuthenticator
-	MFA                       auth.MFAService
-	Passkey                   auth.PasskeyService
-	Active                    active.Service
-	ActiveCleanup             active.CleanupService
-	WorkSession               active.WorkSessionService
-	WorkTimeMonth             active.WorkTimeMonthService
-	Holidays                  schedule.HolidayService
-	ClosingDays               schedule.ClosingDayService
-	StaffAbsence              active.StaffAbsenceService
-	StaffBalanceAdjust        active.StaffBalanceAdjustmentService
-	StaffMonthClose           active.StaffMonthCloseService
-	StaffOverview             active.StaffOverviewService
-	TimeTrackingAuditLog      active.TimeTrackingAuditLogService
-	StaffTimeExport           active.StaffTimeExportService
-	Activities                activities.ActivityService
-	Education                 education.Service
-	Substitution              education.SubstitutionModule
-	GradeTransition           *education.GradeTransitionService
+	settingsRuntimeDB    *bun.DB
+	Auth                 auth.AuthService
+	Audit                auditModels.Command
+	StaffPINAuth         auth.StaffPINAuthenticator
+	MFA                  auth.MFAService
+	Passkey              auth.PasskeyService
+	Active               active.Service
+	ActiveCleanup        active.CleanupService
+	WorkSession          active.WorkSessionService
+	WorkTimeMonth        active.WorkTimeMonthService
+	Holidays             schedule.HolidayService
+	ClosingDays          schedule.ClosingDayService
+	StaffAbsence         active.StaffAbsenceService
+	StaffBalanceAdjust   active.StaffBalanceAdjustmentService
+	StaffMonthClose      active.StaffMonthCloseService
+	StaffOverview        active.StaffOverviewService
+	TimeTrackingAuditLog active.TimeTrackingAuditLogService
+	StaffTimeExport      active.StaffTimeExportService
+	Activities           activities.ActivityService
+	Education            education.Service
+	Substitution         education.SubstitutionModule
+	// GradeTransition is the owner workflow behind the school-year rollover
+	// (#2711): the admin HTTP surface calls exactly its public commands.
+	GradeTransition           *gradetransition.Workflow
 	Facilities                facilities.Service
 	Schulhof                  facilities.SchulhofService
 	WC                        facilities.WCService
@@ -716,20 +720,9 @@ func newFactory(
 		now,
 	)
 
-	// Initialize grade transition service
-	gradeTransitionService := education.NewGradeTransitionService(education.GradeTransitionServiceDependencies{
-		TransitionRepo:      repos.GradeTransition,
-		StudentRepo:         repos.Student,
-		PersonRepo:          repos.Person,
-		Presence:            newStudentPresence(db, logger),
-		ClassTeacherRepo:    repos.ClassTeacher,
-		StaffRepo:           repos.Staff,
-		ClassListEntryRepo:  repos.ClassListEntry,
-		ClassListEntryAudit: repos.ClassListEntryChange,
-		RosterReconciler:    rosterReconciler,
-		DB:                  db,
-		Today:               today,
-	})
+	// The grade transition workflow (#2711) is composed after the enrollment
+	// decision service exists: it needs the offering-roster resync that
+	// service provides. rosterReconciler is its Timetable port.
 
 	// Start page composition (#2875) shares the settings tenant runtime: the
 	// personal layout and the school's prescription are read inside the same
@@ -2086,7 +2079,7 @@ func newFactory(
 		CareExitRepo:   repos.CareExit,
 		CleanupRepo:    repos.CareExitCleanup,
 		WithdrawalRepo: repos.CareWithdrawal,
-		TagReleaser:    repos.GradeTransition,
+		TagReleaser:    repositories.NewStudentTagReleaser(persons),
 		AuditService:   studentAuditService,
 		LockCareBookingWrites: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
@@ -2212,14 +2205,25 @@ func newFactory(
 	// service is constructed after the split service.
 	templateSplitService.SetOfferingRosterResync(offeringRosterResyncer.ResyncTemplateOfferingRoster)
 	// Grade transitions rewrite school classes, so they must re-reconcile the
-	// offering-sourced templates' Jahrgang-filtered rosters (#2137). Wired
-	// here because the decision service is constructed after the grade
-	// transition service.
+	// offering-sourced templates' Jahrgang-filtered rosters (#2137). The
+	// workflow is composed here because the decision service that provides
+	// the resync is constructed late; it binds the People Directory, the
+	// School Membership, the Timetable roster reconciliation and the
+	// recurrence gate, and builds School Structure and Student Presence over
+	// the shared database itself (#2711).
 	gradeTransitionResyncer, ok := enrollmentDecisionService.(education.OfferingSourceResyncer)
 	if !ok {
 		return nil, fmt.Errorf("enrollment decision service does not implement the grade-transition offering resync")
 	}
-	gradeTransitionService.SetOfferingSourceResyncer(gradeTransitionResyncer)
+	gradeTransitionWorkflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
+		DB: db, Directory: persons, Membership: membership, Rosters: rosterReconciler,
+		LockRecurrenceWrites:  func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		ResyncOfferingRosters: gradeTransitionResyncer.ResyncOfferingSourcedTemplates,
+		Logger:                logger.With("workflow", "grade_transition"), Audit: auditCommand, Clock: now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose grade transition workflow: %w", err)
+	}
 	// A care-offering edit changes the wanted roster of every template sourcing
 	// it (#2147 review). Wired late because the decision service is constructed
 	// after the care-offering service.
@@ -3016,7 +3020,7 @@ func newFactory(
 		Activities:              activitiesService,
 		Education:               educationService,
 		Substitution:            substitutionService,
-		GradeTransition:         gradeTransitionService,
+		GradeTransition:         gradeTransitionWorkflow,
 		Facilities:              facilitiesService,
 		Schulhof:                schulhofService,
 		WC:                      wcService,

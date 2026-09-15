@@ -60,6 +60,16 @@ func (s *StudentStore) LockEnrollmentClassWrites(ctx context.Context) (domain.Op
 	return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
 }
 
+func (s *StudentStore) LockEnrollmentClassWritesExclusive(ctx context.Context) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	started := time.Now()
+	err = lockEnrollmentClassWritesExclusive(ctx, db, tenantID)
+	return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, err
+}
+
 func (s *StudentStore) ReadEnrollment(ctx context.Context, id int64, lock string) (domain.EnrollmentRecord, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
