@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // Active-session lifecycle policy (Rule 12: Models Hold Data, Not Decisions).
@@ -45,10 +44,10 @@ func (s *service) resolveDefaultSessionTimeout(ctx context.Context) time.Duratio
 		return DefaultSessionInactivityTimeout
 	}
 
-	minutes, err := s.settings.ResolveInt(ctx, configModel.KeySessionInactivityTimeoutMin)
+	minutes, err := s.settings.SessionInactivityTimeoutMinutes(ctx)
 	if err != nil {
 		s.getLogger().Warn("session inactivity timeout resolve failed, using default",
-			slog.String("key", configModel.KeySessionInactivityTimeoutMin),
+			slog.String("setting", "session_inactivity_timeout"),
 			slog.String("error", err.Error()),
 		)
 		return DefaultSessionInactivityTimeout
@@ -86,13 +85,4 @@ func IsSupervisorActive(supervisor *active.GroupSupervisor, now time.Time) bool 
 	today := timezone.DateFromTime(now)
 	return !supervisor.StartDate.After(today) &&
 		(supervisor.EndDate == nil || today.Before(*supervisor.EndDate))
-}
-
-// IsCombinedGroupActive decides whether a combined group is still active as of
-// now, using the same open-ended-until-EndTime rule as supervisions.
-func IsCombinedGroupActive(group *active.CombinedGroup, now time.Time) bool {
-	if group.EndTime == nil {
-		return true
-	}
-	return now.Before(*group.EndTime)
 }

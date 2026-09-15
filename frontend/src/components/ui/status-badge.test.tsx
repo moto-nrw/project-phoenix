@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import { RefreshCw } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { StatusBadge } from "./status-badge";
@@ -33,6 +34,22 @@ describe("StatusBadge", () => {
     expect(screen.getByText("Feiertag")).toHaveAttribute(
       "title",
       "Tag der Einheit",
+    );
+  });
+
+  it("supports an icon and additional accessible context", () => {
+    render(
+      <StatusBadge
+        label="Automatisch"
+        tone="green"
+        icon={RefreshCw}
+        accessibleLabel="Teilnehmerpflege: "
+        compact
+      />,
+    );
+
+    expect(screen.getByText("Automatisch")).toHaveTextContent(
+      "Teilnehmerpflege: Automatisch",
     );
   });
 });

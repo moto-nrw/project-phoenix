@@ -211,6 +211,8 @@ func mapError(err error) error {
 		return peopledirectory.ErrAccountConflict
 	case errors.Is(err, domain.ErrStudentNotFound):
 		return peopledirectory.ErrStudentNotFound
+	case errors.Is(err, domain.ErrStudentLockBusy):
+		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentLockBusy, err)
 	default:
 		return err
 	}

@@ -16,8 +16,10 @@ import (
 // Read paths only: an attached snapshot is immutable and not evicted by
 // SetValue/ResetValue or the advisory-lock helpers, so handlers that write
 // settings must not prefetch the keys they write.
-func PrefetchSettings(ctx context.Context, settings configSvc.SettingsService, keys ...string) context.Context {
-	batch, ok := settings.(configSvc.BatchSettingsService)
+func PrefetchSettings(ctx context.Context, settings any, keys ...string) context.Context {
+	batch, ok := settings.(interface {
+		ResolveMany(context.Context, []string) (*configSvc.SettingsSnapshot, error)
+	})
 	if !ok {
 		return ctx
 	}

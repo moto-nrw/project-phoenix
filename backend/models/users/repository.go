@@ -566,33 +566,6 @@ type StudentCompanionRepository interface {
 	CompanionWeekdays(ctx context.Context, studentID int64) ([]int, error)
 }
 
-// StudentRetentionSetting is the projection used by the GDPR visit-cleanup
-// worklist: one row per distinct (student, retention-days) pair with an
-// accepted privacy consent.
-type StudentRetentionSetting struct {
-	StudentID         int64 `bun:"student_id"`
-	DataRetentionDays int   `bun:"data_retention_days"`
-}
-
-// PrivacyConsentRepository defines operations for managing privacy consents
-type PrivacyConsentRepository interface {
-	base.CRUDRepository[*PrivacyConsent]
-
-	// FindByStudentID retrieves privacy consents for a student
-	FindByStudentID(ctx context.Context, studentID int64) ([]*PrivacyConsent, error)
-
-	// Accept marks a privacy consent as accepted
-	Accept(ctx context.Context, id int64, acceptedAt time.Time) error
-
-	// Revoke revokes a privacy consent
-	Revoke(ctx context.Context, id int64) error
-
-	// ListAcceptedRetentionSettings returns the distinct (student_id,
-	// data_retention_days) pairs of accepted privacy consents, ordered by
-	// student_id. Feeds the GDPR visit-cleanup worklist.
-	ListAcceptedRetentionSettings(ctx context.Context) ([]StudentRetentionSetting, error)
-}
-
 // GuardianProfileRepository defines operations for managing guardian profiles
 type GuardianProfileRepository interface {
 	// Create inserts a new guardian profile into the database

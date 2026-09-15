@@ -9,9 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -79,10 +77,10 @@ func (s *recordingBalanceMonthService) GetBalanceReductionCapacity(_ context.Con
 
 type recordingAdjustmentFreezeReader struct {
 	events   *[]string
-	snapshot *activeModels.StaffMonthBalanceSnapshot
+	snapshot *MonthSnapshot
 }
 
-func (r *recordingAdjustmentFreezeReader) GetLatestClosedThrough(context.Context, int64, int, int) (*activeModels.StaffMonthBalanceSnapshot, error) {
+func (r *recordingAdjustmentFreezeReader) LatestClosedMonth(context.Context, int64, int, int) (*MonthSnapshot, error) {
 	*r.events = append(*r.events, "snapshot")
 	return r.snapshot, nil
 }
@@ -102,7 +100,7 @@ func newRecordingBalanceAdjustmentService(
 	// event log stays limited to the adjustment repo, so assertions are
 	// unchanged.
 	if aware, ok := service.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(TimeTrackingDeletionAudit)
 	}); ok {
 		aware.SetDeletionAudit(noopDeletionAuditRepo{})
 	}
@@ -111,7 +109,7 @@ func newRecordingBalanceAdjustmentService(
 
 type noopDeletionAuditRepo struct{}
 
-func (noopDeletionAuditRepo) Create(context.Context, *auditModels.TimeTrackingDeletion) error {
+func (noopDeletionAuditRepo) Create(context.Context, *TimeTrackingDeletionEvent) error {
 	return nil
 }
 
@@ -127,7 +125,7 @@ func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
 	service := newRecordingBalanceAdjustmentService(&events, repo, monthService)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(EventPublisher)
 	}).SetBroadcaster(broadcaster)
 	ctx, commit := tenant.WithAfterCommitHooksForTest(
 		tenant.WithTenantID(context.Background(), 42),
@@ -144,7 +142,7 @@ func TestStaffBalanceAdjustmentService_BroadcastsAfterCommit(t *testing.T) {
 
 	commit()
 
-	broadcastEvents := broadcaster.EventsOfType(realtime.EventStaffTimeTrackingChanged)
+	broadcastEvents := broadcaster.EventsOfType(EventStaffTimeTrackingChanged)
 	require.Len(t, broadcastEvents, 1)
 	calls := broadcaster.CallsByMethod("tenant")
 	require.Len(t, calls, 1)
@@ -159,7 +157,7 @@ func TestStaffBalanceAdjustmentService_ChecksFrozenMonthAfterLock(t *testing.T) 
 		decidedBy = int64(42)
 	)
 	effectiveDate := timezone.NewDate(2026, time.July, 7)
-	frozen := &activeModels.StaffMonthBalanceSnapshot{
+	frozen := &MonthSnapshot{
 		StaffID: staffID,
 		Year:    effectiveDate.Year(),
 		Month:   int(effectiveDate.Month()),

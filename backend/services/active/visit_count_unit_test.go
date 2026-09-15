@@ -2,70 +2,15 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// =============================================================================
-// CountActiveVisitsByRoomID Tests
-// =============================================================================
-
-func TestCountActiveVisitsByRoomID_Success(t *testing.T) {
-	t.Parallel()
-
-	visitRepo := &mockVisitRepository{
-		countActiveByRoomIDFunc: func(ctx context.Context, roomID int64) (int, error) {
-			return 5, nil
-		},
-	}
-
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
-	count, err := svc.CountActiveVisitsByRoomID(context.Background(), 42)
-
-	require.NoError(t, err)
-	assert.Equal(t, 5, count)
-}
-
-func TestCountActiveVisitsByRoomID_Error(t *testing.T) {
-	t.Parallel()
-
-	visitRepo := &mockVisitRepository{
-		countActiveByRoomIDFunc: func(ctx context.Context, roomID int64) (int, error) {
-			return 0, errors.New("db error")
-		},
-	}
-
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
-	count, err := svc.CountActiveVisitsByRoomID(context.Background(), 42)
-
-	require.Error(t, err)
-	assert.Equal(t, 0, count)
-	assert.Contains(t, err.Error(), "CountActiveVisitsByRoomID")
-}
-
-func TestCountActiveVisitsByRoomID_ZeroCount(t *testing.T) {
-	t.Parallel()
-
-	visitRepo := &mockVisitRepository{
-		countActiveByRoomIDFunc: func(ctx context.Context, roomID int64) (int, error) {
-			return 0, nil
-		},
-	}
-
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
-	count, err := svc.CountActiveVisitsByRoomID(context.Background(), 1)
-
-	require.NoError(t, err)
-	assert.Equal(t, 0, count)
-}
 
 // =============================================================================
 // CountActiveVisitsByActiveGroupID Tests
@@ -80,7 +25,7 @@ func TestCountActiveVisitsByActiveGroupID_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	count, err := svc.CountActiveVisitsByActiveGroupID(context.Background(), 10)
 
 	require.NoError(t, err)
@@ -96,7 +41,7 @@ func TestCountActiveVisitsByActiveGroupID_Error(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	count, err := svc.CountActiveVisitsByActiveGroupID(context.Background(), 10)
 
 	require.Error(t, err)
@@ -113,7 +58,7 @@ func TestCountActiveVisitsByActiveGroupID_ZeroCount(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	count, err := svc.CountActiveVisitsByActiveGroupID(context.Background(), 10)
 
 	require.NoError(t, err)
@@ -137,7 +82,7 @@ func TestGetStudentCurrentVisit_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), testStudentID)
 
 	require.NoError(t, err)
@@ -151,11 +96,11 @@ func TestGetStudentCurrentVisit_NotFound(t *testing.T) {
 
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDFunc: func(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {
-			return nil, &base.DatabaseError{Op: "get current", Err: sql.ErrNoRows}
+			return nil, &base.DatabaseError{Op: "get current", Err: base.ErrNotFound}
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
 
 	require.Error(t, err)
@@ -172,7 +117,7 @@ func TestGetStudentCurrentVisit_DatabaseError(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
 
 	require.Error(t, err)
@@ -189,7 +134,7 @@ func TestGetStudentCurrentVisit_NilVisit(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	visit, err := svc.GetStudentCurrentVisit(context.Background(), 1)
 
 	require.Error(t, err)
@@ -209,7 +154,7 @@ func TestGetStudentCurrentVisitWithRoom_Success(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*facilities.Room{{ID: 10, Name: "Test Room"}}}}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*SessionRoom{{ID: 10, Name: "Test Room"}}}}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.NoError(t, err)
@@ -229,7 +174,7 @@ func TestGetStudentCurrentVisitWithRoom_RoomDirectoryResults(t *testing.T) {
 					return &studentpresence.VisitLocation{Visit: studentpresence.Visit{ID: 200}, Group: &studentpresence.VisitGroup{RoomID: 10}}, nil
 				},
 			}
-			svc := &service{ServiceDependencies: ServiceDependencies{
+			svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 				SchoolPresence: presence, RoomRepo: &roomRepoForActiveWrapperTest{err: lookupErr},
 			}}
 			visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
@@ -251,11 +196,11 @@ func TestGetStudentCurrentVisitWithRoom_NotFound(t *testing.T) {
 
 	visitRepo := &mockVisitRepository{
 		getCurrentByStudentIDWithRoomFunc: func(ctx context.Context, studentID int64) (*studentpresence.VisitLocation, error) {
-			return nil, &base.DatabaseError{Op: "get with room", Err: sql.ErrNoRows}
+			return nil, &base.DatabaseError{Op: "get with room", Err: base.ErrNotFound}
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*facilities.Room{{ID: 10, Name: "Test Room"}}}}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*SessionRoom{{ID: 10, Name: "Test Room"}}}}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.Error(t, err)
@@ -272,7 +217,7 @@ func TestGetStudentCurrentVisitWithRoom_DatabaseError(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*facilities.Room{{ID: 10, Name: "Test Room"}}}}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*SessionRoom{{ID: 10, Name: "Test Room"}}}}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.Error(t, err)
@@ -289,7 +234,7 @@ func TestGetStudentCurrentVisitWithRoom_NilVisit(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*facilities.Room{{ID: 10, Name: "Test Room"}}}}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo, RoomRepo: &roomRepoForActiveWrapperTest{rooms: []*SessionRoom{{ID: 10, Name: "Test Room"}}}}}
 	visit, err := svc.GetStudentCurrentVisitWithRoom(context.Background(), 1)
 
 	require.Error(t, err)
@@ -326,7 +271,7 @@ func TestListStudentsPresentInRoom_ReturnsIDsFromRepo(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 42)
 
 	require.NoError(t, err)
@@ -343,7 +288,7 @@ func TestListStudentsPresentInRoom_EmptyResult(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 1)
 
 	require.NoError(t, err)
@@ -360,7 +305,7 @@ func TestListStudentsPresentInRoom_WrapsRepoError(t *testing.T) {
 		},
 	}
 
-	svc := &service{ServiceDependencies: ServiceDependencies{SchoolPresence: visitRepo}}
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: visitRepo}}
 	ids, err := svc.ListStudentsPresentInRoom(context.Background(), 1)
 
 	require.Error(t, err)

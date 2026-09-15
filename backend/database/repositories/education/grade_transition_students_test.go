@@ -8,7 +8,6 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -253,69 +252,6 @@ func TestGradeTransitionRepository_FindStudentStatesByIDs(t *testing.T) {
 		assert.NotEqual(t, string(users.StudentStatusAlumnus), states[active.ID])
 		assert.NotContains(t, states, missingID)
 	})
-}
-
-func TestGradeTransitionRepository_AnonymizeHistoryForStudent(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := newPersonComposedGradeTransitionRepository(t, db)
-	ctx := testpkg.Ctx(t)
-
-	account := testpkg.CreateTestAccount(t, db, "transition-anonymize")
-
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-
-	suffix := uuid.Must(uuid.NewV4()).String()[:8]
-	purged := testpkg.CreateTestStudent(t, db, "Gelöschtes", "Kind", fmt.Sprintf("4anon-%s", suffix))
-	kept := testpkg.CreateTestStudent(t, db, "Bleibendes", "Kind", fmt.Sprintf("4anon-%s", suffix))
-	rfidTag := "rfid-deleted-student"
-
-	require.NoError(t, repo.CreateHistoryBatch(ctx, []*educationModels.GradeTransitionHistory{
-		{
-			TransitionID: transition.ID,
-			StudentID:    purged.ID,
-			PersonName:   "Mika Muster",
-			FromClass:    "4a",
-			Action:       educationModels.ActionGraduated,
-			RFIDTag:      &rfidTag,
-		},
-		{
-			TransitionID: transition.ID,
-			StudentID:    kept.ID,
-			PersonName:   "Nina Beispiel",
-			FromClass:    "4a",
-			Action:       educationModels.ActionGraduated,
-		},
-	}))
-
-	historyOf := func(studentID int64) *educationModels.GradeTransitionHistory {
-		records, err := repo.GetHistory(ctx, transition.ID)
-		require.NoError(t, err)
-		for _, record := range records {
-			if record.StudentID == studentID {
-				return record
-			}
-		}
-		t.Fatalf("no ledger row for student %d", studentID)
-		return nil
-	}
-
-	require.NoError(t, repo.AnonymizeHistoryForStudent(ctx, purged.ID))
-
-	// person_name is a denormalized copy with no foreign key: it survives the
-	// hard delete of both the student and the person row, so "endgültig löschen"
-	// is only true once this replaced it.
-	assert.Equal(t, education.PurgedStudentPlaceholder, historyOf(purged.ID).PersonName)
-	assert.Nil(t, historyOf(purged.ID).RFIDTag)
-	assert.Equal(t, "Nina Beispiel", historyOf(kept.ID).PersonName, "only the purged child's rows may change")
-
-	// Idempotent: the second call matches no row after both identifying fields
-	// have been cleared.
-	require.NoError(t, repo.AnonymizeHistoryForStudent(ctx, purged.ID))
-	assert.Equal(t, education.PurgedStudentPlaceholder, historyOf(purged.ID).PersonName)
-	assert.Nil(t, historyOf(purged.ID).RFIDTag)
 }
 
 func TestGradeTransitionRepository_GetMappingsByTransitionIDs(t *testing.T) {

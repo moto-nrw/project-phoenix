@@ -36,8 +36,16 @@ import { useFormError } from "~/components/ui/form-error";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
+import { TimeField } from "~/components/ui/time-field";
+import {
+  DEFAULT_REMINDER_TIME,
+  MAX_REMINDER_TEXT_LENGTH,
+  reminderError,
+  reminderTimeError,
+} from "~/components/announcements/announcement-reminder-dialog";
 import {
   AnnouncementStatusBadge,
+  describeReminder,
   KIND_PARAM,
   kindFromParam,
   kindOf,
@@ -60,6 +68,8 @@ import type { SegmentedControlItem } from "~/components/ui/segmented-control";
 import { AttachmentList } from "~/components/ui/attachment-list";
 import { formatBytes } from "~/lib/files-api";
 import {
+  berlinClockFromISO,
+  berlinDateTimeISO,
   berlinDayFromISO,
   endOfBerlinDayISO,
   formatBerlinDate,
@@ -449,6 +459,7 @@ function ParentAnnouncementsContent() {
           ) : (
             row.expires_at && <p>Läuft ab {formatBerlinDate(row.expires_at)}</p>
           )}
+          {describeReminder(row) && <p>{describeReminder(row)}</p>}
         </div>
       ),
     },
@@ -773,6 +784,21 @@ function AnnouncementFormModal({
   const [expiresAt, setExpiresAt] = useState<Date | null>(
     announcement?.expires_at ? berlinDayFromISO(announcement.expires_at) : null,
   );
+  // Scheduled reminder (#3162): a Berlin day plus a clock time, both read back
+  // from the stored instant so re-saving an untouched draft keeps the moment.
+  const [reminderDay, setReminderDay] = useState<Date | null>(
+    announcement?.reminder_at
+      ? berlinDayFromISO(announcement.reminder_at)
+      : null,
+  );
+  const [reminderTime, setReminderTime] = useState(
+    announcement?.reminder_at
+      ? berlinClockFromISO(announcement.reminder_at)
+      : DEFAULT_REMINDER_TIME,
+  );
+  const [reminderText, setReminderText] = useState(
+    announcement?.reminder_text ?? "",
+  );
   const [targets, setTargets] = useState<AnnouncementTarget[]>(
     announcement?.targets ?? [],
   );
@@ -815,7 +841,7 @@ function AnnouncementFormModal({
   );
   const [formError, setFormError] = useFormError();
 
-  const validateContent = (): boolean => {
+  const validateContent = (forPublication: boolean): boolean => {
     if (!title.trim()) {
       setFormError("Bitte einen Titel eingeben.");
       return false;
@@ -850,12 +876,31 @@ function AnnouncementFormModal({
         return false;
       }
     }
+    const reminderTimeProblem = reminderTimeError(
+      isPollForm ? null : reminderDay,
+      reminderTime,
+    );
+    if (reminderTimeProblem) {
+      setFormError(reminderTimeProblem);
+      return false;
+    }
+    if (forPublication) {
+      const reminderProblem = reminderError(
+        isPollForm ? null : reminderDay,
+        reminderTime,
+        expiresAt ? new Date(endOfBerlinDayISO(expiresAt)) : null,
+      );
+      if (reminderProblem) {
+        setFormError(reminderProblem);
+        return false;
+      }
+    }
     setFormError("");
     return true;
   };
 
   const goNext = () => {
-    if (validateContent()) setStep(1);
+    if (validateContent(false)) setStep(1);
   };
 
   const attachmentCount = existingAttachments.length + pendingFiles.length;
@@ -918,7 +963,7 @@ function AnnouncementFormModal({
   };
 
   const handleSubmit = async (publish: boolean) => {
-    if (!validateContent()) {
+    if (!validateContent(publish)) {
       setStep(0);
       return;
     }
@@ -957,6 +1002,16 @@ function AnnouncementFormModal({
       // A broad e-mail audience belongs only to letters; standard announcements
       // always retain the existing portal-only delivery scope.
       email_audience: isLetterForm ? emailAudience : "portal_only",
+      // A poll never carries a scheduled reminder (it has its manual one), so
+      // a value left over from a converted draft must not leak.
+      reminder_at:
+        !isPollForm && reminderDay
+          ? berlinDateTimeISO(reminderDay, reminderTime)
+          : null,
+      reminder_text:
+        !isPollForm && reminderDay && reminderText.trim()
+          ? reminderText.trim()
+          : null,
     };
 
     setSubmitting(publish ? "publish" : "draft");
@@ -1280,6 +1335,66 @@ function AnnouncementFormModal({
                   </div>
                 </div>
               </section>
+
+              {!isPollForm && (
+                <section className="space-y-3">
+                  <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                    Erinnerung
+                  </h3>
+                  <p className="text-sm text-gray-600">
+                    Optional: moto schickt{" "}
+                    {isLetterForm ? "den Elternbrief" : "die Mitteilung"} zu
+                    diesem Zeitpunkt noch einmal an alle Empfänger, auch wenn
+                    sie schon gelesen oder bestätigt haben.
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <span className="mb-1.5 block text-sm font-medium text-gray-700">
+                        Erinnern am (optional)
+                      </span>
+                      <DatePicker
+                        value={reminderDay}
+                        onChange={setReminderDay}
+                        placeholder="Keine Erinnerung"
+                      />
+                    </div>
+                    {reminderDay && (
+                      <TimeField
+                        label="Uhrzeit"
+                        value={reminderTime}
+                        onChange={setReminderTime}
+                        hint="Uhrzeit im Format 08:00"
+                        placeholder="08:00"
+                        required
+                      />
+                    )}
+                  </div>
+                  {reminderDay && (
+                    <div>
+                      <label
+                        htmlFor="announcement-reminder-text"
+                        className="mb-2 block text-sm font-medium text-gray-700"
+                      >
+                        Erinnerungstext (optional)
+                      </label>
+                      <textarea
+                        id="announcement-reminder-text"
+                        value={reminderText}
+                        onChange={(e) => setReminderText(e.target.value)}
+                        rows={2}
+                        maxLength={MAX_REMINDER_TEXT_LENGTH}
+                        placeholder="Kurz das Wichtigste, z. B. „Morgen endet die Betreuung um 13:00 Uhr.“"
+                        className="block w-full rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus:ring-inset focus-visible:ring-2 focus-visible:ring-gray-400"
+                      />
+                      <p className="mt-1.5 text-xs text-gray-500">
+                        {isLetterForm
+                          ? "Ohne eigenen Text schickt moto den Text des Elternbriefs noch einmal."
+                          : "Die E-Mail hat nur Titel und Link. Den Text sehen Eltern im Eltern-Portal."}
+                      </p>
+                    </div>
+                  )}
+                </section>
+              )}
 
               <section className="space-y-3">
                 <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/stretchr/testify/assert"
@@ -243,7 +242,7 @@ func TestStudentDataSnapshot_ResolveLocationWithTime_WithLocationSnapshot(t *tes
 				GroupID:   ptrtest.Ptr(int64(789)),
 				RoomID:    1,
 				StartTime: startTime,
-				Room: &facilities.Room{
+				Room: &activeModels.SessionRoom{
 					Name: "Science Lab",
 				},
 			},
@@ -327,7 +326,7 @@ func TestStudentDataSnapshot_CompleteScenario(t *testing.T) {
 		Groups: map[int64]*activeModels.Group{
 			500: {
 				GroupID: ptrtest.Ptr(int64(10)), RoomID: 1, StartTime: startTime,
-				Room: &facilities.Room{Name: "Library"},
+				Room: &activeModels.SessionRoom{Name: "Library"},
 			},
 		},
 	}

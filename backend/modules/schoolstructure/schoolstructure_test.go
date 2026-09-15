@@ -103,3 +103,13 @@ func TestNewModulePanicsWithoutEngine(t *testing.T) {
 	t.Parallel()
 	assert.Panics(t, func() { schoolstructure.NewModule(nil) })
 }
+
+func (e *recordingEngine) CountStudentTransitionHistory(context.Context, int64) (int, error) {
+	e.calls++
+	return 0, nil
+}
+
+func (e *recordingEngine) AnonymizeStudentTransitionHistory(context.Context, int64) (int64, error) {
+	e.calls++
+	return 0, nil
+}

@@ -5,8 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,34 +29,34 @@ func (p *trackingPresenceSource) ListVisitLocations(ctx context.Context, filter 
 }
 
 type trackingRooms struct {
-	facilities.RoomRepository
+	AttendanceRooms
 	source *trackingPresenceSource
 }
 
-func (r trackingRooms) FindByIDs(context.Context, []int64) ([]*facilities.Room, error) {
-	rows := make([]*facilities.Room, 0, len(r.source.rows))
+func (r trackingRooms) FindByIDs(context.Context, []int64) ([]*SessionRoom, error) {
+	rows := make([]*SessionRoom, 0, len(r.source.rows))
 	for index, row := range r.source.rows {
-		rows = append(rows, &facilities.Room{ID: int64(index + 1), Name: row.RoomName})
+		rows = append(rows, &SessionRoom{ID: int64(index + 1), Name: row.RoomName})
 	}
 	return rows, nil
 }
 
 type trackingGroups struct {
-	activities.GroupRepository
+	AttendanceActivityGroups
 	source *trackingPresenceSource
 }
 
-func (r trackingGroups) FindByIDs(context.Context, []int64) ([]*activities.Group, error) {
-	rows := make([]*activities.Group, 0, len(r.source.rows))
+func (r trackingGroups) FindByIDs(context.Context, []int64) ([]*active.SessionActivity, error) {
+	rows := make([]*active.SessionActivity, 0, len(r.source.rows))
 	for index, row := range r.source.rows {
-		rows = append(rows, &activities.Group{Model: activities.Model{ID: int64(index + 1)}, Name: row.ActivityGroupName})
+		rows = append(rows, &active.SessionActivity{ID: int64(index + 1), Name: row.ActivityGroupName})
 	}
 	return rows, nil
 }
 
 func trackingService(names func(context.Context, []int64) ([]visitGroupNames, error)) *service {
 	presence := &trackingPresenceSource{names: names}
-	return &service{ServiceDependencies: ServiceDependencies{
+	return &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		SchoolPresence: presence, RoomRepo: trackingRooms{source: presence}, ActivityGroupRepo: trackingGroups{source: presence},
 	}}
 }

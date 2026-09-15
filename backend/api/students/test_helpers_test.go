@@ -2,6 +2,8 @@ package students_test
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -9,6 +11,7 @@ import (
 	"time"
 
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,6 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
 // testContext holds shared test dependencies.
@@ -168,11 +172,21 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		Today: func() requestreview.Date { return requestreview.Date(timezone.DateFromTime(clock())) },
 	})
 	require.NoError(t, err)
+	// The permanent-deletion routes run the owner workflow (#2710) over the
+	// same capabilities the production root binds.
+	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+		DB: db, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
+		Feedback: &testpkg.FeedbackEntryCounterMock{}, IsVerifiedStaff: svc.UserContext.HasCurrentStaff,
+		LockCareBookingWrites: func(ctx context.Context) error { return scheduleSvc.LockTenantRecurrenceWrites(ctx, db) },
+		UnlinkPhoto:           studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit,
+		Now: clock,
+	})
+	require.NoError(t, err)
 	resource := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
-		GradeTransitionService: svc.GradeTransition,
-		StudentService:         userService.NewStudentService(repoFactory.Student, repoFactory.PrivacyConsent, repoFactory.StudentCompanion, nil),
+		StudentDeletion:        studentDeletion,
+		StudentService:         userService.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
@@ -193,13 +207,13 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 				names[room.ID] = room.Name
 			}
 			return names, nil
-		}, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
+		}, svc.DataAccessAudit(), svc.HistorySlots(repoFactory.InstanceStudent)),
 		OGSGroupLiveService:     svc.OGSGroupLive,
 		InstanceService:         svc.Instance,
 		CareDayService:          svc.CareDay,
 		CareLifecycleService:    svc.CareLifecycle,
-		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, repoFactory.StudentPickupException, db),
-		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.Users),
+		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, svc.ManualPartialAbsences(repoFactory.CarePlan), db, repoFactory.CarePlan.LockExceptionDay),
+		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
 		EnrollmentDecision:      svc.EnrollmentDecision,
@@ -227,6 +241,40 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		resource:    resource,
 		broadcaster: broadcaster,
 	}
+}
+
+// previewStudentDeletion reads the delete-impact preview the confirmed
+// deletion has to quote back (#2710): the permanent deletion is never
+// reachable without it.
+func previewStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64) map[string]any {
+	t.Helper()
+	request := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/%d/delete-impact", studentID), nil)
+	response := authExec(t, tc, request, claims, []string{"admin:*"})
+	require.Equal(t, http.StatusOK, response.Code, "Body: %s", response.Body.String())
+	var body struct {
+		Data map[string]any `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(response.Body.Bytes(), &body))
+	return body.Data
+}
+
+// confirmStudentDeletion sends the confirmed DELETE for a preview.
+func confirmStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, preview map[string]any) *httptest.ResponseRecorder {
+	t.Helper()
+	request := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", studentID), map[string]any{
+		"expected_fingerprint": preview["fingerprint"],
+		"confirmation_name":    preview["confirmation_name"],
+		"reason":               "test_data",
+		"acknowledged":         true,
+	})
+	return authExec(t, tc, request, claims, []string{"admin:*"})
+}
+
+// deleteStudentConfirmed previews and confirms in one step for tests whose
+// subject is the deletion's side effect, not the confirmation itself.
+func deleteStudentConfirmed(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64) *httptest.ResponseRecorder {
+	t.Helper()
+	return confirmStudentDeletion(t, tc, claims, studentID, previewStudentDeletion(t, tc, claims, studentID))
 }
 
 func firstClock(clocks []func() time.Time) func() time.Time {

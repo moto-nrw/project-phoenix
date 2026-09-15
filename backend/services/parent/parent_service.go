@@ -385,7 +385,14 @@ type ChildFeatureFlags struct {
 	// quick actions (care schedule / master data) in the parent UI.
 	RequestSubmitEnabled bool
 	PickupChangeEnabled  bool
-	PickupManageAllowed  bool
+	// PickupChangeCutoffTime is the school's same-day cutoff for the one-day
+	// pickup change as HH:MM (#3163); empty when there is none or the pickup
+	// change is off. PickupChangeTodayClosed says the cutoff has passed, so
+	// today is closed for guardians while later days stay open. The portal
+	// shows both before anyone types, instead of rebuilding the rule.
+	PickupChangeCutoffTime  string
+	PickupChangeTodayClosed bool
+	PickupManageAllowed     bool
 	// GuardianContactManageAllowed is true when the caller may create and edit
 	// accountless contacts for this child.
 	GuardianContactManageAllowed bool

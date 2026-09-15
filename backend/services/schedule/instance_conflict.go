@@ -69,8 +69,7 @@ type InstanceConflictWarning struct {
 // decide whether to warn without all sub-checks.
 type ConflictDependencies struct {
 	GroupRepo         active.GroupRepository
-	SupervisorRepo    active.GroupSupervisorRepository
-	Presence          StudentVisitReader
+	Presence          ConflictPresence
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	InstanceStudents  scheduleModel.InstanceStudentRepository
@@ -221,7 +220,7 @@ func DetectStartConflicts(
 }
 
 type activeStaffConflicts struct {
-	supervisions map[int64][]*active.GroupSupervisor
+	supervisions map[int64][]studentpresence.GroupSupervision
 	groups       map[int64]*active.Group
 	instances    map[int64]*scheduleModel.ActivityInstance
 	staffRows    map[int64][]*scheduleModel.InstanceStaff
@@ -239,9 +238,8 @@ func loadActiveStaffConflicts(
 	if len(staffIDs) == 0 {
 		return result
 	}
-	options := modelBase.NewQueryOptions()
-	options.Filter = modelBase.NewFilter().Equal("active_only", true).In("staff_id", int64FilterArgs(staffIDs)...)
-	supervisions, err := deps.SupervisorRepo.List(ctx, options)
+	day := timezone.TodayDate().String()
+	supervisions, err := deps.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{ActiveOn: &day, StaffIDs: staffIDs})
 	if err != nil {
 		logger.Warn("conflict detection: staff supervision batch lookup failed", slog.String("error", err.Error()))
 		return result
@@ -255,7 +253,7 @@ func loadActiveStaffConflicts(
 
 func newActiveStaffConflicts() activeStaffConflicts {
 	return activeStaffConflicts{
-		supervisions: make(map[int64][]*active.GroupSupervisor),
+		supervisions: make(map[int64][]studentpresence.GroupSupervision),
 		groups:       make(map[int64]*active.Group),
 		instances:    make(map[int64]*scheduleModel.ActivityInstance),
 		staffRows:    make(map[int64][]*scheduleModel.InstanceStaff),
@@ -314,7 +312,7 @@ func distinctPresentStaffIDs(rows []*scheduleModel.InstanceStaff) []int64 {
 	return ids
 }
 
-func indexSupervisions(byStaff map[int64][]*active.GroupSupervisor, rows []*active.GroupSupervisor) []int64 {
+func indexSupervisions(byStaff map[int64][]studentpresence.GroupSupervision, rows []studentpresence.GroupSupervision) []int64 {
 	groupIDs := make([]int64, 0, len(rows))
 	seen := make(map[int64]bool, len(rows))
 	for _, row := range rows {

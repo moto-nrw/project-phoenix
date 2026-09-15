@@ -2,20 +2,15 @@ package active
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"slices"
+	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // ErrStudentStatusDayReassigned signals that a student left the caller's scope
@@ -77,10 +72,9 @@ func (e *StudentStatusDayConflictError) SampleConflicts() []*activeModels.Studen
 // composition lives in the service. Durable notifications run inside the
 // transaction; after-commit runs only the ephemeral SSE fan-out.
 type StatusDayWriteContext struct {
-	DB             *bun.DB
+	DB             DatabaseHandle
 	TenantID       int64
-	StudentService users.StudentService
-	Authorize      func(ctx context.Context, student *userModels.Student, status string) bool
+	StudentService StatusDayStudents
 	AfterCommit    func(studentID int64)
 	// AfterCreate receives the students whose current-day status newly became a
 	// reportable absence inside the write transaction. It is separate from
@@ -100,16 +94,16 @@ func (s *StudentStatusDayService) CreateForDates(ctx context.Context, wc StatusD
 	}
 	now := s.now()
 	today := timezone.DateFromTime(now)
-	notePtr := strutil.TrimPtrToNil(&reason)
-	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
-		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
+	var notePtr *string
+	if note := strings.TrimSpace(reason); note != "" {
+		notePtr = &note
+	}
+	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
+		fresh, err := wc.StudentService.LockForStatusWrite(ctx, studentID, status)
 		if err != nil {
 			return err
 		}
-		if !wc.Authorize(ctx, fresh, status) {
-			return ErrStudentStatusDayReassigned
-		}
-		if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
+		if err := s.lockStudentStatusDates(ctx, studentID, dates); err != nil {
 			return err
 		}
 		if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
@@ -149,25 +143,25 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 	studentIDs = dedupeStudentIDs(studentIDs)
 	now := s.now()
 	today := timezone.DateFromTime(now)
-	notePtr := strutil.TrimPtrToNil(&reason)
-	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	var notePtr *string
+	if note := strings.TrimSpace(reason); note != "" {
+		notePtr = &note
+	}
+	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
 		// Phase 1: lock and authorize every student before writing any row.
 		// Order by ID for stable lock acquisition across concurrent bulk ops.
 		sortedIDs := append([]int64(nil), studentIDs...)
 		slices.Sort(sortedIDs)
-		lockedStudents := make(map[int64]*userModels.Student, len(sortedIDs))
+		lockedStudents := make(map[int64]*StudentRecord, len(sortedIDs))
 		for _, studentID := range sortedIDs {
-			fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
+			fresh, err := wc.StudentService.LockForStatusWrite(ctx, studentID, status)
 			if err != nil {
 				return err
-			}
-			if !wc.Authorize(ctx, fresh, status) {
-				return ErrStudentStatusDayReassigned
 			}
 			lockedStudents[studentID] = fresh
 		}
 		for _, studentID := range sortedIDs {
-			if err := lockStudentStatusDates(ctx, wc.DB, studentID, dates); err != nil {
+			if err := s.lockStudentStatusDates(ctx, studentID, dates); err != nil {
 				return err
 			}
 			if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
@@ -225,11 +219,11 @@ func (s *StudentStatusDayService) BulkCreateForDates(ctx context.Context, wc Sta
 	})
 }
 
-func lockStudentStatusDates(ctx context.Context, db *bun.DB, studentID int64, dates []timezone.Date) error {
+func (s *StudentStatusDayService) lockStudentStatusDates(ctx context.Context, studentID int64, dates []timezone.Date) error {
 	sortedDates := append([]timezone.Date(nil), dates...)
 	slices.SortFunc(sortedDates, timezone.Date.Compare)
 	for _, date := range sortedDates {
-		if err := careplanning.LockExceptionDay(ctx, db, studentID, date.String()); err != nil {
+		if err := s.lockStatusDate(ctx, studentID, date.String()); err != nil {
 			return err
 		}
 	}
@@ -242,15 +236,15 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 	if s.pickupExceptions == nil || len(dates) == 0 {
 		return nil
 	}
-	requested := make(map[scheduleModels.Date]struct{}, len(dates))
+	requested := make(map[timezone.Date]struct{}, len(dates))
 	for _, date := range dates {
-		requested[scheduleModels.Date(date)] = struct{}{}
+		requested[date] = struct{}{}
 	}
-	rows, err := s.pickupExceptions.FindByStudentIDAndDateRange(
+	rows, err := s.pickupExceptions.ManualPartialAbsenceDates(
 		ctx,
 		studentID,
-		scheduleModels.Date(slices.MinFunc(dates, timezone.Date.Compare)),
-		scheduleModels.Date(slices.MaxFunc(dates, timezone.Date.Compare)),
+		slices.MinFunc(dates, timezone.Date.Compare),
+		slices.MaxFunc(dates, timezone.Date.Compare),
 	)
 	if err != nil {
 		return err
@@ -260,10 +254,8 @@ func (s *StudentStatusDayService) ensureNoPartialAbsenceConflicts(
 		// block a broad day status: the two coexist via disjoint slot
 		// ownership, and refusing would make every pickup change block a sick
 		// report. Only a staff-set manual partial absence conflicts.
-		if row != nil && row.HasManualPartialAbsence() {
-			if _, matches := requested[row.ExceptionDate]; matches {
-				return ErrStudentStatusDayPartialAbsenceConflict
-			}
+		if _, matches := requested[row]; matches {
+			return ErrStudentStatusDayPartialAbsenceConflict
 		}
 	}
 	return nil
@@ -316,21 +308,18 @@ func dedupeStudentIDs(studentIDs []int64) []int64 {
 func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWriteContext, statusDayID, studentID int64) error {
 	now := s.now()
 	today := timezone.DateFromTime(now)
-	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(ctx, wc.DB, wc.TenantID, func(ctx context.Context, _ any) error {
 		row, err := s.repo.FindActiveByID(ctx, statusDayID)
 		if err != nil {
 			return err
 		}
 		if row.StudentID != studentID {
-			return sql.ErrNoRows
+			return base.ErrNotFound
 		}
 
-		fresh, err := wc.StudentService.GetByIDForUpdate(ctx, studentID)
+		fresh, err := wc.StudentService.LockForStatusWrite(ctx, studentID, row.Status)
 		if err != nil {
 			return err
-		}
-		if !wc.Authorize(ctx, fresh, row.Status) {
-			return ErrStudentStatusDayReassigned
 		}
 
 		if err := s.repo.MarkClearedByID(ctx, row.ID, now, activeModels.StudentStatusSourceManual); err != nil {
@@ -338,7 +327,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 		}
 		if row.Date == today {
 			ClearLiveStatusForToday(fresh, row.Status)
-			if err := wc.StudentService.Update(ctx, fresh); err != nil {
+			if err := wc.StudentService.UpdateLiveStatus(ctx, fresh); err != nil {
 				return err
 			}
 		}
@@ -348,7 +337,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 	})
 }
 
-func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc StatusDayWriteContext, fresh *userModels.Student, status string, dates []timezone.Date, notePtr *string, now time.Time, today timezone.Date) (bool, error) {
+func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc StatusDayWriteContext, fresh *StudentRecord, status string, dates []timezone.Date, notePtr *string, now time.Time, today timezone.Date) (bool, error) {
 	notifyAbsence := isNewReportableAbsence(fresh, status, dates, today)
 	if err := s.clearOtherStatusDaysForDates(ctx, fresh.ID, status, dates, now); err != nil {
 		return false, err
@@ -367,14 +356,14 @@ func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc 
 	}
 	if slices.Contains(dates, today) {
 		ApplyLiveStatusForToday(fresh, status, now)
-		if err := wc.StudentService.Update(ctx, fresh); err != nil {
+		if err := wc.StudentService.UpdateLiveStatus(ctx, fresh); err != nil {
 			return false, err
 		}
 	}
 	return notifyAbsence, nil
 }
 
-func isNewReportableAbsence(student *userModels.Student, status string, dates []timezone.Date, today timezone.Date) bool {
+func isNewReportableAbsence(student *StudentRecord, status string, dates []timezone.Date, today timezone.Date) bool {
 	if !slices.Contains(dates, today) {
 		return false
 	}
@@ -400,7 +389,7 @@ func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Conte
 // ApplyLiveStatusForToday mutates a student's live sick/excused flags to reflect
 // a status reported for today (mutually exclusive across sick/excused/class
 // trip).
-func ApplyLiveStatusForToday(student *userModels.Student, status string, now time.Time) {
+func ApplyLiveStatusForToday(student *StudentRecord, status string, now time.Time) {
 	trueVal := true
 	falseVal := false
 	switch status {
@@ -423,7 +412,7 @@ func ApplyLiveStatusForToday(student *userModels.Student, status string, now tim
 }
 
 // ClearLiveStatusForToday resets the live flags a today status set.
-func ClearLiveStatusForToday(student *userModels.Student, status string) {
+func ClearLiveStatusForToday(student *StudentRecord, status string) {
 	falseVal := false
 	switch status {
 	case activeModels.StudentStatusDaySick:

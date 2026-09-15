@@ -29,6 +29,7 @@ type VisitFilter struct {
 }
 
 type VisitQuery interface {
+	ListOpenVisitStudentIDs(context.Context, int64) ([]int64, error)
 	VisitLocationQuery
 	VisitRetentionQuery
 	FindVisit(context.Context, int64) (*Visit, error)
@@ -60,4 +61,8 @@ func (m *Module) DeleteVisit(ctx context.Context, id int64) error {
 }
 func (m *Module) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]Visit, error) {
 	return m.engine.CloseVisits(ctx, ids, at)
+}
+
+func (m *Module) ListOpenVisitStudentIDs(ctx context.Context, hostingTenantID int64) ([]int64, error) {
+	return m.engine.ListOpenVisitStudentIDs(ctx, hostingTenantID)
 }

@@ -986,6 +986,7 @@ PUT /api/me/profile
 PUT /api/meal-plan/{date}
 PUT /api/notifications/preferences/{type}
 PUT /api/parent-announcements/{announcementId}
+PUT /api/parent-announcements/{announcementId}/reminder
 PUT /api/rooms/{id}
 PUT /api/schedules/dateframes/{id}
 PUT /api/schedules/recurrence-rules/{id}

@@ -139,8 +139,7 @@ func TestDeleteStudent_AnnouncesCompanionChange(t *testing.T) {
 	putStudent(t, tc, companion.ID, accompaniedPlanBody(nil))
 
 	tc.broadcaster.Reset()
-	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
-	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := deleteStudentConfirmed(t, tc, testutil.AdminTestClaims(1), student.ID)
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	assert.True(t, tc.broadcaster.HasEventType(realtime.EventStudentCompanionsChanged),

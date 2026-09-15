@@ -42,6 +42,8 @@ import (
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessModule "github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -71,7 +73,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/moto-nrw/project-phoenix/services/filestore"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
@@ -87,6 +88,8 @@ import (
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
 
 type substitutionIdentity interface {
@@ -135,7 +138,6 @@ type Factory struct {
 	Holidays                  schedule.HolidayService
 	ClosingDays               schedule.ClosingDayService
 	StaffAbsence              active.StaffAbsenceService
-	StaffAbsenceType          active.StaffAbsenceTypeService
 	StaffBalanceAdjust        active.StaffBalanceAdjustmentService
 	StaffMonthClose           active.StaffMonthCloseService
 	StaffOverview             active.StaffOverviewService
@@ -181,7 +183,7 @@ type Factory struct {
 	Birthdays                 users.BirthdayService
 	StaffDocuments            users.StaffDocumentService
 	StudentDocuments          users.StudentDocumentService
-	FileStore                 filestore.Service
+	FileStore                 *filestorageModule.Module
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
 	PeopleDirectory           peopledirectory.Capability
@@ -219,7 +221,7 @@ type Factory struct {
 	Schools              platform.SchoolService
 	Students             users.StudentService
 	ClassListEntries     users.ClassListEntryService
-	StudentDeletion      users.StudentDeletionService
+	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
@@ -472,16 +474,26 @@ func NewFactoryWithModules(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	observeDataImport DataImportObserver,
+	fileStorage FileStorageWiring,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
-	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil {
+	if organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil || fileStorage.Objects == nil || fileStorage.Observe == nil {
 		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	repos.BindAppointments(appointmentCapability)
 	cfg := currentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, false, clocks...)
+	return newFactory(repos, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, observeDataImport, fileStorage, false, clocks...)
+}
+
+// FileStorageWiring carries what the File Storage module needs from the root
+// and cannot compose itself: the uploads object store and the metrics sink.
+// Test factories that leave Objects nil get no file storage and no attachment
+// purger; production composition requires both.
+type FileStorageWiring struct {
+	Objects filestorageCompose.ObjectBackend
+	Observe func(filestorageCompose.Observation)
 }
 
 func newFactory(
@@ -511,6 +523,7 @@ func newFactory(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	observeDataImport DataImportObserver,
+	fileStorage FileStorageWiring,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -880,11 +893,11 @@ func newFactory(
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger, db)
+	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
 	// Planned-shift lookups for the auto-checkout job (#1798).
-	workSessionService.SetStaffShiftRepo(repos.StaffShift)
+	workSessionService.SetStaffShiftRepo(NewTimeTrackingShifts(repos.StaffShift))
 	if broadcastAware, ok := workSessionService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -896,11 +909,11 @@ func newFactory(
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
-		repos.Staff,
-		repos.StaffWorkSchedule,
-		repos.WorkTimeModel,
-		repos.StaffShift,
-		settingsService,
+		StaffScheduleAssignments(repos.Staff),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 
@@ -918,7 +931,7 @@ func newFactory(
 	workTimeMonthService.SetAdjustmentReader(repos.StaffBalanceAdjust)
 	// Frozen months (#1417) short-circuit the carry chain so a retroactive
 	// correction can no longer rewrite a closed month's Übertrag.
-	workTimeMonthService.SetSnapshotReader(repos.StaffMonthSnapshot)
+	workTimeMonthService.SetSnapshotReader(MonthSnapshotCapability(repos.StaffMonthSnapshot))
 	// The session service's weekly summaries reduce their Soll by holidays
 	// too. The setter is not part of the WorkSessionService interface (it
 	// would break external mocks), hence the assertion.
@@ -931,35 +944,22 @@ func newFactory(
 	// School-defined Abwesenheitsarten (#2403). Constructed before the absence
 	// service so it can be injected there and resolve custom names on both the
 	// write path (which base type an art inherits) and the read paths.
-	staffAbsenceTypeService := active.NewStaffAbsenceTypeService(repos.StaffAbsenceType, activeLogger)
-	if allowanceAware, ok := staffAbsenceTypeService.(interface {
-		SetAllowanceRepositories(
-			activeModels.StaffAbsenceTypeAllowanceRepository,
-			activeModels.StaffAbsenceTypeAllowanceChangeRepository,
-			activeModels.StaffAbsenceRepository,
-		)
-	}); ok {
-		allowanceAware.SetAllowanceRepositories(
-			repos.StaffAbsenceTypeAllowance,
-			repos.StaffAbsenceTypeAllowanceChange,
-			repos.StaffAbsence,
-		)
-	}
+	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	if typeAware, ok := workSessionService.(interface {
-		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+		SetAbsenceTypeService(active.AbsenceTypeReader)
 	}); ok {
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
 
 	// Initialize staff absence service
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, settingsService, workTimeMonthService)
+	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService)
 	if typeAware, ok := staffAbsenceService.(interface {
-		SetAbsenceTypeService(active.StaffAbsenceTypeService)
+		SetAbsenceTypeService(active.AbsenceTypeReader)
 	}); ok {
 		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
 	}
 	if broadcastAware, ok := staffAbsenceService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -971,26 +971,26 @@ func newFactory(
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.
-	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, settingsService, activeLogger)
+	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger)
 	if broadcastAware, ok := staffBalanceAdjustService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
 	// A booking inside a closed month (#1417) could not move its frozen
 	// closing balance, so the ledger rejects it.
-	staffBalanceAdjustService.SetSnapshotReader(repos.StaffMonthSnapshot)
+	staffBalanceAdjustService.SetSnapshotReader(MonthSnapshotCapability(repos.StaffMonthSnapshot))
 	// Deletes leave an append-only tombstone in the cross-staff audit log
 	// (#1417). Both services fail their delete paths without this wiring.
 	if deletionAware, ok := staffBalanceAdjustService.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(active.TimeTrackingDeletionAudit)
 	}); ok {
-		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
+		deletionAware.SetDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
 	}
 	if deletionAware, ok := staffAbsenceService.(interface {
-		SetDeletionAudit(auditModels.TimeTrackingDeletionRepository)
+		SetDeletionAudit(active.TimeTrackingDeletionAudit)
 	}); ok {
-		deletionAware.SetDeletionAudit(repos.TimeTrackingDeletion)
+		deletionAware.SetDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
 	}
 	// Vacation takeover at the moto introduction (#2132): the summary
 	// subtracts pre-introduction days, the write paths book/delete them.
@@ -1003,14 +1003,14 @@ func newFactory(
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
 	staffMonthCloseService := active.NewStaffMonthCloseService(
-		repos.StaffMonthSnapshot,
+		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		workTimeMonthService,
-		repos.Staff,
-		settingsService,
+		MonthCloseStaff(repos.Staff),
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 	if broadcastAware, ok := staffMonthCloseService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
+		SetBroadcaster(active.EventPublisher)
 	}); ok {
 		broadcastAware.SetBroadcaster(realtimeHub)
 	}
@@ -1019,17 +1019,17 @@ func newFactory(
 	// and runs the SAME per-staff month math over in-memory readers, so the
 	// list can never drift from the /staff/{id} detail view.
 	staffOverviewService := active.NewStaffOverviewService(
-		repos.Staff,
+		OverviewStaff(repos.Staff),
 		repos.WorkSession,
 		repos.WorkSessionBreak,
 		repos.StaffAbsence,
 		repos.StaffBalanceAdjust,
 		repos.StaffVacationQuota,
-		repos.StaffMonthSnapshot,
-		repos.StaffWorkSchedule,
-		repos.WorkTimeModel,
-		repos.StaffShift,
-		settingsService,
+		MonthSnapshotCapability(repos.StaffMonthSnapshot),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
+		PresenceSettings(settingsService),
 		activeLogger,
 	)
 	staffOverviewService.SetHolidayReader(nonWorkingDayService)
@@ -1059,18 +1059,19 @@ func newFactory(
 	staffTimeExportService := active.NewStaffTimeExportService(
 		staffOverviewService,
 		workSessionService,
-		repos.Staff,
-		repos.DataAccessLog,
-		payrollStatusService,
+		TimeExportStaff(repos.Staff),
+		NewDataAccessAudit(repos.DataAccessLog),
+		PayrollExportSettings{Source: payrollStatusService},
 		activeLogger,
+		RenderTimeTrackingWorkbook,
 	)
 
 	// Cross-staff audit feed (#1417): merges the four change trails into one
 	// keyset-paginated view. Read-only; permission gating at the route.
 	timeTrackingAuditLogService := active.NewTimeTrackingAuditLogService(
-		repos.TimeTrackingAuditLog,
-		repos.Staff,
-		settingsService,
+		NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog),
+		StaffDisplayNames(repos.Staff),
+		PresenceSettings(settingsService),
 	)
 
 	// Absence email notifications (#1419 4d). Setter injection keeps the
@@ -1080,14 +1081,12 @@ func newFactory(
 		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
 	}); ok {
 		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
-			Settings:     settingsService,
-			Dispatcher:   dispatcher,
-			StaffRepo:    repos.Staff,
-			SchoolRepo:   repos.School,
-			DefaultFrom:  defaultFrom,
-			FrontendURL:  frontendURL,
-			MailIdentity: tenantMailIdentity,
-			Logger:       activeLogger,
+			Settings:    PresenceSettings(settingsService),
+			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
+			StaffRepo:   absenceEmailStaffDirectory{source: repos.Staff},
+			SchoolRepo:  absenceEmailSchoolDirectory{schools: repos.School},
+			FrontendURL: frontendURL,
+			Logger:      activeLogger,
 		})
 	}
 
@@ -1148,27 +1147,24 @@ func newFactory(
 
 	// Initialize active service with SSE broadcaster
 	activeServiceDeps := active.ServiceDependencies{
+		PrincipalReader:          AttendancePrincipal,
 		SchoolPresence:           newStudentPresence(db, logger),
 		StudentDisplay:           studentDisplayProjection{students: persons, groups: groups},
 		GroupRepo:                repos.ActiveGroup,
 		SessionStartLock:         repos.SessionStartLock,
 		SupervisorRepo:           repos.GroupSupervisor,
-		CombinedGroupRepo:        repos.CombinedGroup,
-		GroupMappingRepo:         repos.GroupMapping,
 		StudentStatusRepo:        repos.StudentStatusDay,
 		CrossTenantRepo:          repos.CrossTenant,
 		Schools:                  newActiveSchoolQuery(organizations),
-		StudentRepo:              repos.Student,
-		PersonRepo:               repos.Person,
-		TeacherRepo:              repos.Teacher,
-		StaffRepo:                repos.Staff,
-		RoomRepo:                 repos.Room,
-		ActivityGroupRepo:        repos.ActivityGroup,
-		ActivityCatRepo:          repos.ActivityCategory,
-		EducationGroupRepo:       repos.Group,
-		DeviceRepo:               repos.Device,
-		EducationService:         educationService,
-		UsersService:             usersService,
+		StudentRepo:              PresenceStudents(repos.Student),
+		StaffRepo:                NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:                 NewAttendanceRooms(repos.Room),
+		YardRoomColor:            yardRoomColorQuery(rooms),
+		ActivityGroupRepo:        repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:          NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo:       NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:               NewSessionDeviceDirectory(repos.Device, settingsService, activeLogger),
+		StaffNames:               NewAttendanceStaffNames(repos.Staff, usersService),
 		DB:                       db,
 		Broadcaster:              realtimeHub,           // Pass SSE broadcaster
 		Tracker:                  tracker,               // Product analytics (PostHog)
@@ -1183,7 +1179,7 @@ func newFactory(
 	// Inject settings resolver into active service so auto-clear of sick /
 	// excused flags respects the tenant's operations.sick_clear_mode and
 	// operations.excused_clear_mode settings.
-	activeService.SetSettingsService(settingsService)
+	activeService.SetSettingsService(PresenceSettings(settingsService))
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -1240,8 +1236,8 @@ func newFactory(
 	// Initialize facilities service
 	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
 		Rooms:     rooms,
-		Occupancy: facilitiesLegacy.OccupancyProjection(repos.ActiveGroup, repos.ActivityGroup, membership, persons),
-		History:   facilitiesLegacy.HistoryProjection(repos.ActiveGroup),
+		Occupancy: facilitiesLegacy.OccupancyProjection(roomOccupancyPresence{newStudentPresence(db, logger)}, repos.ActivityGroup, membership, persons),
+		History:   facilitiesLegacy.HistoryProjection(roomHistoryPresence{newStudentPresence(db, logger)}, repos.ActivityGroup, membership, persons),
 		ValidateDeletion: func(ctx context.Context, roomID int64) error {
 			activeGroups, err := repos.ActiveGroup.FindActiveByRoomID(ctx, roomID)
 			if err != nil {
@@ -1264,7 +1260,7 @@ func newFactory(
 	schulhofService := facilities.NewSchulhofService(
 		facilitiesService,
 		facilitiesLegacy.ActivityCatalog(activitiesService),
-		facilitiesLegacy.OpenGroupCatalog(activeService),
+		facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))),
 		facilitiesLogger,
 	)
 
@@ -1523,8 +1519,8 @@ func newFactory(
 	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
 		repos.WorkSession,
 		repos.StaffAbsence,
-		repos.DataDeletion,
-		settingsService,
+		NewDeletionAudit(repos.DataDeletion),
+		PresenceSettings(settingsService),
 		logger.With("service", "time-tracking-cleanup"),
 	)
 
@@ -1546,7 +1542,6 @@ func newFactory(
 		InstanceService:   instanceService,
 		RoomRepo:          repos.Room,
 		ActiveGroupRepo:   repos.ActiveGroup,
-		SupervisorRepo:    repos.GroupSupervisor,
 		Presence:          newStudentPresence(db, logger),
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
@@ -1823,7 +1818,7 @@ func newFactory(
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
 		ClassTeacherRepo:   repos.ClassTeacher,
-		ActiveService:      activeService,
+		ActiveService:      NewSSEPresence(newStudentPresence(db, logger)),
 		SSESettings:        settingsService,
 	}, usercontextLogger)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
@@ -1876,14 +1871,10 @@ func newFactory(
 	}, databaseLogger)
 
 	// Initialize cleanup service
-	privacyConsentService := users.NewPrivacyConsentService(settingsService, logger.With("service", "privacy-consent"))
 	activeCleanupService := active.NewCleanupService(
 		newStudentPresence(db, logger),
 		repos.GroupSupervisor,
-		repos.PrivacyConsent,
-		repos.DataDeletion,
-		privacyConsentService,
-		db,
+		NewDeletionAudit(repos.DataDeletion),
 		today,
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
@@ -2317,24 +2308,10 @@ func newFactory(
 	// the companion lock order through this service.
 	studentService := users.NewStudentService(
 		repos.Student,
-		repos.PrivacyConsent,
+		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
-	studentDeletionService := users.NewStudentDeletionService(
-		studentService,
-		repos.Student,
-		repos.Person,
-		repos.StudentDeletion,
-		repos.GradeTransition,
-		repos.DataDeletion,
-		repos.StudentDeletionAudit,
-		feedbackCounter,
-		db,
-	)
-	users.WireStudentDocumentCleanup(studentDeletionService, repos.StudentDocument)
-	users.WireStudentDeletionCareWithdrawals(studentDeletionService, repos.CareWithdrawal)
-	users.WireCareWithdrawalDeletion(careLifecycleService, studentDeletionService)
 
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
@@ -2347,17 +2324,6 @@ func newFactory(
 		repos.DataAccessLog,
 		userContextService,
 		logger.With("service", "student_documents"),
-	)
-
-	// School file storage (#2596): folders, visibility, quota, audit trail.
-	fileStoreService := filestore.NewService(
-		db,
-		repos.FileFolder,
-		repos.File,
-		repos.AnnouncementAttachment,
-		repos.FileEvent,
-		settingsService,
-		logger.With("service", "filestore"),
 	)
 
 	enrollmentChangeRequestService := enrollment.NewChangeRequestService(enrollment.ChangeRequestServiceConfig{
@@ -2699,14 +2665,16 @@ func newFactory(
 	})
 
 	parentAnnouncementService := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo:        repos.ParentAnnouncement,
-		Settings:    settingsService,
-		Outbox:      emailOutboxService,
-		Notifier:    notificationsService,
-		Preferences: notificationPreferencesService,
-		Deliveries:  announcementDeliveryAdapter{module: deliveryRuntime.Module},
-		ParentsURL:  parentsURL,
-		Logger:      logger.With("service", "announcement"),
+		Repo:             repos.ParentAnnouncement,
+		Settings:         settingsService,
+		Outbox:           emailOutboxService,
+		PushOutbox:       durablePushAdapter{module: deliveryRuntime.Module},
+		Notifier:         notificationsService,
+		ReminderNotifier: notificationsService,
+		Preferences:      notificationPreferencesService,
+		Deliveries:       announcementDeliveryAdapter{module: deliveryRuntime.Module},
+		ParentsURL:       parentsURL,
+		Logger:           logger.With("service", "announcement"),
 	})
 
 	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
@@ -2722,15 +2690,32 @@ func newFactory(
 		setter.SetGuardianNoticePublisher(parentAnnouncementService)
 	}
 
-	// Anhänge an Elternmitteilungen (#2890). Die Datei gehört der Dateiablage,
-	// der Empfängerkreis der Mitteilung — beide Seiten zeigen aufeinander, also
-	// werden sie hier verbunden, wo alle drei Dienste existieren. Ohne diese
-	// Verdrahtung verweigern die Anhang-Pfade den Dienst, statt ohne Prüfung zu
-	// entscheiden.
-	if setter, ok := fileStoreService.(filestore.AnnouncementPortSetter); ok {
-		setter.SetAnnouncementPorts(parentAnnouncementService, parentService)
+	// School file storage (#2596) and the attachments of Elternmitteilungen
+	// (#2890) through the public File Storage capability (#2707). Die Datei
+	// gehört der Dateiablage, der Empfängerkreis der Mitteilung: beide Seiten
+	// zeigen aufeinander, also werden sie hier verbunden, wo alle drei Dienste
+	// existieren. Ohne diese Verdrahtung verweigern die Anhang-Pfade den
+	// Dienst, statt ohne Prüfung zu entscheiden.
+	var fileStoreService *filestorageModule.Module
+	if fileStorage.Objects != nil {
+		fileStoreService, err = filestorageCompose.New(filestorageCompose.Dependencies{
+			DB:               db,
+			Objects:          fileStorage.Objects,
+			Identity:         guardianAccess,
+			People:           persons,
+			Settings:         settingsService,
+			Events:           repos.FileEvent,
+			Announcements:    parentAnnouncementService,
+			GuardianAudience: parentService,
+			Observe:          fileStorage.Observe,
+			Logger:           logger.With("service", "filestore"),
+			Now:              now,
+		})
+		if err != nil {
+			return nil, err
+		}
+		parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 	}
-	parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		Organizations:         organizations,
@@ -2851,7 +2836,7 @@ func newFactory(
 		Room:         reminderRoomReader{source: rooms},
 		Student:      reminderStudentReader{source: repos.Student},
 		Person:       reminderPersonReader{source: repos.Person},
-		Supervision:  reminderSupervisionReader{source: activeService},
+		Supervision:  reminderSupervisionReader{source: activeService, presence: newStudentPresence(db, logger)},
 		Visits:       reminderVisitReader{source: newStudentPresence(db, logger)},
 		Logger:       logger.With("service", "reminders"),
 
@@ -2864,11 +2849,12 @@ func newFactory(
 
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
-		repos.StudentPickupException,
+		NewManualPartialAbsenceDates(repos.CarePlan()),
 		db,
+		repos.CarePlan().LockExceptionDay,
 		now,
 	)
-	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, usersService)
+	studentStatusDayOverviewService := active.NewStudentStatusDayOverviewService(repos.StudentStatusDay, StatusDayOverviewPeople(usersService))
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
 		Presence:          newStudentPresence(db, logger),
 		People:            usersService,
@@ -2893,7 +2879,7 @@ func newFactory(
 
 	supervisionDashboardService, err := supervisiondashboardlegacy.New(supervisiondashboardlegacy.Sources{
 		Active:       activeService,
-		ActiveGroups: repos.ActiveGroup,
+		ActiveGroups: openRoomSessionPresence{newStudentPresence(db, logger), timetableCapability},
 		OpenVisits:   active.NewVisitDisplayBatchReader(activeServiceDeps),
 		Rooms:        openRoomDirectory{rooms: rooms},
 		UserContext:  userContextService,
@@ -3022,7 +3008,6 @@ func newFactory(
 		Holidays:                holidayService,
 		ClosingDays:             closingDayService,
 		StaffAbsence:            staffAbsenceService,
-		StaffAbsenceType:        staffAbsenceTypeService,
 		StaffBalanceAdjust:      staffBalanceAdjustService,
 		StaffMonthClose:         staffMonthCloseService,
 		StaffOverview:           staffOverviewService,
@@ -3075,15 +3060,19 @@ func newFactory(
 		DatabaseStatsCapabilities: func(ctx context.Context) database.StatsCapabilities {
 			return usercontext.DatabaseStatsCapabilities(ctx)
 		},
-		Import:                   dataImports.Student,        // Student import service
-		StaffImport:              dataImports.Staff,          // Staff (Mitarbeiter) import service
-		ClassListImport:          dataImports.ClassList,      // Class-list entry import (#2382)
-		OpeningBalanceImport:     dataImports.OpeningBalance, // Opening balance import (#2132)
-		ListExport:               listExportService,
-		PlanExport:               planExportService,
-		Emergency:                emergencyService,
-		SlotLists:                slotListsService,
-		Reminders:                reminder.Module{Query: remindersService, Command: NewCalendarReminderCommand(db, calendarSvc)},
+		Import:               dataImports.Student,        // Student import service
+		StaffImport:          dataImports.Staff,          // Staff (Mitarbeiter) import service
+		ClassListImport:      dataImports.ClassList,      // Class-list entry import (#2382)
+		OpeningBalanceImport: dataImports.OpeningBalance, // Opening balance import (#2132)
+		ListExport:           listExportService,
+		PlanExport:           planExportService,
+		Emergency:            emergencyService,
+		SlotLists:            slotListsService,
+		Reminders: reminder.Module{
+			Query:                     remindersService,
+			Command:                   NewCalendarReminderCommand(db, calendarSvc),
+			ParentAnnouncementCommand: parentAnnouncementService,
+		},
 		Notifications:            notificationsService,
 		PushSubscriptions:        pushSubscriptionsService,
 		PWAUsage:                 pwaUsageService,
@@ -3111,7 +3100,6 @@ func newFactory(
 		Schools:              platform.NewSchoolService(repos.School),
 		Students:             studentService,
 		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
-		StudentDeletion:      studentDeletionService,
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,
@@ -3125,18 +3113,20 @@ func newFactory(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), repos.DataAccessLog, repos.InstanceStudent),
+		StudentHistory:       active.NewStudentHistoryService(newStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(repos.DataAccessLog), NewHistorySlots(repos.InstanceStudent)),
 		Statistics: statistics.NewService(statistics.Config{
-			Statistics:      repos.Statistics,
-			Courses:         repos.CourseStatistics,
+			Statistics:      statisticsRoomUtilization{newStudentPresence(db, logger)},
+			Attendance:      statisticsAttendance{newStudentPresence(db, logger)},
+			StatusDays:      statisticsStatusDays{repos.CarePlan()},
+			Courses:         statisticsReportCourses{timetableCapability},
 			Holidays:        holidayService,
 			ClosingDays:     closingDayService,
-			Periods:         repos.CalendarPeriod,
-			Students:        repos.Student,
-			Rooms:           repos.Room,
-			AccessLog:       repos.DataAccessLog,
-			Settings:        settingsService,
-			PrivacyConsents: repos.PrivacyConsent,
+			Periods:         statisticsReportPeriods{calendar},
+			Students:        statisticsReportStudents{repos.Student},
+			Rooms:           statisticsReportRooms{rooms},
+			AccessLog:       statisticsAuditLog{repos.DataAccessLog},
+			Retention:       statisticsRetention{settingsService},
+			PrivacyConsents: statisticsRetentionSettings{newStudentPresence(db, logger)},
 			Logger:          logger.With("service", "statistics"),
 			Now:             now,
 		}),
@@ -3206,6 +3196,25 @@ func newFactory(
 	// The People Directory serves guardians through the owner's legacy
 	// guardian service (#2663); bind it now that the service exists.
 	factory.bindGuardianDirectory(persons, db)
+	// Permanent child deletion is the owner workflow of #2710. It runs over
+	// the bound People Directory, Care Plan and Timetable capabilities; the
+	// photo unlink resolves lazily because EnableStudentPhotos runs later in
+	// the API bootstrap.
+	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
+		DB: db, Directory: persons, CarePlan: repos.CarePlan(), Timetable: timetableCapability,
+		Feedback: feedbackCounterOrUnconfigured(feedbackCounter), IsVerifiedStaff: userContextService.HasCurrentStaff,
+		LockCareBookingWrites: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		UnlinkPhoto: func(ctx context.Context, path string) {
+			if factory.StudentPhotos != nil {
+				factory.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, path)
+			}
+		},
+		Broadcaster: realtimeHub, Logger: logger.With("workflow", "student_deletion"), Audit: auditCommand,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose student deletion workflow: %w", err)
+	}
+	factory.StudentDeletion = studentDeletion
 	return factory, nil
 }
 
@@ -3254,4 +3263,21 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		setter.SetStudentPhotos(f.StudentPhotos)
 	}
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
+}
+
+// feedbackCounterOrUnconfigured keeps the reduced test graph constructible:
+// the composition requires a Feedback owner, and a graph built without one
+// fails at the first deletion preview instead of at startup, exactly as the
+// retired provider did.
+func feedbackCounterOrUnconfigured(counter users.FeedbackEntryCounter) users.FeedbackEntryCounter {
+	if counter != nil {
+		return counter
+	}
+	return unconfiguredFeedbackCounter{}
+}
+
+type unconfiguredFeedbackCounter struct{}
+
+func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int, error) {
+	return 0, errors.New("student deletion: feedback counter is not configured")
 }

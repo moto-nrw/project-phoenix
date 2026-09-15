@@ -223,6 +223,70 @@ func TestMFAModeWriteAndMintLockAreMutuallyExclusive(t *testing.T) {
 	}
 }
 
+// TestParentPickupChangePolicyWriteAndGuardianLockAreMutuallyExclusive pins
+// the #3163 policy boundary: the parent write's shared lock and either
+// setting's exclusive write lock must conflict until the writer commits. That
+// makes the post-lock re-read observe one committed enablement/cutoff pair.
+func TestParentPickupChangePolicyWriteAndGuardianLockAreMutuallyExclusive(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		key   string
+		value any
+		reset bool
+	}{
+		{"set enabled", config.KeyParentPickupChangeEnabled, true, false},
+		{"set cutoff", config.KeyParentPickupChangeCutoffTime, "11:00", false},
+		{"reset enabled", config.KeyParentPickupChangeEnabled, true, true},
+		{"reset cutoff", config.KeyParentPickupChangeCutoffTime, "11:00", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, tenantID, service, registry := setupRequestCacheDBTest(t)
+			registerTestSetting(registry, config.KeyParentPickupChangeEnabled, config.FieldBoolean, false)
+			registerTestSetting(registry, config.KeyParentPickupChangeCutoffTime, config.FieldTime, "")
+			writerCtx := testpkg.ContextForTenant(context.Background(), tenantID)
+
+			if tc.reset {
+				require.NoError(t, testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
+					return service.SetValue(txCtx, tc.key, tc.value, nil, nil)
+				}))
+			}
+
+			guardianLock := make(chan error, 1)
+			err := testpkg.WithinTenantContext(t, writerCtx, db, tenantID, func(txCtx context.Context) error {
+				if tc.reset {
+					require.NoError(t, service.ResetValue(txCtx, tc.key, nil, nil))
+				} else {
+					require.NoError(t, service.SetValue(txCtx, tc.key, tc.value, nil, nil))
+				}
+
+				go func() {
+					guardianLock <- testpkg.WithinAdminContext(t, context.Background(), db, func(guardianCtx context.Context) error {
+						return service.LockParentPickupChangePolicySharedForTenant(guardianCtx, tenantID)
+					})
+				}()
+
+				select {
+				case lockErr := <-guardianLock:
+					t.Fatalf("a guardian write took the policy lock while %s was uncommitted: %v", tc.name, lockErr)
+				case <-time.After(300 * time.Millisecond):
+					// Blocked, which is the point.
+				}
+				return nil
+			})
+			require.NoError(t, err)
+
+			select {
+			case lockErr := <-guardianLock:
+				require.NoError(t, lockErr, "the guardian write must proceed once the setting committed")
+			case <-time.After(10 * time.Second):
+				t.Fatal("the guardian write never acquired the policy lock after the setting committed")
+			}
+		})
+	}
+}
+
 // TestNonMFASettingWriteDoesNotBlockTheMintLock pins the other half: only the
 // key a mint actually reads is serialized against it. Taking the policy lock
 // for every setting write would stall every login in the school behind an

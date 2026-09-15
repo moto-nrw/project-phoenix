@@ -119,6 +119,7 @@ type Query interface {
 
 type Command interface {
 	StudentCommand
+	StudentDeletionCommand
 	GuardianCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
@@ -146,6 +147,7 @@ type engine interface {
 	FamilyProtectionQuery
 	StudentDepartureQuery
 	studentEngine
+	studentDeletionEngine
 	guardianEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)

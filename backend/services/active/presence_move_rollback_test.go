@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -25,9 +27,9 @@ func TestMovementPresenceModeFailurePreservesStateAndRetries(t *testing.T) {
 			testpkg.SetTenantRuntime(t, svc, db)
 			injected := errors.New("movement presence mode unavailable")
 			settingsErr := injected
-			svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+			svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 				return activeService.PresenceModeDetailed, settingsErr
-			}})
+			}}))
 			ctx := testpkg.Ctx(t)
 			student := testpkg.CreateTestStudent(t, db, "Movement", "Settings", "3a")
 			staff := testpkg.CreateTestStaff(t, db, "Movement", "Staff")

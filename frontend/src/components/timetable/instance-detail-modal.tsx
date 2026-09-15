@@ -63,7 +63,9 @@ import type { InstanceParticipantNames } from "~/lib/timetable-api";
 import type {
   GuardianNoticeInput,
   GuardianNoticeReach,
+  TemplateRosterMaintenance,
 } from "~/lib/timetable-types";
+import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import {
   getActivityTypeBadge,
   getGermanWeekdayAdverb,
@@ -180,6 +182,14 @@ interface InstanceDetailModalProps {
    * studentNames-Map des Aufrufers.
    */
   fetchParticipantNames?: boolean;
+  /**
+   * Teilnehmerpflege des Regeltermins (#3140), wenn der Aufrufer die Serie
+   * schon geladen hat. Fehlt sie, lädt das Panel den Regeltermin für
+   * `seriesPeriodId` selbst nach.
+   */
+  seriesRosterMaintenance?: TemplateRosterMaintenance;
+  /** Planungszeitraum, in dem der Termin liegt; nötig für das Nachladen. */
+  seriesPeriodId?: string;
 }
 
 const EMPTY_STAFF_NAMES = new Map<string, string>();
@@ -211,6 +221,31 @@ function regelterminOriginLabel(instance: EnrichedInstance): string {
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+/**
+ * Teilnehmerpflege des Regeltermins (#3140) im Detail-Panel. Nimmt den Stand
+ * aus der geladenen Serienliste, sonst den einzelnen Regeltermin; eine
+ * Serie ohne ableitbaren Stand zeigt nichts statt einer Vermutung.
+ */
+function SeriesRosterMaintenance({
+  templateId,
+  periodId,
+  known,
+}: Readonly<{
+  templateId: string;
+  periodId?: string;
+  known?: TemplateRosterMaintenance;
+}>) {
+  const { data } = useSWRAuth(
+    known || !periodId
+      ? null
+      : `timetable-template-roster-maintenance-${templateId}-${periodId}`,
+    () => timetableService.getTemplate(templateId, periodId ?? ""),
+  );
+  const state = known ?? data?.rosterMaintenance;
+  if (!state) return null;
+  return <RosterMaintenanceBadge state={state} />;
 }
 
 interface StatusBadgeProps {
@@ -550,6 +585,8 @@ export function InstanceDetailModal({
   canManageStaffPool = false,
   canManage = true,
   fetchParticipantNames = false,
+  seriesRosterMaintenance,
+  seriesPeriodId,
 }: InstanceDetailModalProps) {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -950,10 +987,14 @@ export function InstanceDetailModal({
                 {instance.endTime}
               </p>
               {instance.activityGroupId && (
-                <OriginChip
-                  label={regelterminOriginLabel(instance)}
-                  className="mt-1.5"
-                />
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <OriginChip label={regelterminOriginLabel(instance)} />
+                  <SeriesRosterMaintenance
+                    templateId={instance.activityGroupId}
+                    periodId={seriesPeriodId}
+                    known={seriesRosterMaintenance}
+                  />
+                </div>
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (

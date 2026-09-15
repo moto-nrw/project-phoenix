@@ -2,9 +2,7 @@ package repositories
 
 import (
 	"context"
-	"errors"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
@@ -17,8 +15,8 @@ import (
 // the adapters below map the owner's Student onto it. Binding happens on
 // the raw repositories, before the person and school projections wrap them.
 func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, commands peopledirectory.StudentCommand) {
-	if repo, ok := f.CrossTenant.(*activeRepo.CrossTenantRepository); ok {
-		repo.BindStudentDirectory(activeStudentDirectory{students: students, commands: commands})
+	if repo, ok := f.CrossTenant.(*visitorProjection); ok {
+		repo.students = students
 	}
 
 	if repo, ok := f.ParentChild.(*parentRepo.ChildRepository); ok {
@@ -43,73 +41,6 @@ func (f *Factory) bindAuditStudentDirectory() {
 		BindStudentDirectory(auditRepo.StudentDirectory)
 	}); ok {
 		repo.BindStudentDirectory(auditStudentDirectory{f.students})
-	}
-}
-
-type activeStudentDirectory struct {
-	students peopledirectory.StudentQuery
-	commands peopledirectory.StudentCommand
-}
-
-func (d activeStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]activeRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByID(ctx, ids)
-	return toActiveStudents(students), err
-}
-
-func (d activeStudentDirectory) ListStudentsAcrossTenantsByID(ctx context.Context, ids []int64) ([]activeRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsAcrossTenantsByID(ctx, ids)
-	return toActiveStudents(students), err
-}
-
-func (d activeStudentDirectory) ListActiveStudents(ctx context.Context) ([]activeRepo.DirectoryStudent, error) {
-	students, err := d.students.ListEnrolledStudents(ctx)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]activeRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		if student.Status == "active" {
-			result = append(result, toActiveStudent(student))
-		}
-	}
-	return result, nil
-}
-
-func (d activeStudentDirectory) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]activeRepo.DirectoryStudent, error) {
-	flags, ok := d.students.(peopledirectory.StudentStatusFlagCapability)
-	if !ok {
-		return nil, errors.New("people directory: student status flag capability is not configured")
-	}
-	students, err := flags.ListStudentsWithStatusFlag(ctx, status)
-	return toActiveStudents(students), err
-}
-
-func (d activeStudentDirectory) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, error) {
-	flags, ok := d.commands.(peopledirectory.StudentStatusFlagCapability)
-	if !ok {
-		return 0, errors.New("people directory: student status flag capability is not configured")
-	}
-	return flags.ClearStudentStatusFlags(ctx, ids, status)
-}
-
-func (d activeStudentDirectory) LockStudent(ctx context.Context, studentID int64) error {
-	return d.commands.LockStudent(ctx, studentID)
-}
-
-func toActiveStudents(students []peopledirectory.Student) []activeRepo.DirectoryStudent {
-	result := make([]activeRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		result = append(result, toActiveStudent(student))
-	}
-	return result
-}
-
-func toActiveStudent(student peopledirectory.Student) activeRepo.DirectoryStudent {
-	return activeRepo.DirectoryStudent{
-		ID: student.ID, TenantID: student.TenantID, PersonID: student.PersonID,
-		SchoolClass: student.SchoolClass, GroupID: student.GroupID, Status: student.Status,
-		Sick: student.Sick, SickSince: student.SickSince, Excused: student.Excused, ExcusedSince: student.ExcusedSince,
-		PhotoPath: student.PhotoPath,
 	}
 }
 

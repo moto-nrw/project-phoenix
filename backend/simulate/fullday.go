@@ -195,6 +195,177 @@ func (startSessionsAction) Run(_ context.Context, rt *Runtime) error {
 
 type recordAttendanceAction struct{}
 
+// isoDate is the wire layout of every calendar date in the moto API.
+const isoDate = "2006-01-02"
+
+// calendarPeriodWindow is the subset of a calendar period the demo
+// cancellation needs from the timetable periods API. The fields beyond the
+// window itself are what PUT /periods requires to echo a period back
+// unchanged except for is_active.
+type calendarPeriodWindow struct {
+	ID              int64   `json:"id"`
+	Name            string  `json:"name"`
+	PeriodType      string  `json:"period_type"`
+	StartDate       string  `json:"start_date"`
+	EndDate         string  `json:"end_date"`
+	WeekCycleLength int     `json:"week_cycle_length"`
+	WeekCycleAnchor *string `json:"week_cycle_anchor,omitempty"`
+	IsActive        bool    `json:"is_active"`
+}
+
+// firstFutureWeekday returns the earliest weekday after today that falls into
+// [start, end], or the zero time when the window holds none.
+func firstFutureWeekday(start, end, today time.Time) time.Time {
+	candidate := today.AddDate(0, 0, 1)
+	if start.After(candidate) {
+		candidate = start
+	}
+	for candidate.Weekday() == time.Saturday || candidate.Weekday() == time.Sunday {
+		candidate = candidate.AddDate(0, 0, 1)
+	}
+	if candidate.After(end) {
+		return time.Time{}
+	}
+	return candidate
+}
+
+// firstFutureWeekdayInPeriods returns the earliest weekday after today that
+// lies inside an active calendar period, or the zero time when no period
+// covers one. The server rejects instances outside every active period.
+func firstFutureWeekdayInPeriods(periods []calendarPeriodWindow, today time.Time, loc *time.Location) (time.Time, error) {
+	var date time.Time
+	for _, period := range periods {
+		if !period.IsActive {
+			continue
+		}
+		start, startErr := time.ParseInLocation(isoDate, period.StartDate, loc)
+		if startErr != nil {
+			return time.Time{}, fmt.Errorf("decode calendar period start date for demo cancellation: %w", startErr)
+		}
+		end, endErr := time.ParseInLocation(isoDate, period.EndDate, loc)
+		if endErr != nil {
+			return time.Time{}, fmt.Errorf("decode calendar period end date for demo cancellation: %w", endErr)
+		}
+		candidate := firstFutureWeekday(start, end, today)
+		if candidate.IsZero() || (!date.IsZero() && !candidate.Before(date)) {
+			continue
+		}
+		date = candidate
+	}
+	return date, nil
+}
+
+// schoolYearBounds mirrors defaultSchoolYearBounds in
+// backend/services/schedule/calendar_period_service.go: a German school year
+// runs from August 1st to July 31st of the following year. The simulate
+// package must not import internal/timezone (scripts/backend-architecture.sh),
+// so the bounds are recomputed here on plain time values.
+func schoolYearBounds(startYear int, loc *time.Location) (name string, start, end time.Time) {
+	return fmt.Sprintf("Schuljahr %d/%d", startYear, startYear+1),
+		time.Date(startYear, time.August, 1, 0, 0, 0, 0, loc),
+		time.Date(startYear+1, time.July, 31, 0, 0, 0, 0, loc)
+}
+
+// schoolYearStartYear returns the year whose August opened the school year
+// containing today.
+func schoolYearStartYear(today time.Time) int {
+	if today.Month() < time.August {
+		return today.Year() - 1
+	}
+	return today.Year()
+}
+
+// ensureSchoolYearWithFutureWeekday gives the tenant an active school year
+// that still holds a weekday after today and returns that weekday. Bootstrap
+// only ever creates a period for a tenant without any, so at the end of a
+// school year — and permanently after a school-year change on an already
+// seeded tenant — the demo cancellation would otherwise have no date left to
+// use (#3173). Depending on what the tenant already has, the school year is
+// created or merely activated.
+func (rt *Runtime) ensureSchoolYearWithFutureWeekday(existing []calendarPeriodWindow, today time.Time, loc *time.Location) (time.Time, error) {
+	startYear := schoolYearStartYear(today)
+	// The school year containing today is the first candidate: an existing
+	// tenant that has not rolled over yet is missing exactly that one. Later
+	// candidates cover a school year that is already there but unusable, plus
+	// the hand-edited calendars that make a create conflict.
+	for _, candidateYear := range []int{startYear, startYear + 1, startYear + 2} {
+		name, start, end := schoolYearBounds(candidateYear, loc)
+		date := firstFutureWeekday(start, end, today)
+		if date.IsZero() {
+			continue
+		}
+		index := slices.IndexFunc(existing, func(p calendarPeriodWindow) bool {
+			return p.StartDate == start.Format(isoDate) && p.EndDate == end.Format(isoDate)
+		})
+		switch {
+		case index < 0:
+			err := rt.createSchoolYearPeriod(name, start, end)
+			if isConflictError(err) {
+				// A hand-edited calendar holds this name or an active
+				// same-type period overlapping these bounds. Neither is
+				// something the simulation may rewrite; try the next year.
+				continue
+			}
+			if err != nil {
+				return time.Time{}, err
+			}
+		case existing[index].IsActive:
+			// Already considered above and rejected for want of a weekday.
+			continue
+		default:
+			if err := rt.activatePeriod(existing[index]); err != nil {
+				return time.Time{}, err
+			}
+		}
+		return date, nil
+	}
+	return time.Time{}, nil
+}
+
+// createSchoolYearPeriod adds one active school year through the regular
+// periods API.
+func (rt *Runtime) createSchoolYearPeriod(name string, start, end time.Time) error {
+	body := map[string]any{
+		"name":              name,
+		"period_type":       "school_year",
+		"start_date":        start.Format(isoDate),
+		"end_date":          end.Format(isoDate),
+		"week_cycle_length": 1,
+		"is_active":         true,
+	}
+	if _, err := rt.Client.Post("/api/timetable/periods", body); err != nil {
+		return fmt.Errorf("create %s for demo cancellation: %w", name, err)
+	}
+	return nil
+}
+
+// activatePeriod flips an existing period active, echoing every other field
+// back unchanged as PUT /periods requires.
+func (rt *Runtime) activatePeriod(period calendarPeriodWindow) error {
+	body := map[string]any{
+		"name":              period.Name,
+		"period_type":       period.PeriodType,
+		"start_date":        period.StartDate,
+		"end_date":          period.EndDate,
+		"week_cycle_length": period.WeekCycleLength,
+		"is_active":         true,
+	}
+	if period.WeekCycleAnchor != nil {
+		body["week_cycle_anchor"] = *period.WeekCycleAnchor
+	}
+	if _, err := rt.Client.Put(fmt.Sprintf("/api/timetable/periods/%d", period.ID), body); err != nil {
+		return fmt.Errorf("activate %s for demo cancellation: %w", period.Name, err)
+	}
+	return nil
+}
+
+// isConflictError reports whether the API rejected a write with 409 — a name
+// clash or an overlapping active period of the same type.
+func isConflictError(err error) bool {
+	var httpErr interface{ HTTPStatusCode() int }
+	return errors.As(err, &httpErr) && httpErr.HTTPStatusCode() == 409
+}
+
 type seedStaffFeedTombstoneAction struct{}
 
 func (seedStaffFeedTombstoneAction) Name() string { return "seed staff feed tombstone" }
@@ -218,50 +389,34 @@ func (seedStaffFeedTombstoneAction) Run(_ context.Context, rt *Runtime) error {
 	}
 	var periodEnvelope struct {
 		Data struct {
-			Periods []struct {
-				StartDate string `json:"start_date"`
-				EndDate   string `json:"end_date"`
-				IsActive  bool   `json:"is_active"`
-			} `json:"periods"`
+			Periods []calendarPeriodWindow `json:"periods"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(periodResponse, &periodEnvelope); err != nil {
 		return fmt.Errorf("decode POST /api/timetable/periods/bootstrap response: %w", err)
 	}
-	today, err := time.ParseInLocation("2006-01-02", rt.Options.now().In(berlin).Format("2006-01-02"), berlin)
+	today, err := time.ParseInLocation(isoDate, rt.Options.now().In(berlin).Format(isoDate), berlin)
 	if err != nil {
 		return fmt.Errorf("normalize current date: %w", err)
 	}
-	var date time.Time
-	for _, period := range periodEnvelope.Data.Periods {
-		if !period.IsActive {
-			continue
+	date, err := firstFutureWeekdayInPeriods(periodEnvelope.Data.Periods, today, berlin)
+	if err != nil {
+		return err
+	}
+	if date.IsZero() {
+		// End of the school year, or a tenant whose only period already
+		// expired: the bootstrap endpoint returns existing periods unchanged,
+		// so the simulation rolls the calendar forward itself (#3173).
+		date, err = rt.ensureSchoolYearWithFutureWeekday(periodEnvelope.Data.Periods, today, berlin)
+		if err != nil {
+			return err
 		}
-		start, startErr := time.ParseInLocation("2006-01-02", period.StartDate, berlin)
-		if startErr != nil {
-			return fmt.Errorf("decode calendar period start date for demo cancellation: %w", startErr)
-		}
-		end, endErr := time.ParseInLocation("2006-01-02", period.EndDate, berlin)
-		if endErr != nil {
-			return fmt.Errorf("decode calendar period end date for demo cancellation: %w", endErr)
-		}
-		candidate := today.AddDate(0, 0, 1)
-		if start.After(candidate) {
-			candidate = start
-		}
-		for candidate.Weekday() == time.Saturday || candidate.Weekday() == time.Sunday {
-			candidate = candidate.AddDate(0, 0, 1)
-		}
-		if candidate.After(end) || (!date.IsZero() && !candidate.Before(date)) {
-			continue
-		}
-		date = candidate
 	}
 	if date.IsZero() {
 		return fmt.Errorf("no future weekday in an active calendar period for demo cancellation")
 	}
 	body := map[string]any{
-		"date":       date.Format("2006-01-02"),
+		"date":       date.Format(isoDate),
 		"start_time": "07:00",
 		"end_time":   "07:30",
 		"title":      "Abgesagter Demo-Termin",

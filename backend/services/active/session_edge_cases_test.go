@@ -10,13 +10,12 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // buildSessionEdgeCaseService creates an Active Service for edge case tests
-func buildSessionEdgeCaseService(t *testing.T, db *bun.DB) activeSvc.Service {
+func buildSessionEdgeCaseService(t *testing.T, db *testpkg.DB) activeSvc.Service {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")

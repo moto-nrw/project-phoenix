@@ -5,16 +5,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	active "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // snapshotFixture is the shared arrangement for the Monatsabschluss tests:
@@ -26,12 +25,12 @@ import (
 // hit the Soll clamp at today and the close guard would (correctly) refuse.
 type snapshotFixture struct {
 	tenantID  int64
-	staff     *userModels.Staff
-	admin     *userModels.Staff
+	staff     int64
+	admin     int64
 	session   *activeModels.WorkSession
-	schedule  *configModels.StaffWorkSchedule
+	schedule  *testpkg.StaffWorkScheduleFixture
 	repos     *repositories.Factory
-	db        *bun.DB
+	db        *testpkg.DB
 	ctx       context.Context
 	monthSvc  active.WorkTimeMonthService
 	closeSvc  active.StaffMonthCloseService
@@ -42,16 +41,21 @@ type snapshotFixture struct {
 // surface; the snapshot tests exercise no setting-driven behaviour.
 type snapshotSessionSettings struct{}
 
-func (snapshotSessionSettings) ResolveBool(context.Context, string) (bool, error) { return false, nil }
-func (snapshotSessionSettings) ResolveInt(context.Context, string) (int, error)   { return 0, nil }
+func (snapshotSessionSettings) EnforcePlannedStart(context.Context) (bool, error) { return false, nil }
+func (snapshotSessionSettings) RequireDeviationReason(context.Context) (bool, error) {
+	return false, nil
+}
+func (snapshotSessionSettings) DeviationToleranceMinutes(context.Context) (int, error) { return 0, nil }
+func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, error) { return 0, nil }
 
 // newAdminSessionService builds the admin correction path used to mutate a
 // closed month, wired exactly as services/factory.go does.
 func (f *snapshotFixture) newAdminSessionService() active.WorkSessionService {
 	return active.NewWorkSessionService(
-		f.repos.WorkSession, f.repos.WorkSessionBreak, f.repos.WorkSessionEdit, f.repos.StaffAbsence,
-		f.repos.GroupSupervisor, f.repos.ActiveGroup, f.repos.Staff, f.repos.StaffWorkSchedule, f.repos.WorkTimeModel,
-		snapshotSessionSettings{}, nil, f.db,
+		f.repos.WorkSession, f.repos.WorkSessionBreak, services.NewWorkSessionAudit(f.repos.WorkSessionEdit), f.repos.StaffAbsence,
+		f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff), services.NewWorkSessionSchedules(f.repos.StaffWorkSchedule), services.NewWorkSessionTimeModels(f.repos.WorkTimeModel),
+		snapshotSessionSettings{}, nil, f.db, services.RenderTimeTrackingPDF,
+		services.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -88,16 +92,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	})
 
 	// Contract: Mondays 480 minutes.
-	schedule := &configModels.StaffWorkSchedule{
-		TenantID:      tenantID,
-		StaffID:       staff.ID,
-		DayOfWeek:     configModels.DayMonday,
-		TargetMinutes: 480,
-		WeekIndex:     0, RotationLength: 1,
-		ValidFrom: configModels.NewCalendarDate(2020, time.January, 1),
-	}
-	_, err := db.NewInsert().Model(schedule).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
-	require.NoError(t, err)
+	schedule := testpkg.CreateTestStaffWorkScheduleForTenant(t, db, tenantID, staff.ID, active.DayMonday, 480, scheduleValidFrom)
 
 	checkIn := time.Date(snapshotYear, time.August, snapshotSessionDay, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
@@ -114,23 +109,23 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	settings := wtmIntSettings{accountStart: "2025-01-01"}
 	monthSvc := active.NewWorkTimeMonthService(
-		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, repos.Staff,
-		repos.StaffWorkSchedule, repos.WorkTimeModel, repos.StaffShift,
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, services.StaffScheduleAssignments(repos.Staff),
+		services.NewWorkScheduleTargets(repos.StaffWorkSchedule), services.NewWorkTimeTargetModels(repos.WorkTimeModel), services.NewTimeTrackingShifts(repos.StaffShift),
 		settings, nil,
 	)
-	monthSvc.SetSnapshotReader(repos.StaffMonthSnapshot)
+	monthSvc.SetSnapshotReader(services.MonthSnapshotCapability(repos.StaffMonthSnapshot))
 	monthSvc.SetAdjustmentReader(repos.StaffBalanceAdjust)
 
 	closeSvc := active.NewStaffMonthCloseService(
-		repos.StaffMonthSnapshot, monthSvc, repos.Staff, settings, nil,
+		services.MonthSnapshotCapability(repos.StaffMonthSnapshot), monthSvc, services.MonthCloseStaff(repos.Staff), settings, nil,
 	)
 	adjustSvc := active.NewStaffBalanceAdjustmentService(
 		repos.StaffBalanceAdjust, monthSvc, settings, nil,
 	)
-	adjustSvc.SetSnapshotReader(repos.StaffMonthSnapshot)
+	adjustSvc.SetSnapshotReader(services.MonthSnapshotCapability(repos.StaffMonthSnapshot))
 
 	return &snapshotFixture{
-		tenantID: tenantID, staff: staff, admin: admin,
+		tenantID: tenantID, staff: staff.ID, admin: admin.ID,
 		session: session, schedule: schedule, repos: repos, db: db, ctx: ctx,
 		monthSvc: monthSvc, closeSvc: closeSvc, adjustSvc: adjustSvc,
 	}
@@ -145,23 +140,23 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	augustBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotMonth)
+	augustBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
 	require.NoError(t, err)
 	require.Equal(t, 480, augustBefore.ActualMinutes)
 
-	septemberCarryBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
+	septemberCarryBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
-	balanceBefore, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff.ID, timezone.TodayDate())
+	balanceBefore, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff, timezone.TodayDate())
 	require.NoError(t, err)
 
-	result, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Monatsabschluss August")
+	result, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Monatsabschluss August")
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.ClosedStaff, "close is school-wide: staff member and admin both get a row")
 	assert.Equal(t, 0, result.SkippedStaff)
 
-	var frozen *activeModels.StaffMonthBalanceSnapshot
+	var frozen *active.MonthSnapshot
 	for _, snapshot := range result.Snapshots {
-		if snapshot.StaffID == f.staff.ID {
+		if snapshot.StaffID == f.staff {
 			frozen = snapshot
 		}
 	}
@@ -173,14 +168,14 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 	workSessionSvc := f.newAdminSessionService()
 	earlierCheckOut := f.session.CheckInTime.Add(6 * time.Hour)
 	notes := "Korrektur: zwei Stunden früher gegangen"
-	_, err = workSessionSvc.UpdateSessionAsAdmin(f.ctx, f.admin.ID, f.staff.ID, f.session.ID, active.SessionUpdateRequest{
+	_, err = workSessionSvc.UpdateSessionAsAdmin(f.ctx, f.admin, f.staff, f.session.ID, active.SessionUpdateRequest{
 		CheckOutTime: &earlierCheckOut,
 		Notes:        &notes,
 	})
 	require.NoError(t, err)
 
 	// The frozen month still reports its OWN live numbers...
-	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotMonth)
+	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
 	require.NoError(t, err)
 	assert.Equal(t, 360, augustAfter.ActualMinutes, "the correction is visible in the month itself")
 	assert.True(t, augustAfter.IsClosed)
@@ -189,7 +184,7 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 	assert.Equal(t, -120, augustAfter.DriftMinutes, "drift reports the divergence instead of hiding it")
 
 	// ...but nothing after it moves.
-	septemberAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
+	septemberAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
 	assert.Equal(t, septemberCarryBefore.CarryInMinutes, septemberAfter.CarryInMinutes,
 		"September's Übertrag comes from the frozen value, not from re-summing August")
@@ -197,7 +192,7 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 	require.NotNil(t, septemberAfter.CarryInFrozenFromMonth)
 	assert.Equal(t, "2025-08", *septemberAfter.CarryInFrozenFromMonth)
 
-	balanceAfter, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff.ID, timezone.TodayDate())
+	balanceAfter, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff, timezone.TodayDate())
 	require.NoError(t, err)
 	assert.Equal(t, balanceBefore, balanceAfter, "the current Stundenkonto is unchanged")
 }
@@ -210,26 +205,20 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveScheduleChange(t *testing.T)
 
 	f := newSnapshotFixture(t)
 
-	septemberBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
+	septemberBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
 
-	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Monatsabschluss August")
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Monatsabschluss August")
 	require.NoError(t, err)
 
 	// Retroactively halve the contractual Soll of every Monday.
-	_, err = f.db.NewUpdate().
-		Model((*configModels.StaffWorkSchedule)(nil)).
-		ModelTableExpr("config.staff_work_schedules AS t").
-		Set("target_minutes = ?", 240).
-		Where("t.id = ?", f.schedule.ID).
-		Exec(f.ctx)
-	require.NoError(t, err)
+	testpkg.SetStaffWorkScheduleTargetMinutes(t, f.db, f.ctx, f.schedule.ID, 240)
 
-	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotMonth)
+	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
 	require.NoError(t, err)
 	assert.NotZero(t, augustAfter.DriftMinutes, "the Soll change shows up as drift")
 
-	septemberAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
+	septemberAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
 	assert.Equal(t, septemberBefore.CarryInMinutes, septemberAfter.CarryInMinutes,
 		"a retroactive Dienstplan change must not move a closed month's Übertrag")
@@ -242,30 +231,30 @@ func TestMonthClose_ReopenRestoresLiveChain(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	septemberBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
+	septemberBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
 
-	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Monatsabschluss August")
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Monatsabschluss August")
 	require.NoError(t, err)
 
 	workSessionSvc := f.newAdminSessionService()
 	earlierCheckOut := f.session.CheckInTime.Add(6 * time.Hour)
 	notes := "Korrektur: zwei Stunden früher gegangen"
-	_, err = workSessionSvc.UpdateSessionAsAdmin(f.ctx, f.admin.ID, f.staff.ID, f.session.ID, active.SessionUpdateRequest{
+	_, err = workSessionSvc.UpdateSessionAsAdmin(f.ctx, f.admin, f.staff, f.session.ID, active.SessionUpdateRequest{
 		CheckOutTime: &earlierCheckOut,
 		Notes:        &notes,
 	})
 	require.NoError(t, err)
 
-	require.NoError(t, f.closeSvc.ReopenMonth(f.ctx, f.staff.ID, f.admin.ID, snapshotYear, snapshotMonth, "Korrektur nachgetragen"))
+	require.NoError(t, f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotMonth, "Korrektur nachgetragen"))
 
-	septemberAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotNextMonth)
+	septemberAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
 	assert.Equal(t, septemberBefore.CarryInMinutes-120, septemberAfter.CarryInMinutes,
 		"after reopening, the correction flows through again")
 	assert.False(t, septemberAfter.CarryInFrozen)
 
-	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff.ID, snapshotYear, snapshotMonth)
+	augustAfter, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
 	require.NoError(t, err)
 	assert.False(t, augustAfter.IsClosed)
 	assert.Zero(t, augustAfter.DriftMinutes)
@@ -280,7 +269,7 @@ func TestMonthClose_RejectsUnfinishedMonth(t *testing.T) {
 	f := newSnapshotFixture(t)
 	today := timezone.TodayDate()
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, today.Year(), int(today.Month()), "zu früh")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, today.Year(), int(today.Month()), "zu früh")
 	require.ErrorIs(t, err, active.ErrMonthNotClosable)
 }
 
@@ -290,7 +279,7 @@ func TestMonthClose_RejectsMissingReason(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "   ")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "   ")
 	require.ErrorIs(t, err, active.ErrMonthCloseInvalid)
 }
 
@@ -300,9 +289,9 @@ func TestMonthClose_IsIdempotent(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	first, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
+	first, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss")
 	require.NoError(t, err)
-	second, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
+	second, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss")
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, second.ClosedStaff)
@@ -316,10 +305,10 @@ func TestMonthClose_RejectsCloseBehindLaterSnapshot(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotNextMonth, "Abschluss September")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotNextMonth, "Abschluss September")
 	require.NoError(t, err)
 
-	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss August")
 	require.ErrorIs(t, err, active.ErrLaterMonthClosed)
 }
 
@@ -328,12 +317,12 @@ func TestMonthClose_RetryBehindLaterSnapshotRemainsIdempotent(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss August")
 	require.NoError(t, err)
-	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotNextMonth, "Abschluss September")
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotNextMonth, "Abschluss September")
 	require.NoError(t, err)
 
-	result, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	result, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss August")
 	require.NoError(t, err)
 	assert.Zero(t, result.ClosedStaff)
 	assert.Equal(t, 2, result.SkippedStaff)
@@ -347,10 +336,10 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss")
 	require.NoError(t, err)
 
-	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff.ID, f.admin.ID, active.CreateBalanceAdjustmentRequest{
+	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, active.CreateBalanceAdjustmentRequest{
 		Type:          activeModels.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
@@ -368,10 +357,10 @@ func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss")
 	require.NoError(t, err)
 
-	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff.ID, f.admin.ID, active.CreateBalanceAdjustmentRequest{
+	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, active.CreateBalanceAdjustmentRequest{
 		Type:          activeModels.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
 		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
@@ -387,17 +376,17 @@ func TestMonthClose_ReopenRequiresNewestFirst(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotMonth, "Abschluss August")
+	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Abschluss August")
 	require.NoError(t, err)
-	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin.ID, snapshotYear, snapshotNextMonth, "Abschluss September")
+	_, err = f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotNextMonth, "Abschluss September")
 	require.NoError(t, err)
 
-	err = f.closeSvc.ReopenMonth(f.ctx, f.staff.ID, f.admin.ID, snapshotYear, snapshotMonth, "Korrektur")
+	err = f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotMonth, "Korrektur")
 	require.ErrorIs(t, err, active.ErrLaterMonthClosed)
 
 	// Newest first works.
-	require.NoError(t, f.closeSvc.ReopenMonth(f.ctx, f.staff.ID, f.admin.ID, snapshotYear, snapshotNextMonth, "Korrektur"))
-	require.NoError(t, f.closeSvc.ReopenMonth(f.ctx, f.staff.ID, f.admin.ID, snapshotYear, snapshotMonth, "Korrektur"))
+	require.NoError(t, f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotNextMonth, "Korrektur"))
+	require.NoError(t, f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotMonth, "Korrektur"))
 }
 
 // TestMonthClose_ReopenUnclosedMonthIsNotFound guards the 404 path.
@@ -406,6 +395,6 @@ func TestMonthClose_ReopenUnclosedMonthIsNotFound(t *testing.T) {
 
 	f := newSnapshotFixture(t)
 
-	err := f.closeSvc.ReopenMonth(f.ctx, f.staff.ID, f.admin.ID, snapshotYear, snapshotMonth, "Korrektur")
+	err := f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotMonth, "Korrektur")
 	require.ErrorIs(t, err, active.ErrMonthNotClosed)
 }

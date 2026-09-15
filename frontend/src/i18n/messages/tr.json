@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Tekrar dene",
     "newsClose": "Kapat",
     "newsLetterBadge": "Onay gerekli",
+    "newsReminder": "Hatırlatma",
+    "newsReminderFrom": "{date} tarihli hatırlatma",
     "newsLetterBindingHint": "Bu e-posta yalnızca bilgilendirme amaçlıdır. Geçerli olan, buradaki veli portalındaki onaydır. Her çocuk için bir veli yeterlidir."
   },
   "parentNotificationSetup": {
@@ -248,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Bu cihazdaki bildirimler",
+    "moreActions": "Diğer işlemler",
     "installIntro": "iPhone ve iPad'de bildirimler yalnızca moto'yu ana ekrandan açtığınızda çalışır.",
     "installStepsLabel": "moto'yu ana ekrana ekleyin",
     "installStep1": "Menüde Paylaş'a dokunun.",
@@ -606,6 +609,9 @@
       "alreadyHome": "{name} bugün zaten evde. Teslim alma saati artık değiştirilemez.",
       "alreadyHomeGeneric": "Çocuğunuz bugün zaten evde. Teslim alma saati artık değiştirilemez.",
       "existingHint": "{date} için zaten bir değişiklik kayıtlı. Kaydederseniz üzerine yazılır.",
+      "cutoffHint": "Bugünkü alma saatini {time} saatine kadar değiştirebilirsiniz.",
+      "cutoffClosed": "Bugün için değişiklik yalnızca saat {time} kadar mümkündür. Lütfen okul sonrası bakım ekibine başvurun. Diğer günleri değiştirmeye devam edebilirsiniz.",
+      "cutoffClosedGeneric": "Bugün için artık değişiklik yapılamaz. Lütfen okul sonrası bakım ekibine başvurun. Diğer günleri değiştirmeye devam edebilirsiniz.",
       "reset": "Değişikliği geri al",
       "resetTitle": "Değişiklik geri alınsın mı?",
       "resetDescription": "{date} için farklı teslim alma saati kaldırılır. Yeniden normal haftalık plan geçerli olur.",

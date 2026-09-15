@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,15 +20,15 @@ func TestStudentEnrolledOn(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		student *userModels.Student
+		student *StudentRecord
 		want    bool
 	}{
-		{name: "inside enrollment interval", student: &userModels.Student{EnrolledFrom: &before, EnrolledUntil: &after}, want: true},
-		{name: "before enrollment", student: &userModels.Student{EnrolledFrom: &after, Status: userModels.StudentStatusPending}},
-		{name: "immediately active before enrollment", student: &userModels.Student{EnrolledFrom: &after, Status: userModels.StudentStatusActive}, want: true},
-		{name: "after enrollment", student: &userModels.Student{EnrolledUntil: &before, Status: userModels.StudentStatusActive}},
-		{name: "inactive legacy student", student: &userModels.Student{Status: userModels.StudentStatusInactive}},
-		{name: "active legacy student", student: &userModels.Student{Status: userModels.StudentStatusActive}, want: true},
+		{name: "inside enrollment interval", student: &StudentRecord{EnrolledFrom: &before, EnrolledUntil: &after}, want: true},
+		{name: "before enrollment", student: &StudentRecord{EnrolledFrom: &after, Lifecycle: StudentLifecycleOther}},
+		{name: "immediately active before enrollment", student: &StudentRecord{EnrolledFrom: &after, Lifecycle: StudentLifecycleActive}, want: true},
+		{name: "after enrollment", student: &StudentRecord{EnrolledUntil: &before, Lifecycle: StudentLifecycleActive}},
+		{name: "inactive legacy student", student: &StudentRecord{Lifecycle: StudentLifecycleInactive}},
+		{name: "active legacy student", student: &StudentRecord{Lifecycle: StudentLifecycleActive}, want: true},
 	}
 
 	for _, test := range tests {
@@ -42,11 +41,11 @@ func TestStudentEnrolledOn(t *testing.T) {
 func TestFilterOverviewStudentIDsKeepsUnresolvedPeopleWithoutNameFilter(t *testing.T) {
 	t.Parallel()
 
-	students := map[int64]*userModels.Student{
+	students := map[int64]*StudentRecord{
 		1: {ID: 1, PersonID: 11},
 		2: {ID: 2, PersonID: 22},
 	}
-	persons := map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}}
+	persons := map[int64]*PersonName{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}}
 
 	assert.Equal(t, []int64{1, 2}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, ""))
 	assert.Equal(t, []int64{1}, filterOverviewStudentIDs([]int64{1, 2}, students, persons, "mia"))
@@ -70,15 +69,15 @@ func (r *cappedOverviewRepository) ListOverviewWithOptions(_ context.Context, op
 }
 
 type overviewPeopleStub struct {
-	students []*userModels.Student
-	persons  map[int64]*userModels.Person
+	students []*StudentRecord
+	persons  map[int64]*PersonName
 }
 
-func (s overviewPeopleStub) GetStudentsByGroupIDs(context.Context, []int64) ([]*userModels.Student, error) {
+func (s overviewPeopleStub) GetStudentsByGroupIDs(context.Context, []int64) ([]*StudentRecord, error) {
 	return s.students, nil
 }
 
-func (s overviewPeopleStub) GetByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
+func (s overviewPeopleStub) GetByIDs(context.Context, []int64) (map[int64]*PersonName, error) {
 	return s.persons, nil
 }
 
@@ -88,8 +87,8 @@ func TestGetOverviewPaginatesLargeResultSets(t *testing.T) {
 	date := timezone.NewDate(2026, 8, 20)
 	repo := &cappedOverviewRepository{total: 10_001}
 	people := overviewPeopleStub{
-		students: []*userModels.Student{{ID: 1, PersonID: 11, Status: userModels.StudentStatusActive}},
-		persons:  map[int64]*userModels.Person{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}},
+		students: []*StudentRecord{{ID: 1, PersonID: 11, Lifecycle: StudentLifecycleActive}},
+		persons:  map[int64]*PersonName{11: {ID: 11, FirstName: "Mia", LastName: "Muster"}},
 	}
 
 	overview, err := NewStudentStatusDayOverviewService(repo, people).GetOverview(

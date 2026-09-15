@@ -26,7 +26,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	absencetypesAPI "github.com/moto-nrw/project-phoenix/api/absence-types"
-	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
 	adminAPI "github.com/moto-nrw/project-phoenix/api/admin"
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -39,9 +38,8 @@ import (
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
+	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 
-	importAPI "github.com/moto-nrw/project-phoenix/api/import"
-	importCompose "github.com/moto-nrw/project-phoenix/api/import/compose"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
@@ -51,6 +49,8 @@ import (
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -59,13 +59,13 @@ import (
 	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
-	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -91,6 +91,8 @@ import (
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
 	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
+	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
@@ -368,40 +370,60 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
-	factory, err := services.NewFactoryWithModules(
-		repoFactory, db, logger, publicAPIURL, tenantRuntime,
-		organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
-		communicationCapability,
-		func(observation communicationCompose.Observation) {
-			observability.ObserveCommunicationOperation(
-				observation.Operation,
-				observation.Duration,
-				int64(observation.Stats.Queries),
-				observation.Stats.Rows,
-				int64(observation.Stats.DuplicatePreventionConflicts),
-				observation.Stats.StatementDuration,
-				communicationModule.ErrorCode(observation.Err),
-				observation.Err,
-			)
-		},
-		func(observation carePlanCompose.Observation) {
-			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-		},
-		mealPlan, mealPlanSettings.Bind,
-		feedbackCapability, feedbackSettings.Bind,
-		observability.ObserveAuditAppend,
-		observability.ObserveSynchronousDelivery,
-		observability.ObserveDurableDelivery,
-		observability.ObserveDeviceFleetOperation,
-		observability.ObserveIdentityAccessOperation,
-		workTime,
-		observeDataImport,
-	)
+	factory, err := withFileStorageWiring(func(fileStorageWiring services.FileStorageWiring) (*services.Factory, error) {
+		return services.NewFactoryWithModules(
+			repoFactory, db, logger, publicAPIURL, tenantRuntime,
+			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
+			communicationCapability,
+			func(observation communicationCompose.Observation) {
+				observability.ObserveCommunicationOperation(
+					observation.Operation,
+					observation.Duration,
+					int64(observation.Stats.Queries),
+					observation.Stats.Rows,
+					int64(observation.Stats.DuplicatePreventionConflicts),
+					observation.Stats.StatementDuration,
+					communicationModule.ErrorCode(observation.Err),
+					observation.Err,
+				)
+			},
+			func(observation carePlanCompose.Observation) {
+				observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
+			},
+			mealPlan, mealPlanSettings.Bind,
+			feedbackCapability, feedbackSettings.Bind,
+			observability.ObserveAuditAppend,
+			observability.ObserveSynchronousDelivery,
+			observability.ObserveDurableDelivery,
+			observability.ObserveDeviceFleetOperation,
+			observability.ObserveIdentityAccessOperation,
+			workTime,
+			observeDataImport,
+			fileStorageWiring,
+		)
+	})
 	if err != nil {
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
 	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
+}
+
+// withFileStorageWiring resolves what the File Storage module needs from the
+// root and cannot compose itself (#2707): the uploads object store, rooted at
+// the uploads directory every document feature shares, and the metrics sink.
+// It hands both to the service factory, which composes the module where the
+// announcement ports live.
+func withFileStorageWiring(build func(services.FileStorageWiring) (*services.Factory, error)) (*services.Factory, error) {
+	uploads, err := apiCommon.UploadsBackend()
+	if err != nil {
+		return nil, fmt.Errorf("resolve uploads backend: %w", err)
+	}
+	return build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage})
+}
+
+func observeFileStorage(observation filestorageCompose.Observation) {
+	observability.ObserveFileStorageOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, filestorageModule.ErrorCode(observation.Err), observation.Err)
 }
 
 func observeDataImport(observation services.DataImportObservation) {
@@ -673,7 +695,7 @@ type API struct {
 	Display          *displayHTTPAdapter.Resource
 	Schedules        *timetableHTTPAdapter.SchedulesResource
 	Settings         *configAPI.SettingsResource
-	Active           *activeAPI.Resource
+	Active           *presenceAPI.Resource
 	IoT              *iotAPI.Resource
 	SSE              *sseAPI.Resource
 	Users            *usersAPI.Resource
@@ -1328,11 +1350,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
 		ClassListEntryService:        api.Services.ClassListEntries,
-		StudentDeletionService:       api.Services.StudentDeletion,
+		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
 		EducationService:             api.Services.Education,
-		GradeTransitionService:       api.Services.GradeTransition,
 		UserContextService:           api.Services.UserContext,
 		ActiveService:                api.Services.Active,
 		IoTService:                   api.Services.IoT,
@@ -1405,7 +1426,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(
 		workforceShiftPlanning.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
-	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(api.Services.StaffAbsenceType), db, api.currentStaffID)
+	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
 		api.Services.EnrollmentCareOffering,
@@ -1440,7 +1461,20 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	if err != nil {
 		return err
 	}
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"), presence, openRoomMove)
+	teacherGroupIDs := func(ctx context.Context, teacherID int64) ([]int64, error) {
+		groups, err := api.Services.Education.GetTeacherGroups(ctx, teacherID)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(groups))
+		for _, group := range groups {
+			if group != nil {
+				ids = append(ids, group.ID)
+			}
+		}
+		return ids, nil
+	}
+	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
 	if err != nil {
@@ -1483,7 +1517,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			return school.Name, nil
 		}),
 		SessionEnd:              sessionEnd,
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DB:                      db,
 		DeviceAuthenticator:     deviceAuth.Device(),

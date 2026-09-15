@@ -10,8 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -115,8 +113,8 @@ func (s *userContextService) buildSSESubscription(ctx context.Context, staffID i
 		allTopics = append(allTopics, topic)
 	}
 
-	for _, supervision := range supervisions {
-		groupTopic := strconv.FormatInt(supervision.GroupID, 10)
+	for _, groupID := range supervisions {
+		groupTopic := strconv.FormatInt(groupID, 10)
 		activeGroupIDs = append(activeGroupIDs, groupTopic)
 		addTopic(groupTopic)
 	}
@@ -148,11 +146,11 @@ func (s *userContextService) buildSSESubscription(ctx context.Context, staffID i
 // covered by the school-wide overview scope (#2380) get a synthetic entry for
 // every currently active group — the exact same rule the HTTP endpoints use,
 // so a client never sees a block in a list whose live updates it is not
-// subscribed to. Using ListActiveGroups (rather than the supervisor rows)
+// subscribed to. Using session queries (rather than the supervisor rows)
 // ensures unclaimed active groups (e.g. Schulhof without a current
 // supervisor) still receive live events. Everyone else keeps their own
 // supervised groups.
-func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
+func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID int64) ([]int64, error) {
 	if s.sseActiveSvc == nil {
 		return nil, errors.New("SSE active service is not configured")
 	}
@@ -168,7 +166,7 @@ func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID
 				slog.Int64("staff_id", staffID),
 			)
 		} else if broad {
-			groups, err := s.sseActiveSvc.ListActiveGroups(ctx, base.NewQueryOptions())
+			groups, err := s.sseActiveSvc.ListSSEGroups(ctx)
 			if err != nil {
 				s.getLogger().Error("failed to list active groups for school-wide SSE",
 					slog.String("error", err.Error()),
@@ -176,21 +174,17 @@ func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID
 				)
 				return nil, err
 			}
-			// Synthesise GroupSupervisor records so the topic-building loop can
-			// reuse GroupID without special-casing the broad path.
-			synthetic := make([]*active.GroupSupervisor, 0, len(groups))
+			synthetic := make([]int64, 0, len(groups))
 			for _, g := range groups {
-				if g.IsActive() {
-					synthetic = append(synthetic, &active.GroupSupervisor{
-						GroupID: g.ID,
-					})
+				if g.IsOpen() {
+					synthetic = append(synthetic, g.ID)
 				}
 			}
 			return synthetic, nil
 		}
 	}
 
-	supervisions, err := s.sseActiveSvc.GetStaffActiveSupervisions(ctx, staffID)
+	supervisions, err := s.sseActiveSvc.GetStaffActiveGroupIDs(ctx, staffID)
 	if err != nil {
 		s.getLogger().Error("failed to get staff active supervisions for SSE",
 			slog.String("error", err.Error()),

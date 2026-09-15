@@ -7,17 +7,17 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // todayWorkSession loads today's work session row for the staff member, or nil.
-func todayWorkSession(t *testing.T, db *bun.DB, staffID int64) *active.WorkSession {
+func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *active.WorkSession {
 	t.Helper()
 	session := new(active.WorkSession)
 	err := db.NewSelect().
@@ -46,7 +46,7 @@ func TestToggleStudentAttendance_IoTAutoOpensWorkSession(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "AutoStamp", "Supervisor")
 	dev := testpkg.CreateTestDevice(t, db, "autostamp-device-1")
 
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxIsIoTDevice, true)
+	ctx := services.WithIoTAttendanceRequest(testpkg.Ctx(t))
 
 	result, err := service.ToggleStudentAttendance(ctx, student.ID, staff.ID, dev.ID, true)
 	require.NoError(t, err)

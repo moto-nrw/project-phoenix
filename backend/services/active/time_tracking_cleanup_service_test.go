@@ -9,11 +9,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // Each test creates its own staff + session/absence rows with controlled
@@ -39,7 +39,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewDeletionAudit(repos.DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -82,7 +82,7 @@ func TestTimeTrackingCleanup_DeletesOldAbsences(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(20))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewDeletionAudit(repos.DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -111,7 +111,7 @@ func TestTimeTrackingCleanup_PreviewLeavesDataIntact(t *testing.T) {
 	oldAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(900))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewDeletionAudit(repos.DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestTimeTrackingCleanup_PreviewOldestOnlyShowsExpiredRows(t *testing.T) {
 	freshAbsenceID := insertAbsence(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewDeletionAudit(repos.DataDeletion), nil, nil)
 
 	preview, err := svc.PreviewExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -169,7 +169,7 @@ func TestTimeTrackingCleanup_NoOpWhenNothingExpired(t *testing.T) {
 	freshSessionID := insertSession(t, db, staff.ID, daysAgo(10))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewDeletionAudit(repos.DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestTimeTrackingCleanup_UsesBusinessDatesNotCreatedAt(t *testing.T) {
 	oldBusinessAbsenceID := insertAbsenceWithBusinessDates(t, db, staff.ID, daysAgo(10), daysAgo(900), daysAgo(900))
 
 	repos := repoFactory.NewFactory(db, repoFactory.NewUnobservedTimetableDependencies(db))
-	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, repos.DataDeletion, nil, nil)
+	svc := activeSvc.NewTimeTrackingCleanupService(repos.WorkSession, repos.StaffAbsence, services.NewDeletionAudit(repos.DataDeletion), nil, nil)
 
 	result, err := svc.CleanupExpiredTimeTrackingData(ctx)
 	require.NoError(t, err)
@@ -233,12 +233,12 @@ func daysAgo(days int) time.Time {
 	return time.Now().AddDate(0, 0, -days)
 }
 
-func insertSession(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time) int64 {
+func insertSession(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
 	return insertSessionWithBusinessDate(t, db, staffID, createdAt, createdAt)
 }
 
-func insertSessionWithBusinessDate(t *testing.T, db *bun.DB, staffID int64, createdAt, businessDate time.Time) int64 {
+func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, createdAt, businessDate time.Time) int64 {
 	t.Helper()
 	checkOut := createdAt.Add(8 * time.Hour)
 	s := &activeModels.WorkSession{
@@ -272,7 +272,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *bun.DB, staffID int64, crea
 	return s.ID
 }
 
-func insertBreak(t *testing.T, db *bun.DB, sessionID int64, createdAt time.Time) int64 {
+func insertBreak(t *testing.T, db *testpkg.DB, sessionID int64, createdAt time.Time) int64 {
 	t.Helper()
 	end := createdAt.Add(30 * time.Minute)
 	b := &activeModels.WorkSessionBreak{
@@ -287,7 +287,7 @@ func insertBreak(t *testing.T, db *bun.DB, sessionID int64, createdAt time.Time)
 	return b.ID
 }
 
-func insertEdit(t *testing.T, db *bun.DB, sessionID, staffID int64, createdAt time.Time) int64 {
+func insertEdit(t *testing.T, db *testpkg.DB, sessionID, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
 	old := "30"
 	newVal := "45"
@@ -308,12 +308,12 @@ func insertEdit(t *testing.T, db *bun.DB, sessionID, staffID int64, createdAt ti
 	return e.ID
 }
 
-func insertAbsence(t *testing.T, db *bun.DB, staffID int64, createdAt time.Time) int64 {
+func insertAbsence(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.Time) int64 {
 	t.Helper()
 	return insertAbsenceWithBusinessDates(t, db, staffID, createdAt, createdAt, createdAt)
 }
 
-func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
+func insertAbsenceWithBusinessDates(t *testing.T, db *testpkg.DB, staffID int64, createdAt, dateStart, dateEnd time.Time) int64 {
 	t.Helper()
 	a := &activeModels.StaffAbsence{
 		StaffID:     staffID,
@@ -341,35 +341,35 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *bun.DB, staffID int64, cre
 	return a.ID
 }
 
-func sessionExists(t *testing.T, db *bun.DB, id int64) bool {
+func sessionExists(t *testing.T, db *testpkg.DB, id int64) bool {
 	t.Helper()
 	n, err := db.NewSelect().Table("active.work_sessions").Where("id = ?", id).Count(context.Background())
 	require.NoError(t, err)
 	return n > 0
 }
 
-func absenceExists(t *testing.T, db *bun.DB, id int64) bool {
+func absenceExists(t *testing.T, db *testpkg.DB, id int64) bool {
 	t.Helper()
 	n, err := db.NewSelect().Table("active.staff_absences").Where("id = ?", id).Count(context.Background())
 	require.NoError(t, err)
 	return n > 0
 }
 
-func countBreaksForSession(t *testing.T, db *bun.DB, sessionID int64) int {
+func countBreaksForSession(t *testing.T, db *testpkg.DB, sessionID int64) int {
 	t.Helper()
 	n, err := db.NewSelect().Table("active.work_session_breaks").Where("session_id = ?", sessionID).Count(context.Background())
 	require.NoError(t, err)
 	return n
 }
 
-func countEditsForSession(t *testing.T, db *bun.DB, sessionID int64) int {
+func countEditsForSession(t *testing.T, db *testpkg.DB, sessionID int64) int {
 	t.Helper()
 	n, err := db.NewSelect().Table("audit.work_session_edits").Where("session_id = ?", sessionID).Count(context.Background())
 	require.NoError(t, err)
 	return n
 }
 
-func findStaffDeletionRows(t *testing.T, db *bun.DB, staffID int64) []*audit.DataDeletion {
+func findStaffDeletionRows(t *testing.T, db *testpkg.DB, staffID int64) []*audit.DataDeletion {
 	t.Helper()
 	var rows []*audit.DataDeletion
 	err := db.NewSelect().
@@ -385,7 +385,7 @@ func findStaffDeletionRows(t *testing.T, db *bun.DB, staffID int64) []*audit.Dat
 // dates older than 730 days for the given tenant. Used by tests that
 // assert "nothing happens". They need the tenant slice to be empty of
 // expired rows before they begin.
-func purgeOldRowsInTenant(t *testing.T, db *bun.DB, tenantID int64) {
+func purgeOldRowsInTenant(t *testing.T, db *testpkg.DB, tenantID int64) {
 	t.Helper()
 	cutoff := time.Now().AddDate(0, 0, -730)
 	_, err := db.NewDelete().

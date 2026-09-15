@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -12,7 +11,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
@@ -38,8 +36,6 @@ type StudentTestRepositories struct {
 	CareExitCleanup              usersModels.CareExitCleanupRepository
 	CareWithdrawal               usersModels.CareWithdrawalCompletionRepository
 	GradeTransition              educationModels.GradeTransitionRepository
-	PrivacyConsent               usersModels.PrivacyConsentRepository
-	StudentDeletion              usersModels.StudentDeletionRepository
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository
@@ -80,13 +76,11 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		EnrollmentRestorationAudit:   auditRepo.NewEnrollmentRestorationRepository(newTestAuditRuntime(db)),
 		GuardianFinancialChange:      auditRepo.NewGuardianFinancialChangeRepository(newTestAuditRuntime(db)),
 		SubstitutionChange:           auditRepo.NewSubstitutionChangeRepository(newTestAuditRuntime(db)),
-		PrivacyConsent:               activeRepo.NewPrivacyConsentRepository(db),
 		StudentDeletionAudit:         auditRepo.NewStudentDeletionRepository(newTestAuditRuntime(db)),
 		StudentConsentChange:         auditRepo.NewStudentConsentChangeRepository(newTestAuditRuntime(db)),
 		DataDeletion:                 auditRepo.NewDataDeletionRepository(newTestAuditRuntime(db)),
 		CareExitCleanup:              lifecycle.CareExitCleanup,
 	}
-	r.StudentDeletion = usersRepo.NewStudentDeletionRepository(db, r.StudentDeletionAudit.CountStudentReferences, r.countPrivacyConsents, enrollmentCompose.New().CountStudentReferences, enrollment.Timetable, parentStore.NewStudentConversations(db), newStudentPresence(db).CountAttendanceRecords)
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
@@ -107,8 +101,8 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		GuardianFinancialChange:      r.GuardianFinancialChange,
 		SubstitutionChange:           r.SubstitutionChange,
 		EnrollmentTestRepositories:   enrollment, CareExit: lifecycle.CareExit, CareExitCleanup: lifecycle.CareExitCleanup,
-		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition, PrivacyConsent: r.PrivacyConsent,
-		StudentDeletion: r.StudentDeletion, StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
+		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition,
+		StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
 		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),

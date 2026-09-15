@@ -7,11 +7,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -107,7 +105,7 @@ func (s *service) assignTransitStudentsToActiveGroup(ctx context.Context, studen
 		}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
@@ -235,7 +233,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -475,7 +473,7 @@ func (s *service) moveStudentsToTransitLocked(ctx context.Context, studentIDs []
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueIDs := slices.DeleteFunc(dedupeStudentIDs(studentIDs), func(id int64) bool { return id <= 0 })
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -618,7 +616,7 @@ func (s *service) lockMoveTargetRoom(ctx context.Context, activeGroupID int64, o
 	if group == nil || !group.IsActive() || group.RoomID <= 0 {
 		return 0, &ActiveError{Op: op, Err: ErrActiveGroupNotFound}
 	}
-	if err := s.GroupRepo.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
+	if err := s.SchoolPresence.LockRoomSessionWrites(ctx, group.RoomID); err != nil {
 		return 0, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 	return group.RoomID, nil
@@ -720,31 +718,31 @@ func (s *service) schoolWideAttendanceMoveAllowed(ctx context.Context, staffID i
 	if s.settings == nil {
 		return false, errors.New("attendance edit settings unavailable")
 	}
-	scope, err := s.settings.ResolveString(ctx, configModel.KeyAttendanceEditScope)
+	scope, err := s.settings.AttendanceEditScope(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve attendance edit scope: %w", err)
 	}
-	if scope == configModel.AttendanceEditScopeOwn {
+	if scope == AttendanceEditScopeOwn {
 		return false, nil
 	}
-	if scope != configModel.AttendanceEditScopeAllStaff {
+	if scope != AttendanceEditScopeAllStaff {
 		return false, ErrStudentMoveForbidden
 	}
-	visibility, err := s.settings.ResolveString(ctx, configModel.KeyOperationalOverviewScope)
+	visibility, err := s.settings.OperationalOverviewScope(ctx)
 	if err != nil {
 		return false, fmt.Errorf("resolve attendance visibility: %w", err)
 	}
-	if visibility != configModel.OverviewScopeAllStaff || staffID <= 0 || tenant.FromContext(ctx) <= 0 {
+	if visibility != OverviewScopeAllStaff || staffID <= 0 || tenant.FromContext(ctx) <= 0 {
 		return false, ErrStudentMoveForbidden
 	}
-	staff, err := s.StaffRepo.FindByID(ctx, staffID)
+	staffTenantID, err := s.StaffRepo.StaffTenantID(ctx, staffID)
 	if modelBase.IsNoRows(err) {
 		return false, ErrStudentMoveForbidden
 	}
 	if err != nil {
 		return false, err
 	}
-	if staff == nil || staff.TenantID != tenant.FromContext(ctx) {
+	if staffTenantID == nil || *staffTenantID != tenant.FromContext(ctx) {
 		return false, ErrStudentMoveForbidden
 	}
 	return true, nil

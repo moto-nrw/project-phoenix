@@ -257,6 +257,12 @@ export interface ChildFeatures {
   // actions for a chat-only guardian instead of dead-ending on a backend 403.
   readonly request_submit_enabled: boolean;
   readonly pickup_change_enabled: boolean;
+  // Die Schule kann eine Uhrzeit festlegen, bis zu der Eltern die Abholzeit
+  // für heute ändern dürfen (operations.parent_pickup_change_cutoff_time,
+  // #3163). Leer oder fehlend heißt: keine Frist. today_closed sagt, dass die
+  // Frist vorbei ist; der Server entscheidet das, der Client rechnet nicht nach.
+  readonly pickup_change_cutoff_time?: string;
+  readonly pickup_change_today_closed?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
   readonly related_accounts_invite_enabled: boolean;
@@ -977,6 +983,11 @@ export interface ParentAnnouncement {
   // Set on rows the system wrote on the school's behalf (#2601). A
   // cancellation notice is labelled as such instead of "Elternbrief".
   readonly system_kind?: "care_cancellation";
+
+  // Scheduled reminder (#3162): set once the school's reminder went out. The
+  // feed sorts the item back to the top; read/acknowledged stay as they were.
+  readonly reminder_sent_at?: string; // ISO timestamp
+  readonly reminder_text?: string;
 }
 
 interface ParentAnnouncementOption {

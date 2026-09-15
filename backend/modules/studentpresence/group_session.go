@@ -41,7 +41,17 @@ type EndedGroupSessions struct {
 // GroupSessionCommand closes live groups and everything still open in them.
 // Every operation requires the caller's tenant transaction: the session end
 // workflow holds the group lock from the first read to the commit.
+type SessionStartCommand interface {
+	// LockSessionStart serializes starts for one activity until the caller's tenant transaction ends.
+	LockSessionStart(context.Context, int64) error
+}
+
+func (m *Module) LockSessionStart(ctx context.Context, activityID int64) error {
+	return m.engine.LockSessionStart(ctx, activityID)
+}
+
 type GroupSessionCommand interface {
+	SessionStartCommand
 	// LockGroup reads the group FOR UPDATE and returns ErrGroupNotFound when
 	// the tenant has no such row.
 	LockGroup(context.Context, int64) (LiveGroup, error)

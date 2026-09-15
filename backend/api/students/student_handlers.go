@@ -26,9 +26,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
 )
 
@@ -1772,55 +1772,49 @@ func (rs *Resource) authorizeStudentUpdate(
 	return false, absenceOK, absenceErr
 }
 
-// deleteStudent handles deleting a student and their associated person record
+// deleteStudent permanently deletes an active child through the student
+// deletion workflow (#2710). The preview and the explicit confirmation are
+// mandatory even when the child currently has no dependent rows: otherwise an
+// old or hand-written client could bypass the typed name, acknowledgement and
+// audit trail simply by sending an empty DELETE.
 func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
-	// Parse ID and get student
 	student, ok := rs.parseAndGetStudent(w, r)
 	if !ok {
 		return
 	}
-
-	// Check if user has permission to delete this student
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	authorized, authErr := canDeleteStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
-
-	// A configured permanent-delete service makes the preview and explicit
-	// confirmation mandatory even when the child currently has no dependent
-	// rows. Otherwise an old or hand-written client could bypass the typed name,
-	// acknowledgement and audit trail simply by sending an empty DELETE.
-	if r.ContentLength != 0 {
-		rs.deleteStudentWithData(w, r, student)
+	if rs.StudentDeletion == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion workflow not configured")))
 		return
 	}
-	if rs.StudentDeletionService != nil {
+	if r.ContentLength == 0 {
 		renderError(w, r, common.ErrorConflictMessage("Bitte die Löschvorschau prüfen und die endgültige Löschung bestätigen."))
 		return
 	}
-
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.deleteStudentTx(ctx, tenantID, student)
-	}); err != nil {
-		// Same reason as updateStudent: the surrounding transaction belongs to
-		// the middleware and commits on every non-5xx response, so the 409 paths
-		// below have to request the rollback themselves.
-		tenant.MarkRollback(r.Context())
-		renderError(w, r, deleteStudentTxErrorRenderer(err))
+	body := new(studentDeleteRequest)
+	if err := render.Bind(r, body); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
+	if _, err := rs.StudentDeletion.Execute(r.Context(), student.ID, body.confirmation()); err != nil {
+		// The route middleware owns the ambient transaction and commits on
+		// every non-5xx response, so the 4xx paths request the rollback here.
+		tenant.MarkRollback(r.Context())
+		renderError(w, r, studentDeletionErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, nil, "Student and linked data deleted successfully")
 }
 
 type studentDeleteImpactResponse struct {
 	ConfirmationName string                             `json:"confirmation_name"`
 	Fingerprint      string                             `json:"fingerprint"`
 	Total            int                                `json:"total"`
-	Counts           users.StudentDeletionCounts        `json:"counts"`
+	Counts           studentdeletion.Counts             `json:"counts"`
 	Preserved        studentDeletePreservedDataResponse `json:"preserved"`
 }
 
@@ -1831,7 +1825,7 @@ type studentDeletePreservedDataResponse struct {
 	SharedInstances  bool `json:"shared_instances"`
 }
 
-func toStudentDeleteImpactResponse(impact *userService.StudentDeletionPreview) studentDeleteImpactResponse {
+func toStudentDeleteImpactResponse(impact studentdeletion.Preview) studentDeleteImpactResponse {
 	return studentDeleteImpactResponse{
 		ConfirmationName: impact.ConfirmationName,
 		Fingerprint:      impact.Fingerprint,
@@ -1851,21 +1845,16 @@ func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	authorized, authErr := canDeleteStudent(
-		r.Context(),
-		jwt.PermissionsFromCtx(r.Context()),
-		student,
-		rs.UserContextService,
-	)
+	authorized, authErr := canDeleteStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
-	if rs.StudentDeletionService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion service not configured")))
+	if rs.StudentDeletion == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion workflow not configured")))
 		return
 	}
-	impact, err := rs.StudentDeletionService.Preview(r.Context(), student.ID)
+	impact, err := rs.StudentDeletion.Preview(r.Context(), student.ID)
 	if err != nil {
 		renderError(w, r, studentDeletionErrorRenderer(err))
 		return
@@ -1891,53 +1880,18 @@ func (req *studentDeleteRequest) Bind(_ *http.Request) error {
 		return errors.New("reason is required")
 	}
 	if !req.Acknowledged {
-		return userService.ErrStudentDeletionNotAcknowledged
+		return studentdeletion.ErrNotAcknowledged
 	}
 	return nil
 }
 
-func (rs *Resource) deleteStudentWithData(w http.ResponseWriter, r *http.Request, student *users.Student) {
-	if rs.StudentDeletionService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("student deletion service not configured")))
-		return
+func (req *studentDeleteRequest) confirmation() studentdeletion.Confirmation {
+	return studentdeletion.Confirmation{
+		ExpectedFingerprint: req.ExpectedFingerprint,
+		ConfirmationName:    req.ConfirmationName,
+		Reason:              req.Reason,
+		Acknowledged:        req.Acknowledged,
 	}
-	body := new(studentDeleteRequest)
-	if err := render.Bind(r, body); err != nil {
-		renderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	tenantID := tenant.FromContext(r.Context())
-	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		result, deleteErr := rs.StudentDeletionService.Delete(ctx, userService.StudentDeletionInput{
-			StudentID:           student.ID,
-			ActorAccountID:      actorAccountID,
-			ExpectedFingerprint: body.ExpectedFingerprint,
-			ConfirmationName:    body.ConfirmationName,
-			Reason:              body.Reason,
-			Acknowledged:        body.Acknowledged,
-		})
-		if deleteErr != nil {
-			return deleteErr
-		}
-		if rs.StudentPhotos != nil {
-			rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, result.PhotoPath)
-		}
-		if len(result.CompanionIDs) > 0 {
-			studentID := student.ID
-			tenant.RegisterAfterCommit(ctx, func() {
-				rs.broadcastStudentCompanionsChanged(tenantID, studentID)
-			})
-		}
-		return nil
-	})
-	if err != nil {
-		tenant.MarkRollback(r.Context())
-		renderError(w, r, studentDeletionErrorRenderer(err))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, nil, "Student and linked data deleted successfully")
 }
 
 // purgeGraduatedStudent hard-deletes a child that a grade transition graduated.
@@ -1951,7 +1905,9 @@ func (rs *Resource) deleteStudentWithData(w http.ResponseWriter, r *http.Request
 //
 // It is deliberately NOT a flag on deleteStudent: a separate route means the
 // alumnus exception is one grep away, and an ordinary delete can never acquire
-// it by accident through a stray query parameter.
+// it by accident through a stray query parameter. The workflow re-decides the
+// alumnus question under the row lock, so a child restored by a concurrent
+// revert is never deleted on the strength of a stale list.
 func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request) {
 	// The alumnus-blind lookup: the gate the ordinary path relies on is the
 	// thing this route exists to bypass.
@@ -1959,7 +1915,6 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-
 	// Only graduates. An active child must go through deleteStudent, which is
 	// where the visible-student authorization and UX live.
 	if !student.IsAlumnus() {
@@ -1967,254 +1922,77 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 			"Nur Abgänger können endgültig gelöscht werden. Aktive Kinder werden unter „Alle Kinder“ gelöscht."))
 		return
 	}
-
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
+	authorized, authErr := canDeleteStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
-
-	if rs.GradeTransitionService == nil {
-		// Wired in api/base.go. A nil service means this Resource was built
-		// without it, and proceeding would hard-delete the child while leaving
-		// their name in the transition ledger — a deletion the UI reports as
-		// complete but that is not. Refusing is the only honest answer.
+	if rs.StudentDeletion == nil {
 		renderError(w, r, common.ErrorInternalServer(
-			errors.New("grade transition service not configured, refusing to purge")))
+			errors.New("student deletion workflow not configured, refusing to purge")))
 		return
 	}
-	if rs.StudentDeletionService == nil {
-		renderError(w, r, common.ErrorInternalServer(
-			errors.New("student deletion service not configured, refusing to purge")))
-		return
-	}
-
-	tenantID := tenant.FromContext(r.Context())
-	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := rs.deleteStudentTxMode(ctx, tenantID, student, true, func(ctx context.Context) error {
-			return rs.StudentDeletionService.AuditGraduatePurge(ctx, student.ID, actorAccountID)
-		}); err != nil {
-			return err
-		}
-		// Same transaction: the ledger name and the student row must vanish
-		// together or not at all, otherwise a failure here leaves a deleted
-		// child whose name is still readable in the transition history.
-		return rs.GradeTransitionService.AnonymizePurgedGraduate(ctx, student.ID)
-	}); err != nil {
+	if _, err := rs.StudentDeletion.PurgeGraduate(r.Context(), student.ID); err != nil {
 		tenant.MarkRollback(r.Context())
-		renderError(w, r, purgeGraduatedStudentTxErrorRenderer(err))
+		renderError(w, r, purgeGraduatedStudentErrorRenderer(err))
 		return
 	}
-
 	common.Respond(w, r, http.StatusOK, nil, "Graduated student permanently deleted")
 }
 
-// purgeGraduatedStudentTxErrorRenderer maps the purge transaction error to the
-// wire response. It reuses the ordinary delete's classification (companion
-// preconditions, constraint violations) and adds the two purge-specific cases.
-func purgeGraduatedStudentTxErrorRenderer(err error) render.Renderer {
-	switch {
-	case errors.Is(err, errStudentNoLongerGraduated):
-		return common.ErrorConflictMessage(errStudentNoLongerGraduated.Error())
-	case errors.Is(err, educationService.ErrGraduateStillPresent):
-		// The delete above reported success but the row is still there. Never
-		// expected; surfacing it as 500 keeps the transaction rolled back rather
-		// than reporting a deletion that did not happen.
-		return common.ErrorInternalServer(err)
-	default:
-		return deleteStudentTxErrorRenderer(err)
-	}
-}
-
-// In-tx sentinel: the child graduated between parseAndGetStudent's alumnus gate
-// and the locked re-read below. Mapped to the same 404 that gate returns, so the
-// racy path and the ordinary one answer identically.
-var errStudentGraduatedUnderLock = errors.New("student graduated between snapshot and lock")
-
-// In-tx sentinel for the purge path: the child was restored (transition
-// reverted, or status changed by hand) between the Abgänge list and the locked
-// re-read. Mapped to 409 — the list is stale, not the request malformed.
-var errStudentNoLongerGraduated = errors.New("Kind ist kein Abgänger mehr und wurde nicht gelöscht. Bitte Liste neu laden.") //nolint:staticcheck // ST1005: user-facing German message
-
-// deleteStudentTx performs the locked student delete inside the caller's
-// tenant transaction.
-//
-// Deleting the row also deletes every "läuft mit" edge via ON DELETE CASCADE —
-// a removal that reaches into OTHER children's records like any list edit
-// does. So it joins the shared lock protocol first (subject plus every linked
-// companion, ascending), then refuses when a surviving child would be left
-// with an accompanied plan and no "mit wem" detail; otherwise the cascade
-// would silently bypass the removal protection and every later edit of that
-// child would fail on the note invariant.
-//
-// The photo path is captured from the locked row (not the pre-tx snapshot) so
-// a concurrent upload can't orphan a new file on disk; the unlink itself runs
-// after the OUTER tenant tx commits.
-func (rs *Resource) deleteStudentTx(ctx context.Context, tenantID int64, student *users.Student) error {
-	return rs.deleteStudentTxMode(ctx, tenantID, student, false, nil)
-}
-
-// deleteStudentTxMode is deleteStudentTx with the alumnus rule inverted for the
-// purge path.
-//
-// Both modes need the SAME locked re-read, just the opposite verdict: the
-// ordinary delete refuses a graduate (it would destroy what a revert restores),
-// the purge requires one (the Abgänge view is the only surface that offers it,
-// and a child restored by a concurrent revert must not be deleted by a click
-// aimed at a graduate). Sharing one body keeps the companion lock protocol,
-// the photo capture and the person delete identical for both.
-// checkGraduateStateUnderLock re-decides the alumnus question against the
-// locked row, because the gate both delete paths passed ran on a snapshot.
-//
-// An ordinary delete must refuse a child who graduated in the meantime: it
-// HARD-deletes the very row graduation preserved, so a later transition revert
-// could never bring that child back and their history would be gone for good.
-// The purge refuses the mirror image — a revert that committed between the
-// caller picking the child off a list of graduates and this lock puts them
-// back in the roster, and deleting then removes an active child on the
-// strength of a state that no longer holds. Under the row lock the two
-// serialize either way (#405 review).
-func checkGraduateStateUnderLock(purgeGraduate bool, fresh *users.Student) error {
-	if fresh.IsAlumnus() == purgeGraduate {
-		return nil
-	}
-	if purgeGraduate {
-		return errStudentNoLongerGraduated
-	}
-	return errStudentGraduatedUnderLock
-}
-
-func (rs *Resource) deleteStudentTxMode(
-	ctx context.Context,
-	tenantID int64,
-	student *users.Student,
-	purgeGraduate bool,
-	afterLock func(context.Context) error,
-) error {
-	if err := rs.lockStudentCompanionGraph(ctx, student.ID, nil); err != nil {
-		return err
-	}
-	if err := rs.StudentService.CheckCompanionTrim(ctx, student.ID, nil); err != nil {
-		return err
-	}
-
-	// Read under the graph lock, before the row goes: every edge of this child is
-	// a row on ANOTHER child's card, and ON DELETE CASCADE takes it with the
-	// student. Without the announcement below the surviving children's companion
-	// cards keep listing a child that no longer exists, and an open editor keeps
-	// working from a snapshot the delete already invalidated.
-	companionIDs, err := rs.StudentService.ListCompanionIDs(ctx, student.ID)
-	if err != nil {
-		return err
-	}
-
-	// FOR UPDATE row-locks against any in-flight upload tx. We either
-	// observe its committed photo_path or it sees our deleted row and
-	// aborts.
-	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
-	if err != nil {
-		return err
-	}
-
-	if err := checkGraduateStateUnderLock(purgeGraduate, fresh); err != nil {
-		return err
-	}
-	if afterLock != nil {
-		if err := afterLock(ctx); err != nil {
-			return err
-		}
-	}
-
-	var photoToRemove string
-	if fresh.PhotoPath != nil {
-		photoToRemove = *fresh.PhotoPath
-	}
-
-	// Documents get the same treatment as the photo above, and for the same
-	// reason: this path hard-deletes the student row, so users.student_documents
-	// cascades away with it. Both recovery sweeps read those rows, so without an
-	// intent queued here — in this transaction, so it rolls back with a failed
-	// delete — the stored bytes would survive with nothing left pointing at
-	// them. That is the erasure this route exists to perform.
-	if rs.StudentDocumentService != nil {
-		if err := rs.StudentDocumentService.QueueCleanupForAllDocuments(ctx, student.ID); err != nil {
-			return err
-		}
-	}
-
-	if err := rs.StudentService.Delete(ctx, student.ID); err != nil {
-		return err
-	}
-
-	if err := rs.PersonService.Delete(ctx, student.PersonID); err != nil {
-		return err
-	}
-
-	rs.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, photoToRemove)
-
-	// After the OUTER tx commits, like every other companion broadcast: a
-	// subscriber woken earlier would refetch the still-present row.
-	if len(companionIDs) > 0 {
-		studentID := student.ID
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.broadcastStudentCompanionsChanged(tenantID, studentID)
-		})
-	}
-	return nil
-}
-
-// deleteStudentTxErrorRenderer maps the deleteStudentTx transaction error to
-// the wire response. The caller has requested the rollback (tenant.MarkRollback),
-// so nothing this transaction touched is committed.
-func deleteStudentTxErrorRenderer(err error) render.Renderer {
-	switch {
-	// The child graduated while this request was in flight. Answered with the
-	// same 404 the shared alumnus gate returns, so a delete never depends on
-	// which of the two transactions won the race.
-	case errors.Is(err, errStudentGraduatedUnderLock):
-		return common.ErrorNotFound(errors.New("student not found"))
-	// A linked child would be stranded (accompanied plan, no note, no other
-	// link). The German sentinel text tells the user which precondition to
-	// fix first.
-	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
+// purgeGraduatedStudentErrorRenderer maps the purge workflow error to the wire
+// response. It reuses the ordinary delete's classification and adds the one
+// purge-specific case: the child was restored between the Abgänge list and
+// the locked re-read, so the list is stale rather than the request malformed.
+func purgeGraduatedStudentErrorRenderer(err error) render.Renderer {
+	if errors.Is(err, studentdeletion.ErrNotGraduated) {
 		return common.ErrorConflictMessage(err.Error())
-	// A linked child was locked by a concurrent edit this transaction could not
-	// safely wait for. Retriable, so it must not read as a server error.
-	case errors.Is(err, userService.ErrCompanionLockBusy):
-		return common.ErrorConflictMessage(err.Error())
-	case common.IsConstraintViolation(err):
-		return common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten")
-	default:
-		return common.ErrorInternalServer(err)
 	}
+	return studentDeletionErrorRenderer(err)
 }
 
 var studentDeletionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: userService.ErrStudentDeletionPreviewChanged, Render: func(err error) render.Renderer {
+	// The child graduated while this request was in flight. Answered with the
+	// same 404 the shared alumnus gate returns, so a delete never depends on
+	// which of the two transactions won the race.
+	{Target: studentdeletion.ErrGraduatedUnderLock, Render: func(error) render.Renderer {
+		return common.ErrorNotFound(errors.New("student not found"))
+	}},
+	{Target: studentdeletion.ErrStudentNotFound, Render: func(error) render.Renderer {
+		return common.ErrorNotFound(errors.New("student not found"))
+	}},
+	{Target: studentdeletion.ErrUnauthorized, Render: func(err error) render.Renderer {
+		return common.ErrorForbidden(err)
+	}},
+	{Target: studentdeletion.ErrPreviewChanged, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeStudentDeletionPreviewChanged)
 	}},
-	{Target: userService.ErrStudentDeletionConfirmationMismatch, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrConfirmationMismatch, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionConfirmationMismatch)
 	}},
-	{Target: userService.ErrStudentDeletionNotAcknowledged, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrNotAcknowledged, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionAcknowledgement)
 	}},
-	{Target: userService.ErrStudentDeletionInvalidReason, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrInvalidReason, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionInvalidReason)
 	}},
-	{Target: userService.ErrStudentDeletionAlumnus, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrAlumnus, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeStudentDeletionAlumnus)
 	}},
-	{Target: userService.ErrStudentDeletionRetentionNotEnded, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrRetentionNotEnded, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, errCodeStudentDeletionRetentionNotEnded)
 	}},
-	{Target: userService.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrCompanionWouldLoseDeparture, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionBlocked)
 	}},
-	{Target: userService.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
+	{Target: studentdeletion.ErrCompanionLockBusy, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, errCodeStudentDeletionCompanionLockBusy)
+	}},
+	{Target: studentdeletion.ErrWithdrawalNotFound, Render: func(err error) render.Renderer {
+		return common.ErrorNotFoundWithCode(err, errCodeCareWithdrawalNotFound)
+	}},
+	{Target: studentdeletion.ErrWithdrawalAlreadyResolved, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, errCodeCareWithdrawalAlreadyResolved)
 	}},
 	{Match: common.IsConstraintViolation, Render: func(error) render.Renderer {
 		return common.ErrorConflictWithCode(

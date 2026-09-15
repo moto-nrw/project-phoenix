@@ -20,6 +20,7 @@ type Store interface {
 	LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*string, domain.OperationStats, error)
 	CloseOpenStudentAssignments(ctx context.Context, studentIDs []int64, at time.Time) (int64, domain.OperationStats, error)
 	CountStudentAssignments(context.Context, int64) (int, domain.OperationStats, error)
+	CountStudentRosterRemovals(context.Context, int64) (int, domain.OperationStats, error)
 	DeleteStudentAssignments(context.Context, int64) (domain.OperationStats, error)
 	LockPlannedRosterForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
 	RemovePlannedRosterForCareExit(context.Context, []int64, string) ([]domain.CareExitRosterRow, domain.OperationStats, error)

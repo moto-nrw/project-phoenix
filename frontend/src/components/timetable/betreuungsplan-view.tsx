@@ -1421,6 +1421,22 @@ function TimetablesContent() {
         onLifecycleAction={handleLifecycle}
         canManage={canManageSchedules}
         fetchParticipantNames={!canReadTenantRosters}
+        seriesRosterMaintenance={
+          selectedInstance?.activityGroupId
+            ? templates.find(
+                (template) =>
+                  template.id === selectedInstance.activityGroupId &&
+                  resolveTemplateCalendarPeriodId(template) ===
+                    selectedInstance.calendarPeriodId,
+              )?.rosterMaintenance
+            : undefined
+        }
+        seriesPeriodId={
+          selectedInstance
+            ? (selectedInstance.calendarPeriodId ??
+              findPeriodForDate(calendarPeriods, selectedInstance.date)?.id)
+            : undefined
+        }
         onDeleteCancelled={
           canManageSchedules ? handleDeleteCancelledInstance : undefined
         }

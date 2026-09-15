@@ -7,46 +7,65 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type failingAbsenceEmailSettings struct{}
 
-func (failingAbsenceEmailSettings) ResolveBool(context.Context, string) (bool, error) {
+// absenceEmailStaffStub drives the absence email directory directly in the
+// service's own contact vocabulary. Unset hooks return nothing, so a test only
+// scripts the lookup it exercises and an unexpected call surfaces as a missing
+// recipient rather than a panic.
+type absenceEmailStaffStub struct {
+	ContactFn   func(ctx context.Context, staffID int64) (*AbsenceEmailContact, error)
+	ApproversFn func(ctx context.Context) ([]*AbsenceEmailContact, error)
+}
+
+func (d *absenceEmailStaffStub) GetStaffContactInfo(ctx context.Context, id int64) (*AbsenceEmailContact, error) {
+	if d.ContactFn == nil {
+		return nil, nil
+	}
+	return d.ContactFn(ctx, id)
+}
+
+func (d *absenceEmailStaffStub) ListAbsenceApprovers(ctx context.Context) ([]*AbsenceEmailContact, error) {
+	if d.ApproversFn == nil {
+		return nil, nil
+	}
+	return d.ApproversFn(ctx)
+}
+
+func (failingAbsenceEmailSettings) AbsenceApprovalEmailEnabled(context.Context) (bool, error) {
 	return false, errors.New("settings unavailable")
 }
 
 type absenceEmailSchoolFinderStub struct {
-	school *platformModels.School
-	err    error
+	subdomain string
+	found     bool
+	err       error
 }
 
-func (s absenceEmailSchoolFinderStub) FindByID(context.Context, int64) (*platformModels.School, error) {
-	return s.school, s.err
+func (s absenceEmailSchoolFinderStub) FindSchoolSubdomain(context.Context, int64) (string, bool, error) {
+	return s.subdomain, s.found, s.err
 }
 
 func newAbsenceNotificationTestService(
 	t *testing.T,
 	settings absenceEmailSettingResolver,
-	staffRepo *testpkg.StaffRepoMock,
-) (*staffAbsenceService, *testpkg.CapturingMailer) {
+	staffRepo *absenceEmailStaffStub,
+) (*staffAbsenceService, *capturingAbsenceEmails) {
 	t.Helper()
-	mailer := testpkg.NewCapturingMailer()
+	mailer := newCapturingAbsenceEmails()
 	svc := &staffAbsenceService{}
 	svc.SetAbsenceEmailDeps(AbsenceEmailDeps{
 		Settings:    settings,
-		Dispatcher:  email.NewDispatcher(mailer, slog.Default()),
+		Dispatcher:  mailer,
 		StaffRepo:   staffRepo,
-		SchoolRepo:  absenceEmailSchoolFinderStub{school: &platformModels.School{Subdomain: "tenant"}},
-		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
+		SchoolRepo:  absenceEmailSchoolFinderStub{subdomain: "tenant", found: true},
 		FrontendURL: "http://localhost:3000",
 	})
 	return svc, mailer
@@ -105,7 +124,7 @@ func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *te
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
 	svc.emailDeps = &AbsenceEmailDeps{
-		Dispatcher: email.NewDispatcher(testpkg.NewCapturingMailer(), slog.Default()),
+		Dispatcher: newCapturingAbsenceEmails(),
 	}
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
@@ -113,9 +132,9 @@ func TestAbsenceEmailsEnabled_RequiresDependenciesAndHandlesSettingFailure(t *te
 	assert.False(t, svc.absenceEmailsEnabled(ctx))
 
 	svc.emailDeps.Settings = absSettingsMock{enabled: true}
-	svc.emailDeps.StaffRepo = &testpkg.StaffRepoMock{}
+	svc.emailDeps.StaffRepo = &absenceEmailStaffStub{}
 	svc.emailDeps.SchoolRepo = absenceEmailSchoolFinderStub{
-		school: &platformModels.School{Subdomain: "tenant"},
+		subdomain: "tenant", found: true,
 	}
 	assert.True(t, svc.absenceEmailsEnabled(ctx))
 }
@@ -187,34 +206,34 @@ func TestNotifyAbsenceRequested_StopsOnLookupFailuresOrMissingApprovers(t *testi
 
 	tests := []struct {
 		name      string
-		staffRepo *testpkg.StaffRepoMock
+		staffRepo *absenceEmailStaffStub
 	}{
 		{
 			name: "requester lookup fails",
-			staffRepo: &testpkg.StaffRepoMock{
-				GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
+			staffRepo: &absenceEmailStaffStub{
+				ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
 					return nil, errors.New("requester unavailable")
 				},
 			},
 		},
 		{
 			name: "approver lookup fails",
-			staffRepo: &testpkg.StaffRepoMock{
-				GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
-					return &usersModels.StaffWithRoleInfo{FirstName: "Mila", LastName: "Muster"}, nil
+			staffRepo: &absenceEmailStaffStub{
+				ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
+					return &AbsenceEmailContact{FirstName: "Mila", LastName: "Muster"}, nil
 				},
-				ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
+				ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
 					return nil, errors.New("approvers unavailable")
 				},
 			},
 		},
 		{
 			name: "no approvers found",
-			staffRepo: &testpkg.StaffRepoMock{
-				GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
-					return &usersModels.StaffWithRoleInfo{FirstName: "Mila", LastName: "Muster"}, nil
+			staffRepo: &absenceEmailStaffStub{
+				ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
+					return &AbsenceEmailContact{FirstName: "Mila", LastName: "Muster"}, nil
 				},
-				ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
+				ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
 					return nil, nil
 				},
 			},
@@ -239,16 +258,16 @@ func TestNotifyAbsenceRequested_StopsOnLookupFailuresOrMissingApprovers(t *testi
 func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 	t.Parallel()
 
-	staffRepo := &testpkg.StaffRepoMock{
-		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
-			return &usersModels.StaffWithRoleInfo{
+	staffRepo := &absenceEmailStaffStub{
+		ContactFn: func(_ context.Context, staffID int64) (*AbsenceEmailContact, error) {
+			return &AbsenceEmailContact{
 				StaffID:   staffID,
 				FirstName: "Mila",
 				LastName:  "Muster",
 			}, nil
 		},
-		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
-			return []*usersModels.StaffWithRoleInfo{
+		ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
+			return []*AbsenceEmailContact{
 				{StaffID: int64(42), FirstName: "Mila", LastName: "Muster", Email: "mila@example.test"},
 				{StaffID: int64(43), FirstName: "Ohne", LastName: "Adresse"},
 				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
@@ -270,27 +289,26 @@ func TestNotifyAbsenceRequested_SkipsSelfAndMissingEmail(t *testing.T) {
 	messages := mailer.Messages()
 	require.Len(t, messages, 1)
 	assert.Equal(t, "lena@example.test", messages[0].To.Address)
-	content, ok := messages[0].Content.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "Krankmeldung", content["AbsenceTypeLabel"])
-	assert.Equal(t, "05.07.2027", content["DateRange"])
-	assert.Equal(t, "", content["PreviousQuestion"])
-	assert.Equal(t, "http://tenant.localhost:3000/staff", content["LinkURL"])
+	content := messages[0].Content
+	assert.Equal(t, "Krankmeldung", content.AbsenceTypeLabel)
+	assert.Equal(t, "05.07.2027", content.DateRange)
+	assert.Equal(t, "", content.PreviousQuestion)
+	assert.Equal(t, "http://tenant.localhost:3000/staff", content.LinkURL)
 }
 
 func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
 	t.Parallel()
 
-	staffRepo := &testpkg.StaffRepoMock{
-		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
-			return &usersModels.StaffWithRoleInfo{
+	staffRepo := &absenceEmailStaffStub{
+		ContactFn: func(_ context.Context, staffID int64) (*AbsenceEmailContact, error) {
+			return &AbsenceEmailContact{
 				StaffID:   staffID,
 				FirstName: "Mila",
 				LastName:  "Muster",
 			}, nil
 		},
-		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
-			return []*usersModels.StaffWithRoleInfo{
+		ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
+			return []*AbsenceEmailContact{
 				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
 			}, nil
 		},
@@ -310,25 +328,24 @@ func TestNotifyAbsenceRequested_IncludesResubmissionContext(t *testing.T) {
 	messages := mailer.Messages()
 	require.Len(t, messages, 1)
 	assert.Equal(t, "Abwesenheitsantrag erneut eingereicht von Mila Muster", messages[0].Subject)
-	content, ok := messages[0].Content.(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "Vertretung ist geklärt", content["Note"])
-	assert.Equal(t, "Wer übernimmt die Frühschicht?", content["PreviousQuestion"])
+	content := messages[0].Content
+	assert.Equal(t, "Vertretung ist geklärt", content.Note)
+	assert.Equal(t, "Wer übernimmt die Frühschicht?", content.PreviousQuestion)
 }
 
 func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
 	t.Parallel()
 
-	staffRepo := &testpkg.StaffRepoMock{
-		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
-			return &usersModels.StaffWithRoleInfo{
+	staffRepo := &absenceEmailStaffStub{
+		ContactFn: func(_ context.Context, staffID int64) (*AbsenceEmailContact, error) {
+			return &AbsenceEmailContact{
 				StaffID:   staffID,
 				FirstName: "Mila",
 				LastName:  "Muster",
 			}, nil
 		},
-		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
-			return []*usersModels.StaffWithRoleInfo{
+		ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
+			return []*AbsenceEmailContact{
 				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
 			}, nil
 		},
@@ -346,16 +363,16 @@ func TestNotifyAbsenceRequested_DispatchesOnlyAfterCommit(t *testing.T) {
 func TestNotifyAbsenceRequested_DropsDispatchOnRollback(t *testing.T) {
 	t.Parallel()
 
-	staffRepo := &testpkg.StaffRepoMock{
-		GetStaffContactInfoFn: func(_ context.Context, staffID int64) (*usersModels.StaffWithRoleInfo, error) {
-			return &usersModels.StaffWithRoleInfo{
+	staffRepo := &absenceEmailStaffStub{
+		ContactFn: func(_ context.Context, staffID int64) (*AbsenceEmailContact, error) {
+			return &AbsenceEmailContact{
 				StaffID:   staffID,
 				FirstName: "Mila",
 				LastName:  "Muster",
 			}, nil
 		},
-		ListStaffWithPermissionFn: func(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
-			return []*usersModels.StaffWithRoleInfo{
+		ApproversFn: func(context.Context) ([]*AbsenceEmailContact, error) {
+			return []*AbsenceEmailContact{
 				{StaffID: int64(44), FirstName: "Lena", LastName: "Leitung", Email: "lena@example.test"},
 			}, nil
 		},
@@ -373,8 +390,8 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 	t.Parallel()
 
 	t.Run("ignores unrelated status", func(t *testing.T) {
-		staffRepo := &testpkg.StaffRepoMock{
-			GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
+		staffRepo := &absenceEmailStaffStub{
+			ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
 				t.Fatal("unrelated status must not load the requester")
 				return nil, nil
 			},
@@ -387,8 +404,8 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 	})
 
 	t.Run("requester lookup fails", func(t *testing.T) {
-		staffRepo := &testpkg.StaffRepoMock{
-			GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
+		staffRepo := &absenceEmailStaffStub{
+			ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
 				return nil, errors.New("requester unavailable")
 			},
 		}
@@ -400,9 +417,9 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 	})
 
 	t.Run("requester has no email", func(t *testing.T) {
-		staffRepo := &testpkg.StaffRepoMock{
-			GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
-				return &usersModels.StaffWithRoleInfo{FirstName: "Mila", LastName: "Muster"}, nil
+		staffRepo := &absenceEmailStaffStub{
+			ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
+				return &AbsenceEmailContact{FirstName: "Mila", LastName: "Muster"}, nil
 			},
 		}
 		svc, mailer := newAbsenceNotificationTestService(t, absSettingsMock{enabled: true}, staffRepo)
@@ -429,9 +446,9 @@ func TestNotifyAbsenceDecision_CoversStatusesAndRecipientFailures(t *testing.T) 
 		},
 	} {
 		t.Run(tt.status, func(t *testing.T) {
-			staffRepo := &testpkg.StaffRepoMock{
-				GetStaffContactInfoFn: func(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
-					return &usersModels.StaffWithRoleInfo{
+			staffRepo := &absenceEmailStaffStub{
+				ContactFn: func(context.Context, int64) (*AbsenceEmailContact, error) {
+					return &AbsenceEmailContact{
 						FirstName: "Mila",
 						LastName:  "Muster",
 						Email:     "mila@example.test",

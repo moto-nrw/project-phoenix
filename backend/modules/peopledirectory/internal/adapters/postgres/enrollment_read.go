@@ -130,6 +130,9 @@ func (s *StudentStore) ReadEnrollment(ctx context.Context, id int64, lock string
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.EnrollmentRecord{}, stats, domain.ErrStudentNotFound
 	}
+	if isLockNotAvailable(err) {
+		return domain.EnrollmentRecord{}, stats, fmt.Errorf("%w: %w", domain.ErrStudentLockBusy, err)
+	}
 	if err != nil {
 		return domain.EnrollmentRecord{}, stats, fmt.Errorf("people directory postgres: read enrollment student: %w", err)
 	}

@@ -71,6 +71,49 @@ func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 	testpkg.AssertQueryBudget(t, "services.enrollment.offering_source_options.reads", large)
 }
 
+func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.Ctx(t)
+	period := offeringSourcePeriod(t, env)
+	source := createSourceOffering(t, env, "Teilnehmerpflege Budget", nil)
+	lister := env.decision.(enrollmentService.OfferingSourceOptionLister)
+	queries := make([]enrollmentService.TemplateRosterFeedQuery, 0, 8)
+	addTemplates := func(count int) {
+		for range count {
+			template := createSourcedTemplate(t, env, "Teilnehmerpflege Budget", source.ID, nil, period)
+			queries = append(queries, enrollmentService.TemplateRosterFeedQuery{
+				TemplateID:            template.ID,
+				CalendarPeriodID:      &period.ID,
+				SourceCareOfferingIDs: []int64{source.ID},
+			})
+		}
+	}
+	counter := testpkg.CaptureQueries(t, env.db)
+	run := func() []string {
+		var reads []string
+		err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			counter.Reset()
+			_, err := lister.TemplateRosterMaintenanceFeeds(txCtx, queries)
+			reads = counter.Operation("SELECT")
+			return err
+		})
+		require.NoError(t, err)
+		return reads
+	}
+
+	addTemplates(3)
+	small := run()
+	addTemplates(5)
+	large := run()
+
+	t.Logf("query budget: 3 templates → %d reads, 8 templates → %d reads", len(small), len(large))
+	assert.Equal(t, len(small), len(large))
+	testpkg.AssertQueryBudget(t, "services.enrollment.template_roster_maintenance_feeds.reads", large)
+}
+
 func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

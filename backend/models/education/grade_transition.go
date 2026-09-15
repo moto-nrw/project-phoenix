@@ -239,11 +239,6 @@ type GradeTransitionRepository interface {
 	// after graduation. It is the ONE student read without the alumnus filter,
 	// because listing graduates is exactly its purpose.
 	FindStudentStatesByIDs(ctx context.Context, studentIDs []int64) (map[int64]string, error)
-	// AnonymizeHistoryForStudent replaces the denormalized name and clears the
-	// RFID snapshot on the student's ledger rows. Those values carry no foreign
-	// key and outlive both the student and the person row, so without this the
-	// "endgültig löschen" would leave identifying data in the database.
-	AnonymizeHistoryForStudent(ctx context.Context, studentID int64) error
 	// PersonIDsByStudentIDs maps each given student id to its person id. The
 	// tag commands below run against the persons through the People
 	// Directory (#2661); this is the student-side half of that seam.

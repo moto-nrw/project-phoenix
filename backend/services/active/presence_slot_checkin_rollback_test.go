@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -65,7 +67,7 @@ func testSlotCheckInRollback(t *testing.T, batch bool) {
 	now := day.BerlinMidnight().Add(12 * time.Hour)
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer, func() time.Time { return now })
 	testpkg.SetTenantRuntime(t, svc, db)
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) { return "binary", nil }})
+	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) { return "binary", nil }}))
 	staff := testpkg.CreateTestStaff(t, db, "SlotCheckIn", "Staff")
 	room := testpkg.CreateTestRoom(t, db, "SlotCheckInRoom")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{StartHHMM: "00:00", EndHHMM: "23:59"})

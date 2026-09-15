@@ -25,6 +25,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -368,7 +370,7 @@ func TestInstance_Start_HappyPath(t *testing.T) {
 	assert.True(t, group.IsActive(), "bridge active.group should still be open")
 
 	// Supervisor row copied from instance_staff.
-	sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+	sups, err := s.presence.QueryGroupSupervisions(s.ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{result.ActiveGroupID}, ActiveOn: new(timezone.TodayDate().String())})
 	require.NoError(t, err)
 	assert.Len(t, sups, 1)
 	assert.Equal(t, s.staffID, sups[0].StaffID)
@@ -414,7 +416,7 @@ func TestInstance_Start_BroadcastsActiveSupervisionChanged(t *testing.T) {
 	assert.Equal(t, "instance_started", *activeSupervisionChanged.Data.Reason)
 
 	t.Cleanup(func() {
-		_, _ = s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+		_, _ = s.presence.QueryGroupSupervisions(s.ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{result.ActiveGroupID}, ActiveOn: new(timezone.TodayDate().String())})
 	})
 }
 
@@ -429,7 +431,7 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	result, err := svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+		_, _ = s.presence.QueryGroupSupervisions(s.ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{result.ActiveGroupID}, ActiveOn: new(timezone.TodayDate().String())})
 	})
 
 	groupCalls := broadcaster.CallsByMethod("group")
@@ -849,7 +851,9 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
 	require.NoError(t, err)
 	assert.NotNil(t, group.EndTime)
-	visits, err := s.factory.Active.FindVisitsByActiveGroupID(s.ctx, started.ActiveGroupID)
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: s.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	visits, err := presence.ListVisits(s.ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{started.ActiveGroupID}})
 	require.NoError(t, err)
 	require.Len(t, visits, 1)
 	assert.Equal(t, visit.ID, visits[0].ID)
@@ -861,7 +865,7 @@ func testReopenWriteRollback(t *testing.T, stage string) {
 	assert.Equal(t, scheduleModels.InstanceStatusActive, reopened.Instance.Status)
 	_, err = s.svc.Reopen(s.ctx, ai.ID, 0, true)
 	require.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
-	visits, err = s.factory.Active.FindVisitsByActiveGroupID(s.ctx, started.ActiveGroupID)
+	visits, err = presence.ListVisits(s.ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{started.ActiveGroupID}})
 	require.NoError(t, err)
 	require.Len(t, visits, 1)
 	assert.Equal(t, visit.ID, visits[0].ID)
@@ -1110,7 +1114,9 @@ func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
 	assert.Nil(t, cancelled.ActiveGroupID, "cancel-from-planned must not create a bridge")
 
 	// Sanity: no active.group rows for this room.
-	groups, err := s.factory.Active.FindActiveGroupsByRoomID(s.ctx, s.roomID)
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: s.db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	groups, err := presence.QueryLiveGroups(s.ctx, studentpresence.LiveGroupFilter{RoomID: &s.roomID, OpenOnly: true})
 	require.NoError(t, err)
 	assert.Empty(t, groups, "planned→cancelled must not create active.group")
 }
@@ -1241,7 +1247,7 @@ func TestInstance_Start_SkipsAbsentStaff(t *testing.T) {
 	result, err := s.svc.Start(s.ctx, ai.ID, 0)
 	require.NoError(t, err)
 
-	sups, err := s.factory.Active.FindSupervisorsByActiveGroupID(s.ctx, result.ActiveGroupID)
+	sups, err := s.presence.QueryGroupSupervisions(s.ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{result.ActiveGroupID}, ActiveOn: new(timezone.TodayDate().String())})
 	require.NoError(t, err)
 	require.Len(t, sups, 1, "only the non-absent staff should become a supervisor")
 	assert.Equal(t, s.staffID, sups[0].StaffID)
@@ -2315,7 +2321,6 @@ func TestDetectStartConflicts_EmptyInstance_NoWarnings(t *testing.T) {
 	repoFactory := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
 	warnings, err := scheduleSvc.DetectStartConflicts(s.ctx, scheduleSvc.ConflictDependencies{
 		GroupRepo:         repoFactory.ActiveGroup,
-		SupervisorRepo:    repoFactory.GroupSupervisor,
 		Presence:          s.presence,
 		InstanceRepo:      repoFactory.ActivityInstance,
 		InstanceStaffRepo: repoFactory.InstanceStaff,

@@ -30,7 +30,7 @@ import (
 // broadcast is a non-blocking channel send and clients debounce a burst into a
 // single refetch, so deduplicating here would add bookkeeping for no measurable
 // gain.
-func QueueGroupAccessChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger, source string) {
+func QueueGroupAccessChanged(ctx context.Context, broadcaster Publisher, logger *slog.Logger, source string) {
 	if broadcaster == nil {
 		return
 	}

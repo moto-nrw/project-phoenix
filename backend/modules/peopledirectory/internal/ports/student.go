@@ -40,4 +40,13 @@ type StudentStore interface {
 	// Reactivate moves alumni back to status and returns the ids it changed.
 	Reactivate(ctx context.Context, ids []int64, status string) ([]int64, domain.OperationStats, error)
 	ClearStatusFlags(ctx context.Context, ids []int64, status string) (int64, domain.OperationStats, error)
+	// CountGuardianLinks counts the current (students_guardians) and legacy
+	// (persons_guardians) links a permanent deletion removes.
+	CountGuardianLinks(ctx context.Context, studentID, personID int64) (int, domain.OperationStats, error)
+	// DeleteLegacyGuardianLinks removes the person-based guardian links that
+	// do not cascade from the student row.
+	DeleteLegacyGuardianLinks(ctx context.Context, personID int64) (int64, domain.OperationStats, error)
+	// Delete hard-deletes the student row; dependent rows cascade or unlink
+	// per their foreign keys. Returns the number of deleted rows (0 or 1).
+	Delete(ctx context.Context, id int64) (int64, domain.OperationStats, error)
 }

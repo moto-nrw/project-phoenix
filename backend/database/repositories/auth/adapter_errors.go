@@ -19,3 +19,10 @@ func DatabaseError(op string, err error) error {
 func IsNotFound(err error) bool {
 	return errors.Is(err, modelBase.ErrNotFound)
 }
+
+// NotFoundError wraps a missing-row outcome of the Identity & Access owner in
+// the retained repository error contract: a DatabaseError whose cause
+// satisfies modelBase.IsNoRows, as TranslateNotFound produced it.
+func NotFoundError(op string, err error) error {
+	return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, err)}
+}

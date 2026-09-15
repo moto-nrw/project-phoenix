@@ -5,8 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -31,7 +29,7 @@ type StudentHistoryService interface {
 	// ended) entered within the inclusive time range.
 	GetVisitsByStudentAndTimeRange(ctx context.Context, studentID int64, start, end time.Time) ([]*VisitHistoryEntry, error)
 
-	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
+	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*HistorySlot, error)
 
 	// HasPlannedSlotsInRange reports whether the tenant has any planned
 	// (non-walk-in) slot assignment on a non-cancelled instance within the
@@ -40,7 +38,7 @@ type StudentHistoryService interface {
 	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
 
 	// RecordDataAccess writes a GDPR data-access log entry.
-	RecordDataAccess(ctx context.Context, entry *auditModels.DataAccessLog) error
+	RecordDataAccess(ctx context.Context, entry *DataAccessEvent) error
 }
 
 type AttendanceHistoryReader interface {
@@ -49,6 +47,13 @@ type AttendanceHistoryReader interface {
 }
 
 type HistoryRoomReader func(context.Context, []int64) (map[int64]string, error)
+
+// HistorySlotReader supplies the student's slot history and the tenant-wide
+// signal that planned care is in use. Reads retain the caller's tenant context.
+type HistorySlotReader interface {
+	Slots(context.Context, int64, timezone.Date, timezone.Date) ([]*HistorySlot, error)
+	HasPlannedSlots(context.Context, timezone.Date, timezone.Date) (bool, error)
+}
 
 type VisitHistoryEntry struct {
 	EntryTime time.Time
@@ -60,15 +65,15 @@ type VisitHistoryEntry struct {
 type studentHistoryService struct {
 	presence      AttendanceHistoryReader
 	rooms         HistoryRoomReader
-	accessLogRepo auditModels.DataAccessLogRepository
-	slotRepo      scheduleModels.InstanceStudentRepository
+	accessLogRepo DataAccessAudit
+	slotRepo      HistorySlotReader
 }
 
 // NewStudentHistoryService composes owner attendance reads with visit history,
 // data-access logging, and planned slot attendance.
 // slotRepo may be nil (tests without a timetable), in which case slot
 // attendance reads return empty.
-func NewStudentHistoryService(presence AttendanceHistoryReader, rooms HistoryRoomReader, accessLogRepo auditModels.DataAccessLogRepository, slotRepo scheduleModels.InstanceStudentRepository) StudentHistoryService {
+func NewStudentHistoryService(presence AttendanceHistoryReader, rooms HistoryRoomReader, accessLogRepo DataAccessAudit, slotRepo HistorySlotReader) StudentHistoryService {
 	return &studentHistoryService{
 		presence:      presence,
 		rooms:         rooms,
@@ -77,18 +82,18 @@ func NewStudentHistoryService(presence AttendanceHistoryReader, rooms HistoryRoo
 	}
 }
 
-func (s *studentHistoryService) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*scheduleModels.ScheduledInstanceRow, error) {
+func (s *studentHistoryService) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*HistorySlot, error) {
 	if s.slotRepo == nil {
-		return []*scheduleModels.ScheduledInstanceRow{}, nil
+		return []*HistorySlot{}, nil
 	}
-	return s.slotRepo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModels.Date(startDate), scheduleModels.Date(endDate))
+	return s.slotRepo.Slots(ctx, studentID, startDate, endDate)
 }
 
 func (s *studentHistoryService) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
 	if s.slotRepo == nil {
 		return false, nil
 	}
-	return s.slotRepo.HasPlannedSlotsInRange(ctx, scheduleModels.Date(startDate), scheduleModels.Date(endDate))
+	return s.slotRepo.HasPlannedSlots(ctx, startDate, endDate)
 }
 
 func (s *studentHistoryService) GetAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*studentpresence.Attendance, error) {
@@ -138,7 +143,7 @@ func (s *studentHistoryService) GetVisitsByStudentAndTimeRange(ctx context.Conte
 	return result, nil
 }
 
-func (s *studentHistoryService) RecordDataAccess(ctx context.Context, entry *auditModels.DataAccessLog) error {
+func (s *studentHistoryService) RecordDataAccess(ctx context.Context, entry *DataAccessEvent) error {
 	return s.accessLogRepo.Create(ctx, entry)
 }
 

@@ -2,6 +2,7 @@ package legacy
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -12,6 +13,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -146,6 +148,101 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 			require.Equal(t, "12:00–13:00 · "+fixture.room+"\n"+fixture.staff.Person.LastName+", "+string([]rune(fixture.staff.Person.FirstName)[:1])+".", cell)
 		})
 	}
+
+	// The Dienstplan reads the retained staff schedule overview. Its shift
+	// and staff sources are Workforce adapters composed only by the legacy
+	// repository factory, so those two reads are reconstructed over the
+	// tenant transaction the export runs in while the instance, staff
+	// assignment and room reads stay the real retained sources. The proof
+	// is about the tables: the sheet lists only the tenant's own staff
+	// member, with their own shift and block, and nothing of the other
+	// school.
+	for _, fixture := range fixtures {
+		t.Run("dienstplan-"+fixture.title, func(t *testing.T) {
+			renderer := &captureRenderer{}
+			params, err := planexport.ParseParams(monday.String(), monday.AddDays(4).String(), string(planexport.TemplateByPerson), "", "")
+			require.NoError(t, err)
+			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
+				reads := txOverviewReads{tx: tx}
+				service := New(Sources{
+					Overview: scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
+						Shifts:        reads,
+						Instances:     scheduleRepo.NewActivityInstanceRepository(db),
+						InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),
+						Rooms:         facadeRooms{facade: rooms},
+						Staff:         reads,
+					}),
+					Renderer: renderer,
+				})
+				_, err := service.ExportDienstplan(txCtx, params)
+				return err
+			}))
+			require.Len(t, renderer.doc.Rows, 1, "exactly the tenant's own staff member is printed")
+			row := renderer.doc.Rows[0]
+			require.Equal(t, fixture.staff.Person.LastName+", "+fixture.staff.Person.FirstName, listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]))
+			cell := listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanMonday])
+			require.Contains(t, cell, "08:00–16:00", "the tenant's own shift is printed")
+			require.Contains(t, cell, fixture.title, "the tenant's own block is printed under the shift")
+			for _, other := range fixtures {
+				if other.tenantID == fixture.tenantID {
+					continue
+				}
+				require.NotContains(t, cell, other.title, "the other school's block leaks into the Dienstplan")
+				require.NotContains(t, cell, other.room, "the other school's room leaks into the Dienstplan")
+				require.Equal(t, 1, strings.Count(cell, "08:00–16:00"), "the other school's shift leaks into the Dienstplan")
+			}
+		})
+	}
+}
+
+// txOverviewReads serves the overview's shift and staff reads from the
+// tenant transaction under test, in the shape the retained Workforce-backed
+// repositories return them.
+type txOverviewReads struct {
+	tx bun.IDB
+}
+
+func (r txOverviewReads) FindByDateRange(ctx context.Context, start, end scheduleModel.Date) ([]*scheduleModel.StaffShift, error) {
+	var rows []*scheduleModel.StaffShift
+	err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`schedule.staff_shifts AS "staff_shift"`).
+		Where(`"staff_shift".date BETWEEN ? AND ?`, start, end).
+		Order("date", "staff_id", "start_time").Scan(ctx)
+	return rows, err
+}
+
+func (r txOverviewReads) FindUsedCalendarWeeks(context.Context, scheduleModel.Date, scheduleModel.Date) ([]scheduleModel.Date, error) {
+	return nil, nil
+}
+
+func (r txOverviewReads) ListAllWithPerson(ctx context.Context) ([]*usersModel.Staff, error) {
+	var rows []*usersModel.Staff
+	if err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`users.staff AS "staff"`).Scan(ctx); err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		person := &usersModel.Person{}
+		if err := r.tx.NewSelect().Model(person).ModelTableExpr(`users.persons AS "person"`).Where(`"person".id = ?`, row.PersonID).Scan(ctx); err != nil {
+			return nil, err
+		}
+		row.Person = person
+	}
+	return rows, nil
+}
+
+func (r txOverviewReads) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error) {
+	rows, err := r.ListAllWithPerson(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]*usersModel.Staff, len(ids))
+	for _, row := range rows {
+		for _, id := range ids {
+			if row.ID == id {
+				out[id] = row
+			}
+		}
+	}
+	return out, nil
 }
 
 // The adapter over the real instance repository honours the widened week:

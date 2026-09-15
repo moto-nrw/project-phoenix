@@ -16,8 +16,8 @@ import (
 // their interfaces; the person columns are resolved through the owner query
 // afterwards and the tag writes go through the owner command.
 func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
-	if f.CrossTenant != nil {
-		f.CrossTenant = personCrossTenantRepository{CrossTenantRepository: f.CrossTenant, persons: persons}
+	if projection, ok := f.CrossTenant.(*visitorProjection); ok {
+		projection.persons = persons
 	}
 	if f.GroupSupervisor != nil {
 		f.GroupSupervisor = personGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, persons: persons}
@@ -30,9 +30,6 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	}
 	if f.ActivitySupervisor != nil {
 		f.ActivitySupervisor = personSupervisorPlannedRepository{SupervisorPlannedRepository: f.ActivitySupervisor, persons: persons}
-	}
-	if f.FileFolder != nil {
-		f.FileFolder = personFolderRepository{FolderRepository: f.FileFolder, persons: persons}
 	}
 	if f.GradeTransition != nil {
 		f.GradeTransition = personGradeTransitionRepository{GradeTransitionRepository: f.GradeTransition, persons: persons}
@@ -81,28 +78,6 @@ func personsByID(ctx context.Context, query peopledirectory.Query, ids []int64) 
 	result := make(map[int64]peopledirectory.Person, len(values))
 	for _, value := range values {
 		result[value.ID] = value
-	}
-	return result, nil
-}
-
-// personsByAccount resolves persons for account ids, keyed by account ID.
-// An account with several persons (staff at more than one school inside an
-// admin transaction) keeps the most recently updated one, matching the
-// DISTINCT ON ordering the legacy joins used.
-func personsByAccount(ctx context.Context, query peopledirectory.Query, accountIDs []int64) (map[int64]peopledirectory.Person, error) {
-	values, err := query.ListPersonsByAccount(ctx, accountIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load persons by account: %w", err)
-	}
-	result := make(map[int64]peopledirectory.Person, len(values))
-	for _, value := range values {
-		if value.AccountID == nil {
-			continue
-		}
-		current, found := result[*value.AccountID]
-		if !found || value.UpdatedAt.After(current.UpdatedAt) {
-			result[*value.AccountID] = value
-		}
 	}
 	return result, nil
 }

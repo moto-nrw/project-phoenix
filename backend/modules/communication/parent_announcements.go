@@ -19,6 +19,9 @@ var (
 	ErrParentAnnouncementNotPoll         = errors.New("announcement: not a poll")
 	ErrParentAnnouncementPollClosed      = errors.New("announcement: poll is not open for answers")
 	ErrCareCancellationDisabled          = errors.New("announcement: cancellation notice is disabled for this school")
+	// ErrParentAnnouncementReminderSent: the scheduled reminder already went
+	// out; its moment and wording can no longer be changed or removed (#3162).
+	ErrParentAnnouncementReminderSent = errors.New("announcement: the reminder has already been sent")
 )
 
 type ParentAnnouncementTargetInput struct {
@@ -41,6 +44,18 @@ type ParentAnnouncementInput struct {
 	Options                 []string
 	DeliveryMode            string
 	EmailAudience           string
+	// Scheduled reminder (#3162): moment and optional wording of the second
+	// delivery. Both nil = no reminder.
+	ReminderAt   *time.Time
+	ReminderText *string
+}
+
+// ParentAnnouncementReminderInput is the one edit a published announcement
+// still accepts (#3162): move, reword or remove (nil ReminderAt) its scheduled
+// reminder, until it has been sent.
+type ParentAnnouncementReminderInput struct {
+	ReminderAt   *time.Time
+	ReminderText *string
 }
 
 type ParentAnnouncement struct {
@@ -63,6 +78,9 @@ type ParentAnnouncement struct {
 	DeliveryMode            string
 	EmailAudience           string
 	SystemKind              *string
+	ReminderAt              *time.Time
+	ReminderText            *string
+	ReminderSentAt          *time.Time
 }
 
 type ParentAnnouncementTarget struct {
@@ -233,6 +251,15 @@ type ParentAnnouncementCapability interface {
 	RemindParentAnnouncement(context.Context, int64) (int, error)
 	ParentAnnouncementLetterStatus(context.Context, int64) (*ParentAnnouncementLetterStatus, error)
 	ResendParentAnnouncementEmails(context.Context, int64) (int, error)
+	// UpdateParentAnnouncementReminder moves, rewords or removes the scheduled
+	// reminder of a published announcement while it is unsent.
+	UpdateParentAnnouncementReminder(context.Context, int64, ParentAnnouncementReminderInput) (*ParentAnnouncement, error)
+	// SendDueParentAnnouncementReminders delivers the current tenant's
+	// reminders that fell due in (notBefore, dueBefore] and reports how many
+	// announcements were reminded. retryFrom retains temporarily suppressed
+	// reminders in the scheduler window. The scheduler owns the window and the
+	// tenant transaction; the capability owns audience and delivery.
+	SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (sent int, retryFrom *time.Time, err error)
 	CareCancellationPublisher
 	ParentAnnouncementAttachmentSupport
 }

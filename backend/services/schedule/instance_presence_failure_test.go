@@ -19,6 +19,50 @@ type failedConflictPresence struct {
 	reads int
 }
 
+type failedReopenSupervisions struct {
+	scheduleSvc.InstancePresence
+	err   error
+	reads int
+}
+
+func (p *failedReopenSupervisions) QueryGroupSupervisions(ctx context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
+	p.reads++
+	if p.err != nil {
+		return []studentpresence.GroupSupervision{{StaffID: filter.StaffIDs[0]}}, p.err
+	}
+	return p.InstancePresence.QueryGroupSupervisions(ctx, filter)
+}
+
+func TestInstanceReopenPreservesCompletedStateOnSupervisionFailure(t *testing.T) {
+	t.Parallel()
+	s := buildLifecycle(t)
+	instance := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, instance.ID, 0)
+	require.NoError(t, err)
+	_, err = s.svc.Complete(s.ctx, instance.ID)
+	require.NoError(t, err)
+	injected := errors.New("staff supervisions unavailable")
+	fault := &failedReopenSupervisions{InstancePresence: s.presence, err: injected}
+	s.presence = fault
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	s.svc = instanceServiceWithBroadcaster(s, broadcaster)
+	result, err := s.svc.Reopen(s.ctx, instance.ID, 0, true)
+	require.ErrorIs(t, err, injected)
+	assert.Nil(t, result)
+	assert.Equal(t, 1, fault.reads)
+	assert.Empty(t, broadcaster.Calls())
+	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusCompleted, stored.Status)
+	group, err := s.factory.Active.GetActiveGroup(s.ctx, started.ActiveGroupID)
+	require.NoError(t, err)
+	assert.NotNil(t, group.EndTime)
+	fault.err = nil
+	result, err = s.svc.Reopen(s.ctx, instance.ID, 0, true)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.InstanceStatusActive, result.Instance.Status)
+}
+
 func (p *failedConflictPresence) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 	p.reads++
 	if p.err != nil {

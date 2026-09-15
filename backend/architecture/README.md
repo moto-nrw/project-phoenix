@@ -62,13 +62,18 @@ Communication retains announcement-access rules, including for attachments.
 Document Rendering produces output without owning its audience or storage;
 rendering alone neither saves a file nor grants access.
 
-This decision does not change runtime write owners or ratchet entries.
-Missing mappings for `documents.files`, `documents.folders`,
-`documents.folder_roles`, `documents.folder_accounts`, and
-`documents.file_cleanup` remain migration work in #2707. Existing announcement
-attachment and cleanup ownership stays unchanged. `target.svg` is generated
-from the unchanged policy and shows File Storage as domain and Document
-Rendering as platform; do not commit the generated diagram.
+#2707 registers `documents.files`, `documents.folders`,
+`documents.folder_roles` and `documents.folder_accounts` under `file-storage`
+through the ADR 0015 adoption path (policy epoch 6 to 7); the announcement
+attachment and cleanup tables were owned before. `documents.file_cleanup`
+still has no owner: the retained generic document repository reaches it only
+dynamically, so the baseline records no `tables.unclassified` finding to adopt
+it from, and the File Storage composition binds its intent operations to that
+repository as a compatibility permission until the table can be adopted.
+#2710 adopts `users.persons_guardians` under `people-directory` the same way
+(policy epoch 7 to 8); the remaining #2727 tables stay unclassified debt.
+`target.svg` shows File Storage as domain and Document Rendering as platform;
+do not commit the generated diagram.
 
 ## Commands
 
@@ -336,6 +341,41 @@ takes, the Document Rendering renderer and, as compatibility binding, the
 retained `services/statistics`), including their `*.adapter-test.*`
 permissions.
 
+The presence HTTP composition (`modules/studentpresence/inbound/presence`) is
+classified `student-presence`/`http` for the same reason (#3207). It replaced
+`api/active` and serves the visit, check-in, check-out, group, supervision and
+Schulhof routes from the public Student Presence contract and the public
+supervision projection, with unchanged paths, status codes and error strings.
+Its `student-presence.http.inbound-common` and
+`student-presence.http.legacy-shared-domain` rules, the
+`root-composition.to.student-presence-http` mount and every
+`student-presence.adapter-test.*` rule are compatibility permissions, not
+target dependencies: the shared HTTP rendering edge goes when the inbound
+common package moves, the calendar-date edge with the retained
+`internal/timezone` type, and the settings and user-context test edges with the
+fixtures that still name them. Convert them to exact debt with the rule above
+once the package exists at a base SHA.
+
+The import HTTP composition (`modules/dataimport/inbound`, with its runtime
+binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
+owner and its `http` / `compose` roles after replacing `api/import` (#3217).
+It serves the student, staff, class-list and opening-balance preview, import
+and template routes from the public Data Import contract with unchanged paths,
+status codes, error strings, multipart handling, file-size limit and
+permission checks. The `root-composition.to.import-http` mount replaces the
+`api -> api/import` debt entry that fell with the old package; it and the
+`inbound-import.compose.*` rules that bind `api/common`, `auth/jwt`, `tenant`
+and the ORM are compatibility permissions, not target dependencies. Convert
+them to exact debt with the rule above once the package exists at a base SHA.
+
+The settings test support (`services/config/settingstest`, `settings-platform`/
+`test-support`) scripts the payroll and work-schedule settings that presence
+behaviour tests drive through their real services, so those tests name a school's
+configuration instead of registry keys and ORM rows. Its `models/config` import is
+a target dependency of the settings owner; its calendar-date import exists only
+because the settings package still carries the contractual work-schedule rows
+(#3207) and converts to exact debt with them.
+
 The Identity & Access guardian-access capability (`modules/identityaccess`,
 `identity-access`/`public`) is the first just-in-time slice of the late
 Identity & Access migration (#2580 sequencing, #2699): it resolves platform
@@ -376,7 +416,25 @@ at construction, and go with #2751. The foreign `auth.accounts` reads of the
 People Directory, Care Plan parent and CLI packages use owner queries bound
 the same way (`identity_ports.go`): the account lookup and active-account
 subquery of `database/repositories/auth` and the public account fact. The
-legacy `auth.accounts_parents` model, repository and its six
+same owner serves the account refresh sessions behind tenant, parent and
+school login, refresh, tenant switching, logout, session validation and
+revocation (#2720): `auth.tokens` is read and written only through the
+public `AccountSessionAccess` capability. Session statements apply the tenant
+filter the runtime scoped the caller to, so tenant-scoped callers see only
+their school's sessions while the tenantless pre-authentication flows
+resolve every school's rows; the writes join the caller's transaction, which
+for login, refresh, switch and logout is the administrative transaction the
+auth service opens around rotation and its audit evidence. The retained
+`models/auth.TokenRepository` contract is a compatibility adapter in the
+legacy composition (`database/repositories/account_sessions.go`), bound at
+construction, and goes with #2751; the former `database/repositories/auth`
+token repository is deleted. The login, refresh, switch and revocation
+orchestration itself, with its identity-access-owned `auth.accounts` and
+`auth.account_tenants` repositories, stays in `services/auth` under #2720
+until the #2725 re-cut moves those files into the module as a whole, because
+`identity-access/application` may not import the module's public package
+without a ratchet loosening. The legacy
+`auth.accounts_parents` model, repository and its six
 `/auth/parent-accounts` routes stay unchanged; the table has no target owner
 and that conflict stays open under #2720.
 
@@ -442,6 +500,43 @@ the registry default, never a process environment fallback. Before deployment,
 any intended prior environment value must be stored as an explicit per-school
 setting. This integration does not inspect or modify deployed settings.
 
+The student deletion workflow (`workflows/studentdeletion`, owner
+`student-deletion`, kind `workflow`, #2710,
+[ADR 0016](../../docs/adr/0016-student-deletion-is-an-application-workflow.md))
+is the one coordinator of a permanent child deletion: the confirmed deletion
+of an active child, the graduate purge from the Abgänge view and the deletion
+behind a pending care withdrawal. Its public package exposes the preview and
+the commands over the People Directory and Care Plan contracts
+(`student-deletion.to.*`); `compose` binds the remaining owners (Timetable,
+School Structure, Student Presence, Communication, Enrollment, Appointments,
+Feedback, Identity & Access, Audit), the tenant UnitOfWork, the permission
+principal and the realtime broadcaster. Every owner performs its own read and
+mutation: People Directory counts guardian links, hard-deletes the student
+row and anonymizes the person tombstone; Care Plan resolves and redacts
+withdrawal tasks and records the document cleanup intents before the cascade;
+Timetable deletes the child's assignments and counts the archived roster
+removals; School Structure anonymizes the grade-transition ledger; Identity
+counts guardian invitations; Student Presence counts attendance and the
+cross-tenant holiday visits; the Audit command appends the two tombstones.
+The workflow contains no SQL and no repository import. The retained
+`services/users` deletion service, the cross-schema
+`database/repositories/users` deletion repository and the handler-side purge
+transaction of `api/students` are deleted; the legacy composition builds the
+workflow once (`legacy-composition.compose.deletion.*`) and the students HTTP
+adapter calls exactly its public commands. The
+`student-deletion.compose.deletion.timetable-legacy-view.postgres` rule is a
+compatibility binding for the activity-enrollment count, not a target
+dependency: rebind it when the Timetable owner exposes the count publicly.
+The `people-directory.module-behavior-test.deletion.*` permissions bind the
+real composition in the workflow's hermetic tests; they are test-only.
+
+Under ADR 0013 this data-less workflow registration raises the policy epoch
+from 7 to 8 and uses only candidate-created packages. The same epoch adopts
+`users.persons_guardians` into People Directory through the ADR 0015 path:
+its one recorded `tables.unclassified` finding named a package already
+classified under that owner, and the deletion unlinks the legacy guardian rows
+through the owner command. Existing owner/import guards remain unchanged.
+
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
 children with location, reachable adults and the optional health note, from
@@ -473,36 +568,78 @@ The plan export capability (`modules/planexport`, `document-rendering`/`public`,
 through consumer-owned ports declared in the same package; it owns no table
 and never writes. Its compatibility adapter (`modules/planexport/legacy`,
 `document-rendering`/`adapter`) binds those ports to the retained schedule
-services and repositories and maps their rows field by field. Every
-`document-rendering.adapter.*`, `document-rendering.adapter-test.*` and
-`document-rendering.decision-test.*` rule and the
-`legacy-composition.compose.to.document-rendering.*` root edges are
-compatibility permissions that exist only because PR mode cannot record debt
-for a package the candidate creates: convert them to exact debt with the rule
-above once the packages exist at a base SHA, rebind each port to its owner's
-public capability as it appears, and delete the adapter with the last legacy
-source. The retained `services/listexport` renderer keeps its
+services and repositories and maps their rows field by field. The
+temporary permissions for the adapter's legacy imports, its tests, the
+capability's calendar-date test import and the root-composition call into the
+adapter are recorded as exact `imports.forbidden` debt in `legacy.jsonl` under
+#2706. The adapter's own public-capability binding, the public capability's
+calendar-date value type and the tests' imports of the owner's public and
+application packages remain target-allowed. Rebind each legacy port to its
+owner's public capability as it appears, remove each tuple with its import,
+and delete the adapter with the last legacy source. The two-tenant RLS test
+binds the Dienstplan's shift and staff reads to the tenant transaction under
+test, because their retained sources are Workforce adapters composed only by
+the legacy repository factory. The retained `services/listexport` renderer keeps its
 `module-internal-test` seam, so the capability's rendering tests declare the
 `workflow-decision-test` seam and the adapter tests the `adapter-test` seam.
 The `inbound-timetable.to.document-rendering` and
 `workforce.http.document-rendering-public` edges are the target shape (an
 inbound adapter calling the public capability) and stay.
 The same change moves the birthday routes to `modules/birthdays/http`
-(`inbound-birthdays`/`http`, `inbound-birthdays.*` permissions) and the
-document upload coordinator to `modules/filestorage/documents`
-(`file-storage`/`adapter`, `file-storage.adapter.delivery-adapter`), under the
-same conversion rule. The `inbound-filestore.to.file-storage-adapter` and
-`inbound-students.to.file-storage-adapter` bindings are different: their
-source packages existed before the move and imported the old path as debt
-under #2707 and #2731, which PR mode cannot carry over to the new target. They
-are a
+(`inbound-birthdays`/`http`) and the document upload coordinator to
+`modules/filestorage/documents` (`file-storage`/`adapter`). Their
+compatibility bindings, the birthday handlers' retained user-context, birthday
+service and birthday row imports and the coordinator's retained storage
+backend, are exact debt under #2706 as well; the remaining `inbound-birthdays.*`
+permissions are the inbound target shape. The
+`inbound-students.to.file-storage-adapter` binding is different: its source
+package existed before the move and imported the old path as debt under
+#2731, which PR mode cannot carry over to the new target. It is a
 [named exception](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300)
-to rule 5 of `backend/CLAUDE.md`, still tracked by #2707 and #2731; each goes
-when its caller moves to the public File Storage capability, and no new caller
-may rely on them. The generic file-metadata
-repository (`database/repositories/documents`) and model (`models/documents`)
-keep their five `document-rendering` debt entries under #2706: their tables
-belong to File Storage (ADR 0010) and move with #2707.
+to rule 5 of `backend/CLAUDE.md`, still tracked by #2731; it goes when the
+student document handlers move to the public File Storage capability, and no
+new caller may rely on it. The file store handlers' equivalent exception went
+with #2707. The generic file-metadata repository
+(`database/repositories/documents`) and model (`models/documents`) keep their
+five `document-rendering` debt entries under #2706: their tables belong to
+File Storage (ADR 0010); the student and staff document handlers are their
+remaining consumers.
+
+The File Storage capability (`modules/filestorage`, `file-storage`/`public`,
+#2707) owns the school file storage and the attachments of
+Elternmitteilungen: folders with their visibility rule and share lists, the
+files inside them, the storage quota, the audit trail, the intent protocol
+that makes an interrupted upload recoverable, and the sweep the worker runs.
+`internal/application` holds the authority and upload rules,
+`internal/adapters/postgres` serves `documents.folders`,
+`documents.folder_roles`, `documents.folder_accounts`, `documents.files`,
+`documents.announcement_attachments` and
+`documents.announcement_attachment_cleanup` with static table names, and
+`compose` binds the ports: membership, account roles and shareable roles to
+the public Identity & Access capability, the audience picker's names to the
+public People Directory query (both target shape), and, as compatibility
+permissions, the two file settings, the retained Audit file-event contract,
+the shared permission matcher, the retained storage backend and the retained
+generic document repository for the `documents.file_cleanup` intents. The
+folder visibility rule is now owner SQL over the owner's own tables with the
+viewer's membership and role ids supplied by Identity & Access; the former
+foreign reads of `auth.account_tenants`, `auth.account_roles` and
+`auth.roles` are gone. The HTTP adapter (`modules/filestorage/http/files`,
+`inbound-filestore`/`http`) serves the unchanged `/api/files`,
+`/api/announcement-attachments` and `/parent-news-attachments` contracts
+through the public capability only; multipart parsing and magic-byte
+validation stay in the adapter, bytes and intents are the owner's. Every
+`file-storage.compose.*` compatibility permission, the
+`inbound-filestore.*` shared HTTP permissions, the `root-composition.to.*`,
+`legacy-composition.to.*` and `test-support.to.file-storage-public` bindings
+exist only because PR mode cannot record debt for a package the candidate
+creates: convert them to exact debt with the rule above once the packages
+exist at a base SHA, and rebind each port to its owner's public capability as
+it appears. The legacy service factory composes the module because the
+announcement guard and the guardian audience it binds live there; the root
+supplies the uploads backend and the metrics sink. The retired
+`api/filestore`, `services/filestore`, `database/repositories/filestore` and
+`models/filestore` packages are deleted with their 36 baseline entries.
 
 The shared request-review projection (`modules/requestreview`,
 `request-review-view`/`public`, #2705) is the one staff-facing list of every
@@ -801,3 +938,27 @@ all their packages are candidate-created and the policy epoch increases
 [#3130](https://github.com/moto-nrw/project-phoenix/issues/3130)). This does not
 permit adopting existing packages, expanding existing-owner permissions, or
 owning writable data. Those guards are checked independently.
+
+A reviewed epoch may also add owner-agnostic test-infrastructure rules
+([ADR 0014](../../docs/adr/0014-test-roles-may-import-test-infrastructure.md),
+[#3215](https://github.com/moto-nrw/project-phoenix/issues/3215)): a rule with
+no `source_owner`, a test role (`*-test` or `test-support`), and a
+`target_class` of `orm-sql`, `http-router` or `test`. A `*-test` role may not
+carry the production scope under this path. Everything else — owner-specific
+grants, first-party targets, production roles, other external classes — is still
+a loosening. Epoch 6 registered `external.<class>.<role>` for every test role,
+replacing the 65 owner-specific rules they subsume, so a per-owner test-role
+rule for these classes would now overlap and fail to load.
+
+A reviewed epoch may also let a target owner adopt an existing table
+([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),
+[#3235](https://github.com/moto-nrw/project-phoenix/issues/3235)): a new
+`data_objects` entry is accepted when the table has no owner in the base
+policy, the base `legacy.jsonl` records at least one production
+`tables.unclassified` finding for it, and every package those findings name is
+classified under the adopting owner in the candidate or no longer exists. The
+candidate must remove those findings from the baseline as usual. Transferring
+an owned table, adopting a table with no recorded debt, and adopting while a
+package of another owner still accesses it remain loosenings; after the
+adoption the ordinary `tables.foreign-write` and `tables.foreign-read` rules
+apply to every other accessor, and a new finding there cannot become debt.

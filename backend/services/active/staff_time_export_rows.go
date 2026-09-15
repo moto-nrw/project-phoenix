@@ -3,13 +3,19 @@ package active
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
+
+func sortStaffByName(staffMembers []OverviewStaff) {
+	slices.SortStableFunc(staffMembers, func(a, b OverviewStaff) int {
+		return compareExportStaff(TimeExportStaff{ID: a.ID, FirstName: a.FirstName, LastName: a.LastName}, TimeExportStaff{ID: b.ID, FirstName: b.FirstName, LastName: b.LastName})
+	})
+}
 
 // GetMonthExportRows builds the payroll rows for every active staff member
 // (#1417 2b). month == 0 means the whole year (January through the running
@@ -78,7 +84,7 @@ func (s *staffOverviewService) GetMonthExportRows(ctx context.Context, year, mon
 // transformation is splitting the adjustment ledger by type — payout,
 // comp_time and reset are the categories that later map to DATEV Lohnarten,
 // so the file carries them as separate columns.
-func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthExportRow {
+func buildMonthExportRow(staff OverviewStaff, summary *MonthSummary) MonthExportRow {
 	row := MonthExportRow{
 		StaffID:                 summary.StaffID,
 		Year:                    summary.Year,
@@ -123,7 +129,7 @@ func buildMonthExportRow(staff *userModels.Staff, summary *MonthSummary) MonthEx
 	if staff.PersonnelNumber != nil {
 		row.PersonnelNumber = *staff.PersonnelNumber
 	}
-	row.FirstName, row.LastName = staffNames(staff)
+	row.FirstName, row.LastName = staff.FirstName, staff.LastName
 	return row
 }
 
@@ -173,7 +179,7 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 		}
 		// The cross-staff export must use the same school-defined wording as
 		// the single-staff export rather than falling back to "Sonstige".
-		StampAbsenceTypeLabels(ctx, s.absenceTypes, allAbsences)
+		StampAbsenceTypeLabels(ctx, s.absenceTypes, allAbsences, s.getLogger())
 	}
 
 	allSessions := make([]*activeModels.WorkSession, 0)
