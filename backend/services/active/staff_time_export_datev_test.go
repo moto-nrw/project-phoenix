@@ -14,11 +14,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,30 +35,25 @@ var updateDatevGoldens = flag.Bool("update-datev-goldens", false, "rewrite the D
 
 // datevFullConfig configures every category: hours for the pure minute sums
 // and Urlaub, days for Krank and Fortbildung — both unit paths in one file.
-func datevFullConfig() map[string]string {
-	return map[string]string{
-		configModel.KeyPayrollLohnartRegelarbeit:       "100",
-		configModel.KeyPayrollLohnartPlusStunden:       "110",
-		configModel.KeyPayrollLohnartAuszahlung:        "120",
-		configModel.KeyPayrollLohnartFreizeitausgleich: "130",
-		configModel.KeyPayrollLohnartKrank:             "200",
-		configModel.KeyPayrollLohnartUrlaub:            "210",
-		configModel.KeyPayrollLohnartFortbildung:       "220",
-		configModel.KeyPayrollEinheitKrank:             configModel.PayrollUnitDays,
-		configModel.KeyPayrollEinheitUrlaub:            configModel.PayrollUnitHours,
-		configModel.KeyPayrollEinheitFortbildung:       configModel.PayrollUnitDays,
-		configModel.KeyPayrollDatevBeraternummer:       "1234567",
-		configModel.KeyPayrollDatevMandantennummer:     "54321",
+func datevFullConfig() settingstest.Values {
+	return settingstest.Values{
+		LohnartRegelarbeit:       "100",
+		LohnartPlusStunden:       "110",
+		LohnartAuszahlung:        "120",
+		LohnartFreizeitausgleich: "130",
+		LohnartKrank:             "200",
+		LohnartUrlaub:            "210",
+		LohnartFortbildung:       "220",
+		EinheitKrank:             settingstest.UnitDays,
+		EinheitUrlaub:            settingstest.UnitHours,
+		EinheitFortbildung:       settingstest.UnitDays,
+		DatevBeraternummer:       "1234567",
+		DatevMandantennummer:     "54321",
 	}
 }
 
-func (f *overviewFixture) newDatevExportService(values map[string]string) active.StaffTimeExportService {
-	settings := &configtest.Mock{
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			return values[key], nil
-		},
-	}
-	payrollStatus := configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff))
+func (f *overviewFixture) newDatevExportService(values settingstest.Values) active.StaffTimeExportService {
+	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(values), testpkg.PersonnelNumberCounter(f.repos.Staff))
 	return active.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
@@ -263,7 +257,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 
 	// LODAS without Berater-/Mandantennummer → refused; LuG does not need them.
 	config := datevFullConfig()
-	delete(config, configModel.KeyPayrollDatevBeraternummer)
+	config.DatevBeraternummer = ""
 	svc := f.newDatevExportService(config)
 	_, err := svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")
 	require.ErrorIs(t, err, active.ErrPayrollConfigIncomplete)
@@ -271,9 +265,9 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	require.NoError(t, err, "Lohn und Gehalt does not need the LODAS header")
 
 	// No configured category at all → refused for both.
-	svc = f.newDatevExportService(map[string]string{
-		configModel.KeyPayrollDatevBeraternummer:   "1234567",
-		configModel.KeyPayrollDatevMandantennummer: "54321",
+	svc = f.newDatevExportService(settingstest.Values{
+		DatevBeraternummer:   "1234567",
+		DatevMandantennummer: "54321",
 	})
 	_, err = svc.Export(f.ctx, datevRequest(active.ExportFormatDatevLodas), actorID, "admin")
 	require.ErrorIs(t, err, active.ErrPayrollConfigIncomplete)
@@ -281,7 +275,7 @@ func TestDatevExport_RefusesIncompleteConfiguration(t *testing.T) {
 	// A category whose number is set but whose required unit is missing does
 	// not count as configured and exports no line.
 	config = datevFullConfig()
-	delete(config, configModel.KeyPayrollEinheitKrank)
+	config.EinheitKrank = ""
 	svc = f.newDatevExportService(config)
 	report, err := svc.DatevReport(f.ctx, datevRequest(active.ExportFormatDatevLug))
 	require.NoError(t, err)
@@ -329,14 +323,10 @@ func TestDatevExport_NoFileWithoutAudit(t *testing.T) {
 
 	f := newDatevFixture(t)
 	actorID := f.newActorAccount(t)
-	settings := &configtest.Mock{
-		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			return datevFullConfig()[key], nil
-		},
-	}
+	payrollStatus := configSvc.NewPayrollStatusService(settingstest.New(datevFullConfig()), testpkg.PersonnelNumberCounter(f.repos.Staff))
 	svc := active.NewStaffTimeExportService(
 		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{},
-		services.PayrollExportSettings{Source: configSvc.NewPayrollStatusService(settings, testpkg.PersonnelNumberCounter(f.repos.Staff))}, nil,
+		services.PayrollExportSettings{Source: payrollStatus}, nil,
 		services.RenderTimeTrackingWorkbook,
 	)
 

@@ -5,32 +5,19 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
 	"github.com/stretchr/testify/require"
 )
-
-type scheduleTargetRecords struct{ rows []*config.StaffWorkSchedule }
-
-func (r scheduleTargetRecords) FindByStaffIDsValidInRange(context.Context, []int64, config.CalendarDate, config.CalendarDate) ([]*config.StaffWorkSchedule, error) {
-	return r.rows, nil
-}
-func (r scheduleTargetRecords) HasScheduleHistory(context.Context, int64) (bool, error) {
-	return true, nil
-}
-func (r scheduleTargetRecords) FindStaffIDsWithScheduleHistory(context.Context, []int64) (map[int64]bool, error) {
-	return map[int64]bool{7: true}, nil
-}
 
 func TestScheduleTargetsKeepVersionBoundariesAndHistorySeparate(t *testing.T) {
 	t.Parallel()
 	first := timezone.NewDate(2026, 3, 23)
 	boundary := first.AddDays(7)
-	until := config.CalendarDate(boundary)
-	reader := services.NewWorkScheduleTargets(scheduleTargetRecords{rows: []*config.StaffWorkSchedule{
-		{StaffID: 7, ValidFrom: config.CalendarDate(first), ValidUntil: &until, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 360},
-		{StaffID: 7, ValidFrom: until, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 420},
-	}})
+	reader := services.NewWorkScheduleTargets(settingstest.Schedules(
+		settingstest.ScheduleRow{StaffID: 7, ValidFrom: first, ValidUntil: boundary, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 360},
+		settingstest.ScheduleRow{StaffID: 7, ValidFrom: boundary, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 420},
+	))
 	ctx := context.Background()
 	plan, err := reader.TargetsForStaff(ctx, 7, first, boundary)
 	require.NoError(t, err)
@@ -52,7 +39,7 @@ func TestScheduleTargetsKeepVersionBoundariesAndHistorySeparate(t *testing.T) {
 	minutes, matched := batch[7].DailyTarget(nil, boundary)
 	require.Equal(t, 420, minutes)
 	require.True(t, matched)
-	emptyReader := services.NewWorkScheduleTargets(scheduleTargetRecords{})
+	emptyReader := services.NewWorkScheduleTargets(settingstest.Schedules())
 	empty, err := emptyReader.TargetsForStaff(ctx, 7, first, boundary)
 	require.NoError(t, err)
 	require.False(t, empty.HasEntries)

@@ -342,6 +342,14 @@ common package moves, the calendar-date edge with the retained
 fixtures that still name them. Convert them to exact debt with the rule above
 once the package exists at a base SHA.
 
+The settings test support (`services/config/settingstest`, `settings-platform`/
+`test-support`) scripts the payroll and work-schedule settings that presence
+behaviour tests drive through their real services, so those tests name a school's
+configuration instead of registry keys and ORM rows. Its `models/config` import is
+a target dependency of the settings owner; its calendar-date import exists only
+because the settings package still carries the contractual work-schedule rows
+(#3207) and converts to exact debt with them.
+
 The Identity & Access guardian-access capability (`modules/identityaccess`,
 `identity-access`/`public`) is the first just-in-time slice of the late
 Identity & Access migration (#2580 sequencing, #2699): it resolves platform

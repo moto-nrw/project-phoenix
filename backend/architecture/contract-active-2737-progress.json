@@ -14,7 +14,6 @@
     "external_test|services/active -> models/active",
     "external_test|services/active -> models/audit",
     "external_test|services/active -> models/base",
-    "external_test|services/active -> models/config",
     "external_test|services/active -> models/schedule",
     "external_test|services/active -> services",
     "external_test|services/active -> services/active",
@@ -60,17 +59,18 @@
     "verification": "Current Go declarations and call sites must be checked per symbol; historical error operation strings and HTTP route names can remain. This list is incomplete for the entire migration."
   },
   "latest_verification": {
-    "scope": "packages touched by the relocation, the port cut and the settings-stub cut",
-    "tests": "go test ./modules/studentpresence/... ./api/... ./services/... ./modules/workforce/... ./test/... -count=1: all green",
+    "scope": "packages touched by the relocation, the port cut and the settings cuts",
+    "tests": "go test ./services/... ./test/... ./modules/... ./api/... -count=1 green; scripts/test-changed.sh origin/development green over 190 packages",
     "architecture": {
-      "legacy_keys": 1454,
+      "legacy_keys": 1453,
       "composition_field_setter_targets": 779
     },
     "lint": {
       "issues": 0,
-      "scope": "services, test, api and student-presence packages"
+      "scope": "backend"
     },
-    "limitation": "Full-suite and before-push changed-test runs recorded in the pull request, not here."
+    "deadcode": "go tool deadcode clean in both the production and the test-entry-point pass",
+    "limitation": "Pull-request CI is the authoritative run; the numbers above are from this worktree."
   },
   "incomplete_requirements": [
     "Remove all 68 remaining exact keys without new keys or ownership widening.",
@@ -79,10 +79,10 @@
     "Run the final required checks after the last implementation edit, including before-push test-changed when pushing.",
     "Complete code review and commit the implementation on the current branch."
   ],
-  "next_boundary": "The external-test settings edge is down to the DATEV export test, which drives the real payroll status service and therefore names the payroll registry keys. Stubbing the presence-side PayrollConfigurationReader instead would move the completeness derivation out of this test, so the honest cut is a settings-owned test-support package that may name those keys; test-support itself may not import the settings models. The other remaining edges are the internal/timezone programme decision (7 keys here, 70 across the baseline), the two external test packages importing the package they test (unremovable by construction), and the models/base, models/active, models/audit, models/schedule, tenant, repositories and sibling-service edges, each of which is a capability cut of its own.",
+  "next_boundary": "No settings edge is left. What remains are the internal/timezone programme decision (7 keys here, 70 across the baseline), the two external test packages importing the package they test (unremovable by construction, to be struck from the ticket), and the models/base, models/active, models/audit, models/schedule, tenant, repositories and sibling-service edges, each of which is a capability cut of its own size.",
   "reassessment": {
     "reason": "User requested a credible completion estimate after prolonged incremental work.",
-    "remaining_key_count": 30,
+    "remaining_key_count": 29,
     "production_keys": 11,
     "test_keys": 47,
     "import_locations": 650,
@@ -154,6 +154,7 @@
     "work session contract: five zero-caller schedule methods removed from the public interface",
     "the active HTTP adapter moved into the Student Presence module as student-presence/http (authorised by the relocation subissue): nine exact keys and the root-composition entry of the root-api ticket left the baseline; routes, status codes and error strings are unchanged and the remaining legacy edges are recorded as compatibility permissions with their conversion condition",
     "production services/active to the settings models package removed: WorkScheduleRow, WorkTimeTemplate and the pure Soll derivations are presence-owned on timezone.Date, and the services root binds the schedule and template ports to the retained repositories",
-    "internal_test services/active to the settings models package removed: the presence and time-tracking settings stubs answer questions instead of registry keys, and the DB-writing schedule fixtures create their rows through CreateTestStaffWorkScheduleForTenant"
+    "internal_test services/active to the settings models package removed: the presence and time-tracking settings stubs answer questions instead of registry keys, and the DB-writing schedule fixtures create their rows through CreateTestStaffWorkScheduleForTenant",
+    "external_test services/active to the settings models package removed: the DATEV export test scripts a school's payroll configuration and the schedule adapter tests script their rows through the new settings test support, which owns the registry-key and ORM vocabulary; the payroll status service and the composition adapters stay under test unchanged"
   ]
 }

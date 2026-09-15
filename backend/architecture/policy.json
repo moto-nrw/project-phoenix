@@ -1663,6 +1663,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "services/config/settingstest",
+      "owner": "settings-platform",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "services/config/defaults",
       "owner": "settings-platform",
       "role": "application",
@@ -7315,6 +7322,39 @@
       "source_role": "http",
       "target_owner": "workforce",
       "target_role": "public"
+    },
+    {
+      "id": "settings-platform.test-support.domain",
+      "description": "The settings test support scripts tenant values against the registry keys they are stored under.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "test-support",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "settings-platform.test-support.legacy-shared-domain",
+      "description": "The settings test support takes calendar dates in the retained date type while the work-schedule rows still live in the settings package (#3207). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "test-support",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.behavior-test.settings-test-support",
+      "description": "Presence behaviour tests script payroll and work-schedule settings through the settings test support instead of naming registry keys and ORM rows.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "module-behavior-test",
+      "target_owner": "settings-platform",
+      "target_role": "test-support"
     },
     {
       "id": "student-presence.http.public",
