@@ -10,9 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // MonthSummary is the Monatskarte aggregate for one staff member and month
@@ -192,14 +189,18 @@ type DailyTarget struct {
 // needs; the full repositories satisfy them, and unit tests mock them
 // without dragging in the complete repository interfaces.
 
-// monthSettingsResolver is implemented by config.SettingsService.
+// monthSettingsResolver answers the one tenant setting the monthly time
+// accounts consult. It names the question rather than taking a registry key,
+// so this package does not carry another owner's settings vocabulary.
 type monthSettingsResolver interface {
-	ResolveString(ctx context.Context, key string) (string, error)
+	// AccountStartDate is the day the tenant's time accounts begin, as a
+	// YYYY-MM-DD string, or empty when the tenant has not set one.
+	AccountStartDate(ctx context.Context) (string, error)
 }
 
-// monthShiftReader is implemented by schedule.StaffShiftRepository.
+// monthShiftReader is implemented by TimeTrackingShiftRepository.
 type monthShiftReader interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*TimeTrackingShift, error)
 }
 
 // monthSessionReader is implemented by active.WorkSessionRepository.
@@ -224,25 +225,29 @@ type monthAdjustmentReader interface {
 }
 
 // monthSnapshotReader is implemented by
-// active.StaffMonthBalanceSnapshotRepository (#1417).
+// MonthSnapshots (#1417).
 type monthSnapshotReader interface {
-	GetLatestClosedThrough(ctx context.Context, staffID int64, year, month int) (*activeModels.StaffMonthBalanceSnapshot, error)
+	LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*MonthSnapshot, error)
 }
 
-// monthStaffReader is implemented by users.StaffRepository.
-type monthStaffReader interface {
-	FindByID(ctx context.Context, id any) (*userModels.Staff, error)
+type StaffScheduleAssignment struct {
+	WorkTimeModelID    *int64
+	RotationAnchorDate *timezone.Date
+}
+
+type StaffScheduleQuery interface {
+	ScheduleAssignment(ctx context.Context, staffID int64) (*StaffScheduleAssignment, error)
 }
 
 // monthScheduleReader is implemented by config.StaffWorkScheduleRepository.
 type monthScheduleReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error)
+	TargetsForStaff(ctx context.Context, staffID int64, from, to timezone.Date) (WorkScheduleTargets, error)
 	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
 }
 
-// monthModelReader is implemented by config.WorkTimeModelRepository.
+// monthModelReader supplies the projected model used for target calculation.
 type monthModelReader interface {
-	FindByID(ctx context.Context, id int64) (*configModels.WorkTimeModel, error)
+	FindByID(ctx context.Context, id int64) (*WorkTimeTargetModel, error)
 }
 
 // HolidayDatesReader is implemented by schedule.HolidayService. Public
@@ -256,7 +261,7 @@ type workTimeMonthService struct {
 	sessionRepo    monthSessionReader
 	breakRepo      monthBreakReader
 	absenceRepo    monthAbsenceReader
-	staffRepo      monthStaffReader
+	staffRepo      StaffScheduleQuery
 	scheduleRepo   monthScheduleReader
 	workModelRepo  monthModelReader
 	shiftRepo      monthShiftReader
@@ -276,7 +281,7 @@ func NewWorkTimeMonthService(
 	sessionRepo monthSessionReader,
 	breakRepo monthBreakReader,
 	absenceRepo monthAbsenceReader,
-	staffRepo monthStaffReader,
+	staffRepo StaffScheduleQuery,
 	scheduleRepo monthScheduleReader,
 	workModelRepo monthModelReader,
 	shiftRepo monthShiftReader,
@@ -458,10 +463,10 @@ func (a *monthAggregates) balance() int {
 // date-valid staff_work_schedules row set wins, the assigned work-time model
 // is the fallback — the same two-tier resolution the weekly summaries use.
 type dailyTargetResolver struct {
-	entries     []*configModels.StaffWorkSchedule
-	staffAnchor *configModels.CalendarDate
-	model       *configModels.WorkTimeModel
-	modelAnchor configModels.CalendarDate
+	entries     WorkScheduleTargets
+	staffAnchor *timezone.Date
+	model       *WorkTimeTargetModel
+	modelAnchor timezone.Date
 	holidays    map[timezone.Date]bool
 }
 
@@ -472,12 +477,12 @@ func (r *dailyTargetResolver) targetFor(d timezone.Date) int {
 	if r.holidays[d] {
 		return 0
 	}
-	if len(r.entries) > 0 {
-		target, _ := configModels.DailyTargetFromSchedule(r.entries, r.staffAnchor, workforceDate(d))
+	if r.entries.HasEntries {
+		target, _ := r.entries.DailyTarget(r.staffAnchor, d)
 		return target
 	}
 	if r.model != nil {
-		target, _ := configModels.DailyTargetFromModel(r.model, r.modelAnchor, workforceDate(d))
+		target, _ := r.model.DailyTarget(r.modelAnchor, d)
 		return target
 	}
 	return 0
@@ -494,18 +499,18 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 		resolver.holidays = holidaySet
 	}
 
-	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	staff, err := s.staffRepo.ScheduleAssignment(ctx, staffID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load staff for month summary: %w", err)
 	}
-	resolver.staffAnchor = workforceDatePointer(staff.RotationAnchorDate)
+	resolver.staffAnchor = staff.RotationAnchorDate
 
-	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, workforceDate(from), workforceDate(to))
+	entries, err := s.scheduleRepo.TargetsForStaff(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work schedules: %w", err)
 	}
 	resolver.entries = entries
-	if len(entries) > 0 || staff.WorkTimeModelID == nil {
+	if entries.HasEntries || staff.WorkTimeModelID == nil {
 		return resolver, nil
 	}
 
@@ -531,7 +536,7 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	resolver.model = model
 	resolver.modelAnchor = model.RotationAnchorDate
 	if staff.RotationAnchorDate != nil {
-		resolver.modelAnchor = workforceDate(*staff.RotationAnchorDate)
+		resolver.modelAnchor = *staff.RotationAnchorDate
 	}
 	return resolver, nil
 }
@@ -819,7 +824,7 @@ func isHalfAbsenceDay(absence *activeModels.StaffAbsence, d timezone.Date, start
 }
 
 func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int64, first, last timezone.Date, aggregates map[monthKey]*monthAggregates) error {
-	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(first), scheduleModels.Date(last))
+	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, staffID, timezone.Date(first), timezone.Date(last))
 	if err != nil {
 		return fmt.Errorf("failed to load staff shifts: %w", err)
 	}
@@ -840,7 +845,7 @@ func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int
 // minus break, floored at 0. Local copy of the (unexported) helper in
 // services/schedule — that package imports this one, so it cannot be shared
 // without an import cycle.
-func shiftNetMinutes(shift *scheduleModels.StaffShift) int {
+func shiftNetMinutes(shift *TimeTrackingShift) int {
 	start := timezone.NormalizeWallClock(shift.StartTime)
 	end := timezone.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
@@ -880,7 +885,7 @@ func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, l
 	if settings == nil {
 		return fallback, nil
 	}
-	value, err := settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
+	value, err := settings.AccountStartDate(ctx)
 	if err != nil {
 		return timezone.Date(""), fmt.Errorf("failed to resolve account start date setting: %w", err)
 	}
@@ -1337,7 +1342,7 @@ func (s *workTimeMonthService) frozenMonthBoundaries(
 	}
 	for k := first; !monthOf(to).before(k); k = k.next() {
 		prev := k.addMonths(-1)
-		snapshot, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, prev.Year, prev.Month)
+		snapshot, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, prev.Year, prev.Month)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load month balance snapshot for %d-%02d: %w", prev.Year, prev.Month, err)
 		}
@@ -1683,7 +1688,7 @@ type chainSplice struct {
 	carryFrom *monthKey
 	// ownSnapshot is the requested month's own active snapshot, if it is
 	// closed. It supplies the drift comparison, never the carry.
-	ownSnapshot *activeModels.StaffMonthBalanceSnapshot
+	ownSnapshot *MonthSnapshot
 }
 
 // spliceChainStart resolves how the carry chain for `key` must start (#1417).
@@ -1709,7 +1714,7 @@ func (s *workTimeMonthService) spliceChainStart(
 	}
 	anchorKey := monthOf(anchor)
 
-	latest, err := s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, key.Year, key.Month)
+	latest, err := s.snapshotRepo.LatestClosedMonth(ctx, staffID, key.Year, key.Month)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load month balance snapshot: %w", err)
 	}
@@ -1722,7 +1727,7 @@ func (s *workTimeMonthService) spliceChainStart(
 	if latest.Year == key.Year && latest.Month == key.Month {
 		splice.ownSnapshot = latest
 		prev := key.addMonths(-1)
-		seed, err = s.snapshotRepo.GetLatestClosedThrough(ctx, staffID, prev.Year, prev.Month)
+		seed, err = s.snapshotRepo.LatestClosedMonth(ctx, staffID, prev.Year, prev.Month)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load preceding month balance snapshot: %w", err)
 		}

@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	deviceAuth "github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -80,8 +81,8 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			if !tc.unplanned {
 				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 			}
-			ctx := context.WithValue(testpkg.Ctx(t), deviceAuth.CtxDevice, devicePrincipal(device.ID, device.TenantID))
-			ctx = context.WithValue(ctx, deviceAuth.CtxStaff, staffPrincipal(staff))
+			ctx := services.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
+			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			if tc.failAt == "checkout" {
 				exit := visit.EntryTime.Add(time.Minute)

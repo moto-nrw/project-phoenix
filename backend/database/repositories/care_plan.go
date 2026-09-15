@@ -7,7 +7,6 @@ import (
 	"sort"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -169,25 +168,6 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
-	if repository, ok := f.Statistics.(*activeRepo.StatisticsRepository); ok {
-		repository.BindCarePlan(statisticsCarePlanDirectory{query: capability})
-	}
-}
-
-type statisticsCarePlanDirectory struct {
-	query careplan.StudentStatusDaysQuery
-}
-
-func (d statisticsCarePlanDirectory) ListStatusDaySummaries(ctx context.Context, from, to string) ([]activeRepo.StatusDaySummary, error) {
-	values, err := d.query.ListStatusDaySummaries(ctx, careplan.Date(from), careplan.Date(to))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]activeRepo.StatusDaySummary, 0, len(values))
-	for _, value := range values {
-		result = append(result, activeRepo.StatusDaySummary{StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
-	}
-	return result, nil
 }
 
 type studentDeletionCarePlanDirectory struct{ capability careplan.Capability }

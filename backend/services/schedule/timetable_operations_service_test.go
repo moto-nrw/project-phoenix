@@ -2252,8 +2252,8 @@ type fakeOpsActiveGroupRepo struct {
 	updateErr    error
 }
 
-func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id interface{}) (*activeModel.Group, error) {
-	group := r.byID[id.(int64)]
+func (r *fakeOpsActiveGroupRepo) FindByID(_ context.Context, id int64) (*activeModel.Group, error) {
+	group := r.byID[id]
 	if group == nil {
 		return nil, modelBase.ErrNotFound
 	}

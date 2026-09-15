@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -76,7 +75,7 @@ type datevLine struct {
 // no line (zero value). Payout and comp time are stored as negative balance
 // deltas; the booked amount is the sign-inverted delta, so a reversal booking
 // shows up negative instead of disappearing.
-func datevCategoryValue(category configSvc.PayrollCategoryStatus, row MonthExportRow) (minutes int, days float64, useDays bool, ok bool) {
+func datevCategoryValue(category PayrollExportCategory, row MonthExportRow) (minutes int, days float64, useDays bool, ok bool) {
 	switch category.ID {
 	case "regelarbeit":
 		minutes = row.ActualMinutes
@@ -111,12 +110,12 @@ func datevCategoryValue(category configSvc.PayrollCategoryStatus, row MonthExpor
 // buildDatevLines maps the export rows onto Bewegungsdaten lines and collects
 // the report. Categories without a Lohnartnummer export no line; staff
 // without a Personalnummer are reported, and exportDatev rejects the download.
-func buildDatevLines(rows []MonthExportRow, status *configSvc.PayrollStatus) ([]datevLine, *DatevExportReport) {
+func buildDatevLines(rows []MonthExportRow, status *PayrollExportConfiguration) ([]datevLine, *DatevExportReport) {
 	report := &DatevExportReport{
 		StaffSkipped:           []DatevSkippedStaff{},
 		UnconfiguredCategories: []string{},
 	}
-	var configured []configSvc.PayrollCategoryStatus
+	var configured []PayrollExportCategory
 	for _, category := range status.Categories {
 		if category.Number == "" || (category.UnitRequired && category.Unit == "") {
 			report.UnconfiguredCategories = append(report.UnconfiguredCategories, category.Label)
@@ -185,7 +184,7 @@ const (
 	lodasRecordDays  = "2"
 )
 
-func writeDatevLodas(lines []datevLine, status *configSvc.PayrollStatus, year, month int) []byte {
+func writeDatevLodas(lines []datevLine, status *PayrollExportConfiguration, year, month int) []byte {
 	period := fmt.Sprintf("01.%02d.%04d", month, year)
 	var b strings.Builder
 	b.WriteString("[Allgemein]\n")
@@ -275,11 +274,11 @@ func (s *staffTimeExportService) validateDatevRequest(req TimeExportRequest) err
 	return nil
 }
 
-func (s *staffTimeExportService) payrollStatusForDatev(ctx context.Context, format string) (*configSvc.PayrollStatus, error) {
+func (s *staffTimeExportService) payrollStatusForDatev(ctx context.Context, format string) (*PayrollExportConfiguration, error) {
 	if s.payrollStatus == nil {
 		return nil, errors.New("datev export: payroll status service not configured")
 	}
-	status, err := s.payrollStatus.GetPayrollStatus(ctx)
+	status, err := s.payrollStatus.GetPayrollConfiguration(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load payroll status: %w", err)
 	}
@@ -294,7 +293,7 @@ func (s *staffTimeExportService) payrollStatusForDatev(ctx context.Context, form
 
 // buildDatev computes lines + report for both the download and the report
 // endpoint — one code path, so the report can never disagree with the file.
-func (s *staffTimeExportService) buildDatev(ctx context.Context, req TimeExportRequest) ([]datevLine, *DatevExportReport, *configSvc.PayrollStatus, error) {
+func (s *staffTimeExportService) buildDatev(ctx context.Context, req TimeExportRequest) ([]datevLine, *DatevExportReport, *PayrollExportConfiguration, error) {
 	if err := s.validateDatevRequest(req); err != nil {
 		return nil, nil, nil, err
 	}

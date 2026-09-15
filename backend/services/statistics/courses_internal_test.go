@@ -9,21 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
 type courseRepoStub struct {
-	instances     []scheduleModels.CourseInstanceRow
-	participation []scheduleModels.CourseParticipationRow
+	instances     []CourseInstance
+	participation []CourseParticipation
 	instanceErr   error
 	participErr   error
 }
 
-func (s courseRepoStub) CourseInstances(context.Context, scheduleModels.Date, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.CourseInstanceRow, error) {
+func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]CourseInstance, error) {
 	return s.instances, s.instanceErr
 }
 
-func (s courseRepoStub) CourseParticipation(context.Context, scheduleModels.Date, scheduleModels.Date, scheduleModels.Date) ([]scheduleModels.CourseParticipationRow, error) {
+func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]CourseParticipation, error) {
 	return s.participation, s.participErr
 }
 
@@ -33,11 +32,11 @@ func courseFilters() Filters {
 
 func courseFixture() courseRepoStub {
 	return courseRepoStub{
-		instances: []scheduleModels.CourseInstanceRow{
+		instances: []CourseInstance{
 			{CourseID: 10, Name: "Fußball", CategoryName: "AG", MaxParticipants: 4, HeldInstances: 8, CancelledInstances: 2},
 			{CourseID: 20, Name: "Ärztespiel", CategoryName: "AG", HeldInstances: 5},
 		},
-		participation: []scheduleModels.CourseParticipationRow{
+		participation: []CourseParticipation{
 			{CourseID: 10, StudentID: 1, PresentDays: 6, AbsentDays: 2, OpenDays: 0},
 			{CourseID: 10, StudentID: 2, PresentDays: 8, AbsentDays: 0, OpenDays: 0},
 			{CourseID: 20, StudentID: 1, PresentDays: 3, AbsentDays: 1, OpenDays: 1},
@@ -112,7 +111,7 @@ func TestCourseSection_IgnoresChildrenOutsideThePopulation(t *testing.T) {
 	t.Parallel()
 	fixture := courseFixture()
 	fixture.participation = append(fixture.participation,
-		scheduleModels.CourseParticipationRow{CourseID: 10, StudentID: 999, PresentDays: 8})
+		CourseParticipation{CourseID: 10, StudentID: 999, PresentDays: 8})
 	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}
 
 	courses, childRows, totals, err := callCourseSection(svc, courseFilters(), courseStudents())
@@ -163,7 +162,7 @@ func TestCourseSection_GroupFilterDropsForeignCourses(t *testing.T) {
 	t.Parallel()
 	fixture := courseFixture()
 	// Only "Fußball" (10) has rows for the filtered children.
-	fixture.participation = []scheduleModels.CourseParticipationRow{
+	fixture.participation = []CourseParticipation{
 		{CourseID: 10, StudentID: 1, PresentDays: 6, AbsentDays: 2},
 	}
 	svc := &service{cfg: Config{Courses: fixture, Now: fixedNow}}

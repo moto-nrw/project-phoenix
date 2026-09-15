@@ -111,7 +111,7 @@ type attendanceStatusEntry struct {
 type attendanceHistorySources struct {
 	Attendance []*studentpresence.Attendance
 	Statuses   []*active.StudentStatusDay
-	Slots      []*scheduleModel.ScheduledInstanceRow
+	Slots      []*activeService.HistorySlot
 	// SlotExpectation reports whether assignment hints apply to the loaded
 	// range at all (see resolveSlotExpectation).
 	SlotExpectation bool
@@ -272,7 +272,7 @@ func (rs *Resource) loadRoomVisitsByDate(
 // Walk-in rows (is_unplanned) never count as plan evidence: a spontaneous
 // drop-in also happens at schools that plan nothing.
 func (rs *Resource) resolveSlotExpectation(
-	ctx context.Context, slots []*scheduleModel.ScheduledInstanceRow, from, to timezone.Date,
+	ctx context.Context, slots []*activeService.HistorySlot, from, to timezone.Date,
 ) (bool, error) {
 	if hasPlannedSlotRow(slots) {
 		return true, nil
@@ -285,7 +285,7 @@ func (rs *Resource) resolveSlotExpectation(
 // purpose — see resolveSlotExpectation. Cancelled instances are excluded too:
 // their instance_students rows survive the cancellation, but a booking on a
 // cancelled-only occurrence is no usable slot to report assignments against.
-func hasPlannedSlotRow(slots []*scheduleModel.ScheduledInstanceRow) bool {
+func hasPlannedSlotRow(slots []*activeService.HistorySlot) bool {
 	for _, row := range slots {
 		if row != nil && row.Instance != nil && row.Attendance != nil &&
 			!row.Attendance.IsUnplanned && row.Instance.Status != scheduleModel.InstanceStatusCancelled {
@@ -521,7 +521,7 @@ func calculateAttendanceDuration(attendance *attendanceDayRecord) {
 
 func attachSlotAttendance(
 	days []attendanceHistoryDay,
-	rows []*scheduleModel.ScheduledInstanceRow,
+	rows []*activeService.HistorySlot,
 	visitsByDate map[string][]*activeService.VisitHistoryEntry,
 	roomCutoff time.Time,
 ) []attendanceHistoryDay {
@@ -696,7 +696,7 @@ func (rs *Resource) writeAttendanceHistoryAudit(r *http.Request, studentID int64
 	}
 
 	studentIDPtr := studentID
-	entry := &auditModels.DataAccessLog{
+	entry := &activeService.DataAccessEvent{
 		ActorAccountID: actorAccountID,
 		ActorRole:      actorRole,
 		ResourceType:   auditModels.ResourceTypeAttendanceHistory,

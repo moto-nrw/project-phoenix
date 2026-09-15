@@ -41,7 +41,7 @@ func newStudentDeletionTestService(
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	studentService := usersService.NewStudentService(
 		repos.Student,
-		repos.PrivacyConsent,
+		repositories.NewStudentPrivacyConsentStore(db),
 		repos.StudentCompanion,
 		nil,
 	)

@@ -135,7 +135,7 @@ type StudentService interface {
 
 type studentService struct {
 	studentRepo        userModels.StudentRepository
-	privacyConsentRepo userModels.PrivacyConsentRepository
+	privacyConsentRepo PrivacyConsentStore
 	companionRepo      userModels.StudentCompanionRepository
 	studentAudit       StudentChangeRecorder
 }
@@ -144,7 +144,7 @@ type studentService struct {
 // repositories.
 func NewStudentService(
 	studentRepo userModels.StudentRepository,
-	privacyConsentRepo userModels.PrivacyConsentRepository,
+	privacyConsentRepo PrivacyConsentStore,
 	companionRepo userModels.StudentCompanionRepository,
 	studentAudit StudentChangeRecorder,
 ) StudentService {
@@ -1010,4 +1010,10 @@ func (s *studentService) extendAccompaniedDays(
 
 func (s *studentService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	return s.companionRepo.CompanionIDsForWeekday(ctx, studentIDs, weekday)
+}
+
+type PrivacyConsentStore interface {
+	FindByStudentID(context.Context, int64) ([]*userModels.PrivacyConsent, error)
+	Create(context.Context, *userModels.PrivacyConsent) error
+	Update(context.Context, *userModels.PrivacyConsent) error
 }

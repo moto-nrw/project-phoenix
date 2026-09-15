@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // ---- holiday reader mock ----------------------------------------------------
@@ -130,9 +129,9 @@ func TestWTMMonthSummary_HolidayReaderErrorPropagates(t *testing.T) {
 func TestHolidayScheduleMinutes(t *testing.T) {
 	t.Parallel()
 
-	entries := []*configModels.StaffWorkSchedule{
-		{StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480, RotationLength: 1, ValidFrom: configModels.NewCalendarDate(2020, time.January, 1)},
-		{StaffID: wtmStaffID, DayOfWeek: configModels.DayThursday, TargetMinutes: 240, RotationLength: 1, ValidFrom: configModels.NewCalendarDate(2020, time.January, 1)},
+	entries := []*WorkScheduleRow{
+		{StaffID: wtmStaffID, DayOfWeek: DayMonday, TargetMinutes: 480, RotationLength: 1, ValidFrom: timezone.NewDate(2020, time.January, 1)},
+		{StaffID: wtmStaffID, DayOfWeek: DayThursday, TargetMinutes: 240, RotationLength: 1, ValidFrom: timezone.NewDate(2020, time.January, 1)},
 	}
 	weekStart := timezone.NewDate(2026, time.June, 8) // Monday
 
@@ -152,14 +151,14 @@ func TestHolidayModelMinutes(t *testing.T) {
 	t.Parallel()
 
 	anchor := timezone.NewDate(2020, time.January, 6)
-	model := &configModels.WorkTimeModel{
+	model := &WorkTimeTemplate{
 		RotationLength: 1,
-		Entries: []*configModels.WorkTimeModelEntry{
-			{WeekIndex: 0, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+		Entries: []*WorkTimeTemplateEntry{
+			{WeekIndex: 0, DayOfWeek: DayMonday, TargetMinutes: 480},
 		},
 	}
 	weekStart := timezone.NewDate(2026, time.June, 8)
 
-	assert.Equal(t, 480, holidayModelMinutes(model, workforceDate(anchor), weekStart, map[timezone.Date]bool{weekStart: true}))
-	assert.Equal(t, 0, holidayModelMinutes(model, workforceDate(anchor), weekStart, nil))
+	assert.Equal(t, 480, holidayTemplateMinutes(model, anchor, weekStart, map[timezone.Date]bool{weekStart: true}))
+	assert.Equal(t, 0, holidayTemplateMinutes(model, anchor, weekStart, nil))
 }

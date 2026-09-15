@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,11 +66,11 @@ func (m *voOpeningRepoMock) GetByStaffIDsAndYear(context.Context, []int64, int) 
 }
 
 type voDeletionRepoMock struct {
-	createFunc func(ctx context.Context, event *auditModels.TimeTrackingDeletion) error
-	created    []*auditModels.TimeTrackingDeletion
+	createFunc func(ctx context.Context, event *TimeTrackingDeletionEvent) error
+	created    []*TimeTrackingDeletionEvent
 }
 
-func (m *voDeletionRepoMock) Create(ctx context.Context, event *auditModels.TimeTrackingDeletion) error {
+func (m *voDeletionRepoMock) Create(ctx context.Context, event *TimeTrackingDeletionEvent) error {
 	m.created = append(m.created, event)
 	if m.createFunc != nil {
 		return m.createFunc(ctx, event)
@@ -338,7 +337,7 @@ func TestDeleteVacationOpening_WritesTombstoneBeforeDeleting(t *testing.T) {
 
 	require.Len(t, deletionRepo.created, 1)
 	tombstone := deletionRepo.created[0]
-	assert.Equal(t, auditModels.TimeTrackingDeletionSourceVacationOpening, tombstone.Source)
+	assert.Equal(t, "vacation_opening", tombstone.Source)
 	assert.Equal(t, opening.ID, tombstone.SourceID)
 	assert.Equal(t, int64(42), tombstone.DeletedBy)
 	assert.Equal(t, opening.Note, tombstone.Note)
@@ -408,7 +407,7 @@ func TestDeleteVacationOpening_Rejects(t *testing.T) {
 			},
 			deleteFunc: func(context.Context, any) error { deletes++; return nil },
 		})
-		deletionRepo.createFunc = func(context.Context, *auditModels.TimeTrackingDeletion) error { return boom }
+		deletionRepo.createFunc = func(context.Context, *TimeTrackingDeletionEvent) error { return boom }
 
 		err := svc.DeleteVacationOpening(context.Background(), 41, 42, year)
 

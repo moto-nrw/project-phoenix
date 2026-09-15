@@ -8,6 +8,18 @@ import (
 )
 
 type StudentPresence interface {
+	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
+	GetCombinedGroup(context.Context, int64) (studentpresence.CombinedGroup, error)
+	ListCombinedGroups(context.Context, studentpresence.CombinedGroupFilter) ([]studentpresence.CombinedGroup, error)
+	RecordCombination(context.Context, time.Time, *time.Time) (studentpresence.CombinedGroup, error)
+	ReviseCombination(context.Context, int64, time.Time, *time.Time) (studentpresence.CombinedGroup, error)
+	DeleteCombination(context.Context, int64) error
+	EndCombination(context.Context, int64, time.Time) error
+	ListGroupMappings(context.Context, studentpresence.GroupMappingFilter) ([]studentpresence.GroupMapping, error)
+	RecordGroupMapping(context.Context, int64, int64) (studentpresence.GroupMapping, error)
+	DeleteGroupMapping(context.Context, int64) error
+	ListLiveGroups(context.Context, []int64) ([]studentpresence.LiveGroup, error)
+	LockRoomSessionWrites(context.Context, int64) error
 	UnclaimedGroups(context.Context, string) ([]studentpresence.UnclaimedGroup, error)
 	ClaimGroup(context.Context, studentpresence.GroupClaim) (studentpresence.ClaimedSupervision, error)
 	FindVisit(context.Context, int64) (*studentpresence.Visit, error)

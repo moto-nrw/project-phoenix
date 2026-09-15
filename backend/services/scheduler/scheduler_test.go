@@ -14,9 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -618,6 +616,126 @@ func TestScheduleCleanupTask_InvalidTimeFormat(t *testing.T) {
 	})
 }
 
+func (m *mockActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
+	return nil
+}
+func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeService.VisitWithRoom, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CreateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
+	return nil
+}
+func (m *mockActiveService) UpdateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
+	return nil
+}
+func (m *mockActiveService) DeleteGroupSupervisor(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) EndSupervision(_ context.Context, _ int64) error        { return nil }
+func (m *mockActiveService) CreateCombinedGroup(_ context.Context, _ *studentpresence.CombinedGroup) error {
+	return nil
+}
+func (m *mockActiveService) UpdateCombinedGroup(_ context.Context, _ *studentpresence.CombinedGroup) error {
+	return nil
+}
+func (m *mockActiveService) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) EndCombinedGroup(_ context.Context, _ int64) error    { return nil }
+func (m *mockActiveService) CreateCombinedGroupWithGroups(_ context.Context, _ *studentpresence.CombinedGroup, _ []int64) error {
+	return nil
+}
+func (m *mockActiveService) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckActivityConflict(_ context.Context, _, _ int64) (*activeService.ActivityConflictInfo, error) {
+	return nil, nil
+}
+func (m *mockActiveService) EndActivitySession(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetDeviceCurrentSession(_ context.Context, _ int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveService) UpdateActiveGroupSupervisors(_ context.Context, _ int64, _ []int64) (*active.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ProcessSessionTimeout(_ context.Context, _ int64) (*activeService.TimeoutResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) UpdateSessionActivity(_ context.Context, _ int64) error { return nil }
+func (m *mockActiveService) ValidateSessionTimeout(_ context.Context, _ int64, _ int) error {
+	return nil
+}
+func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeService.SessionTimeoutInfo, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
+	return 0, nil
+}
+func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
+	return nil, nil
+}
+func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.TransitAssignResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.TransitAssignResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, _ []int64) (map[int64]*active.Group, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetStudentAttendanceStatus(_ context.Context, _ int64) (*activeService.AttendanceStatus, error) {
+	return nil, nil
+}
+func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeService.AttendanceStatus, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeService.AttendanceResult, error) {
+	return nil, nil
+}
+func (m *mockActiveService) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeService.SchoolCheckinBatchResult, error) {
+	return nil, nil
+}
+
 func TestScheduleCleanupTask_InvalidHour(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
@@ -917,7 +1035,7 @@ type mockActiveService struct {
 	cleanupAbandonedDuration time.Duration
 }
 
-func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*facilities.Room, error) {
+func (m *mockActiveService) GetRoomsByIDs(_ context.Context, _ []int64) ([]*active.SessionRoom, error) {
 	return nil, nil
 }
 
@@ -955,217 +1073,14 @@ func (m *mockActiveService) GetActiveGroup(_ context.Context, _ int64) (*active.
 func (m *mockActiveService) CreateActiveGroup(_ context.Context, _ *active.Group) error { return nil }
 func (m *mockActiveService) UpdateActiveGroup(_ context.Context, _ *active.Group) error { return nil }
 func (m *mockActiveService) DeleteActiveGroup(_ context.Context, _ int64) error         { return nil }
-func (m *mockActiveService) ListActiveGroups(_ context.Context, _ *base.QueryOptions) ([]*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindActiveGroupsByRoomID(_ context.Context, _ int64) ([]*active.Group, error) {
-	return nil, nil
-}
 func (m *mockActiveService) FindDeviceActiveGroupInRoom(_ context.Context, _, _ int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindActiveGroupsByGroupID(_ context.Context, _ int64) ([]*active.Group, error) {
 	return nil, nil
 }
 func (m *mockActiveService) FindActiveGroupsByTimeRange(_ context.Context, _, _ time.Time) ([]*active.Group, error) {
 	return nil, nil
 }
 func (m *mockActiveService) EndActiveGroupSession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetActiveGroupVisits(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetActiveGroupWithSupervisors(_ context.Context, _ int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CreateVisit(_ context.Context, _ *studentpresence.Visit) error {
-	return nil
-}
-func (m *mockActiveService) UpdateVisit(_ context.Context, _ *studentpresence.Visit) error {
-	return nil
-}
-func (m *mockActiveService) DeleteVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) FindVisitsByStudentID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindVisitsByActiveGroupID(_ context.Context, _ int64) ([]studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndVisit(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetStudentCurrentVisit(_ context.Context, _ int64) (*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentsCurrentVisits(_ context.Context, _ []int64) (map[int64]*studentpresence.Visit, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentCurrentVisitWithRoom(_ context.Context, _ int64) (*activeService.VisitWithRoom, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetGroupSupervisor(_ context.Context, _ int64) (*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CreateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
-	return nil
-}
-func (m *mockActiveService) UpdateGroupSupervisor(_ context.Context, _ *active.GroupSupervisor) error {
-	return nil
-}
-func (m *mockActiveService) DeleteGroupSupervisor(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) ListGroupSupervisors(_ context.Context, _ *base.QueryOptions) ([]*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindSupervisorsByStaffID(_ context.Context, _ int64) ([]*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindSupervisorsByActiveGroupID(_ context.Context, _ int64) ([]*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindSupervisorsByActiveGroupIDs(_ context.Context, _ []int64) ([]*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndSupervision(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetStaffActiveSupervisions(_ context.Context, _ int64) ([]*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetAllActiveSupervisions(_ context.Context) ([]*active.GroupSupervisor, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetCombinedGroup(_ context.Context, _ int64) (*active.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CreateCombinedGroup(_ context.Context, _ *active.CombinedGroup) error {
-	return nil
-}
-func (m *mockActiveService) UpdateCombinedGroup(_ context.Context, _ *active.CombinedGroup) error {
-	return nil
-}
-func (m *mockActiveService) DeleteCombinedGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) ListCombinedGroups(_ context.Context, _ *base.QueryOptions) ([]*active.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindActiveCombinedGroups(_ context.Context) ([]*active.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveService) FindCombinedGroupsByTimeRange(_ context.Context, _, _ time.Time) ([]*active.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndCombinedGroup(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) GetCombinedGroupWithGroups(_ context.Context, _ int64) (*active.CombinedGroup, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CreateCombinedGroupWithGroups(_ context.Context, _ *active.CombinedGroup, _ []int64) error {
-	return nil
-}
-func (m *mockActiveService) AddGroupToCombination(_ context.Context, _, _ int64) error { return nil }
-func (m *mockActiveService) RemoveGroupFromCombination(_ context.Context, _, _ int64) error {
-	return nil
-}
-func (m *mockActiveService) GetGroupMappingsByActiveGroupID(_ context.Context, _ int64) ([]*active.GroupMapping, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetGroupMappingsByCombinedGroupID(_ context.Context, _ int64) ([]*active.GroupMapping, error) {
-	return nil, nil
-}
-func (m *mockActiveService) StartActivitySession(_ context.Context, _, _, _ int64, _ *int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) StartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckActivityConflict(_ context.Context, _, _ int64) (*activeService.ActivityConflictInfo, error) {
-	return nil, nil
-}
-func (m *mockActiveService) EndActivitySession(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) ForceStartActivitySession(_ context.Context, _, _, _ int64, _ *int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ForceStartActivitySessionWithSupervisors(_ context.Context, _, _ int64, _ []int64, _ *int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetDeviceCurrentSession(_ context.Context, _ int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) UpdateActiveGroupSupervisors(_ context.Context, _ int64, _ []int64) (*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ProcessSessionTimeout(_ context.Context, _ int64) (*activeService.TimeoutResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) UpdateSessionActivity(_ context.Context, _ int64) error { return nil }
-func (m *mockActiveService) ValidateSessionTimeout(_ context.Context, _ int64, _ int) error {
-	return nil
-}
-func (m *mockActiveService) GetSessionTimeoutInfo(_ context.Context, _ int64) (*activeService.SessionTimeoutInfo, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CountActiveVisitsByRoomID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
-}
-func (m *mockActiveService) CountActiveVisitsByActiveGroupID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
-}
-func (m *mockActiveService) ListStudentsPresentInRoom(_ context.Context, _ int64) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ListOpenVisitStudentIDsByRoom(context.Context) (map[int64][]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ListStudentsInTransit(_ context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ListStudentsPresentToday(_ context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (m *mockActiveService) AssignTransitStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.TransitAssignResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) AssignTransitStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.TransitAssignResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) MoveStudentsToActiveGroup(_ context.Context, _ []int64, _ int64) (*activeService.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context, _ []int64, _ int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) MoveStudentsToTransit(_ context.Context, _ []int64) (*activeService.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) MoveStudentsToTransitAuthorized(_ context.Context, _ []int64, _ activeService.StudentMoveAuthorization) (*activeService.StudentMoveResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetDashboardAnalytics(_ context.Context) (*activeService.DashboardAnalytics, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetActiveGroupsByIDs(_ context.Context, _ []int64) (map[int64]*active.Group, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentAttendanceStatus(_ context.Context, _ int64) (*activeService.AttendanceStatus, error) {
-	return nil, nil
-}
-func (m *mockActiveService) GetStudentsAttendanceStatuses(_ context.Context, _ []int64) (map[int64]*activeService.AttendanceStatus, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ToggleStudentAttendance(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckInStudent(_ context.Context, _, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckOutStudent(_ context.Context, _, _ int64, _ bool) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckOutStudentFromDevice(_ context.Context, _, _ int64) (*activeService.AttendanceResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) ProcessSchoolCheckinBatch(_ context.Context, _ []int64, _ int64, _ string) (*activeService.SchoolCheckinBatchResult, error) {
-	return nil, nil
-}
-func (m *mockActiveService) CheckTeacherStudentAccess(_ context.Context, _, _ int64) (bool, error) {
-	return false, nil
-}
+
 func (m *mockActiveService) GetUnclaimedActiveGroups(_ context.Context) ([]*active.Group, error) {
 	return nil, nil
 }

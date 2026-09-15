@@ -16,8 +16,8 @@ import (
 // their interfaces; the person columns are resolved through the owner query
 // afterwards and the tag writes go through the owner command.
 func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
-	if f.CrossTenant != nil {
-		f.CrossTenant = personCrossTenantRepository{CrossTenantRepository: f.CrossTenant, persons: persons}
+	if projection, ok := f.CrossTenant.(*visitorProjection); ok {
+		projection.persons = persons
 	}
 	if f.GroupSupervisor != nil {
 		f.GroupSupervisor = personGroupSupervisorRepository{GroupSupervisorRepository: f.GroupSupervisor, persons: persons}

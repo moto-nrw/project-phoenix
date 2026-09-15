@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -15,7 +14,7 @@ import (
 )
 
 func OccupancyProjection(
-	groups activeModels.GroupRepository,
+	groups RoomOccupancyQuery,
 	activities activityGroupProjection,
 	membership schoolmembership.Query,
 	persons peopledirectory.Query,
@@ -28,7 +27,7 @@ func OccupancyProjection(
 func projectRoomOccupancy(
 	ctx context.Context,
 	rooms []facilitiesModule.Room,
-	groups activeModels.GroupRepository,
+	groups RoomOccupancyQuery,
 	activities activityGroupProjection,
 	membership schoolmembership.Query,
 	persons peopledirectory.Query,
@@ -58,11 +57,11 @@ func roomIDs(rooms []facilitiesModule.Room) []int64 {
 
 func occupancyViews(
 	rooms []facilitiesModule.Room,
-	facts []activeModels.RoomOccupancy,
+	facts []RoomOccupancyFact,
 	labels map[int64]activityLabel,
 	staffNames map[int64]*string,
 ) []facilitiesService.RoomWithOccupancy {
-	byRoom := make(map[int64]activeModels.RoomOccupancy, len(facts))
+	byRoom := make(map[int64]RoomOccupancyFact, len(facts))
 	for _, fact := range facts {
 		byRoom[fact.RoomID] = fact
 	}
@@ -91,7 +90,7 @@ type activityLabel struct {
 
 func roomActivityLabels(
 	ctx context.Context,
-	facts []activeModels.RoomOccupancy,
+	facts []RoomOccupancyFact,
 	activities activityGroupProjection,
 ) (map[int64]activityLabel, error) {
 	groupIDs := make([]int64, 0)
@@ -144,7 +143,7 @@ func joinedSorted(values []string) *string {
 
 func roomSupervisorNames(
 	ctx context.Context,
-	facts []activeModels.RoomOccupancy,
+	facts []RoomOccupancyFact,
 	membership schoolmembership.Query,
 	persons peopledirectory.Query,
 ) (map[int64]*string, error) {
@@ -164,7 +163,7 @@ func roomSupervisorNames(
 	return supervisorNamesByRoom(facts, personIDsByStaff, personNames(people)), nil
 }
 
-func supervisorStaffIDs(facts []activeModels.RoomOccupancy) []int64 {
+func supervisorStaffIDs(facts []RoomOccupancyFact) []int64 {
 	staffIDs := make([]int64, 0)
 	for _, fact := range facts {
 		staffIDs = append(staffIDs, fact.SupervisorStaffIDs...)
@@ -191,7 +190,7 @@ func personNames(people []peopledirectory.Person) map[int64]string {
 }
 
 func supervisorNamesByRoom(
-	facts []activeModels.RoomOccupancy,
+	facts []RoomOccupancyFact,
 	personIDsByStaff map[int64]int64,
 	nameByPerson map[int64]string,
 ) map[int64]*string {
@@ -213,9 +212,13 @@ func supervisorNamesByRoom(
 	return result
 }
 
-func HistoryProjection(groups activeModels.GroupRepository) facilitiesService.RoomHistoryProjection {
+func HistoryProjection(groups RoomHistoryQuery, activities activityGroupProjection, membership schoolmembership.Query, persons peopledirectory.Query) facilitiesService.RoomHistoryProjection {
 	return func(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]facilitiesService.RoomSessionEntry, error) {
-		rows, err := groups.AggregateRoomSessions(ctx, roomID, start, end, staffID)
+		rows, err := groups.ListRoomSessionHistory(ctx, roomID, start, end, staffID)
+		if err != nil {
+			return nil, err
+		}
+		activityNames, supervisorNames, err := historyNames(ctx, rows, activities, membership, persons)
 		if err != nil {
 			return nil, err
 		}
@@ -223,10 +226,85 @@ func HistoryProjection(groups activeModels.GroupRepository) facilitiesService.Ro
 		for _, row := range rows {
 			result = append(result, facilitiesService.RoomSessionEntry{
 				SessionID: row.SessionID, StartedAt: row.StartedAt, EndedAt: row.EndedAt,
-				DurationMinutes: row.DurationMinutes, ActivityName: row.ActivityName,
-				SupervisorName: row.SupervisorName, StudentCount: row.StudentCount,
+				DurationMinutes: row.DurationMinutes, ActivityName: activityNames[row.SessionID],
+				SupervisorName: supervisorNames[row.SessionID], StudentCount: row.StudentCount,
 			})
 		}
 		return result, nil
 	}
+}
+
+type RoomOccupancyFact struct {
+	RoomID             int64
+	ActivityGroupIDs   []int64
+	StudentCount       int
+	SupervisorStaffIDs []int64
+}
+type RoomOccupancyQuery interface {
+	ListRoomOccupancy(context.Context, []int64) ([]RoomOccupancyFact, error)
+}
+
+type RoomSessionFact struct {
+	SessionID          int64
+	ActivityGroupID    *int64
+	StartedAt          time.Time
+	EndedAt            *time.Time
+	DurationMinutes    *int
+	SupervisorStaffIDs []int64
+	StudentCount       int
+}
+type RoomHistoryQuery interface {
+	ListRoomSessionHistory(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionFact, error)
+}
+
+func historyNames(ctx context.Context, rows []RoomSessionFact, activities activityGroupProjection, membership schoolmembership.Query, persons peopledirectory.Query) (map[int64]string, map[int64]string, error) {
+	activityIDs, staffIDs := []int64{}, []int64{}
+	for _, row := range rows {
+		if row.ActivityGroupID != nil {
+			activityIDs = append(activityIDs, *row.ActivityGroupID)
+		}
+		staffIDs = append(staffIDs, row.SupervisorStaffIDs...)
+	}
+	activityNames, supervisorNames := map[int64]string{}, map[int64]string{}
+	if len(activityIDs) > 0 {
+		groups, err := activities.ListWithCategory(ctx, &activityModels.GroupListQuery{IDs: activityIDs})
+		if err != nil {
+			return nil, nil, err
+		}
+		names := map[int64]string{}
+		for _, group := range groups {
+			names[group.ID] = group.Name
+		}
+		for _, row := range rows {
+			if row.ActivityGroupID != nil {
+				activityNames[row.SessionID] = names[*row.ActivityGroupID]
+			}
+		}
+	}
+	if len(staffIDs) == 0 {
+		return activityNames, supervisorNames, nil
+	}
+	staff, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, IncludeDeleted: true})
+	if err != nil {
+		return nil, nil, err
+	}
+	byStaff, personIDs := staffPersonIDs(staff)
+	people, err := persons.ListPersonsByID(ctx, personIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+	names := personNames(people)
+	for _, row := range rows {
+		values := []string{}
+		for _, id := range row.SupervisorStaffIDs {
+			if personID, ok := byStaff[id]; ok {
+				if name, ok := names[personID]; ok {
+					values = append(values, strings.TrimSpace(name))
+				}
+			}
+		}
+		slices.Sort(values)
+		supervisorNames[row.SessionID] = strings.Join(slices.Compact(values), ", ")
+	}
+	return activityNames, supervisorNames, nil
 }

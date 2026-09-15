@@ -38,10 +38,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -107,11 +104,18 @@ type TimeTrackingCleanupService interface {
 	GetStats(ctx context.Context) (*TimeTrackingCleanupStats, error)
 }
 
+type retentionSettingsResolver interface {
+	// TimeTrackingRetentionOverridden probes whether the tenant set its own
+	// retention window; TimeTrackingRetentionDays is the effective value.
+	TimeTrackingRetentionOverridden(context.Context) (bool, error)
+	TimeTrackingRetentionDays(context.Context) (int, error)
+}
+
 type timeTrackingCleanupService struct {
 	workSessionRepo  activeModel.WorkSessionRepository
 	staffAbsenceRepo activeModel.StaffAbsenceRepository
-	auditRepo        audit.DataDeletionRepository
-	settings         config.SettingsService
+	auditRepo        DeletionAudit
+	settings         retentionSettingsResolver
 	logger           *slog.Logger
 }
 
@@ -121,8 +125,8 @@ type timeTrackingCleanupService struct {
 func NewTimeTrackingCleanupService(
 	workSessionRepo activeModel.WorkSessionRepository,
 	staffAbsenceRepo activeModel.StaffAbsenceRepository,
-	auditRepo audit.DataDeletionRepository,
-	settings config.SettingsService,
+	auditRepo DeletionAudit,
+	settings retentionSettingsResolver,
 	logger *slog.Logger,
 ) TimeTrackingCleanupService {
 	if logger == nil {
@@ -294,13 +298,13 @@ func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) i
 	if s.settings == nil {
 		return timeTrackingRetentionDefaultDays
 	}
-	if _, err := s.settings.HasTenantOverride(ctx, configModel.KeyGDPRTimeTrackingRetentionDays); err != nil {
+	if _, err := s.settings.TimeTrackingRetentionOverridden(ctx); err != nil {
 		s.logger.Warn("settings override check failed, falling back to registry default",
-			slog.String("key", configModel.KeyGDPRTimeTrackingRetentionDays),
+			slog.String("setting", "time_tracking_retention_days"),
 			slog.String("error", err.Error()),
 		)
 	}
-	if v, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRTimeTrackingRetentionDays); err == nil && v > 0 {
+	if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
 		return v
 	}
 	return timeTrackingRetentionDefaultDays
@@ -400,21 +404,18 @@ func (s *timeTrackingCleanupService) writeStaffAuditRows(
 	}
 	cutoffStr := cutoff.String()
 	for staffID, n := range counts {
-		deletion := audit.NewStaffDataDeletion(
-			staffID,
-			audit.DeletionTypeTimeTrackingRetention,
-			n,
-			"system",
-		)
-		deletion.SetTenantID(tenantID)
-		deletion.DeletionReason = "automated time-tracking retention cleanup"
-		deletion.SetMetadata("retention_days", retentionDays)
-		deletion.SetMetadata("cutoff_date", cutoffStr)
+		deletion := &DeletionEvent{
+			TenantID: tenantID, StaffID: &staffID,
+			DeletionType: "time_tracking_retention", RecordsDeleted: n,
+			DeletedBy: "system", DeletedAt: time.Now(),
+			DeletionReason: "automated time-tracking retention cleanup",
+			Metadata:       map[string]interface{}{"retention_days": retentionDays, "cutoff_date": cutoffStr},
+		}
 		if sample := samples[staffID]; len(sample.SessionIDs) > 0 {
-			deletion.SetMetadata("session_ids_sample", sample.SessionIDs)
+			deletion.Metadata["session_ids_sample"] = sample.SessionIDs
 		}
 		if sample := samples[staffID]; len(sample.AbsenceIDs) > 0 {
-			deletion.SetMetadata("absence_ids_sample", sample.AbsenceIDs)
+			deletion.Metadata["absence_ids_sample"] = sample.AbsenceIDs
 		}
 		if err := s.auditRepo.Create(ctx, deletion); err != nil {
 			return fmt.Errorf("audit row for staff %d: %w", staffID, err)

@@ -21,6 +21,12 @@ type Middleware = func(http.Handler) http.Handler
 // opened (a group-level Use would open tenant transactions on 403s), so
 // routes attach it per-route via r.With(..., withTx).
 func ProtectedTenantGroup(r chi.Router, db *bun.DB, fn func(r chi.Router, withTx Middleware)) {
+	ProtectedTenantRoutes(r, fn)
+}
+
+// ProtectedTenantRoutes registers the tenant security chain and supplies the
+// request-scoped transaction middleware without retaining a database handle.
+func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware)) {
 	tokenAuth := jwt.MustNewTokenAuth()
 
 	r.Group(func(gr chi.Router) {

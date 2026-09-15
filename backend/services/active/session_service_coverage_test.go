@@ -11,12 +11,11 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // setupSessionService creates an active service with real database connection
 // Note: setupActiveService already exists in session_conflict_test.go, so we use a different name
-func setupSessionService(t *testing.T, db *bun.DB) activeSvc.Service {
+func setupSessionService(t *testing.T, db *testpkg.DB) activeSvc.Service {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())

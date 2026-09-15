@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -18,7 +17,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // =============================================================================
@@ -43,8 +41,8 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-TEST-001")
 
 		// Create context with both staff and device (simulates RFID check-in)
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
@@ -81,8 +79,8 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Completed", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-COMPLETED-001")
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	exitTime := entryTime.Add(time.Hour)
 	visit := &studentpresence.Visit{
@@ -113,8 +111,8 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Revised", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REVISED-001")
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
@@ -151,8 +149,8 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	staff := testpkg.CreateTestStaff(t, db, "Moved", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-MOVED-VISIT-001")
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 	entryTime := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC).Add(-2 * time.Hour)
 	visit := &studentpresence.Visit{
 		StudentID: student.ID, ActiveGroupID: sourceGroup.ID, EntryTime: entryTime,
@@ -197,8 +195,8 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		existingAttendance := createAttendanceWithCheckout(t, db, student.ID, staff.ID, rfidDevice.ID, checkoutTime)
 
 		// Create context with staff and device
-		staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-		deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,
@@ -260,8 +258,8 @@ func TestCreateVisit_AutoClearsSick(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).Column("sick", "sick_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -325,8 +323,8 @@ func TestCreateVisit_AutoClearsExcused_WhenSettingNextCheckin(t *testing.T) {
 	_, err = db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -373,8 +371,8 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).Column("excused", "excused_since").Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
@@ -438,8 +436,8 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 		Source:     activeModels.StudentStatusSourcePlanned,
 	}))
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
@@ -502,8 +500,8 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 		Source:     activeModels.StudentStatusSourceParent,
 	}))
 
-	staffCtx := context.WithValue(ctx, device.CtxStaff, staffPrincipal(staff))
-	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, devicePrincipal(rfidDevice.ID, rfidDevice.TenantID))
+	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := services.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 	visit := &studentpresence.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: activeGroup.ID,
@@ -517,28 +515,17 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 }
 
 // =============================================================================
-// WebManualDeviceCode Constant Test
-// =============================================================================
-
-func TestWebManualDeviceCode(t *testing.T) {
-	t.Parallel()
-
-	// Verify the constant is set correctly
-	assert.Equal(t, "WEB-MANUAL-001", active.WebManualDeviceCode, "WebManualDeviceCode should be 'WEB-MANUAL-001'")
-}
-
-// =============================================================================
 // Helper Functions
 // =============================================================================
 
-func setupVisitHelperService(t *testing.T, db *bun.DB, clocks ...func() time.Time) active.Service {
+func setupVisitHelperService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) active.Service {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default(), clocks...)
 	require.NoError(t, err, "Failed to create service factory")
 	return serviceFactory.Active
 }
 
-func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date timezone.Date) *studentpresence.Attendance {
+func getAttendanceForStudent(t *testing.T, db *testpkg.DB, studentID int64, date timezone.Date) *studentpresence.Attendance {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
@@ -553,7 +540,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date tim
 	return &rows[0]
 }
 
-func createAttendanceWithCheckout(t *testing.T, db *bun.DB, studentID, staffID, deviceID int64, checkoutTime time.Time) *studentpresence.Attendance {
+func createAttendanceWithCheckout(t *testing.T, db *testpkg.DB, studentID, staffID, deviceID int64, checkoutTime time.Time) *studentpresence.Attendance {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

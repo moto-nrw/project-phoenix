@@ -3,21 +3,16 @@ package repositories
 import (
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/uptrace/bun"
 )
 
 type StatisticsTestRepositories struct {
-	Timetable  TimetableTestRepositories
-	Statistics activeModels.StatisticsRepository
-	Courses    scheduleModels.CourseStatisticsRepository
-	AccessLog  auditModels.DataAccessLogRepository
-	Privacy    usersModels.PrivacyConsentRepository
+	Timetable TimetableTestRepositories
+	CarePlan  careplan.StudentStatusDaysQuery
+	AccessLog auditModels.DataAccessLogRepository
 }
 
 func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, clocks ...func() time.Time) (StatisticsTestRepositories, error) {
@@ -33,11 +28,8 @@ func NewStatisticsTestRepositories(db *bun.DB, command auditModels.Command, cloc
 	if err != nil {
 		return StatisticsTestRepositories{}, err
 	}
-	stats := activeRepo.NewStatisticsRepository(db)
-	stats.(*activeRepo.StatisticsRepository).BindCarePlan(statisticsCarePlanDirectory{query: carePlan})
 	return StatisticsTestRepositories{
-		Timetable: timetable, Statistics: stats, Courses: timetableCourseStatisticsRepository{timetable: timetable.Timetable},
+		Timetable: timetable, CarePlan: carePlan,
 		AccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command},
-		Privacy:   activeRepo.NewPrivacyConsentRepository(db),
 	}, nil
 }

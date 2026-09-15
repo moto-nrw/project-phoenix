@@ -3,14 +3,13 @@ package active
 import (
 	"testing"
 
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.T) {
 	t.Parallel()
 
-	minutes, _, _, ok := datevCategoryValue(configSvc.PayrollCategoryStatus{ID: "plus_stunden"}, MonthExportRow{
+	minutes, _, _, ok := datevCategoryValue(PayrollExportCategory{ID: "plus_stunden"}, MonthExportRow{
 		BalanceMinutes: 180,
 		OpeningMinutes: 120,
 	})
@@ -18,13 +17,13 @@ func TestDatevCategoryValue_ExcludesCurrentMonthOpeningFromPlusHours(t *testing.
 	assert.True(t, ok)
 	assert.Equal(t, 60, minutes)
 
-	minutes, _, _, ok = datevCategoryValue(configSvc.PayrollCategoryStatus{ID: "plus_stunden"}, MonthExportRow{
+	minutes, _, _, ok = datevCategoryValue(PayrollExportCategory{ID: "plus_stunden"}, MonthExportRow{
 		BalanceMinutes: 180,
 	})
 	assert.True(t, ok)
 	assert.Equal(t, 180, minutes, "a later month's delta must not subtract the carried opening")
 
-	minutes, _, _, ok = datevCategoryValue(configSvc.PayrollCategoryStatus{ID: "plus_stunden"}, MonthExportRow{
+	minutes, _, _, ok = datevCategoryValue(PayrollExportCategory{ID: "plus_stunden"}, MonthExportRow{
 		BalanceMinutes: 60,
 	})
 	assert.True(t, ok)

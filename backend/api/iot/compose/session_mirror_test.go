@@ -1,6 +1,8 @@
 package compose
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +14,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type unavailableMirrorSupervisions struct{}
+
+func (unavailableMirrorSupervisions) ActiveSupervisions(context.Context, int64) ([]devicescanCompose.Supervision, error) {
+	return nil, errors.New("supervision response lookup unavailable")
+}
 
 func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	t.Parallel()
@@ -28,7 +36,8 @@ func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	resource.DB = db
 	resource.DeviceAuthenticator = deviceAuth.Device()
 	resource.DeviceOnlyAuthenticator = deviceAuth.DeviceOnly()
-	resource.SessionLifecycle = devicescanCompose.NewSessionLifecycle(active.Active, active.Users, active.IoT, mirror, nil)
+	// Mirroring must survive a failure of the trailing best-effort response read.
+	resource.SessionLifecycle = devicescanCompose.NewSessionLifecycle(active.Active, unavailableMirrorSupervisions{}, active.Users, active.IoT, mirror, nil)
 	handler := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
 	request := testutil.NewAuthenticatedRequest(t, "POST", "/session/start", map[string]any{
 		"activity_id": activity.ID, "room_id": room.ID, "supervisor_ids": []int64{staff.ID},

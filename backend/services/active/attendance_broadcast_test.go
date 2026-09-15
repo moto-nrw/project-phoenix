@@ -7,19 +7,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -59,7 +55,7 @@ func (f attendanceFixtures) eduTopic() string {
 
 // setupAbsentStudent builds the base fixtures without any attendance row and
 // returns the cleanup to defer.
-func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtures, func()) {
+func setupAbsentStudent(t *testing.T, db *testpkg.DB, label string) (attendanceFixtures, func()) {
 	t.Helper()
 
 	activity := testpkg.CreateTestActivityGroup(t, db, "attendance-"+label)
@@ -89,7 +85,7 @@ func setupAbsentStudent(t *testing.T, db *bun.DB, label string) (attendanceFixtu
 // setupCheckedInStudent is setupAbsentStudent plus an open attendance row.
 // withVisit=false leaves the child checked in without a room visit — the
 // binary-mode shape, where the tenant keeps no visit rows.
-func setupCheckedInStudent(t *testing.T, db *bun.DB, label string, withVisit bool) (attendanceFixtures, func()) {
+func setupCheckedInStudent(t *testing.T, db *testpkg.DB, label string, withVisit bool) (attendanceFixtures, func()) {
 	t.Helper()
 
 	f, cleanup := setupAbsentStudent(t, db, label)
@@ -101,10 +97,10 @@ func setupCheckedInStudent(t *testing.T, db *bun.DB, label string, withVisit boo
 }
 
 // checkinEventsOnTopic returns the student_checkin events routed to one topic.
-func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []realtime.Event {
-	out := make([]realtime.Event, 0)
+func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []active.BroadcastEvent {
+	out := make([]active.BroadcastEvent, 0)
 	for _, c := range b.GroupCallsForTopic(topic) {
-		if c.Event.Type == realtime.EventStudentCheckIn {
+		if c.Event.Type == active.EventStudentCheckIn {
 			out = append(out, c.Event)
 		}
 	}
@@ -114,29 +110,25 @@ func checkinEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []realt
 // newDailyCheckoutService is setupServiceWithBroadcaster plus the PersonService
 // the daily-checkout entry point needs: ConfirmDailyCheckout reads the
 // attendance status first, and resolving its staff names goes through
-// UsersService.
-func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg.RecordingBroadcaster) {
+// staff-name query.
+func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *testpkg.RecordingBroadcaster) {
 	t.Helper()
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
-	svc := active.NewService(active.ServiceDependencies{
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
 		GroupRepo:          repos.ActiveGroup,
 		SupervisorRepo:     repos.GroupSupervisor,
-		CombinedGroupRepo:  repos.CombinedGroup,
-		GroupMappingRepo:   repos.GroupMapping,
 		SchoolPresence:     testSchoolPresence(t, db),
-		StudentRepo:        repos.Student,
-		PersonRepo:         repos.Person,
-		TeacherRepo:        repos.Teacher,
-		StaffRepo:          repos.Staff,
-		RoomRepo:           repos.Room,
-		ActivityGroupRepo:  repos.ActivityGroup,
-		ActivityCatRepo:    repos.ActivityCategory,
-		EducationGroupRepo: repos.Group,
-		DeviceRepo:         repos.Device,
-		UsersService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
+		StudentRepo:        services.PresenceStudents(repos.Student),
+		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           services.NewAttendanceRooms(repos.Room),
+		ActivityGroupRepo:  repositories.NewSessionActivities(repos.ActivityGroup),
+		ActivityCatRepo:    services.NewAttendanceActivityCategories(repos.ActivityCategory),
+		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         services.NewSessionDeviceDirectory(repos.Device, nil, nil),
+		StaffNames: services.NewAttendanceStaffNames(repos.Staff, usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 			PersonRepo:  repos.Person,
 			RFIDRepo:    repos.RFIDCard,
 			AccountRepo: repos.Account,
@@ -144,23 +136,21 @@ func newDailyCheckoutService(t *testing.T, db *bun.DB) (active.Service, *testpkg
 			StaffRepo:   repos.Staff,
 			TeacherRepo: repos.Teacher,
 			DB:          db,
-		}),
+		})),
 		DB:          db,
 		Broadcaster: broadcaster,
 		Logger:      slog.Default(),
 	})
 
-	svc.SetSettingsService(&configtest.Mock{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-		return configModel.GetDefinition(key).Default.(string), nil
-	}})
+	svc.SetSettingsService(defaultPresenceSettings())
 	return svc, broadcaster
 }
 
 // checkoutEventsOnTopic returns the student_checkout events routed to one topic.
-func checkoutEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []realtime.Event {
-	out := make([]realtime.Event, 0)
+func checkoutEventsOnTopic(b *testpkg.RecordingBroadcaster, topic string) []active.BroadcastEvent {
+	out := make([]active.BroadcastEvent, 0)
 	for _, c := range b.GroupCallsForTopic(topic) {
-		if c.Event.Type == realtime.EventStudentCheckOut {
+		if c.Event.Type == active.EventStudentCheckOut {
 			out = append(out, c.Event)
 		}
 	}
@@ -203,7 +193,7 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 
 	// Tenant-wide invalidation, group-scoped so clients skip every other group.
-	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
+	counts := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected exactly one tenant-scoped aggregate refresh")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
@@ -211,7 +201,7 @@ func TestCheckout_WebCheckoutWithOpenVisitBroadcasts(t *testing.T) {
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
 	require.NotNil(t, counts[0].Event.Data.Reason, "combined refresh must carry supervision semantics")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged),
+	assert.Empty(t, tenantCallsOfType(broadcaster, active.EventActiveSupervisionChanged),
 		"checkout must fold supervision invalidation into the combined refresh")
 
 	// #2085: the child id rides the group-scoped topics only.
@@ -265,10 +255,10 @@ func TestCheckout_OrphanedVisitWithoutAttendanceBroadcasts(t *testing.T) {
 	assert.Equal(t, f.activeGroupTopic(), roomEvents[0].ActiveGroupID)
 	assert.Len(t, checkoutEventsOnTopic(broadcaster, f.eduTopic()), 1,
 		"the healed visit must emit an educational-group checkout")
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged), 1,
 		"the healed visit must emit one aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
-	assert.True(t, broadcaster.HasEventType(realtime.EventDashboardCountsChanged),
+	assert.Empty(t, tenantCallsOfType(broadcaster, active.EventActiveSupervisionChanged))
+	assert.True(t, broadcaster.HasEventType(active.EventDashboardCountsChanged),
 		"ending the orphaned visit changed the room roster")
 
 	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
@@ -298,12 +288,12 @@ func TestCheckout_RoomlessCheckoutBroadcastsEduTopic(t *testing.T) {
 	require.NotNil(t, eduEvents[0].Data.GroupIDs)
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *eduEvents[0].Data.GroupIDs)
 
-	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
+	counts := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs)
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
 
-	assert.False(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
+	assert.False(t, broadcaster.HasEventType(active.EventActiveSupervisionChanged),
 		"no room roster changed, so active_supervision_changed must stay out of this shape")
 
 	testpkg.AssertNoTenantWideStudentIdentity(t, broadcaster)
@@ -324,7 +314,7 @@ func TestCheckout_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
 		if _, err := svc.CheckOutStudent(txCtx, f.studentID, f.staffID, true); err != nil {
 			return err
 		}
@@ -352,7 +342,7 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	// Own service instance rather than setupServiceWithBroadcaster: the daily
 	// checkout reads the attendance status first, which resolves staff names
-	// through UsersService — the shared helper leaves that dependency nil.
+	// through the staff-name query; the shared helper leaves that dependency nil.
 	svc, broadcaster := newDailyCheckoutService(t, db)
 
 	// No visit: by the time the kiosk asks "nach Hause oder unterwegs?", the
@@ -376,13 +366,13 @@ func TestCheckout_DailyCheckoutBroadcastsExactlyOnce(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "checked_out_daily", result.Action)
 
-	checkouts := broadcaster.EventsOfType(realtime.EventStudentCheckOut)
+	checkouts := broadcaster.EventsOfType(active.EventStudentCheckOut)
 	require.Len(t, checkouts, 1, "a daily checkout must emit exactly one student_checkout")
 	require.NotNil(t, checkouts[0].Data.Source)
 	assert.Equal(t, "daily_checkout", *checkouts[0].Data.Source,
 		"the historical source label of the kiosk flow must survive the move")
 
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged), 1,
 		"a daily checkout must emit exactly one dashboard_counts_changed")
 }
 
@@ -421,9 +411,9 @@ func TestCheckout_DailyCheckoutWithOpenVisitPreservesSource(t *testing.T) {
 	require.NotNil(t, eduEvents[0].Data.Source)
 	assert.Equal(t, "daily_checkout", *eduEvents[0].Data.Source)
 
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged), 1,
 		"the daily checkout must emit one aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Empty(t, tenantCallsOfType(broadcaster, active.EventActiveSupervisionChanged))
 }
 
 // =============================================================================
@@ -464,14 +454,14 @@ func TestCheckin_WebCheckinBroadcastsEduTopic(t *testing.T) {
 	assert.Empty(t, checkinEventsOnTopic(broadcaster, f.activeGroupTopic()),
 		"a roomless check-in must not address an active-group topic")
 
-	counts := tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged)
+	counts := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected exactly one tenant-scoped dashboard_counts_changed")
 	require.NotNil(t, counts[0].Event.Data.GroupIDs,
 		"group_ids must be present and non-empty — an empty array reads as 'scope to nothing' (#2057)")
 	assert.Equal(t, []string{f.eduGroupIDStr()}, *counts[0].Event.Data.GroupIDs)
 	assert.Empty(t, broadcaster.CallsByMethod("all"), "must not fan out across tenants")
 
-	assert.False(t, broadcaster.HasEventType(realtime.EventActiveSupervisionChanged),
+	assert.False(t, broadcaster.HasEventType(active.EventActiveSupervisionChanged),
 		"no room roster changed, so active_supervision_changed must stay out of this shape")
 
 	// #2085: the child id rides the group-scoped topics only.
@@ -521,7 +511,7 @@ func TestCheckin_BroadcastRunsAfterCommit(t *testing.T) {
 	defer cleanup()
 	broadcaster.Reset()
 
-	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
 		if _, err := svc.CheckInStudent(txCtx, f.studentID, f.staffID, 0, true); err != nil {
 			return err
 		}
@@ -555,9 +545,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
 	defer cleanup()
 
-	staff := &usersModels.Staff{}
-	staff.ID = f.staffID
-	ctx := context.WithValue(testpkg.Ctx(t), device.CtxStaff, staffPrincipal(staff))
+	ctx := services.WithAttendanceStaff(testpkg.Ctx(t), f.staffID, 0)
 	broadcaster.Reset()
 
 	visit := &studentpresence.Visit{
@@ -571,7 +559,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 		"exactly one student_checkin on the active-group topic")
 	assert.Len(t, checkinEventsOnTopic(broadcaster, f.eduTopic()), 1,
 		"exactly one student_checkin on the edu:{id} topic")
-	assert.Len(t, tenantCallsOfType(broadcaster, realtime.EventDashboardCountsChanged), 1,
+	assert.Len(t, tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged), 1,
 		"exactly one aggregate refresh")
-	assert.Empty(t, tenantCallsOfType(broadcaster, realtime.EventActiveSupervisionChanged))
+	assert.Empty(t, tenantCallsOfType(broadcaster, active.EventActiveSupervisionChanged))
 }

@@ -4,10 +4,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/iot"
-
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -23,22 +19,28 @@ type Group struct {
 	DeviceID       *int64     `bun:"device_id" json:"device_id,omitempty"` // Optional for RFID system
 	RoomID         int64      `bun:"room_id,notnull" json:"room_id"`
 
-	// Relations - these would be populated when using the ORM's relations
-	ActualGroup *activities.Group `bun:"rel:belongs-to,join:group_id=id" json:"actual_group,omitempty"`
+	// ActualGroup and Room are projections populated through their owners.
+	ActualGroup *SessionActivity `bun:"-" json:"actual_group,omitempty"`
 	// Device is resolved through the Device Fleet owner (#2676), never by a
 	// join this package owns.
-	Device      *iot.Device        `bun:"-" json:"device,omitempty"`
-	Room        *facilities.Room   `bun:"rel:belongs-to,join:room_id=id" json:"room,omitempty"`
-	Supervisors []*GroupSupervisor `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
+	Device      *SessionDevice     `bun:"-" json:"device,omitempty"`
+	Room        *SessionRoom       `bun:"-" json:"room,omitempty"`
+	Supervisors []*GroupSupervisor `bun:"-" json:"supervisors,omitempty"`
 }
 
-// RoomSession is a read projection for a running session in a released room.
-type RoomSession struct {
-	ActiveGroupID      int64
-	RoomID             int64
-	ActivityName       string
-	StartTime          time.Time
-	SupervisorStaffIDs []int64
+// SessionDevice is the device information projected onto a presence session.
+// Device Fleet owns the device record; session reads do not expose credentials
+// or mutable device configuration.
+type SessionDevice struct {
+	ID         int64      `json:"id"`
+	TenantID   int64      `json:"tenant_id"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	DeviceID   string     `json:"device_id"`
+	DeviceType string     `json:"device_type"`
+	Name       *string    `json:"name,omitempty"`
+	Status     string     `json:"status"`
+	LastSeen   *time.Time `json:"last_seen,omitempty"`
 }
 
 // Validate ensures active group data is valid

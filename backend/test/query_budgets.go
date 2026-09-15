@@ -100,14 +100,14 @@ var queryBudgets = map[string]queryBudget{
 	// calendar projection regardless of the number of returned VEVENTs.
 	"services.calendar.caldav_snapshot": {max: 24},
 	// #2941: list/read enrichment stays flat as result rows grow.
-	"services.active.work_session_history.reads":           {max: 7},
-	"services.active.future_comp_time_commitment.reads":    {max: 4, exact: true},
-	"services.auth.pending_guardian_approvals.reads":       {max: 6},
-	"services.education.suggest_mappings.reads":            {max: 4},
-	"services.reminders.present_students_in_rooms.reads":   {max: 6},
-	"services.users.list_guardians.reads":                  {max: 2},
-	"services.users.student_guardians.reads":               {max: 4},
-	"repositories.active.combined_group_with_groups.reads": {max: 3, exact: true},
+	"services.active.work_session_history.reads":         {max: 7},
+	"services.active.future_comp_time_commitment.reads":  {max: 4, exact: true},
+	"services.auth.pending_guardian_approvals.reads":     {max: 6},
+	"services.education.suggest_mappings.reads":          {max: 4},
+	"services.reminders.present_students_in_rooms.reads": {max: 6},
+	"services.users.list_guardians.reads":                {max: 2},
+	"services.users.student_guardians.reads":             {max: 4},
+	"api.active.combination_groups.reads":                {max: 3, exact: true},
 	// services/enrollment — list/read paths stay flat as rows grow (#2941).
 	"services.enrollment.list_child_offerings.reads":    {max: 5},
 	"services.enrollment.offering_source_options.reads": {max: 5},

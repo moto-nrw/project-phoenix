@@ -13,7 +13,13 @@ type AttendanceHistoryCommand interface {
 	CloseStaleAttendance(context.Context, int64, time.Time, time.Time) (int64, error)
 	LockStudentAttendance(context.Context, int64) error
 }
+type AttendanceDay struct {
+	StudentID int64
+	Date      string
+}
+
 type AttendanceSummaryQuery interface {
+	ListAttendanceDays(context.Context, string, string) ([]AttendanceDay, error)
 	HasAttendance(context.Context, AttendanceFilter) (bool, error)
 	CountAttendanceByStaff(context.Context, int64) (int, error)
 	ListOpenAttendanceStudentIDs(context.Context, string) ([]int64, error)
@@ -45,4 +51,8 @@ func (m *Module) CountAttendanceByStaff(ctx context.Context, id int64) (int, err
 }
 func (m *Module) ListOpenAttendanceStudentIDs(ctx context.Context, date string) ([]int64, error) {
 	return m.engine.ListOpenAttendanceStudentIDs(ctx, date)
+}
+
+func (m *Module) ListAttendanceDays(ctx context.Context, from, to string) ([]AttendanceDay, error) {
+	return m.engine.ListAttendanceDays(ctx, from, to)
 }

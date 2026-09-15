@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
 // DirectoryDevice is the Device Fleet projection this package reads.
@@ -72,10 +71,10 @@ func attachDevices(ctx context.Context, directory DeviceDirectory, groups []*act
 		if !ok || device.TenantID != group.TenantID {
 			continue
 		}
-		group.Device = &iot.Device{
+		group.Device = &active.SessionDevice{
 			ID: device.ID, CreatedAt: device.CreatedAt, UpdatedAt: device.UpdatedAt,
 			TenantID: device.TenantID, DeviceID: device.DeviceID, DeviceType: device.DeviceType,
-			Name: device.Name, Status: iot.DeviceStatus(device.Status), LastSeen: device.LastSeen,
+			Name: device.Name, Status: device.Status, LastSeen: device.LastSeen,
 		}
 	}
 	return nil

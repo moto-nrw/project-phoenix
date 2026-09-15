@@ -19,6 +19,7 @@ import (
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
@@ -49,6 +50,22 @@ type StudentTestModule struct {
 	ParentRequests     *users.ParentRequestCoordinator
 	FamilyProtection   *users.FamilyProtectionService
 	OGSGroupLive       grouplive.Query
+}
+
+// ManualPartialAbsences binds the owner projection without constructing another service graph.
+func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) active.ManualPartialAbsenceReader {
+	return NewManualPartialAbsenceDates(source)
+}
+
+// DataAccessAudit supplies the access-evidence writer from this module's audit command.
+func (m StudentTestModule) DataAccessAudit() active.DataAccessAudit {
+	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
+}
+
+type studentAccessAuditWriter struct{ auditModels.Command }
+
+func (w studentAccessAuditWriter) Create(ctx context.Context, entry *auditModels.DataAccessLog) error {
+	return w.Append(ctx, entry)
 }
 
 func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter users.FeedbackEntryCounter, clocks ...func() time.Time) (StudentTestModule, error) {
@@ -204,7 +221,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	})
 	studentService := users.NewStudentService(
 		repos.Student,
-		repos.PrivacyConsent,
+		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
@@ -342,8 +359,9 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	})
 	studentStatusDayService := active.NewStudentStatusDayServiceWithPartialAbsences(
 		repos.StudentStatusDay,
-		repos.StudentPickupException,
+		NewManualPartialAbsenceDates(repos.CarePlan),
 		db,
+		repos.CarePlan.LockExceptionDay,
 		now,
 	)
 	ogsGroupLiveService, err := grouplivelegacy.New(grouplivelegacy.Sources{
@@ -374,4 +392,15 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		OfferingChanges: offeringChangeRequestService, PickupAdjustments: pickupAdjustmentService, ExcusedRequests: excusedRequestService,
 		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, FamilyProtection: familyProtectionService, OGSGroupLive: ogsGroupLiveService,
 	}, nil
+}
+
+// StatusDayOverviewPeople serves the absence overview's people reads from the
+// module's users service.
+func (m StudentTestModule) StatusDayOverviewPeople() active.StatusDayOverviewPeople {
+	return StatusDayOverviewPeople(m.Users)
+}
+
+// HistorySlots supplies the same owner projection to narrow student route fixtures.
+func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) active.HistorySlotReader {
+	return NewHistorySlots(records)
 }

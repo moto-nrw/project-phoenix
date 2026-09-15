@@ -8,14 +8,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type recordingAbsenceDeletionAuditRepo struct {
-	events []*auditModels.TimeTrackingDeletion
+	events []*TimeTrackingDeletionEvent
 	err    error
 }
 
@@ -24,10 +23,10 @@ func TestWriteAbsenceDeletionAuditIncludesCustomLabel(t *testing.T) {
 
 	svc, _, _ := absSetupService()
 	customID := int64(42)
-	svc.absenceTypes = NewStaffAbsenceTypeService(&absTypeRepoMock{rows: []*activeModels.StaffAbsenceType{{
+	svc.absenceTypes = &absTypeReaderMock{rows: []*activeModels.StaffAbsenceType{{
 		Name:  "Regenerationstag",
 		Model: base.Model{ID: customID},
-	}}}, nil)
+	}}}
 	deletions := &recordingAbsenceDeletionAuditRepo{}
 	svc.deletionRepo = deletions
 
@@ -41,7 +40,7 @@ func TestWriteAbsenceDeletionAuditIncludesCustomLabel(t *testing.T) {
 	assert.Equal(t, "Regenerationstag", payload["absence_type_label"])
 }
 
-func (r *recordingAbsenceDeletionAuditRepo) Create(_ context.Context, event *auditModels.TimeTrackingDeletion) error {
+func (r *recordingAbsenceDeletionAuditRepo) Create(_ context.Context, event *TimeTrackingDeletionEvent) error {
 	if r.err != nil {
 		return r.err
 	}
@@ -93,7 +92,7 @@ func TestAbsCreateAbsenceFor_MergeWritesSecondaryDeletionAudit(t *testing.T) {
 	require.Len(t, deletionRepo.events, 1)
 	event := deletionRepo.events[0]
 	assert.Equal(t, int64(100), event.StaffID)
-	assert.Equal(t, auditModels.TimeTrackingDeletionSourceAbsence, event.Source)
+	assert.Equal(t, "absence", event.Source)
 	assert.Equal(t, secondary.ID, event.SourceID)
 	assert.Equal(t, int64(200), event.DeletedBy)
 	assert.Equal(t, "Zweiter Bericht", event.Note)

@@ -8,15 +8,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
 )
 
 // These unit tests cover the active-session lifecycle policy that moved off the
 // models (Rule 12). The clock is injected as `now` everywhere, so the tests are
 // deterministic and need no DB or sleeps.
-
-func ptrTime(t time.Time) *time.Time { return &t }
 
 func ptrDate(d timezone.Date) *timezone.Date { return &d }
 
@@ -43,39 +40,26 @@ func TestIsSupervisorActive(t *testing.T) {
 		"future start date is not active")
 }
 
-func TestIsCombinedGroupActive(t *testing.T) {
-	t.Parallel()
-
-	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-
-	assert.True(t, IsCombinedGroupActive(&activeModels.CombinedGroup{EndTime: nil}, now),
-		"nil end time is open-ended and active")
-	assert.True(t, IsCombinedGroupActive(&activeModels.CombinedGroup{EndTime: ptrTime(now.Add(time.Hour))}, now),
-		"future end time is still active")
-	assert.False(t, IsCombinedGroupActive(&activeModels.CombinedGroup{EndTime: ptrTime(now.Add(-time.Hour))}, now),
-		"past end time is not active")
-}
-
 func TestResolveSessionTimeout(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
 
 	t.Run("per-session TimeoutMinutes wins", func(t *testing.T) {
-		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
+		s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}}
 		group := &activeModels.Group{TimeoutMinutes: 45}
 		assert.Equal(t, 45*time.Minute, s.ResolveSessionTimeout(ctx, group))
 	})
 
 	t.Run("nil settings falls back to default", func(t *testing.T) {
-		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}}
+		s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}}
 		group := &activeModels.Group{TimeoutMinutes: 0}
 		assert.Equal(t, DefaultSessionInactivityTimeout, s.ResolveSessionTimeout(ctx, group))
 	})
 
 	t.Run("tenant override resolved from settings", func(t *testing.T) {
-		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
-			intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 20},
+		s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
+			intValues: map[string]int{sessionInactivityTimeoutQuestion: 20},
 		},
 		}
 		group := &activeModels.Group{TimeoutMinutes: 0}
@@ -83,8 +67,8 @@ func TestResolveSessionTimeout(t *testing.T) {
 	})
 
 	t.Run("zero from settings degrades to default", func(t *testing.T) {
-		s := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default()}, settings: &stubSettingsResolver{
-			intValues: map[string]int{configModel.KeySessionInactivityTimeoutMin: 0},
+		s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, Logger: slog.Default()}, settings: &stubSettingsResolver{
+			intValues: map[string]int{sessionInactivityTimeoutQuestion: 0},
 		},
 		}
 		group := &activeModels.Group{TimeoutMinutes: 0}
@@ -97,7 +81,7 @@ func TestIsSessionTimedOut(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	s := &service{ServiceDependencies: ServiceDependencies{ // nil settings → 30 min default
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, // nil settings → 30 min default
 		Logger: slog.Default()}}
 
 	t.Run("active session within window is not timed out", func(t *testing.T) {
@@ -138,7 +122,7 @@ func TestSessionTimeUntilTimeout(t *testing.T) {
 
 	ctx := context.Background()
 	now := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
-	s := &service{ServiceDependencies: ServiceDependencies{ // nil settings → 30 min default
+	s := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, // nil settings → 30 min default
 		Logger: slog.Default()}}
 
 	t.Run("positive when within window", func(t *testing.T) {

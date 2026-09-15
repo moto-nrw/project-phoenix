@@ -70,9 +70,15 @@ const (
 func SetupSettingsModule(t *testing.T) (*bun.DB, services.SettingsTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	return db, SetupSettingsModuleWithDB(t, db)
+}
+
+// SetupSettingsModuleWithDB preserves an isolated pool for query-budget tests.
+func SetupSettingsModuleWithDB(t *testing.T, db *bun.DB) services.SettingsTestModule {
+	t.Helper()
 	module, err := services.NewSettingsTestModule(db, testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return db, module
+	return module
 }
 
 func SetupFileStoreModule(t *testing.T) (*bun.DB, services.FileStoreTestModule) {
@@ -733,9 +739,16 @@ func NewMultipartRequest(t *testing.T, method, target string, fieldName, fileNam
 // themselves run it unchanged underneath, since their requests arrive here
 // unauthenticated and pass through.
 func NewTenantRouter(db *bun.DB) chi.Router {
+	router := NewJSONRouter()
+	router.Use(testpkg.TenantTxMiddleware(db))
+	return router
+}
+
+// NewJSONRouter provides the JSON response middleware for isolated handler
+// tests that supply their own identity and do not need a database transaction.
+func NewJSONRouter() chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Use(testpkg.TenantTxMiddleware(db))
 	return router
 }
 

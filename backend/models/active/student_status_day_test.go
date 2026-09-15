@@ -1,11 +1,9 @@
-package active_test
+package active
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -13,13 +11,10 @@ func TestStudentStatusDayModelAccessors(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	entry := &active.StudentStatusDay{
-		Model: modelBase.Model{
-			ID:        42,
-			CreatedAt: now,
-			UpdatedAt: now.Add(time.Minute),
-		},
-	}
+	entry := &StudentStatusDay{}
+	entry.ID = 42
+	entry.CreatedAt = now
+	entry.UpdatedAt = now.Add(time.Minute)
 
 	assert.Equal(t, int64(42), entry.GetID())
 	assert.Equal(t, now, entry.GetCreatedAt())

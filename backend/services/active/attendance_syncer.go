@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // AttendanceSnapshot is the minimal view of a schedule.instance_students row
@@ -81,16 +81,13 @@ type AttendanceSyncer interface {
 	MirrorCheckOutForVisits(ctx context.Context, visits []*studentpresence.Visit, at time.Time) error
 }
 
-// applyAttendanceSnapshot copies the three WP-B10 fields from snapshot into
-// the EventData. Nil snapshot is a no-op — the realtime event goes out
-// with attendance_* omitted (omitempty). Status is always set when snapshot
-// is non-nil (it's a required column); Substatus and Note may be nil.
-func applyAttendanceSnapshot(data *realtime.EventData, snapshot *AttendanceSnapshot) {
-	if data == nil || snapshot == nil {
-		return
+// attendanceDetail carries the three WP-B10 fields of a snapshot into the
+// realtime event. A nil snapshot yields nil, so the event goes out with
+// attendance_* omitted. Status is always set when the snapshot is non-nil
+// (it's a required column); Substatus and Note may be nil.
+func attendanceDetail(snapshot *AttendanceSnapshot) *realtimeevents.AttendanceDetail {
+	if snapshot == nil {
+		return nil
 	}
-	status := snapshot.Status
-	data.AttendanceStatus = &status
-	data.AttendanceSubstatus = snapshot.Substatus
-	data.AttendanceNote = snapshot.Note
+	return &realtimeevents.AttendanceDetail{Status: snapshot.Status, Substatus: snapshot.Substatus, Note: snapshot.Note}
 }

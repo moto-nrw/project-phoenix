@@ -22,15 +22,15 @@ type wtmMockAdjustmentReader struct {
 }
 
 type wtmMockSnapshotReader struct {
-	activeModels.StaffMonthBalanceSnapshotRepository
-	snapshot *activeModels.StaffMonthBalanceSnapshot
+	MonthSnapshots
+	snapshot *MonthSnapshot
 }
 
-func (m *wtmMockSnapshotReader) GetLatestClosedThrough(
+func (m *wtmMockSnapshotReader) LatestClosedMonth(
 	_ context.Context,
 	_ int64,
 	year, month int,
-) (*activeModels.StaffMonthBalanceSnapshot, error) {
+) (*MonthSnapshot, error) {
 	if m.snapshot == nil {
 		return nil, nil
 	}
@@ -341,7 +341,7 @@ func TestWTMAdjustments_ReductionCapacityStartsFromFrozenPriorMonth(t *testing.T
 
 	f := newWTMFixture()
 	f.svc.SetSnapshotReader(&wtmMockSnapshotReader{
-		snapshot: &activeModels.StaffMonthBalanceSnapshot{
+		snapshot: &MonthSnapshot{
 			StaffID:               wtmStaffID,
 			Year:                  2026,
 			Month:                 6,
@@ -368,7 +368,7 @@ func TestWTMAdjustments_AdvancedAccountStartIgnoresOlderSnapshotBoundary(t *test
 	f := newWTMFixture()
 	f.settings.accountStart = "2026-07-01"
 	f.svc.SetSnapshotReader(&wtmMockSnapshotReader{
-		snapshot: &activeModels.StaffMonthBalanceSnapshot{
+		snapshot: &MonthSnapshot{
 			StaffID:               wtmStaffID,
 			Year:                  2026,
 			Month:                 6,
