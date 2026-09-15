@@ -250,6 +250,7 @@
   },
   "pushNotifications": {
     "title": "Notifications on this device",
+    "moreActions": "More actions",
     "installIntro": "On iPhone and iPad, notifications only work when you open moto from the Home Screen.",
     "installStepsLabel": "Add moto to the Home Screen",
     "installStep1": "Tap Share in the menu.",

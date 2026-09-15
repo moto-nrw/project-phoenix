@@ -38,6 +38,15 @@ function stubNotificationPermission(permission: NotificationPermission) {
   vi.stubGlobal("Notification", { permission });
 }
 
+// Testversand und Neustart der Einrichtung liegen seit dem Mobil-Fix im
+// Kebab-Menü des Kartenkopfs, damit drei Textknöpfe die Karte auf dem Telefon
+// nicht mehr sprengen.
+async function openSecondaryMenu() {
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Weitere Aktionen" }),
+  );
+}
+
 describe("PushNotificationSection", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -312,18 +321,21 @@ describe("PushNotificationSection", () => {
     });
 
     const { rerender } = render(<PushNotificationSection portal="tenant" />);
-    const testButton = await screen.findByRole("button", {
-      name: "Testbenachrichtigung senden",
-    });
-    // Die Testaktion steht jetzt als zweite Kartenkopf-Aktion neben
-    // "Ausschalten" und trägt daher die Kartenkopf-Höhe (size="md").
-    expect(testButton).toHaveClass("rounded-lg", "px-4", "py-2", "text-sm");
-    expect(testButton).not.toHaveClass("h-8", "text-xs", "shadow-md");
+    await openSecondaryMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
+    ).toBeInTheDocument();
+    // Der Kartenkopf trägt nur noch eine Schaltfläche plus Menü; die
+    // Testaktion ist kein zweiter Textknopf mehr.
+    expect(
+      screen.queryByRole("button", { name: "Testbenachrichtigung senden" }),
+    ).not.toBeInTheDocument();
 
     rerender(<PushNotificationSection portal="parent" />);
+    await openSecondaryMenu();
     await waitFor(() =>
       expect(
-        screen.queryByRole("button", {
+        screen.queryByRole("menuitem", {
           name: "Testbenachrichtigung senden",
         }),
       ).not.toBeInTheDocument(),
@@ -336,10 +348,9 @@ describe("PushNotificationSection", () => {
     });
 
     render(<PushNotificationSection />);
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
     await waitFor(() =>
@@ -363,19 +374,22 @@ describe("PushNotificationSection", () => {
     );
 
     render(<PushNotificationSection />);
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
-    expect(
-      await screen.findByRole("button", { name: "Wird gesendet …" }),
-    ).toBeDisabled();
+    // Der Ladezustand steckte früher im Knopf. Im Menü kann er das nicht,
+    // deshalb nennt ihn die Karte selbst.
+    expect(await screen.findByText("Wird gesendet …")).toBeInTheDocument();
     expect(
       screen.getByRole("button", {
         name: "Benachrichtigungen ausschalten",
       }),
+    ).toBeDisabled();
+    await openSecondaryMenu();
+    expect(
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     ).toBeDisabled();
 
     finishRequest?.();
@@ -391,10 +405,9 @@ describe("PushNotificationSection", () => {
     );
 
     render(<PushNotificationSection />);
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Testbenachrichtigung senden",
-      }),
+      screen.getByRole("menuitem", { name: "Testbenachrichtigung senden" }),
     );
 
     expect(
@@ -472,21 +485,48 @@ describe("PushNotificationSection", () => {
   it("restarts the guided setup from the card", async () => {
     render(<PushNotificationSection portal="tenant" />);
 
+    await openSecondaryMenu();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Einrichtung erneut starten" }),
+      screen.getByRole("menuitem", { name: "Einrichtung erneut starten" }),
     );
 
     expect(await screen.findByTestId("setup-dialog")).toBeInTheDocument();
   });
 
-  it("hides the restart button without a known account", async () => {
+  it("hides the restart action without a known account", async () => {
     shellAuth.useShellAuthSafe.mockReturnValue(undefined);
 
     render(<PushNotificationSection portal="tenant" />);
 
     await screen.findByText("moto als App geöffnet");
+    // Ohne Konto bleibt im nicht abonnierten Zustand keine Zweitaktion übrig,
+    // also erscheint auch kein Menü.
     expect(
-      screen.queryByRole("button", { name: "Einrichtung erneut starten" }),
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
+  });
+
+  // Der Fix gegen die aus der Karte ragende Knopfreihe: der Kartenkopf trägt
+  // im eingeschalteten Zustand genau eine Schaltfläche plus Menü.
+  it("keeps the card head at one action plus menu when push is active", async () => {
+    stubNotificationPermission("granted");
+    pushApi.syncExistingPushSubscription.mockResolvedValue({
+      endpoint: "https://push.example/e",
+    });
+
+    render(<PushNotificationSection portal="tenant" />);
+
+    const disableButton = await screen.findByRole("button", {
+      name: "Benachrichtigungen ausschalten",
+    });
+    const menuTrigger = screen.getByRole("button", {
+      name: "Weitere Aktionen",
+    });
+    const actionArea = disableButton.parentElement;
+    expect(actionArea).not.toBeNull();
+    expect(actionArea?.contains(menuTrigger)).toBe(true);
+    // Genau diese beiden Bedienelemente stehen im Kartenkopf; alles Weitere
+    // liegt hinter dem Menü.
+    expect(actionArea?.querySelectorAll("button")).toHaveLength(2);
   });
 });
