@@ -56,6 +56,9 @@ type parentAnnouncementRow struct {
 	DeliveryMode            string     `bun:"delivery_mode,notnull,nullzero,default:'standard'"`
 	EmailAudience           string     `bun:"email_audience,notnull,nullzero,default:'portal_only'"`
 	SystemKind              *string    `bun:"system_kind"`
+	ReminderAt              *time.Time `bun:"reminder_at"`
+	ReminderText            *string    `bun:"reminder_text"`
+	ReminderSentAt          *time.Time `bun:"reminder_sent_at"`
 }
 
 func (r *parentAnnouncementRow) value() *domain.ParentAnnouncement {
@@ -68,6 +71,7 @@ func (r *parentAnnouncementRow) value() *domain.ParentAnnouncement {
 		PublishedAt: r.PublishedAt, ExpiresAt: r.ExpiresAt, Active: r.Active, CreatedBy: r.CreatedBy,
 		ResponseType: r.ResponseType, ResponseDeadline: r.ResponseDeadline,
 		DeliveryMode: r.DeliveryMode, EmailAudience: r.EmailAudience, SystemKind: r.SystemKind,
+		ReminderAt: r.ReminderAt, ReminderText: r.ReminderText, ReminderSentAt: r.ReminderSentAt,
 		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
@@ -80,6 +84,7 @@ func announcementRow(value *domain.ParentAnnouncement) *parentAnnouncementRow {
 		PublishedAt: value.PublishedAt, ExpiresAt: value.ExpiresAt, Active: value.Active,
 		CreatedBy: value.CreatedBy, ResponseType: value.ResponseType, ResponseDeadline: value.ResponseDeadline,
 		DeliveryMode: value.DeliveryMode, EmailAudience: value.EmailAudience, SystemKind: value.SystemKind,
+		ReminderAt: value.ReminderAt, ReminderText: value.ReminderText, ReminderSentAt: value.ReminderSentAt,
 	}
 }
 
@@ -242,17 +247,29 @@ func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive b
 		return nil, fmt.Errorf("list parent announcements for tenant: %w", err)
 	}
 	announcements := make([]*domain.ParentAnnouncement, 0, len(rows))
-	if len(rows) == 0 {
-		return announcements, nil
-	}
-	ids := make([]int64, 0, len(rows))
-	byID := make(map[int64]*domain.ParentAnnouncement, len(rows))
 	for i := range rows {
 		value := rows[i].value()
-		value.Targets = []*domain.ParentAnnouncementTarget{}
 		announcements = append(announcements, value)
-		ids = append(ids, value.ID)
-		byID[value.ID] = value
+	}
+	if err := s.attachTargets(ctx, db, tenantID, announcements); err != nil {
+		return nil, err
+	}
+	return announcements, nil
+}
+
+// attachTargets attaches target rows for a set of announcements in one query.
+// Both list views use it so scheduler scans do not issue one target query per
+// due reminder.
+func (s *AnnouncementStore) attachTargets(ctx context.Context, db bun.IDB, tenantID int64, announcements []*domain.ParentAnnouncement) error {
+	if len(announcements) == 0 {
+		return nil
+	}
+	ids := make([]int64, 0, len(announcements))
+	byID := make(map[int64]*domain.ParentAnnouncement, len(announcements))
+	for _, announcement := range announcements {
+		announcement.Targets = []*domain.ParentAnnouncementTarget{}
+		ids = append(ids, announcement.ID)
+		byID[announcement.ID] = announcement
 	}
 	var targets []parentTargetRow
 	targetQuery := db.NewSelect().
@@ -262,14 +279,14 @@ func (s *AnnouncementStore) ListForTenant(ctx context.Context, includeInactive b
 		OrderExpr(`"pat".id ASC`)
 	targetQuery = withTenant(targetQuery, "pat", tenantID)
 	if err := targetQuery.Scan(ctx); err != nil {
-		return nil, fmt.Errorf("list parent announcement targets for tenant: %w", err)
+		return fmt.Errorf("list parent announcement targets for tenant: %w", err)
 	}
 	for i := range targets {
 		if announcement, ok := byID[targets[i].AnnouncementID]; ok {
 			announcement.Targets = append(announcement.Targets, targets[i].value())
 		}
 	}
-	return announcements, nil
+	return nil
 }
 
 // UpdateDraft writes only the editable content columns of a DRAFT and is
@@ -302,6 +319,8 @@ func (s *AnnouncementStore) UpdateDraft(ctx context.Context, announcement *domai
 		Set("response_deadline = ?", announcement.ResponseDeadline).
 		Set("delivery_mode = ?", announcement.DeliveryMode).
 		Set("email_audience = ?", announcement.EmailAudience).
+		Set("reminder_at = ?", announcement.ReminderAt).
+		Set("reminder_text = ?", announcement.ReminderText).
 		Set("updated_at = ?", now).
 		Where(`"parent_announcement".id = ?`, announcement.ID).
 		Where(`"parent_announcement".published_at IS NULL`)
@@ -357,6 +376,14 @@ func (s *AnnouncementStore) SetPublished(ctx context.Context, id int64, publishe
 		ModelTableExpr(parentAnnouncementTableExpr).
 		Set("published_at = ?", publishedAt).
 		Where(`"parent_announcement".id = ?`, id)
+	if publishedAt == nil {
+		// Unpublishing starts a new publication cycle. A reminder belonged to
+		// the withdrawn version, so its time, wording and sent marker must all
+		// disappear before staff can schedule a reminder for the correction.
+		query.Set("reminder_at = NULL").
+			Set("reminder_text = NULL").
+			Set("reminder_sent_at = NULL")
+	}
 	query = withTenant(query, parentAnnouncementAlias, tenantID)
 	if _, err := query.Exec(ctx); err != nil {
 		return fmt.Errorf("set parent announcement published_at: %w", err)
@@ -387,6 +414,134 @@ func (s *AnnouncementStore) PublishIfDraft(ctx context.Context, id int64, publis
 	affected, err := result.RowsAffected()
 	if err != nil {
 		return false, fmt.Errorf("publish parent announcement rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+// reminderLivePredicate is the row state in which a scheduled reminder may
+// still fire: the announcement is published, active, and not expired at the
+// moment the reminder is evaluated. Shared by the due-scan and the claim so the
+// two cannot disagree. Bind arg: the evaluation instant (for expires_at).
+const reminderLivePredicate = `"parent_announcement".reminder_at IS NOT NULL
+	AND "parent_announcement".reminder_sent_at IS NULL
+	AND "parent_announcement".published_at IS NOT NULL
+	AND "parent_announcement".active
+	AND ("parent_announcement".expires_at IS NULL OR "parent_announcement".expires_at > ?)`
+
+// SetReminder writes the reminder moment and wording of one announcement and
+// reports whether the write applied. The WHERE requires reminder_sent_at IS
+// NULL: a reminder that already went out is history and stays as it was. A
+// nil reminderAt removes the reminder together with its text (the CHECK
+// constraint would refuse a text without a moment anyway).
+func (s *AnnouncementStore) SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	if reminderAt == nil {
+		reminderText = nil
+	}
+	query := db.NewUpdate().
+		Model((*parentAnnouncementRow)(nil)).
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Set("reminder_at = ?", reminderAt).
+		Set("reminder_text = ?", reminderText).
+		Set("updated_at = ?", time.Now()).
+		Where(`"parent_announcement".id = ?`, id).
+		Where(`"parent_announcement".reminder_sent_at IS NULL`)
+	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("set parent announcement reminder: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("set parent announcement reminder rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+// ListDueReminders returns the live announcements whose unsent reminder fell
+// due in (notBefore, dueBefore], oldest first, with targets attached. RLS and
+// the tenant filter pin the scan to the current tenant.
+func (s *AnnouncementStore) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*domain.ParentAnnouncement, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []parentAnnouncementRow
+	query := db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Where(reminderLivePredicate, dueBefore).
+		Where(`"parent_announcement".reminder_at > ?`, notBefore).
+		Where(`"parent_announcement".reminder_at <= ?`, dueBefore).
+		OrderExpr(`"parent_announcement".reminder_at ASC, "parent_announcement".id ASC`)
+	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("list due parent announcement reminders: %w", err)
+	}
+	announcements := make([]*domain.ParentAnnouncement, 0, len(rows))
+	for i := range rows {
+		announcements = append(announcements, rows[i].value())
+	}
+	if err := s.attachTargets(ctx, db, tenantID, announcements); err != nil {
+		return nil, err
+	}
+	return announcements, nil
+}
+
+// ClaimReminder stamps reminder_sent_at and reports whether THIS call made
+// the change. The guard repeats the liveness predicate: a tick that lost the
+// race to an overlapping tick, to an unpublish, or to the expiry matches
+// nothing and must not send.
+func (s *AnnouncementStore) ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	query := db.NewUpdate().
+		Model((*parentAnnouncementRow)(nil)).
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Set("reminder_sent_at = ?", sentAt).
+		Where(`"parent_announcement".id = ?`, id).
+		Where(reminderLivePredicate, sentAt).
+		Where(`"parent_announcement".reminder_at <= ?`, sentAt)
+	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("claim parent announcement reminder: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("claim parent announcement reminder rows affected: %w", err)
+	}
+	return affected > 0, nil
+}
+
+// ReleaseReminderClaim restores an unsent reminder only when this scheduler
+// run made the matching claim. It is used for a temporary notification-window
+// suppression, which queued no delivery and must be retried after the window
+// opens without rolling back later reminders in the tenant batch.
+func (s *AnnouncementStore) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return false, err
+	}
+	query := db.NewUpdate().
+		Model((*parentAnnouncementRow)(nil)).
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Set("reminder_sent_at = NULL").
+		Where(`"parent_announcement".id = ?`, id).
+		Where(`"parent_announcement".reminder_sent_at = ?`, sentAt)
+	query = withTenant(query, parentAnnouncementAlias, tenantID)
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return false, fmt.Errorf("release parent announcement reminder claim: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("release parent announcement reminder claim rows affected: %w", err)
 	}
 	return affected > 0, nil
 }

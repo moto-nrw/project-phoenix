@@ -45,7 +45,12 @@ import type {
   PollChild,
   PollResults,
 } from "~/lib/parent-announcements-api";
-import { RESPONSE_TYPE_LABEL, targetChips } from "./announcement-meta";
+import {
+  describeReminder,
+  reminderStateOf,
+  RESPONSE_TYPE_LABEL,
+  targetChips,
+} from "./announcement-meta";
 
 const logger = createLogger({ component: "AnnouncementDetail" });
 
@@ -502,6 +507,11 @@ export function AnnouncementDetail({
               {formatBerlinDate(announcement.response_deadline)}
             </DataField>
           )}
+          {!poll && (
+            <DataField label="Erinnerung" fullWidth>
+              {reminderLine(announcement)}
+            </DataField>
+          )}
         </DataGrid>
       </SectionCard>
 
@@ -567,6 +577,43 @@ export function AnnouncementDetail({
         </SectionCard>
       )}
     </div>
+  );
+}
+
+/**
+ * Die geplante Erinnerung (#3162) in Worten: wann, mit welchem Text, und ob
+ * sie schon raus ist. Ohne Erinnerung sagt die Zeile das ausdrücklich, damit
+ * niemand eine zweite Zustellung erwartet, die nie kommt.
+ */
+function reminderLine(announcement: Announcement) {
+  const description = describeReminder(announcement);
+  if (!description) {
+    return (
+      <span className="text-gray-500">
+        Keine Erinnerung geplant. Die Mitteilung wird nur einmal zugestellt.
+      </span>
+    );
+  }
+  return (
+    <span className="block space-y-1">
+      <span className="block">
+        {description}
+        <span className="block text-xs text-gray-500">
+          {reminderStateOf(announcement) === "sent"
+            ? "Ging an alle Empfänger der Mitteilung, auch an die, die schon gelesen oder bestätigt hatten."
+            : "Geht an alle Empfänger der Mitteilung, auch wenn sie schon gelesen oder bestätigt haben."}
+        </span>
+      </span>
+      {announcement.reminder_text ? (
+        <span className="block whitespace-pre-line text-gray-800">
+          „{announcement.reminder_text}“
+        </span>
+      ) : (
+        <span className="block text-xs text-gray-500">
+          Erinnerungstext: der Text der Mitteilung.
+        </span>
+      )}
+    </span>
   );
 }
 

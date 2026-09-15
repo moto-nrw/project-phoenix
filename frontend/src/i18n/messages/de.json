@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Erneut versuchen",
     "newsClose": "Schließen",
     "newsLetterBadge": "Bestätigung erforderlich",
+    "newsReminder": "Erinnerung",
+    "newsReminderFrom": "Erinnerung vom {date}",
     "newsLetterBindingHint": "Diese E-Mail ist nur zur Information. Es zählt die Bestätigung hier im Eltern-Portal. Eine sorgeberechtigte Person pro Kind genügt."
   },
   "parentNotificationSetup": {

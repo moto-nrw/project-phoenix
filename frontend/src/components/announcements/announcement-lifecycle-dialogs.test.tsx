@@ -219,3 +219,74 @@ describe("buildAnnouncementMenuItems", () => {
     ).toEqual([]);
   });
 });
+
+describe("buildAnnouncementMenuItems: scheduled reminder (#3162)", () => {
+  const handlers = {
+    onPublish: vi.fn(),
+    onEdit: vi.fn(),
+    onUnpublish: vi.fn(),
+    onDelete: vi.fn(),
+    onReminder: vi.fn(),
+  };
+
+  it("offers to plan a reminder on a published Mitteilung", () => {
+    expect(
+      buildAnnouncementMenuItems(
+        { ...announcement, status: "published" },
+        handlers,
+      ).map((item) => item.label),
+    ).toEqual(["Erinnerung planen", "Zurückziehen", "Löschen"]);
+  });
+
+  it("offers to change an unsent reminder and hides it once sent", () => {
+    expect(
+      buildAnnouncementMenuItems(
+        {
+          ...announcement,
+          status: "published",
+          reminder_at: "2026-09-24T06:00:00Z",
+        },
+        handlers,
+      ).map((item) => item.label),
+    ).toEqual(["Erinnerung ändern", "Zurückziehen", "Löschen"]);
+    expect(
+      buildAnnouncementMenuItems(
+        {
+          ...announcement,
+          status: "published",
+          reminder_at: "2026-09-08T06:00:00Z",
+          reminder_sent_at: "2026-09-08T06:02:00Z",
+        },
+        handlers,
+      ).map((item) => item.label),
+    ).toEqual(["Zurückziehen", "Löschen"]);
+  });
+
+  it("never offers it for drafts, polls or system rows", () => {
+    expect(
+      buildAnnouncementMenuItems(announcement, handlers).map(
+        (item) => item.label,
+      ),
+    ).toEqual(["Veröffentlichen", "Bearbeiten", "Löschen"]);
+    expect(
+      buildAnnouncementMenuItems(
+        {
+          ...announcement,
+          status: "published",
+          response_type: "single_choice",
+        },
+        handlers,
+      ).map((item) => item.label),
+    ).toEqual(["Zurückziehen", "Löschen"]);
+    expect(
+      buildAnnouncementMenuItems(
+        {
+          ...announcement,
+          status: "published",
+          system_kind: "care_cancellation",
+        },
+        handlers,
+      ),
+    ).toEqual([]);
+  });
+});

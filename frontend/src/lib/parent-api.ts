@@ -983,6 +983,11 @@ export interface ParentAnnouncement {
   // Set on rows the system wrote on the school's behalf (#2601). A
   // cancellation notice is labelled as such instead of "Elternbrief".
   readonly system_kind?: "care_cancellation";
+
+  // Scheduled reminder (#3162): set once the school's reminder went out. The
+  // feed sorts the item back to the top; read/acknowledged stay as they were.
+  readonly reminder_sent_at?: string; // ISO timestamp
+  readonly reminder_text?: string;
 }
 
 interface ParentAnnouncementOption {

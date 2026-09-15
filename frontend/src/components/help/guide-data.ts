@@ -2249,9 +2249,11 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste den Bereich `Eltern` aufklappen, `Mitteilungen` öffnen und auf `Mitteilung` tippen.",
           "Schritt `Inhalt`: Titel und Text eingeben. Optional: einen Link ergänzen, Priorität `Wichtig` setzen, ein Ablaufdatum wählen (danach wird die Mitteilung ausgeblendet), `Lesebestätigung erforderlich` und `Eltern zusätzlich per E-Mail benachrichtigen` aktivieren. Die E-Mail einer Mitteilung enthält nur den Titel und einen Link ins Elternportal – soll der vollständige Text mitgeschickt werden, nutzen Sie stattdessen einen `Elternbrief`.",
           "Noch im Schritt `Inhalt`: unter `Dateien anhängen` mit `Datei auswählen` bis zu fünf Dateien anhängen (PDF, DOCX, XLSX, PPTX, PNG, JPEG, je bis 25 MB). Die Dateien sehen genau die Eltern, die auch die Mitteilung bekommen. Sie liegen im Elternportal zum Herunterladen bereit und gehen nicht per E-Mail mit; die E-Mail weist nur darauf hin.",
+          "Noch im Schritt `Inhalt`: unter `Erinnerung` optional ein Datum und eine Uhrzeit wählen. moto schickt die Mitteilung dann zu diesem Zeitpunkt noch einmal an alle Empfänger, egal ob sie schon gelesen oder bestätigt haben. Mit einem kurzen `Erinnerungstext` bringen Sie das Wichtigste auf den Punkt, zum Beispiel „Morgen endet die Betreuung um 13:00 Uhr.“. Ohne eigenen Text sehen Eltern im Elternportal den Text der Mitteilung. Die E-Mail enthält nur Titel und Link. Die Erinnerung darf nicht nach dem Ablaufdatum liegen.",
           "Schritt `Empfänger`: Zielgruppe wählen: ganze Schule, einzelne Klassen, Gruppen, AGs/Betreuungsangebote, einzelne Kinder oder Eltern mit offener Anmeldung. Mehrere Zielgruppen lassen sich kombinieren; ein Elternteil erhält die Mitteilung höchstens einmal.",
           "Mit `Als Entwurf speichern` für später sichern oder mit `Veröffentlichen` direkt an die Eltern geben. Veröffentlichte Mitteilungen erscheinen sofort im Elternportal der erreichten Eltern.",
           "Entwürfe lassen sich aus der Liste bearbeiten und über `Veröffentlichen` freigeben. Nach dem Veröffentlichen ist keine Bearbeitung mehr möglich – auch Anhänge lassen sich dann weder hinzufügen noch entfernen; über `Zurückziehen` wird eine Mitteilung wieder zum Entwurf und aus dem Elternportal entfernt. Achtung: Wer nach dem Zurückziehen einen Anhang ändert, setzt damit die Lesebestätigungen zurück – die Eltern bestätigen dann erneut.",
+          "Einzige Ausnahme: die Erinnerung. Über das Menü mit den drei Punkten auf der Seite der Mitteilung lässt sich mit `Erinnerung planen` beziehungsweise `Erinnerung ändern` der Zeitpunkt verschieben, der Text ändern oder die Erinnerung ganz entfernen, solange sie noch nicht verschickt wurde. Liste und Seite der Mitteilung zeigen, wann erinnert wird und ob die Erinnerung schon raus ist.",
           "Ein Tipp auf eine Mitteilung öffnet ihre eigene Seite mit dem vollständigen Text und der Statistik: wie viele der erreichten Eltern sie gelesen und (falls verlangt) bestätigt haben, inklusive Liste, welche Bezugsperson noch aussteht. `Veröffentlichen`, `Bearbeiten`, `Zurückziehen` und `Löschen` stehen dort im Menü mit den drei Punkten oben rechts; `Zurück` führt in die Liste.",
         ],
         callout: {
@@ -2260,7 +2262,8 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Übersicht der Elternmitteilungen mit Status (Entwurf, veröffentlicht, abgelaufen) und der Aktion „Neue Elternmitteilung“.",
+          "Schritt `Inhalt` einer neuen Elternmitteilung mit dem Abschnitt `Erinnerung`: Datum, Uhrzeit und optionaler Erinnerungstext.",
+        image: "/help/screens/elternmitteilung-erinnerung.webp",
       },
       {
         id: "elternbriefe",
@@ -2273,6 +2276,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Schritt `Inhalt`: Titel und Text eingeben. Der Kasten `Beim Veröffentlichen passiert automatisch` zeigt, was fest zum Elternbrief gehört: Portal, E-Mail mit vollem Text und Bestätigung durch die Eltern. Diese drei Punkte lassen sich nicht abwählen.",
           "Unter `Wer erhält die E-Mail?` wählen: `Nur mit Portalzugang` (Standard) schickt die E-Mail ausschließlich an Bezugspersonen mit Elternportal-Zugang. `Alle Bezugspersonen` schickt sie zusätzlich an hinterlegte Bezugspersonen ohne Portalzugang – praktisch für allgemeine Informationen, aber ungeeignet für sensible Angaben.",
           "Dateien anhängen geht wie bei einer Mitteilung, im Schritt `Inhalt` unter `Dateien anhängen`. Auch beim Elternbrief bleibt die Datei im Elternportal: Der Brieftext geht per E-Mail mit, die Datei nicht. Das gilt besonders bei `Alle Bezugspersonen` – Personen ohne Portalzugang können die Datei nicht öffnen.",
+          "Auch ein Elternbrief kann unter `Erinnerung` einen Zeitpunkt bekommen, an dem er noch einmal an alle Empfänger geht. Der Erinnerungstext geht dann wie der Brieftext per E-Mail mit. Die Erinnerung fordert keine zweite Bestätigung; wer schon bestätigt hat, bleibt bestätigt.",
           "Schritt `Empfänger`: Zielgruppe wählen wie bei einer Mitteilung. Eltern mit offener Anmeldung stehen hier nicht zur Verfügung, weil für sie noch kein Kind verknüpft ist.",
           "Nach `Veröffentlichen` öffnet ein Tipp auf den Brief seine Seite mit dem Status: oben `x von y Kindern bestätigt`, darunter die Liste der Kinder und die Liste der Empfänger.",
           "In der Empfängerliste stehen E-Mail-Status und moto-Status getrennt nebeneinander. `Versendet` heißt: die E-Mail wurde an den Mailserver übergeben. Ob sie im Postfach angekommen ist, kann moto derzeit nicht bestätigen.",

@@ -27424,6 +27424,7 @@
     "registered_route_count": 968,
     "registered_job_ids": [
       "activate-students",
+      "announcement-reminders",
       "appointment-reminders",
       "auto-checkout",
       "booking-consistency-audit",
@@ -27537,6 +27538,7 @@
   ],
   "worker_job_ids": [
     "activate-students",
+    "announcement-reminders",
     "appointment-reminders",
     "auto-checkout",
     "booking-consistency-audit",

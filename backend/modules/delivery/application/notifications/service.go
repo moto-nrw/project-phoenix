@@ -148,6 +148,14 @@ type durableChannel interface {
 	durableChannel()
 }
 
+// durableReceiptChannel reports how many durable intents it recorded. It is
+// used by producers that hold a claim and must not mark it complete when a
+// notification was only accepted by the router, but no delivery intent exists.
+type durableReceiptChannel interface {
+	durableChannel
+	DeliverDurably(context.Context, Event) (int, error)
+}
+
 // synchronousChannel reports Web Push acceptance to a producer that must not
 // mark a durable delivery complete until the push service has responded.
 type synchronousChannel interface {
@@ -178,12 +186,20 @@ type Notifier interface {
 	Service
 	BatchNotifier
 	SynchronousService
+	DurableReceiptService
 }
 
 // SynchronousService is for durable producers such as appointment reminders.
 // Unlike Notify, it waits for Web Push acceptance and returns delivery errors.
 type SynchronousService interface {
 	NotifySynchronously(ctx context.Context, event Event) error
+}
+
+// DurableReceiptService writes durable notification intents and reports how
+// many of them were recorded. It keeps the write in the caller's transaction,
+// unlike SynchronousService, which contacts the push provider directly.
+type DurableReceiptService interface {
+	NotifyDurably(ctx context.Context, event Event) (int, error)
 }
 
 // Service is the entry point features use to trigger notifications.
@@ -368,6 +384,66 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 		r.deliver(dispatchCtx, event)
 	})
 	return nil
+}
+
+// NotifyDurably has the same validation, tenant gates, and after-commit
+// delivery as Notify. Its receipt is limited to durable channel intents, so a
+// producer with no other delivery channel can roll back its claim when no push
+// subscription accepted the event.
+func (r *router) NotifyDurably(ctx context.Context, event Event) (int, error) {
+	if err := validate(event); err != nil {
+		return 0, err
+	}
+	if event.Priority == "" {
+		event.Priority = PriorityNormal
+	}
+	if r.settings == nil {
+		return 0, errors.New("notifications service has no settings service configured")
+	}
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, configModel.KeyNotificationsDispatchEnabled)
+	if err != nil {
+		return 0, fmt.Errorf("resolving notification feature flag: %w", err)
+	}
+	if !enabled {
+		return 0, ErrDisabled
+	}
+	if event.Type != TypeTest {
+		within, err := r.withinActiveWindow(ctx, event.Audience.TenantID)
+		if err != nil {
+			return 0, err
+		}
+		if !within {
+			return 0, ErrOutsideActiveWindow
+		}
+	}
+
+	accepted := 0
+	for _, channel := range r.channels {
+		if receipt, ok := channel.(durableReceiptChannel); ok {
+			count, err := receipt.DeliverDurably(ctx, event)
+			if err != nil {
+				return accepted, fmt.Errorf("enqueue durable notification channel %s: %w", channel.Name(), err)
+			}
+			accepted += count
+			continue
+		}
+		if _, durable := channel.(durableChannel); !durable {
+			continue
+		}
+		if err := channel.Deliver(ctx, event); err != nil {
+			return accepted, fmt.Errorf("enqueue durable notification channel %s: %w", channel.Name(), err)
+		}
+	}
+
+	dispatchCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+	event.Data = maps.Clone(event.Data)
+	event.Audience.GuardianAccountIDs = slices.Clone(event.Audience.GuardianAccountIDs)
+	event.Audience.StaffAccountIDs = slices.Clone(event.Audience.StaffAccountIDs)
+	event.Audience.StudentIDs = slices.Clone(event.Audience.StudentIDs)
+	tenant.RegisterAfterCommit(ctx, func() {
+		r.deliver(dispatchCtx, event)
+	})
+	return accepted, nil
 }
 
 func (r *router) NotifySynchronously(ctx context.Context, event Event) error {

@@ -225,6 +225,8 @@
     "newsAttachmentsRetry": "Try again",
     "newsClose": "Close",
     "newsLetterBadge": "Confirmation required",
+    "newsReminder": "Reminder",
+    "newsReminderFrom": "Reminder from {date}",
     "newsLetterBindingHint": "This e-mail is for information only. What counts is the confirmation here in the parent portal. One guardian per child is enough."
   },
   "parentNotificationSetup": {

@@ -70,7 +70,10 @@ type WorkerDependencies struct {
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
 	ReminderNotifications     ReminderNotificationDeps
-	AppointmentReminders      reminder.Command
+	// AppointmentReminders is the established reminder capability consumed by
+	// the scheduler. It also exposes scheduled parent-announcement delivery,
+	// avoiding a second dependency in this shrink-only worker composition.
+	AppointmentReminders reminder.Capability
 }
 
 // NewWorker constructs and validates the complete embedded worker before the
@@ -140,6 +143,7 @@ func requiredWorkerJobIDs() []JobID {
 		"email-outbox",
 		"rollover-deadline",
 		"appointment-reminders",
+		"announcement-reminders",
 	}
 }
 
@@ -175,6 +179,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.outboxWorker), "email-outbox", s.scheduleOutboxWorkerTask)
 	add(!isNilDependency(s.rolloverDeadlineRunner), "rollover-deadline", s.scheduleRolloverDeadlineTask)
 	add(!isNilDependency(s.appointmentReminders), "appointment-reminders", s.scheduleAppointmentReminderTask)
+	add(!isNilDependency(s.announcementReminders), "announcement-reminders", s.scheduleAnnouncementReminderTask)
 	return jobs
 }
 
