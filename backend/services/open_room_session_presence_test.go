@@ -13,16 +13,49 @@ import (
 
 type runningSessionQuery struct {
 	studentpresence.OpenRoomSessionQuery
-	query  func(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
-	visits func(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
+	query        func(context.Context, studentpresence.LiveGroupFilter) ([]studentpresence.LiveGroup, error)
+	visits       func(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
+	supervisions func(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 }
 
-func (q runningSessionQuery) QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
-	return nil, nil
+func (q runningSessionQuery) QueryGroupSupervisions(ctx context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
+	if q.supervisions == nil {
+		return nil, nil
+	}
+	return q.supervisions(ctx, filter)
 }
 
 func (q runningSessionQuery) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
 	return q.visits(ctx, filter)
+}
+
+func TestFacilitiesGroupSupervisionsKeepFutureEndDatesActive(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	future := "2099-12-31"
+	past := "2000-01-01"
+	groupIDs := []int64{42}
+	query := facilitiesGroupSupervisions(runningSessionQuery{supervisions: func(got context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
+		require.Same(t, ctx, got)
+		require.Equal(t, groupIDs, filter.GroupIDs)
+		require.NotNil(t, filter.ActiveOn)
+		_, err := time.Parse("2006-01-02", *filter.ActiveOn)
+		require.NoError(t, err)
+		return []studentpresence.GroupSupervision{
+			{ID: 91, GroupID: 42, StaffID: 5, EndDate: &future},
+			{ID: 92, GroupID: 42, StaffID: 6, EndDate: &past},
+			{ID: 93, GroupID: 42, StaffID: 7},
+		}, nil
+	}})
+
+	rows, err := query(ctx, groupIDs)
+
+	require.NoError(t, err)
+	require.Len(t, rows, 3)
+	assert.False(t, rows[0].Ended)
+	assert.True(t, rows[1].Ended)
+	assert.False(t, rows[2].Ended)
 }
 
 func TestFacilitiesGroupVisitsKeepOpenAndEndedRows(t *testing.T) {

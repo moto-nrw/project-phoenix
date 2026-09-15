@@ -18,16 +18,34 @@ func facilitiesGroupSupervisions(presence interface {
 		if len(groupIDs) == 0 {
 			return result, nil
 		}
-		day := timezone.TodayDate().String()
+		today := timezone.TodayDate()
+		day := today.String()
 		rows, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: groupIDs, ActiveOn: &day})
 		if err != nil {
 			return nil, &activeService.ActiveError{Op: "FindSupervisorsByActiveGroupIDs", Err: activeService.ErrDatabaseOperation}
 		}
 		for _, row := range rows {
-			result = append(result, facilities.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: row.EndDate != nil})
+			result = append(result, facilities.OpenGroupSupervisor{ID: row.ID, GroupID: row.GroupID, StaffID: row.StaffID, Ended: facilitiesSupervisionEnded(row.EndDate, today.String())})
 		}
 		return result, nil
 	}
+}
+
+// facilitiesSupervisionEnded matches ActiveOn: a planned future end_date is
+// still supervising and must stay on the live Schulhof roster.
+func facilitiesSupervisionEnded(endDate *string, today string) bool {
+	if endDate == nil {
+		return false
+	}
+	end, err := timezone.ParseDate(*endDate)
+	if err != nil {
+		return false
+	}
+	day, err := timezone.ParseDate(today)
+	if err != nil {
+		return false
+	}
+	return !day.Before(end)
 }
 
 func facilitiesGroupVisits(presence interface {

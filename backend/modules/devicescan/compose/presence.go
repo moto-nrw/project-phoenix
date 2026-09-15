@@ -209,14 +209,15 @@ func (s sessions) Supervisors(ctx context.Context, sessionID int64) ([]ports.Sup
 	if err != nil || len(groups) == 0 {
 		return nil, &activeSvc.ActiveError{Op: operation, Err: activeSvc.ErrActiveGroupNotFound}
 	}
-	day := s.clock.Day(s.clock.Now()).String()
+	today := s.clock.Day(s.clock.Now())
+	day := today.String()
 	supervisors, err := s.presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: &day})
 	if err != nil {
 		return nil, &activeSvc.ActiveError{Op: operation, Err: activeSvc.ErrDatabaseOperation}
 	}
 	result := make([]ports.Supervisor, 0, len(supervisors))
 	for _, supervisor := range supervisors {
-		result = append(result, ports.Supervisor{StaffID: supervisor.StaffID, Ended: supervisor.EndDate != nil})
+		result = append(result, ports.Supervisor{StaffID: supervisor.StaffID, Ended: supervisionEnded(supervisor.EndDate, today.String())})
 	}
 	return result, nil
 }

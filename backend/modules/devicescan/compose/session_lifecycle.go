@@ -46,14 +46,15 @@ func NewSupervisionQuery(source nativeSupervisionQuery) SupervisionQuery {
 type supervisionQuery struct{ source nativeSupervisionQuery }
 
 func (q supervisionQuery) ActiveSupervisions(ctx context.Context, sessionID int64) ([]Supervision, error) {
-	day := timezone.TodayDate().String()
+	today := timezone.TodayDate()
+	day := today.String()
 	rows, err := q.source.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: &day})
 	if err != nil {
 		return nil, &activeSvc.ActiveError{Op: "FindSupervisorsByActiveGroupID", Err: activeSvc.ErrDatabaseOperation}
 	}
 	result := make([]Supervision, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, Supervision{StaffID: row.StaffID, Role: row.Role, Ended: row.EndDate != nil})
+		result = append(result, Supervision{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(row.EndDate, today.String())})
 	}
 	return result, nil
 }
@@ -78,13 +79,39 @@ func lifecycleSession(group *active.Group) application.LifecycleSession {
 }
 
 func lifecycleSupervisors(rows []*active.GroupSupervisor) []application.LifecycleSupervisor {
+	today := timezone.TodayDate().String()
 	result := make([]application.LifecycleSupervisor, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: row.EndDate != nil})
+			result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(groupSupervisorEndDate(row.EndDate), today)})
 		}
 	}
 	return result
+}
+
+// supervisionEnded matches ActiveOn: a row is over only when end_date <= today.
+// A planned future end_date is still supervising and must stay on the kiosk roster.
+func supervisionEnded(endDate *string, today string) bool {
+	if endDate == nil {
+		return false
+	}
+	end, err := timezone.ParseDate(*endDate)
+	if err != nil {
+		return false
+	}
+	day, err := timezone.ParseDate(today)
+	if err != nil {
+		return false
+	}
+	return !day.Before(end)
+}
+
+func groupSupervisorEndDate(endDate *timezone.Date) *string {
+	if endDate == nil {
+		return nil
+	}
+	value := endDate.String()
+	return &value
 }
 
 func (s lifecycleStore) Start(ctx context.Context, deviceID int64, command devicescan.StartSessionCommand) (application.LifecycleSession, error) {
