@@ -33,12 +33,12 @@ func TestCandidateWorkflowRequiresNewPackages(t *testing.T) {
 		"example.test/project/workflows/flow/compose": {},
 	}
 
-	if err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{}); err != nil {
+	if err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{}); err != nil {
 		t.Fatalf("candidate workflow was rejected: %v", err)
 	}
 
 	partiallyCreated := map[string]struct{}{"example.test/project/workflows/flow": {}}
-	err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, partiallyCreated, map[string]struct{}{}, map[string]struct{}{})
+	err := comparePolicyStrictness(base, candidate, map[string]struct{}{}, map[string]struct{}{}, partiallyCreated, map[string]struct{}{}, map[string]struct{}{})
 	if err == nil || !strings.Contains(err.Error(), "owner flow with kind workflow was added") {
 		t.Fatalf("a workflow over an existing package bypassed the owner guard: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestCandidateWorkflowRequiresNewPackages(t *testing.T) {
 		Owners:     []Owner{{ID: "module", Kind: "domain"}, {ID: "flow", Kind: "domain"}},
 		Packages:   candidate.Packages,
 	}
-	err = comparePolicyStrictness(base, domain, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{})
+	err = comparePolicyStrictness(base, domain, map[string]struct{}{}, map[string]struct{}{}, created, map[string]struct{}{}, map[string]struct{}{})
 	if err == nil || !strings.Contains(err.Error(), "owner flow with kind domain was added") {
 		t.Fatalf("a new owning kind bypassed the owner guard: %v", err)
 	}

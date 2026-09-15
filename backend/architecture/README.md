@@ -840,3 +840,16 @@ grants, first-party targets, production roles, other external classes — is sti
 a loosening. Epoch 6 registered `external.<class>.<role>` for every test role,
 replacing the 65 owner-specific rules they subsume, so a per-owner test-role
 rule for these classes would now overlap and fail to load.
+
+A reviewed epoch may also let a target owner adopt an existing table
+([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),
+[#3235](https://github.com/moto-nrw/project-phoenix/issues/3235)): a new
+`data_objects` entry is accepted when the table has no owner in the base
+policy, the base `legacy.jsonl` records at least one production
+`tables.unclassified` finding for it, and every package those findings name is
+classified under the adopting owner in the candidate or no longer exists. The
+candidate must remove those findings from the baseline as usual. Transferring
+an owned table, adopting a table with no recorded debt, and adopting while a
+package of another owner still accesses it remain loosenings; after the
+adoption the ordinary `tables.foreign-write` and `tables.foreign-read` rules
+apply to every other accessor, and a new finding there cannot become debt.

@@ -8,11 +8,13 @@ import (
 
 // CompareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
-// in this candidate actually creates. Without this narrow exception the
+// in this candidate actually creates, and for tables a reviewed epoch adopts
+// from recorded debt (adoptableDataObjects). Without the first exception the
 // ratchet would freeze the schema: a table cannot exist in the base policy
-// before the migration that introduces it. Existing tables and ownership
-// changes remain strict policy loosenings.
-func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy) error {
+// before the migration that introduces it. Without the second, a live table
+// the baseline already tracks as unowned could only gain its owner through a
+// data migration. Every other ownership change remains a strict loosening.
+func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest) error {
 	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
@@ -29,12 +31,58 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	return comparePolicyStrictness(base, candidate, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
+	adoptedDataObjects := adoptableDataObjects(base, candidate, baseManifest)
+	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
 }
 
-func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
+// adoptableDataObjects returns the candidate data objects a reviewed policy
+// epoch may adopt from recorded debt (ADR 0015, #3235). A table qualifies
+// when it has no write owner at the base, the base baseline records at least
+// one production tables.unclassified finding for it, and every package those
+// findings name is classified under the adopting owner in the candidate or
+// no longer exists there. The epoch must increase, as for every reviewed
+// registration. Transferring an owned table, adopting a table with no
+// recorded debt, and adopting while a package of another owner still
+// accesses it stay loosenings; after the adoption the ordinary foreign-read
+// and foreign-write rules guard every other accessor.
+func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest) map[string]struct{} {
+	adoptable := make(map[string]struct{})
+	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
+		return adoptable
+	}
+	sourcesByTable := make(map[string][]string)
+	for _, entry := range baseManifest.Entries {
+		if entry.Rule == "tables.unclassified" && entry.Scope == ScopeProduction {
+			sourcesByTable[entry.Target] = append(sourcesByTable[entry.Target], entry.Source)
+		}
+	}
+	baseObjects := dataObjectsByName(base)
+	candidatePackages := candidate.packageMap()
+	for _, object := range candidate.DataObjects {
+		if _, owned := baseObjects[object.Name]; owned {
+			continue
+		}
+		sources := sourcesByTable[object.Name]
+		if len(sources) == 0 {
+			continue
+		}
+		adopt := true
+		for _, source := range sources {
+			if pkg, classified := candidatePackages[source]; classified && pkg.Owner != object.WriteOwner {
+				adopt = false
+				break
+			}
+		}
+		if adopt {
+			adoptable[object.Name] = struct{}{}
+		}
+	}
+	return adoptable
+}
+
+func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
-	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, createdPackages)...)
+	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
 	problems = append(problems, compositionLoosenings(base, candidate, deletedLegacySymbols)...)
@@ -54,7 +102,7 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
 }
 
-func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPackages map[string]struct{}) []string {
+func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages map[string]struct{}) []string {
 	var problems []string
 	candidateObjects := dataObjectsByName(candidate)
 	for name := range createdDataObjects {
@@ -89,8 +137,9 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects, createdPac
 	for name, current := range candidateObjects {
 		baseObject, exists := baseObjects[name]
 		_, createdByCandidateMigration := createdDataObjects[name]
+		_, adoptedFromDebt := adoptedDataObjects[name]
 		if !exists {
-			if !createdByCandidateMigration {
+			if !createdByCandidateMigration && !adoptedFromDebt {
 				problems = append(problems, fmt.Sprintf("data object %s was newly assigned to owner %s", name, current.WriteOwner))
 			}
 			continue
