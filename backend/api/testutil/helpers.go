@@ -81,10 +81,12 @@ func SetupSettingsModuleWithDB(t *testing.T, db *bun.DB) services.SettingsTestMo
 	return module
 }
 
-func SetupFileStoreModule(t *testing.T) (*bun.DB, services.FileStoreTestModule) {
+// SetupFileStoreModule composes the File Storage capability over the test
+// database and the caller's uploads object store (#2707).
+func SetupFileStoreModule(t *testing.T, objects services.UploadsBackend) (*bun.DB, services.FileStoreTestModule) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := services.NewFileStoreTestModule(db, testpkg.TenantRuntime(t, db))
+	module, err := services.NewFileStoreTestModule(db, testpkg.TenantRuntime(t, db), objects)
 	require.NoError(t, err)
 	return db, module
 }

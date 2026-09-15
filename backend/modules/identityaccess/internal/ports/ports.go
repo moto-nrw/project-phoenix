@@ -17,6 +17,11 @@ type Store interface {
 	FindRolePermissions(context.Context, int64, int64) ([]string, domain.OperationStats, error)
 	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+	// ListAccountRoleIDs returns the roles the account holds at this school.
+	ListAccountRoleIDs(ctx context.Context, accountID, tenantID int64) ([]int64, domain.OperationStats, error)
+	// ListActiveAccountIDs returns every account with an active mapping to the
+	// school, ascending by account id.
+	ListActiveAccountIDs(ctx context.Context, tenantID int64) ([]int64, domain.OperationStats, error)
 	FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error)
 	FindAccount(ctx context.Context, id int64) (domain.Account, bool, domain.OperationStats, error)
 	FindAccountByEmail(ctx context.Context, email string) (domain.Account, bool, domain.OperationStats, error)

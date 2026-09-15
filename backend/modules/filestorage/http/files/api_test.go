@@ -2,7 +2,7 @@
 // per viewer (all staff / admins / selected roles and persons), folder
 // management is gated on files:manage, uploads by non-managers hang on the
 // files.staff_upload_enabled setting, and files are served as attachments.
-package filestore_test
+package files_test
 
 import (
 	"archive/zip"
@@ -23,10 +23,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	filestoreAPI "github.com/moto-nrw/project-phoenix/api/filestore"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +57,7 @@ func fakeXLSX(t *testing.T) []byte {
 type apiContext struct {
 	t                     *testing.T
 	db                    *bun.DB
-	resource              *filestoreAPI.Resource
+	files                 *filestorageModule.Module
 	setStaffUploadEnabled func() error
 	router                chi.Router
 	// admin holds admin:*; member holds only a plain permission.
@@ -66,7 +67,9 @@ type apiContext struct {
 
 func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
-	db, svc := testutil.SetupFileStoreModule(t)
+	objects, err := common.UploadsBackend()
+	require.NoError(t, err)
+	db, svc := testutil.SetupFileStoreModule(t, objects)
 	resource := filestoreAPI.NewResource(svc.FileStore, db, slog.Default())
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
@@ -81,7 +84,7 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 		}
 	})
 	return &apiContext{
-		t: t, db: db, resource: resource, router: router, admin: adminAccount.ID, member: memberAccount.ID,
+		t: t, db: db, files: svc.FileStore, router: router, admin: adminAccount.ID, member: memberAccount.ID,
 		setStaffUploadEnabled: func() error {
 			return svc.Settings.SetValue(testpkg.Ctx(t), configModel.KeyFilesStaffUploadEnabled, true, nil, nil)
 		},
@@ -465,30 +468,44 @@ func TestDeleteFolderQueuesCleanupForItsFiles(t *testing.T) {
 	assert.Equal(t, 1, pending, "the stored object has an immediately eligible cleanup intent")
 
 	// The scheduler pass reclaims the object and settles the intent.
-	resource := filestoreAPI.NewResource(c.resource.Service, c.db, slog.Default())
-	removed, err := resource.CleanupOrphanedFiles(ctx)
+	removed, err := c.files.CleanupOrphanedFiles(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, removed)
 }
 
-// TestFileMetadataTablesEnforceRLS proves the document metadata File Storage
-// keeps (#2706, ADR 0010) stays inside the tenant: two schools each store one
-// file and queue one cleanup intent, and neither documents.files nor
-// documents.file_cleanup is visible across the tenant boundary under the
-// least-privilege role.
+// rlsKey names the column a two-tenant RLS check selects on one table and the
+// value the side under test wrote. Share-list tables have no id column; their
+// key is the folder they belong to.
+type rlsKey struct {
+	column string
+	value  int64
+}
+
+// TestFileMetadataTablesEnforceRLS proves every table the File Storage owner
+// keeps (#2707, ADR 0010, ADR 0015) stays inside the tenant: two schools each
+// create a shared folder with a role and a person on its share list, store one
+// file, queue one cleanup intent for a deleted folder, and attach one file to
+// an Elternmitteilung. None of documents.folders, documents.folder_roles,
+// documents.folder_accounts, documents.files, documents.file_cleanup,
+// documents.announcement_attachments and
+// documents.announcement_attachment_cleanup is visible across the tenant
+// boundary under the least-privilege role.
 func TestFileMetadataTablesEnforceRLS(t *testing.T) {
 	t.Parallel()
 	type side struct {
 		ctx      context.Context
 		db       *bun.DB
 		tenantID int64
-		rows     map[string]int64
+		rows     map[string]rlsKey
 	}
 	var sides []side
 	for _, name := range []string{"own", "foreign"} {
 		t.Run(name, func(t *testing.T) {
 			testpkg.OwnTenant(t)
-			c := setupFileStoreRoute(t)
+			c := setupAttachmentRoute(t)
+			role := testpkg.CreateTestRoleForTenant(t, c.db, "rls-rolle", testpkg.Tenant(t))
+			shared := c.createFolder(folderPayload{Name: "Geteilt", Visibility: "selected", RoleIDs: []string{idStr(role.ID)}, AccountIDs: []string{idStr(c.member)}})
+
 			kept := c.createFolder(folderPayload{Name: "Vorlagen", Visibility: "all_staff"})
 			rec := c.upload(kept, "Elternbrief.pdf", fakePDF, c.admin, permissions.AdminWildcard)
 			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -507,24 +524,44 @@ func TestFileMetadataTablesEnforceRLS(t *testing.T) {
 			var cleanupID int64
 			require.NoError(t, c.db.NewSelect().TableExpr("documents.file_cleanup").Column("id").Where("owner_id = ?", dropped).Scan(testpkg.Ctx(t), &cleanupID))
 
+			rec = c.uploadAttachment("Einverständnis.pdf", fakePDF)
+			require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+			var attachment struct {
+				Data struct {
+					ID common.JSONID `json:"id"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &attachment))
+			var attachmentCleanupID int64
+			require.NoError(t, c.db.NewSelect().TableExpr("documents.announcement_attachment_cleanup").Column("id").Where("owner_id = ?", c.announcementID).Scan(testpkg.Ctx(t), &attachmentCleanupID))
+
 			sides = append(sides, side{
 				ctx: testpkg.Ctx(t), db: c.db, tenantID: testpkg.Tenant(t),
-				rows: map[string]int64{"documents.files": int64(uploaded.Data.ID), "documents.file_cleanup": cleanupID},
+				rows: map[string]rlsKey{
+					"documents.folders":                         {column: "id", value: shared},
+					"documents.folder_roles":                    {column: "folder_id", value: shared},
+					"documents.folder_accounts":                 {column: "folder_id", value: shared},
+					"documents.files":                           {column: "id", value: uploaded.Data.ID.Int64()},
+					"documents.file_cleanup":                    {column: "id", value: cleanupID},
+					"documents.announcement_attachments":        {column: "id", value: attachment.Data.ID.Int64()},
+					"documents.announcement_attachment_cleanup": {column: "id", value: attachmentCleanupID},
+				},
 			})
 		})
 	}
 	require.Len(t, sides, 2)
-	for table, firstID := range sides[0].rows {
-		secondID := sides[1].rows[table]
+	for table, first := range sides[0].rows {
+		second := sides[1].rows[table]
 		t.Run(table, func(t *testing.T) {
 			for _, s := range sides {
 				require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(txCtx context.Context, tx bun.Tx) error {
 					var bypass bool
 					require.NoError(t, tx.NewRaw("SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user").Scan(txCtx, &bypass))
 					require.False(t, bypass, "the tenant transaction must run under the least-privilege role")
-					var ids []int64
-					require.NoError(t, tx.NewSelect().Table(table).Column("id").Where("id IN (?, ?)", firstID, secondID).Scan(txCtx, &ids))
-					require.Equal(t, []int64{s.rows[table]}, ids, "%s leaks across the tenant boundary", table)
+					var values []int64
+					require.NoError(t, tx.NewSelect().Table(table).ColumnExpr("DISTINCT ?", bun.Ident(first.column)).
+						Where("? IN (?, ?)", bun.Ident(first.column), first.value, second.value).Scan(txCtx, &values))
+					require.Equal(t, []int64{s.rows[table].value}, values, "%s leaks across the tenant boundary", table)
 					return nil
 				}))
 			}
