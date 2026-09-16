@@ -17,6 +17,7 @@ import { createLogger } from "~/lib/logger";
 import {
   formatPermissionDisplay,
   localizeAction,
+  localizeDescription,
   localizeResource,
 } from "~/lib/permission-labels";
 
@@ -350,36 +351,42 @@ export function RolePermissionsTab({
                 </div>
                 {isCollapsed
                   ? null
-                  : permissions.map((permission) => (
-                      <label
-                        key={permission.id}
-                        htmlFor={`role-permission-${permission.id}`}
-                        className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-gray-50"
-                      >
-                        <Checkbox
-                          id={`role-permission-${permission.id}`}
-                          checked={draftMap[permission.id] === true}
-                          disabled={saving}
-                          onChange={() => toggleOne(permission.id)}
-                          aria-label={permissionLabel(permission)}
-                          className="mt-0.5"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-medium text-gray-900">
-                            {permissionLabel(permission)}
+                  : permissions.map((permission) => {
+                      const description = localizeDescription(
+                        permission.resource,
+                        permission.action,
+                        permission.description,
+                      );
+
+                      return (
+                        <label
+                          key={permission.id}
+                          htmlFor={`role-permission-${permission.id}`}
+                          className="flex cursor-pointer items-start gap-3 px-3 py-2.5 hover:bg-gray-50"
+                        >
+                          <Checkbox
+                            id={`role-permission-${permission.id}`}
+                            checked={draftMap[permission.id] === true}
+                            disabled={saving}
+                            onChange={() => toggleOne(permission.id)}
+                            aria-label={permissionLabel(permission)}
+                            className="mt-0.5"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-medium text-gray-900">
+                              {permissionLabel(permission)}
+                            </span>
+                            <span className="block text-xs text-gray-500">
+                              {localizeAction(
+                                permission.action,
+                                permission.resource,
+                              )}
+                              {description ? ` · ${description}` : ""}
+                            </span>
                           </span>
-                          <span className="block text-xs text-gray-500">
-                            {localizeAction(
-                              permission.action,
-                              permission.resource,
-                            )}
-                            {permission.description
-                              ? ` · ${permission.description}`
-                              : ""}
-                          </span>
-                        </span>
-                      </label>
-                    ))}
+                        </label>
+                      );
+                    })}
               </section>
             );
           })

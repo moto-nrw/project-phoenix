@@ -293,10 +293,19 @@ describe("permission-labels", () => {
       // the database text, so asking for the sentinel back is exactly the
       // "falls through to English" case.
       const sentinel = "__db_description__";
+      const description = localizeDescription(
+        entry.resource,
+        entry.action,
+        sentinel,
+      );
       expect(
-        localizeDescription(entry.resource, entry.action, sentinel),
+        description,
         `permissionDescriptions is missing "${name}" — the list would show the English database text`,
       ).not.toBe(sentinel);
+      expect(
+        description,
+        `permissionDescriptions is empty for "${name}" — the list would show no description`,
+      ).toBeTruthy();
     });
   });
 });
