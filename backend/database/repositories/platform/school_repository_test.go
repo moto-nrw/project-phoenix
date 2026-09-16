@@ -23,9 +23,9 @@ func TestSchoolRepository_Create(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates school", func(t *testing.T) {
-		now := time.Now().UnixNano()
+		now := testpkg.UniqueSuffix()
 		org := &platformModels.Organization{
-			Model:  modelBase.Model{ID: now},
+			Model:  modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 			Name:   fmt.Sprintf("Org %d", now),
 			Slug:   fmt.Sprintf("org-%d", now),
 			Active: true,
@@ -33,7 +33,7 @@ func TestSchoolRepository_Create(t *testing.T) {
 		testpkg.CreateTestOrganization(t, db, org)
 
 		school := &platformModels.School{
-			Model:          modelBase.Model{ID: now + 1},
+			Model:          modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 			OrganizationID: org.ID,
 			Name:           fmt.Sprintf("School %d", now),
 			Slug:           fmt.Sprintf("school-%d", now),
@@ -66,15 +66,15 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 
 	repo := platformRepo.NewSchoolRepository(db)
 	ctx := testpkg.Ctx(t)
-	now := time.Now().UnixNano()
+	now := testpkg.UniqueSuffix()
 
-	orgA := &platformModels.Organization{Model: modelBase.Model{ID: now}, Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}
-	orgB := &platformModels.Organization{Model: modelBase.Model{ID: now + 1}, Name: fmt.Sprintf("OrgB %d", now), Slug: fmt.Sprintf("orgb-%d", now), Active: true}
+	orgA := &platformModels.Organization{Model: modelBase.Model{ID: testpkg.UniqueTestTenantID(t)}, Name: fmt.Sprintf("OrgA %d", now), Slug: fmt.Sprintf("orga-%d", now), Active: true}
+	orgB := &platformModels.Organization{Model: modelBase.Model{ID: testpkg.UniqueTestTenantID(t)}, Name: fmt.Sprintf("OrgB %d", now), Slug: fmt.Sprintf("orgb-%d", now), Active: true}
 	testpkg.CreateTestOrganization(t, db, orgA)
 	testpkg.CreateTestOrganization(t, db, orgB)
 
 	schoolA := &platformModels.School{
-		Model:          modelBase.Model{ID: now + 2},
+		Model:          modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 		OrganizationID: orgA.ID,
 		Name:           fmt.Sprintf("Alpha School %d", now),
 		Slug:           fmt.Sprintf("shared-slug-%d", now),
@@ -82,7 +82,7 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 		Active:         true,
 	}
 	schoolB := &platformModels.School{
-		Model:          modelBase.Model{ID: now + 3},
+		Model:          modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 		OrganizationID: orgB.ID,
 		Name:           fmt.Sprintf("Beta School %d", now),
 		Slug:           fmt.Sprintf("shared-slug-%d", now),
