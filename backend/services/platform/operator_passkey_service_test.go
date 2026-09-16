@@ -99,6 +99,7 @@ func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
 	t.Parallel()
 	baseCfg := OperatorPasskeyServiceConfig{
 		Repos:               &repositories.Factory{},
+		Operators:           &operatorPasskeyOperatorRepoStub{},
 		MFAService:          &operatorPasskeyMFAServiceStub{},
 		AuthService:         &operatorAuthService{},
 		DB:                  &bun.DB{},
@@ -112,6 +113,7 @@ func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
 		mutate func(*OperatorPasskeyServiceConfig)
 	}{
 		{name: "missing repos", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.Repos = nil }},
+		{name: "missing operators", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.Operators = nil }},
 		{name: "missing mfa", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.MFAService = nil }},
 		{name: "missing auth", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.AuthService = nil }},
 		{name: "missing db", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.DB = nil }},
@@ -146,7 +148,7 @@ func TestOperatorPasskeyEnrollmentChallenge(t *testing.T) {
 	operator := &platformModel.Operator{Model: base.Model{ID: 101}, Email: "operator@example.test", Active: true}
 	mfa := &operatorPasskeyMFAServiceStub{challengeToken: "operator-challenge"}
 	svc := &operatorPasskeyService{
-		repos:      &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
+		operators:  &operatorPasskeyOperatorRepoStub{operator: operator},
 		mfaService: mfa,
 	}
 
@@ -163,25 +165,25 @@ func TestOperatorPasskeyEnrollmentChallengeErrors(t *testing.T) {
 	wantErr := errors.New("mfa down")
 
 	tests := []struct {
-		name  string
-		repos *repositories.Factory
-		mfa   *operatorPasskeyMFAServiceStub
+		name      string
+		operators OperatorDirectory
+		mfa       *operatorPasskeyMFAServiceStub
 	}{
 		{
-			name:  "unknown operator",
-			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows}},
-			mfa:   &operatorPasskeyMFAServiceStub{},
+			name:      "unknown operator",
+			operators: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows},
+			mfa:       &operatorPasskeyMFAServiceStub{},
 		},
 		{
-			name:  "mfa start fails",
-			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
-			mfa:   &operatorPasskeyMFAServiceStub{startErr: wantErr},
+			name:      "mfa start fails",
+			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
+			mfa:       &operatorPasskeyMFAServiceStub{startErr: wantErr},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &operatorPasskeyService{repos: tt.repos, mfaService: tt.mfa}
+			svc := &operatorPasskeyService{operators: tt.operators, mfaService: tt.mfa}
 			_, err := svc.StartEnrollmentChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
 			require.Error(t, err)
 		})
@@ -195,10 +197,10 @@ func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	mfa := &operatorPasskeyMFAServiceStub{}
 	svc := &operatorPasskeyService{
 		repos: &repositories.Factory{
-			Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
 			OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
 			OperatorPasskeySession:    sessions,
 		},
+		operators:          &operatorPasskeyOperatorRepoStub{operator: operator},
 		mfaService:         mfa,
 		rpID:               "localhost",
 		rpName:             "moto",
@@ -233,11 +235,12 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 	wantErr := errors.New("boom")
 
 	tests := []struct {
-		name    string
-		req     OperatorPasskeyRegistrationStartRequest
-		repos   *repositories.Factory
-		mfa     *operatorPasskeyMFAServiceStub
-		wantErr error
+		name      string
+		req       OperatorPasskeyRegistrationStartRequest
+		operators OperatorDirectory
+		repos     *repositories.Factory
+		mfa       *operatorPasskeyMFAServiceStub
+		wantErr   error
 	}{
 		{
 			name: "invalid origin short circuits before mfa",
@@ -245,9 +248,9 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				OperatorID:     operator.ID,
 				ExpectedOrigin: "http://school.localhost:3000",
 			},
-			repos:   &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
-			mfa:     &operatorPasskeyMFAServiceStub{},
-			wantErr: authService.ErrPasskeyOriginInvalid,
+			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
+			mfa:       &operatorPasskeyMFAServiceStub{},
+			wantErr:   authService.ErrPasskeyOriginInvalid,
 		},
 		{
 			name: "mfa verify fails",
@@ -256,8 +259,8 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://operator.localhost:3000",
 				Code:           "000000",
 			},
-			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: operator}},
-			mfa:   &operatorPasskeyMFAServiceStub{verifyErr: wantErr},
+			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
+			mfa:       &operatorPasskeyMFAServiceStub{verifyErr: wantErr},
 		},
 		{
 			name: "unknown operator",
@@ -265,8 +268,8 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				OperatorID:     999,
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows}},
-			mfa:   &operatorPasskeyMFAServiceStub{},
+			operators: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows},
+			mfa:       &operatorPasskeyMFAServiceStub{},
 		},
 		{
 			name: "inactive operator",
@@ -274,8 +277,8 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				OperatorID:     inactive.ID,
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			repos: &repositories.Factory{Operator: &operatorPasskeyOperatorRepoStub{operator: inactive}},
-			mfa:   &operatorPasskeyMFAServiceStub{},
+			operators: &operatorPasskeyOperatorRepoStub{operator: inactive},
+			mfa:       &operatorPasskeyMFAServiceStub{},
 		},
 		{
 			name: "credential lookup fails while building user",
@@ -283,8 +286,8 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				OperatorID:     operator.ID,
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
+			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
 			repos: &repositories.Factory{
-				Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
 				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{err: wantErr},
 			},
 			mfa: &operatorPasskeyMFAServiceStub{},
@@ -295,8 +298,8 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				OperatorID:     operator.ID,
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
+			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
 			repos: &repositories.Factory{
-				Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
 				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
 				OperatorPasskeySession:    &operatorPasskeySessionRepoStub{createErr: wantErr},
 			},
@@ -308,6 +311,7 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &operatorPasskeyService{
 				repos:              tt.repos,
+				operators:          tt.operators,
 				mfaService:         tt.mfa,
 				rpID:               "operator.localhost",
 				rpName:             "moto",
@@ -391,10 +395,11 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 	otherOperatorID := operator.ID + 1
 
 	tests := []struct {
-		name    string
-		session *platformModel.OperatorPasskeySession
-		repos   *repositories.Factory
-		wantErr error
+		name      string
+		session   *platformModel.OperatorPasskeySession
+		operators OperatorDirectory
+		repos     *repositories.Factory
+		wantErr   error
 	}{
 		{
 			name: "consume fails",
@@ -438,8 +443,8 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
+			operators: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows},
 			repos: &repositories.Factory{
-				Operator:               &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows},
 				OperatorPasskeySession: &operatorPasskeySessionRepoStub{},
 			},
 		},
@@ -450,8 +455,8 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
+			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
 			repos: &repositories.Factory{
-				Operator:                  &operatorPasskeyOperatorRepoStub{operator: operator},
 				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
 				OperatorPasskeySession:    &operatorPasskeySessionRepoStub{},
 			},
@@ -465,6 +470,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 			sessionRepo.consumed = tt.session
 			svc := &operatorPasskeyService{
 				repos:              tt.repos,
+				operators:          tt.operators,
 				rpID:               "operator.localhost",
 				rpName:             "moto",
 				operatorOriginHost: "operator.localhost",
@@ -693,12 +699,8 @@ func (r *operatorPasskeyOperatorRepoStub) List(context.Context) ([]*platformMode
 	return nil, nil
 }
 
-func (r *operatorPasskeyOperatorRepoStub) UpdateLastLogin(context.Context, int64) error {
-	return nil
-}
-
-func (r *operatorPasskeyOperatorRepoStub) IncrementMFAAttempts(context.Context, int64, int, time.Duration) (platformModel.OperatorMFAAttemptResult, error) {
-	return platformModel.OperatorMFAAttemptResult{}, nil
+func (r *operatorPasskeyOperatorRepoStub) IncrementMFAAttempts(context.Context, int64, int, time.Duration) (OperatorMFAAttempts, error) {
+	return OperatorMFAAttempts{}, nil
 }
 
 func (r *operatorPasskeyOperatorRepoStub) ResetMFAAttempts(context.Context, int64) error {
@@ -777,17 +779,10 @@ func TestOperatorPasskeyRepositories(t *testing.T) {
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
 
-	operator := &platformModel.Operator{
-		Email:        fmt.Sprintf("operator-passkey-%s@example.test", suffix),
-		DisplayName:  "Passkey Operator",
-		PasswordHash: "hashed-password",
-		Active:       true,
-	}
-	require.NoError(t, repos.Operator.Create(ctx, operator))
+	operator := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("operator-passkey-%s@example.test", suffix), "Passkey Operator")
 	t.Cleanup(func() {
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_passkey_sessions WHERE operator_id = ?`, operator.ID)
 		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_passkey_credentials WHERE operator_id = ?`, operator.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, operator.ID)
 	})
 
 	credentialID := []byte("operator-credential-" + suffix)

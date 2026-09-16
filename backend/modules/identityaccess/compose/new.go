@@ -27,6 +27,11 @@ type Dependencies struct {
 	// cleanup and revocation. Compositions that only read identity facts
 	// leave it nil; the flows then report ErrAccountAuthenticationUnavailable.
 	Sessions *SessionDependencies
+	// Operators composes the operator flows (#3252): operator login, the
+	// MFA-proven token issue, refresh, profile and password changes, and
+	// the operator-led school access of accounts. It requires Sessions;
+	// compositions without it report ErrOperatorAuthenticationUnavailable.
+	Operators *OperatorDependencies
 	// Lifecycle composes the account lifecycle flows (#3225): staff PIN,
 	// staff preview, staff offboarding, school identity, parent accounts and
 	// guardian relative access. It requires Sessions; compositions without
@@ -80,7 +85,11 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := engine{service: service, auth: auth, lifecycle: lifecycle}
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	e := engine{service: service, auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
 	}
@@ -120,6 +129,10 @@ type engine struct {
 	service *application.Service
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
+	// operatorAuth and accountAccess are nil when the module was composed
+	// without operator dependencies.
+	operatorAuth  *application.OperatorAuthentication
+	accountAccess *application.OperatorAccountAccess
 	// lifecycle is nil when the module was composed without lifecycle
 	// dependencies.
 	lifecycle *application.AccountLifecycle

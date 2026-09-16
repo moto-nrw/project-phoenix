@@ -229,32 +229,6 @@ func (s *Store) DeleteAccountPermissionGrants(ctx context.Context, accountID, te
 	return stats.Rows, stats, nil
 }
 
-// DeactivateTenantMapping keeps the row (with deactivated_at) so a later
-// re-invitation can reactivate it; the staff calendar feed token dies with
-// the membership.
-func (s *Store) DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return domain.OperationStats{}, err
-	}
-	started := time.Now()
-	result, err := db.NewUpdate().
-		TableExpr(`auth.account_tenants AS "account_tenant"`).
-		Set("status = ?", "inactive").
-		Set("deactivated_at = NOW()").
-		Set("staff_calendar_feed_token = NULL").
-		Set("updated_at = NOW()").
-		Where(`"account_tenant".account_id = ?`, accountID).
-		Where(`"account_tenant".tenant_id = ?`, tenantID).
-		Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
-	if err != nil {
-		return stats, fmt.Errorf("identity access postgres: deactivate tenant mapping: %w", err)
-	}
-	stats.Rows, _ = result.RowsAffected()
-	return stats, nil
-}
-
 func (s *Store) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, domain.OperationStats, error) {
 	if len(accountIDs) == 0 {
 		return map[int64]string{}, domain.OperationStats{}, nil

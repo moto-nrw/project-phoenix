@@ -42,6 +42,9 @@ type accountAuthenticationWiring struct {
 	observe       IdentityAccessObserver
 	tenantRuntime func(context.Context) context.Context
 	mfa           func() auth.MFAService
+	// operators composes the operator flows (#3252); nil leaves them
+	// unavailable, as the cleanup roots compose the module.
+	operators *identityaccessCompose.OperatorDependencies
 	// lifecycle binds the account lifecycle seams (#3225); nil composes the
 	// module without them (cleanup roots, repository fixtures).
 	lifecycle *lifecycleWiring
@@ -119,6 +122,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			TenantRuntime: wiring.tenantRuntime,
 			Logger:        wiring.logger,
 		},
+		Operators: wiring.operators,
 	})
 }
 
@@ -145,7 +149,10 @@ type schoolDirectory struct {
 }
 
 func schoolFact(school *platformModels.School) identityaccess.School {
-	return identityaccess.School{ID: school.ID, OrganizationID: school.OrganizationID, Active: school.Active, Deleted: school.IsDeleted()}
+	return identityaccess.School{
+		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
+		Active: school.Active, Deleted: school.IsDeleted(),
+	}
 }
 
 func (d schoolDirectory) FindSchool(ctx context.Context, id int64) (identityaccess.School, bool, error) {
@@ -264,8 +271,11 @@ func (c sessionTokenCodec) IssueTokenPair(access identityaccess.SessionClaims, r
 
 func (c sessionTokenCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
 	enrollmentScope := authjwt.MFAEnrollmentScopeTenant
-	if scope == "school" {
+	switch scope {
+	case "school":
 		enrollmentScope = authjwt.MFAEnrollmentScopeSchool
+	case "platform":
+		enrollmentScope = authjwt.MFAEnrollmentScopePlatform
 	}
 	return c.tokenAuth.CreateMFAEnrollmentJWT(authjwt.MFAEnrollmentClaims{AccountID: accountID, Scope: enrollmentScope, TenantID: tenantID}, ttl)
 }
@@ -409,6 +419,20 @@ func (a authAudit) RecordAuthEvent(ctx context.Context, event identityaccess.Aut
 	row.UserAgent = event.UserAgent
 	if event.ErrorMessage != "" {
 		row.ErrorMessage = event.ErrorMessage
+	}
+	if evidence := event.TenantAccess; evidence != nil {
+		row.SetMetadata("school_id", evidence.SchoolID)
+		row.SetMetadata("school_name", evidence.SchoolName)
+		row.SetMetadata("operator_id", evidence.OperatorID)
+		switch event.Type {
+		case auditModels.EventTypeTenantAccessGranted:
+			row.SetMetadata("role", evidence.Role)
+		case auditModels.EventTypeTenantRoleChanged:
+			row.SetMetadata("role", evidence.Role)
+			row.SetMetadata("removed_roles", evidence.RemovedRoles)
+		case auditModels.EventTypeTenantAccessRevoked:
+			row.SetMetadata("account_deactivated", evidence.AccountDeactivated)
+		}
 	}
 	if evidence := event.RevokedSessions; evidence != nil {
 		row.SetMetadata("portal_scope", evidence.PortalScope)

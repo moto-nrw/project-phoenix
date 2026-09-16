@@ -186,39 +186,6 @@ func TestAccountParentRepository_Update(t *testing.T) {
 	})
 }
 
-func TestAccountParentRepository_UpdateLastLogin(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates last login timestamp", func(t *testing.T) {
-		account := testpkg.CreateTestParentAccount(t, db, "last_login")
-		defer cleanupParentAccount(t, db, account.ID)
-
-		// Get original last login (should be nil)
-		found, err := repo.FindByEmail(ctx, account.Email)
-		require.NoError(t, err)
-		originalLastLogin := found.LastLogin
-
-		// Update last login
-		err = repo.UpdateLastLogin(ctx, account.ID)
-		require.NoError(t, err)
-
-		// Verify update
-		found, err = repo.FindByEmail(ctx, account.Email)
-		require.NoError(t, err)
-
-		if originalLastLogin == nil {
-			assert.NotNil(t, found.LastLogin)
-		} else {
-			assert.True(t, found.LastLogin.After(*originalLastLogin))
-		}
-	})
-}
-
 func TestAccountParentRepository_UpdatePassword(t *testing.T) {
 	t.Parallel()
 
@@ -255,7 +222,6 @@ func TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope(t *testi
 
 	updatedHash := "background-hash"
 	require.NoError(t, repo.UpdatePassword(context.Background(), account.ID, updatedHash))
-	require.NoError(t, repo.UpdateLastLogin(context.Background(), account.ID))
 
 	var found auth.AccountParent
 	require.NoError(t, db.NewSelect().Model(&found).
@@ -264,7 +230,6 @@ func TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope(t *testi
 		Scan(context.Background()))
 	require.NotNil(t, found.PasswordHash)
 	assert.Equal(t, updatedHash, *found.PasswordHash)
-	assert.NotNil(t, found.LastLogin)
 }
 
 // ============================================================================

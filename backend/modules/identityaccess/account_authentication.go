@@ -165,6 +165,8 @@ func (c AccountClaims) IsSchoolPortalOnly() bool {
 type School struct {
 	ID             int64
 	OrganizationID int64
+	Name           string
+	Slug           string
 	Active         bool
 	Deleted        bool
 }
@@ -191,16 +193,31 @@ const (
 
 // AuthEvent is one authentication ledger entry with its typed evidence.
 type AuthEvent struct {
-	AccountID       int64
-	TenantID        int64
-	Type            string
-	Success         bool
-	IPAddress       string
-	UserAgent       string
-	ErrorMessage    string
+	AccountID    int64
+	TenantID     int64
+	Type         string
+	Success      bool
+	IPAddress    string
+	UserAgent    string
+	ErrorMessage string
+	// TenantAccess is set on the tenant-visible school access events an
+	// operator causes (granted, role changed, revoked).
+	TenantAccess    *TenantAccessEvidence
 	RevokedSessions *RevokedSessionsEvidence
 	PendingWipe     *PendingWipeEvidence
 	CompletedWipe   *CompletedWipeEvidence
+}
+
+// TenantAccessEvidence describes an operator-led change of the school
+// access of an account. RemovedRoles is meaningful for a role change,
+// AccountDeactivated for a revocation, Role for a grant or role change.
+type TenantAccessEvidence struct {
+	SchoolID           int64
+	SchoolName         string
+	Role               string
+	RemovedRoles       []string
+	AccountDeactivated bool
+	OperatorID         int64
 }
 
 // RevokedSessionsEvidence describes one group of revoked sessions.

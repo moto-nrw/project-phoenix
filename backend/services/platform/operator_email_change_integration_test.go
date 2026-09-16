@@ -35,14 +35,30 @@ var fastArgon2Params = &userpass.PasswordParams{
 	KeyLength:   32,
 }
 
-// buildAuthService creates a fully-wired OperatorAuthService via the standard factory.
-func buildAuthService(t *testing.T, db *bun.DB) platformSvc.OperatorAuthService {
+// buildServiceFactory composes the service root the way the server does.
+func buildServiceFactory(t *testing.T, db *bun.DB) *services.Factory {
 	t.Helper()
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return serviceFactory.OperatorAuth
+	return serviceFactory
+}
+
+// buildAuthService creates a fully-wired OperatorAuthService via the standard factory.
+func buildAuthService(t *testing.T, db *bun.DB) platformSvc.OperatorAuthService {
+	t.Helper()
+	return buildServiceFactory(t, db).OperatorAuth
+}
+
+// buildOperatorPasswordChange returns the operator password change the root
+// composes on Identity & Access (#3252); the e-mail change tokens it
+// invalidates stay with the retained service under test here.
+func buildOperatorPasswordChange(t *testing.T, db *bun.DB) interface {
+	ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
+} {
+	t.Helper()
+	return buildServiceFactory(t, db).AccountAuthentication()
 }
 
 // createEmailChangeTestOperator creates an operator with a real Argon2id password hash.
@@ -685,7 +701,7 @@ func TestIntegration_EmailChange_ChangePassword_InvalidatesToken(t *testing.T) {
 
 	// 3. Change password — must atomically invalidate the outstanding token
 	newPassword := "ChangedPass789!"
-	err = service.ChangePassword(ctx, operatorID, testPassword, newPassword)
+	err = buildOperatorPasswordChange(t, db).ChangeOperatorPassword(ctx, operatorID, testPassword, newPassword)
 	require.NoError(t, err)
 
 	// 4. Verify the token is now marked as used in the database

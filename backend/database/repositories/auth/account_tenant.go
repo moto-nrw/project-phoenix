@@ -75,23 +75,6 @@ func (r *AccountTenantRepository) EnsureActive(ctx context.Context, mapping *aut
 	return err
 }
 
-// Deactivate marks the mapping for the given account and tenant as inactive.
-// The row is kept (with deactivated_at) so EnsureActive can reactivate it on a
-// later re-invitation.
-func (r *AccountTenantRepository) Deactivate(ctx context.Context, accountID, tenantID int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.AccountTenant)(nil)).
-		ModelTableExpr(accountTenantTable).
-		Set("status = ?", auth.AccountTenantStatusInactive).
-		Set("deactivated_at = NOW()").
-		Set("staff_calendar_feed_token = NULL").
-		Set("updated_at = NOW()").
-		Where("account_id = ?", accountID).
-		Where("tenant_id = ?", tenantID).
-		Exec(ctx)
-	return err
-}
-
 // FindActiveByAccountID returns all active tenant mappings for an account.
 func (r *AccountTenantRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenant, error) {
 	var items []auth.AccountTenant
@@ -173,35 +156,6 @@ func (r *AccountTenantRepository) ExistsActiveByAccountAndTenantForShare(ctx con
 		return false, err
 	}
 	return true, nil
-}
-
-// ListTenantAccessByAccountID returns every school mapping of one account,
-// active and inactive alike, with school/organization context and whether the
-// account already carries a person and staff record at that school.
-//
-// This is the inverse direction of the account listings below (account -> many
-// schools instead of school -> many accounts) and is therefore cross-tenant by
-// construction: callers must be operator-scoped.
-//
-// HasPerson and HasStaff are attached by the composition layer through the
-// People Directory (#2661); the rows leave here with both unset.
-func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error) {
-	var rows []auth.AccountTenantAccessInfo
-	err := base.GetDB(ctx, r.db).NewSelect().
-		ColumnExpr(`"at".tenant_id`).
-		ColumnExpr(`"at".status`).
-		ColumnExpr(`"at".activated_at`).
-		ColumnExpr(`"at".deactivated_at`).
-		ColumnExpr(`FALSE AS has_person`).
-		ColumnExpr(`FALSE AS has_staff`).
-		TableExpr(`auth.account_tenants AS "at"`).
-		Where(`"at".account_id = ?`, accountID).
-		OrderExpr(`"at".tenant_id ASC`).
-		Scan(ctx, &rows)
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
 }
 
 // ListAccountsByTenantID returns all accounts for a given tenant with their

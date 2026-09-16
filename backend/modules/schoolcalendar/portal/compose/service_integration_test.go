@@ -36,6 +36,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("auth.account_tenants").
+		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("deactivated_at = NOW()").
+		Set("staff_calendar_feed_token = NULL").
+		Set("updated_at = NOW()").
+		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+}
+
 func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDependencies {
 	t.Helper()
 	repos := calendarTestRepositories(t, db)
@@ -854,7 +868,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, rotated.CalDAV.AppPassword)
 	require.NoError(t, err)
 
-	require.NoError(t, repos.AccountTenant.Deactivate(testpkg.Ctx(t), account.ID, testpkg.Tenant(t)))
+	deactivateAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, rotated.CalDAV.AppPassword)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "an inactive school mapping must receive no calendar data")
 }
@@ -942,7 +956,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), parentToken)
 	require.NoError(t, err, "staff rotation must not invalidate the independent parent feed")
 
-	require.NoError(t, repos.AccountTenant.Deactivate(testpkg.Ctx(t), account.ID, testpkg.Tenant(t)))
+	deactivateAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 	require.NoError(t, repos.AccountTenant.EnsureActive(testpkg.Ctx(t), &authModels.AccountTenant{

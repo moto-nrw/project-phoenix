@@ -57,6 +57,7 @@ func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
+		Operators: newTestOperatorDirectory(db),
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,
@@ -111,6 +112,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected(t *testing.T
 
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
+		Operators: newTestOperatorDirectory(db),
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,

@@ -60,14 +60,6 @@ func (e *PasswordMismatchError) Error() string {
 	return "current password is incorrect"
 }
 
-// OperatorRefreshTokenInvalidError is returned when an operator refresh token
-// has expired, was rotated already, was revoked, or never existed server-side.
-type OperatorRefreshTokenInvalidError struct{}
-
-func (e *OperatorRefreshTokenInvalidError) Error() string {
-	return "operator refresh token is invalid"
-}
-
 // OrganizationNotFoundError is returned when an organization does not exist.
 type OrganizationNotFoundError struct {
 	OrganizationID int64
@@ -84,26 +76,6 @@ type SchoolNotFoundError struct {
 
 func (e *SchoolNotFoundError) Error() string {
 	return fmt.Sprintf("school with ID %d not found", e.SchoolID)
-}
-
-// AccountNotFoundError is returned when an account does not exist.
-type AccountNotFoundError struct {
-	AccountID int64
-}
-
-func (e *AccountNotFoundError) Error() string {
-	return fmt.Sprintf("account with ID %d not found", e.AccountID)
-}
-
-// AccountTenantAccessNotFoundError is returned when an account has no active
-// mapping to the school an operation targets.
-type AccountTenantAccessNotFoundError struct {
-	AccountID int64
-	SchoolID  int64
-}
-
-func (e *AccountTenantAccessNotFoundError) Error() string {
-	return fmt.Sprintf("account %d has no active access to school %d", e.AccountID, e.SchoolID)
 }
 
 // SchoolInactiveError is returned when an operation targets an inactive school.

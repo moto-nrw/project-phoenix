@@ -278,6 +278,105 @@ type Runtime interface {
 	WithoutTransaction(ctx context.Context) context.Context
 }
 
+// AccountAccessStore is the persistence port over the identity-owned rows
+// the operator-led school access flows read and write (#3252): the account
+// row, its school mappings, its role assignments and direct permissions,
+// and the roles that may be handed out. Every statement runs on the
+// administrative transaction the flows open; the mapping and role reads
+// name their tenant explicitly and apply no context scope.
+type AccountAccessStore interface {
+	FindManagedAccount(ctx context.Context, id int64, forUpdate bool) (domain.ManagedAccount, bool, domain.OperationStats, error)
+	SetAccountActive(ctx context.Context, id int64, active bool) (domain.OperationStats, error)
+	// ListTenantMappings returns every school mapping of the account,
+	// ascending by school.
+	ListTenantMappings(ctx context.Context, accountID int64) ([]domain.TenantMapping, domain.OperationStats, error)
+	// DeactivateTenantMapping marks the mapping inactive and drops the
+	// staff calendar feed token it carried.
+	DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
+	// ListAccountRoleAssignments returns the account's role assignments at
+	// every school with their role facts.
+	ListAccountRoleAssignments(ctx context.Context, accountID int64) ([]domain.AccountRoleAssignment, domain.OperationStats, error)
+	RemoveAccountRole(ctx context.Context, accountID, roleID, tenantID int64) (domain.OperationStats, error)
+	DeleteAccountPermissionsAtTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
+	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
+	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
+}
+
+// OrganizationDirectory is the consumer-owned port over the Organisation &
+// Tenancy facts the access listing shows: the schools behind the mappings
+// and the organisation names, in the owner's name order.
+type OrganizationDirectory interface {
+	ListSchools(ctx context.Context, ids []int64) ([]domain.School, error)
+	ListOrganizationNames(ctx context.Context, ids []int64) ([]domain.OrganizationName, error)
+}
+
+// SchoolIdentityProvisioner is the consumer-owned port over the People
+// Directory and School Membership identity chain a school access requires
+// (persons, staff, teachers) and the facts the listing shows about it. The
+// tenant-scoped reads take the tenant from the context; the platform-wide
+// reads run administratively.
+type SchoolIdentityProvisioner interface {
+	// HasLivePersonAtSchool reports a live person carrying the account at
+	// the school in context.
+	HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error)
+	// ListAccountPersons returns every person row carrying the account at
+	// any school.
+	ListAccountPersons(ctx context.Context, accountID int64) ([]domain.AccountPersonIdentity, error)
+	// HasLiveCaregiverProfile reports a live users.teachers row behind the
+	// account's identity at the school in context.
+	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
+	// EnsureSchoolIdentity creates the person, staff and (for caregiver
+	// roles) teacher rows idempotently on the caller's tenant transaction.
+	// A request the caller can correct is reported as
+	// *domain.InvalidInputError.
+	EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error
+	// ListAccountIdentityFacts reports, per school, whether a person and a
+	// staff record back the account.
+	ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]domain.AccountIdentityFact, error)
+}
+
+// SchoolRolePolicy is the consumer-owned port over the retained role
+// assignment rules every school-access path shares (#1772, #2222): which
+// roles may be handed out at a school, which role is the lehrkraft system
+// role, which roles need a staff record, and the message a lehrkraft
+// account's role change is refused with.
+type SchoolRolePolicy interface {
+	ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error
+	IsLehrkraftSystemRole(role domain.RoleFact) bool
+	RoleNeedsStaffRecord(role domain.RoleFact) bool
+	LehrkraftRoleImmutable() error
+}
+
+// OperatorMFAGate is the consumer-owned port over the retained operator MFA
+// service. Operator MFA is mandatory: an unconfigured gate (Configured
+// false) issues token pairs directly, as the early phases did.
+type OperatorMFAGate interface {
+	Configured() bool
+	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
+	VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
+	StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error)
+	TrustedDeviceDays() int
+}
+
+// OperatorAudit is the consumer-owned port over the Audit platform's
+// operator action ledger. Entries append on the caller's transaction.
+type OperatorAudit interface {
+	RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error
+}
+
+// OperatorCredentialCleanup invalidates the bearer-style controls a password
+// rotation must not leave alive besides the refresh sessions the module
+// owns: the pending e-mail change links.
+type OperatorCredentialCleanup interface {
+	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
+}
+
+// PasswordHasher hashes a new password and applies the strength policy.
+type PasswordHasher interface {
+	HashPassword(password string) (string, error)
+	ValidatePasswordStrength(password string) error
+}
+
 // Rotation is the refresh-rotation recovery policy shared with the operator
 // portal.
 type Rotation interface {

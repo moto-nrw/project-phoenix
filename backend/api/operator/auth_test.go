@@ -20,6 +20,8 @@ import (
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -33,7 +35,7 @@ type mockOperatorAuthService struct {
 	initiateEmailChangeFn            func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
 	confirmEmailChangeFn             func(ctx context.Context, token string, clientIP net.IP) (string, error)
 	cleanupExpiredEmailChangeTokenFn func(ctx context.Context) (int, error)
-	loginWithMFAGateFn               func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error)
+	loginWithMFAGateFn               func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error)
 }
 
 func (m *mockOperatorAuthService) Login(ctx context.Context, email, password string, clientIP net.IP) (string, string, *platform.Operator, error) {
@@ -43,12 +45,11 @@ func (m *mockOperatorAuthService) Login(ctx context.Context, email, password str
 	return "", "", nil, nil
 }
 
-// LoginWithMFAGate / SetMFAService — no-op stubs added so
-// *mockOperatorAuthService still satisfies OperatorAuthService after the
-// MFA additions in issue #1308 phase 7b-3. The legacy auth_test cases
-// don't exercise these paths; they're called by the new login handler
-// which has its own MFA-aware test in mfa_login_test.go.
-func (m *mockOperatorAuthService) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+// The mock serves both the retained OperatorAuthService (profile read,
+// e-mail change, MFA and passkey exchange) and the Identity & Access
+// operator capability the login, refresh and profile-change routes call
+// (#3252).
+func (m *mockOperatorAuthService) LoginOperatorWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 	if m.loginWithMFAGateFn != nil {
 		return m.loginWithMFAGateFn(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
 	}
@@ -63,7 +64,7 @@ func (m *mockOperatorAuthService) IssueTokensForAuthenticatedOperator(ctx contex
 	return "", "", nil
 }
 
-func (m *mockOperatorAuthService) RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
+func (m *mockOperatorAuthService) RefreshOperatorToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
 	if m.refreshTokenFn != nil {
 		return m.refreshTokenFn(ctx, operatorID, refreshTokenValue)
 	}
@@ -81,14 +82,18 @@ func (m *mockOperatorAuthService) GetOperator(ctx context.Context, id int64) (*p
 	return nil, nil
 }
 
-func (m *mockOperatorAuthService) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error) {
+func (m *mockOperatorAuthService) UpdateOperatorProfile(ctx context.Context, operatorID int64, displayName string) (identityaccess.Operator, error) {
 	if m.updateProfileFn != nil {
-		return m.updateProfileFn(ctx, operatorID, displayName)
+		op, err := m.updateProfileFn(ctx, operatorID, displayName)
+		if op == nil {
+			return identityaccess.Operator{}, err
+		}
+		return *identityOperatorOf(op), err
 	}
-	return nil, nil
+	return identityaccess.Operator{}, nil
 }
 
-func (m *mockOperatorAuthService) ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
+func (m *mockOperatorAuthService) ChangeOperatorPassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
 	if m.changePasswordFn != nil {
 		return m.changePasswordFn(ctx, operatorID, currentPassword, newPassword)
 	}
@@ -120,7 +125,7 @@ func TestLogin_Success(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			assert.Equal(t, "test@example.com", email)
 			assert.Equal(t, "password123", password)
 			op := &platform.Operator{
@@ -128,16 +133,16 @@ func TestLogin_Success(t *testing.T) {
 				DisplayName: "Test Operator",
 			}
 			op.ID = 1
-			return &platformSvc.OperatorLoginResult{
-				Status:       platformSvc.OperatorLoginStatusAuthenticated,
+			return &identityaccess.OperatorLoginResult{
+				Status:       identityaccess.LoginStatusAuthenticated,
 				AccessToken:  "access-token",
 				RefreshToken: "refresh-token",
-				Operator:     op,
+				Operator:     identityOperatorOf(op),
 			}, nil
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "test@example.com",
@@ -172,7 +177,7 @@ func TestLogin_EmptyEmail(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "",
@@ -193,7 +198,7 @@ func TestLogin_EmptyPassword(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "test@example.com",
@@ -214,12 +219,12 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			return nil, &platformSvc.InvalidCredentialsError{}
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "test@example.com",
@@ -240,12 +245,12 @@ func TestLogin_OperatorInactive(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			return nil, &platformSvc.OperatorInactiveError{}
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "test@example.com",
@@ -266,12 +271,12 @@ func TestLogin_OperatorNotFound(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			return nil, &platformSvc.OperatorNotFoundError{}
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "notfound@example.com",
@@ -292,12 +297,12 @@ func TestLogin_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			return nil, errors.New("database connection error")
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"email":    "test@example.com",
@@ -318,7 +323,7 @@ func TestLogin_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -334,20 +339,20 @@ func TestLogin_ClientIPExtraction_XForwardedFor(t *testing.T) {
 
 	var capturedIP string
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			capturedIP = ipAddress
 			op := &platform.Operator{Email: email, DisplayName: "Test"}
 			op.ID = 1
-			return &platformSvc.OperatorLoginResult{
-				Status:       platformSvc.OperatorLoginStatusAuthenticated,
+			return &identityaccess.OperatorLoginResult{
+				Status:       identityaccess.LoginStatusAuthenticated,
 				AccessToken:  "access",
 				RefreshToken: "refresh",
-				Operator:     op,
+				Operator:     identityOperatorOf(op),
 			}, nil
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{"email": "test@example.com", "password": "password123"}
 	jsonBody, _ := json.Marshal(body)
@@ -367,20 +372,20 @@ func TestLogin_ClientIPExtraction_IgnoresRawXRealIP(t *testing.T) {
 
 	var capturedIP string
 	mockService := &mockOperatorAuthService{
-		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
+		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
 			capturedIP = ipAddress
 			op := &platform.Operator{Email: email, DisplayName: "Test"}
 			op.ID = 1
-			return &platformSvc.OperatorLoginResult{
-				Status:       platformSvc.OperatorLoginStatusAuthenticated,
+			return &identityaccess.OperatorLoginResult{
+				Status:       identityaccess.LoginStatusAuthenticated,
 				AccessToken:  "access",
 				RefreshToken: "refresh",
-				Operator:     op,
+				Operator:     identityOperatorOf(op),
 			}, nil
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{"email": "test@example.com", "password": "password123"}
 	jsonBody, _ := json.Marshal(body)
@@ -396,7 +401,7 @@ func TestLogin_ClientIPExtraction_IgnoresRawXRealIP(t *testing.T) {
 	assert.Equal(t, "192.0.2.55", capturedIP)
 }
 
-func serveOperatorLoginThroughXFFMiddleware(resource *operator.AuthResource, rr *httptest.ResponseRecorder, req *http.Request) {
+func serveOperatorLoginThroughXFFMiddleware(resource *identityoperator.Resource, rr *httptest.ResponseRecorder, req *http.Request) {
 	router := chi.NewRouter()
 	router.Use(chimiddleware.ClientIPFromXFF())
 	router.Post("/auth/login", resource.Login)
@@ -425,7 +430,7 @@ func TestRefreshToken_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	// Create a real token with claims
 	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
@@ -465,7 +470,7 @@ func TestRefreshToken_MissingTokenContext(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 	rr := httptest.NewRecorder()
@@ -480,7 +485,7 @@ func TestRefreshToken_InvalidClaims(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
 	ctx := context.WithValue(req.Context(), jwtPkg.CtxRefreshToken, "some-token-string")
@@ -503,7 +508,7 @@ func TestRefreshToken_RejectsNonPlatformScope(t *testing.T) {
 			return "", "", nil
 		},
 	}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
 	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
@@ -535,7 +540,7 @@ func TestRefreshToken_RejectsLegacyDeterministicOperatorToken(t *testing.T) {
 			return "", "", nil
 		},
 	}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
 	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
@@ -565,7 +570,7 @@ func TestRefreshToken_ServiceError(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
 	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
@@ -594,10 +599,10 @@ func TestRefreshToken_InvalidRefreshSessionMapsToUnauthorized(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-			return "", "", &platformSvc.OperatorRefreshTokenInvalidError{}
+			return "", "", identityaccess.ErrOperatorRefreshTokenInvalid
 		},
 	}
-	resource := operator.NewAuthResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	tokenAuth := jwtauth.New("HS256", []byte("test-secret"), nil)
 	_, tokenString, _ := tokenAuth.Encode(map[string]interface{}{
