@@ -87,6 +87,52 @@ func TestEnsureOpenRoomSessionRunsBesideAnActivitySession(t *testing.T) {
 	assert.Equal(t, first.ID, second.ID, "the room keeps a single room session")
 }
 
+func TestEnsureOpenRoomSessionJoinsTheKioskSession(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	_, presence := openRoomService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	yard := testpkg.CreateTestRoom(t, db, "Schulhof Kiosk")
+	play := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel Kiosk")
+	device := testpkg.CreateTestDevice(t, db, "schulhof-kiosk-device")
+	kiosk := testpkg.CreateTestActiveGroup(t, db, play.ID, yard.ID)
+	_, err := db.NewUpdate().
+		Table("active.groups").
+		Set("device_id = ?", device.ID).
+		Where("id = ?", kiosk.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	session, err := presence.EnsureOpenRoomSession(ctx, yard.ID, play.ID)
+	require.NoError(t, err)
+	assert.Equal(t, kiosk.ID, session.ID, "a phone move must join the running kiosk session")
+	require.NotNil(t, session.DeviceID)
+	assert.Equal(t, device.ID, *session.DeviceID)
+}
+
+func TestKioskStartJoinsAPhoneCreatedRoomStay(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc, presence := openRoomService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	yard := testpkg.CreateTestRoom(t, db, "Schulhof Phone zuerst")
+	play := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel Phone zuerst")
+	stay, err := presence.EnsureOpenRoomSession(ctx, yard.ID, play.ID)
+	require.NoError(t, err)
+	assert.Nil(t, stay.DeviceID)
+
+	staff := testpkg.CreateTestStaff(t, db, "Kiosk", "Start")
+	device := testpkg.CreateTestDevice(t, db, "schulhof-after-phone")
+	started, err := svc.StartActivitySessionWithSupervisors(ctx, play.ID, device.ID, []int64{staff.ID}, &yard.ID)
+	require.NoError(t, err, "a kiosk start must join the phone-created stay")
+	assert.Equal(t, stay.ID, started.ID)
+	require.NotNil(t, started.DeviceID)
+	assert.Equal(t, device.ID, *started.DeviceID)
+}
+
 func TestOpenRoomMoveNeedsNoSupervisionAtTheDestination(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

@@ -552,6 +552,8 @@ function buildTargetRoomOptions(
 
   // Group BEFORE filtering by eligibility: a room with one supervised and
   // one unsupervised session is still ambiguous and must not be offered.
+  // Session targets skip the current room; the independent stay of this
+  // released room is offered separately below.
   activeGroups.forEach((group) => {
     if (!group.isActive || group.roomId === currentRoomId) return;
     const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
@@ -560,14 +562,15 @@ function buildTargetRoomOptions(
   });
 
   // A released room is a shared destination (#3066): choosing it records an
-  // independent stay, so it is offered as the room itself and never as one of
-  // its sessions. Moving there needs rights over the children's current
-  // place, which pull-only staff ("own") do not have.
+  // independent stay, so it is offered as the room itself. That includes the
+  // current room, so children in an activity there can stay without the
+  // offering. Moving there needs rights over the children's current place,
+  // which pull-only staff ("own") do not have.
   const openRoomOptions: TargetRoomOption[] =
     scope === "own"
       ? []
       : rooms
-          .filter((room) => room.isOpenRoom && room.id !== currentRoomId)
+          .filter((room) => room.isOpenRoom)
           .map((room) => ({
             kind: "openRoom",
             value: `room:${room.id}`,
@@ -576,16 +579,20 @@ function buildTargetRoomOptions(
             label: `${room.name} (offener Raum)`,
           }));
 
-  const sessionOptions = [...groupsByRoomId.entries()]
-    .filter(
-      ([targetRoomId]) => roomsById.get(targetRoomId)?.isOpenRoom !== true,
-    )
-    .flatMap(([targetRoomId, groups]) => {
+  const sessionOptions = [...groupsByRoomId.entries()].flatMap(
+    ([targetRoomId, groups]) => {
       const room = roomsById.get(targetRoomId);
-      const ownGroups = groups.filter((group) =>
+      // Independent stays in a released room are the open-room target, not a
+      // session. Supervised activities in that room stay pull/push targets.
+      const sessionGroups =
+        room?.isOpenRoom === true
+          ? groups.filter((group) => (group.supervisorCount ?? 0) > 0)
+          : groups;
+      const ownGroups = sessionGroups.filter((group) =>
         ownActiveGroupIds.has(group.id),
       );
-      const unambiguousGroup = groups.length === 1 ? groups[0] : undefined;
+      const unambiguousGroup =
+        sessionGroups.length === 1 ? sessionGroups[0] : undefined;
 
       const eligibleGroups =
         scope === "all"
@@ -612,7 +619,8 @@ function buildTargetRoomOptions(
         roomName,
         label: roomName,
       }));
-    });
+    },
+  );
 
   return [...sessionOptions, ...openRoomOptions].sort((a, b) =>
     a.label.localeCompare(b.label, "de"),

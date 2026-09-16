@@ -1275,7 +1275,7 @@ describe("StudentsInRoomSection", () => {
   describe("moving into a released room", () => {
     const releasedGym = { id: "9002", name: "Turnhalle", isOpenRoom: true };
 
-    it("offers a released room as the room itself, not as its session", () => {
+    it("offers a released room as an independent stay beside its activity", () => {
       setSWR({ data: { students: [makeStudent({ id: "7" })] } });
       setBulkData({
         activeGroups: [
@@ -1292,12 +1292,55 @@ describe("StudentsInRoomSection", () => {
       expect(
         screen.getByRole("option", { name: "Turnhalle (offener Raum)" }),
       ).toBeTruthy();
-      expect(screen.queryByRole("option", { name: "Turnhalle" })).toBeNull();
+      expect(screen.getByRole("option", { name: "Turnhalle" })).toBeTruthy();
       expect(
         screen.getByText(
           "Zur Auswahl stehen Räume mit laufender Aufsicht und offene Räume.",
         ),
       ).toBeTruthy();
+    });
+
+    it("offers the current released room so children can leave the offering there", () => {
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "902", roomId: "9002", isActive: true, supervisorCount: 1 },
+        ],
+        rooms: [releasedGym],
+      });
+
+      render(<StudentsInRoomSection roomId="9002" roomName="Turnhalle" />);
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+
+      expect(
+        screen.getByRole("option", { name: "Turnhalle (offener Raum)" }),
+      ).toBeTruthy();
+    });
+
+    it("lets pull-only staff fetch children into their activity in a released room", () => {
+      const football = {
+        id: "902",
+        roomId: "9002",
+        isActive: true,
+        supervisorCount: 1,
+      };
+      setSWR({ data: { students: [makeStudent({ id: "7" })] } });
+      setBulkData({
+        activeGroups: [
+          { id: "842", roomId: "42", isActive: true, supervisorCount: 1 },
+          football,
+        ],
+        rooms: [releasedGym],
+        activeSupervisions: makeSupervisions([football]),
+      });
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+      fireEvent.click(screen.getByLabelText("Zielraum"));
+
+      expect(screen.getByRole("option", { name: "Turnhalle" })).toBeTruthy();
+      expect(
+        screen.queryByRole("option", { name: "Turnhalle (offener Raum)" }),
+      ).toBeNull();
     });
 
     it("offers a released room even when nobody supervises it", () => {

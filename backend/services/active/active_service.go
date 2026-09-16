@@ -433,10 +433,15 @@ func (s *service) DeleteActiveGroup(ctx context.Context, id int64) error {
 	return nil
 }
 
-// EnsureOpenRoomSession returns the room session of a released room: the open,
-// device-less session of the room's system activity. Independent room stays
-// (#3066) live in it, apart from any activity session in the same room, so
-// ending that activity leaves them untouched.
+// EnsureOpenRoomSession returns the room session of a released room: the open
+// session of the room's system activity. Independent room stays (#3066) live
+// in it, apart from any other activity session in the same room, so ending
+// that activity leaves them untouched.
+//
+// The canonical Schulhof keeps Schulhof Freispiel, so a phone move joins the
+// running kiosk session when that activity is already open on a device. A
+// device-less stay is reused the same way, so a later kiosk start can attach
+// to it instead of opening a second group.
 //
 // It deliberately skips CreateActiveGroup's one-session-per-room conflict: a
 // room session coexists with activity sessions by design. The room's session
@@ -456,11 +461,9 @@ func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID 
 		if err != nil {
 			return &ActiveError{Op: op, Err: fmt.Errorf("find room sessions: %w", err)}
 		}
-		for _, group := range groups {
-			if group != nil && group.DeviceID == nil && group.GroupID != nil && *group.GroupID == activityID {
-				session = group
-				return nil
-			}
+		if existing := openSessionForActivity(groups, activityID); existing != nil {
+			session = existing
+			return nil
 		}
 		now := time.Now()
 		created := &active.Group{StartTime: now, LastActivity: now, GroupID: &activityID, RoomID: roomID}
@@ -475,6 +478,29 @@ func (s *service) EnsureOpenRoomSession(ctx context.Context, roomID, activityID 
 		return nil, err
 	}
 	return session, nil
+}
+
+// openSessionForActivity returns the open session of activityID in the given
+// groups. A device-owned row (kiosk) wins over a device-less stay so phone
+// moves join the running Schulhof journey.
+func openSessionForActivity(groups []*active.Group, activityID int64) *active.Group {
+	var deviceLess *active.Group
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		templateID, ok := group.TemplateID()
+		if !ok || templateID != activityID {
+			continue
+		}
+		if group.DeviceID != nil {
+			return group
+		}
+		if deviceLess == nil {
+			deviceLess = group
+		}
+	}
+	return deviceLess
 }
 
 func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
