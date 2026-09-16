@@ -138,7 +138,18 @@ describe("enrollment-error-messages", () => {
         "enrollment.phase_name_exists",
       ),
     ).toBe(
-      "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wähle einen anderen Namen.",
+      "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+    );
+  });
+
+  it("maps the phase care offering conflict code to a German message (#3263)", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "phase change is incompatible with a linked care offering",
+        "enrollment.phase_care_offering_conflict",
+      ),
+    ).toBe(
+      "Die Änderung passt nicht zu einem verknüpften Betreuungsangebot. Bitte prüfen Sie die Betreuungsangebote der Anmeldephase.",
     );
   });
 
@@ -148,7 +159,7 @@ describe("enrollment-error-messages", () => {
         'phase name already exists: ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)',
       ),
     ).toBe(
-      "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wähle einen anderen Namen.",
+      "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
     );
   });
 

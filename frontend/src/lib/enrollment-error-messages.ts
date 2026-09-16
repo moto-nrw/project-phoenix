@@ -19,7 +19,7 @@ export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
   "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.";
 
 export const PHASE_NAME_EXISTS_MESSAGE =
-  "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wähle einen anderen Namen.";
+  "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.";
 
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.complete_withdrawal_confirmation_required":
@@ -92,7 +92,7 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Es gibt bereits ein Formular mit diesem Namen.",
   "enrollment.phase_name_exists": PHASE_NAME_EXISTS_MESSAGE,
   "enrollment.phase_care_offering_conflict":
-    "Die Änderung passt nicht zu einem verknüpften Betreuungsangebot. Bitte prüfe die Betreuungsangebote der Anmeldephase.",
+    "Die Änderung passt nicht zu einem verknüpften Betreuungsangebot. Bitte prüfen Sie die Betreuungsangebote der Anmeldephase.",
   "rollover.source_not_found": "Die Quellphase wurde nicht gefunden.",
   "rollover.invalid_request":
     "Die Eingaben sind unvollständig oder ungültig. Bitte alle Pflichtfelder prüfen.",
