@@ -362,13 +362,9 @@ func (p presenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		ActiveGroupsSummary: make([]studentpresence.ActiveGroupInfo, 0, len(analytics.ActiveGroupsSummary)),
 		LastUpdated:         analytics.LastUpdated,
 	}
-	if p.atSchool != nil && len(analytics.HomeCandidateIDs) > 0 {
-		atSchool, err := p.atSchool.CountAtSchoolToday(ctx, analytics.HomeCandidateIDs)
-		if err != nil {
-			return studentpresence.DashboardAnalytics{}, err
-		}
-		result.StudentsAtSchool = atSchool
-		result.StudentsHome = max(0, result.StudentsHome-atSchool)
+	result.StudentsAtSchool, result.StudentsHome, err = splitAtSchoolFromHome(ctx, p.atSchool, analytics.StudentsHome, analytics.HomeCandidateIDs)
+	if err != nil {
+		return studentpresence.DashboardAnalytics{}, err
 	}
 	for _, item := range analytics.RecentActivity {
 		result.RecentActivity = append(result.RecentActivity, studentpresence.RecentActivity{
@@ -386,6 +382,20 @@ func (p presenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		})
 	}
 	return result, nil
+}
+
+// splitAtSchoolFromHome moves the "Zuhause" candidates still in class into
+// their own figure (#3260). Without a counter or candidates the home figure
+// stays as it is; the result never drops below zero.
+func splitAtSchoolFromHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64) (int, int, error) {
+	if counter == nil || len(candidates) == 0 {
+		return 0, home, nil
+	}
+	atSchool, err := counter.CountAtSchoolToday(ctx, candidates)
+	if err != nil {
+		return 0, 0, err
+	}
+	return atSchool, max(0, home-atSchool), nil
 }
 
 func (p presenceOperations) CrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]studentpresence.CrossTenantStudent, error) {

@@ -7,18 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
-
-type dashboardActiveFake struct {
-	active.Service
-	analytics *active.DashboardAnalytics
-}
-
-func (f dashboardActiveFake) GetDashboardAnalytics(context.Context) (*active.DashboardAnalytics, error) {
-	return f.analytics, nil
-}
 
 type atSchoolCounterFake struct {
 	count int
@@ -31,57 +20,52 @@ func (f *atSchoolCounterFake) CountAtSchoolToday(_ context.Context, ids []int64)
 	return f.count, f.err
 }
 
-// TestDashboardAnalyticsSplitsSchoolFromHome pins #3260: the children still in
-// class leave the "Zuhause" figure for their own one.
-func TestDashboardAnalyticsSplitsSchoolFromHome(t *testing.T) {
+// TestSplitAtSchoolFromHome pins #3260: the children still in class leave the
+// "Zuhause" figure for their own one.
+func TestSplitAtSchoolFromHome(t *testing.T) {
 	t.Parallel()
 
-	counter := &atSchoolCounterFake{count: 3}
-	ops := NewPresenceOperations(dashboardActiveFake{analytics: &active.DashboardAnalytics{
-		StudentsHome: 5, HomeCandidateIDs: []int64{1, 2, 3, 4, 5},
-	}}, counter)
+	t.Run("moves the counted children out of home", func(t *testing.T) {
+		t.Parallel()
+		counter := &atSchoolCounterFake{count: 3}
+		atSchool, home, err := splitAtSchoolFromHome(context.Background(), counter, 5, []int64{1, 2, 3, 4, 5})
+		require.NoError(t, err)
+		assert.Equal(t, []int64{1, 2, 3, 4, 5}, counter.seen)
+		assert.Equal(t, 3, atSchool)
+		assert.Equal(t, 2, home)
+	})
 
-	got, err := ops.DashboardAnalytics(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, []int64{1, 2, 3, 4, 5}, counter.seen)
-	assert.Equal(t, 3, got.StudentsAtSchool)
-	assert.Equal(t, 2, got.StudentsHome)
-}
+	t.Run("clamps home at zero", func(t *testing.T) {
+		t.Parallel()
+		// StudentsHome is clamped upstream and can be lower than the candidates.
+		atSchool, home, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{count: 2}, 1, []int64{1, 2})
+		require.NoError(t, err)
+		assert.Equal(t, 2, atSchool)
+		assert.Equal(t, 0, home)
+	})
 
-func TestDashboardAnalyticsClampsHomeAtZero(t *testing.T) {
-	t.Parallel()
+	t.Run("skips the counter without candidates", func(t *testing.T) {
+		t.Parallel()
+		counter := &atSchoolCounterFake{count: 9}
+		atSchool, home, err := splitAtSchoolFromHome(context.Background(), counter, 4, nil)
+		require.NoError(t, err)
+		assert.Nil(t, counter.seen)
+		assert.Equal(t, 0, atSchool)
+		assert.Equal(t, 4, home)
+	})
 
-	// StudentsHome is clamped upstream and can be lower than the candidates.
-	ops := NewPresenceOperations(dashboardActiveFake{analytics: &active.DashboardAnalytics{
-		StudentsHome: 1, HomeCandidateIDs: []int64{1, 2},
-	}}, &atSchoolCounterFake{count: 2})
+	t.Run("keeps home without a counter", func(t *testing.T) {
+		t.Parallel()
+		atSchool, home, err := splitAtSchoolFromHome(context.Background(), nil, 4, []int64{1})
+		require.NoError(t, err)
+		assert.Equal(t, 0, atSchool)
+		assert.Equal(t, 4, home)
+	})
 
-	got, err := ops.DashboardAnalytics(context.Background())
-	require.NoError(t, err)
-	assert.Equal(t, 2, got.StudentsAtSchool)
-	assert.Equal(t, 0, got.StudentsHome)
-}
-
-func TestDashboardAnalyticsSkipsTheCounterWithoutCandidates(t *testing.T) {
-	t.Parallel()
-
-	counter := &atSchoolCounterFake{count: 9}
-	ops := NewPresenceOperations(dashboardActiveFake{analytics: &active.DashboardAnalytics{StudentsHome: 0}}, counter)
-
-	got, err := ops.DashboardAnalytics(context.Background())
-	require.NoError(t, err)
-	assert.Nil(t, counter.seen)
-	assert.Equal(t, 0, got.StudentsAtSchool)
-}
-
-func TestDashboardAnalyticsFailsWhenTheCounterFails(t *testing.T) {
-	t.Parallel()
-
-	boom := errors.New("planning down")
-	ops := NewPresenceOperations(dashboardActiveFake{analytics: &active.DashboardAnalytics{
-		StudentsHome: 1, HomeCandidateIDs: []int64{1},
-	}}, &atSchoolCounterFake{err: boom})
-
-	_, err := ops.DashboardAnalytics(context.Background())
-	require.ErrorIs(t, err, boom)
+	t.Run("fails when the counter fails", func(t *testing.T) {
+		t.Parallel()
+		boom := errors.New("planning down")
+		_, _, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{err: boom}, 1, []int64{1})
+		require.ErrorIs(t, err, boom)
+	})
 }
