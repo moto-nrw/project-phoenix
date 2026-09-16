@@ -5,140 +5,255 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
-  openRoomRosterActiveGroupId,
-  openRoomSessionSelection,
+  openRoomSections,
+  schulhofHeadActionsApply,
   resolveSupervisionSelection,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
   additionalSupervisionTarget,
   occupiedRoomIdsForSpontaneousStart,
   withActiveSupervisionPresence,
+  type OpenRoomSessionView,
 } from "./view-model";
 
+// A running block in the released room. `own` makes the caller supervise it.
+const blockSession = (
+  id: string,
+  options: {
+    readonly own?: boolean;
+    readonly planned?: boolean;
+    readonly canOperate?: boolean;
+    readonly studentCount?: number;
+  } = {},
+): OpenRoomSessionView => ({
+  activeGroupId: id,
+  title: `Block ${id}`,
+  independent: false,
+  isUserSupervising: options.own === true,
+  canAssign: options.own === true,
+  studentCount: options.studentCount ?? 0,
+  block: {
+    instanceId: `instance-${id}`,
+    startTime: "13:00",
+    endTime: "14:00",
+    isUserAssigned: options.planned === true,
+    canOperate:
+      options.canOperate ?? (options.own === true || options.planned === true),
+  },
+});
+
+const roomSession = (
+  id: string,
+  options: {
+    readonly independent?: boolean;
+    readonly own?: boolean;
+    readonly studentCount?: number;
+  } = {},
+): OpenRoomSessionView => ({
+  activeGroupId: id,
+  title: options.independent ? "" : "Schulhof Freispiel",
+  independent: options.independent === true,
+  isUserSupervising: options.own === true,
+  canAssign: options.own === true,
+  studentCount: options.studentCount ?? 0,
+  block: null,
+});
+
+const sectionKeys = (sessions: readonly OpenRoomSessionView[]) =>
+  openRoomSections({ sessions })?.map((section) => [
+    section.key,
+    section.isOwn,
+  ]) ?? null;
+
+describe("open room sections (#3281)", () => {
+  // Former openRoomRosterActiveGroupId case: one foreign offering in the
+  // room. Its roster stays reachable as a section, not as the room's view.
+  it("keeps the roster of the room's only block reachable without an own session", () => {
+    const sections = openRoomSections({ sessions: [blockSession("fußball")] });
+
+    expect(sections).toEqual([
+      {
+        kind: "block",
+        key: "block:fußball",
+        session: blockSession("fußball"),
+        block: blockSession("fußball").block,
+        isOwn: false,
+        assignableSessionId: null,
+      },
+    ]);
+  });
+
+  // Former case: several foreign offerings used to fall back to the merged
+  // view without actions. Every block now keeps its section.
+  it("lists every foreign block, none of them as the caller's own", () => {
+    expect(
+      sectionKeys([blockSession("fußball"), blockSession("tanzen")]),
+    ).toEqual([
+      ["block:fußball", false],
+      ["block:tanzen", false],
+    ]);
+  });
+
+  it("puts the caller's own block first while other offerings share the room", () => {
+    expect(
+      sectionKeys([
+        blockSession("tanzen"),
+        blockSession("fußball", { own: true }),
+        blockSession("basteln"),
+      ]),
+    ).toEqual([
+      ["block:fußball", true],
+      ["block:tanzen", false],
+      ["block:basteln", false],
+    ]);
+  });
+
+  // Former cases: two own sessions needed an explicit ?session= selection,
+  // otherwise the merged view without actions won. Both are now open.
+  it("keeps every own block operable without a session choice", () => {
+    const sections = openRoomSections({
+      sessions: [
+        blockSession("fußball", { own: true }),
+        blockSession("tanzen", { own: true }),
+      ],
+    });
+
+    expect(sections?.map((section) => section.isOwn)).toEqual([true, true]);
+    expect(
+      sections?.map((section) =>
+        section.kind === "block" ? section.block.canOperate : null,
+      ),
+    ).toEqual([true, true]);
+  });
+
+  it("counts a plan entry as the caller's own block before it is started", () => {
+    expect(
+      sectionKeys([
+        blockSession("tanzen"),
+        blockSession("fußball", { planned: true }),
+      ]),
+    ).toEqual([
+      ["block:fußball", true],
+      ["block:tanzen", false],
+    ]);
+  });
+
+  // Former case: a selection pointing at a session in another room was
+  // ignored. Sections come from the room's own sessions only, so there is
+  // nothing to ignore.
+  it("builds a room's sections from that room's sessions only", () => {
+    expect(
+      openRoomSections({ sessions: [blockSession("fußball", { own: true })] })
+        ?.length,
+    ).toBe(1);
+  });
+
+  it("offers adding supervisors only where the caller may assign", () => {
+    const sections = openRoomSections({
+      sessions: [
+        blockSession("fußball", { own: true }),
+        blockSession("tanzen"),
+      ],
+    });
+
+    expect(sections?.map((section) => section.assignableSessionId)).toEqual([
+      "fußball",
+      null,
+    ]);
+  });
+
+  it("keeps a kiosk-only room as today's room view", () => {
+    expect(
+      openRoomSections({
+        sessions: [
+          roomSession("kiosk", { studentCount: 4 }),
+          roomSession("stay", { independent: true, studentCount: 1 }),
+        ],
+      }),
+    ).toBeNull();
+    expect(openRoomSections({ sessions: [] })).toBeNull();
+    expect(openRoomSections({})).toBeNull();
+  });
+
+  it("collects independent stays under one section after the blocks", () => {
+    const sections = openRoomSections({
+      sessions: [
+        roomSession("stay-a", { independent: true, studentCount: 1 }),
+        blockSession("fußball", { own: true, studentCount: 3 }),
+        roomSession("stay-b", {
+          independent: true,
+          own: true,
+          studentCount: 2,
+        }),
+      ],
+    });
+
+    expect(sections?.at(-1)).toEqual({
+      kind: "occupancy",
+      key: "independent",
+      title: "",
+      independent: true,
+      activeGroupIds: ["stay-a", "stay-b"],
+      studentCount: 3,
+      isOwn: true,
+      assignableSessionId: "stay-b",
+    });
+  });
+
+  it("leaves out an empty section for independent stays", () => {
+    expect(
+      sectionKeys([
+        blockSession("fußball"),
+        roomSession("stay", { independent: true, own: true }),
+      ]),
+    ).toEqual([["block:fußball", false]]);
+  });
+
+  it("keeps the Schulhof head actions off the room's blocks", () => {
+    const sections = openRoomSections({
+      sessions: [
+        blockSession("fußball", { own: true }),
+        roomSession("freispiel", { independent: true, studentCount: 1 }),
+      ],
+    });
+
+    // The yard's own session: „Beaufsichtigen“ / „Aufsicht abgeben“ act on it.
+    expect(schulhofHeadActionsApply(sections, "freispiel")).toBe(true);
+    // A block has its own section; the head must not claim or release it.
+    expect(schulhofHeadActionsApply(sections, "fußball")).toBe(false);
+    // Without blocks the head acts as before, also before anything started.
+    expect(schulhofHeadActionsApply(null, "freispiel")).toBe(true);
+    expect(schulhofHeadActionsApply(null, null)).toBe(true);
+  });
+
+  it("gives a kiosk session beside blocks its own read-only section", () => {
+    const sections = openRoomSections({
+      sessions: [
+        roomSession("kiosk", { own: true }),
+        blockSession("fußball"),
+        roomSession("stay", { independent: true, studentCount: 1 }),
+      ],
+    });
+
+    expect(sections?.map((section) => section.key)).toEqual([
+      "block:fußball",
+      "session:kiosk",
+      "independent",
+    ]);
+    expect(sections?.[1]).toEqual({
+      kind: "occupancy",
+      key: "session:kiosk",
+      title: "Schulhof Freispiel",
+      independent: false,
+      activeGroupIds: ["kiosk"],
+      studentCount: 0,
+      isOwn: true,
+      assignableSessionId: "kiosk",
+    });
+  });
+});
+
 describe("active-supervisions view model", () => {
-  it("clears a roster from another session when opening a shared room", () => {
-    expect(
-      openRoomSessionSelection({
-        roomId: "sporthalle",
-        preferredSessionId: undefined,
-        selectedSessionId: "werkraum",
-        rooms: [
-          { id: "werkraum", name: "Werkraum", room_id: "werkraum" },
-          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
-        ],
-      }),
-    ).toEqual({ sessionId: null, keepsTimetableInstance: false });
-  });
-
-  it("retains the roster of a session already selected in the shared room", () => {
-    expect(
-      openRoomSessionSelection({
-        roomId: "sporthalle",
-        preferredSessionId: undefined,
-        selectedSessionId: "fußball",
-        rooms: [{ id: "fußball", name: "Fußball", room_id: "sporthalle" }],
-      }),
-    ).toEqual({ sessionId: "fußball", keepsTimetableInstance: true });
-  });
-
-  it("does not retain an earlier roster when a session URL selects a shared room", () => {
-    expect(
-      openRoomSessionSelection({
-        roomId: "sporthalle",
-        preferredSessionId: "fußball",
-        selectedSessionId: "werkraum",
-        rooms: [
-          { id: "werkraum", name: "Werkraum", room_id: "werkraum" },
-          { id: "fußball", name: "Fußball", room_id: "sporthalle" },
-        ],
-      }),
-    ).toEqual({ sessionId: "fußball", keepsTimetableInstance: false });
-  });
-
-  const sporthalle = (activeGroupIds: readonly string[]) => ({
-    roomId: "sporthalle",
-    name: "Sporthalle",
-    isUserSupervising: true,
-    activeGroupIds,
-    studentCount: 2,
-    students: [],
-  });
-  const ownSession = (id: string, room_id = "sporthalle") => ({
-    id,
-    name: id,
-    room_id,
-    isCurrentUserSupervising: true,
-  });
-
-  it("keeps the roster of the room's only session reachable without an own session", () => {
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: sporthalle(["fußball"]),
-        rooms: [],
-        selectedSessionId: null,
-      }),
-    ).toBe("fußball");
-  });
-
-  it("does not bind a session roster when the released room has several foreign offerings", () => {
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
-        rooms: [
-          { ...ownSession("fußball"), isCurrentUserSupervising: false },
-          { ...ownSession("tanzen"), isCurrentUserSupervising: false },
-        ],
-        selectedSessionId: null,
-      }),
-    ).toBeNull();
-  });
-
-  it("binds the caller's own session while other offerings share the released room", () => {
-    // Several timetable blocks run side by side in the released Schulhof;
-    // the block the caller just started must keep its check-in roster.
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
-        rooms: [
-          ownSession("fußball"),
-          { ...ownSession("tanzen"), isCurrentUserSupervising: false },
-          ownSession("werken", "werkraum"),
-        ],
-        selectedSessionId: null,
-      }),
-    ).toBe("fußball");
-  });
-
-  it("keeps the merged room view when the caller runs several sessions there and picked none", () => {
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
-        rooms: [ownSession("fußball"), ownSession("tanzen")],
-        selectedSessionId: null,
-      }),
-    ).toBeNull();
-  });
-
-  it("lets an explicit selection decide between the caller's own sessions", () => {
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
-        rooms: [ownSession("fußball"), ownSession("tanzen")],
-        selectedSessionId: "tanzen",
-      }),
-    ).toBe("tanzen");
-  });
-
-  it("ignores a selection that points at a session in another room", () => {
-    expect(
-      openRoomRosterActiveGroupId({
-        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
-        rooms: [ownSession("fußball"), ownSession("werken", "werkraum")],
-        selectedSessionId: "werken",
-      }),
-    ).toBe("fußball");
-  });
-
   it("suppresses active-group roster keys after a not-found roster miss", () => {
     const missing = new Set(["active-1"]);
 
@@ -652,35 +767,34 @@ describe("supervision tab identity (#2265)", () => {
     ).toBeNull();
   });
 
-  it("offers additional supervision in a shared room only for one own session", () => {
-    const room = {
+  it("offers additional supervision in a shared room only for one assignable session", () => {
+    const room = (sessions: readonly OpenRoomSessionView[]) => ({
       roomId: "7",
       name: "Schulhof",
+      isUserSupervising: sessions.some((session) => session.isUserSupervising),
+      activeGroupIds: sessions.map((session) => session.activeGroupId),
       studentCount: 0,
       students: [],
-    };
+      sessions,
+    });
 
+    // The kiosk room view keeps the head action for its one supervision.
     expect(
       additionalSupervisionTarget({
         currentRoom: null,
-        currentOpenRoom: {
-          ...room,
-          isUserSupervising: true,
-          activeGroupIds: ["active-yard"],
-        },
+        currentOpenRoom: room([roomSession("active-yard", { own: true })]),
       }),
     ).toBe("active-yard");
 
-    // Two sessions running: none of them is "the" supervision of the room,
-    // so the screen offers nothing rather than picking one.
+    // Two assignable sessions: none of them is "the" supervision of the
+    // room, so the head offers nothing rather than picking one.
     expect(
       additionalSupervisionTarget({
         currentRoom: null,
-        currentOpenRoom: {
-          ...room,
-          isUserSupervising: true,
-          activeGroupIds: ["active-yard", "active-ball"],
-        },
+        currentOpenRoom: room([
+          roomSession("active-yard", { own: true }),
+          roomSession("active-stay", { independent: true, own: true }),
+        ]),
       }),
     ).toBeNull();
 
@@ -688,11 +802,16 @@ describe("supervision tab identity (#2265)", () => {
     expect(
       additionalSupervisionTarget({
         currentRoom: null,
-        currentOpenRoom: {
-          ...room,
-          isUserSupervising: false,
-          activeGroupIds: ["active-yard"],
-        },
+        currentOpenRoom: room([roomSession("active-yard")]),
+      }),
+    ).toBeNull();
+
+    // With blocks, every section carries its own action (#3281), so the
+    // head carries none, even for a single own block.
+    expect(
+      additionalSupervisionTarget({
+        currentRoom: null,
+        currentOpenRoom: room([blockSession("active-ball", { own: true })]),
       }),
     ).toBeNull();
   });

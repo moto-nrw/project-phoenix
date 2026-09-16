@@ -191,8 +191,27 @@ vi.mock("~/components/ui/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
+// This file's stub also exposes which block a roster belongs to and renders
+// its head slots: a released room shows one roster per block (#3281).
 vi.mock("~/components/active-supervisions/timetable-roster", () => ({
-  TimetableRosterContent: () => <div data-testid="timetable-roster" />,
+  TimetableRosterContent: ({
+    roster,
+    headerActions,
+    headerToggle,
+  }: {
+    roster?: { instance?: { id?: string }; canOperate?: boolean };
+    headerActions?: React.ReactNode;
+    headerToggle?: React.ReactNode;
+  }) => (
+    <div
+      data-testid="timetable-roster"
+      data-instance-id={roster?.instance?.id}
+      data-can-operate={String(roster?.canOperate)}
+    >
+      {headerActions}
+      {headerToggle}
+    </div>
+  ),
 }));
 
 // Mock location-helper
@@ -303,6 +322,17 @@ vi.mock("~/components/students/student-card", () => ({
   ),
 }));
 
+// „Betreuer hinzufügen“ opens the real dialog, which reports through toasts.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warning: vi.fn(),
+  }),
+}));
+
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(() => ({
@@ -324,6 +354,100 @@ import MeinRaumPage from "./page";
 const defaultPageHeader = vi
   .mocked(PageHeaderWithSearch)
   .getMockImplementation()!;
+
+// A block running in a released room, as the dashboard ships it (#3281).
+// `own` makes the caller supervise it, `planned` plans them on it.
+function blockSession(
+  activeGroupId: string,
+  title: string,
+  options: {
+    readonly own?: boolean;
+    readonly planned?: boolean;
+    readonly canOperate?: boolean;
+    readonly canAssign?: boolean;
+    readonly studentCount?: number;
+    readonly startTime?: string;
+  } = {},
+) {
+  const own = options.own === true;
+  return {
+    activeGroupId,
+    title,
+    independent: false,
+    isUserSupervising: own,
+    canAssign: options.canAssign ?? own,
+    studentCount: options.studentCount ?? 0,
+    block: {
+      instanceId: `instance-${activeGroupId}`,
+      startTime: options.startTime ?? "13:00",
+      endTime: "14:00",
+      isUserAssigned: options.planned === true,
+      canOperate: options.canOperate ?? (own || options.planned === true),
+    },
+  };
+}
+
+function roomVisit(
+  studentId: string,
+  studentName: string,
+  activeGroupId: string,
+  extra: { activityName?: string; independent?: boolean } = {},
+) {
+  return {
+    studentId,
+    studentName,
+    schoolClass: "2a",
+    activeGroupId,
+    checkInTime: "2026-09-09T10:00:00.000Z",
+    isActive: true,
+    ...extra,
+  };
+}
+
+// Key-aware SWR stub: the dashboard, plus one roster per instance id.
+function mockDashboardAndRosters(
+  dashboardData: unknown,
+  rosters: Record<string, { canOperate: boolean }> = {},
+) {
+  vi.mocked(useSWRAuth).mockImplementation(((key: unknown) => {
+    const loaded = (data: unknown) =>
+      ({
+        data,
+        isLoading: false,
+        error: null,
+        mutate: vi.fn(),
+        isValidating: false,
+      }) as never;
+    if (
+      typeof key === "string" &&
+      key.startsWith("active-supervision-dashboard")
+    ) {
+      return loaded(dashboardData);
+    }
+    const instanceId =
+      typeof key === "string" ? key.replace("timetable-roster-", "") : "";
+    const roster = rosters[instanceId];
+    return loaded(
+      roster
+        ? {
+            instance: { id: instanceId },
+            rows: [],
+            canOperate: roster.canOperate,
+          }
+        : null,
+    );
+  }) as never);
+}
+
+function rosterKeysRequested(): string[] {
+  return vi
+    .mocked(useSWRAuth)
+    .mock.calls.map(([key]) => key)
+    .filter(
+      (key): key is string =>
+        typeof key === "string" && key.startsWith("timetable-roster-"),
+    );
+}
 
 beforeEach(() => {
   navigationMockState.sessionParam = null;
@@ -933,10 +1057,18 @@ describe("open-room tab onTabChange callback", () => {
               isActive: true,
             },
           ],
+          sessions: [
+            blockSession("active-open", "Fußball", {
+              own: true,
+              studentCount: 1,
+            }),
+          ],
         },
       ],
     };
 
+    // The URL named the session; the room page shows it as the room's block
+    // section, loaded by its instance (#3281).
     vi.mocked(useSWRAuth).mockImplementation(((key: unknown) =>
       typeof key === "string" && key.startsWith("active-supervision-dashboard")
         ? ({
@@ -946,10 +1078,13 @@ describe("open-room tab onTabChange callback", () => {
             mutate: mockMutate,
             isValidating: false,
           } as never)
-        : key === "timetable-roster-active-group-active-open"
+        : key === "timetable-roster-instance-active-open"
           ? ({
               data: {
-                instance: { id: "instance-open", activeGroupId: "active-open" },
+                instance: {
+                  id: "instance-active-open",
+                  activeGroupId: "active-open",
+                },
                 rows: [],
               },
               isLoading: false,
@@ -1070,10 +1205,11 @@ describe("open-room tab onTabChange callback", () => {
 
   it("keeps the caller's own block roster when other offerings share the released room", async () => {
     // Several timetable blocks run side by side in the released Schulhof. The
-    // block the caller supervises must keep its check-in roster instead of
-    // collapsing into the merged occupancy that has no actions.
+    // block the caller supervises keeps its check-in roster, and the other
+    // block stays on the page as a collapsed section (#3281). No ?session=
+    // choice is needed for that any more (#3272 relied on one).
     navigationMockState.roomParam = "sporthalle";
-    navigationMockState.sessionParam = "active-fussball";
+    navigationMockState.sessionParam = null;
     const dashboardData = {
       supervisedGroups: [
         {
@@ -1117,6 +1253,10 @@ describe("open-room tab onTabChange callback", () => {
               isActive: true,
             },
           ],
+          sessions: [
+            blockSession("active-fussball", "Fußball", { own: true }),
+            blockSession("active-tanzen", "Tanzen", { studentCount: 1 }),
+          ],
         },
       ],
     };
@@ -1130,11 +1270,11 @@ describe("open-room tab onTabChange callback", () => {
             mutate: mockMutate,
             isValidating: false,
           } as never)
-        : key === "timetable-roster-active-group-active-fussball"
+        : key === "timetable-roster-instance-active-fussball"
           ? ({
               data: {
                 instance: {
-                  id: "instance-fussball",
+                  id: "instance-active-fussball",
                   activeGroupId: "active-fussball",
                 },
                 rows: [],
@@ -1154,8 +1294,16 @@ describe("open-room tab onTabChange callback", () => {
 
     render(<MeinRaumPage />);
 
-    expect(await screen.findByTestId("timetable-roster")).toBeInTheDocument();
+    expect(await screen.findByTestId("timetable-roster")).toHaveAttribute(
+      "data-instance-id",
+      "instance-active-fussball",
+    );
     expect(screen.queryByText("Theo Tanz")).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Tanzen" })).toBeInTheDocument();
+    expect(
+      screen.getByText("13:00–14:00 Uhr · Sie sind hier nicht eingeplant."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 Kind")).toBeInTheDocument();
   });
 
   it("shows a released room the caller does not supervise", async () => {
@@ -1328,6 +1476,329 @@ describe("open-room tab onTabChange callback", () => {
     expect(
       activeService.getActiveGroupVisitsWithDisplay,
     ).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A released Schulhof with timetable blocks running side by side, as at the
+ * OGS am Berg (#3276, #3281): one page, one section per block.
+ */
+describe("released room with running blocks (#3281)", () => {
+  const schulhof = (
+    sessions: ReadonlyArray<{
+      activeGroupId: string;
+      isUserSupervising: boolean;
+      [field: string]: unknown;
+    }>,
+    students: ReadonlyArray<ReturnType<typeof roomVisit>>,
+    // The session the Schulhof status names, and whether the caller
+    // supervises it (#2161).
+    yard: { activeGroupId: string; isUserSupervising: boolean } | null = null,
+  ) => ({
+    supervisedGroups: [],
+    unclaimedGroups: [],
+    currentStaff: { id: "staff-1" },
+    educationalGroups: [],
+    firstRoomVisits: [],
+    firstRoomId: null,
+    selectedGroupId: null,
+    capabilities: { webSpontaneousActivitiesEnabled: false },
+    schulhofStatus: yard
+      ? {
+          exists: true,
+          roomId: "schulhof",
+          roomName: "Schulhof",
+          activityGroupId: "freispiel-activity",
+          activeGroupId: yard.activeGroupId,
+          isUserSupervising: yard.isUserSupervising,
+          supervisionId: yard.isUserSupervising ? "supervision-1" : null,
+          supervisorCount: 1,
+          studentCount: 0,
+          supervisors: [
+            {
+              id: "supervision-1",
+              staffId: "staff-9",
+              name: "Kim Kollegin",
+              isCurrentUser: false,
+            },
+          ],
+        }
+      : null,
+    openRooms: [
+      {
+        roomId: "schulhof",
+        name: "Schulhof",
+        isUserSupervising: sessions.some((s) => s.isUserSupervising),
+        activeGroupIds: sessions.map((s) => s.activeGroupId),
+        hasOccupyingSession: true,
+        studentCount: students.length,
+        students,
+        sessions,
+      },
+    ],
+  });
+  const fiveForeignBlocks = [
+    blockSession("gt1", "GT 1", { studentCount: 1, startTime: "12:00" }),
+    blockSession("gt2", "GT 2"),
+    blockSession("gt3", "GT 3"),
+    blockSession("gt4", "GT 4"),
+    blockSession("gt5", "GT 5"),
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    navigationMockState.roomParam = "schulhof";
+    navigationMockState.sessionParam = null;
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("opens the caller's two blocks with their rosters and keeps the other three collapsed", async () => {
+    mockDashboardAndRosters(
+      schulhof(
+        [
+          blockSession("gt1", "GT 1", { studentCount: 1, startTime: "12:00" }),
+          blockSession("gt2", "GT 2", { own: true, studentCount: 2 }),
+          blockSession("gt3", "GT 3", { studentCount: 1 }),
+          blockSession("gt4", "GT 4", { planned: true, startTime: "14:00" }),
+          blockSession("gt5", "GT 5"),
+          {
+            activeGroupId: "stay",
+            title: "",
+            independent: true,
+            isUserSupervising: false,
+            canAssign: false,
+            studentCount: 1,
+            block: null,
+          },
+        ],
+        [
+          roomVisit("s1", "Ali Eins", "gt1", { activityName: "GT 1" }),
+          roomVisit("s2", "Bea Zwei", "gt2", { activityName: "GT 2" }),
+          roomVisit("s3", "Cem Zwei", "gt2", { activityName: "GT 2" }),
+          roomVisit("s4", "Dana Drei", "gt3", { activityName: "GT 3" }),
+          roomVisit("s5", "Eli Hof", "stay", { independent: true }),
+        ],
+        // The Schulhof status names the caller's block.
+        { activeGroupId: "gt2", isUserSupervising: true },
+      ),
+      {
+        "instance-gt2": { canOperate: true },
+        "instance-gt4": { canOperate: true },
+      },
+    );
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByTestId("timetable-roster")).toHaveLength(2);
+    });
+    const rosters = screen.getAllByTestId("timetable-roster");
+    expect(rosters.map((roster) => roster.dataset.instanceId)).toEqual([
+      "instance-gt2",
+      "instance-gt4",
+    ]);
+    expect(rosters.map((roster) => roster.dataset.canOperate)).toEqual([
+      "true",
+      "true",
+    ]);
+    expect(new Set(rosterKeysRequested())).toEqual(
+      new Set([
+        "timetable-roster-instance-gt2",
+        "timetable-roster-instance-gt4",
+      ]),
+    );
+
+    for (const title of ["GT 1", "GT 3", "GT 5"]) {
+      expect(
+        screen.getByRole("button", { name: `${title} ausklappen` }),
+      ).toHaveAttribute("aria-expanded", "false");
+    }
+    expect(
+      screen.getAllByText(/Uhr · Sie sind hier nicht eingeplant\.$/),
+    ).toHaveLength(3);
+
+    // The head counts every child in the room once: the blocks' and the
+    // independent stay.
+    expect(screen.getByText("Schulhof · 5 Kinder")).toBeInTheDocument();
+    // Block children live in the rosters; only the independent stay is a card.
+    expect(screen.getByRole("heading", { name: "Ohne Angebot" })).toBeVisible();
+    expect(
+      screen.getByText("Diese Kinder sind im Raum, aber in keinem Block."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Eli Hof")).toBeInTheDocument();
+    for (const name of ["Ali Eins", "Bea Zwei", "Dana Drei"]) {
+      expect(screen.queryByText(name)).not.toBeInTheDocument();
+    }
+    // Only the supervised block offers adding supervisors.
+    expect(
+      screen.getAllByRole("button", { name: "Betreuer hinzufügen" }),
+    ).toHaveLength(1);
+    // The yard's head actions never end the supervision of a block; the
+    // block's own section carries its controls.
+    expect(
+      screen.queryByRole("button", { name: /Aufsicht abgeben/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps every block collapsed without an own one and shows a foreign block's children on request", async () => {
+    mockDashboardAndRosters(
+      schulhof(
+        fiveForeignBlocks,
+        [roomVisit("s1", "Ali Eins", "gt1", { activityName: "GT 1" })],
+        // The Schulhof status names the newest block in the yard.
+        { activeGroupId: "gt5", isUserSupervising: false },
+      ),
+    );
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("button", { name: /^GT \d ausklappen$/ }),
+      ).toHaveLength(5);
+    });
+    expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Betreuer hinzufügen" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Ali Eins")).not.toBeInTheDocument();
+    // „Beaufsichtigen“ would claim that foreign block, and its supervisors are
+    // not the yard's.
+    expect(
+      screen.queryByRole("button", { name: /Beaufsichtigen/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Kim Kollegin/)).not.toBeInTheDocument();
+
+    // Without the school-wide overview the block's roster is not readable;
+    // the section shows the block's children from the room instead.
+    fireEvent.click(screen.getByRole("button", { name: "GT 1 ausklappen" }));
+
+    expect(await screen.findByText("Ali Eins")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "GT 1 einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(rosterKeysRequested()).toEqual([]);
+    expect(screen.getByText("Schulhof · 1 Kind")).toBeInTheDocument();
+  });
+
+  it("lets an admin operate and staff every block", async () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: { user: { token: "test-token", isAdmin: true } },
+      status: "authenticated",
+    } as never);
+    vi.mocked(useOptionalSupervision).mockReturnValue({
+      ...defaultSupervisionState,
+      overviewEnabled: true,
+    });
+    const { substitutionService } = await import("~/lib/substitution-api");
+    const fetchRunningSupervision = vi
+      .spyOn(substitutionService, "fetchRunningSupervision")
+      .mockReturnValue(new Promise(() => undefined));
+    mockDashboardAndRosters(
+      schulhof(
+        fiveForeignBlocks.map((session) => ({
+          ...session,
+          canAssign: true,
+          block: { ...session.block, canOperate: true },
+        })),
+        [],
+      ),
+      { "instance-gt3": { canOperate: true } },
+    );
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getAllByRole("button", { name: "Betreuer hinzufügen" }),
+      ).toHaveLength(5);
+    });
+    // Not planned on any block: all start collapsed, none is loaded yet.
+    expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "GT 3 ausklappen" }));
+    expect(await screen.findByTestId("timetable-roster")).toHaveAttribute(
+      "data-can-operate",
+      "true",
+    );
+
+    // „Betreuer hinzufügen“ belongs to the block it stands in.
+    const addButtons = screen.getAllByRole("button", {
+      name: "Betreuer hinzufügen",
+    });
+    fireEvent.click(addButtons.at(-1)!);
+    await waitFor(() => {
+      expect(fetchRunningSupervision).toHaveBeenCalledWith("gt5");
+    });
+    expect(screen.getByTestId("modal")).toHaveAttribute(
+      "data-title",
+      "Betreuer hinzufügen",
+    );
+    fetchRunningSupervision.mockRestore();
+  });
+
+  it("keeps a kiosk school's room view without block sections", async () => {
+    mockDashboardAndRosters(
+      schulhof(
+        [
+          {
+            activeGroupId: "kiosk",
+            title: "Schulhof Freispiel",
+            independent: false,
+            isUserSupervising: true,
+            canAssign: true,
+            studentCount: 1,
+            block: null,
+          },
+          {
+            activeGroupId: "stay",
+            title: "",
+            independent: true,
+            isUserSupervising: false,
+            canAssign: false,
+            studentCount: 1,
+            block: null,
+          },
+        ],
+        [
+          roomVisit("s1", "Kai Kiosk", "kiosk", {
+            activityName: "Schulhof Freispiel",
+          }),
+          roomVisit("s2", "Eli Hof", "stay", { independent: true }),
+        ],
+        { activeGroupId: "kiosk", isUserSupervising: true },
+      ),
+    );
+
+    render(<MeinRaumPage />);
+
+    expect(await screen.findByText("Kai Kiosk")).toBeInTheDocument();
+    expect(screen.getByText("Eli Hof")).toBeInTheDocument();
+    expect(screen.getByText("Angebot: Schulhof Freispiel")).toBeInTheDocument();
+    expect(screen.getByText("Ohne Angebot")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Ohne Angebot" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /^(Schulhof Freispiel|Ohne Angebot) (aus|ein)klappen$/,
+      }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("timetable-roster")).not.toBeInTheDocument();
+    expect(rosterKeysRequested()).toEqual([]);
+    // The one supervision of the room keeps its head action.
+    expect(
+      screen.getAllByRole("button", { name: "Betreuer hinzufügen" }),
+    ).toHaveLength(1);
+    // The kiosk Freispiel is the yard's supervision: the head keeps its
+    // release action.
+    expect(
+      screen.getByRole("button", { name: /Aufsicht abgeben/ }),
+    ).toBeInTheDocument();
   });
 });
 
