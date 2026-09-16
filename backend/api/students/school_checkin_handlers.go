@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 // schoolCheckinRequest is the payload for POST /api/students/{id}/school-checkin.
@@ -329,7 +329,7 @@ func (rs *Resource) applySchoolCheckinAction(
 		result, err = rs.ActiveService.CheckInStudent(ctx, student.ID, staffID, 0, true)
 	case schoolCheckinActionOut:
 		// CheckOutStudent also ends any open room visit in the same request
-		// transaction (issue #895 — see services/active.performCheckOut), so
+		// transaction (issue #895 — see modules/studentpresence/legacy/services/active.performCheckOut), so
 		// detailed-mode supervisor views never show "still in Room X" after
 		// a web checkout. No separate EndVisit call is needed here.
 		result, err = rs.ActiveService.CheckOutStudent(ctx, student.ID, staffID, true)

@@ -8,7 +8,7 @@ import (
 	"net/url"
 	"strings"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -87,8 +87,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 		TimetableBridgeCompleter: repoFactory.ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
-	})
-	sessionService.SetSettingsService(detailedPresenceSettings{})
+	}, active.WithSettings(detailedPresenceSettings{}))
 	cleanupSvc := buildRetentionCleanupService(&cleanupContext{DB: db, Audit: repositories.NewTestAuditStore(db)})
 	schools, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)

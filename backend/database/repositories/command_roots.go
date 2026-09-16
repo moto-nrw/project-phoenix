@@ -4,11 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -17,6 +15,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
@@ -75,15 +75,15 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
 	}
-	group := activeRepo.NewGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}))
 	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
 	rooms, err := NewFacilities(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
-	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
+	group := presenceCompose.NewLegacyGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
+		presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{rooms: rooms}))
 	return SessionCleanupRepositories{
-		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
+		Group: group, Supervisor: presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
 		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
 	}
 }
@@ -96,7 +96,7 @@ type RetentionCleanupRepositories struct {
 func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
-		Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
+		Supervisor: presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
 		Deletion:   RouteDataDeletionWrites(deletions, command),
 	}
 }

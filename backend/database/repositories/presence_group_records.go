@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/uptrace/bun"
 )
 
@@ -22,7 +22,11 @@ func (presenceGroupRecords) MissingRecordError(operation string) error {
 	return usersRepo.NotFoundError(operation)
 }
 
-func NewPresenceGroupRecords(db *bun.DB) activeRepo.GroupRecords {
+// PresenceGroupRecordFilter narrows the retained session record queries; the
+// isolation tests name it through the composition root (#3214).
+type PresenceGroupRecordFilter = presenceCompose.LegacyGroupRecordFilter
+
+func NewPresenceGroupRecords(db *bun.DB) presenceCompose.LegacyGroupRecords {
 	return presenceGroupRecords{newStudentPresence(db)}
 }
 
@@ -59,7 +63,7 @@ func (p presenceGroupRecords) RecordGroupActivity(ctx context.Context, id int64,
 	return p.source.RecordGroupActivity(ctx, id, at)
 }
 
-func (p presenceGroupRecords) QueryGroupRecords(ctx context.Context, filter activeRepo.GroupRecordFilter) ([]*activeModels.Group, error) {
+func (p presenceGroupRecords) QueryGroupRecords(ctx context.Context, filter presenceCompose.LegacyGroupRecordFilter) ([]*activeModels.Group, error) {
 	rows, err := p.source.QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{
 		RoomID: filter.RoomID, DeviceID: filter.DeviceID,
 		EndedOnly: filter.EndedOnly, Limit: filter.Limit, Offset: filter.Offset,
@@ -80,14 +84,14 @@ func (p presenceGroupRecords) OccupiedActivityGroupIDs(ctx context.Context, ids 
 	return p.source.OccupiedActivityGroupIDs(ctx, ids)
 }
 
-func (p presenceGroupRecords) ListGroupSupervisions(ctx context.Context, id int64) ([]activeRepo.GroupSupervisionRecord, error) {
+func (p presenceGroupRecords) ListGroupSupervisions(ctx context.Context, id int64) ([]presenceCompose.LegacyGroupSupervisionRecord, error) {
 	rows, err := p.source.ListGroupSupervisions(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]activeRepo.GroupSupervisionRecord, 0, len(rows))
+	result := make([]presenceCompose.LegacyGroupSupervisionRecord, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, activeRepo.GroupSupervisionRecord(row))
+		result = append(result, presenceCompose.LegacyGroupSupervisionRecord(row))
 	}
 	return result, nil
 }
@@ -123,19 +127,19 @@ func (p presenceGroupRecords) CreateGroupRecord(ctx context.Context, group *acti
 	return nil
 }
 
-func (p presenceGroupRecords) QueryGroupSupervisions(ctx context.Context, filter activeRepo.SupervisionFilter) ([]activeRepo.GroupSupervisionRecord, error) {
+func (p presenceGroupRecords) QueryGroupSupervisions(ctx context.Context, filter presenceCompose.LegacySupervisionFilter) ([]presenceCompose.LegacyGroupSupervisionRecord, error) {
 	rows, err := p.source.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffIDs: filter.StaffIDs, EndedBy: filter.EndedBy, Limit: filter.Limit, Offset: filter.Offset, IDs: filter.IDs, GroupIDs: filter.GroupIDs, StaffID: filter.StaffID, ForUpdate: filter.ForUpdate, ActiveOn: filter.ActiveOn, OpenOnly: filter.OpenOnly, StartedBefore: filter.StartedBefore})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]activeRepo.GroupSupervisionRecord, 0, len(rows))
+	result := make([]presenceCompose.LegacyGroupSupervisionRecord, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, activeRepo.GroupSupervisionRecord(row))
+		result = append(result, presenceCompose.LegacyGroupSupervisionRecord(row))
 	}
 	return result, nil
 }
 
-func NewPresenceSupervisionRecords(db *bun.DB) activeRepo.SupervisionRecords {
+func NewPresenceSupervisionRecords(db *bun.DB) presenceCompose.LegacySupervisionRecords {
 	return presenceGroupRecords{newStudentPresence(db)}
 }
 
@@ -143,14 +147,14 @@ func (p presenceGroupRecords) StaffIDsWithSupervisionOn(ctx context.Context, dat
 	return p.source.StaffIDsWithSupervisionOn(ctx, date)
 }
 
-func (p presenceGroupRecords) SupervisedRoomsOn(ctx context.Context, date string) ([]activeRepo.StaffRoomSupervision, error) {
+func (p presenceGroupRecords) SupervisedRoomsOn(ctx context.Context, date string) ([]presenceCompose.LegacyStaffRoomSupervision, error) {
 	rows, err := p.source.SupervisedRoomsOn(ctx, date)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]activeRepo.StaffRoomSupervision, 0, len(rows))
+	result := make([]presenceCompose.LegacyStaffRoomSupervision, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, activeRepo.StaffRoomSupervision(row))
+		result = append(result, presenceCompose.LegacyStaffRoomSupervision(row))
 	}
 	return result, nil
 }
