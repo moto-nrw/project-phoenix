@@ -104,10 +104,13 @@ function MeinRaumPageContent() {
 
   const openRoomRosterGroupId = openRoomRosterActiveGroupId({
     currentOpenRoom,
+    rooms: allRooms,
+    selectedSessionId: dashboard.selectedRoomId,
   });
-  // A released-room tab is the room, not one offering. Binding the caller's
-  // session — or a leftover timetable instance after `?session=` /
-  // last-session was consumed while resolving `?room=` — would hide every
+  // A released-room tab is the room, not one offering. Only the caller's own
+  // session in that room keeps its roster (and its check-in actions) bound;
+  // without one, a leftover timetable instance after `?session=` /
+  // last-session was consumed while resolving `?room=` would hide every
   // other child in the room. Occupancy is already on `currentOpenRoom`.
   const showMergedOpenRoomOccupancy =
     currentOpenRoom !== null && openRoomRosterGroupId === null;
