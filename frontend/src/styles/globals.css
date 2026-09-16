@@ -3,6 +3,38 @@
 @import "@moto-nrw/design-system/tailwind";
 
 /*
+ * `compact` — die Dichte-Stufe kleiner Bildschirme (#2824).
+ *
+ * Das Portal kannte bis hierher zwei Dichten: unter `sm` (640 px) die enge
+ * Telefon-Stufe, ab 640 px das Desktop-Mass — unverändert bis 2560 px. Ein
+ * 1024er-Tablet, ein halbes Fenster und ein 13-Zoll-Laptop bekamen also
+ * dieselben 32-px-Ränder, dieselbe 24-px-Kopfkarte und dieselbe 28-px-
+ * Überschrift wie ein 27-Zoll-Monitor. Nach Kopfzeile, Seitenleiste und
+ * Kopfkarte blieb dort kaum Inhalt übrig.
+ *
+ * Die Stufe greift auf ZWEI Achsen, weil es zwei verschiedene Engen sind:
+ *
+ *   - zu schmal  (max-width < 64rem): Tablet, halbes Fenster. Dort fehlt
+ *     waagerecht Platz, und senkrecht ebenso.
+ *   - zu flach   (max-height < 56.25rem): der 13-Zoll-Laptop bei 1440x900.
+ *     Der ist breit genug — ihm fehlt nur die Höhe. Eine reine Breiten-
+ *     Stufe (`max-lg:`) hätte genau diesen, im Issue zuerst genannten Fall
+ *     nicht erwischt.
+ *
+ * `min-width: 48rem` schneidet die Telefon- und die kleine Tablet-Stufe
+ * bewusst ab: unter 768 px gelten weiter die `max-sm:`- und `max-md:`-Masse
+ * des Gerüsts. Dadurch überschneidet sich `compact:` mit KEINEM `max-sm:`
+ * und die Reihenfolge im erzeugten CSS ist nie eine Ermessensfrage — genau
+ * eine der beiden Stufen trifft zu, nie beide.
+ *
+ * Wer eine Eigenschaft in diese Stufe aufnimmt, schreibt den Desktop-Wert
+ * unvariiert als Grundwert (`p-5`), nicht als `sm:`/`lg:`-Variante — sonst
+ * stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
+ * welche gewinnt, hängt an der internen Sortierung von Tailwind.
+ */
+@custom-variant compact (@media (min-width: 48rem) and ((max-width: 63.9375rem) or (max-height: 56.25rem)));
+
+/*
  * moto brand tokens
  *
  * Green, blue, and orange mirror the public website design system in

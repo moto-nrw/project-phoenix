@@ -69,7 +69,16 @@ export function PortalShell({
         <div className="relative z-10 flex flex-1">
           {sidebar}
 
-          <main className="flex min-w-0 flex-1 flex-col p-4 pb-[calc(7rem+env(safe-area-inset-bottom))] md:p-8 md:pb-[calc(7rem+env(safe-area-inset-bottom))] lg:pb-8">
+          {/*
+           * Der Seitenrand in drei Stufen, und jede Stufe steht genau einmal
+           * da (#2824): 32 px auf dem grossen Monitor, 20 px auf einem
+           * kleinen oder flachen Bildschirm (`compact`), 16 px unter 768 px.
+           * Der Desktop-Wert ist bewusst der unvariierte Grundwert — sonst
+           * stuenden zwei Varianten fuer dasselbe Padding nebeneinander.
+           * Die 7rem unten halten die mobile Leiste frei; sie gibt es nur
+           * unter `lg`, deshalb traegt die flache Desktop-Stufe sie nicht.
+           */}
+          <main className="compact:p-5 compact:max-lg:pb-[calc(7rem+env(safe-area-inset-bottom))] flex min-w-0 flex-1 flex-col p-8 max-md:p-4 max-md:pb-[calc(7rem+env(safe-area-inset-bottom))]">
             <div className={`relative z-10 ${contentClassName}`}>
               {children}
             </div>
