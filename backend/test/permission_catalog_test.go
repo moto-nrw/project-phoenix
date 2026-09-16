@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,9 +78,8 @@ func TestPermissionCatalogMatchesMigratedDatabase(t *testing.T) {
 	for _, entry := range catalog {
 		expected = append(expected, entry.name())
 	}
-	sort.Strings(expected)
 
-	assert.Equal(t, expected, stored,
+	assert.ElementsMatch(t, expected, stored,
 		"backend/"+permissionCatalogPath+" is out of sync with the migrations. "+
 			"Add the new permission to the catalog and give it German labels in "+
 			"frontend/src/lib/permission-labels.ts (#3238).")
