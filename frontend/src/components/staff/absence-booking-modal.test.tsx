@@ -283,6 +283,35 @@ describe("AbsenceBookingModal", () => {
     expect(submit()).toBeDisabled();
   });
 
+  it("enables booking again after a failed account load succeeds on retry", async () => {
+    mocks.getVacationQuota.mockRejectedValueOnce(new Error("quota down"));
+    renderModal();
+    choose("Urlaub");
+
+    expect(
+      await screen.findByText(
+        "Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen.",
+      ),
+    ).toBeInTheDocument();
+    expect(submit()).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("Von"), {
+      target: { value: "2027-01-05" },
+    });
+
+    await waitFor(() =>
+      expect(mocks.getVacationQuota).toHaveBeenCalledWith("4", 2027),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByText(
+          "Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen.",
+        ),
+      ).not.toBeInTheDocument(),
+    );
+    expect(submit()).toBeEnabled();
+  });
+
   it("shows the server's reason when the booking is refused", async () => {
     mocks.createAbsence.mockRejectedValue(
       new Error("An diesen Tagen ist schon eine Abwesenheit eingetragen."),

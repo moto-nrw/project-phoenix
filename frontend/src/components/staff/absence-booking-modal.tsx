@@ -222,6 +222,7 @@ function useYearAccounts(
   useEffect(() => {
     if (!missingKey) return;
     let stale = false;
+    setFailed(false);
     Promise.all(
       missingKey.split(",").map(async (year) => {
         const value = Number(year);

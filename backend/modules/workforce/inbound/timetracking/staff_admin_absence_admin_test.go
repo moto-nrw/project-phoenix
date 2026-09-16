@@ -261,6 +261,14 @@ func TestAdminCreateStaffAbsence_BooksVacationWithinQuota(t *testing.T) {
 	})
 	require.Equal(t, http.StatusCreated, fits.Code, fits.Body.String())
 
+	overlapping := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type": "vacation",
+		"date_start":   monday.String(),
+		"date_end":     monday.String(),
+	})
+	require.Equal(t, http.StatusConflict, overlapping.Code, overlapping.Body.String())
+	assert.Contains(t, overlapping.Body.String(), "dates overlap")
+
 	var created struct {
 		Data struct {
 			Status      string   `json:"status"`
