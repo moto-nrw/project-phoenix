@@ -45,11 +45,15 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		if !ok {
 			return nil, 0, errors.New("school membership postgres: transaction is required")
 		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
+		switch tx := transaction.(type) {
+		case bun.Tx:
+			return tx, tenant.FromContext(ctx), nil
+		case *bun.Tx:
+			if tx != nil {
+				return tx, tenant.FromContext(ctx), nil
+			}
 		}
-		return tx, tenant.FromContext(ctx), nil
+		return nil, 0, fmt.Errorf("school membership postgres: unsupported transaction %T", transaction)
 	})
 	service := application.New(store, transaction{}, func(observation Observation) {
 		observation.Err = mapError(observation.Err)

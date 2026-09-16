@@ -138,3 +138,12 @@ func (s *Service) LockOpenPresence(ctx context.Context, ids []int64) error {
 		return s.store.LockOpenPresence(ctx, ids)
 	})
 }
+
+func (s *Service) LockGroupSupervisions(ctx context.Context) error {
+	return s.run("lock_group_supervisions", func() (ports.Stats, error) {
+		if err := s.tx.Require(ctx); err != nil {
+			return ports.Stats{}, err
+		}
+		return s.store.LockGroupSupervisions(ctx)
+	})
+}

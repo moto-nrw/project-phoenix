@@ -499,6 +499,10 @@ func (m *Module) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) erro
 	return m.engine.SetPrimaryPlannedSupervisor(ctx, id)
 }
 
+func (m *Module) LockPlannedSupervisors(ctx context.Context) error {
+	return m.engine.LockPlannedSupervisors(ctx)
+}
+
 func (m *Module) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error) {
 	if staffID <= 0 {
 		return 0, m.reject("delete_planned_supervisors_by_staff", ErrInvalidPlannedSupervisor)

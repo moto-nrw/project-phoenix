@@ -1167,9 +1167,3 @@
 {"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/documents","target":"documents.Where","issue":"https://github.com/moto-nrw/project-phoenix/issues/2706"}
 {"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/platform","target":"platform.NewRaw","issue":"https://github.com/moto-nrw/project-phoenix/issues/2740"}
 {"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/schedule","target":"schedule.Where","issue":"https://github.com/moto-nrw/project-phoenix/issues/2730"}
-{"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"users.ColumnExpr","issue":"https://github.com/moto-nrw/project-phoenix/issues/2727"}
-{"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"users.ExecContext","issue":"https://github.com/moto-nrw/project-phoenix/issues/2727"}
-{"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"users.ModelTableExpr","issue":"https://github.com/moto-nrw/project-phoenix/issues/2727"}
-{"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"users.NewRaw","issue":"https://github.com/moto-nrw/project-phoenix/issues/2727"}
-{"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"users.Set","issue":"https://github.com/moto-nrw/project-phoenix/issues/2727"}
-{"scope":"production","rule":"tables.unresolved","source":"github.com/moto-nrw/project-phoenix/database/repositories/users","target":"users.Where","issue":"https://github.com/moto-nrw/project-phoenix/issues/2727"}

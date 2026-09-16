@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -45,13 +44,13 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 		ModelTableExpr(tableExprCareWithdrawalCompletions).
 		On("CONFLICT (tenant_id, student_id) WHERE state = 'pending' AND student_id IS NOT NULL DO UPDATE").
 		Set("first_bookingless_day = EXCLUDED.first_bookingless_day").
-		Set(preserveConfirmedWithdrawal("trigger")).
-		Set(preserveConfirmedWithdrawal("source_adjustment_id")).
-		Set(preserveConfirmedWithdrawal("source_request_child_id")).
-		Set(preserveConfirmedWithdrawal("withdrawal_confirmed_by")).
-		Set(preserveConfirmedWithdrawal("withdrawal_confirmed_role")).
-		Set(preserveConfirmedWithdrawal("withdrawal_confirmed_at")).
-		Set(preserveConfirmedWithdrawal("source_offerings")).
+		Set(preserveConfirmedTrigger, preserveConfirmedWithdrawalArgs...).
+		Set(preserveConfirmedSourceAdjustmentID, preserveConfirmedWithdrawalArgs...).
+		Set(preserveConfirmedSourceRequestChildID, preserveConfirmedWithdrawalArgs...).
+		Set(preserveConfirmedWithdrawalConfirmedBy, preserveConfirmedWithdrawalArgs...).
+		Set(preserveConfirmedWithdrawalConfirmedRole, preserveConfirmedWithdrawalArgs...).
+		Set(preserveConfirmedWithdrawalConfirmedAt, preserveConfirmedWithdrawalArgs...).
+		Set(preserveConfirmedSourceOfferings, preserveConfirmedWithdrawalArgs...).
 		Set("updated_at = NOW()").
 		Returning("id, created_at, updated_at").
 		Exec(ctx)
@@ -61,12 +60,39 @@ func (r *CareWithdrawalCompletionRepository) UpsertPending(ctx context.Context, 
 	return nil
 }
 
-func preserveConfirmedWithdrawal(column string) string {
-	return fmt.Sprintf(`%s = CASE
-		WHEN "care_withdrawal_completion".trigger = '%s' AND EXCLUDED.trigger = '%s'
-		THEN "care_withdrawal_completion".%s ELSE EXCLUDED.%s END`,
-		column, userModels.CareWithdrawalTriggerDirectSchool,
-		userModels.CareWithdrawalTriggerBookingExpired, column, column)
+// The preserveConfirmed* SET fragments keep a school-confirmed withdrawal's
+// columns when a booking expiry conflicts with it: the stored value wins when
+// the existing row was confirmed directly by the school and the incoming row
+// comes from an expired booking; otherwise the incoming (EXCLUDED) value wins.
+// Each fragment binds the two trigger values through
+// preserveConfirmedWithdrawalArgs, in that order.
+const (
+	preserveConfirmedTrigger = `trigger = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".trigger ELSE EXCLUDED.trigger END`
+	preserveConfirmedSourceAdjustmentID = `source_adjustment_id = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".source_adjustment_id ELSE EXCLUDED.source_adjustment_id END`
+	preserveConfirmedSourceRequestChildID = `source_request_child_id = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".source_request_child_id ELSE EXCLUDED.source_request_child_id END`
+	preserveConfirmedWithdrawalConfirmedBy = `withdrawal_confirmed_by = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".withdrawal_confirmed_by ELSE EXCLUDED.withdrawal_confirmed_by END`
+	preserveConfirmedWithdrawalConfirmedRole = `withdrawal_confirmed_role = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".withdrawal_confirmed_role ELSE EXCLUDED.withdrawal_confirmed_role END`
+	preserveConfirmedWithdrawalConfirmedAt = `withdrawal_confirmed_at = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".withdrawal_confirmed_at ELSE EXCLUDED.withdrawal_confirmed_at END`
+	preserveConfirmedSourceOfferings = `source_offerings = CASE
+		WHEN "care_withdrawal_completion".trigger = ? AND EXCLUDED.trigger = ?
+		THEN "care_withdrawal_completion".source_offerings ELSE EXCLUDED.source_offerings END`
+)
+
+var preserveConfirmedWithdrawalArgs = []any{
+	userModels.CareWithdrawalTriggerDirectSchool,
+	userModels.CareWithdrawalTriggerBookingExpired,
 }
 
 // FindByID delegates the generic tenant-scoped read while preserving this

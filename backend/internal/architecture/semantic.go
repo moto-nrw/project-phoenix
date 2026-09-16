@@ -546,7 +546,7 @@ type tableMatchSummary struct {
 func (a semanticAnalyzer) matchSQLTables(source, sourceOwner, query string, aliases map[string]struct{}, pattern *regexp.Regexp, operation tableOperation) tableMatchSummary {
 	var objects []string
 	for _, match := range pattern.FindAllStringSubmatchIndex(query, -1) {
-		if pattern == writeTablePattern && sqlUpdateBelongsToLockClause(query, match[0]) {
+		if pattern == writeTablePattern && sqlUpdateIsNotStatementTarget(query, match[0]) {
 			continue
 		}
 		objects = append(objects, query[match[2]:match[3]])
@@ -554,15 +554,23 @@ func (a semanticAnalyzer) matchSQLTables(source, sourceOwner, query string, alia
 	return a.matchDataObjects(source, sourceOwner, objects, aliases, operation)
 }
 
-func sqlUpdateBelongsToLockClause(query string, matchStart int) bool {
+// sqlUpdateIsNotStatementTarget reports whether the UPDATE keyword at
+// matchStart names no table of its own: a `FOR UPDATE` lock clause or the
+// `ON CONFLICT ... DO UPDATE SET` conflict action, whose target is the table
+// the surrounding INSERT already names.
+func sqlUpdateIsNotStatementTarget(query string, matchStart int) bool {
 	prefix := strings.Fields(query[:matchStart])
-	return len(prefix) > 0 && strings.EqualFold(prefix[len(prefix)-1], "FOR")
+	if len(prefix) == 0 {
+		return false
+	}
+	previous := prefix[len(prefix)-1]
+	return strings.EqualFold(previous, "FOR") || strings.EqualFold(previous, "DO")
 }
 
 func (a semanticAnalyzer) matchDataObjects(source, sourceOwner string, objects []string, aliases map[string]struct{}, operation tableOperation) tableMatchSummary {
 	var result tableMatchSummary
 	for _, name := range objects {
-		if isCTEReference(name, aliases) {
+		if isCTEReference(name, aliases) || isSystemCatalogObject(name) {
 			continue
 		}
 		if !a.knownDataSchema(name) {
@@ -654,6 +662,22 @@ func sqlCTEAliases(query string) map[string]struct{} {
 		aliases[strings.ToLower(match[1])] = struct{}{}
 	}
 	return aliases
+}
+
+// sqlSystemCatalogSchemas are PostgreSQL's own schemas. They hold no
+// application data object, so a read of them is neither owned nor foreign.
+var sqlSystemCatalogSchemas = map[string]struct{}{
+	"pg_catalog":         {},
+	"information_schema": {},
+}
+
+func isSystemCatalogObject(name string) bool {
+	schema, _, ok := strings.Cut(strings.ToLower(name), ".")
+	if !ok {
+		return false
+	}
+	_, system := sqlSystemCatalogSchemas[schema]
+	return system
 }
 
 func isCTEReference(name string, aliases map[string]struct{}) bool {

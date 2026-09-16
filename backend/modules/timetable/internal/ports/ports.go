@@ -71,6 +71,7 @@ type Store interface {
 	DeletePlannedSupervisor(context.Context, int64) (domain.OperationStats, error)
 	SetPrimaryPlannedSupervisor(context.Context, int64) (bool, domain.OperationStats, error)
 	DeletePlannedSupervisorsByStaff(context.Context, int64) (int64, domain.OperationStats, error)
+	LockPlannedSupervisors(context.Context) (domain.OperationStats, error)
 	CapActivePlannedSupervisors(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetPlannedSupervisorValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
 	CloseOpenPlannedSupervisors(context.Context, int64, *int64, string) (domain.OperationStats, error)

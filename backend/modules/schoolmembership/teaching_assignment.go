@@ -148,6 +148,10 @@ func (m *Module) DeleteGroupAssignmentsByTeacher(ctx context.Context, teacherID 
 	return m.teachingAssignments.DeleteGroupAssignmentsByTeacher(ctx, teacherID)
 }
 
+func (m *Module) LockGroupAssignments(ctx context.Context) error {
+	return m.teachingAssignments.LockGroupAssignments(ctx)
+}
+
 func validateClassAssignment(staffID int64, schoolClass *string) error {
 	*schoolClass = strings.TrimSpace(*schoolClass)
 	if staffID <= 0 {

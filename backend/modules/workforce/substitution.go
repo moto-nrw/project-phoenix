@@ -85,6 +85,10 @@ type SubstitutionCommand interface {
 	// as regular or substitute that end on or after from. Past rows stay as
 	// history; staff offboarding uses it.
 	DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, error)
+	// LockGroupSubstitutions takes a SHARE ROW EXCLUSIVE table lock on the
+	// group substitution rows for the caller's transaction, so a caregiver
+	// capability re-check cannot race a concurrent substitution write.
+	LockGroupSubstitutions(context.Context) error
 }
 
 type substitutionEngine interface {
@@ -133,6 +137,10 @@ func (m *Module) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID i
 		return 0, invalidSubstitution("staff ID is required")
 	}
 	return m.engine.DeleteGroupSubstitutionsForStaff(ctx, staffID, from)
+}
+
+func (m *Module) LockGroupSubstitutions(ctx context.Context) error {
+	return m.engine.LockGroupSubstitutions(ctx)
 }
 
 // --- substitution operations contract ---
