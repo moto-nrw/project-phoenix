@@ -81,6 +81,7 @@
     "kicker": "Meals at after-school care",
     "title": "Lunch",
     "subtitle": "See when your child will have lunch and what is being served.",
+    "subtitleMealsOnly": "See what is being served.",
     "thisWeek": "This week",
     "nextWeek": "Next week",
     "today": "Today",
