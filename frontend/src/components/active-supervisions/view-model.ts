@@ -269,24 +269,49 @@ export function openRoomSessionSelection(options: {
 }
 
 /**
- * The caller's single active session in a shared room, used to keep that
- * session's roster actionable without turning the room back into a
- * session-keyed navigation entry.
+ * The session whose roster stays actionable while a released room is
+ * selected, without turning the room back into a session-keyed navigation
+ * entry.
  *
- * Only the room's own sessions count. Intersecting with the caller's
- * `supervisedGroups` (or a leftover `?session=` / last-session id) still
- * looks like "one session" when someone else runs a second offering in the
- * same room — and that offering's children then disappear behind the
- * caller's roster (#3065). Several sessions in the room is the same
- * ambiguity `additionalSupervisionTarget` already treats as "none".
+ * The caller's own session wins. Schools run several timetable blocks side
+ * by side in the released Schulhof, and the merged room occupancy carries no
+ * check-in actions — so binding nothing there hid the block a caregiver had
+ * just started and stopped every check-in. `rooms` is the dashboard's full
+ * session list; `isCurrentUserSupervising` is the load-bearing filter, because
+ * a caller with the school-wide overview sees foreign sessions in it too.
+ * The own sessions are not intersected with `activeGroupIds`: the released
+ * room payload can lag behind `supervisedGroups` for a block started a moment
+ * ago, and that block is exactly the one to keep.
+ *
+ * Without an own session the room stays the identity: one offering is
+ * unambiguous, several are not (#3065). With several own sessions an explicit
+ * `?session=` / restored selection decides; otherwise the merged view stays.
  */
 export function openRoomRosterActiveGroupId(options: {
   readonly currentOpenRoom: OpenRoomView | null;
+  readonly rooms: readonly ActiveSupervisionRoom[];
+  readonly selectedSessionId: string | null;
 }): string | null {
-  const { currentOpenRoom } = options;
+  const { currentOpenRoom, rooms, selectedSessionId } = options;
   if (!currentOpenRoom?.isUserSupervising) return null;
-  if (currentOpenRoom.activeGroupIds.length !== 1) return null;
-  return currentOpenRoom.activeGroupIds[0] ?? null;
+
+  const own = rooms
+    .filter(
+      (room) =>
+        room.isCurrentUserSupervising === true &&
+        room.room_id === currentOpenRoom.roomId,
+    )
+    .map((room) => room.id);
+
+  if (own.length === 0) {
+    return currentOpenRoom.activeGroupIds.length === 1
+      ? (currentOpenRoom.activeGroupIds[0] ?? null)
+      : null;
+  }
+  if (selectedSessionId && own.includes(selectedSessionId)) {
+    return selectedSessionId;
+  }
+  return own.length === 1 ? (own[0] ?? null) : null;
 }
 
 export interface VisitDisplayLike {

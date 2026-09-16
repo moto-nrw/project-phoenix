@@ -55,34 +55,88 @@ describe("active-supervisions view model", () => {
     ).toEqual({ sessionId: "fußball", keepsTimetableInstance: false });
   });
 
-  it("keeps the roster of the caller's only session in an open room reachable", () => {
+  const sporthalle = (activeGroupIds: readonly string[]) => ({
+    roomId: "sporthalle",
+    name: "Sporthalle",
+    isUserSupervising: true,
+    activeGroupIds,
+    studentCount: 2,
+    students: [],
+  });
+  const ownSession = (id: string, room_id = "sporthalle") => ({
+    id,
+    name: id,
+    room_id,
+    isCurrentUserSupervising: true,
+  });
+
+  it("keeps the roster of the room's only session reachable without an own session", () => {
     expect(
       openRoomRosterActiveGroupId({
-        currentOpenRoom: {
-          roomId: "sporthalle",
-          name: "Sporthalle",
-          isUserSupervising: true,
-          activeGroupIds: ["fußball"],
-          studentCount: 2,
-          students: [],
-        },
+        currentOpenRoom: sporthalle(["fußball"]),
+        rooms: [],
+        selectedSessionId: null,
       }),
     ).toBe("fußball");
   });
 
-  it("does not bind a session roster when the released room has several offerings", () => {
+  it("does not bind a session roster when the released room has several foreign offerings", () => {
     expect(
       openRoomRosterActiveGroupId({
-        currentOpenRoom: {
-          roomId: "sporthalle",
-          name: "Sporthalle",
-          isUserSupervising: true,
-          activeGroupIds: ["fußball", "tanzen"],
-          studentCount: 2,
-          students: [],
-        },
+        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
+        rooms: [
+          { ...ownSession("fußball"), isCurrentUserSupervising: false },
+          { ...ownSession("tanzen"), isCurrentUserSupervising: false },
+        ],
+        selectedSessionId: null,
       }),
     ).toBeNull();
+  });
+
+  it("binds the caller's own session while other offerings share the released room", () => {
+    // Several timetable blocks run side by side in the released Schulhof;
+    // the block the caller just started must keep its check-in roster.
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
+        rooms: [
+          ownSession("fußball"),
+          { ...ownSession("tanzen"), isCurrentUserSupervising: false },
+          ownSession("werken", "werkraum"),
+        ],
+        selectedSessionId: null,
+      }),
+    ).toBe("fußball");
+  });
+
+  it("keeps the merged room view when the caller runs several sessions there and picked none", () => {
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
+        rooms: [ownSession("fußball"), ownSession("tanzen")],
+        selectedSessionId: null,
+      }),
+    ).toBeNull();
+  });
+
+  it("lets an explicit selection decide between the caller's own sessions", () => {
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
+        rooms: [ownSession("fußball"), ownSession("tanzen")],
+        selectedSessionId: "tanzen",
+      }),
+    ).toBe("tanzen");
+  });
+
+  it("ignores a selection that points at a session in another room", () => {
+    expect(
+      openRoomRosterActiveGroupId({
+        currentOpenRoom: sporthalle(["fußball", "tanzen"]),
+        rooms: [ownSession("fußball"), ownSession("werken", "werkraum")],
+        selectedSessionId: "werken",
+      }),
+    ).toBe("fußball");
   });
 
   it("suppresses active-group roster keys after a not-found roster miss", () => {
