@@ -55,9 +55,10 @@ type TenantResolveResponse struct {
 	// chat (#2598). Shell metadata like the flags above so non-admin staff (no
 	// config:read) can hide the Team-Chat entry entirely.
 	//
-	// Defaults to FALSE and fails closed, unlike ParentMessagingEnabled: a
-	// school that has not switched the internal chat on must not see it offered
-	// because a settings read hiccuped. Matches the service-side gate.
+	// The registry default is ON (opt-out, #3254), but the flag still fails
+	// closed, unlike ParentMessagingEnabled: a school that switched the
+	// internal chat off must not see it offered because a settings read
+	// hiccuped. Matches the service-side gate.
 	StaffMessagingEnabled bool `json:"staff_messaging_enabled"`
 	// DisplayEnabled is the tenant's resolved display.enabled setting. The
 	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs

@@ -1223,7 +1223,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Team-Chat",
         icon: MessageSquare,
         summary:
-          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
+          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Team-Chat ist standardmäßig eingeschaltet. Ein Admin kann ihn unter `Einstellungen` -> `Betrieb` -> `Team-Chat für Mitarbeitende` ausschalten. Dann fehlt der Bereich für alle.",
         steps: [
           "`Team-Chat` in der Seitenleiste öffnen.",
           "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule. Lehrkräfte sind mit `Lehrkraft` gekennzeichnet; sie lesen und antworten in ihrem Portal „moto schule“ unter `Nachrichten` (siehe `Lehrkraft schreibt Nachrichten`).",
@@ -1442,7 +1442,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Gibt Lehrkräften in moto schule den kurzen Draht zur OGS: dieselbe Unterhaltung wie im `Team-Chat`, nur aus dem anderen Portal. Dazu gehört, was die Lehrkraft dort selbst einstellt.",
         steps: [
-          "Voraussetzung: Ihre Schule hat den Team-Chat eingeschaltet (siehe `Team-Chat`). Solange er aus ist, erscheint `Nachrichten` in moto schule gar nicht erst.",
+          "Hat Ihre Schule den Team-Chat ausgeschaltet (siehe `Team-Chat`), erscheint `Nachrichten` in moto schule gar nicht erst.",
           "Die Lehrkraft öffnet in moto schule `Nachrichten`. Dort stehen ihre Unterhaltungen mit der OGS.",
           "Über `Neue Nachricht` wählt sie eine Person aus. Neben jedem Namen steht, um wen es sich handelt: `OGS-Leitung`, `OGS-Team` oder `Lehrkraft`. Eltern sehen von diesen Nachrichten nichts.",
           "Eine Zahl neben `Nachrichten` zeigt, wie viele Nachrichten noch nicht gelesen sind. Sie verschwindet, sobald die Unterhaltung geöffnet ist.",
