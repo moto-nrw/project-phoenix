@@ -51,7 +51,7 @@ visits in place; only the independent booking path is rejected afterwards.
 
 ## Policy registration
 
-This registration raises the policy epoch from 9 to 10 and uses only
+This registration raises the policy epoch from 10 to 11 and uses only
 candidate-created packages (`workflows/openroommove`, its `ports`,
 `internal/application` and `compose`). Existing-owner import expansions,
 workflow-owned writable data and legacy-baseline growth remain forbidden.

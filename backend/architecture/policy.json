@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 10,
+  "policy_epoch": 11,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -6975,7 +6975,7 @@
     },
     {
       "id": "open-room-move.compose.student-presence-application",
-      "description": "Compatibility binding: the room session lookup-or-create and the move use the retained Student Presence service until the owner exposes them publicly (ADR 0017).",
+      "description": "Compatibility binding: the room session lookup-or-create and the move use the retained Student Presence service until the owner exposes them publicly (ADR 0018).",
       "scopes": [
         "production"
       ],
@@ -6986,7 +6986,7 @@
     },
     {
       "id": "open-room-move.compose.student-presence-domain",
-      "description": "Compatibility binding: the retained Student Presence room session is returned as its domain row until the owner exposes it publicly (ADR 0017).",
+      "description": "Compatibility binding: the retained Student Presence room session is returned as its domain row until the owner exposes it publicly (ADR 0018).",
       "scopes": [
         "production"
       ],
@@ -7030,7 +7030,7 @@
     },
     {
       "id": "open-room-move.adapter-test.student-presence-application",
-      "description": "Open-room move integration tests fake the retained Student Presence binding, whose result type lives in the retained service (ADR 0017).",
+      "description": "Open-room move integration tests fake the retained Student Presence binding, whose result type lives in the retained service (ADR 0018).",
       "scopes": [
         "external_test"
       ],
@@ -7041,7 +7041,7 @@
     },
     {
       "id": "open-room-move.adapter-test.student-presence-domain",
-      "description": "Open-room move integration tests fake the retained Student Presence binding, which returns the room session row (ADR 0017).",
+      "description": "Open-room move integration tests fake the retained Student Presence binding, which returns the room session row (ADR 0018).",
       "scopes": [
         "external_test"
       ],
