@@ -18,6 +18,9 @@ export type EnrollmentAPIError = Error & {
 export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
   "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.";
 
+export const PHASE_NAME_EXISTS_MESSAGE =
+  "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wähle einen anderen Namen.";
+
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.complete_withdrawal_confirmation_required":
     "Bitte bestätigen Sie, dass alle Betreuungstage entfernt werden sollen.",
@@ -87,6 +90,9 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Diese Formularvorlage wurde bereits für Anmeldungen verwendet und kann nicht gelöscht werden.",
   "enrollment.schema_name_exists":
     "Es gibt bereits ein Formular mit diesem Namen.",
+  "enrollment.phase_name_exists": PHASE_NAME_EXISTS_MESSAGE,
+  "enrollment.phase_care_offering_conflict":
+    "Die Änderung passt nicht zu einem verknüpften Betreuungsangebot. Bitte prüfe die Betreuungsangebote der Anmeldephase.",
   "rollover.source_not_found": "Die Quellphase wurde nicht gefunden.",
   "rollover.invalid_request":
     "Die Eingaben sind unvollständig oder ungültig. Bitte alle Pflichtfelder prüfen.",
@@ -183,6 +189,7 @@ const RAW_MESSAGE_TRANSLATIONS: Array<[RegExp, string]> = [
     /schema with name .* already exists/i,
     "Es existiert bereits eine Formularvorlage mit diesem Namen.",
   ],
+  [/phase name already exists/i, PHASE_NAME_EXISTS_MESSAGE],
   [/duplicate name/i, "Dieser Name ist bereits vergeben."],
   [
     /form field key is required/i,
@@ -348,8 +355,20 @@ const RAW_MESSAGE_TRANSLATIONS: Array<[RegExp, string]> = [
   ],
 ];
 
+// A raw backend message is shown unchanged only when it reads as German. The
+// positive hint alone is not enough: English sentences reuse words such as
+// "phase" or "formular", so English signal words veto the match (#3263).
 const GERMAN_MESSAGE_HINT =
-  /[äöüß]|\b(bitte|der|die|das|diese|dieser|dieses|nicht|konnte|konnten|ungültig|erforderlich|abgelaufen|zurückgenommen|anmeldung|anmeldephase|betreuungsangebot|formular|phase)\b/i;
+  /[äöüß]|\b(bitte|der|die|das|diese|dieser|dieses|nicht|konnte|konnten|ungültig|erforderlich|abgelaufen|zurückgenommen|anmeldung|anmeldephase|betreuungsangebot|formular)\b/i;
+const ENGLISH_MESSAGE_HINT =
+  /\b(already exists|must|required|violates|invalid|not found|cannot|failed|error)\b|SQLSTATE/i;
+
+function looksGerman(rawMessage: string): boolean {
+  return (
+    GERMAN_MESSAGE_HINT.test(rawMessage) &&
+    !ENGLISH_MESSAGE_HINT.test(rawMessage)
+  );
+}
 
 export function translateEnrollmentErrorMessage(
   rawMessage?: string,
@@ -363,7 +382,7 @@ export function translateEnrollmentErrorMessage(
   for (const [pattern, message] of RAW_MESSAGE_TRANSLATIONS) {
     if (pattern.test(rawMessage)) return message;
   }
-  if (GERMAN_MESSAGE_HINT.test(rawMessage)) return rawMessage;
+  if (looksGerman(rawMessage)) return rawMessage;
   return undefined;
 }
 
