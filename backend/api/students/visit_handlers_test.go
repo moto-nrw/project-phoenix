@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -57,6 +58,31 @@ func TestGetStudentCurrentLocation_Extended(t *testing.T) {
 		// Location should be "Abwesend" (absent) when student has no active visit
 		assert.Contains(t, rr.Body.String(), "current_location")
 	})
+}
+
+func TestGetStudentCurrentLocation_ExpectedChildReadsSchoolBeforeFirstCheckIn(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	// Friday 12:00 Berlin.
+	fixedNow := time.Date(2026, time.August, 21, 10, 0, 0, 0, time.UTC)
+	tc.resource.Now = func() time.Time { return fixedNow }
+
+	student := testpkg.CreateTestStudent(t, tc.db, "Waiting", "Location", "School-3260")
+	staff := testpkg.CreateTestStaff(t, tc.db, "Location", "Supervisor")
+	testpkg.CreateTestPickupSchedule(t, tc.db, student.ID, scheduleModel.WeekdayFriday, staff.ID, "15:30")
+
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/current-location", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+	var response struct {
+		Data struct {
+			Location string `json:"current_location"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &response))
+	assert.Equal(t, "Schule", response.Data.Location)
 }
 
 // =============================================================================
