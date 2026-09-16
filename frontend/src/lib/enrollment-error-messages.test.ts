@@ -131,6 +131,58 @@ describe("enrollment-error-messages", () => {
     ).toContain("Nachzügler-Link");
   });
 
+  it("maps the duplicate phase name code to a German message (#3263)", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "phase name already exists",
+        "enrollment.phase_name_exists",
+      ),
+    ).toBe(
+      "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+    );
+  });
+
+  it("maps the phase care offering conflict code to a German message (#3263)", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "phase change is incompatible with a linked care offering",
+        "enrollment.phase_care_offering_conflict",
+      ),
+    ).toBe(
+      "Die Änderung passt nicht zu einem verknüpften Betreuungsangebot. Bitte prüfen Sie die Betreuungsangebote der Anmeldephase.",
+    );
+  });
+
+  it("translates the raw duplicate phase name text without a code (#3263)", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        'phase name already exists: ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)',
+      ),
+    ).toBe(
+      "Es gibt bereits eine Anmeldephase mit diesem Namen. Bitte wählen Sie einen anderen Namen.",
+    );
+  });
+
+  it("does not treat English text containing the word phase as German (#3263)", async () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        'phase update failed: ERROR: some constraint "x" (SQLSTATE 23505)',
+      ),
+    ).toBeUndefined();
+
+    const logger = { error: vi.fn(), warn: vi.fn() };
+    const error = await readEnrollmentError(
+      jsonResponse(
+        { error: "phase rollover must be completed first" },
+        { status: 409 },
+      ),
+      "Phase konnte nicht erstellt werden",
+      logger,
+      "test_event",
+    );
+    expect(error.message).toBe("Phase konnte nicht erstellt werden (HTTP 409)");
+  });
+
   it("keeps already-German backend messages", () => {
     expect(
       translateEnrollmentErrorMessage("Bitte prüfe die eingegebenen Daten."),

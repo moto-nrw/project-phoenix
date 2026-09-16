@@ -372,6 +372,28 @@ func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+// The service wraps the Postgres unique-violation text into the sentinel. The
+// response must carry the stable code and drop the SQL detail (#3263).
+func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.T) {
+	t.Parallel()
+
+	wrapped := fmt.Errorf("%w: %v", enrollmentService.ErrPhaseDuplicateName,
+		errors.New(`ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)`))
+	mock := &mockPhaseService{createErr: wrapped}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, ErrCodePhaseNameExists, body.Code)
+	assert.Equal(t, enrollmentService.ErrPhaseDuplicateName.Error(), body.Error)
+	assert.NotContains(t, body.Error, "SQLSTATE")
+}
+
 func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
 	t.Parallel()
 
@@ -501,6 +523,12 @@ func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, ErrCodePhaseCareOfferingConflict, body.Code)
 }
 
 func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {

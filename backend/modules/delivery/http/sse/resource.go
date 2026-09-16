@@ -3,8 +3,8 @@ package sse
 import (
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/uptrace/bun"
 )
 
