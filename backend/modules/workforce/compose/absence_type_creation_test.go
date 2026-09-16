@@ -24,14 +24,12 @@ func TestCreateCustomAbsenceTypeContract(t *testing.T) {
 		_, err := capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: name})
 		require.ErrorIs(t, err, workforce.ErrAbsenceTypeInvalid)
 	}
-	_, err := capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Valid", OverrunPolicy: "invalid"})
-	require.ErrorIs(t, err, workforce.ErrAbsenceTypeInvalid)
 	rows, err := capability.ListStaffAbsenceTypes(ctx)
 	require.NoError(t, err)
 	require.Empty(t, rows, "rejected requests must not write a row")
 
 	created, err := capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{
-		Name: "  Regenerationstag ", AllowanceEnabled: true, OverrunPolicy: workforce.AbsenceTypeOverrunBlock,
+		Name: "  Regenerationstag ", AllowanceEnabled: true,
 	})
 	require.NoError(t, err)
 	require.NotZero(t, created.ID)
@@ -40,7 +38,6 @@ func TestCreateCustomAbsenceTypeContract(t *testing.T) {
 	assert.Equal(t, workforce.AbsenceTypeOther, created.BaseType)
 	assert.True(t, created.IsActive)
 	assert.True(t, created.AllowanceEnabled)
-	assert.Equal(t, workforce.AbsenceTypeOverrunBlock, created.OverrunPolicy)
 	_, err = capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "REGENERATIONSTAG"})
 	require.ErrorIs(t, err, workforce.ErrAbsenceTypeNameTaken)
 	rows, err = capability.ListStaffAbsenceTypes(ctx)

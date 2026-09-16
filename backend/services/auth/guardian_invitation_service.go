@@ -39,10 +39,10 @@ const (
 // 'guardian'. The accept flow assigns this role to every new guardian account.
 const guardianRoleBaseName = "guardian"
 
-// guardianTokenExpiryFallback is used when neither the registry setting nor
+// GuardianTokenExpiryFallback is used when neither the registry setting nor
 // the env var are set. 48 hours matches the staff invitation default and the
 // `invitations.guardian_token_expiry_hours` registry default.
-const guardianTokenExpiryFallback = 48 * time.Hour
+const GuardianTokenExpiryFallback = 48 * time.Hour
 
 // guardianTokenEnvVar is the legacy env-var fallback path. New deployments
 // should configure the registry setting per tenant; the env var stays for
@@ -79,11 +79,15 @@ type GuardianInvitationServiceConfig struct {
 	// /parent/me/enrollments. nil-safe: the accept flow runs even when
 	// the dependency isn't wired (tests, narrow integrations).
 	EnrollmentBackfiller EnrollmentBackfiller
-	SettingsResolver     GuardianSettingsResolver
-	FrontendURL          string
-	FallbackExpiry       time.Duration
-	DB                   *bun.DB
-	Logger               *slog.Logger
+	// RelativeAccess serves the related-accounts flows (invite further
+	// guardians to a child, decide parent requests, revoke access) from
+	// Identity & Access (#3225); nil reports ErrAccountLifecycleUnavailable.
+	RelativeAccess   GuardianRelativeAccess
+	SettingsResolver GuardianSettingsResolver
+	FrontendURL      string
+	FallbackExpiry   time.Duration
+	DB               *bun.DB
+	Logger           *slog.Logger
 }
 
 // EnrollmentBackfiller is the narrow contract the accept flow needs
@@ -107,7 +111,7 @@ func NewGuardianInvitationService(cfg GuardianInvitationServiceConfig) GuardianI
 		cfg.Logger = slog.Default()
 	}
 	if cfg.FallbackExpiry <= 0 {
-		cfg.FallbackExpiry = guardianTokenExpiryFallback
+		cfg.FallbackExpiry = GuardianTokenExpiryFallback
 	}
 	cfg.FrontendURL = strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/")
 	return &guardianInvitationService{
@@ -129,6 +133,96 @@ func (s *guardianInvitationService) withTenantRuntime(ctx context.Context) conte
 		return ctx
 	}
 	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
+
+// GuardianInvitationRecipient is the guardian an invitation e-mail addresses.
+type GuardianInvitationRecipient struct {
+	FirstName string
+	LastName  string
+	Email     string
+}
+
+// GuardianInvitationDelivery is the delivery seam the Identity & Access
+// relative access flow enqueues invitation e-mails through: the token expiry
+// the tenant configured, the school name for the mail and the outbox write.
+type GuardianInvitationDelivery interface {
+	InvitationExpiry(ctx context.Context) time.Duration
+	SchoolName(ctx context.Context, tenantID int64) string
+	EnqueueInvitationEmail(ctx context.Context, invitation GuardianInvitationRecord, recipient GuardianInvitationRecipient, schoolName string)
+}
+
+func (s *guardianInvitationService) InvitationExpiry(ctx context.Context) time.Duration {
+	return s.resolveTokenExpiry(ctx)
+}
+
+func (s *guardianInvitationService) SchoolName(ctx context.Context, tenantID int64) string {
+	return s.lookupSchoolName(ctx, tenantID)
+}
+
+func (s *guardianInvitationService) EnqueueInvitationEmail(ctx context.Context, invitation GuardianInvitationRecord, recipient GuardianInvitationRecipient, schoolName string) {
+	email := recipient.Email
+	s.enqueueEmail(ctx, guardianInvitationRow(invitation), &userModels.GuardianProfile{
+		FirstName: recipient.FirstName, LastName: recipient.LastName, Email: &email,
+	}, schoolName)
+}
+
+func (s *guardianInvitationService) relativeAccess(op string) (GuardianRelativeAccess, error) {
+	if s.RelativeAccess == nil {
+		return nil, &AuthError{Op: op, Err: ErrAccountLifecycleUnavailable}
+	}
+	return s.RelativeAccess, nil
+}
+
+// The related-accounts methods delegate to the Identity & Access port so the
+// staff tab and the parents portal keep their contract while the flows live
+// in the owner module.
+
+func (s *guardianInvitationService) InviteToStudent(ctx context.Context, req InviteToStudentRequest) (*InviteToStudentResult, error) {
+	access, err := s.relativeAccess("invite guardian to student")
+	if err != nil {
+		return nil, err
+	}
+	return access.InviteToStudent(ctx, req)
+}
+
+func (s *guardianInvitationService) ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
+	access, err := s.relativeAccess("approve guardian invitation")
+	if err != nil {
+		return err
+	}
+	return access.ApproveInvitation(ctx, invitationID, approverAccountID)
+}
+
+func (s *guardianInvitationService) RejectInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
+	access, err := s.relativeAccess("reject guardian invitation")
+	if err != nil {
+		return err
+	}
+	return access.RejectInvitation(ctx, invitationID, approverAccountID)
+}
+
+func (s *guardianInvitationService) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
+	access, err := s.relativeAccess("approve guardian invitation")
+	if err != nil {
+		return 0, err
+	}
+	return access.PendingInvitationStudentID(ctx, invitationID)
+}
+
+func (s *guardianInvitationService) ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error) {
+	access, err := s.relativeAccess("approve guardian invitation")
+	if err != nil {
+		return nil, err
+	}
+	return access.ListPendingApprovalsDetailed(ctx)
+}
+
+func (s *guardianInvitationService) RevokeAccess(ctx context.Context, req RevokeAccessRequest) error {
+	access, err := s.relativeAccess("revoke guardian access")
+	if err != nil {
+		return err
+	}
+	return access.RevokeAccess(ctx, req)
 }
 
 // resolveTokenExpiry follows the documented HasTenantOverride → ResolveInt →

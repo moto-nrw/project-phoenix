@@ -309,7 +309,7 @@ func (s *Service) checkAbsenceTypeName(ctx context.Context, candidate string, ex
 	return nil
 }
 
-func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive, allowanceEnabled *bool, overrunPolicy *string) (domain.StaffAbsenceType, error) {
+func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string, isActive, allowanceEnabled *bool) (domain.StaffAbsenceType, error) {
 	if id <= 0 {
 		return domain.StaffAbsenceType{}, domain.ErrAbsenceTypeNotFound
 	}
@@ -322,7 +322,7 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 	}
 	fields := domain.StaffAbsenceTypeFields{
 		Name: existing.Name, BaseType: existing.BaseType, IsActive: existing.IsActive,
-		AllowanceEnabled: existing.AllowanceEnabled, OverrunPolicy: existing.OverrunPolicy,
+		AllowanceEnabled: existing.AllowanceEnabled,
 	}
 	if name != nil {
 		fields.Name = *name
@@ -348,14 +348,11 @@ func (s *Service) UpdateAbsenceType(ctx context.Context, id int64, name *string,
 	if allowanceEnabled != nil {
 		fields.AllowanceEnabled = *allowanceEnabled
 	}
-	if overrunPolicy != nil {
-		fields.OverrunPolicy = *overrunPolicy
-	}
 	if err := fields.Normalize(); err != nil {
 		return domain.StaffAbsenceType{}, err
 	}
 	existing.Name, existing.IsActive = fields.Name, fields.IsActive
-	existing.AllowanceEnabled, existing.OverrunPolicy = fields.AllowanceEnabled, fields.OverrunPolicy
+	existing.AllowanceEnabled = fields.AllowanceEnabled
 	updated, err := s.UpdateStaffAbsenceType(ctx, existing)
 	if err != nil {
 		if errors.Is(err, domain.ErrAbsenceTypeNotFound) {
@@ -386,12 +383,12 @@ func (s *Service) CreateStaffAbsenceType(ctx context.Context, fields domain.Staf
 func (s *Service) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAbsenceType) (result domain.StaffAbsenceType, err error) {
 	fields := domain.StaffAbsenceTypeFields{
 		Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled, OverrunPolicy: value.OverrunPolicy,
+		AllowanceEnabled: value.AllowanceEnabled,
 	}
 	if validationErr := fields.Normalize(); validationErr != nil {
 		return domain.StaffAbsenceType{}, validationErr
 	}
-	value.Name, value.BaseType, value.OverrunPolicy = fields.Name, fields.BaseType, fields.OverrunPolicy
+	value.Name, value.BaseType = fields.Name, fields.BaseType
 	err = s.run("update_staff_absence_type", func(stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var found bool

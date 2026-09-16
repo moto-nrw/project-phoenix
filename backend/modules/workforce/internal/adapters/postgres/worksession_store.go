@@ -2,7 +2,10 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -939,13 +942,60 @@ func (s *Store) UpsertStaffVacationQuota(ctx context.Context, value domain.Staff
 	if row.TenantID == 0 {
 		row.TenantID = tenantID
 	}
+	var stats domain.OperationStats
+	var previous *staffVacationQuotaRow
+	if value.ChangedBy > 0 {
+		var existing staffVacationQuotaRow
+		started := time.Now()
+		err := db.NewSelect().Model(&existing).
+			ModelTableExpr(tableStaffVacationQuota+` AS "staff_vacation_quota"`).
+			Where(`"staff_vacation_quota".tenant_id = ?`, row.TenantID).
+			Where(`"staff_vacation_quota".staff_id = ?`, row.StaffID).
+			Where(`"staff_vacation_quota".year = ?`, row.Year).
+			Limit(1).Scan(ctx)
+		stats.Add(domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)})
+		switch {
+		case err == nil:
+			previous = &existing
+		case !errors.Is(err, sql.ErrNoRows):
+			return stats, fmt.Errorf("workforce postgres: load staff vacation quota: %w", err)
+		}
+	}
 	query := db.NewInsert().Model(row).
 		ModelTableExpr(tableStaffVacationQuota).
 		On("CONFLICT (staff_id, year) DO UPDATE").
 		Set("entitled_days = EXCLUDED.entitled_days").
 		Set("carryover_days = EXCLUDED.carryover_days").
 		Set("updated_at = CURRENT_TIMESTAMP")
-	return execAffected(ctx, query, "upsert staff vacation quota")
+	upsertStats, err := execAffected(ctx, query, "upsert staff vacation quota")
+	stats.Add(upsertStats)
+	if err != nil || value.ChangedBy <= 0 {
+		return stats, err
+	}
+	change := &staffVacationQuotaChangeRow{
+		TenantID: row.TenantID, StaffID: row.StaffID, Year: row.Year,
+		NewEntitledDays: row.EntitledDays, NewCarryoverDays: row.CarryoverDays,
+		Reason: strings.TrimSpace(value.ChangeReason), ChangedBy: value.ChangedBy,
+	}
+	if previous != nil {
+		change.OldEntitledDays, change.OldCarryoverDays = &previous.EntitledDays, &previous.CarryoverDays
+	}
+	changeStats, err := execAffected(ctx, db.NewInsert().Model(change), "record staff vacation quota change")
+	stats.Add(changeStats)
+	return stats, err
+}
+
+type staffVacationQuotaChangeRow struct {
+	bun.BaseModel    `bun:"table:active.staff_vacation_quota_changes"`
+	TenantID         int64    `bun:"tenant_id"`
+	StaffID          int64    `bun:"staff_id"`
+	Year             int      `bun:"year"`
+	OldEntitledDays  *float64 `bun:"old_entitled_days"`
+	NewEntitledDays  float64  `bun:"new_entitled_days"`
+	OldCarryoverDays *float64 `bun:"old_carryover_days"`
+	NewCarryoverDays float64  `bun:"new_carryover_days"`
+	Reason           string   `bun:"reason"`
+	ChangedBy        int64    `bun:"changed_by"`
 }
 
 // applyStaffVacationFilter narrows an opening or quota listing. The alias is

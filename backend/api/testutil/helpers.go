@@ -563,7 +563,7 @@ func SeedTestJWTConfig() {
 func NewDeviceAuthenticators(
 	devices deviceauth.Fleet,
 	schools deviceauth.SchoolDirectory,
-	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*users.Staff, error),
+	staffPIN func(ctx context.Context, tenantID, staffID int64, pin string) (*services.StaffPINPrincipal, error),
 	settings deviceauth.Settings,
 	fallbackPIN string,
 ) *deviceauth.Authenticators {

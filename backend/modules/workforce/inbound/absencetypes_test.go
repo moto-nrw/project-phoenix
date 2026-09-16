@@ -34,20 +34,20 @@ func TestAbsenceTypesRouteManagesCustomTypeAllowance(t *testing.T) {
 	claims.IsAdmin = false
 	token := testutil.MintTestJWT(t, claims)
 	create := testutil.NewAuthenticatedRequest(t, "POST", "/", map[string]any{
-		"name": "Regenerationstag", "allowance_enabled": true, "overrun_policy": "block",
+		"name": "Regenerationstag", "allowance_enabled": true,
 	}, testutil.WithJWTBearer(token))
 	created := testutil.ExecuteRequest(router, create)
 	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
 	var typeEnvelope struct {
 		Data struct {
-			ID               string `json:"id"`
-			AllowanceEnabled bool   `json:"allowance_enabled"`
-			OverrunPolicy    string `json:"overrun_policy"`
+			ID               string  `json:"id"`
+			AllowanceEnabled bool    `json:"allowance_enabled"`
+			OverrunPolicy    *string `json:"overrun_policy"`
 		} `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(created.Body.Bytes(), &typeEnvelope))
 	assert.True(t, typeEnvelope.Data.AllowanceEnabled)
-	assert.Equal(t, "block", typeEnvelope.Data.OverrunPolicy)
+	assert.Nil(t, typeEnvelope.Data.OverrunPolicy, "the overrun choice is gone from the wire (#3256)")
 
 	// A second art with the same name is a conflict that keeps the German
 	// wording of the retained service on the wire.

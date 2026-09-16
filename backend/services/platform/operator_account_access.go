@@ -280,7 +280,11 @@ func (s *operatorProvisioningService) UpdateAccountTenantRole(
 		// the half-state this whole path exists to avoid. The role-change
 		// endpoint carries no identity fields, so a school that has no person
 		// for this account yet has to borrow the name.
-		if authSvc.RoleNeedsStaffRecord(role) {
+		provisioning, err := s.schoolIdentityProvisioning()
+		if err != nil {
+			return err
+		}
+		if provisioning.RoleNeedsStaffRecord(authSvc.RoleFactsOf(role)) {
 			firstName, lastName, nameErr := s.identityNamesForSchool(tenantCtx, adminCtx, accountID, "", "")
 			if nameErr != nil {
 				return nameErr
@@ -758,15 +762,14 @@ func (s *operatorProvisioningService) ensureSchoolIdentity(
 	firstName, lastName, position string,
 	createPerson bool,
 ) error {
-	_, err := authSvc.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityRepos{
-		Persons:  s.PersonRepo,
-		Staff:    s.StaffRepo,
-		Teachers: s.TeacherRepo,
-		Students: s.StudentRepo,
-	}, authSvc.SchoolIdentityInput{
+	provisioning, err := s.schoolIdentityProvisioning()
+	if err != nil {
+		return err
+	}
+	_, err = provisioning.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     schoolID,
-		Role:         role,
+		Role:         authSvc.RoleFactsOf(role),
 		FirstName:    firstName,
 		LastName:     lastName,
 		Position:     position,
