@@ -5,6 +5,7 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
+  hasOwnBlock,
   openRoomSections,
   schulhofHeadActionsApply,
   resolveSupervisionSelection,
@@ -207,6 +208,26 @@ describe("open room sections (#3281)", () => {
         roomSession("stay", { independent: true, own: true }),
       ]),
     ).toEqual([["block:fußball", false]]);
+  });
+
+  it("tells whether one of the room's blocks is the caller's own", () => {
+    const own = openRoomSections({
+      sessions: [
+        blockSession("tanzen"),
+        blockSession("fußball", { planned: true }),
+      ],
+    });
+    const foreignOnly = openRoomSections({
+      sessions: [
+        blockSession("tanzen"),
+        roomSession("freispiel", { own: true, studentCount: 1 }),
+      ],
+    });
+
+    expect(hasOwnBlock(own)).toBe(true);
+    // Supervising the yard's own session is not running a block.
+    expect(hasOwnBlock(foreignOnly)).toBe(false);
+    expect(hasOwnBlock(null)).toBe(false);
   });
 
   it("keeps the Schulhof head actions off the room's blocks", () => {

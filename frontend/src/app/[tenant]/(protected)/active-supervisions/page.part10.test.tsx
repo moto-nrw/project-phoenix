@@ -1627,7 +1627,7 @@ describe("released room with running blocks (#3281)", () => {
     // Block children live in the rosters; only the independent stay is a card.
     expect(screen.getByRole("heading", { name: "Ohne Angebot" })).toBeVisible();
     expect(
-      screen.getByText("Diese Kinder sind im Raum, aber in keinem Block."),
+      screen.getByText("Diese Kinder nutzen nur den Raum."),
     ).toBeInTheDocument();
     expect(screen.getByText("Eli Hof")).toBeInTheDocument();
     for (const name of ["Ali Eins", "Bea Zwei", "Dana Drei"]) {

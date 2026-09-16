@@ -206,7 +206,12 @@ function OpenRoomBlock({
       titleBadge={
         <>
           {section.isOwn ? (
-            <StatusBadge label="Eigene Aufsicht" tone="green" />
+            <StatusBadge
+              label={
+                session.isUserSupervising ? "Eigene Aufsicht" : "Eingeplant"
+              }
+              tone="green"
+            />
           ) : null}
           <StatusBadge
             label={childCountLabel(session.studentCount)}
@@ -319,8 +324,8 @@ function OpenRoomOccupancy({
         }
         description={
           section.independent
-            ? "Diese Kinder sind im Raum, aber in keinem Block."
-            : "Kein Block aus dem Betreuungsplan. Nur zur Ansicht."
+            ? "Diese Kinder nutzen nur den Raum."
+            : "Diese Aktivität läuft ohne Block aus dem Betreuungsplan."
         }
         actions={
           section.assignableSessionId ? (

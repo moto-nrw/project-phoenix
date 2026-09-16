@@ -179,6 +179,22 @@ describe("OpenRoomSections (#3281)", () => {
     expect(
       screen.queryByText(/Sie sind für diese Aktivität nicht eingeplant/),
     ).not.toBeInTheDocument();
+
+    // Folded, an own block names why it is the caller's.
+    fireEvent.click(screen.getByRole("button", { name: "GT own einklappen" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "GT planned einklappen" }),
+    );
+    expect(
+      within(
+        screen.getByRole("heading", { name: "GT own" }).parentElement!,
+      ).getByText("Eigene Aufsicht"),
+    ).toBeInTheDocument();
+    expect(
+      within(
+        screen.getByRole("heading", { name: "GT planned" }).parentElement!,
+      ).getByText("Eingeplant"),
+    ).toBeInTheDocument();
   });
 
   it("shows a foreign block read-only once opened", () => {

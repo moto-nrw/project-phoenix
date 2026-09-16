@@ -134,7 +134,8 @@ export interface OpenRoomOccupancySection extends OpenRoomSectionBase {
 
 export type OpenRoomSection = OpenRoomBlockSection | OpenRoomOccupancySection;
 
-function singleAssignable(
+/** The one session of `sessions` the caller may add supervisors to, if exactly one. */
+function onlyAssignableSession(
   sessions: readonly OpenRoomSessionView[],
 ): string | null {
   const assignable = sessions.filter((session) => session.canAssign);
@@ -169,7 +170,7 @@ export function openRoomSections(
         session,
         block: session.block,
         isOwn,
-        assignableSessionId: singleAssignable([session]),
+        assignableSessionId: session.canAssign ? session.activeGroupId : null,
       });
     } else if (session.independent) {
       stays.push(session);
@@ -182,7 +183,7 @@ export function openRoomSections(
         activeGroupIds: [session.activeGroupId],
         studentCount: session.studentCount,
         isOwn: session.isUserSupervising,
-        assignableSessionId: singleAssignable([session]),
+        assignableSessionId: session.canAssign ? session.activeGroupId : null,
       });
     }
   }
@@ -199,11 +200,21 @@ export function openRoomSections(
             activeGroupIds: stays.map((stay) => stay.activeGroupId),
             studentCount: stayCount,
             isOwn: stays.some((stay) => stay.isUserSupervising),
-            assignableSessionId: singleAssignable(stays),
+            assignableSessionId: onlyAssignableSession(stays),
           },
         ]
       : [];
   return [...own, ...foreign, ...others, ...staySection];
+}
+
+/** Whether one of the room page's blocks is the caller's own. */
+export function hasOwnBlock(
+  sections: readonly OpenRoomSection[] | null,
+): boolean {
+  return (
+    sections?.some((section) => section.kind === "block" && section.isOwn) ??
+    false
+  );
 }
 
 /**
@@ -516,7 +527,7 @@ export function additionalSupervisionTarget(options: {
   const { currentOpenRoom } = options;
   if (currentOpenRoom) {
     if (openRoomSections(currentOpenRoom)) return null;
-    return singleAssignable(currentOpenRoom.sessions ?? []);
+    return onlyAssignableSession(currentOpenRoom.sessions ?? []);
   }
   return options.currentRoom?.canAssign ? options.currentRoom.id : null;
 }

@@ -56,14 +56,13 @@ func (s *timetableOperationsService) SessionBlocks(ctx context.Context, accountI
 	}
 	staffByInstance := indexInstanceStaffRows(staffRows)
 
-	// requireCanOperate denies every block when the account cannot be
-	// resolved at all, admins included.
+	// An account requireCanOperate cannot resolve at all operates no block,
+	// admins included; it has no staff profile either.
 	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)
-	resolved := err == nil
 	if err != nil && !errors.Is(err, ErrTimetableOperationForbidden) {
 		return nil, err
 	}
-	adminActions := s.hasAdministrativeActionAccess(ctx, isAdmin)
+	adminActions := err == nil && s.hasAdministrativeActionAccess(ctx, isAdmin)
 
 	for _, inst := range running {
 		activeGroupID := *inst.ActiveGroupID
@@ -75,12 +74,9 @@ func (s *timetableOperationsService) SessionBlocks(ctx context.Context, accountI
 			StartTime:     inst.StartTime.Format("15:04"),
 			EndTime:       inst.EndTime.Format("15:04"),
 			IsAssigned:    hasStaff && staffAssigned(rows, staffID),
+			CanOperate:    adminActions,
 		}
-		switch {
-		case !resolved:
-		case adminActions:
-			block.CanOperate = true
-		case hasStaff:
+		if !adminActions && hasStaff {
 			block.CanOperate, err = s.operatesLoadedBlock(ctx, inst, rows, staffID, func() (bool, error) {
 				return slices.Contains(supervisorStaffIDs[activeGroupID], staffID), nil
 			})

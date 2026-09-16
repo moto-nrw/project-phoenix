@@ -1229,16 +1229,6 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	if err != nil {
 		return 0, err
 	}
-	// An assignment-bound portal reaches TODAY and nothing else (#2527). Its
-	// list already answers only for today, but a detail route takes an id, and
-	// ids are guessable: without this clamp a Lehrkraft could pull the roster
-	// — and with it a child's pickup and emergency contacts — for any block
-	// she is planned into next week or was planned into in March. Her access
-	// follows the day she stands in front of the children, so the day is part
-	// of the boundary, not just the assignment.
-	if isAssignmentBoundPortal(ctx) && timezone.Date(inst.Date) != s.today() {
-		return 0, ErrTimetableOperationForbidden
-	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if err != nil {
 		return 0, err
@@ -1269,10 +1259,18 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 // (SessionBlocks). supervises is asked only when the plan does not decide and
 // the block runs in a live session.
 func (s *timetableOperationsService) operatesLoadedBlock(ctx context.Context, inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, staffID int64, supervises func() (bool, error)) (bool, error) {
-	// The school portal's boundary is the concrete timetable assignment of
-	// today, not the active group's supervisor list. Starting a block adds its
-	// operator as a supervisor, so using that list here would preserve access
-	// after the assignment has been withdrawn.
+	// An assignment-bound portal reaches TODAY and nothing else (#2527). Its
+	// list already answers only for today, but a detail route takes an id, and
+	// ids are guessable: without this clamp a Lehrkraft could pull the roster
+	// — and with it a child's pickup and emergency contacts — for any block
+	// she is planned into next week or was planned into in March. Her access
+	// follows the day she stands in front of the children, so the day is part
+	// of the boundary, not just the assignment.
+	//
+	// The same portal's boundary is the concrete timetable assignment, not the
+	// active group's supervisor list. Starting a block adds its operator as a
+	// supervisor, so using that list here would preserve access after the
+	// assignment has been withdrawn.
 	if isAssignmentBoundPortal(ctx) {
 		return timezone.Date(inst.Date) == s.today() && staffAssigned(staffRows, staffID), nil
 	}

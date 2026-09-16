@@ -37,6 +37,7 @@ import { SpontaneousActivityStart } from "~/components/active-supervisions/spont
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   additionalSupervisionTarget,
+  hasOwnBlock,
   occupiedRoomIdsForSpontaneousStart,
   openRoomSections,
   schulhofHeadActionsApply,
@@ -636,11 +637,7 @@ function MeinRaumPageContent() {
           <PlannedNowSection
             plannedNow={plannedNow}
             hasActiveTimetableSession={
-              currentTimetableRoster !== null ||
-              (openRoomLayout?.some(
-                (section) => section.kind === "block" && section.isOwn,
-              ) ??
-                false)
+              currentTimetableRoster !== null || hasOwnBlock(openRoomLayout)
             }
             isStartingInstance={actions.isStartingInstance}
             onStart={(instance) =>

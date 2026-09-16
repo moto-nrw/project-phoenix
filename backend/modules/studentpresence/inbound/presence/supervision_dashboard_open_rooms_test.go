@@ -412,17 +412,20 @@ func startBlockIn(t *testing.T, db *testpkg.DB, roomID int64, title, start, end 
 	return session.ID, instance.ID
 }
 
+// markSystemActivity turns a test activity into a system activity, as the
+// Schulhof Freispiel and the open-room stay activity are.
 func markSystemActivity(t *testing.T, db *testpkg.DB, activityID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
 		Table("activities.groups").
 		Set("is_system = TRUE").
-		Where("id = ?", activityID).
+		Where("id = ? AND tenant_id = ?", activityID, testpkg.Tenant(t)).
 		Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 }
 
-func id(value int64) string { return strconv.FormatInt(value, 10) }
+// idText renders an id the way the wire carries it.
+func idText(value int64) string { return strconv.FormatInt(value, 10) }
 
 // TestOpenRooms_SessionsCarryTheBlockRoster is #3281's contract: a released
 // room lists every running session with what its block roster needs — the
@@ -494,9 +497,9 @@ func TestOpenRooms_SessionsCarryTheBlockRoster(t *testing.T) {
 	require.Len(t, sessions, 5, "every running session in the room is listed")
 	assert.Equal(t, 4, count, "the room count is the sum of its sessions")
 
-	planned := sessions[id(plannedSession)]
+	planned := sessions[idText(plannedSession)]
 	require.NotNil(t, planned.Block)
-	assert.Equal(t, id(plannedInstance), planned.Block.InstanceID)
+	assert.Equal(t, idText(plannedInstance), planned.Block.InstanceID)
 	assert.Equal(t, "OpenRoomBlocksGT1", planned.Title)
 	assert.Equal(t, "13:00", planned.Block.StartTime)
 	assert.Equal(t, "14:00", planned.Block.EndTime)
@@ -506,7 +509,7 @@ func TestOpenRooms_SessionsCarryTheBlockRoster(t *testing.T) {
 	assert.False(t, planned.CanAssign, "adding supervisors needs a supervision, not a plan entry")
 	assert.Equal(t, 1, planned.StudentCount)
 
-	supervised := sessions[id(supervisedSession)]
+	supervised := sessions[idText(supervisedSession)]
 	require.NotNil(t, supervised.Block)
 	assert.False(t, supervised.Block.IsUserAssigned)
 	assert.True(t, supervised.Block.CanOperate, "a supervisor operates the block")
@@ -514,7 +517,7 @@ func TestOpenRooms_SessionsCarryTheBlockRoster(t *testing.T) {
 	assert.True(t, supervised.CanAssign)
 	assert.Zero(t, supervised.StudentCount)
 
-	foreign := sessions[id(foreignSession)]
+	foreign := sessions[idText(foreignSession)]
 	require.NotNil(t, foreign.Block)
 	assert.False(t, foreign.Block.IsUserAssigned, "an absent plan entry is no assignment")
 	assert.False(t, foreign.Block.CanOperate, "a block the caller neither plans nor supervises is read-only (#3167)")
@@ -522,13 +525,13 @@ func TestOpenRooms_SessionsCarryTheBlockRoster(t *testing.T) {
 	assert.False(t, foreign.CanAssign)
 	assert.Equal(t, 1, foreign.StudentCount)
 
-	kiosk := sessions[id(kioskSession.ID)]
+	kiosk := sessions[idText(kioskSession.ID)]
 	assert.Nil(t, kiosk.Block, "a kiosk session has no timetable block")
 	assert.False(t, kiosk.Independent)
 	assert.Equal(t, kioskActivity.Name, kiosk.Title)
 	assert.Equal(t, 1, kiosk.StudentCount)
 
-	stay := sessions[id(staySession.ID)]
+	stay := sessions[idText(staySession.ID)]
 	assert.Nil(t, stay.Block, "the room's own session is never a block, whatever started it")
 	assert.True(t, stay.Independent)
 	assert.Empty(t, stay.Title, "the system activity is not shown as an offering")
@@ -537,10 +540,10 @@ func TestOpenRooms_SessionsCarryTheBlockRoster(t *testing.T) {
 	t.Run("an admin operates every block", func(t *testing.T) {
 		_, asAdmin := openRoomSessions(t, router, account.ID, true, dashboardPerms, yard.Name)
 		for _, sessionID := range []int64{plannedSession, supervisedSession, foreignSession} {
-			block := asAdmin[id(sessionID)].Block
+			block := asAdmin[idText(sessionID)].Block
 			require.NotNil(t, block)
 			assert.True(t, block.CanOperate, "session %d", sessionID)
-			assert.True(t, asAdmin[id(sessionID)].CanAssign, "session %d", sessionID)
+			assert.True(t, asAdmin[idText(sessionID)].CanAssign, "session %d", sessionID)
 		}
 	})
 
@@ -550,7 +553,7 @@ func TestOpenRooms_SessionsCarryTheBlockRoster(t *testing.T) {
 		for _, session := range withoutSchedules {
 			assert.Nil(t, session.Block, "session %s", session.ActiveGroupID)
 		}
-		assert.Equal(t, 1, withoutSchedules[id(plannedSession)].StudentCount)
+		assert.Equal(t, 1, withoutSchedules[idText(plannedSession)].StudentCount)
 	})
 }
 
