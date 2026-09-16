@@ -72,8 +72,17 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
    überall, wenn die Schule „Nach Hause in jedem Raum anzeigen“ eingeschaltet
    hat. Der Schulhof-Fall bleibt am Namen und wird nicht an die Freigabe
    gekoppelt: Kiosk-Schulen verlassen sich darauf, und eine Freigabe darf nie
-   das Recht erteilen, die OGS zu verlassen (#3064). Das ist die eine bewusste
-   Namensregel, die bestehen bleibt.
+   das Recht erteilen, die OGS zu verlassen (#3064). Das ist eine von zwei
+   bewussten Namensregeln, die bestehen bleiben.
+
+6. **Der Schulhof ist immer auswählbar.** Die Freigabe entscheidet, ob der
+   Schulhof ein offener Raum ist, nicht ob das Team ihn auswählen kann. In
+   Raumlisten für Planung, spontane Angebote und verfügbare Räume steht der
+   System-Schulhof mit und ohne Freigabe. Toiletten bleiben ausgeblendet,
+   andere Systemräume ebenfalls. #3064 hatte die Sichtbarkeit an die Freigabe
+   gekoppelt; ein Schulhof ohne Häkchen verschwand damit aus dem
+   Betreuungsplan, obwohl dort Blöcke geplant sind. Das ist die zweite
+   bewusste Namensregel.
 
 ## Verworfen
 
@@ -89,6 +98,9 @@ trifft die eine Hälfte falsch, gleich in welche Richtung.
   Betreuungskraft, obwohl ihr Kind gerade eingescannt hat.
 - **Heim-Abmeldung auf „überall oder Gruppenraum“ reduzieren.** Kiosk-Schulen
   melden Kinder vom Hof aus ab; wegnehmen würde laufenden Betrieb zerstören.
+- **Sichtbarkeit an die Freigabe koppeln** (Stand nach #3064). Blendet den Hof
+  genau bei den Schulen aus, die dort Blöcke planen und deshalb die Freigabe
+  zurücknehmen.
 
 ## Folgen
 

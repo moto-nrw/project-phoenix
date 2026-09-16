@@ -7,10 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -150,22 +148,4 @@ func TestMasterDataSmallHelpers(t *testing.T) {
 	assert.JSONEq(t, `"email"`, string(svc.guardianProfileFieldJSON(profile, "preferred_contact_method")))
 	assert.JSONEq(t, `"de"`, string(svc.guardianProfileFieldJSON(profile, "language_preference")))
 	assert.JSONEq(t, `null`, string(svc.guardianProfileFieldJSON(profile, "unknown")))
-}
-
-func TestParentWritePermissionHelpers(t *testing.T) {
-	t.Parallel()
-
-	permissions := map[string]interface{}{
-		authorize.GuardianPermissionMasterDataEdit: true,
-	}
-
-	child := &parentModels.ChildSummary{GuardianPermissions: permissions}
-	assert.True(t, childHasPermission(child, authorize.GuardianPermissionMasterDataEdit))
-	assert.False(t, childHasPermission(child, authorize.GuardianPermissionNotesWrite))
-	assert.False(t, childHasPermission(nil, authorize.GuardianPermissionMasterDataEdit))
-
-	resolved := &parentChild{guardianPermissions: permissions}
-	assert.True(t, resolved.hasPermission(authorize.GuardianPermissionMasterDataEdit))
-	assert.False(t, resolved.hasPermission(authorize.GuardianPermissionNotesWrite))
-	assert.False(t, (*parentChild)(nil).hasPermission(authorize.GuardianPermissionMasterDataEdit))
 }

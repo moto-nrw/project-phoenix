@@ -111,8 +111,8 @@ func (s *service) GetChildMasterData(ctx context.Context, accountID, studentID i
 	}
 
 	var out *ChildMasterData
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		data, loadErr := s.loadMasterData(txCtx, accountID, child.guardianProfileID, studentID)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		data, loadErr := s.loadMasterData(txCtx, accountID, child.GuardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
@@ -139,11 +139,11 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	}
 	// A child whose care at this school has ended keeps read access to what
 	// happened, but nothing new can be submitted for them (#2487).
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
 
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, configModels.KeyParentMasterDataEditEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve master-data edit setting: %w", err)
 	}
@@ -151,7 +151,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 		return nil, ErrMasterDataEditDisabled
 	}
 	if isTrackAGuardianTarget(target) {
-		if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+		if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 			return nil, err
 		}
 	}
@@ -165,26 +165,26 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	}
 
 	var out *ChildMasterData
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
-		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, child.guardianProfileID, studentID, child.tenantID, accountID, target, fieldKey, newStr)
+		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, child.GuardianProfileID, studentID, child.TenantID, accountID, target, fieldKey, newStr)
 		if applyErr != nil {
 			return applyErr
 		}
 		if changed {
-			if recErr := s.recordAutoApplied(txCtx, child.tenantID, studentID, accountID, target, fieldKey, oldRaw, newRaw, targetRef); recErr != nil {
+			if recErr := s.recordAutoApplied(txCtx, child.TenantID, studentID, accountID, target, fieldKey, oldRaw, newRaw, targetRef); recErr != nil {
 				return recErr
 			}
 		}
-		data, loadErr := s.loadMasterData(txCtx, accountID, child.guardianProfileID, studentID)
+		data, loadErr := s.loadMasterData(txCtx, accountID, child.GuardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
 		}
 		out = data
 
-		capturedTenant := child.tenantID
+		capturedTenant := child.TenantID
 		if changed {
 			tenant.RegisterAfterCommit(txCtx, func() {
 				s.broadcastStudentUpdated(capturedTenant, studentID)
@@ -199,7 +199,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	s.Logger.Info("parent edited master data field",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
-		slog.Int64("tenant_id", child.tenantID),
+		slog.Int64("tenant_id", child.TenantID),
 		slog.String("target", target),
 		slog.String("field", fieldKey),
 	)
@@ -505,7 +505,7 @@ func (s *service) loadMasterData(ctx context.Context, accountID, guardianProfile
 	}
 	out.PendingChanges = make([]*usersModels.StudentDataChangeRequest, 0, len(pending))
 	for _, row := range pending {
-		if row != nil && visibility.allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
+		if row != nil && visibility.Allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
 			out.PendingChanges = append(out.PendingChanges, row)
 		}
 	}
