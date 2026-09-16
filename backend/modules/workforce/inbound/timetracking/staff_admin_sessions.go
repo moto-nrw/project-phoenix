@@ -317,6 +317,7 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 		Year          int     `json:"year"`
 		EntitledDays  float64 `json:"entitled_days"`
 		CarryoverDays float64 `json:"carryover_days"`
+		Reason        string  `json:"reason"`
 	}
 	if err := render.DecodeJSON(r.Body, &body); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -325,7 +326,20 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 	if body.Year == 0 {
 		body.Year = timezone.TodayDate().Year()
 	}
-	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
+	// Every change of the Urlaubsanspruch is recorded with its reason (#3256).
+	if strings.TrimSpace(body.Reason) == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("reason is required"), "vacation_quota_reason_required"))
+		return
+	}
+	changedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	if err := rs.StaffAbsenceService.SetVacationQuota(r.Context(), workforce.VacationQuotaChange{
+		StaffID: staffID, Year: body.Year, EntitledDays: body.EntitledDays, CarryoverDays: body.CarryoverDays,
+		Reason: body.Reason, ChangedBy: changedBy,
+	}); err != nil {
 		if errors.Is(err, workforce.ErrVacationQuotaInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		} else if errors.Is(err, workforce.ErrVacationQuotaExceeded) {

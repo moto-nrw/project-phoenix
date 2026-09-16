@@ -192,6 +192,10 @@ type StaffVacationQuota struct {
 	CarryoverDays float64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	// ChangeReason and ChangedBy are write-only. With ChangedBy set, the
+	// upsert records the change with its reason in the same transaction.
+	ChangeReason string
+	ChangedBy    int64
 }
 
 // StaffVacationOrderField names a column a vacation listing may be ordered by.

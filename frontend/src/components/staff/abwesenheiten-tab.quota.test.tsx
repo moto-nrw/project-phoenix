@@ -113,6 +113,9 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
 
     fireEvent.change(fields.entitled, { target: { value: "31.5" } });
     fireEvent.change(fields.carryover, { target: { value: "0" } });
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Stellenumfang erhöht" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() => {
@@ -120,6 +123,7 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
         year,
         entitled_days: 31.5,
         carryover_days: 0,
+        reason: "Stellenumfang erhöht",
       });
     });
     expect(stable.toast.success).toHaveBeenCalledWith(
@@ -152,6 +156,10 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
         (a) => a === "Bitte eine Zahl zwischen 0 und 366 eingeben.",
       ),
     ).toHaveLength(2);
+    // #3256: ohne Begründung wird nichts gespeichert.
+    expect(alerts).toContain(
+      "Bitte kurz sagen, warum sich der Anspruch ändert.",
+    );
     expect(fields.entitled).toHaveAttribute("aria-invalid", "true");
     expect(fields.carryover).toHaveAttribute("aria-invalid", "true");
     expect(mocks.setVacationQuota).not.toHaveBeenCalled();
@@ -171,6 +179,9 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
     const fields = await openQuotaEditor();
 
     fireEvent.change(fields.entitled, { target: { value: "28" } });
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Teilzeit" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(

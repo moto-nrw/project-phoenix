@@ -232,7 +232,7 @@ func putVacationQuota(t *testing.T, tc *testContext, token string, staffID int64
 	t.Helper()
 	return testutil.ExecuteRequest(tc.router, testutil.NewAuthenticatedRequest(
 		t, http.MethodPut, fmt.Sprintf("/staff/%d/vacation/quota", staffID),
-		map[string]any{"year": year, "entitled_days": days}, testutil.WithJWTBearer(token)))
+		map[string]any{"year": year, "entitled_days": days, "reason": "Stellenumfang"}, testutil.WithJWTBearer(token)))
 }
 
 // #3256: the Leitung books vacation directly, without a request, and never
@@ -271,6 +271,29 @@ func TestAdminCreateStaffAbsence_BooksVacationWithinQuota(t *testing.T) {
 	assert.Equal(t, "reported", created.Data.Status, "no request is created")
 	require.NotNil(t, created.Data.WorkingDays)
 	assert.Equal(t, 2.0, *created.Data.WorkingDays)
+
+	// Without a reason the claim does not change (#3256).
+	unreasoned := testutil.ExecuteRequest(tc.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, fmt.Sprintf("/staff/%d/vacation/quota", subjectID),
+		map[string]any{"year": 2027, "entitled_days": 5, "reason": "  "}, testutil.WithJWTBearer(token)))
+	require.Equal(t, http.StatusBadRequest, unreasoned.Code, unreasoned.Body.String())
+	assert.Contains(t, unreasoned.Body.String(), `"vacation_quota_reason_required"`)
+
+	// The reasoned change shows up in the time-tracking audit log.
+	var logged struct {
+		Old, New *float64
+		Reason   string
+	}
+	require.NoError(t, tc.db.NewRaw(`
+		SELECT (detail->>'old_entitled_days')::numeric AS old,
+		       (detail->>'new_entitled_days')::numeric AS new, reason
+		FROM audit.time_tracking_audit_log
+		WHERE tenant_id = ? AND source = 'vacation_quota' AND staff_id = ?`,
+		testpkg.Tenant(t), subjectID).Scan(testpkg.Ctx(t), &logged.Old, &logged.New, &logged.Reason))
+	assert.Nil(t, logged.Old, "the first claim has no previous value")
+	require.NotNil(t, logged.New)
+	assert.Equal(t, 2.0, *logged.New)
+	assert.Equal(t, "Stellenumfang", logged.Reason)
 
 	// The claim cannot drop below the booked days any more.
 	lowered := putVacationQuota(t, tc, token, subjectID, 2027, 1)

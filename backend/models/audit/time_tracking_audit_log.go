@@ -18,6 +18,7 @@ const (
 	AuditLogSourcePersonnelNumber      = "personnel_number"
 	AuditLogSourceVacationOpening      = "vacation_opening"
 	AuditLogSourceAbsenceTypeAllowance = "absence_type_allowance"
+	AuditLogSourceVacationQuota        = "vacation_quota"
 )
 
 // ValidAuditLogSources lists every accepted `sources` filter value.
@@ -31,6 +32,7 @@ var ValidAuditLogSources = []string{
 	AuditLogSourcePersonnelNumber,
 	AuditLogSourceVacationOpening,
 	AuditLogSourceAbsenceTypeAllowance,
+	AuditLogSourceVacationQuota,
 }
 
 // TimeTrackingAuditLogEntry is one event in the merged feed: the common

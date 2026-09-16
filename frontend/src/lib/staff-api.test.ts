@@ -1892,6 +1892,7 @@ describe("staff-api", () => {
         year: 2026,
         entitled_days: 30,
         carryover_days: 1,
+        reason: "Tarif",
       };
       const result = await staffAbsenceService.setVacationQuota("1", payload);
 
@@ -2012,7 +2013,12 @@ describe("staff-api", () => {
               }),
             ),
         } as Response);
-      const payload = { year: 2026, entitled_days: 30, carryover_days: 1 };
+      const payload = {
+        year: 2026,
+        entitled_days: 30,
+        carryover_days: 1,
+        reason: "Tarif",
+      };
 
       await expect(
         staffAbsenceService.setVacationQuota("1", payload),

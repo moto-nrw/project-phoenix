@@ -327,6 +327,7 @@ func seedTimeTrackingCoverage(rt *Runtime, staffID int64, year int) error {
 	rt.Client.BindAuth(rt.TenantAuth)
 	if _, err := rt.Client.Put(fmt.Sprintf("/api/staff/%d/vacation/quota", staffID), map[string]any{
 		"year": year, "entitled_days": 30, "carryover_days": 2,
+		"reason": "Tariflicher Jahresurlaub",
 	}); err != nil {
 		return fmt.Errorf("seed vacation quota for staff %d: %w", staffID, err)
 	}

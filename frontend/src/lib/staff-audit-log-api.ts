@@ -14,6 +14,7 @@ export type AuditLogSource =
   | "adjustment"
   | "vacation_opening"
   | "absence_type_allowance"
+  | "vacation_quota"
   | "month_close"
   | "month_reopen"
   | "deletion"
@@ -70,6 +71,7 @@ export const auditLogSourceLabels: Record<AuditLogSource, string> = {
   adjustment: "Stundenkonto",
   vacation_opening: "Urlaubs-Übernahme",
   absence_type_allowance: "Abwesenheitskontingent",
+  vacation_quota: "Urlaubsanspruch",
   month_close: "Monatsabschluss",
   month_reopen: "Monat geöffnet",
   deletion: "Löschung",

@@ -223,6 +223,10 @@ func (m *mockStaffAbsenceService) UpsertVacationQuota(_ context.Context, _ int64
 	return nil
 }
 
+func (m *mockStaffAbsenceService) SetVacationQuota(context.Context, workforce.VacationQuotaChange) error {
+	return nil
+}
+
 // Vacation takeover (#2132). The staff-facing time-tracking API never calls
 // these — the takeover is admin-only — so the mock just satisfies the
 // contract.

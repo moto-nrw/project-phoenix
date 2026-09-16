@@ -965,6 +965,8 @@ class StaffAbsenceService {
       year: number;
       entitled_days: number;
       carryover_days: number;
+      /** Pflicht: erscheint im Änderungsprotokoll (#3256). */
+      reason: string;
     },
   ): Promise<StaffVacationQuotaSummary> {
     const response = await sessionFetch(

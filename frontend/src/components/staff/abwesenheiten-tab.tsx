@@ -1278,9 +1278,11 @@ function QuotaEditForm({
 }) {
   const [entitled, setEntitled] = useState(String(quota.entitled_days));
   const [carryover, setCarryover] = useState(String(quota.carryover_days));
+  const [reason, setReason] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
     entitled?: string;
     carryover?: string;
+    reason?: string;
   }>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useFormError();
@@ -1291,9 +1293,17 @@ function QuotaEditForm({
     const nextFieldErrors = {
       entitled: quotaFieldError(entitled),
       carryover: quotaFieldError(carryover),
+      reason:
+        reason.trim() === ""
+          ? "Bitte kurz sagen, warum sich der Anspruch ändert."
+          : undefined,
     };
     setFieldErrors(nextFieldErrors);
-    if (nextFieldErrors.entitled || nextFieldErrors.carryover) {
+    if (
+      nextFieldErrors.entitled ||
+      nextFieldErrors.carryover ||
+      nextFieldErrors.reason
+    ) {
       setError("Bitte prüfen Sie die markierten Felder.");
       return;
     }
@@ -1303,6 +1313,7 @@ function QuotaEditForm({
         year,
         entitled_days: Number.parseFloat(entitled),
         carryover_days: Number.parseFloat(carryover),
+        reason: reason.trim(),
       });
       toast.success("Urlaubsanspruch gespeichert.");
       await onSaved();
@@ -1363,6 +1374,16 @@ function QuotaEditForm({
           disabled={saving}
         />
       </div>
+      <Input
+        id="quota-reason"
+        label="Begründung"
+        controlSize="compact"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        placeholder="z. B. Stellenumfang geändert"
+        error={fieldErrors.reason}
+        disabled={saving}
+      />
       <EditActions onCancel={onCancel} saving={saving} />
     </form>
   );

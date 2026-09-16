@@ -584,6 +584,10 @@ func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID
 	return mapTimeTrackingFailure(c.absences.UpsertVacationQuota(ctx, staffID, year, entitled, carryover))
 }
 
+func (c staffAbsenceCapability) SetVacationQuota(ctx context.Context, change workforce.VacationQuotaChange) error {
+	return mapTimeTrackingFailure(c.absences.SetVacationQuota(ctx, timetracking.VacationQuotaChange(change)))
+}
+
 // VacationTakeoverCapability binds the import to the public Workforce contract.
 func VacationTakeoverCapability(absences timetracking.StaffAbsenceService) workforce.VacationTakeovers {
 	if absences == nil {

@@ -252,6 +252,9 @@ type StaffAbsenceService interface {
 	CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error
 	GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+	// SetVacationQuota is the Leitung's reasoned change (#3256): like
+	// UpsertVacationQuota, plus a row in the reason trail.
+	SetVacationQuota(ctx context.Context, change VacationQuotaChange) error
 	// Vacation takeover at the moto introduction (#2132): one row per staff
 	// and year; corrections are delete + re-create (deletion tombstone).
 	GetVacationOpening(ctx context.Context, staffID int64, year int) (*activeModels.StaffVacationOpening, error)
@@ -2007,13 +2010,38 @@ func vacationDaysInYear(a *activeModels.StaffAbsence, yearStart, yearEnd timezon
 	return countWorkingDays(from, to, startHalf, endHalf)
 }
 
+// VacationQuotaChange is a reasoned change of one staff member's yearly
+// vacation entitlement.
+type VacationQuotaChange struct {
+	StaffID       int64
+	Year          int
+	EntitledDays  float64
+	CarryoverDays float64
+	Reason        string
+	ChangedBy     int64
+}
+
 func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error {
+	return s.upsertVacationQuota(ctx, VacationQuotaChange{StaffID: staffID, Year: year, EntitledDays: entitled, CarryoverDays: carryover})
+}
+
+func (s *staffAbsenceService) SetVacationQuota(ctx context.Context, change VacationQuotaChange) error {
+	if strings.TrimSpace(change.Reason) == "" || change.ChangedBy <= 0 {
+		return fmt.Errorf("%w: reason and actor are required", ErrVacationQuotaInvalid)
+	}
+	return s.upsertVacationQuota(ctx, change)
+}
+
+func (s *staffAbsenceService) upsertVacationQuota(ctx context.Context, change VacationQuotaChange) error {
+	staffID, year, entitled, carryover := change.StaffID, change.Year, change.EntitledDays, change.CarryoverDays
 	now := time.Now()
 	quota := &activeModels.StaffVacationQuota{
 		StaffID:       staffID,
 		Year:          year,
 		EntitledDays:  entitled,
 		CarryoverDays: carryover,
+		ChangeReason:  strings.TrimSpace(change.Reason),
+		ChangedBy:     change.ChangedBy,
 	}
 	quota.CreatedAt = now
 	quota.UpdatedAt = now
