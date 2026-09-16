@@ -2,7 +2,7 @@ package usercontext
 
 import (
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 )
 
 // errorRules map usercontext-service sentinels to HTTP responses. Matched

@@ -50,7 +50,7 @@ type BirthdayService interface {
 // StudentVisibility decides whether the caller may see children at all
 // (admin or verified staff, #2329). It is the method set of
 // usercontext.StudentAccessContext, declared here as a local interface because
-// services/usercontext transitively imports this package — the policy still
+// modules/identityaccess/legacy/usercontext transitively imports this package — the policy still
 // lives in exactly one place, this is only how it travels.
 type StudentVisibility interface {
 	HasFullAccess() bool
