@@ -226,6 +226,10 @@ func (a authAudit) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) 
 		AccountID: event.AccountID, TenantID: event.TenantID, Type: event.Type, Success: event.Success,
 		IPAddress: event.IPAddress, UserAgent: event.UserAgent, ErrorMessage: event.ErrorMessage,
 	}
+	if event.TenantAccess != nil {
+		evidence := identityaccess.TenantAccessEvidence(*event.TenantAccess)
+		public.TenantAccess = &evidence
+	}
 	if event.RevokedSessions != nil {
 		evidence := identityaccess.RevokedSessionsEvidence(*event.RevokedSessions)
 		public.RevokedSessions = &evidence

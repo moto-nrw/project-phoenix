@@ -509,13 +509,37 @@ administrative transaction and otherwise run on the root connection; the
 operator flows open the transaction where rotation or revocation and its
 audit evidence must commit together. `platform.operator_audit_log` is
 appended through the Audit owner's appender as a platform-scoped ledger
-(`models/audit.OperatorAuditEntry`, no tenant handshake). The retained
-`models/platform` operator repository contracts are compatibility adapters in
-the legacy composition (`database/repositories/operator_identity.go`), bound
-at construction, and go with #2751. The foreign `auth.accounts` reads of the
-People Directory, Care Plan parent and CLI packages use owner queries bound
-the same way (`identity_ports.go`): the account lookup and active-account
-subquery of `database/repositories/auth` and the public account fact. The
+(`models/audit.OperatorAuditEntry`, no tenant handshake). Operator login with
+its mandatory MFA gate, the MFA-proven token issue, refresh with rotation
+recovery, profile and password changes with their session revocation, and
+the operator-led school access of accounts (which schools an existing
+account reaches, with which role; `auth.account_tenants`,
+`auth.account_roles` and `auth.account_permissions` writes with the
+account's session revocation) live in the module's application layer as the
+public `OperatorAuthentication` and `OperatorAccountAccess` capabilities
+(#3252). The facts those flows need from other owners (the operator MFA
+service, the operator audit ledger, the pending e-mail change links, the
+password policy, schools and organisations, the People Directory and School
+Membership identity chain a school access provisions, the retained role
+assignment rules) are bound at the serving root through public-typed seams
+(`compose.OperatorDependencies`). No target rule lets `api/operator` import
+the identity-access public package, and adding one is a policy loosening
+the ratchet rejects. The operator routes therefore keep calling the retained
+`services/platform` contracts, which delegate login, token issue, refresh,
+profile and password changes (`OperatorSessions`) and the school access
+(`OperatorAccountAccess`) to consumer-owned ports the root binds to the
+public module; the root translates the public outcomes into the retained
+error types. Operator rows reach the retained MFA, passkey, invitation and
+e-mail change flows through the `OperatorDirectory` port the same way. The
+public audit evidence is typed (`TenantAccessEvidence`,
+`OperatorAccessChange`); the root renders it into the ledger keys. The former
+`models/platform` operator and refresh-session repository contracts and
+their compatibility adapters are deleted; the operator invitation, e-mail
+change, MFA and passkey flows stay under #2722, #2723 and #2724. The foreign
+`auth.accounts` reads of the People Directory, Care Plan parent and CLI
+packages use owner queries bound the same way (`identity_ports.go`): the
+account lookup and active-account subquery of `database/repositories/auth`
+and the public account fact. The
 same owner serves the account refresh sessions behind tenant, parent and
 school login, refresh, tenant switching, logout, session validation and
 revocation (#2720): `auth.tokens` is read and written only through the

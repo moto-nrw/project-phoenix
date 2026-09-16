@@ -919,10 +919,6 @@ func (noopAccountRoleRepository) DeleteByAccountAndRole(context.Context, int64, 
 	panic("DeleteByAccountAndRole not implemented")
 }
 
-func (noopAccountRoleRepository) DeleteByAccountRoleAndTenant(context.Context, int64, int64, int64) error {
-	panic("DeleteByAccountRoleAndTenant not implemented")
-}
-
 func (noopAccountRoleRepository) DeleteByAccountID(context.Context, int64) error {
 	panic("DeleteByAccountID not implemented")
 }
@@ -1252,9 +1248,6 @@ func (r *stubAccountTenantRepository) ListAccountsByOrganizationID(context.Conte
 	return nil, nil
 }
 func (r *stubAccountTenantRepository) ListAllAccounts(context.Context) ([]authModel.OrgAccountInfo, error) {
-	return nil, nil
-}
-func (r *stubAccountTenantRepository) ListTenantAccessByAccountID(context.Context, int64) ([]authModel.AccountTenantAccessInfo, error) {
 	return nil, nil
 }
 

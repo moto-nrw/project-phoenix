@@ -175,35 +175,6 @@ func (r *AccountTenantRepository) ExistsActiveByAccountAndTenantForShare(ctx con
 	return true, nil
 }
 
-// ListTenantAccessByAccountID returns every school mapping of one account,
-// active and inactive alike, with school/organization context and whether the
-// account already carries a person and staff record at that school.
-//
-// This is the inverse direction of the account listings below (account -> many
-// schools instead of school -> many accounts) and is therefore cross-tenant by
-// construction: callers must be operator-scoped.
-//
-// HasPerson and HasStaff are attached by the composition layer through the
-// People Directory (#2661); the rows leave here with both unset.
-func (r *AccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]auth.AccountTenantAccessInfo, error) {
-	var rows []auth.AccountTenantAccessInfo
-	err := base.GetDB(ctx, r.db).NewSelect().
-		ColumnExpr(`"at".tenant_id`).
-		ColumnExpr(`"at".status`).
-		ColumnExpr(`"at".activated_at`).
-		ColumnExpr(`"at".deactivated_at`).
-		ColumnExpr(`FALSE AS has_person`).
-		ColumnExpr(`FALSE AS has_staff`).
-		TableExpr(`auth.account_tenants AS "at"`).
-		Where(`"at".account_id = ?`, accountID).
-		OrderExpr(`"at".tenant_id ASC`).
-		Scan(ctx, &rows)
-	if err != nil {
-		return nil, err
-	}
-	return rows, nil
-}
-
 // ListAccountsByTenantID returns all accounts for a given tenant with their
 // roles, plus pending invitations that haven't been accepted yet. The person
 // names and the caregiver facts (pedagogic role, caregiver profile, active

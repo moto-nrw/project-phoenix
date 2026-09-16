@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -57,6 +56,7 @@ func TestOperatorMFAService_Disable_RollsBackOnPartialFailure(t *testing.T) {
 	require.NoError(t, err)
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
+		Operators: newTestOperatorDirectory(db),
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,
@@ -112,7 +112,7 @@ func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
 	// cascade targets have non-trivial state.
 	_, _, err := svc.IssueTrustedDevice(ctx, op.ID, "ua-test", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
-	_, err = repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Operator.IncrementMFAAttempts(ctx, op.ID, 5, 15*time.Minute)
+	_, err = newTestOperatorDirectory(db).IncrementMFAAttempts(ctx, op.ID, 5, 15*time.Minute)
 	require.NoError(t, err)
 
 	require.NoError(t, svc.Disable(ctx, op.ID))
@@ -131,7 +131,7 @@ func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
 	assert.Empty(t, devices, "trusted devices must be revoked after Disable")
 
 	// Lockout counter cleared.
-	opAfter, err := repos.Operator.FindByID(ctx, op.ID)
+	opAfter, err := newTestOperatorDirectory(db).FindByID(ctx, op.ID)
 	require.NoError(t, err)
 	assert.Equal(t, 0, opAfter.MFAAttempts, "mfa_attempts must reset to 0")
 	assert.Nil(t, opAfter.MFALockedUntil, "mfa_locked_until must clear")

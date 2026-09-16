@@ -131,7 +131,7 @@ func (m *mockOperatorRepoWithCreate) Create(ctx context.Context, operator *platf
 
 func newInvitationTestService(
 	t *testing.T,
-	operatorRepo platform.OperatorRepository,
+	operatorRepo platformSvc.OperatorDirectory,
 	auditLogRepo platform.OperatorAuditLogRepository,
 	invitationTokenRepo platform.OperatorInvitationTokenRepository,
 	bunDB *bun.DB,

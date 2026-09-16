@@ -1579,6 +1579,20 @@ func newFactory(
 	// runtime back from the auth service at call time, so SetMFAService and
 	// SetTenantRuntime keep their meaning.
 	var authService *auth.Service
+	// The operator flows (#3252) share the module: the operator MFA service
+	// is constructed after it and read at call time.
+	var operatorMFAService platform.OperatorMFAService
+	operatorDependencies, err := newOperatorDependencies(operatorAuthenticationWiring{
+		repos:         operatorRepositoriesOf(repos),
+		organizations: organizations,
+		persons:       persons,
+		membership:    membership,
+		mfa:           func() platform.OperatorMFAService { return operatorMFAService },
+		logger:        platformLogger,
+	})
+	if err != nil {
+		return nil, err
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos),
 		tokenAuth: authConfig.TokenAuth,
@@ -1589,7 +1603,8 @@ func newFactory(
 		tenantRuntime: func(ctx context.Context) context.Context {
 			return authService.WithTenantRuntime(ctx)
 		},
-		mfa: func() auth.MFAService { return authService.CurrentMFAService() },
+		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
+		operators: operatorDependencies,
 	})
 	if err != nil {
 		return nil, err
@@ -1940,11 +1955,12 @@ func newFactory(
 	}
 
 	// Initialize platform services (operator dashboard)
+	operatorDirectory := newOperatorDirectory(identityAccess)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:         repos.Operator,
+		OperatorRepo:         operatorDirectory,
+		Sessions:             newOperatorSessions(identityAccess),
 		AuditLogRepo:         repos.OperatorAuditLog,
 		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
-		RefreshTokenRepo:     repos.OperatorRefreshToken,
 		InvitationTokenRepo:  repos.OperatorInvitationToken,
 		DB:                   db,
 		Logger:               platformLogger,
@@ -1966,8 +1982,9 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
 	}
-	operatorMFAService, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
+	operatorMFAService, err = platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
+		Operators:   operatorDirectory,
 		TokenAuth:   operatorMFATokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
@@ -1979,13 +1996,12 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa service: %w", err)
 	}
-	// Wire the MFA gate into the operator auth service so /operator/auth/login
-	// returns challenge tokens when MFA is required (= always, hardcoded for
-	// platform scope). Done post-construction to break the
-	// OperatorAuthService ↔ OperatorMFAService cycle.
-	operatorAuthService.SetMFAService(operatorMFAService)
+	// The Identity & Access operator login reads operatorMFAService through
+	// the gate closure above, so /operator/auth/login returns challenge
+	// tokens from here on (MFA is mandatory for the platform scope).
 	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
 		Repos:               repos,
+		Operators:           operatorDirectory,
 		MFAService:          operatorMFAService,
 		AuthService:         operatorAuthService,
 		DB:                  db,
@@ -2693,29 +2709,27 @@ func newFactory(
 	}
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
-		Organizations:         organizations,
-		SchoolRepo:            repos.School,
-		SummariesRepo:         repos.OperatorSummaries,
-		CategoryRepo:          repos.ActivityCategory,
-		DeviceRepo:            repos.Device,
-		RoleRepo:              repos.Role,
-		AccountTenantRepo:     repos.AccountTenant,
-		AccountRoleRepo:       repos.AccountRole,
-		AccountPermissionRepo: repos.AccountPermission,
-		AuthEventRepo:         repos.AuthEvent,
-		PersonRepo:            repos.Person,
-		StaffRepo:             repos.Staff,
-		AccountRepo:           repos.Account,
-		TeacherRepo:           repos.Teacher,
-		StudentRepo:           repos.Student,
-		GroupSupervisorRepo:   repos.GroupSupervisor,
-		ActiveGroupRepo:       repos.ActiveGroup,
-		Settings:              settingsService,
-		InvitationService:     invitationService,
-		AuthService:           authService,
-		AuditLogRepo:          repos.OperatorAuditLog,
-		DB:                    db,
-		Logger:                platformLogger,
+		Organizations:       organizations,
+		SchoolRepo:          repos.School,
+		SummariesRepo:       repos.OperatorSummaries,
+		CategoryRepo:        repos.ActivityCategory,
+		DeviceRepo:          repos.Device,
+		RoleRepo:            repos.Role,
+		AccountTenantRepo:   repos.AccountTenant,
+		PersonRepo:          repos.Person,
+		StaffRepo:           repos.Staff,
+		AccountRepo:         repos.Account,
+		TeacherRepo:         repos.Teacher,
+		StudentRepo:         repos.Student,
+		GroupSupervisorRepo: repos.GroupSupervisor,
+		ActiveGroupRepo:     repos.ActiveGroup,
+		Settings:            settingsService,
+		InvitationService:   invitationService,
+		AuthService:         authService,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		AccountAccess:       newOperatorAccountAccess(identityAccess),
+		DB:                  db,
+		Logger:              platformLogger,
 	})
 
 	listExportService := listexport.NewService()

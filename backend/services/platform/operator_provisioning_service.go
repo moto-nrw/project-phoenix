@@ -14,7 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -211,29 +210,29 @@ func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(c
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	Organizations         OrganizationCapability
-	SchoolRepo            platform.SchoolRepository
-	SummariesRepo         platform.OperatorSummariesRepository
-	CategoryRepo          activityModels.CategoryRepository
-	DeviceRepo            iotModels.DeviceRepository
-	RoleRepo              authModels.RoleRepository
-	AccountTenantRepo     authModels.AccountTenantRepository
-	AccountRoleRepo       authModels.AccountRoleRepository
-	AccountPermissionRepo authModels.AccountPermissionRepository
-	AuthEventRepo         auditModels.AuthEventRepository
-	PersonRepo            userModels.PersonRepository
-	StaffRepo             userModels.StaffRepository
-	AccountRepo           authModels.AccountRepository
-	TeacherRepo           userModels.TeacherRepository
-	StudentRepo           userModels.StudentRepository
-	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
-	ActiveGroupRepo       ActiveDeviceSessionFinder
-	Settings              TenantSettingsResolver
-	InvitationService     authSvc.InvitationService
-	AuthService           authSvc.AuthService
-	AuditLogRepo          platform.OperatorAuditLogRepository
-	DB                    *bun.DB
-	Logger                *slog.Logger
+	Organizations       OrganizationCapability
+	SchoolRepo          platform.SchoolRepository
+	SummariesRepo       platform.OperatorSummariesRepository
+	CategoryRepo        activityModels.CategoryRepository
+	DeviceRepo          iotModels.DeviceRepository
+	RoleRepo            authModels.RoleRepository
+	AccountTenantRepo   authModels.AccountTenantRepository
+	PersonRepo          userModels.PersonRepository
+	StaffRepo           userModels.StaffRepository
+	AccountRepo         authModels.AccountRepository
+	TeacherRepo         userModels.TeacherRepository
+	StudentRepo         userModels.StudentRepository
+	GroupSupervisorRepo activeModels.GroupSupervisorRepository
+	ActiveGroupRepo     ActiveDeviceSessionFinder
+	Settings            TenantSettingsResolver
+	InvitationService   authSvc.InvitationService
+	AuthService         authSvc.AuthService
+	AuditLogRepo        platform.OperatorAuditLogRepository
+	// AccountAccess is the Identity & Access account school-access
+	// capability the account access methods delegate to (#3252).
+	AccountAccess OperatorAccountAccess
+	DB            *bun.DB
+	Logger        *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.

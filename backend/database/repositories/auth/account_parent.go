@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/auth"
@@ -80,17 +79,6 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	}
 
 	return account, nil
-}
-
-// UpdateLastLogin updates the last login timestamp for a parent account
-func (r *AccountParentRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	now := time.Now()
-	account := &auth.AccountParent{Model: modelBase.Model{ID: id}, LastLogin: &now}
-	updated, err := r.UpdateColumns(ctx, account, "last_login")
-	if err != nil {
-		return base.UpdateOperationError(err, "update last login")
-	}
-	return base.AssertRowsAffectedCount(updated, 1, "update last login")
 }
 
 // UpdatePassword updates the password hash for a parent account

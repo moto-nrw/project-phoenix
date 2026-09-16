@@ -44,15 +44,6 @@ type internalOrgRepoStub struct {
 	restoreFn    func(context.Context, int64) error
 }
 
-type orderedOrganizationCapability struct {
-	organizationtenancy.Capability
-	organizations []organizationtenancy.Organization
-}
-
-func (c orderedOrganizationCapability) ListOrganizationsByID(context.Context, []int64) ([]organizationtenancy.Organization, error) {
-	return c.organizations, nil
-}
-
 func (s *internalOrgRepoStub) Create(ctx context.Context, org *platformModels.Organization) error {
 	if s.createFn != nil {
 		return s.createFn(ctx, org)
@@ -2615,29 +2606,6 @@ func TestIsPlatformCaregiverRole(t *testing.T) {
 		base := authModels.BaseRoleUser
 		assert.False(t, authSvc.IsPlatformCaregiverRole(&authModels.Role{Name: "OGS-Kraft", BaseRole: &base}))
 	})
-}
-
-func TestEnrichAccountTenantOrganizationsPreservesDatabaseNameOrdering(t *testing.T) {
-	t.Parallel()
-
-	service := &operatorProvisioningService{OperatorProvisioningServiceConfig: OperatorProvisioningServiceConfig{
-		Organizations: orderedOrganizationCapability{organizations: []organizationtenancy.Organization{
-			{ID: 3, Name: "Alpha"},
-			{ID: 1, Name: "Same"},
-			{ID: 2, Name: "Same"},
-		}},
-	}}
-	rows := []authModels.AccountTenantAccessInfo{
-		{OrganizationID: 2, SchoolName: "A"},
-		{OrganizationID: 3, SchoolName: "B"},
-		{OrganizationID: 1, SchoolName: "C"},
-	}
-
-	got, err := service.enrichAccountTenantOrganizations(context.Background(), rows)
-	require.NoError(t, err)
-	require.Len(t, got, 3)
-	assert.Equal(t, []int64{3, 2, 1}, []int64{got[0].OrganizationID, got[1].OrganizationID, got[2].OrganizationID})
-	assert.Equal(t, []string{"Alpha", "Same", "Same"}, []string{got[0].OrganizationName, got[1].OrganizationName, got[2].OrganizationName})
 }
 
 // ---------------------------------------------------------------------------

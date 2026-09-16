@@ -32,7 +32,10 @@ type OperatorPasskeyService interface {
 }
 
 type OperatorPasskeyServiceConfig struct {
-	Repos               *repositories.Factory
+	Repos *repositories.Factory
+	// Operators is the consumer-owned port over the Identity & Access
+	// operator rows the passkey ceremonies resolve their user from.
+	Operators           OperatorDirectory
 	MFAService          OperatorMFAService
 	AuthService         OperatorAuthService
 	DB                  *bun.DB
@@ -70,6 +73,7 @@ type OperatorPasskeyLoginFinishRequest struct {
 
 type operatorPasskeyService struct {
 	repos              *repositories.Factory
+	operators          OperatorDirectory
 	mfaService         OperatorMFAService
 	authService        OperatorAuthService
 	db                 *bun.DB
@@ -84,6 +88,9 @@ var _ OperatorPasskeyService = (*operatorPasskeyService)(nil)
 func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasskeyService, error) {
 	if cfg.Repos == nil {
 		return nil, errors.New("OperatorPasskeyServiceConfig.Repos is required")
+	}
+	if cfg.Operators == nil {
+		return nil, errors.New("OperatorPasskeyServiceConfig.Operators is required")
 	}
 	if cfg.MFAService == nil {
 		return nil, errors.New("OperatorPasskeyServiceConfig.MFAService is required")
@@ -112,6 +119,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 	}
 	return &operatorPasskeyService{
 		repos:              cfg.Repos,
+		operators:          cfg.Operators,
 		mfaService:         cfg.MFAService,
 		authService:        cfg.AuthService,
 		db:                 cfg.DB,
@@ -123,7 +131,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 }
 
 func (s *operatorPasskeyService) StartEnrollmentChallenge(ctx context.Context, operatorID int64, ip net.IP) (*OperatorPasskeyEnrollmentChallenge, error) {
-	operator, err := s.repos.Operator.FindByID(ctx, operatorID)
+	operator, err := s.operators.FindByID(ctx, operatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +152,7 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 	if err := s.mfaService.VerifyCodeForOperator(ctx, req.OperatorID, req.Code); err != nil {
 		return nil, err
 	}
-	operator, err := s.repos.Operator.FindByID(ctx, req.OperatorID)
+	operator, err := s.operators.FindByID(ctx, req.OperatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +217,7 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
 		return nil, err
 	}
-	operator, err := s.repos.Operator.FindByID(ctx, req.OperatorID)
+	operator, err := s.operators.FindByID(ctx, req.OperatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +323,7 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 			return nil, err
 		}
 		matchedCredentialID = row.ID
-		operator, err := s.repos.Operator.FindByID(ctx, row.OperatorID)
+		operator, err := s.operators.FindByID(ctx, row.OperatorID)
 		if err != nil {
 			return nil, err
 		}

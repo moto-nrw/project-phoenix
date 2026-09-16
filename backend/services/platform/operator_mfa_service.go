@@ -88,7 +88,10 @@ type OperatorMFAService interface {
 
 // OperatorMFAServiceConfig groups dependencies for NewOperatorMFAService.
 type OperatorMFAServiceConfig struct {
-	Repos       *repositories.Factory
+	Repos *repositories.Factory
+	// Operators is the consumer-owned port over the Identity & Access
+	// operator rows the lockout counter and the enrollment checks read.
+	Operators   OperatorDirectory
 	TokenAuth   *authjwt.TokenAuth
 	Dispatcher  *email.Dispatcher
 	DefaultFrom email.Email
@@ -122,6 +125,9 @@ func (s *operatorMFAService) withTenantRuntime(ctx context.Context) context.Cont
 func NewOperatorMFAService(cfg OperatorMFAServiceConfig) (OperatorMFAService, error) {
 	if cfg.Repos == nil {
 		return nil, errors.New("OperatorMFAServiceConfig.Repos is required")
+	}
+	if cfg.Operators == nil {
+		return nil, errors.New("OperatorMFAServiceConfig.Operators is required")
 	}
 	if cfg.TokenAuth == nil {
 		return nil, errors.New("OperatorMFAServiceConfig.TokenAuth is required")
@@ -165,7 +171,7 @@ func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64
 // ===== Challenge / verify =====
 
 func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
-	op, err := s.Repos.Operator.FindByID(ctx, operatorID)
+	op, err := s.Operators.FindByID(ctx, operatorID)
 	if err != nil || op == nil {
 		return "", fmt.Errorf("look up operator: %w", err)
 	}
@@ -230,7 +236,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 		return nil, ErrOperatorMFAChallengeTokenInvalid
 	}
 
-	op, err := s.Repos.Operator.FindByID(ctx, claims.AccountID)
+	op, err := s.Operators.FindByID(ctx, claims.AccountID)
 	if err != nil || op == nil {
 		return nil, ErrOperatorMFAChallengeTokenInvalid
 	}
@@ -267,7 +273,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	}
 	// Atomic reset — single UPDATE so a concurrent failed verify's
 	// increment can't be silently overwritten by a stale full-row Update.
-	if err := s.Repos.Operator.ResetMFAAttempts(ctx, op.ID); err != nil {
+	if err := s.Operators.ResetMFAAttempts(ctx, op.ID); err != nil {
 		s.Logger.Warn("failed to reset operator MFA attempts", slog.String("error", err.Error()))
 	}
 	op.MFAAttempts = 0
@@ -296,7 +302,7 @@ func (s *operatorMFAService) ResendChallenge(ctx context.Context, challengeToken
 }
 
 func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operatorID int64, code string) error {
-	op, err := s.Repos.Operator.FindByID(ctx, operatorID)
+	op, err := s.Operators.FindByID(ctx, operatorID)
 	if err != nil || op == nil {
 		return ErrOperatorMFACodeInvalid
 	}
@@ -326,7 +332,7 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 	}
 	// Atomic reset matches VerifyChallenge — single UPDATE so a concurrent
 	// failed verify's increment isn't silently overwritten.
-	_ = s.Repos.Operator.ResetMFAAttempts(ctx, operatorID)
+	_ = s.Operators.ResetMFAAttempts(ctx, operatorID)
 	op.MFAAttempts = 0
 	op.MFALockedUntil = nil
 	s.recordAudit(ctx, operatorID, platform.ActionMFAVerified, nil, &active.ID, nil)
@@ -346,7 +352,7 @@ func (s *operatorMFAService) isMFALocked(op *platform.Operator, now time.Time) b
 // item #6 — the previous read-modify-write let two concurrent failed
 // verifies collapse into a single counted attempt.
 func (s *operatorMFAService) handleFailedAttempt(ctx context.Context, op *platform.Operator) {
-	result, err := s.Repos.Operator.IncrementMFAAttempts(ctx, op.ID, OperatorMFALockoutThreshold, OperatorMFALockoutDuration)
+	result, err := s.Operators.IncrementMFAAttempts(ctx, op.ID, OperatorMFALockoutThreshold, OperatorMFALockoutDuration)
 	if err != nil {
 		s.Logger.Warn("failed to persist operator MFA attempt counter", slog.String("error", err.Error()))
 		return
@@ -395,7 +401,7 @@ func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) erro
 		// Atomic reset — replaces the previous fetch + full-row Update with a
 		// single UPDATE so the disable cascade isn't racing concurrent failed
 		// verifies on the same operator.
-		if err := s.Repos.Operator.ResetMFAAttempts(txCtx, operatorID); err != nil {
+		if err := s.Operators.ResetMFAAttempts(txCtx, operatorID); err != nil {
 			return fmt.Errorf("reset operator mfa attempts: %w", err)
 		}
 		return nil
@@ -534,7 +540,7 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 			slog.Int64("operator_id", operatorID))
 		return
 	}
-	op, err := s.Repos.Operator.FindByID(ctx, operatorID)
+	op, err := s.Operators.FindByID(ctx, operatorID)
 	if err != nil || op == nil || strings.TrimSpace(op.Email) == "" {
 		s.Logger.Warn("could not load operator for trusted-device-added mail",
 			slog.Int64("operator_id", operatorID),

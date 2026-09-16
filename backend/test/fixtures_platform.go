@@ -100,3 +100,29 @@ func cleanupOperator(tb testing.TB, db *bun.DB, operatorID int64) {
 	require.NoError(tb, err)
 	require.NoError(tb, tx.Commit())
 }
+
+// CreateTestOperatorWithPassword inserts a platform operator whose password
+// hash verifies the given password (cheap Argon2id parameters), for the
+// operator login and password-change flows, and registers cleanup.
+func CreateTestOperatorWithPassword(tb testing.TB, db *bun.DB, email, password string) *platform.Operator {
+	tb.Helper()
+
+	hash, err := hashPassword(password)
+	require.NoError(tb, err, "Failed to hash operator password")
+	op := &platform.Operator{
+		Email:        email,
+		DisplayName:  "Test Operator",
+		PasswordHash: hash,
+		Active:       true,
+	}
+	_, err = db.NewInsert().
+		Model(op).
+		ModelTableExpr("platform.operators").
+		Returning("*").
+		Exec(context.Background())
+	require.NoError(tb, err, "Failed to create test operator with password")
+
+	OwnTestOperator(tb, db, op.ID)
+
+	return op
+}

@@ -45,9 +45,6 @@ var (
 	_ base.Entity = (*education.GroupSubstitution)(nil)
 	_ base.Entity = (*education.GroupTeacher)(nil)
 
-	// platform package
-	_ base.Entity = (*platform.OperatorRefreshToken)(nil)
-
 	// schedule package
 
 	// users package

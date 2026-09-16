@@ -244,10 +244,8 @@ type Factory struct {
 	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
-	Operator                 platformModels.OperatorRepository
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
-	OperatorRefreshToken     platformModels.OperatorRefreshTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
@@ -524,10 +522,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	accountTenantRepo := auth.NewAccountTenantRepository(db)
 	roleRepo := auth.NewRoleRepository(db)
 	permissionRepo := auth.NewPermissionRepository(db)
-	// Operators, their refresh sessions and the account facts other owners
-	// read belong to Identity & Access (#2720). The retained contracts are
-	// adapters over the one module; the account lookups the People Directory
-	// and Care Plan repositories need are bound at construction.
+	// The account facts other owners read belong to Identity & Access
+	// (#2720): the account lookups the People Directory and Care Plan
+	// repositories need are bound at construction.
 	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
 	personRepo := NewPersonRepository(db)
 	studentRepo := users.NewStudentRepository(db)
@@ -686,10 +683,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		TimeTrackingAuditLog:         audit.NewTimeTrackingAuditLogRepository(auditRepositoryRuntime),
 		BookingConsistency:           audit.NewBookingConsistencyRepository(auditRepositoryRuntime, NewEnrollmentBookingProjection(enrollmentModule)),
 
-		// Platform repositories. Operators, their refresh sessions and the
-		// operator audit ledger belong to Identity & Access and Audit (#2720).
-		Operator:                 operatorRepository{identity: identity},
-		OperatorRefreshToken:     operatorRefreshTokenRepository{identity: identity},
+		// Platform repositories. Operators and their refresh sessions are
+		// served by the public Identity & Access capability the service root
+		// binds (#3252); the operator audit ledger belongs to Audit (#2720).
 		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),

@@ -183,6 +183,11 @@ type fakeStore struct {
 	recordLoginErr      error
 	insertSessionErr    error
 	insertSessionErrors []error
+	findOperatorErr     error
+	updateOperatorErr   error
+	// findSessionErrs injects a lookup failure for one operator session
+	// token, so a transient error mid-recovery can be told from a replay.
+	findSessionErrs map[string]error
 
 	// observations
 	calls []string
@@ -193,6 +198,7 @@ func newFakeStore() *fakeStore {
 		accounts: map[int64]domain.LoginAccount{}, inactive: map[mappingKey]bool{},
 		roles: map[mappingKey][]domain.RoleAssignment{}, permissions: map[mappingKey][]string{},
 		operators: map[int64]domain.Operator{}, sessions: map[int64]domain.AccountSession{}, operatorTokens: map[int64]domain.OperatorSession{},
+		findSessionErrs: map[string]error{},
 	}
 }
 
@@ -364,26 +370,13 @@ func (s *fakeStore) AssignAccountRole(context.Context, int64, int64, int64) (boo
 
 // ports.OperatorStore
 
-func (s *fakeStore) FindOperator(_ context.Context, id int64, _ bool) (domain.Operator, bool, domain.OperationStats, error) {
-	operator, ok := s.operators[id]
-	return operator, ok, stats(), nil
-}
-func (s *fakeStore) FindOperatorByEmail(context.Context, string) (domain.Operator, bool, domain.OperationStats, error) {
-	panic("not used")
-}
 func (s *fakeStore) ListOperators(context.Context) ([]domain.Operator, domain.OperationStats, error) {
 	panic("not used")
 }
 func (s *fakeStore) InsertOperator(context.Context, domain.Operator) (domain.Operator, domain.OperationStats, error) {
 	panic("not used")
 }
-func (s *fakeStore) UpdateOperator(context.Context, domain.Operator) (bool, domain.OperationStats, error) {
-	panic("not used")
-}
 func (s *fakeStore) DeleteOperator(context.Context, int64) (domain.OperationStats, error) {
-	panic("not used")
-}
-func (s *fakeStore) RecordOperatorLogin(context.Context, int64, time.Time) (domain.OperationStats, error) {
 	panic("not used")
 }
 func (s *fakeStore) IncrementOperatorMFAAttempts(context.Context, int64, int, time.Time) (domain.OperatorMFAAttempts, bool, domain.OperationStats, error) {
@@ -392,33 +385,7 @@ func (s *fakeStore) IncrementOperatorMFAAttempts(context.Context, int64, int, ti
 func (s *fakeStore) ResetOperatorMFAAttempts(context.Context, int64) (domain.OperationStats, error) {
 	panic("not used")
 }
-func (s *fakeStore) FindOperatorSessionByToken(_ context.Context, token string, _ bool) (domain.OperatorSession, bool, domain.OperationStats, error) {
-	for _, session := range s.operatorTokens {
-		if session.Token == token {
-			return session, true, stats(), nil
-		}
-	}
-	return domain.OperatorSession{}, false, stats(), nil
-}
-func (s *fakeStore) LatestOperatorSessionInFamily(context.Context, string) (domain.OperatorSession, bool, domain.OperationStats, error) {
-	panic("not used")
-}
-func (s *fakeStore) InsertOperatorSession(context.Context, domain.OperatorSession) (domain.OperatorSession, domain.OperationStats, error) {
-	panic("not used")
-}
-func (s *fakeStore) MarkOperatorSessionRotated(context.Context, int64, string, []byte, time.Time) (bool, domain.OperationStats, error) {
-	panic("not used")
-}
-func (s *fakeStore) DeleteExpiredRotatedOperatorSessions(context.Context, string, time.Time) (domain.OperationStats, error) {
-	panic("not used")
-}
 func (s *fakeStore) DeleteOperatorSession(context.Context, int64) (domain.OperationStats, error) {
-	panic("not used")
-}
-func (s *fakeStore) DeleteOperatorSessionsByOperator(context.Context, int64) ([]domain.OperatorSession, domain.OperationStats, error) {
-	panic("not used")
-}
-func (s *fakeStore) DeleteOperatorSessionsByFamily(context.Context, string) ([]domain.OperatorSession, domain.OperationStats, error) {
 	panic("not used")
 }
 func (s *fakeStore) DeleteExpiredOperatorSessions(context.Context, time.Time) (int, domain.OperationStats, error) {

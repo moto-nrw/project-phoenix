@@ -116,7 +116,6 @@ type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
 	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
-	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 }
 
@@ -141,11 +140,6 @@ type AccountRoleRepository interface {
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
-	// DeleteByAccountRoleAndTenant removes a single role assignment scoped to
-	// one school. Unlike DeleteByAccountAndRole it never touches the account's
-	// assignments at other schools, which is what cross-tenant access
-	// management requires.
-	DeleteByAccountRoleAndTenant(ctx context.Context, accountID, roleID, tenantID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 }
@@ -379,7 +373,6 @@ type AccountTenantRepository interface {
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
-	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
 }
 
 type StaffCalendarFeedOwner struct {

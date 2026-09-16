@@ -61,7 +61,7 @@ func (c *capturingMailer) waitForMessages(n int, timeout time.Duration) bool {
 // newTestServiceWithDispatcher creates a service wired with a real Dispatcher for email testing.
 func newTestServiceWithDispatcher(
 	t *testing.T,
-	operatorRepo platform.OperatorRepository,
+	operatorRepo platformSvc.OperatorDirectory,
 	auditLogRepo platform.OperatorAuditLogRepository,
 	invitationTokenRepo platform.OperatorInvitationTokenRepository,
 	bunDB *bun.DB,
