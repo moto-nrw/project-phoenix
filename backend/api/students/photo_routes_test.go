@@ -51,7 +51,7 @@ import (
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
 // students.NewResource → Router) succeeds in CI environments without
-// a populated .env. Identical pattern to api/usercontext/usercontext_test.go
+// a populated .env. Identical pattern to modules/identityaccess/inbound/usercontext/usercontext_test.go
 // and required because setupStudentsRoute constructs the resource which
 // MUST be able to verify and sign JWTs.
 func init() {
