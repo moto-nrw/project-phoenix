@@ -358,3 +358,96 @@ func (s *Service) GetActiveTokens(ctx context.Context, accountID int) ([]*auth.T
 	}
 	return tokens, nil
 }
+
+// Session outcomes the login, refresh and tenant flows report.
+var (
+	// ErrInvalidCredentials returned when username/password combo is invalid
+	ErrInvalidCredentials = errors.New("invalid username or password")
+
+	// ErrAccountNotFound returned when account doesn't exist
+	ErrAccountNotFound = errors.New("account not found")
+
+	// ErrAccountInactive returned when account is deactivated
+	ErrAccountInactive = errors.New("account is inactive")
+
+	// ErrInvalidToken returned when token format is invalid
+	ErrInvalidToken = errors.New("invalid token format")
+
+	// ErrTokenExpired returned when token has expired
+	ErrTokenExpired = errors.New("token has expired")
+
+	// ErrTokenNotFound returned when token is not found in the database
+	ErrTokenNotFound = errors.New("token not found")
+
+	// Tenant errors
+	ErrTenantNotFound     = errors.New("tenant not found")
+	ErrTenantAccessDenied = errors.New("account does not have access to this tenant")
+)
+
+// SessionOperations are the login, refresh, logout, tenant-switch and
+// token flows the retained handlers call.
+type SessionOperations interface {
+	// Existing methods
+	Login(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (accessToken, refreshToken string, err error)
+	// IssueTokensForAuthenticatedAccount mints an access/refresh token pair for
+	// an account that has already proven its identity via a non-password channel
+	// (currently: MFA email-code or recovery-code verification). Skips credential
+	// checks but otherwise mirrors LoginWithAudit's loadMetadata → persistRefreshToken
+	// → buildClaims → genTokens flow so downstream consumers (refresh, audit,
+	// permissions) are indistinguishable from a regular login.
+	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// LoginWithMFAGate is the MFA-aware sibling of LoginWithAudit. After a
+	// successful credential check it consults the optional MFAService and
+	// returns either a regular token pair or a short-lived challenge token
+	// the caller must redeem at /auth/mfa/verify. trustedDeviceCookie may
+	// be empty; when set and verifiable, MFA is skipped even if the account
+	// would normally require it.
+	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*LoginResult, error)
+	LoginParent(ctx context.Context, email, password string) (accessToken, refreshToken string, err error)
+	LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// LoginSchoolWithMFAGate authenticates a school-portal user (#2207) and
+	// issues a school-scope token pair bound to the first school where the
+	// account holds a school-portal role (today: lehrkraft). MFA-aware like
+	// LoginWithMFAGate; school challenges carry the school challenge scope
+	// and are redeemable only at the school verify endpoint.
+	LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*LoginResult, error)
+	// LoginSchoolAtTenantWithMFAGate is the selected-school variant of
+	// LoginSchoolWithMFAGate. It verifies that the account has a school-portal
+	// role at tenantSlug before issuing a school-scope result.
+	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
+	// IssueSchoolTokensForAuthenticatedAccount is the school-scope sibling of
+	// IssueTokensForAuthenticatedAccount, used by the school MFA verify
+	// endpoint. Re-validates the school-portal role at the tenant.
+	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	RefreshToken(ctx context.Context, refreshToken string) (accessToken, newRefreshToken string, err error)
+	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
+	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
+	// VerifyAccountTenantMembership reports whether the account has a tenant
+	// mapping for the given school (issue #584 lookup; repository result
+	// returned verbatim).
+	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
+	// Token Management
+	CountExpiredTokens(ctx context.Context) (int, error)
+	CleanupExpiredTokens(ctx context.Context) (int, error)
+	RevokeAllTokens(ctx context.Context, accountID int) error
+	RevokeAllTokensWithReason(ctx context.Context, accountID int, reason string) error
+	RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error)
+	GetActiveTokens(ctx context.Context, accountID int) ([]*auth.Token, error)
+	// Tenant Switching
+	// presentedFamilyID is the refresh-token family behind the caller's access
+	// token; it is retired with a short grace period because the browser
+	// replaces that session with the returned one. Empty skips retirement.
+	SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (accessToken, refreshToken string, err error)
+	// HasSchoolPortalAccess reports whether the account still holds a
+	// school-portal role at this school. For surfaces that authenticate once
+	// and then stay open for the token's whole lifetime — the school SSE
+	// stream re-checks with it while streaming (#2208).
+	HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error)
+	// SwitchSchool is the school-portal sibling of SwitchTenant (#2207):
+	// re-authenticates a school-scope session to another school where the
+	// account holds a school-portal role. ipAddress/userAgent are required for
+	// the tenant_switch audit event — the audit write is skipped when the IP
+	// is empty.
+	SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+}

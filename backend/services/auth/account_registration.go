@@ -395,3 +395,28 @@ func (s *Service) ensureRoleAssignment(ctx context.Context, accountID int64, rol
 func isDuplicateKeyError(err error) bool {
 	return modelBase.IsUniqueViolation(err)
 }
+
+// Registration outcomes.
+var (
+	// ErrEmailAlreadyExists returned when email is already registered
+	ErrEmailAlreadyExists = errors.New("Diese E-Mail-Adresse ist bereits registriert") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrUsernameAlreadyExists returned when username is already taken
+	ErrUsernameAlreadyExists = errors.New("Dieser Benutzername ist bereits vergeben") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrTenantRequiredForRoleAssignment returned when tenant-scoped role setup is requested without a tenant context
+	ErrTenantRequiredForRoleAssignment = errors.New("tenant context is required when assigning a role during registration")
+)
+
+// RegistrationOperations create accounts and link them to schools.
+type RegistrationOperations interface {
+	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*auth.Account, error)
+	// RegisterSchoolAccount is Register plus the school identity (person →
+	// staff → caregiver profile) the role requires, in one transaction (#2222).
+	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *SchoolAccountIdentity) (*auth.Account, *SchoolIdentity, error)
+	// Multi-Tenant Account Linking
+	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*auth.Account, error)
+	// LinkSchoolAccount is LinkAccountToTenant plus the school identity the
+	// role requires, in one transaction (#2222).
+	LinkSchoolAccount(ctx context.Context, email string, roleID *int64, tenantID int64, identity *SchoolAccountIdentity) (*auth.Account, *SchoolIdentity, error)
+}

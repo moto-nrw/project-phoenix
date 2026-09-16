@@ -565,3 +565,79 @@ func (s guardianInvitationStore) InsertGuardianInvitation(ctx context.Context, r
 func (s guardianInvitationStore) UpdateGuardianInvitation(ctx context.Context, record GuardianInvitationRecord) error {
 	return s.repo.Update(ctx, guardianInvitationRow(record))
 }
+
+// Account lifecycle outcomes the retained handlers switch on; the
+// Identity & Access module reports them and the composition translates
+// them back (#3225).
+var (
+	// ErrParentAccountNotFound returned when parent account doesn't exist
+	ErrParentAccountNotFound = errors.New("parent account not found")
+
+	// Admin staff-view preview (#2893)
+	// ErrPreviewSelf: previewing your own account is pointless and refused.
+	ErrPreviewSelf = errors.New("cannot preview your own account")
+	// ErrPreviewTargetNotStaff: the target has no tenant-portal surface at
+	// this school (guardian-only, or no role at all).
+	ErrPreviewTargetNotStaff = errors.New("account is not a staff member at this school")
+	// ErrPreviewTokenInvalid: the token presented when ending a preview is
+	// not a valid preview token of the calling admin at this school. The end
+	// call proves which preview it closes with that token, so a client cannot
+	// name an arbitrary account in the audit trail.
+	ErrPreviewTokenInvalid = errors.New("not a preview token of this session")
+
+	// School identity (#2222): the request errors the Identity & Access
+	// provisioning reports and the handlers render as 400. German because the
+	// operator and admin screens show them verbatim.
+	ErrSchoolIdentityNamesRequired   = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")                                                //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")                   //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityTagUnknown      = errors.New("Der angegebene Transponder ist an dieser Schule nicht bekannt")                                                           //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityTagConflict     = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityTagTaken        = errors.New("Dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")                                         //nolint:staticcheck // ST1005: user-facing German message
+
+	// Related-accounts errors
+	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
+	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
+	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
+	// ErrCannotRemovePayerGuardian: the link carries the child's payer mark
+	// (#2608). Clearing it is a financial decision that needs
+	// guardians:financial; the parents portal never holds that, so the payer
+	// stays until the school reassigns the payment account. The sentence is
+	// German because the parents portal shows it verbatim.
+	ErrCannotRemovePayerGuardian = errors.New("Diese Person ist als Zahler für das Kind eingetragen und kann nicht entfernt werden. Bitte wenden Sie sich an die Schule.") //nolint:staticcheck // ST1005: user-facing German message
+	// ErrInviteSocialWorkerManaged: the invited email belongs to a contact
+	// linked to this child as a social worker. That is a school-managed
+	// professional contact — the invite flow must never turn it into a legal
+	// guardian, so the invite is refused entirely (mirrors
+	// ErrGuardianSocialWorkerManaged on the parent edit paths).
+	ErrInviteSocialWorkerManaged = errors.New("a social-worker contact is managed by the school and cannot be invited to the parents portal")
+)
+
+// StaffPreviewOperations delegate the admin staff-view preview (#2893) to
+// Identity & Access.
+type StaffPreviewOperations interface {
+	// Admin staff-view preview (#2893): a read-only, access-only token that
+	// sees the tenant portal exactly as the target staff member. Start mints
+	// (and re-mints) the token, End records the audit trail, the candidate
+	// list feeds the picker. The route layer restricts all three to
+	// effective admins. End is given the preview token it closes and reads
+	// the previewed account from it, so the audit trail cannot be stamped
+	// with a preview that never happened. Start takes the token the client
+	// currently holds so a re-mint continues the running preview instead of
+	// opening a second one in the audit trail.
+	StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*StaffPreviewSession, error)
+	EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error)
+	ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]StaffPreviewCandidate, error)
+}
+
+// ParentAccountOperations delegate parent account management to Identity &
+// Access.
+type ParentAccountOperations interface {
+	// Parent Account Management
+	CreateParentAccount(ctx context.Context, email, username, password string) (*authModels.AccountParent, error)
+	GetParentAccountByID(ctx context.Context, id int) (*authModels.AccountParent, error)
+	GetParentAccountByEmail(ctx context.Context, email string) (*authModels.AccountParent, error)
+	UpdateParentAccount(ctx context.Context, account *authModels.AccountParent) error
+	ActivateParentAccount(ctx context.Context, accountID int) error
+	DeactivateParentAccount(ctx context.Context, accountID int) error
+	ListParentAccounts(ctx context.Context, filters map[string]interface{}) ([]*authModels.AccountParent, error)
+}

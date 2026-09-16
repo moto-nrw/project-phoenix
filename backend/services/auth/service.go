@@ -1,9 +1,11 @@
+// Package auth provides authentication and user management services
 package auth
 
 import (
 	"cmp"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -250,4 +252,46 @@ func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
 // with, so password hashing stays in one place.
 func VerifyPassword(password, hash string) (bool, error) {
 	return userpass.VerifyPassword(password, hash)
+}
+
+// AuthError represents an authentication-related error
+type AuthError struct {
+	Op  string // Operation that failed
+	Err error  // Original error
+}
+
+// Error returns the error message
+func (e *AuthError) Error() string {
+	if e.Err == nil {
+		return fmt.Sprintf("auth error during %s", e.Op)
+	}
+	return fmt.Sprintf("auth error during %s: %v", e.Op, e.Err)
+}
+
+// Unwrap returns the underlying error
+func (e *AuthError) Unwrap() error {
+	return e.Err
+}
+
+// MFAGateConfiguration wires the optional MFA gate into the login flows.
+type MFAGateConfiguration interface {
+	// SetMFAService wires the optional MFA gate. Pass nil to disable the
+	// gate (login then behaves exactly as LoginWithAudit).
+	SetMFAService(svc MFAService)
+}
+
+// AuthService defines the operations for authentication and user
+// management. Each subject declares its operations next to its
+// implementation.
+type AuthService interface {
+	SessionOperations
+	MFAGateConfiguration
+	RegistrationOperations
+	CredentialOperations
+	RoleOperations
+	PermissionOperations
+	AccountAdministrationOperations
+	PasswordResetOperations
+	StaffPreviewOperations
+	ParentAccountOperations
 }

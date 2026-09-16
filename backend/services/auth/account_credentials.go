@@ -62,3 +62,9 @@ func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, er
 	}
 	return account, nil
 }
+
+// CredentialOperations read an account and change its password.
+type CredentialOperations interface {
+	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
+	GetAccountByID(ctx context.Context, id int) (*auth.Account, error)
+}

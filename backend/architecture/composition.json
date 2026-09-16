@@ -25273,11 +25273,6 @@
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services/auth|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
       "locations": [
         {
-          "file": "services/auth/cleanup_composition.go",
-          "line": 29,
-          "declaration": "NewCleanupService"
-        },
-        {
           "file": "services/auth/mfa_service.go",
           "line": 287,
           "declaration": "type MFAServiceConfig"
@@ -25293,13 +25288,18 @@
           "declaration": "type passkeyService"
         },
         {
+          "file": "services/auth/password_reset_cleanup.go",
+          "line": 55,
+          "declaration": "NewCleanupService"
+        },
+        {
           "file": "services/auth/service.go",
-          "line": 94,
+          "line": 96,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/service.go",
-          "line": 148,
+          "line": 150,
           "declaration": "NewService"
         }
       ]
