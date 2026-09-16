@@ -104,21 +104,6 @@ type AccountClaims struct {
 	Scope       string
 }
 
-// RoleModels projects the role claims onto the retained role model for the
-// predicates that still read it.
-func (c *AccountClaims) RoleModels() []*auth.Role {
-	roles := make([]*auth.Role, 0, len(c.Roles))
-	for _, role := range c.Roles {
-		roles = append(roles, &auth.Role{
-			Model:    modelBase.Model{ID: role.ID},
-			TenantID: role.TenantID,
-			Name:     role.Name,
-			IsSystem: role.IsSystem,
-		})
-	}
-	return roles
-}
-
 // AccountSessions is the consumer-owned port over the Identity & Access
 // account-authentication capability (#3251). The composition root binds it;
 // every error already carries the AuthError envelope and the sentinels of

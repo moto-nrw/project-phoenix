@@ -43,9 +43,9 @@ func TestExistingInvitationOwnerMembershipRollsBack(t *testing.T) {
 	service := newTestInvitationService(t, InvitationServiceConfig{
 		InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
 		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role,
-		AccountRoleRepo: repos.AccountRole, PersonRepo: repos.Person,
-		StaffRepo:   failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr},
-		TeacherRepo: repos.Teacher, SchoolRepo: repos.School, DB: db,
+		AccountRoleRepo: repos.AccountRole,
+		SchoolIdentity:  identityStub(repos.Person, failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr}, repos.Teacher),
+		SchoolRepo:      repos.School, DB: db,
 	})
 	invitation := &authModel.InvitationToken{
 		Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("rollback-owner-%d", schoolA),
@@ -99,9 +99,7 @@ func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 		AccountTenantRepo: repos.AccountTenant,
 		RoleRepo:          repos.Role,
 		AccountRoleRepo:   repos.AccountRole,
-		PersonRepo:        repos.Person,
-		StaffRepo:         failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr},
-		TeacherRepo:       repos.Teacher,
+		SchoolIdentity:    identityStub(repos.Person, failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr}, repos.Teacher),
 		SchoolRepo:        repos.School,
 		Mailer:            email.NewMockMailer(),
 		FrontendURL:       "http://localhost:3000",

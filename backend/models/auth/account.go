@@ -124,10 +124,8 @@ func (a *Account) HasPIN() bool {
 // (issue #586, Rule 12). The decision (is the account locked?) and the
 // counter mutations are owned by the service layer with atomic repository
 // methods so concurrent failures can't share an attempt budget:
-//   - PIN:  services/users person service + services/auth Service.IsPINLocked /
-//           RecordFailedPINAttempt / ResetPINLockout
-//           (database/repositories/auth AccountRepository.IncrementPINAttempts,
-//            ResetPINAttempts, ClearPIN)
+//   - PIN:  the Identity & Access staff PIN flows (modules/identityaccess,
+//           #3225) with their own atomic PIN-attempt statements
 //   - MFA:  services/auth mfaService.isMFALocked / handleFailedAttempt
 //           (AccountRepository.IncrementMFAAttempts, ResetMFAAttempts)
 // The account row holds only the pin_attempts / pin_locked_until /

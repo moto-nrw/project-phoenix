@@ -50,7 +50,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 	// Create a mock repository factory for testing
 	guardianRole := &authModel.Role{
 		Model: modelBase.Model{ID: 10},
-		Name:  guardianRoleName,
+		Name:  "guardian",
 	}
 	repos := &repositories.Factory{
 		Account:                accounts,

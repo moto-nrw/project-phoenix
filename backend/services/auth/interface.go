@@ -2,18 +2,9 @@ package auth
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
-
-// StaffPINAuthenticator verifies a staff-specific PIN inside the staff
-// member's tenant boundary. Device middleware uses this narrow interface to
-// bind kiosk attribution to a person without depending on the full auth API.
-type StaffPINAuthenticator interface {
-	AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (*userModels.Staff, error)
-}
 
 // AuthService defines the operations for authentication and user management
 type AuthService interface {
@@ -104,11 +95,6 @@ type AuthService interface {
 	DeactivateAccount(ctx context.Context, accountID int) error
 	UpdateAccount(ctx context.Context, account *auth.Account) error
 
-	// PIN lockout (issue #586): the brute-force lockout decision and the
-	// atomic counter mutations live in the service, not on the model.
-	IsPINLocked(account *auth.Account, now time.Time) bool
-	RecordFailedPINAttempt(ctx context.Context, accountID int64) error
-	ResetPINLockout(ctx context.Context, accountID int64) error
 	ListAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
 	GetAccountsByRole(ctx context.Context, roleName string) ([]*auth.Account, error)
 	GetAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)

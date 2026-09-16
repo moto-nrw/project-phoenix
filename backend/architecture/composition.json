@@ -327,26 +327,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/account_pin_atomic_test.go",
-      "declaration": "TestAccountRepository_IncrementPINAttempts_AtomicUnderRace",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        38
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_pin_atomic_test.go",
-      "declaration": "TestAccountRepository_ResetPINAttempts_ClearsCounterAndLock",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        95
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/auth/account_repository_test.go",
       "declaration": "TestAccountRepository_CalendarFeedToken",
       "target": "database/repositories.NewFactory",
@@ -4277,10 +4257,10 @@
     {
       "scope": "test",
       "file": "services/auth/auth_core_test.go",
-      "declaration": "setupAuthService",
+      "declaration": "setupAuthFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        53
+        62
       ],
       "tables": []
     },
@@ -4327,7 +4307,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        751
+        752
       ],
       "tables": []
     },
@@ -4337,7 +4317,7 @@
       "declaration": "setupGuardianInvitationTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        57
+        58
       ],
       "tables": []
     },
@@ -4347,7 +4327,7 @@
       "declaration": "setupGuardianInviteWithBackfiller",
       "target": "database/repositories.NewFactory",
       "lines": [
-        637
+        638
       ],
       "tables": []
     },
@@ -25314,12 +25294,12 @@
         },
         {
           "file": "services/auth/service.go",
-          "line": 88,
+          "line": 94,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/service.go",
-          "line": 141,
+          "line": 148,
           "declaration": "NewService"
         }
       ]
@@ -25349,12 +25329,12 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 57,
+          "line": 63,
           "declaration": "sessionRepositoriesOf"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 165,
+          "line": 179,
           "declaration": "NewAuthServiceForTests"
         },
         {

@@ -328,6 +328,7 @@ type Engine interface {
 	AccountAuthentication
 	AccountSessionMaintenance
 	AccountClaimsQuery
+	AccountLifecycle
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

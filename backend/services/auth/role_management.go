@@ -171,7 +171,11 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// identity fields, so the switch belongs to offboarding plus a fresh
 		// account. Roles that legitimately run without a profile (admin) are
 		// unaffected.
-		if RoleNeedsCaregiverProfile(role) {
+		provisioning, err := s.schoolIdentity("assign role")
+		if err != nil {
+			return err
+		}
+		if provisioning.RoleNeedsCaregiverProfile(RoleFactsOf(role)) {
 			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
 			if roleErr != nil {
 				return &AuthError{Op: "assign role", Err: roleErr}
@@ -292,15 +296,14 @@ func isGuardianTierRole(role *auth.Role) bool {
 // left to the flows that do have a name (staff creation, invitation), which is
 // also why nothing here fails when there is none.
 func (s *Service) ensureIdentityForAssignedRole(ctx context.Context, accountID int64, role *auth.Role) error {
-	if _, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
-		Persons:  s.repos.Person,
-		Staff:    s.repos.Staff,
-		Teachers: s.repos.Teacher,
-		Students: s.repos.Student,
-	}, SchoolIdentityInput{
+	provisioning, err := s.schoolIdentity("provision school identity")
+	if err != nil {
+		return err
+	}
+	if _, err := provisioning.EnsureSchoolIdentity(ctx, SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenant.FromContext(ctx),
-		Role:         role,
+		Role:         RoleFactsOf(role),
 		CreatePerson: false,
 	}); err != nil {
 		return &AuthError{Op: "provision school identity", Err: err}

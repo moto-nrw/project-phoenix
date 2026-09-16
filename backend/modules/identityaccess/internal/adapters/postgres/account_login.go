@@ -17,15 +17,16 @@ import (
 // the rows a mint authorizes on until that transaction commits.
 
 type loginAccountRow struct {
-	ID           int64   `bun:"id"`
-	Email        string  `bun:"email"`
-	Username     *string `bun:"username"`
-	PasswordHash *string `bun:"password_hash"`
-	Active       bool    `bun:"active"`
+	ID           int64     `bun:"id"`
+	Email        string    `bun:"email"`
+	Username     *string   `bun:"username"`
+	PasswordHash *string   `bun:"password_hash"`
+	Active       bool      `bun:"active"`
+	UpdatedAt    time.Time `bun:"updated_at"`
 }
 
 func (r loginAccountRow) toDomain() domain.LoginAccount {
-	account := domain.LoginAccount{ID: r.ID, Email: r.Email, Active: r.Active}
+	account := domain.LoginAccount{ID: r.ID, Email: r.Email, Active: r.Active, UpdatedAt: r.UpdatedAt}
 	if r.Username != nil {
 		account.Username = *r.Username
 	}
@@ -35,7 +36,7 @@ func (r loginAccountRow) toDomain() domain.LoginAccount {
 	return account
 }
 
-const loginAccountColumns = `"account".id, "account".email, "account".username, "account".password_hash, "account".active`
+const loginAccountColumns = `"account".id, "account".email, "account".username, "account".password_hash, "account".active, "account".updated_at`
 
 // FindLoginAccountByEmail matches case-insensitively, as the retained
 // repository did.

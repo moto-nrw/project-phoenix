@@ -46,6 +46,12 @@ type TokenCodec interface {
 	ParseAccessToken(token string) (identityaccess.SessionClaims, error)
 	ParseRefreshToken(token string) (identityaccess.RefreshClaims, error)
 	RefreshExpiry() time.Duration
+	// IssueAccessToken signs an access-only JWT (the staff preview mints no
+	// refresh token); ParseAccessTokenAllowExpired verifies its signature but
+	// not its expiry; AccessExpiry is the access token lifetime.
+	IssueAccessToken(claims identityaccess.SessionClaims) (string, error)
+	ParseAccessTokenAllowExpired(token string) (identityaccess.SessionClaims, error)
+	AccessExpiry() time.Duration
 }
 
 // MFAGate is the retained MFA service as login consults it. Configured
@@ -124,7 +130,7 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		MFALock:   deps.MFALock,
 		Audit:     authAudit{deps.Audit},
 		Push:      deps.Push,
-		Runtime:   tenantRuntime{attach: attach, runner: tenant.NewTransactionRunner()},
+		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Rotation:  rotationPolicy{},
 		Logger:    deps.Logger,
 	})
@@ -269,6 +275,8 @@ type tenantRuntime struct {
 	attach func(context.Context) context.Context
 	runner *tenant.TransactionRunner
 }
+
+func newTransactionRunner() *tenant.TransactionRunner { return tenant.NewTransactionRunner() }
 
 func (r tenantRuntime) WithAdminTx(ctx context.Context, fn func(context.Context) error) error {
 	return tenant.WithinAdmin(r.attach(ctx), fn)

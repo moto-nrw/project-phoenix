@@ -11,13 +11,6 @@ var (
 	// ErrInvalidCredentials returned when username/password combo is invalid
 	ErrInvalidCredentials = errors.New("invalid username or password")
 
-	// ErrInvalidStaffPINCredentials hides whether a requested staff/account
-	// exists when kiosk staff-PIN authentication fails.
-	ErrInvalidStaffPINCredentials = errors.New("invalid staff PIN credentials")
-
-	// ErrStaffPINLocked reports an active staff-account PIN lockout.
-	ErrStaffPINLocked = errors.New("staff PIN is temporarily locked")
-
 	// ErrAccountNotFound returned when account doesn't exist
 	ErrAccountNotFound = errors.New("account not found")
 
@@ -102,6 +95,15 @@ var (
 	// call proves which preview it closes with that token, so a client cannot
 	// name an arbitrary account in the audit trail.
 	ErrPreviewTokenInvalid = errors.New("not a preview token of this session")
+
+	// School identity (#2222): the request errors the Identity & Access
+	// provisioning reports and the handlers render as 400. German because the
+	// operator and admin screens show them verbatim.
+	ErrSchoolIdentityNamesRequired   = errors.New("Vor- und Nachname sind erforderlich, um ein Konto als Personal anzulegen")                                                //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityPersonIsStudent = errors.New("Dieses Konto ist mit dem Datensatz eines Kindes verknüpft und kann nicht als Personal angelegt werden")                   //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityTagUnknown      = errors.New("Der angegebene Transponder ist an dieser Schule nicht bekannt")                                                           //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityTagConflict     = errors.New("Diese Person trägt an dieser Schule bereits einen anderen Transponder; dieser wird über die Personalverwaltung geändert") //nolint:staticcheck // ST1005: user-facing German message
+	ErrSchoolIdentityTagTaken        = errors.New("Dieser Transponder ist an dieser Schule bereits einer anderen Person zugeordnet")                                         //nolint:staticcheck // ST1005: user-facing German message
 
 	// Invitation errors
 	ErrInvitationOwnerRequired       = errors.New("sign in to the invited account before accepting")

@@ -200,16 +200,14 @@ func (s *Service) provisionSchoolIdentity(
 	if identity == nil || role == nil {
 		return nil, nil
 	}
-	provisioned, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
-		Persons:   s.repos.Person,
-		Staff:     s.repos.Staff,
-		Teachers:  s.repos.Teacher,
-		Students:  s.repos.Student,
-		RFIDCards: s.repos.RFIDCard,
-	}, SchoolIdentityInput{
+	provisioning, err := s.schoolIdentity("provision school identity")
+	if err != nil {
+		return nil, err
+	}
+	provisioned, err := provisioning.EnsureSchoolIdentity(ctx, SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenantID,
-		Role:         role,
+		Role:         RoleFactsOf(role),
 		FirstName:    identity.FirstName,
 		LastName:     identity.LastName,
 		TagID:        identity.TagID,

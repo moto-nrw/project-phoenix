@@ -52,6 +52,12 @@ type ServiceConfig struct {
 	// flows (staff preview, password reset, role and account management,
 	// offboarding) and the AuthService session methods delegate to it.
 	Sessions AccountSessions
+	// Lifecycle is the consumer-owned port over the Identity & Access
+	// account-lifecycle capability (#3225): staff preview, staff offboarding
+	// access, the school identity chain, parent accounts and guardian
+	// relative access moved there. The retained registration, linking, role
+	// and invitation flows provision identities through it.
+	Lifecycle AccountLifecycle
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -101,6 +107,7 @@ type Service struct {
 	audit               auditModels.Command
 	tenantRuntime       *tenant.UnitOfWork
 	sessions            AccountSessions
+	lifecycle           AccountLifecycle
 	// mfaService is optional. The Identity & Access login flows read it
 	// through CurrentMFAService at call time, so SetMFAService keeps its
 	// meaning: nil disables the gate and login behaves as a plain
@@ -178,6 +185,7 @@ func NewService(
 		settings:            config.Settings,
 		audit:               config.Audit,
 		sessions:            config.Sessions,
+		lifecycle:           config.Lifecycle,
 	}, nil
 }
 
@@ -202,6 +210,12 @@ func (s *Service) CurrentMFAService() MFAService {
 // session work to.
 func (s *Service) AccountSessions() AccountSessions {
 	return s.sessions
+}
+
+// AccountLifecycle returns the Identity & Access port the service delegates
+// the account lifecycle flows to.
+func (s *Service) AccountLifecycle() AccountLifecycle {
+	return s.lifecycle
 }
 
 func (s *Service) runInTx(

@@ -128,7 +128,7 @@ type Factory struct {
 	settingsRuntimeDB    *bun.DB
 	Auth                 auth.AuthService
 	Audit                auditModels.Command
-	StaffPINAuth         auth.StaffPINAuthenticator
+	StaffPINAuth         StaffPINAuthenticator
 	MFA                  auth.MFAService
 	Passkey              auth.PasskeyService
 	Active               active.Service
@@ -1579,6 +1579,7 @@ func newFactory(
 	// runtime back from the auth service at call time, so SetMFAService and
 	// SetTenantRuntime keep their meaning.
 	var authService *auth.Service
+	var guardianInvitationService auth.GuardianInvitationService
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos),
 		tokenAuth: authConfig.TokenAuth,
@@ -1590,11 +1591,24 @@ func newFactory(
 			return authService.WithTenantRuntime(ctx)
 		},
 		mfa: func() auth.MFAService { return authService.CurrentMFAService() },
+		// The lifecycle flows (#3225) read the retained role management and
+		// the guardian invitation delivery back at call time; both are
+		// composed below.
+		lifecycle: &lifecycleWiring{
+			settings: settingsService, audit: auditCommand,
+			admin: func() *auth.Service { return authService },
+			delivery: func() auth.GuardianInvitationDelivery {
+				delivery, _ := guardianInvitationService.(auth.GuardianInvitationDelivery)
+				return delivery
+			},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	authConfig.Sessions = newAccountSessions(identityAccess)
+	accountSessionsPort := newAccountSessions(identityAccess)
+	authConfig.Sessions = accountSessionsPort
+	authConfig.Lifecycle = accountSessionsPort
 	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
@@ -1650,10 +1664,6 @@ func newFactory(
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
-		PersonRepo:        repos.Person,
-		StaffRepo:         repos.Staff,
-		TeacherRepo:       repos.Teacher,
-		StudentRepo:       repos.Student,
 		SchoolRepo:        repos.School,
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
@@ -1662,6 +1672,7 @@ func newFactory(
 		DefaultFrom:       defaultFrom,
 		InvitationExpiry:  invitationTokenExpiry,
 		MailIdentity:      tenantMailIdentity,
+		SchoolIdentity:    accountSessionsPort,
 		DB:                db,
 		Logger:            authLogger,
 	})
@@ -1697,7 +1708,7 @@ func newFactory(
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService := platform.NewOutboxService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
+	guardianInvitationService = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:       repos.GuardianInvitation,
 		AccountRepo:          repos.Account,
 		AccountTenantRepo:    repos.AccountTenant,
@@ -1711,6 +1722,7 @@ func newFactory(
 		SchoolRepo:           repos.School,
 		OutboxEnqueuer:       emailOutboxService,
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		RelativeAccess:       accountSessionsPort,
 		SettingsResolver:     settingsService,
 		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
 		FallbackExpiry:       invitationTokenExpiry,
@@ -2713,6 +2725,7 @@ func newFactory(
 		Settings:              settingsService,
 		InvitationService:     invitationService,
 		AuthService:           authService,
+		SchoolIdentity:        accountSessionsPort,
 		AuditLogRepo:          repos.OperatorAuditLog,
 		DB:                    db,
 		Logger:                platformLogger,
@@ -2973,7 +2986,7 @@ func newFactory(
 		settingsRuntimeDB:       db,
 		Auth:                    authService,
 		Audit:                   auditCommand,
-		StaffPINAuth:            authService,
+		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
 		MFA:                     mfaService,
 		Passkey:                 passkeyService,
 		Active:                  activeService,
