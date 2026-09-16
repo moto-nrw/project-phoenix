@@ -677,6 +677,38 @@ from 9 to 10 and uses only candidate-created packages. The School Structure
 capability grows inside its existing owner and roles; no table changes
 owner and no existing-owner import guard is expanded.
 
+The parent-portal workflow (`workflows/parentportal`, owner `parent-portal`,
+kind `workflow`, #3227,
+[ADR 0019](../../docs/adr/0019-parent-portal-is-an-application-workflow.md))
+takes the guardian-portal flows out of `services/parent`, which coordinates
+Care Plan, Enrollment, Timetable & Activities, Communication, People
+Directory, Settings and Student Presence for one guardian and one child.
+`workflows/parentportal/care` holds the today status, the weekly care plan
+and its requests, the booked care offerings and their change requests, the
+course requests and the guardian-child resolution. It reaches the
+request-sharing ledger only through its `RequestSharer` port.
+`workflows/parentportal/messaging` holds announcements, request sharing,
+messaging and the self-service chat pills behind its `ChildResolver` port.
+It returns the guardian-child and note sentinels declared in `care`
+(`parent-portal.application.care`). Both packages are
+`parent-portal`/`application` with `workflow-integration-test` in both test
+scopes. The code moved file for file with its tests. `services/parent` keeps
+the public `parent.Service` contract, binds both ports and delegates the
+moved methods. No HTTP path, status code, error string, authorization check
+or tenant scoping changed. Every `parent-portal.application.*` and
+`parent-portal.integration-test.*` rule is a compatibility binding to the
+retained models, services and shared helpers the moved code already imported.
+These rules exist only because PR mode cannot record debt for a package the
+candidate creates. Convert them to exact debt with the rule above once the
+packages exist at a base SHA. `care-plan.application.parent-portal` is the
+transitional delegation edge. #3228 removes it together with
+`services/parent`, and #3229 moves `api/parent` onto the workflow.
+
+Under ADR 0013 this data-less workflow registration raises the policy epoch
+from 11 to 12 and uses only candidate-created packages. No table changes
+owner and no existing-owner import guard is expanded. The move resolved six
+recorded `services/parent` internal-test imports, which left `legacy.jsonl`.
+
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
 children with location, reachable adults and the optional health note, from

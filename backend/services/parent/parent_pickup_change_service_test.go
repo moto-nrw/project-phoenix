@@ -294,3 +294,10 @@ func approvedOfferingProjection(t *testing.T) *services.ApprovedOfferingTestProj
 	require.NoError(t, err)
 	return projection
 }
+
+func parentAttendance(t *testing.T, db *bun.DB) parentService.AttendanceReader {
+	t.Helper()
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(t, err)
+	return module
+}
