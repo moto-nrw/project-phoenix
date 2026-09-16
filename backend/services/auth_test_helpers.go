@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -19,13 +20,17 @@ import (
 )
 
 type AuthTestModule struct {
-	Auth               auth.AuthService
-	StaffPINAuth       auth.StaffPINAuthenticator
-	Invitation         auth.InvitationService
-	GuardianInvitation auth.GuardianInvitationService
-	Schools            platform.SchoolService
-	Settings           config.SettingsService
-	MFA                auth.MFAService
+	Auth auth.AuthService
+	// AccountAuthentication is the Identity & Access module the auth
+	// service delegates its session flows to (#3251); the auth HTTP tests
+	// hand it to the routes that call the public contract directly.
+	AccountAuthentication *identityaccess.Module
+	StaffPINAuth          auth.StaffPINAuthenticator
+	Invitation            auth.InvitationService
+	GuardianInvitation    auth.GuardianInvitationService
+	Schools               platform.SchoolService
+	Settings              config.SettingsService
+	MFA                   auth.MFAService
 }
 
 type InvitationTestModule struct {
@@ -101,7 +106,17 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	service, err := auth.NewService(r, authConfig, db, logger)
+	var service *auth.Service
+	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+		repos: sessionRepositoriesOf(r), tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
+		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
+		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
+	})
+	if err != nil {
+		return AuthTestModule{}, err
+	}
+	authConfig.Sessions = newAccountSessions(identityAccess)
+	service, err = auth.NewService(r, authConfig, db, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -139,6 +154,36 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 		FrontendURL: parentsURL, FallbackExpiry: time.Duration(inviteHours) * time.Hour, DB: db, Logger: logger,
 	})
 	guardian.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	return AuthTestModule{Auth: service, StaffPINAuth: service, MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
+	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: service, MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
 		Schools: platform.NewSchoolService(r.School), Settings: settings.Settings}, nil
+}
+
+// NewAuthServiceForTests composes the retained auth service over the given
+// repositories with its session flows bound to Identity & Access (#3251),
+// the way the factory does it. Tests that used to build the service alone
+// use it where login, refresh or revocation is exercised.
+func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig, db *bun.DB, logger *slog.Logger) (*auth.Service, error) {
+	cfg := base
+	if logger == nil {
+		logger = slog.Default()
+	}
+	if cfg.TokenAuth == nil {
+		signer, err := authjwt.NewTokenAuth()
+		if err != nil {
+			return nil, err
+		}
+		cfg.TokenAuth = signer
+	}
+	var service *auth.Service
+	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+		repos: sessionRepositoriesOf(repos), tokenAuth: cfg.TokenAuth, settings: cfg.Settings, audit: cfg.Audit, logger: logger,
+		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
+		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
+	})
+	if err != nil {
+		return nil, err
+	}
+	cfg.Sessions = newAccountSessions(identityAccess)
+	service, err = auth.NewService(repos, &cfg, db, logger)
+	return service, err
 }

@@ -80,7 +80,7 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 	// permissions that still existed when the token was written.
 	var (
 		account     *authModels.Account
-		metadata    *accountMetadata
+		metadata    *AccountClaims
 		accessToken string
 		previewID   string
 		isRemint    bool
@@ -129,7 +129,11 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 			return &AuthError{Op: op, Err: err}
 		}
 
-		metadata, err = s.loadAccountMetadataForTenantInTx(ctx, account, tenantID)
+		sessions, err := s.accountSessions(op)
+		if err != nil {
+			return err
+		}
+		metadata, err = sessions.LoadAccountClaims(ctx, targetAccountID, tenantID)
 		if err != nil {
 			return err
 		}
@@ -138,10 +142,10 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 		// there cannot be previewed meaningfully: guardians live in the
 		// parents portal, Lehrkraft-only accounts in moto schule, and an
 		// account with no role at this school could not even log in.
-		if len(metadata.roleNames) == 0 || IsGuardianOnlyForTenant(metadata.roleNames) {
+		if len(metadata.RoleNames) == 0 || IsGuardianOnlyForTenant(metadata.RoleNames) {
 			return &AuthError{Op: op, Err: ErrPreviewTargetNotStaff}
 		}
-		if IsSchoolPortalOnlyForTenant(account.Roles) {
+		if IsSchoolPortalOnlyForTenant(metadata.RoleModels()) {
 			return &AuthError{Op: op, Err: ErrMustUseSchoolPortal}
 		}
 
@@ -162,15 +166,15 @@ func (s *Service) StartStaffPreview(ctx context.Context, adminAccountID, tenantI
 		claims := jwt.AppClaims{
 			ID:            int(account.ID),
 			Sub:           account.Email,
-			Username:      metadata.username,
-			FirstName:     metadata.firstName,
-			LastName:      metadata.lastName,
-			Roles:         metadata.roleNames,
-			Permissions:   metadata.permissionStrs,
-			IsAdmin:       metadata.isAdmin,
-			Scope:         metadata.scope,
+			Username:      metadata.Username,
+			FirstName:     metadata.FirstName,
+			LastName:      metadata.LastName,
+			Roles:         metadata.RoleNames,
+			Permissions:   metadata.Permissions,
+			IsAdmin:       metadata.IsAdmin,
+			Scope:         metadata.Scope,
 			TenantID:      tenantID,
-			OrgID:         metadata.orgID,
+			OrgID:         metadata.OrgID,
 			ReadOnly:      true,
 			ActingAdminID: adminAccountID,
 			PreviewID:     previewID,
@@ -491,13 +495,13 @@ func isLehrkraftOnlyByName(roleNames []string) bool {
 	return true
 }
 
-func staffPreviewDisplayName(metadata *accountMetadata, email string) string {
-	name := strings.TrimSpace(strings.TrimSpace(metadata.firstName) + " " + strings.TrimSpace(metadata.lastName))
+func staffPreviewDisplayName(metadata *AccountClaims, email string) string {
+	name := strings.TrimSpace(strings.TrimSpace(metadata.FirstName) + " " + strings.TrimSpace(metadata.LastName))
 	if name != "" {
 		return name
 	}
-	if metadata.username != "" {
-		return metadata.username
+	if metadata.Username != "" {
+		return metadata.Username
 	}
 	return email
 }

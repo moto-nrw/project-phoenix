@@ -12,6 +12,7 @@ import (
 	emailPkg "github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -80,7 +81,7 @@ func TestLogoutRevokesTokensWhenAuditFails(t *testing.T) {
 	config.TokenAuth, err = authjwt.NewTokenAuthWithSecret(authTestFactoryConfig(false).JWTSecret)
 	require.NoError(t, err)
 	config.Audit = failingAuditCommand{}
-	service, err := authService.NewService(repoFactory, config, db, nil)
+	service, err := services.NewAuthServiceForTests(repoFactory, *config, db, nil)
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, service, db)
 
@@ -108,7 +109,7 @@ func TestRevocationAuditFailureRollsBackAndRetryIsIdempotent(t *testing.T) {
 	config, err := authService.NewServiceConfig(nil, emailPkg.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
 	config.Audit = failingAuditCommand{}
-	service, err := authService.NewService(repoFactory, config, db, nil)
+	service, err := services.NewAuthServiceForTests(repoFactory, *config, db, nil)
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, service, db)
 

@@ -74,7 +74,7 @@ func TestInvitationHandlers_CreateInvitationAndListPending(t *testing.T) {
 		},
 	}
 
-	resource := NewResource(nil, service, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":" INVITEE@EXAMPLE.COM ","role_id":"9007199254740993","first_name":" Ada ","last_name":" Lovelace ","position":" Principal "}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -110,7 +110,7 @@ func TestInvitationHandlers_CreateInvitation_AccountAlreadyHasTenantAccess(t *te
 		},
 	}
 
-	resource := NewResource(nil, service, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/invitations", bytes.NewBufferString(`{"email":"existing@example.com","role_id":1}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -138,7 +138,7 @@ func TestInvitationHandlers_ValidateAndAccept(t *testing.T) {
 			return &authModels.Account{Model: modelBase.Model{ID: 77}, Email: "invitee@example.com"}, nil
 		},
 	}
-	resource := NewResource(nil, service, nil, nil)
+	resource := NewResource(nil, service, nil, nil, nil)
 
 	validateReq := httptest.NewRequest(http.MethodGet, "/auth/invitations/abc123", nil)
 	validateCtx := chi.NewRouteContext()
@@ -190,7 +190,7 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 	assert.Equal(t, int64(0), invitationCreatedByValue(nil))
 	assert.Equal(t, int64(4), invitationCreatedByValue(ptr64(4)))
 
-	resource := NewResource(nil, nil, nil, nil)
+	resource := NewResource(nil, nil, nil, nil, nil)
 
 	req := httptest.NewRequest(http.MethodGet, "/auth/invitations/token", nil)
 	rr := httptest.NewRecorder()
@@ -205,7 +205,7 @@ func TestInvitationHandlerHelpersAndErrors(t *testing.T) {
 			return nil, authService.ErrPasswordMismatch
 		},
 	}
-	resource = NewResource(nil, errService, nil, nil)
+	resource = NewResource(nil, errService, nil, nil, nil)
 
 	validateCtx := chi.NewRouteContext()
 	validateCtx.URLParams.Add("token", "boom")

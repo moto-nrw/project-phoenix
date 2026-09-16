@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -26,7 +28,7 @@ import (
 // recorder fields to these tests — and to keep the no-test-modifications
 // guarantee on the existing login tests.)
 type completeMFAExchangeStub struct {
-	authService.AuthService
+	AccountSessions
 	access  string
 	refresh string
 	err     error
@@ -37,7 +39,7 @@ type completeMFAExchangeStub struct {
 	gotUA        string
 }
 
-var _ authService.AuthService = (*completeMFAExchangeStub)(nil)
+var _ AccountSessions = (*completeMFAExchangeStub)(nil)
 
 func (s *completeMFAExchangeStub) IssueTokensForAuthenticatedAccount(
 	_ context.Context,
@@ -103,7 +105,7 @@ func TestMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 			TenantID:  70010001,
 		},
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -140,7 +142,7 @@ func TestMFAVerify_RememberDeviceIssuesTrustedCookie(t *testing.T) {
 		issueCookie:    "td.cookie.value",
 		issueExpiresAt: time.Now().Add(90 * 24 * time.Hour),
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -178,7 +180,7 @@ func TestMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
 		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueErr:     errors.New("cookie store down"),
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -207,7 +209,7 @@ func TestMFAVerify_RememberDeviceEmptyCookieSkipsHeader(t *testing.T) {
 		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueCookie:  "", // tenant has trusted devices disabled
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -228,13 +230,13 @@ func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 	// an *authService.AuthError. The handler must translate
 	// ErrAccountInactive into a 401, not a 500, to match the rest of the
 	// login surface.
-	auth := &completeMFAExchangeStub{err: &authService.AuthError{
-		Err: authService.ErrAccountInactive,
+	auth := &completeMFAExchangeStub{err: &identityaccess.AuthenticationError{
+		Err: identityaccess.ErrAccountInactive,
 	}}
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -249,13 +251,13 @@ func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeMFAExchangeStub{err: &authService.AuthError{
-		Err: authService.ErrAccountNotFound,
+	auth := &completeMFAExchangeStub{err: &identityaccess.AuthenticationError{
+		Err: identityaccess.ErrAccountNotFound,
 	}}
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -269,13 +271,13 @@ func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) 
 func TestMFAVerify_SchoolPortalOnlyAccountReturnsPortalCode(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeMFAExchangeStub{err: &authService.AuthError{
-		Err: authService.ErrMustUseSchoolPortal,
+	auth := &completeMFAExchangeStub{err: &identityaccess.AuthenticationError{
+		Err: identityaccess.ErrMustUseSchoolPortal,
 	}}
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -296,7 +298,7 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: &authService.VerifiedChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{AuthService: auth, MFAService: mfa}
+	rs := &Resource{Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{

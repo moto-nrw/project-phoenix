@@ -269,38 +269,6 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 // Update Operations
 // ============================================================================
 
-func TestAccountRepository_UpdateLastLogin(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates last login timestamp", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "lastlogin")
-
-		// Get original last login
-		found, err := repo.FindByID(ctx, account.ID)
-		require.NoError(t, err)
-		originalLastLogin := found.LastLogin
-
-		// Update last login
-		err = repo.UpdateLastLogin(ctx, account.ID)
-		require.NoError(t, err)
-
-		// Verify update
-		found, err = repo.FindByID(ctx, account.ID)
-		require.NoError(t, err)
-
-		if originalLastLogin == nil {
-			assert.NotNil(t, found.LastLogin)
-		} else {
-			assert.True(t, found.LastLogin.After(*originalLastLogin))
-		}
-	})
-}
-
 func TestAccountRepository_UpdatePassword(t *testing.T) {
 	t.Parallel()
 

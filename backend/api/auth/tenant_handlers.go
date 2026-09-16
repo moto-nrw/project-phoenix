@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
@@ -363,22 +363,26 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	// Get account ID from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	accessToken, refreshToken, err := rs.AuthService.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID)
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("tenant switch unavailable")))
+		return
+	}
+	accessToken, refreshToken, err := rs.Sessions.SwitchTenant(r.Context(), int64(claims.ID), req.TenantSlug, claims.FamilyID)
 	if err != nil {
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
-			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+			case errors.Is(err, identityaccess.ErrAccountNotFound):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
+			case errors.Is(err, identityaccess.ErrAccountInactive):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+			case errors.Is(err, identityaccess.ErrTenantNotFound):
+				common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
+			case errors.Is(err, identityaccess.ErrTenantAccessDenied):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					authService.ErrMustUseSchoolPortal, "use_school_portal"))
+					identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

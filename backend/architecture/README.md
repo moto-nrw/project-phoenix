@@ -524,19 +524,24 @@ filter the runtime scoped the caller to, so tenant-scoped callers see only
 their school's sessions while the tenantless pre-authentication flows
 resolve every school's rows; the writes join the caller's transaction, which
 for login, refresh, switch and logout is the administrative transaction the
-auth service opens around rotation and its audit evidence. The retained
-`models/auth.TokenRepository` contract is a compatibility adapter in the
-legacy composition (`database/repositories/account_sessions.go`), bound at
-construction, and goes with #2751; the former `database/repositories/auth`
-token repository is deleted. The login, refresh, switch and revocation
-orchestration itself, with its identity-access-owned `auth.accounts` and
-`auth.account_tenants` repositories, stays in `services/auth` under #2720
-until the #2725 re-cut moves those files into the module as a whole, because
-`identity-access/application` may not import the module's public package
-without a ratchet loosening. The legacy
-`auth.accounts_parents` model, repository and its six
-`/auth/parent-accounts` routes stay unchanged; the table has no target owner
-and that conflict stays open under #2720.
+module opens around rotation and its audit evidence. The login, refresh,
+tenant and school switch, logout, session validation, session cleanup and
+revocation orchestration lives in the module's application layer (#3251),
+with the `auth.accounts`, `auth.account_tenants`, role and permission reads
+it needs served by the module's own store; the retained
+`models/auth.TokenRepository` contract and its compatibility adapter are
+deleted. The facts the flows need from other owners (schools, persons, the
+password verifier, the JWT codec, the MFA gate, the settings lock, the audit
+ledger, push subscriptions) are bound at the serving root through
+public-typed seams (`compose.SessionDependencies`). The retained
+`services/auth.Service` keeps the `AuthService` contract by delegating its
+session methods to a consumer-owned port the root binds to the public
+module; `api/auth` calls the public contract directly, while `api/parent`,
+`api/operator`, the school portal and the SSE routes keep the delegation
+because no target rule lets those inbound packages import the identity-access
+public package. The legacy `auth.accounts_parents` model, repository and its
+six `/auth/parent-accounts` routes stay unchanged; the table has no target
+owner and that conflict stays open under #2720.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its

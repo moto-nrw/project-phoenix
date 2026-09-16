@@ -26,7 +26,6 @@ type AccountRepository interface {
 	// callers therefore all receive the same stored value instead of a URL a
 	// later write overwrote.
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
-	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
@@ -160,40 +159,6 @@ type AccountPermissionRepository interface {
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-}
-
-// TokenRepository is the retained contract over auth.tokens. Identity &
-// Access owns the table (#2720); the legacy composition binds this contract
-// to an adapter over the owner's account-session capability. Every lookup
-// reports a missing row through a DatabaseError that satisfies
-// base.IsNoRows, except GetLatestTokenInFamily, which keeps its historical
-// plain "token not found" error.
-type TokenRepository interface {
-	Create(ctx context.Context, token *Token) error
-	Delete(ctx context.Context, id any) error
-	// List serves the filters account_id, family_id, mobile, active and
-	// expired and refuses any other key.
-	List(ctx context.Context, filters map[string]any) ([]*Token, error)
-	FindByToken(ctx context.Context, token string) (*Token, error)
-	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
-	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
-	DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error
-	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
-	CountExpiredTokens(ctx context.Context) (int, error)
-	DeleteExpiredTokens(ctx context.Context) (int, error)
-	ListInactiveAccountIDsWithLiveTokens(ctx context.Context) ([]int64, error)
-	HasLiveTokensCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)
-	DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
-	DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
-	DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, cutoff time.Time) ([]*Token, error)
-	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*Token, error)
-
-	// Bulk deletion
-	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)
-
-	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
-	RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
-	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens

@@ -115,7 +115,7 @@ func (s *Service) ListRoles(ctx context.Context, filters map[string]interface{})
 
 // AssignRoleToAccount assigns a role to an account
 func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int) error {
-	var revoked []*auth.Token
+	var revoked []RevokedSession
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		// Serialize assignments with tenant-access revocation, which holds the
 		// same account lock while removing the tenant's roles and mapping.
@@ -204,7 +204,11 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 				return &AuthError{Op: "assign role to account", Err: err}
 			}
 
-			tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+			sessions, err := s.accountSessions("revoke tokens after role assignment")
+			if err != nil {
+				return err
+			}
+			tokens, err := sessions.DeleteAccountSessionsWithAudit(txCtx, int64(accountID), "role_changed", "", "")
 			if err != nil {
 				return &AuthError{Op: "revoke tokens after role assignment", Err: err}
 			}
@@ -223,7 +227,9 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 	if err != nil {
 		return err
 	}
-	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	if s.sessions != nil {
+		s.sessions.QueuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	}
 	return nil
 }
 
@@ -321,7 +327,7 @@ func (s *Service) accountHoldsLehrkraftRole(ctx context.Context, accountID int64
 
 // RemoveRoleFromAccount removes a role from an account
 func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error {
-	var revoked []*auth.Token
+	var revoked []RevokedSession
 	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		if err := s.lockManageableAccount(txCtx, accountID, "remove role"); err != nil {
 			return err
@@ -339,7 +345,11 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 			return &AuthError{Op: "remove role from account", Err: err}
 		}
 
-		tokens, err := s.deleteAccountTokensWithAudit(txCtx, int64(accountID), "role_changed", "", "")
+		sessions, err := s.accountSessions("revoke tokens after role removal")
+		if err != nil {
+			return err
+		}
+		tokens, err := sessions.DeleteAccountSessionsWithAudit(txCtx, int64(accountID), "role_changed", "", "")
 		if err != nil {
 			return &AuthError{Op: "revoke tokens after role removal", Err: err}
 		}
@@ -349,7 +359,9 @@ func (s *Service) RemoveRoleFromAccount(ctx context.Context, accountID, roleID i
 	if err != nil {
 		return err
 	}
-	s.queuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	if s.sessions != nil {
+		s.sessions.QueuePushCleanup(ctx, int64(accountID), revoked, "role_changed")
+	}
 	return nil
 }
 

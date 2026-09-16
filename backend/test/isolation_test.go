@@ -349,56 +349,6 @@ func TestTenantIsolation_DisplayVisibility(t *testing.T) {
 }
 
 // ============================================================================
-// Auth Domain
-// ============================================================================
-
-func TestTenantIsolation_TokenVisibility(t *testing.T) {
-	t.Parallel()
-
-	db := SetupTestDB(t)
-	tenantA, tenantB := isolationTenants(t, db)
-
-	// Tokens require an account (accounts are not tenant-scoped).
-	acctA := CreateTestAccount(t, db, "token-isolation-a")
-	acctB := CreateTestAccount(t, db, "token-isolation-b")
-
-	tkA := CreateTestTokenForTenant(t, db, tenantA, acctA.ID)
-	tkB := CreateTestTokenForTenant(t, db, tenantB, acctB.ID)
-
-	repo := repositories.NewTokenRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	tokens, err := repo.List(ctx42, nil)
-	require.NoError(t, err)
-
-	for _, tk := range tokens {
-		assert.Equal(t, tenantA, tk.TenantID,
-			"cross-tenant leak: tenant B token visible to tenant A (List)")
-	}
-
-	_, err = repo.FindByToken(ctx42, tkB.Token)
-	assert.Error(t, err,
-		"cross-tenant FindByToken should fail: tenant A must not see tenant B token %d", tkB.ID)
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	tokens, err = repo.List(ctx43, nil)
-	require.NoError(t, err)
-
-	for _, tk := range tokens {
-		assert.Equal(t, tenantB, tk.TenantID,
-			"cross-tenant leak: tenant A token visible to tenant B (List)")
-	}
-
-	_, err = repo.FindByToken(ctx43, tkA.Token)
-	assert.Error(t, err,
-		"cross-tenant FindByToken should fail: tenant B must not see tenant A token %d", tkA.ID)
-}
-
-// ============================================================================
 // Active Domain
 // ============================================================================
 

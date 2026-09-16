@@ -140,11 +140,15 @@ func (s *Service) staffOffboardingSnapshot(ctx context.Context, accountID int64)
 		return preview, err
 	}
 	preview.Permissions = int64(len(permissions))
-	tokens, err := s.repos.Token.FindByAccountID(ctx, accountID)
+	sessions, err := s.accountSessions("staff offboarding preview")
 	if err != nil {
 		return preview, err
 	}
-	preview.Tokens = int64(len(tokens))
+	tokenIDs, err := sessions.ListSessionIDs(ctx, accountID)
+	if err != nil {
+		return preview, err
+	}
+	preview.Tokens = int64(len(tokenIDs))
 	mappings, err := s.repos.AccountTenant.FindActiveByAccountID(ctx, accountID)
 	if err != nil {
 		return preview, err
@@ -173,9 +177,7 @@ func (s *Service) staffOffboardingSnapshot(ctx context.Context, accountID int64)
 		}
 		return 0
 	})
-	for _, token := range tokens {
-		versions.Tokens = append(versions.Tokens, token.ID)
-	}
+	versions.Tokens = append(versions.Tokens, tokenIDs...)
 	for _, mapping := range mappings {
 		versions.ActiveTenants = append(versions.ActiveTenants, mapping.TenantID)
 	}
