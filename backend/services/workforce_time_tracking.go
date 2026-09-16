@@ -30,6 +30,7 @@ var timeTrackingSentinels = []struct {
 	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
 	{timetracking.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
 	{timetracking.ErrVacationQuotaInvalid, workforce.ErrVacationQuotaInvalid},
+	{timetracking.ErrVacationQuotaExceeded, workforce.ErrVacationQuotaExceeded},
 	{timetracking.ErrAdjustmentInvalid, workforce.ErrAdjustmentInvalid},
 	{timetracking.ErrAdjustmentNotFound, workforce.ErrAdjustmentNotFound},
 	{timetracking.ErrAdjustmentExceedsBalance, workforce.ErrAdjustmentExceedsBalance},
@@ -581,6 +582,10 @@ func (c staffAbsenceCapability) VacationQuotaSummary(ctx context.Context, staffI
 
 func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error {
 	return mapTimeTrackingFailure(c.absences.UpsertVacationQuota(ctx, staffID, year, entitled, carryover))
+}
+
+func (c staffAbsenceCapability) SetVacationQuota(ctx context.Context, change workforce.VacationQuotaChange) error {
+	return mapTimeTrackingFailure(c.absences.SetVacationQuota(ctx, timetracking.VacationQuotaChange(change)))
 }
 
 // VacationTakeoverCapability binds the import to the public Workforce contract.

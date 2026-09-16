@@ -29,7 +29,6 @@ func TestAbsenceTypeReaderUsesNativeOwner(t *testing.T) {
 	assert.Equal(t, typ.Name, value.Name)
 	assert.Equal(t, typ.BaseType, value.BaseType)
 	assert.Equal(t, typ.AllowanceEnabled, value.AllowanceEnabled)
-	assert.Equal(t, typ.OverrunPolicy, value.OverrunPolicy)
 	assert.Equal(t, typ.CreatedAt, value.CreatedAt)
 	assert.Equal(t, typ.UpdatedAt, value.UpdatedAt)
 	_, err = reader.ResolveForAbsence(ctx, typ.ID)

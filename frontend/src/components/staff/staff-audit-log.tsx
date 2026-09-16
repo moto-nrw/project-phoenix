@@ -133,6 +133,15 @@ function describeEvent(event: AuditLogEvent): string {
         typeof d.new_entitled_days === "number" ? d.new_entitled_days : 0;
       return `${label} ${String(d.year ?? "")}: Anspruch ${formatOpeningDays(days)}`;
     }
+    case "vacation_quota": {
+      const entitled =
+        typeof d.new_entitled_days === "number" ? d.new_entitled_days : 0;
+      const carryover =
+        typeof d.new_carryover_days === "number" ? d.new_carryover_days : 0;
+      const extra =
+        carryover > 0 ? ` + ${formatOpeningDays(carryover)} Übertrag` : "";
+      return `Urlaubsanspruch ${String(d.year ?? "")}: ${formatOpeningDays(entitled)}${extra}`;
+    }
     case "month_close": {
       const count = typeof d.account_count === "number" ? d.account_count : 0;
       return `Monat ${String(d.month).padStart(2, "0")}/${String(d.year)} abgeschlossen (${count} ${count === 1 ? "Konto" : "Konten"})`;

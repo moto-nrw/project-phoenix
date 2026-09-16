@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("~/components/ui/date-picker", async (importOriginal) => {
@@ -24,6 +30,10 @@ vi.mock("~/components/ui/modal", () => ({
         {footer}
       </div>
     ) : null,
+}));
+
+vi.mock("~/lib/tenant-path", () => ({
+  useTenantAwarePath: () => (path: string) => `/demo${path}`,
 }));
 
 const stable = vi.hoisted(() => ({
@@ -55,6 +65,7 @@ vi.mock("~/lib/staff-api", () => ({
     getVacationQuota: mocks.getVacationQuota,
     getAbsences: mocks.getAbsences,
     createAbsence: mocks.createAbsence,
+    getCompTimePreview: vi.fn(),
     approve: vi.fn(),
     deleteAbsence: vi.fn(),
   },
@@ -69,7 +80,8 @@ vi.mock("~/lib/absence-type-api", () => ({
 
 import { AbwesenheitenTab } from "./abwesenheiten-tab";
 
-const year = new Date().getFullYear();
+// Test clock: 2026-09-09.
+const year = 2026;
 const allowance = {
   staffId: "4",
   absenceTypeId: "12",
@@ -79,208 +91,204 @@ const allowance = {
   reservedDays: 1,
   remainingDays: 2,
 };
+const regeneration = {
+  id: "12",
+  name: "Regenerationstag",
+  baseType: "other",
+  isActive: true,
+  allowanceEnabled: true,
+};
 
-describe("AbwesenheitenTab custom allowances", () => {
+function renderTab(props: Partial<{ canEditQuota: boolean }> = {}) {
+  return render(
+    <AbwesenheitenTab
+      staffId="4"
+      canEdit
+      canEditQuota={props.canEditQuota ?? true}
+      canManageSickReports
+      staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
+    />,
+  );
+}
+
+describe("AbwesenheitenTab Kontingente (#3256)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getVacationQuota.mockResolvedValue({
-      staff_id: 4,
-      year,
-      entitled_days: 30,
-      carryover_days: 0,
-      taken_before_days: 0,
-      taken_days: 0,
-      reserved_days: 0,
-      remaining_days: 30,
-    });
+    mocks.getVacationQuota.mockImplementation((_id: string, y: number) =>
+      Promise.resolve({
+        staff_id: 4,
+        year: y,
+        entitled_days: 28,
+        carryover_days: 2,
+        taken_before_days: 3,
+        taken_days: 5,
+        reserved_days: 2,
+        remaining_days: 20,
+      }),
+    );
     mocks.getAbsences.mockResolvedValue([]);
-    mocks.getAbsenceTypes.mockResolvedValue([
-      {
-        id: "12",
-        name: "Regenerationstag",
-        baseType: "other",
-        isActive: true,
-        allowanceEnabled: true,
-        overrunPolicy: "block",
-      },
-    ]);
-    mocks.getAllowance.mockResolvedValue(allowance);
+    mocks.getAbsenceTypes.mockResolvedValue([regeneration]);
+    mocks.getAllowance.mockImplementation(
+      (_type: string, _id: string, y: number) =>
+        Promise.resolve({ ...allowance, year: y }),
+    );
     mocks.setAllowance.mockResolvedValue(allowance);
   });
 
-  it("shows the account and requires a reason for a correction", async () => {
-    render(
-      <AbwesenheitenTab
-        staffId="4"
-        canEdit
-        canEditQuota
-        canManageSickReports
-        staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
-      />,
+  it("shows vacation and every own account with claim, taken, reserved and rest", async () => {
+    renderTab();
+
+    const vacation = await screen.findByRole("region", {
+      name: `Urlaub ${year}`,
+    });
+    expect(within(vacation).getByText("30 Tage")).toBeInTheDocument();
+    expect(
+      within(vacation).getByText("28 + 2 aus dem Vorjahr"),
+    ).toBeInTheDocument();
+    expect(within(vacation).getByText("8 Tage")).toBeInTheDocument();
+    expect(
+      within(vacation).getByText("davon 3 Tage vor moto"),
+    ).toBeInTheDocument();
+    expect(within(vacation).getByText("20 Tage")).toBeInTheDocument();
+
+    const own = screen.getByRole("region", {
+      name: `Regenerationstag ${year}`,
+    });
+    for (const label of ["Anspruch", "Genommen", "Vorgemerkt", "Übrig"]) {
+      expect(within(own).getByText(label)).toBeInTheDocument();
+    }
+    expect(within(own).getByText("3,5 Tage")).toBeInTheDocument();
+    expect(within(own).getByText("2 Tage")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /Abwesenheitsarten verwalten/ }),
+    ).toHaveAttribute("href", "/demo/database/absence-types");
+  });
+
+  it("raises a claim with plus and requires a reason", async () => {
+    renderTab();
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Anspruch ändern: Regenerationstag",
+      }),
     );
+    const days = screen.getByLabelText(`Anspruch ${year} in Tagen`);
+    expect(days).toHaveValue("3,5");
 
-    expect(await screen.findByText("Regenerationstag")).toBeInTheDocument();
-    expect(screen.getByText("Weitere Kontingente")).toBeInTheDocument();
-    expect(screen.getByText("2 Tage")).toBeInTheDocument();
+    const plus = screen.getByRole("button", { name: "Einen Tag mehr" });
+    fireEvent.click(plus);
+    fireEvent.click(plus);
+    expect(days).toHaveValue("5,5");
 
-    fireEvent.click(screen.getByRole("button", { name: "Anspruch ändern" }));
-    const save = screen.getByRole("button", { name: "Speichern" });
-    expect(save).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      screen.getByText("Bitte kurz sagen, warum sich der Anspruch ändert."),
+    ).toBeInTheDocument();
+    expect(mocks.setAllowance).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("Anspruch in Tagen"), {
-      target: { value: "4,5" },
-    });
     fireEvent.change(screen.getByLabelText("Begründung"), {
-      target: { value: "Neuer Tarifvertrag" },
+      target: { value: "In den Sommerferien krank" },
     });
-    fireEvent.click(save);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await waitFor(() =>
       expect(mocks.setAllowance).toHaveBeenCalledWith("12", "4", {
         year,
-        entitledDays: 4.5,
-        reason: "Neuer Tarifvertrag",
+        entitledDays: 5.5,
+        reason: "In den Sommerferien krank",
       }),
     );
   });
 
-  it("blocks a booking when the configured account has no days left", async () => {
-    mocks.getAllowance.mockResolvedValue({ ...allowance, remainingDays: -0.5 });
-    render(
-      <AbwesenheitenTab
-        staffId="4"
-        canEdit
-        canEditQuota
-        canManageSickReports
-        staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
-      />,
-    );
-
+  it("does not let a claim drop below the days already used", async () => {
+    renderTab();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Weitere Abwesenheit" }),
+      await screen.findByRole("button", {
+        name: "Anspruch ändern: Regenerationstag",
+      }),
     );
+    // 0,5 taken + 1 reserved: one step down from 3,5 is still fine, the
+    // next one would cut into used days.
+    const minus = screen.getByRole("button", { name: "Einen Tag weniger" });
+    fireEvent.click(minus);
+    fireEvent.click(minus);
+    expect(screen.getByLabelText(`Anspruch ${year} in Tagen`)).toHaveValue(
+      "1,5",
+    );
+    expect(minus).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(`Anspruch ${year} in Tagen`), {
+      target: { value: "1" },
+    });
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Teilzeit" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(
       screen.getByText(
-        "Das Kontingent reicht nicht aus. Die Buchung ist nicht möglich.",
+        "Mindestens 1,5 Tage. So viele sind schon eingetragen oder beantragt.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eintragen" })).toBeDisabled();
+    expect(mocks.setAllowance).not.toHaveBeenCalled();
   });
 
-  it("charges only the part of an extension that is not already booked", async () => {
-    mocks.getAllowance.mockResolvedValue({ ...allowance, remainingDays: 1 });
-    mocks.getAbsences.mockResolvedValue([
-      {
-        id: 31,
-        staff_id: 4,
-        absence_type: "other",
-        absence_type_id: "12",
-        date_start: `${year}-09-07`,
-        date_end: `${year}-09-07`,
-        half_day: false,
-        note: "",
-        status: "reported",
-      },
+  it("loads all accounts for the chosen year", async () => {
+    renderTab();
+    await screen.findByRole("region", { name: `Urlaub ${year}` });
+
+    fireEvent.click(screen.getByRole("button", { name: String(year + 1) }));
+
+    expect(
+      await screen.findByRole("region", { name: `Urlaub ${year + 1}` }),
+    ).toBeInTheDocument();
+    expect(mocks.getVacationQuota).toHaveBeenCalledWith("4", year + 1);
+    expect(mocks.getAllowance).toHaveBeenCalledWith("12", "4", year + 1);
+  });
+
+  it("keeps a retired account visible but out of new bookings", async () => {
+    mocks.getAbsenceTypes.mockResolvedValue([
+      { ...regeneration, isActive: false },
     ]);
-    render(
-      <AbwesenheitenTab
-        staffId="4"
-        canEdit
-        canEditQuota
-        canManageSickReports
-        staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
-      />,
-    );
+    renderTab();
+
+    expect(
+      await screen.findByRole("region", { name: `Regenerationstag ${year}` }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("ausgeschaltet")).toBeInTheDocument();
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Weitere Abwesenheit" }),
+      screen.getByRole("button", { name: "Abwesenheit eintragen" }),
     );
-    fireEvent.change(screen.getByLabelText("Von"), {
-      target: { value: `${year}-09-07` },
+    const dialog = screen.getByRole("dialog", {
+      name: "Abwesenheit eintragen: Rena Generation",
     });
-    fireEvent.change(screen.getByLabelText("Bis"), {
-      target: { value: `${year}-09-08` },
-    });
-    expect(screen.getByText("Danach verbleiben 0 Tage.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eintragen" })).toBeEnabled();
-  });
-
-  it("keeps inactive accounts visible but excludes them from new bookings", async () => {
-    mocks.getAbsenceTypes.mockResolvedValue([
-      {
-        id: "12",
-        name: "Regenerationstag",
-        baseType: "other",
-        isActive: false,
-        allowanceEnabled: true,
-        overrunPolicy: "block",
-      },
-    ]);
-    render(
-      <AbwesenheitenTab
-        staffId="4"
-        canEdit
-        canEditQuota
-        canManageSickReports
-        staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
-      />,
-    );
-
-    expect(await screen.findByText("Regenerationstag")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Weitere Abwesenheit" }),
+      within(dialog).getByRole("radio", { name: /^Urlaub/ }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("radio", { name: /Regenerationstag/ }),
     ).not.toBeInTheDocument();
   });
 
-  it("loads and edits the selected allowance year", async () => {
-    mocks.getAllowance.mockImplementation(
-      (_typeId: string, _staffId: string, requestedYear: number) =>
-        Promise.resolve({
-          ...allowance,
-          year: requestedYear,
-          remainingDays: requestedYear === year ? 1 : -5,
-        }),
-    );
-    mocks.getAbsences.mockResolvedValue([
-      {
-        id: 31,
-        staff_id: 4,
-        absence_type: "other",
-        absence_type_id: "12",
-        date_start: `${year}-09-07`,
-        date_end: `${year}-09-07`,
-        half_day: false,
-        note: "",
-        status: "reported",
-      },
-    ]);
-    render(
-      <AbwesenheitenTab
-        staffId="4"
-        canEdit
-        canEditQuota
-        canManageSickReports
-        staff={{ id: "4", firstName: "Rena", lastName: "Generation" }}
-      />,
-    );
-    await screen.findByText("Regenerationstag");
-    fireEvent.click(screen.getByRole("combobox", { name: "Kalenderjahr" }));
-    fireEvent.click(
-      await screen.findByRole("option", { name: String(year + 1) }),
-    );
-    await waitFor(() =>
-      expect(mocks.getAllowance).toHaveBeenCalledWith("12", "4", year + 1),
-    );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Weitere Abwesenheit" }),
-    );
-    fireEvent.change(screen.getByLabelText("Von"), {
-      target: { value: `${year}-09-07` },
-    });
-    fireEvent.change(screen.getByLabelText("Bis"), {
-      target: { value: `${year}-09-08` },
-    });
-    expect(screen.getByText("Danach verbleiben 0 Tage.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Eintragen" })).toBeEnabled();
+  it("points to the art catalog when no own account exists", async () => {
+    mocks.getAbsenceTypes.mockResolvedValue([]);
+    renderTab();
+
+    expect(
+      await screen.findByText(
+        /Regenerationstage oder Krank-Urlaubstage zählen/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("hides every edit entry without time_tracking:manage", async () => {
+    renderTab({ canEditQuota: false });
+
+    await screen.findByRole("region", { name: `Urlaub ${year}` });
+    expect(
+      screen.queryByRole("button", { name: /Anspruch ändern/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /Abwesenheitsarten verwalten/ }),
+    ).not.toBeInTheDocument();
   });
 });

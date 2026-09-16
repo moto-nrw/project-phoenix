@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { RangeCalendarInline } from "~/components/ui/date-range-picker";
 import {
@@ -147,6 +148,10 @@ function normalizeVacationRequestError(error: unknown): string {
   ) {
     return "Der gewählte Zeitraum überschneidet sich mit einem bestehenden Urlaubsantrag.";
   }
+  // Der Resturlaub darf nicht ins Minus (#3256).
+  if (message.includes("vacation quota exceeded")) {
+    return "Dafür reicht dein Resturlaub nicht. Sprich bitte mit der OGS-Leitung.";
+  }
   if (message.includes("vacation range contains no working days")) {
     return "Der gewählte Zeitraum enthält keine Werktage.";
   }
@@ -204,7 +209,6 @@ export function VacationRequestModal({
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useFormError();
-  const [confirmedOverBalance, setConfirmedOverBalance] = useState(false);
   const toast = useToast();
 
   const blockingVacations = useMemo(
@@ -287,9 +291,7 @@ export function VacationRequestModal({
       setFormError(null);
       return;
     }
-    if (exceedsBalance && !confirmedOverBalance) {
-      setConfirmedOverBalance(true);
-      setFormError(null);
+    if (exceedsBalance) {
       return;
     }
     setSubmitting(true);
@@ -323,7 +325,6 @@ export function VacationRequestModal({
     setEndHalf(false);
     setNote("");
     setFormError(null);
-    setConfirmedOverBalance(false);
   };
 
   return (
@@ -358,7 +359,6 @@ export function VacationRequestModal({
                   onChange={(nextRange) => {
                     setRange(nextRange);
                     setFormError(null);
-                    setConfirmedOverBalance(false);
                   }}
                   fromMin={today}
                   presets={vacationPresets}
@@ -409,7 +409,6 @@ export function VacationRequestModal({
                     onChange={(v) => {
                       setStartHalf(v);
                       setEndHalf(v);
-                      setConfirmedOverBalance(false);
                     }}
                   />
                 </div>
@@ -431,7 +430,6 @@ export function VacationRequestModal({
                       value={startHalf}
                       onChange={(v) => {
                         setStartHalf(v);
-                        setConfirmedOverBalance(false);
                       }}
                     />
                   </div>
@@ -448,7 +446,6 @@ export function VacationRequestModal({
                       value={endHalf}
                       onChange={(v) => {
                         setEndHalf(v);
-                        setConfirmedOverBalance(false);
                       }}
                     />
                   </div>
@@ -456,18 +453,12 @@ export function VacationRequestModal({
               ))}
 
             {exceedsBalance && (
-              <div className="border-moto-orange/20 bg-moto-orange/10 text-moto-orange-strong rounded-xl border px-4 py-3 text-xs">
-                <p className="font-medium">
-                  Dieser Antrag liegt {overBalanceDays}{" "}
-                  {overBalanceDays === 1 ? "Tag" : "Tage"} über deinem
-                  Resturlaub.
-                </p>
-                <p className="mt-1">
-                  {confirmedOverBalance
-                    ? "Du hast die Warnung bestätigt. Mit Trotzdem anfragen wird der Antrag gesendet."
-                    : "Die OGS-Leitung kann ihn trotzdem genehmigen. Klicke erst auf Antrag senden, um die Warnung zu bestätigen."}
-                </p>
-              </div>
+              <Alert
+                type="error"
+                message={`Das sind ${overBalanceDays} ${
+                  overBalanceDays === 1 ? "Tag" : "Tage"
+                } mehr, als du noch hast. Sprich bitte mit der OGS-Leitung.`}
+              />
             )}
 
             <div>
@@ -535,14 +526,11 @@ export function VacationRequestModal({
                   !range?.from ||
                   !range.to ||
                   workingDays === 0 ||
+                  exceedsBalance ||
                   Boolean(overlapMessage)
                 }
               >
-                {submitting
-                  ? "Wird gesendet…"
-                  : exceedsBalance && confirmedOverBalance
-                    ? "Trotzdem anfragen"
-                    : "Antrag senden"}
+                {submitting ? "Wird gesendet…" : "Antrag senden"}
               </Button>
             </div>
           </div>

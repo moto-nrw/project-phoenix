@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
@@ -53,7 +55,8 @@ func (s *Service) PreviewAllowanceBooking(ctx context.Context, staffID, absenceT
 		summary.TakenDays += days
 		summary.RemainingDays -= days
 		previews = append(previews, summary)
-		if summary.RemainingDays < 0 && absenceType.OverrunPolicy == domain.AbsenceTypeOverrunBlock {
+		// Kontingente never go negative (#3256); only the Stundenkonto may.
+		if summary.RemainingDays < 0 {
 			blocked = true
 		}
 	}
@@ -114,6 +117,14 @@ func (s *Service) AllowanceSummary(ctx context.Context, staffID, absenceTypeID i
 	return result, nil
 }
 
+func formatAllowanceDays(days float64) string {
+	value := strings.Replace(strconv.FormatFloat(days, 'f', -1, 64), ".", ",", 1)
+	if days == 1 {
+		return value + " Tag"
+	}
+	return value + " Tage"
+}
+
 func (s *Service) SetAllowance(ctx context.Context, input domain.SetAbsenceTypeAllowance) (domain.AbsenceTypeAllowanceSummary, error) {
 	if input.AbsenceTypeID <= 0 {
 		return domain.AbsenceTypeAllowanceSummary{}, domain.ErrAbsenceTypeNotFound
@@ -141,6 +152,18 @@ func (s *Service) SetAllowance(ctx context.Context, input domain.SetAbsenceTypeA
 			stats.Add(queryStats)
 			if err != nil {
 				return fmt.Errorf("load existing absence type allowance: database error during list with options: %w", err)
+			}
+			current, err := s.AllowanceSummary(txCtx, input.StaffID, input.AbsenceTypeID, input.Year)
+			if err != nil {
+				return err
+			}
+			// Kontingente never go negative (#3256): taken and requested days
+			// have to be removed before the claim can shrink below them.
+			if used := current.TakenDays + current.ReservedDays; input.EntitledDays < used {
+				return &domain.InvalidAbsenceAllowanceError{Reason: fmt.Sprintf(
+					"Der Anspruch kann nicht unter %s liegen, so viele Tage sind schon eingetragen oder beantragt.",
+					formatAllowanceDays(used),
+				)}
 			}
 			var oldDays *float64
 			if found {
