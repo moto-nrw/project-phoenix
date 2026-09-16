@@ -258,12 +258,3 @@ func TestAccountNotFoundError(t *testing.T) {
 	assert.Contains(t, err.Error(), "42")
 	assert.Contains(t, err.Error(), "not found")
 }
-
-func TestAccountTenantAccessNotFoundError(t *testing.T) {
-	t.Parallel()
-
-	err := &platform.AccountTenantAccessNotFoundError{AccountID: 42, SchoolID: 7}
-	assert.Contains(t, err.Error(), "42")
-	assert.Contains(t, err.Error(), "7")
-	assert.Contains(t, err.Error(), "no active access")
-}

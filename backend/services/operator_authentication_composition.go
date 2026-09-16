@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -364,206 +363,28 @@ func (schoolRolePolicy) LehrkraftRoleImmutable() error { return auth.ErrLehrkraf
 // --- the retained platform services' consumer-owned ports -----------------
 
 // operatorSessions serves platform.OperatorSessions over the public module
-// and translates the public outcomes back into the retained shapes the
-// operator routes and the MFA and passkey exchanges render.
+// and translates the public sentinels back into the retained error shapes
+// the MFA and passkey routes render.
 type operatorSessions struct {
-	module operatorIdentity
+	module identityaccess.OperatorAuthentication
 }
 
-// operatorIdentity is the public operator capability the adapter serves:
-// the authentication flows plus the operator lookup that names the refused
-// operator of an inactive login.
-type operatorIdentity interface {
-	identityaccess.OperatorAuthentication
-	FindOperatorByEmail(ctx context.Context, email string) (identityaccess.Operator, error)
-}
-
-func newOperatorSessions(module operatorIdentity) platform.OperatorSessions {
+func newOperatorSessions(module identityaccess.OperatorAuthentication) platform.OperatorSessions {
 	return operatorSessions{module: module}
-}
-
-func (s operatorSessions) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platform.OperatorLoginResult, error) {
-	result, err := s.module.LoginOperatorWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
-	if err != nil {
-		// The retained inactive-operator error names the operator; the
-		// public refusal does not, so the verified e-mail resolves it.
-		var operatorID int64
-		if errors.Is(err, identityaccess.ErrOperatorInactive) {
-			if operator, lookupErr := s.module.FindOperatorByEmail(ctx, email); lookupErr == nil {
-				operatorID = operator.ID
-			}
-		}
-		return nil, retainedOperatorError(err, operatorID)
-	}
-	if result == nil {
-		return nil, nil
-	}
-	retained := &platform.OperatorLoginResult{
-		Status:      platform.OperatorLoginStatus(result.Status),
-		AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
-		ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail,
-		MFAEnrollmentRequired: result.MFAEnrollmentRequired,
-		TrustedDeviceEnabled:  result.TrustedDeviceEnabled, TrustedDeviceDays: result.TrustedDeviceDays,
-	}
-	if result.Operator != nil {
-		retained.Operator = operatorModel(*result.Operator)
-	}
-	return retained, nil
 }
 
 func (s operatorSessions) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error) {
 	access, refresh, err := s.module.IssueTokensForAuthenticatedOperator(ctx, operatorID, ipAddress, userAgent)
-	return access, refresh, retainedOperatorError(err, operatorID)
-}
-
-func (s operatorSessions) RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-	access, refresh, err := s.module.RefreshOperatorToken(ctx, operatorID, refreshTokenValue)
-	return access, refresh, retainedOperatorError(err, operatorID)
-}
-
-func (s operatorSessions) UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platformModels.Operator, error) {
-	operator, err := s.module.UpdateOperatorProfile(ctx, operatorID, displayName)
-	if err != nil {
-		return nil, retainedOperatorError(err, operatorID)
-	}
-	return operatorModel(operator), nil
-}
-
-func (s operatorSessions) ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error {
-	return retainedOperatorError(s.module.ChangeOperatorPassword(ctx, operatorID, currentPassword, newPassword), operatorID)
-}
-
-// retainedOperatorError maps the public operator outcomes onto the error
-// types the retained operator contract has always returned.
-func retainedOperatorError(err error, operatorID int64) error {
-	if err == nil {
-		return nil
-	}
-	if invalid, ok := errors.AsType[*identityaccess.InvalidInputError](err); ok {
-		return &platform.InvalidDataError{Err: invalid.Err}
-	}
 	switch {
-	case errors.Is(err, identityaccess.ErrOperatorInvalidCredentials):
-		return &platform.InvalidCredentialsError{}
+	case err == nil:
+		return access, refresh, nil
 	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return &platform.OperatorNotFoundError{OperatorID: operatorID}
+		return "", "", &platform.OperatorNotFoundError{OperatorID: operatorID}
 	case errors.Is(err, identityaccess.ErrOperatorInactive):
-		return &platform.OperatorInactiveError{OperatorID: operatorID}
-	case errors.Is(err, identityaccess.ErrOperatorRefreshTokenInvalid):
-		return &platform.OperatorRefreshTokenInvalidError{}
-	case errors.Is(err, identityaccess.ErrOperatorPasswordMismatch):
-		return &platform.PasswordMismatchError{}
+		return "", "", &platform.OperatorInactiveError{OperatorID: operatorID}
 	default:
-		return err
+		return "", "", err
 	}
-}
-
-// operatorAccountAccess serves platform.OperatorAccountAccess over the
-// public module and translates its outcomes into the retained shapes the
-// operator school-access routes render.
-type operatorAccountAccess struct {
-	module identityaccess.OperatorAccountAccess
-}
-
-func newOperatorAccountAccess(module identityaccess.OperatorAccountAccess) platform.OperatorAccountAccess {
-	return operatorAccountAccess{module: module}
-}
-
-func (a operatorAccountAccess) ListAccountTenantAccess(ctx context.Context, accountID int64) ([]platform.AccountTenantAccessEntry, error) {
-	entries, err := a.module.ListAccountTenantAccess(ctx, accountID)
-	return a.result(entries, err, accountID, 0)
-}
-
-func (a operatorAccountAccess) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]platform.AccountTenantRole, error) {
-	roles, err := a.module.ListAssignableSchoolRoles(ctx, schoolID)
-	if err != nil {
-		return nil, retainedAccountAccessError(err, 0, schoolID)
-	}
-	return retainedTenantRoles(roles), nil
-}
-
-func (a operatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req platform.GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]platform.AccountTenantAccessEntry, error) {
-	entries, err := a.module.GrantAccountTenantAccess(ctx, identityaccess.GrantAccountTenantAccess{
-		AccountID: accountID, SchoolID: schoolID, RoleID: req.RoleID,
-		FirstName: req.FirstName, LastName: req.LastName, Position: req.Position,
-		OperatorID: operatorID, ClientIP: clientIPString(clientIP),
-	})
-	return a.result(entries, err, accountID, schoolID)
-}
-
-func (a operatorAccountAccess) UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]platform.AccountTenantAccessEntry, error) {
-	entries, err := a.module.UpdateAccountTenantRole(ctx, accountID, schoolID, roleID, operatorID, clientIPString(clientIP))
-	return a.result(entries, err, accountID, schoolID)
-}
-
-func (a operatorAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]platform.AccountTenantAccessEntry, error) {
-	entries, err := a.module.RevokeAccountTenantAccess(ctx, accountID, schoolID, operatorID, clientIPString(clientIP))
-	return a.result(entries, err, accountID, schoolID)
-}
-
-func (operatorAccountAccess) result(entries []identityaccess.AccountTenantAccess, err error, accountID, schoolID int64) ([]platform.AccountTenantAccessEntry, error) {
-	if err != nil {
-		return nil, retainedAccountAccessError(err, accountID, schoolID)
-	}
-	result := make([]platform.AccountTenantAccessEntry, 0, len(entries))
-	for _, entry := range entries {
-		var retained platform.AccountTenantAccessEntry
-		retained.TenantID = entry.TenantID
-		retained.SchoolName = entry.SchoolName
-		retained.SchoolSlug = entry.SchoolSlug
-		retained.SchoolActive = entry.SchoolActive
-		retained.OrganizationID = entry.OrganizationID
-		retained.OrganizationName = entry.OrganizationName
-		retained.Status = entry.Status
-		retained.ActivatedAt = entry.ActivatedAt
-		retained.DeactivatedAt = entry.DeactivatedAt
-		retained.HasPerson = entry.HasPerson
-		retained.HasStaff = entry.HasStaff
-		retained.Roles = retainedTenantRoles(entry.Roles)
-		result = append(result, retained)
-	}
-	return result, nil
-}
-
-// retainedTenantRoles keeps the retained wire shape: an entry without roles
-// renders an empty list, never null.
-func retainedTenantRoles(roles []identityaccess.AccountTenantRole) []platform.AccountTenantRole {
-	result := make([]platform.AccountTenantRole, 0, len(roles))
-	for _, role := range roles {
-		result = append(result, platform.AccountTenantRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole})
-	}
-	return result
-}
-
-// retainedAccountAccessError maps the public account access outcomes onto
-// the error types the retained provisioning contract has always returned.
-func retainedAccountAccessError(err error, accountID, schoolID int64) error {
-	if invalid, ok := errors.AsType[*identityaccess.InvalidInputError](err); ok {
-		return &platform.InvalidDataError{Err: invalid.Err}
-	}
-	switch {
-	case errors.Is(err, identityaccess.ErrAccountNotFound):
-		return &platform.AccountNotFoundError{AccountID: accountID}
-	case errors.Is(err, identityaccess.ErrAccountTenantAccessNotFound):
-		return &platform.AccountTenantAccessNotFoundError{AccountID: accountID, SchoolID: schoolID}
-	case errors.Is(err, identityaccess.ErrAccountTenantAccessExists):
-		return &platform.ConflictError{Err: errors.New("account already has access to this school")}
-	case errors.Is(err, identityaccess.ErrSchoolNotFound):
-		return &platform.SchoolNotFoundError{SchoolID: schoolID}
-	case errors.Is(err, identityaccess.ErrSchoolDeleted):
-		return &platform.SchoolAlreadyDeletedError{SchoolID: schoolID}
-	default:
-		return err
-	}
-}
-
-// clientIPString renders the request address for the audit entries; an
-// absent address stays empty, as the retained audit log stored it.
-func clientIPString(ip net.IP) string {
-	if ip == nil {
-		return ""
-	}
-	return ip.String()
 }
 
 // operatorDirectory serves platform.OperatorDirectory, the retained

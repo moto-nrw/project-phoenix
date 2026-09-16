@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301
+        302
       ],
       "tables": []
     },
@@ -4409,6 +4409,16 @@
     },
     {
       "scope": "test",
+      "file": "services/auth/operator_authentication_integration_test.go",
+      "declaration": "buildOperatorIdentity",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        244
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/auth/passkey_service_test.go",
       "declaration": "TestPasskeyRepositories",
       "target": "database/repositories.NewFactory",
@@ -6744,7 +6754,7 @@
     {
       "scope": "test",
       "file": "services/platform/operator_email_change_integration_test.go",
-      "declaration": "buildAuthService",
+      "declaration": "buildServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
         41
@@ -25133,27 +25143,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 180,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 501,
+          "line": 502,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 664,
+          "line": 665,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 902,
+          "line": 903,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1306,
+          "line": 1307,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -25163,7 +25173,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 301,
+          "line": 302,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -25173,22 +25183,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 180,
+          "line": 181,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 373,
+          "line": 374,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 418,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 661,
+          "line": 662,
           "declaration": "type API"
         },
         {
@@ -25328,7 +25338,7 @@
         },
         {
           "file": "services/operator_authentication_composition.go",
-          "line": 57,
+          "line": 56,
           "declaration": "operatorRepositoriesOf"
         }
       ]

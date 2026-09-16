@@ -129,11 +129,6 @@ type OperatorProvisioningService interface {
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
 	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
-	ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccessEntry, error)
-	ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error)
-	GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
-	UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
-	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 }
 
 type OrganizationCapability interface {
@@ -228,11 +223,8 @@ type OperatorProvisioningServiceConfig struct {
 	InvitationService   authSvc.InvitationService
 	AuthService         authSvc.AuthService
 	AuditLogRepo        platform.OperatorAuditLogRepository
-	// AccountAccess is the Identity & Access account school-access
-	// capability the account access methods delegate to (#3252).
-	AccountAccess OperatorAccountAccess
-	DB            *bun.DB
-	Logger        *slog.Logger
+	DB                  *bun.DB
+	Logger              *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.

@@ -522,16 +522,19 @@ service, the operator audit ledger, the pending e-mail change links, the
 password policy, schools and organisations, the People Directory and School
 Membership identity chain a school access provisions, the retained role
 assignment rules) are bound at the serving root through public-typed seams
-(`compose.OperatorDependencies`). No target rule lets `api/operator` import
-the identity-access public package, and adding one is a policy loosening
-the ratchet rejects. The operator routes therefore keep calling the retained
-`services/platform` contracts, which delegate login, token issue, refresh,
-profile and password changes (`OperatorSessions`) and the school access
-(`OperatorAccountAccess`) to consumer-owned ports the root binds to the
-public module; the root translates the public outcomes into the retained
-error types. Operator rows reach the retained MFA, passkey, invitation and
-e-mail change flows through the `OperatorDirectory` port the same way. The
-public audit evidence is typed (`TenantAccessEvidence`,
+(`compose.OperatorDependencies`). The login, refresh, profile, password and
+school-access handlers live in `modules/identityaccess/inbound/operator`,
+the owner's HTTP adapter, and call the public contract there. `api/operator`
+keeps the operator router with its middleware chain and rate limiters,
+mounts those handlers (`inbound-operator.http.identity-access-http`) and
+hands them its error bodies, so the operator surface keeps one wire format.
+The rules of the new `identity-access/http` role are anchored to that
+package; `api/operator` itself still has no rule for the public package.
+The retained `services/platform` operator service keeps the MFA and passkey
+token exchange (`OperatorSessions`), the profile read and the e-mail change;
+operator rows reach the retained MFA, passkey, invitation and e-mail change
+flows through the `OperatorDirectory` port the root binds to the public
+module. The public audit evidence is typed (`TenantAccessEvidence`,
 `OperatorAccessChange`); the root renders it into the ledger keys. The former
 `models/platform` operator and refresh-session repository contracts and
 their compatibility adapters are deleted; the operator invitation, e-mail
@@ -560,8 +563,10 @@ ledger, push subscriptions) are bound at the serving root through
 public-typed seams (`compose.SessionDependencies`). The retained
 `services/auth.Service` keeps the `AuthService` contract by delegating its
 session methods to a consumer-owned port the root binds to the public
-module; `api/auth` calls the public contract directly, while `api/parent`,
-`api/operator`, the school portal and the SSE routes keep the delegation
+module; `api/auth` and the operator identity routes
+(`modules/identityaccess/inbound/operator`) call the public contract
+directly, while `api/parent`, the school portal and the SSE routes keep the
+delegation
 because no target rule lets those inbound packages import the identity-access
 public package. The legacy `auth.accounts_parents` model, repository and its
 six `/auth/parent-accounts` routes stay unchanged; the table has no target

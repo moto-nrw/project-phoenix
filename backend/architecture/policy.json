@@ -3061,6 +3061,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/identityaccess/inbound/operator",
+      "owner": "identity-access",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/identityaccess/inbound/usercontext",
       "owner": "inbound-usercontext",
       "role": "http",
@@ -22121,6 +22128,84 @@
       "source_role": "adapter",
       "target_owner": "student-presence",
       "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.http.public",
+      "description": "The operator identity routes call the public Identity & Access capability (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.http.inbound-common",
+      "description": "The operator identity routes use the shared HTTP request and response helpers (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "identity-access.http.token-claims",
+      "description": "The operator identity routes read the verified operator claims and the refresh recovery proof (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.http.refresh-rotation",
+      "description": "The operator refresh route passes the rotation recovery proof to the capability (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "root-composition.to.identity-access-http",
+      "description": "The serving root binds the operator identity routes to the composed Identity & Access module (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-operator.http.identity-access-http",
+      "description": "The operator router mounts the Identity & Access operator routes behind its middleware chain (#3252).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-operator.adapter-test.identity-access-http",
+      "description": "The operator router tests drive the mounted Identity & Access operator routes (#3252).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
     }
   ]
 }

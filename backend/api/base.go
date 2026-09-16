@@ -52,6 +52,7 @@ import (
 	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
+	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
@@ -1572,6 +1573,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AppEnv:                     viper.GetString("app_env"),
 		AuthService:                api.Services.OperatorAuth,
+		Identity:                   identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
 		PasskeyService:             api.Services.OperatorPasskey,
 		MFAService:                 api.Services.OperatorMFA,
 		InvitationService:          api.Services.OperatorInvitation,

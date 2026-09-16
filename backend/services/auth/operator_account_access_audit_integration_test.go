@@ -1,11 +1,10 @@
-package platform_test
+package auth_test
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,17 +14,6 @@ import (
 // The school-access flow hands its audit evidence to the root as typed
 // values (#3252). The platform operator ledger and the school's auth event
 // ledger must keep the JSON keys they always stored for each action.
-
-// jsonColumn reads one JSON column of the newest matching row as text and
-// decodes it; bun would treat a map scan target as a column map.
-func jsonColumn(t *testing.T, query *bun.SelectQuery) map[string]any {
-	t.Helper()
-	var raw string
-	require.NoError(t, query.OrderExpr("id DESC").Limit(1).Scan(context.Background(), &raw))
-	var values map[string]any
-	require.NoError(t, json.Unmarshal([]byte(raw), &values))
-	return values
-}
 
 func operatorAccessChanges(t *testing.T, db *bun.DB, operatorID int64, action string) map[string]any {
 	t.Helper()
@@ -56,21 +44,21 @@ func TestIntegration_AccountTenantAccess_AuditEvidenceKeepsItsKeys(t *testing.T)
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 	target := accessTargetTenantID(t)
 	adminRoleID := systemRoleID(t, db, "admin")
-	customRole := createTenantRole(t, db, "Verwaltung", target, nil)
+	customRole := createAccessTenantRole(t, db, "Verwaltung", target, nil)
 	defer cleanupTenantRole(t, db, customRole.ID)
 	var schoolName string
 	require.NoError(t, db.NewSelect().TableExpr("platform.schools").Column("name").Where("id = ?", target).Scan(ctx, &schoolName))
 	require.NotEmpty(t, schoolName)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, target,
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	granted := operatorAccessChanges(t, db, operator.ID, "create")
@@ -118,7 +106,7 @@ func TestIntegration_GrantAccountTenantAccess_KeepsALeftoverLehrkraftRole(t *tes
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -133,8 +121,8 @@ func TestIntegration_GrantAccountTenantAccess_KeepsALeftoverLehrkraftRole(t *tes
 	require.NoError(t, err)
 
 	_, err = service.GrantAccountTenantAccess(ctx, account.ID, target,
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
-	var invalid *platformSvc.InvalidDataError
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 
 	var mappings int
@@ -152,7 +140,7 @@ func TestIntegration_UpdateAccountTenantRole_RemovesTheRoleOnlyAtThatSchool(t *t
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -168,7 +156,7 @@ func TestIntegration_UpdateAccountTenantRole_RemovesTheRoleOnlyAtThatSchool(t *t
 	require.NoError(t, err)
 
 	_, err = service.GrantAccountTenantAccess(ctx, account.ID, target,
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 	entries, err := service.UpdateAccountTenantRole(ctx, account.ID, target, userRoleID, operator.ID, testClientIP)
 	require.NoError(t, err)

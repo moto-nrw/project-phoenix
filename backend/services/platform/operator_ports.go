@@ -42,18 +42,10 @@ type OperatorMFAAttempts struct {
 	LockedUntil *time.Time
 }
 
-// OperatorSessions is the Identity & Access operator authentication the
-// retained operator contract delegates to: login behind the MFA gate, the
-// token pair for an operator proven via a non-password channel, refresh,
-// and the profile and password changes with their session revocation.
-// Errors arrive in the retained shapes (InvalidCredentialsError,
-// OperatorNotFoundError, OperatorInactiveError,
-// OperatorRefreshTokenInvalidError, PasswordMismatchError,
-// InvalidDataError).
+// OperatorSessions is the operator login capability the retained MFA and
+// passkey exchanges consume: a token pair for an operator whose identity
+// was proven via a non-password channel. Errors arrive in the retained
+// shapes (OperatorNotFoundError, OperatorInactiveError).
 type OperatorSessions interface {
-	LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*OperatorLoginResult, error)
 	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
-	RefreshToken(ctx context.Context, operatorID int64, refreshTokenValue string) (accessToken, refreshToken string, err error)
-	UpdateProfile(ctx context.Context, operatorID int64, displayName string) (*platform.Operator, error)
-	ChangePassword(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 }

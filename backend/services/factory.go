@@ -2727,7 +2727,6 @@ func newFactory(
 		InvitationService:   invitationService,
 		AuthService:         authService,
 		AuditLogRepo:        repos.OperatorAuditLog,
-		AccountAccess:       newOperatorAccountAccess(identityAccess),
 		DB:                  db,
 		Logger:              platformLogger,
 	})
