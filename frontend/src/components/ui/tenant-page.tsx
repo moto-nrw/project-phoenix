@@ -674,11 +674,11 @@ function TenantPageTabs({
       triggerAriaSelected={Boolean(hiddenActive)}
       triggerTabIndex={measuring ? -1 : rovingValue === "__mehr__" ? 0 : -1}
       triggerClassName={cn(tabClass(Boolean(hiddenActive)), "max-sm:hidden")}
-      // leading-6 am Inhalt: ohne das drückt das Pfeil-Symbol die Zeilenhöhe
-      // um ein Pixel und der Reiter steht einen Hauch tiefer als seine
-      // Nachbarn.
+      // Die feste Zeilenhöhe verhindert, dass das Pfeil-Symbol den Reiter um
+      // einen Pixel nach unten drückt. In der kompakten Stufe entspricht sie
+      // der Zeilenhöhe der text-sm-Reiter.
       triggerContent={
-        <span className="flex items-center gap-1 leading-6">
+        <span className="compact:leading-5 flex items-center gap-1 leading-6">
           {hiddenActive ? hiddenActive.label : MORE_LABEL}
           <ChevronDown className="size-3.5" aria-hidden />
         </span>
