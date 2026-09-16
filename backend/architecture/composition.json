@@ -11746,26 +11746,6 @@
     },
     {
       "scope": "test",
-      "file": "api/usercontext/usercontext_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        52
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/usercontext/usercontext_test.go",
-      "declaration": "setupTestContext",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        53
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "api/users/users_test.go",
       "declaration": "setupTestContext",
       "target": "api/testutil.SetupAPITest",
@@ -24873,26 +24853,6 @@
       "target": "services/scheduler.NewScheduler",
       "lines": [
         61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/usercontext/usercontext_service_test.go",
-      "declaration": "TestUserContextService_UpdateAvatar",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        565
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/usercontext/usercontext_service_test.go",
-      "declaration": "setupUserContextService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        24
       ],
       "tables": []
     },
