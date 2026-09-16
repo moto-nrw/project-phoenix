@@ -920,6 +920,55 @@ func TestInstance_Reopen_HappyPath(t *testing.T) {
 	assert.Nil(t, group.EndTime)
 }
 
+func TestInstance_Start_LeavesIndependentRoomStays(t *testing.T) {
+	t.Parallel()
+
+	s := buildLifecycle(t)
+	roomActivity := testpkg.CreateTestActivityGroup(t, s.db, "Offener Raum LC")
+	_, err := s.db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", roomActivity.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	now := time.Now()
+	roomSession := &activeModels.Group{
+		StartTime:    now,
+		LastActivity: now,
+		GroupID:      &roomActivity.ID,
+		RoomID:       s.roomID,
+	}
+	roomSession.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, s.repos.ActiveGroup.Create(s.ctx, roomSession))
+
+	device := testpkg.CreateTestDevice(t, s.db, "open-room-instance-start")
+	testpkg.CreateTestAttendance(t, s.db, s.student1, s.staffID, device.ID, now.Add(-time.Hour), nil)
+	testpkg.CreateTestVisit(t, s.db, s.student1, roomSession.ID, now.Add(-30*time.Minute), nil)
+
+	ai := seedInstance(t, s, true, false)
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	assert.NotEqual(t, roomSession.ID, started.ActiveGroupID)
+
+	stillOpen, err := s.repos.ActiveGroup.FindByID(s.ctx, roomSession.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stillOpen)
+	assert.Nil(t, stillOpen.EndTime, "starting the planned block must not end the room stay")
+
+	var openGroupID int64
+	err = s.db.NewSelect().
+		TableExpr("active.visits").
+		Column("active_group_id").
+		Where("student_id = ?", s.student1).
+		Where("exit_time IS NULL").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Scan(s.ctx, &openGroupID)
+	require.NoError(t, err)
+	assert.Equal(t, roomSession.ID, openGroupID, "the independent stay must not be absorbed into the started activity")
+}
+
 func TestInstance_Reopen_RejectsOccupiedRoom(t *testing.T) {
 	t.Parallel()
 

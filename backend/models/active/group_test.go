@@ -176,6 +176,41 @@ func TestGroupTemplateHelpers(t *testing.T) {
 	})
 }
 
+func TestGroupIsIndependentRoomSession(t *testing.T) {
+	t.Parallel()
+
+	templateID := int64(42)
+	deviceID := int64(7)
+
+	t.Run("device-less system activity", func(t *testing.T) {
+		g := &Group{GroupID: &templateID}
+		if !g.IsIndependentRoomSession(true) {
+			t.Errorf("IsIndependentRoomSession(true) = false, want true for a device-less system activity")
+		}
+	})
+
+	t.Run("regular activity", func(t *testing.T) {
+		g := &Group{GroupID: &templateID}
+		if g.IsIndependentRoomSession(false) {
+			t.Errorf("IsIndependentRoomSession(false) = true, want false for a regular activity")
+		}
+	})
+
+	t.Run("device-bound system activity", func(t *testing.T) {
+		g := &Group{GroupID: &templateID, DeviceID: &deviceID}
+		if g.IsIndependentRoomSession(true) {
+			t.Errorf("IsIndependentRoomSession(true) = true, want false when a device owns the session")
+		}
+	})
+
+	t.Run("spontaneous session", func(t *testing.T) {
+		g := &Group{}
+		if g.IsIndependentRoomSession(true) {
+			t.Errorf("IsIndependentRoomSession(true) = true, want false without a template")
+		}
+	})
+}
+
 func TestGroupIsActive(t *testing.T) {
 	t.Parallel()
 

@@ -44,7 +44,7 @@ func requestRuntimeForTest(withStaff func(context.Context, int64, int64) context
 func TestResourceRequiresLogger(t *testing.T) {
 	t.Parallel()
 	require.PanicsWithValue(t, "active API: logger is required", func() {
-		NewResource(nil, nil, nil, nil, nil, nil, nil, nil, nil, RequestRuntime{}, Authorization{})
+		NewResource(nil, nil, nil, nil, nil, nil, nil, nil, nil, RequestRuntime{}, Authorization{}, nil)
 	})
 }
 
@@ -53,7 +53,7 @@ func TestResourceUsesInjectedLogger(t *testing.T) {
 	logger := slog.New(slog.DiscardHandler)
 	resource := NewResource(nil, nil, nil, nil, nil, nil,
 		func(testutil.Router, func(testutil.Router, common.Middleware)) {}, logger, mappingReadQueries{},
-		requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorizationForTest())
+		requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorizationForTest(), nil)
 	assert.Same(t, logger, resource.getLogger())
 }
 
@@ -62,7 +62,7 @@ func TestResourceRequiresVisitAuthorization(t *testing.T) {
 	require.PanicsWithValue(t, "active API: visit authorization is required", func() {
 		NewResource(nil, nil, nil, nil, nil, nil,
 			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
-			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{})
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{}, nil)
 	})
 }
 
@@ -71,7 +71,7 @@ func TestResourceRequiresOverviewAuthorization(t *testing.T) {
 	require.PanicsWithValue(t, "active API: overview authorization is required", func() {
 		NewResource(nil, nil, nil, nil, nil, nil,
 			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
-			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{Visit: authorizeVisitForTest})
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), Authorization{Visit: authorizeVisitForTest}, nil)
 	})
 }
 
@@ -89,7 +89,7 @@ func TestResourceRequiresTenantRequestRuntime(t *testing.T) {
 			require.PanicsWithValue(t, "active API: tenant request runtime is required", func() {
 				NewResource(nil, nil, nil, nil, nil, nil,
 					func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
-					runtime, authorizationForTest())
+					runtime, authorizationForTest(), nil)
 			})
 		})
 	}

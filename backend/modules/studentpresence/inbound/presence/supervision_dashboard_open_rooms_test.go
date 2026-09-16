@@ -26,15 +26,17 @@ type wireOpenRoomStudent struct {
 	SchoolClass   string `json:"school_class"`
 	ActivityName  string `json:"activity_name"`
 	ActiveGroupID string `json:"active_group_id"`
+	Independent   bool   `json:"independent"`
 }
 
 type wireOpenRoom struct {
-	RoomID            string                `json:"room_id"`
-	Name              string                `json:"name"`
-	IsUserSupervising bool                  `json:"is_user_supervising"`
-	ActiveGroupIDs    []string              `json:"active_group_ids"`
-	StudentCount      int                   `json:"student_count"`
-	Students          []wireOpenRoomStudent `json:"students"`
+	RoomID              string                `json:"room_id"`
+	Name                string                `json:"name"`
+	IsUserSupervising   bool                  `json:"is_user_supervising"`
+	ActiveGroupIDs      []string              `json:"active_group_ids"`
+	HasOccupyingSession bool                  `json:"has_occupying_session"`
+	StudentCount        int                   `json:"student_count"`
+	Students            []wireOpenRoomStudent `json:"students"`
 }
 
 type openRoomEnvelope struct {
@@ -146,6 +148,139 @@ func TestOpenRooms_MergeParallelSessionsOfOneRoom(t *testing.T) {
 		"the offering a child is recorded under travels with them")
 	assert.Equal(t, dance.Name, byID[strconv.FormatInt(late.ID, 10)],
 		"and the second session's children keep theirs")
+}
+
+// TestOpenRooms_MarkIndependentStaysApartFromTheActivity: a child moved into
+// a released room stays in the room's own session under a system activity
+// (#3066). The shared view lists that child as independent, without an
+// activity name, next to the children of the activity running in the room.
+func TestOpenRooms_MarkIndependentStaysApartFromTheActivity(t *testing.T) {
+	t.Parallel()
+	tc, router := setupDashboardContext(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OpenRoomIndependent", "Leader")
+	hall := testpkg.CreateTestOpenRoom(t, tc.db, "OpenRoomIndependentHall")
+
+	football := testpkg.CreateTestActivityGroup(t, tc.db, "OpenRoomIndependentFussball")
+	roomActivity := testpkg.CreateTestActivityGroup(t, tc.db, "OpenRoomIndependentStay")
+	_, err := tc.db.NewUpdate().
+		Table("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", roomActivity.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	footballSession := testpkg.CreateTestActiveGroup(t, tc.db, football.ID, hall.ID)
+	roomSession := testpkg.CreateTestActiveGroup(t, tc.db, roomActivity.ID, hall.ID)
+
+	player := testpkg.CreateTestStudent(t, tc.db, "OpenRoomIndependent", "Spielkind", "OI1")
+	visitor := testpkg.CreateTestStudent(t, tc.db, "OpenRoomIndependent", "Raumkind", "OI2")
+	now := time.Now()
+	testpkg.CreateTestVisit(t, tc.db, player.ID, footballSession.ID, now.Add(-40*time.Minute), nil)
+	testpkg.CreateTestVisit(t, tc.db, visitor.ID, roomSession.ID, now.Add(-10*time.Minute), nil)
+
+	room, found := openRooms(t, router, account.ID)[hall.Name]
+	require.True(t, found)
+	require.Len(t, room.Students, 2)
+
+	byID := map[string]wireOpenRoomStudent{}
+	for _, student := range room.Students {
+		byID[student.StudentID] = student
+	}
+	playing := byID[strconv.FormatInt(player.ID, 10)]
+	assert.False(t, playing.Independent, "a child in the activity takes part in it")
+	assert.Equal(t, football.Name, playing.ActivityName)
+
+	staying := byID[strconv.FormatInt(visitor.ID, 10)]
+	assert.True(t, staying.Independent, "a child in the room's own session stays independently")
+	assert.Empty(t, staying.ActivityName, "the system activity is not shown as an offering")
+	assert.True(t, room.HasOccupyingSession,
+		"the activity session still occupies the room beside independent stays")
+}
+
+// TestOpenRooms_DeviceOwnedSystemSessionIsASupervision: a kiosk owns
+// Schulhof Freispiel. Children in that session take part in it; they must
+// not be relabeled as independent stays in Offene Räume.
+func TestOpenRooms_DeviceOwnedSystemSessionIsASupervision(t *testing.T) {
+	t.Parallel()
+	tc, router := setupDashboardContext(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OpenRoomKiosk", "Leader")
+	yard := testpkg.CreateTestOpenRoom(t, tc.db, "OpenRoomKioskYard")
+	yardActivity := testpkg.CreateTestActivityGroup(t, tc.db, "OpenRoomKioskFreispiel")
+	_, err := tc.db.NewUpdate().
+		Table("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", yardActivity.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	session := testpkg.CreateTestActiveGroup(t, tc.db, yardActivity.ID, yard.ID)
+	device := testpkg.CreateTestDevice(t, tc.db, "OpenRoomKiosk")
+	_, err = tc.db.NewUpdate().
+		Table("active.groups").
+		Set("device_id = ?", device.ID).
+		Where("id = ?", session.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	child := testpkg.CreateTestStudent(t, tc.db, "OpenRoomKiosk", "Hofkind", "OK1")
+	testpkg.CreateTestVisit(t, tc.db, child.ID, session.ID, time.Now().Add(-20*time.Minute), nil)
+
+	room, found := openRooms(t, router, account.ID)[yard.Name]
+	require.True(t, found)
+	require.Len(t, room.Students, 1)
+	assert.False(t, room.Students[0].Independent,
+		"a kiosk-owned system session is a supervision, not an independent stay")
+	assert.Equal(t, yardActivity.Name, room.Students[0].ActivityName)
+	assert.True(t, room.HasOccupyingSession,
+		"a kiosk-owned system session occupies the room")
+}
+
+// TestOpenRooms_IndependentStaysAloneDoNotOccupy: children moved into a
+// released room create a device-less Offener-Raum session. That session
+// must not occupy the room for Spontanes Angebot.
+func TestOpenRooms_IndependentStaysAloneDoNotOccupy(t *testing.T) {
+	t.Parallel()
+	tc, router := setupDashboardContext(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OpenRoomStayOnly", "Leader")
+	hall := testpkg.CreateTestOpenRoom(t, tc.db, "OpenRoomStayOnlyHall")
+	roomActivity := testpkg.CreateTestActivityGroup(t, tc.db, "OpenRoomStayOnlyStay")
+	_, err := tc.db.NewUpdate().
+		Table("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", roomActivity.ID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	roomSession := testpkg.CreateTestActiveGroup(t, tc.db, roomActivity.ID, hall.ID)
+	visitor := testpkg.CreateTestStudent(t, tc.db, "OpenRoomStayOnly", "Raumkind", "OS1")
+	testpkg.CreateTestVisit(t, tc.db, visitor.ID, roomSession.ID, time.Now().Add(-10*time.Minute), nil)
+
+	room, found := openRooms(t, router, account.ID)[hall.Name]
+	require.True(t, found)
+	require.Len(t, room.Students, 1)
+	assert.True(t, room.Students[0].Independent)
+	assert.Empty(t, room.Students[0].ActivityName)
+	assert.False(t, room.HasOccupyingSession,
+		"independent stays share the room and must not mark it occupied")
+}
+
+// TestOpenRooms_EmptyActivitySessionOccupies: an activity with no children
+// still occupies the room. Occupancy is session-level, not inferred from
+// whether every listed child is independent.
+func TestOpenRooms_EmptyActivitySessionOccupies(t *testing.T) {
+	t.Parallel()
+	tc, router := setupDashboardContext(t)
+
+	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "OpenRoomEmptyOcc", "Leader")
+	hall := testpkg.CreateTestOpenRoom(t, tc.db, "OpenRoomEmptyOccHall")
+	football := testpkg.CreateTestActivityGroup(t, tc.db, "OpenRoomEmptyOccFussball")
+	testpkg.CreateTestActiveGroup(t, tc.db, football.ID, hall.ID)
+
+	room, found := openRooms(t, router, account.ID)[hall.Name]
+	require.True(t, found)
+	assert.Zero(t, room.StudentCount)
+	assert.True(t, room.HasOccupyingSession,
+		"an empty activity session still occupies the room")
 }
 
 // TestOpenRooms_StopAtTheTenantBoundary: a released room is reachable for
