@@ -85,7 +85,7 @@ func (r absenceTypeReader) PreviewAllowanceBooking(ctx context.Context, staffID,
 func legacyAbsenceType(value workforce.StaffAbsenceType) *activeModels.StaffAbsenceType {
 	result := &activeModels.StaffAbsenceType{
 		Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled, OverrunPolicy: value.OverrunPolicy,
+		AllowanceEnabled: value.AllowanceEnabled,
 	}
 	result.ID, result.TenantID = value.ID, value.TenantID
 	result.CreatedAt, result.UpdatedAt = value.CreatedAt, value.UpdatedAt

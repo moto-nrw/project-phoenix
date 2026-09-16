@@ -24,6 +24,10 @@ var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled
 // ErrVacationQuotaInvalid marks invalid quota input supplied by a caller.
 var ErrVacationQuotaInvalid = errors.New("invalid vacation quota")
 
+// ErrVacationQuotaExceeded rejects vacation beyond the Resturlaub (#3256).
+// Only the Stundenkonto may go negative; the vacation account may not.
+var ErrVacationQuotaExceeded = errors.New("vacation quota exceeded")
+
 // Comp_time absences may overdraw the Stundenkonto since #2873: the former
 // ErrCompTimeExceedsBalance overdraft rejection was replaced by the
 // PreviewCompTimeBalance projection, which the frontend shows before the
@@ -438,6 +442,9 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 	if req.AbsenceType == activeModels.AbsenceTypeCompTime {
 		return nil, ErrManagerControlledAbsence
 	}
+	if req.AbsenceType == activeModels.AbsenceTypeVacation {
+		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
+	}
 	if req.AbsenceTypeID != nil && s.absenceTypes != nil {
 		absenceType, err := s.absenceTypes.GetAbsenceType(ctx, *req.AbsenceTypeID)
 		if err != nil {
@@ -464,8 +471,10 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	}
 	req.AbsenceTypeID, req.AbsenceType = typeID, baseType
 
+	// The Leitung books vacation directly, without a request (#3256). Staff
+	// never reach this branch: CreateOwnAbsence sends them to RequestVacation.
 	if req.AbsenceType == activeModels.AbsenceTypeVacation {
-		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
+		return s.createDirectVacation(ctx, subjectStaffID, createdByStaffID, req)
 	}
 
 	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
@@ -987,7 +996,8 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, err
 	}
 	if absence.AbsenceType == activeModels.AbsenceTypeCompTime ||
-		(req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeCompTime) {
+		(req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeCompTime) ||
+		isDirectVacation(absence) {
 		return nil, ErrManagerControlledAbsence
 	}
 	before := *absence
@@ -1224,7 +1234,7 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	if absence.StaffID != subjectStaffID {
 		return fmt.Errorf("can only delete own absences")
 	}
-	if absence.AbsenceType == activeModels.AbsenceTypeCompTime && !allowManagerControlled {
+	if (absence.AbsenceType == activeModels.AbsenceTypeCompTime || isDirectVacation(absence)) && !allowManagerControlled {
 		return ErrManagerControlledAbsence
 	}
 	if !allowManagerControlled {
@@ -1401,6 +1411,13 @@ func isVacationWorkflowAbsence(absence *activeModels.StaffAbsence) bool {
 		absence.Status == activeModels.AbsenceStatusCanceled
 }
 
+// isDirectVacation reports vacation the Leitung entered without a request. It
+// spends the Urlaubskontingent, so only a manager may change or delete it.
+func isDirectVacation(absence *activeModels.StaffAbsence) bool {
+	return absence.AbsenceType == activeModels.AbsenceTypeVacation &&
+		absence.Status == activeModels.AbsenceStatusReported
+}
+
 func filterBlockingAbsences(rows []*activeModels.StaffAbsence) []*activeModels.StaffAbsence {
 	filtered := make([]*activeModels.StaffAbsence, 0, len(rows))
 	for _, row := range rows {
@@ -1508,6 +1525,10 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	absence.UpdatedAt = now
 	absence.SetTenantID(tenant.FromContext(ctx))
 
+	// Open requests already hold their days, so a new one must fit next to them.
+	if err := s.ensureVacationFits(ctx, absence, 0, true); err != nil {
+		return nil, err
+	}
 	if err := s.absenceRepo.Create(ctx, absence); err != nil {
 		return nil, fmt.Errorf("failed to create vacation request: %w", err)
 	}
@@ -1534,6 +1555,13 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	}
 	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
 		return nil, err
+	}
+	// Other open requests are judged at their own approval; only what is
+	// already spent must leave room for this one.
+	if absence.AbsenceType == activeModels.AbsenceTypeVacation {
+		if err := s.ensureVacationFits(ctx, absence, absence.ID, false); err != nil {
+			return nil, err
+		}
 	}
 	fromStatus := absence.Status
 	now := time.Now()
@@ -1722,31 +1750,145 @@ func isBeforeLocalToday(date timezone.Date, now time.Time) bool {
 }
 
 func (s *staffAbsenceService) GetVacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error) {
-	quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+	in, err := s.loadVacationQuotaInputs(ctx, staffID, year)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch quota: %w", err)
+		return nil, err
 	}
-	entitled := defaultEntitledDays
-	carryover := 0.0
-	if quota != nil {
-		entitled = quota.EntitledDays
-		carryover = quota.CarryoverDays
+	return computeVacationQuotaSummary(staffID, year, in.entitled, in.carryover, in.absences, in.opening), nil
+}
+
+type vacationQuotaInputs struct {
+	entitled, carryover float64
+	absences            []*activeModels.StaffAbsence
+	opening             *activeModels.StaffVacationOpening
+}
+
+func (s *staffAbsenceService) loadVacationQuotaInputs(ctx context.Context, staffID int64, year int) (vacationQuotaInputs, error) {
+	in := vacationQuotaInputs{entitled: defaultEntitledDays}
+	// Bare-constructed services (unit tests) have no quota repository and
+	// fall back to the default entitlement.
+	if s.quotaRepo != nil {
+		quota, err := s.quotaRepo.GetByStaffAndYear(ctx, staffID, year)
+		if err != nil {
+			return vacationQuotaInputs{}, fmt.Errorf("failed to fetch quota: %w", err)
+		}
+		if quota != nil {
+			in.entitled = quota.EntitledDays
+			in.carryover = quota.CarryoverDays
+		}
 	}
 
 	yearStart := timezone.NewDate(year, time.January, 1)
 	yearEnd := timezone.NewDate(year, time.December, 31)
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch year absences: %w", err)
+		return vacationQuotaInputs{}, fmt.Errorf("failed to fetch year absences: %w", err)
 	}
-	var opening *activeModels.StaffVacationOpening
+	in.absences = absences
 	if s.openingRepo != nil {
-		opening, err = s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
+		in.opening, err = s.openingRepo.GetByStaffAndYear(ctx, staffID, year)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch vacation opening: %w", err)
+			return vacationQuotaInputs{}, fmt.Errorf("failed to fetch vacation opening: %w", err)
 		}
 	}
-	return computeVacationQuotaSummary(staffID, year, entitled, carryover, absences, opening), nil
+	return in, nil
+}
+
+// ensureVacationFits rejects candidate when it would push the Resturlaub of
+// any calendar year it touches below zero. excludeID leaves the candidate's
+// own stored row out of the account; withReserved also counts other open
+// requests, which a new booking must leave room for.
+func (s *staffAbsenceService) ensureVacationFits(ctx context.Context, candidate *activeModels.StaffAbsence, excludeID int64, withReserved bool) error {
+	for year := candidate.DateStart.Year(); year <= candidate.DateEnd.Year(); year++ {
+		in, err := s.loadVacationQuotaInputs(ctx, candidate.StaffID, year)
+		if err != nil {
+			return err
+		}
+		counted := make([]*activeModels.StaffAbsence, 0, len(in.absences))
+		for _, a := range in.absences {
+			if a.ID == excludeID && excludeID != 0 {
+				continue
+			}
+			if !withReserved && (a.Status == activeModels.AbsenceStatusRequested || a.Status == activeModels.AbsenceStatusQuestion) {
+				continue
+			}
+			counted = append(counted, a)
+		}
+		summary := computeVacationQuotaSummary(candidate.StaffID, year, in.entitled, in.carryover, counted, in.opening)
+		needed := vacationDaysForYear(candidate, year)
+		if needed > summary.RemainingDays+vacationDayEpsilon {
+			return fmt.Errorf("%w: %s", ErrVacationQuotaExceeded, formatVacationShortfall(year, summary.RemainingDays, needed))
+		}
+	}
+	return nil
+}
+
+// vacationDayEpsilon absorbs float noise from half-day sums.
+const vacationDayEpsilon = 0.001
+
+func formatVacationShortfall(year int, remaining, needed float64) string {
+	return fmt.Sprintf("%d: remaining %s, needed %s",
+		year, strconv.FormatFloat(remaining, 'f', -1, 64), strconv.FormatFloat(needed, 'f', -1, 64))
+}
+
+// createDirectVacation books vacation the Leitung agreed with the staff
+// member (#3256): no request, status reported, counted as taken right away.
+// It never merges into neighbouring entries; any overlap is rejected like a
+// vacation request.
+func (s *staffAbsenceService) createDirectVacation(ctx context.Context, staffID, createdBy int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	dateStart, dateEnd, err := parseDateRange(req.DateStart, req.DateEnd)
+	if err != nil {
+		return nil, err
+	}
+	if req.HalfDay && dateStart != dateEnd {
+		return nil, fmt.Errorf("invalid vacation absence: half-day entries must cover exactly one date")
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
+	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing absences: %w", err)
+	}
+	if len(filterBlockingAbsences(existing)) > 0 {
+		return nil, fmt.Errorf("dates overlap with an existing absence")
+	}
+	workingDays := countWorkingDays(dateStart, dateEnd, req.HalfDay, req.HalfDay)
+	if workingDays <= 0 {
+		return nil, fmt.Errorf("vacation range contains no working days")
+	}
+
+	now := time.Now()
+	absence := &activeModels.StaffAbsence{
+		StaffID:      staffID,
+		AbsenceType:  activeModels.AbsenceTypeVacation,
+		DateStart:    dateStart,
+		DateEnd:      dateEnd,
+		HalfDay:      req.HalfDay,
+		StartHalfDay: req.HalfDay,
+		EndHalfDay:   req.HalfDay,
+		Note:         req.Note,
+		Status:       activeModels.AbsenceStatusReported,
+		CreatedBy:    createdBy,
+		WorkingDays:  &workingDays,
+		RequestedAt:  now,
+	}
+	absence.CreatedAt = now
+	absence.UpdatedAt = now
+	absence.SetTenantID(tenant.FromContext(ctx))
+
+	if err := s.rejectVacationBeforeOpening(ctx, absence); err != nil {
+		return nil, err
+	}
+	if err := s.ensureVacationFits(ctx, absence, 0, true); err != nil {
+		return nil, err
+	}
+	s.warnIfWorkSessionsExist(ctx, staffID, dateStart, dateEnd)
+	if err := s.absenceRepo.Create(ctx, absence); err != nil {
+		return nil, fmt.Errorf("failed to create vacation: %w", err)
+	}
+	s.broadcastTimeTrackingChanged(ctx)
+	return s.withLabel(ctx, toAbsenceResponse(absence)), nil
 }
 
 // computeVacationQuotaSummary is the pure tail of GetVacationQuotaSummary: the
@@ -1803,10 +1945,7 @@ func computeVacationQuotaSummaryThrough(
 		if a.AbsenceType != activeModels.AbsenceTypeVacation {
 			continue
 		}
-		days := vacationDaysInYear(a, yearStart, yearEnd)
-		if a.WorkingDays != nil && dateWithinRange(a.DateStart, yearStart, yearEnd) && dateWithinRange(a.DateEnd, yearStart, yearEnd) {
-			days = *a.WorkingDays
-		}
+		days := vacationDaysWithin(a, yearStart, yearEnd)
 		switch a.Status {
 		case activeModels.AbsenceStatusApproved, activeModels.AbsenceStatusReported:
 			taken += days
@@ -1826,6 +1965,19 @@ func computeVacationQuotaSummaryThrough(
 		RemainingDays:   entitled + carryover - takenBefore - taken - reserved,
 		Opening:         opening,
 	}
+}
+
+// vacationDaysWithin is what one vacation row spends between yearStart and
+// yearEnd: its stored working days when it lies inside, else the clipped count.
+func vacationDaysWithin(a *activeModels.StaffAbsence, yearStart, yearEnd timezone.Date) float64 {
+	if a.WorkingDays != nil && dateWithinRange(a.DateStart, yearStart, yearEnd) && dateWithinRange(a.DateEnd, yearStart, yearEnd) {
+		return *a.WorkingDays
+	}
+	return vacationDaysInYear(a, yearStart, yearEnd)
+}
+
+func vacationDaysForYear(a *activeModels.StaffAbsence, year int) float64 {
+	return vacationDaysWithin(a, timezone.NewDate(year, time.January, 1), timezone.NewDate(year, time.December, 31))
 }
 
 func dateWithinRange(d, from, to timezone.Date) bool {
@@ -1868,6 +2020,19 @@ func (s *staffAbsenceService) UpsertVacationQuota(ctx context.Context, staffID i
 	quota.SetTenantID(tenant.FromContext(ctx))
 	if err := quota.Validate(); err != nil {
 		return fmt.Errorf("%w: %s", ErrVacationQuotaInvalid, err.Error())
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return err
+	}
+	// The claim may not drop below what is already taken or requested
+	// (#3256): the Resturlaub would turn negative.
+	in, err := s.loadVacationQuotaInputs(ctx, staffID, year)
+	if err != nil {
+		return err
+	}
+	if summary := computeVacationQuotaSummary(staffID, year, entitled, carryover, in.absences, in.opening); summary.RemainingDays < -vacationDayEpsilon {
+		return fmt.Errorf("%w: %d: remaining %s", ErrVacationQuotaExceeded, year,
+			strconv.FormatFloat(summary.RemainingDays, 'f', -1, 64))
 	}
 	if err := s.quotaRepo.Upsert(ctx, quota); err != nil {
 		return err

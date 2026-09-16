@@ -65,7 +65,17 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	// One school-defined Abwesenheitsart (#2403), so the dropdown, the
 	// absence list and the exports show the mixed case a real school has:
 	// the five standard types plus a name of its own.
-	customAbsenceTypeID, err := seedCustomAbsenceType(rt)
+	customAbsenceTypeID, err := seedCustomAbsenceType(rt, "Regenerationstag")
+	if err != nil {
+		return err
+	}
+	// The other Kontingente of a school under the TVöD SuE (#3256): each staff
+	// member has an own claim per art, booked by the Leitung directly.
+	sickLeaveTypeID, err := seedCustomAbsenceType(rt, "Krank-Urlaubstag")
+	if err != nil {
+		return err
+	}
+	conversionTypeID, err := seedCustomAbsenceType(rt, "Umwandlungstag")
 	if err != nil {
 		return err
 	}
@@ -150,9 +160,31 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 	if len(staffOrder) > 1 {
 		staffID := staffIDByEmail[staffOrder[1].Email]
-		if err := seedCustomAbsenceTypeAllowance(rt, customAbsenceTypeID, staffID, todayDate.Year()); err != nil {
-			return err
+		claims := []struct {
+			typeID int64
+			days   float64
+			reason string
+		}{
+			{customAbsenceTypeID, 3.5, "Demo-Anspruch"},
+			{sickLeaveTypeID, 10, "Krank in den Sommerferien"},
+			{conversionTypeID, 2, "Bei der Gemeinde beantragt"},
 		}
+		for _, claim := range claims {
+			if err := seedCustomAbsenceTypeAllowance(rt, claim.typeID, staffID, todayDate.Year(), claim.days, claim.reason); err != nil {
+				return err
+			}
+		}
+		// Booked by the Leitung without a request: one Krank-Urlaubstag and
+		// one vacation day, both still ahead.
+		sickLeaveDay := nextWeekday(today.AddDate(0, 0, 1), time.Thursday)
+		if err := postStaffAbsence(rt, staffID, sickLeaveDay, "other", "Mündlich abgesprochen", &sickLeaveTypeID); err != nil {
+			return fmt.Errorf("seed direct Krank-Urlaubstag for staff %d: %w", staffID, err)
+		}
+		vacationDay := nextWeekday(today.AddDate(0, 0, 1), time.Friday)
+		if err := postStaffAbsence(rt, staffID, vacationDay, "vacation", "Mündlich abgesprochen", nil); err != nil {
+			return fmt.Errorf("seed direct vacation for staff %d: %w", staffID, err)
+		}
+		absenceCount += 2
 	}
 
 	fmt.Printf("  %d schedules, %d sessions, %d absences seeded for %d staff\n",
@@ -338,13 +370,13 @@ func seedOneWorkSessionBreak(rt *Runtime) error {
 // seedCustomAbsenceType adds the school's own Abwesenheitsart as the admin and
 // returns its id. The base type is not sent: the server derives it from the
 // art, which is the whole point of the split (#2403).
-func seedCustomAbsenceType(rt *Runtime) (int64, error) {
+func seedCustomAbsenceType(rt *Runtime, name string) (int64, error) {
 	currentAuth := rt.Client.auth
 	defer rt.Client.BindAuth(currentAuth)
 	rt.Client.BindAuth(rt.TenantAuth)
 
 	resp, err := rt.Client.Post("/api/absence-types", map[string]any{
-		"name": "Regenerationstag",
+		"name": name,
 	})
 	if err != nil {
 		return 0, fmt.Errorf("post absence type: %w", err)
@@ -368,21 +400,21 @@ func seedCustomAbsenceType(rt *Runtime) (int64, error) {
 	return id, nil
 }
 
-func seedCustomAbsenceTypeAllowance(rt *Runtime, absenceTypeID, staffID int64, year int) error {
+func seedCustomAbsenceTypeAllowance(rt *Runtime, absenceTypeID, staffID int64, year int, days float64, reason string) error {
 	currentAuth := rt.Client.auth
 	defer rt.Client.BindAuth(currentAuth)
 	rt.Client.BindAuth(rt.TenantAuth)
 	if _, err := rt.Client.Put(
 		fmt.Sprintf("/api/absence-types/%d", absenceTypeID),
-		map[string]any{"allowance_enabled": true, "overrun_policy": "warn"},
+		map[string]any{"allowance_enabled": true},
 	); err != nil {
 		return fmt.Errorf("enable custom absence type allowance: %w", err)
 	}
 	if _, err := rt.Client.Put(
 		fmt.Sprintf("/api/absence-types/%d/allowances/%d", absenceTypeID, staffID),
 		map[string]any{
-			"year": year, "entitled_days": 3.5,
-			"reason": "Demo-Anspruch",
+			"year": year, "entitled_days": days,
+			"reason": reason,
 		},
 	); err != nil {
 		return fmt.Errorf("seed custom absence type allowance for staff %d: %w", staffID, err)
@@ -404,6 +436,25 @@ func postAbsence(rt *Runtime, dateStart, dateEnd time.Time, absenceType, note st
 		return err
 	}
 	return nil
+}
+
+// postStaffAbsence books one day for staffID as the Leitung
+// (POST /api/staff/{id}/absences), without a request (#3256).
+func postStaffAbsence(rt *Runtime, staffID int64, day time.Time, absenceType, note string, absenceTypeID *int64) error {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+	body := map[string]any{
+		"absence_type": absenceType,
+		"date_start":   day.Format("2006-01-02"),
+		"date_end":     day.Format("2006-01-02"),
+		"note":         note,
+	}
+	if absenceTypeID != nil {
+		body["absence_type_id"] = *absenceTypeID
+	}
+	_, err := rt.Client.Post(fmt.Sprintf("/api/staff/%d/absences", staffID), body)
+	return err
 }
 
 func requestAndApproveVacation(rt *Runtime, approverAuth AuthRef, dateStart, dateEnd time.Time, note string) error {

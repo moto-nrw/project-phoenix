@@ -25,6 +25,7 @@ import (
 var (
 	ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
 	ErrVacationQuotaInvalid     = errors.New("vacation quota is invalid")
+	ErrVacationQuotaExceeded    = errors.New("vacation quota exceeded")
 
 	ErrAdjustmentInvalid           = errors.New("balance adjustment is invalid")
 	ErrAdjustmentNotFound          = errors.New("balance adjustment not found")

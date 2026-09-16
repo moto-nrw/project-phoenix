@@ -30,6 +30,7 @@ var timeTrackingSentinels = []struct {
 	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
 	{timetracking.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
 	{timetracking.ErrVacationQuotaInvalid, workforce.ErrVacationQuotaInvalid},
+	{timetracking.ErrVacationQuotaExceeded, workforce.ErrVacationQuotaExceeded},
 	{timetracking.ErrAdjustmentInvalid, workforce.ErrAdjustmentInvalid},
 	{timetracking.ErrAdjustmentNotFound, workforce.ErrAdjustmentNotFound},
 	{timetracking.ErrAdjustmentExceedsBalance, workforce.ErrAdjustmentExceedsBalance},

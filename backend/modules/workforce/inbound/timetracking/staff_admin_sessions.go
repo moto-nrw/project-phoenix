@@ -201,10 +201,20 @@ func (rs *StaffAdminResource) approveAbsence(w http.ResponseWriter, r *http.Requ
 	}
 	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, claims.AccountID, decidedBy, req.DecisionNote)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.RenderWithRules(err, approveAbsenceErrorRules, common.ErrorInternalServer))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Absence approved")
+}
+
+// approveAbsenceErrorRules keeps an approval beyond the Resturlaub (#3256)
+// and a stale decision out of the 5xx bucket.
+var approveAbsenceErrorRules = []common.ErrorRule{
+	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+	}},
+	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: absenceMsgIs("only requested absences can be approved"), Render: common.ErrorConflict},
 }
 
 // denyAbsence handles POST /api/staff/absences/{absenceId}/deny
@@ -318,6 +328,8 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
 		if errors.Is(err, workforce.ErrVacationQuotaInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		} else if errors.Is(err, workforce.ErrVacationQuotaExceeded) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "vacation_quota_below_used"))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -551,7 +563,12 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	}},
 	{Target: workforce.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrAbsenceTypeAllowanceInvalid, Render: common.ErrorInvalidRequest},
-	{Target: workforce.ErrAbsenceTypeAllowanceExceeded, Render: common.ErrorConflict},
+	{Target: workforce.ErrAbsenceTypeAllowanceExceeded, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_allowance_exceeded")
+	}},
+	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
