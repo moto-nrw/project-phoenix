@@ -778,8 +778,9 @@ function SidebarContent({
     [userIsAdmin, session, canAnnounce, parentNewsEnabled, mealPlanEnabled],
   );
 
-  // Team-interne Seiten: Team-Chat ist Opt-in (operations.
-  // staff_messaging_enabled, Default aus) und fällt fail-closed weg; die
+  // Team-interne Seiten: Team-Chat ist Opt-out (operations.
+  // staff_messaging_enabled, Default an seit #3254) und fällt trotzdem
+  // fail-closed weg, wenn das Flag fehlt; die
   // Tagesinformationen liest jede Mitarbeiterin.
   const communicationSubPages = useMemo(
     () =>
