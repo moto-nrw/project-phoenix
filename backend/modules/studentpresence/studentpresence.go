@@ -71,6 +71,7 @@ type Command interface {
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error
 	RestoreVisits(context.Context, []int64) error
+	LockGroupSupervisions(context.Context) error
 }
 
 // LatestPresenceDate returns the last attendance or visit day as YYYY-MM-DD.
@@ -95,6 +96,15 @@ func (m *Module) CountStudentVisitsForDeletion(ctx context.Context, studentID in
 
 func (m *Module) LockOpenPresence(ctx context.Context, studentIDs []int64) error {
 	return m.engine.LockOpenPresence(ctx, studentIDs)
+}
+
+// LockGroupSupervisions takes a SHARE ROW EXCLUSIVE table lock on the live
+// group supervision rows for the caller's transaction, so a caregiver
+// capability re-check cannot race a concurrent supervision write. Callers
+// serializing staff lifecycle changes take it alongside the other binding
+// owners' locks.
+func (m *Module) LockGroupSupervisions(ctx context.Context) error {
+	return m.engine.LockGroupSupervisions(ctx)
 }
 
 // CloseOpenPresence closes all recorded attendance and visits for a care exit.

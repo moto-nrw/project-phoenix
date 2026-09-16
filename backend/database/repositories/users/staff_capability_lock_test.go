@@ -5,21 +5,29 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+func newCaregiverBindingLocker(db *bun.DB) userModels.CaregiverBindingLocker {
+	owners := repositories.NewCaregiverBindingOwners(repositories.NewUnobservedTimetableDependencies(db), repositories.NewStudentPresenceForTests(db))
+	return repoUsers.NewCaregiverBindingLocker(owners)
+}
 
 func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
-	holderRepo := repoUsers.NewCaregiverBindingLocker(db)
+	holderRepo := newCaregiverBindingLocker(db)
 
 	holder, err := db.BeginTx(context.Background(), nil)
 	require.NoError(t, err)
-	runtimeCtx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, db))
+	runtimeCtx := tenant.WithUnitOfWork(testpkg.Ctx(t), testpkg.TenantRuntime(t, db))
 	holderCtx := tenant.WithTransactionForTest(runtimeCtx, &holder)
 	require.NoError(t, holderRepo.LockCaregiverCapabilityBindings(holderCtx))
 
@@ -49,7 +57,7 @@ func TestStaffRepository_ReleasesCaregiverBindingLocksOnRollback(t *testing.T) {
 func TestStaffRepository_ReturnsCaregiverBindingLockFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupClosableTestDB(t)
-	repo := repoUsers.NewCaregiverBindingLocker(db)
+	repo := newCaregiverBindingLocker(db)
 	require.NoError(t, db.Close())
 
 	err := repo.LockCaregiverCapabilityBindings(testpkg.Ctx(t))

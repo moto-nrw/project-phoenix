@@ -10,7 +10,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableExprStaffMessagesAsMessage = `users.staff_messages AS "staff_message"`
+const (
+	tableStaffMessages              = "users.staff_messages"
+	tableExprStaffMessagesAsMessage = tableStaffMessages + ` AS "staff_message"`
+)
 
 // StaffMessageRepository is the tenant-scoped data-access layer for the
 // OGS-internal message log.
@@ -20,7 +23,7 @@ type StaffMessageRepository struct {
 
 // NewStaffMessageRepository wires a fresh repository.
 func NewStaffMessageRepository(db *bun.DB) users.StaffMessageRepository {
-	repo := base.NewRepository[*users.StaffMessage](db, "users.staff_messages", "StaffMessage")
+	repo := base.NewRepository[*users.StaffMessage](db, tableStaffMessages, "StaffMessage")
 	repo.TenantScoped = true
 	return &StaffMessageRepository{Repository: repo}
 }
@@ -38,7 +41,7 @@ func (r *StaffMessageRepository) Create(ctx context.Context, message *users.Staf
 
 	if _, err := base.GetDB(ctx, r.DB).NewInsert().
 		Model(message).
-		ModelTableExpr(r.TableName).
+		ModelTableExpr(tableStaffMessages).
 		ExcludeColumn("created_at", "updated_at").
 		Returning("id, created_at, updated_at").
 		Exec(ctx); err != nil {

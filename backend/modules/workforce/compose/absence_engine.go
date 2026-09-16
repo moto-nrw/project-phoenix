@@ -232,6 +232,13 @@ func (e engine) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID in
 	return value, mapError(err)
 }
 
+func (e engine) LockGroupSubstitutions(ctx context.Context) error {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return errors.New("workforce: group substitution locks require a transaction")
+	}
+	return mapError(e.service.LockGroupSubstitutions(ctx))
+}
+
 // --- mapping ---
 
 func absenceFilterToDomain(filter workforce.StaffAbsenceFilter) domain.StaffAbsenceFilter {
