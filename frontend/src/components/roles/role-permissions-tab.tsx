@@ -134,7 +134,9 @@ export function RolePermissionsTab({
         permission.resource.toLowerCase().includes(query) ||
         permission.action.toLowerCase().includes(query) ||
         localizeResource(permission.resource).toLowerCase().includes(query) ||
-        localizeAction(permission.action).toLowerCase().includes(query),
+        localizeAction(permission.action, permission.resource)
+          .toLowerCase()
+          .includes(query),
     );
   }, [allPermissions, searchTerm]);
 
@@ -367,7 +369,10 @@ export function RolePermissionsTab({
                             {permissionLabel(permission)}
                           </span>
                           <span className="block text-xs text-gray-500">
-                            {localizeAction(permission.action)}
+                            {localizeAction(
+                              permission.action,
+                              permission.resource,
+                            )}
                             {permission.description
                               ? ` · ${permission.description}`
                               : ""}

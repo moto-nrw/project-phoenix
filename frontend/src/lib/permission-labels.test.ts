@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   resourceLabels,
@@ -89,6 +91,13 @@ describe("permission-labels", () => {
 
     it("should handle empty string", () => {
       expect(localizeAction("")).toBe("");
+    });
+
+    it("prefers a resource-specific label over the shared one", () => {
+      // A school holds bank details of a parent, never tax data.
+      expect(localizeAction("financial", "guardians")).toBe("Bankdaten");
+      expect(localizeAction("financial", "staff")).toBe("Bank- & Steuerdaten");
+      expect(localizeAction("financial")).toBe("Bank- & Steuerdaten");
     });
 
     it("should handle special characters", () => {
@@ -238,6 +247,56 @@ describe("permission-labels", () => {
       expect(localizeDescription("admin", "*")).toBe(
         "Vollzugriff auf alle Ressourcen",
       );
+    });
+  });
+
+  // The Berechtigungen list renders every row of auth.permissions through the
+  // three tables above. Each lookup falls back silently — to the raw key, or to
+  // the English description the migration wrote — so a permission added without
+  // German wording reached the OGS-Leitung as "Aktivitäten: manage_categories /
+  // Manage activity categories (school Stammdaten)" (#3238).
+  //
+  // The catalog is the backend's, not a copy: a migration that adds a
+  // permission without extending catalog.json fails
+  // TestPermissionCatalogMatchesMigratedDatabase, and extending catalog.json
+  // without German wording fails here.
+  describe("catalog coverage", () => {
+    // Resolved from the Vitest root (frontend/), not from import.meta.url:
+    // Vite rewrites the module URL to an http:// one, which fileURLToPath
+    // rejects.
+    const catalogPath = resolve(
+      process.cwd(),
+      "../backend/auth/authorize/permissions/catalog.json",
+    );
+    const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as {
+      resource: string;
+      action: string;
+    }[];
+
+    it("reads a non-empty backend catalog", () => {
+      expect(catalog.length).toBeGreaterThan(0);
+    });
+
+    it.each(
+      catalog.map((entry) => [`${entry.resource}:${entry.action}`, entry]),
+    )("%s has German resource, action and description", (name, entry) => {
+      expect(
+        resourceLabels[entry.resource],
+        `resourceLabels is missing "${entry.resource}" — ${name} would show the raw key`,
+      ).toBeTruthy();
+      expect(
+        actionLabels[entry.action],
+        `actionLabels is missing "${entry.action}" — ${name} would show the raw key`,
+      ).toBeTruthy();
+
+      // A German description is the only way localizeDescription can ignore
+      // the database text, so asking for the sentinel back is exactly the
+      // "falls through to English" case.
+      const sentinel = "__db_description__";
+      expect(
+        localizeDescription(entry.resource, entry.action, sentinel),
+        `permissionDescriptions is missing "${name}" — the list would show the English database text`,
+      ).not.toBe(sentinel);
     });
   });
 });

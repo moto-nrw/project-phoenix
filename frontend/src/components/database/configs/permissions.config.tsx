@@ -150,7 +150,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
           },
           {
             label: "Aktion",
-            value: (p: Permission) => localizeAction(p.action),
+            value: (p: Permission) => localizeAction(p.action, p.resource),
           },
           {
             label: "Technischer Name",
