@@ -9,8 +9,8 @@ Current rules here supersede historical test-lifecycle examples in ADR 0004.
 All backend tests use real database fixtures, never hardcoded IDs. The CI gate `TestHermeticTestPatterns` (`backend/test/hermetic_verification_test.go`) fails on `int64(1)`-style IDs; mock-based test files must be added to its `skipPatterns` allowlist.
 
 Use the real fixture setup and behavior tests as examples:
-[package lifecycle](../../backend/services/active/main_test.go),
-[parallel behavior tests](../../backend/services/active/broadcast_test.go),
+[package lifecycle](../../backend/modules/studentpresence/legacy/services/active/main_test.go),
+[parallel behavior tests](../../backend/modules/studentpresence/legacy/services/active/broadcast_test.go),
 and [fixture helpers](../../backend/test/fixtures.go).
 Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
 
@@ -73,12 +73,12 @@ hosts, status, legacy-container migration and the startup/cleanup lock contract.
 # one), and gives each package binary a run-stamped clone.
 ../scripts/run-go-toolchain.sh ../scripts/test-backend.sh  # Full suite via gotestsum + immediate clone sweep (preferred full run)
 ../scripts/run-go-toolchain.sh go test ./...                # All tests (works standalone; each binary drops its own clone at exit)
-PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v ./services/active  # Also print tolerated leftovers
-PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./services/active  # Name the leaking test
-PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test ./services/active  # Keep the clone for a post-mortem
+PHX_TEST_LEFTOVERS=1 ../scripts/run-go-toolchain.sh go test -v ./modules/studentpresence/legacy/services/active  # Also print tolerated leftovers
+PHX_TEST_LEFTOVERS=test ../scripts/run-go-toolchain.sh go test -parallel 1 ./modules/studentpresence/legacy/services/active  # Name the leaking test
+PHX_TEST_KEEP_CLONE=1 ../scripts/run-go-toolchain.sh go test ./modules/studentpresence/legacy/services/active  # Keep the clone for a post-mortem
 ../scripts/run-go-toolchain.sh go run ./internal/testdb/cmd/sweep  # Drop this/dead runs' clones manually
 ../scripts/run-go-toolchain.sh go test -short ./...             # Fast inner loop; NEVER in CI — guts coverage.
-../scripts/run-go-toolchain.sh go test ./services/active/... -v # Specific package
+../scripts/run-go-toolchain.sh go test ./modules/studentpresence/legacy/services/active/... -v # Specific package
 ../scripts/run-go-toolchain.sh go test -race ./...              # Race detection
 ../scripts/run-go-toolchain.sh go test ./api/auth -run TestLogin # Specific test
 ```

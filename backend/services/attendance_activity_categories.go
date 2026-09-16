@@ -1,8 +1,8 @@
 package services
 
 import (
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // NewAttendanceActivityCategories exposes only the dashboard's category total.

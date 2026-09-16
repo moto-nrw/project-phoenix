@@ -387,6 +387,50 @@ common package moves, the calendar-date edge with the retained
 fixtures that still name them. Convert them to exact debt with the rule above
 once the package exists at a base SHA.
 
+The retained Presence services, rows and repositories (#3214) moved file for
+file, with their tests, out of the legacy packages the HTTP composition left
+behind: `services/active` into
+`modules/studentpresence/legacy/services/active` (`student-presence`/`adapter`,
+`adapter-test` in the package, `e2e-test` for the behaviour tests that compose
+the legacy repository and service graph over a real database),
+`services/statistics` into `modules/studentpresence/legacy/statistics`
+(`student-presence`/`adapter`, `adapter-test`), `models/active` into
+`modules/studentpresence/legacy/models/active` (`student-presence`/`domain`,
+`adapter-test`) and `database/repositories/active` into
+`modules/studentpresence/legacy/repositories/active`
+(`student-presence`/`postgres`, `e2e-test`). The root composition serves the
+public `modules/studentpresence` contracts from them exactly as before; no
+HTTP path, status code, error string, authorization check or tenant scoping
+changed, and the IoT error strings PyrePortal maps stay byte-identical. Every
+`*.student-presence-adapter`, `*.student-presence-domain`,
+`student-presence.adapter.*`, `student-presence.domain.*`,
+`student-presence.e2e-test.*`, `student-presence.compose.student-presence-domain`
+and `student-presence.adapter-test.student-presence-domain` rule that names
+#3214 is a compatibility permission, not a target dependency: PR mode cannot
+record debt for a package the candidate creates, so the 87 baseline entries
+that named the four old paths (the 28 recorded against #2737 and the 59 that
+other Contract tickets held for their own imports of those packages) became
+these rules instead of new keys. Convert them to exact
+debt with the rule above once the packages exist at a base SHA, and remove
+each rule with the last consumer of the retained contract. The move also
+replaced the retained services' post-construction setters (settings resolver,
+tenant runtime, guardian waker) and the session repository's room-directory
+binder with construction-time options, because the composition surface guard
+records mutable wiring per package; the legacy repository root rebinds the
+room owner behind the directory it installed at construction. The legacy
+composition roots and the retained timetable and isolation tests reach the
+retained repositories only through the `Legacy*` names in
+`modules/studentpresence/compose`, so no package outside Student Presence
+imports the retained Postgres package. The retained repositories parse
+calendar dates through the row vocabulary (`models/active/vocabulary.go`) and
+the retained services' in-package tests build the shared persistence base
+through the package's own aliases (`vocabulary.go`), because the
+`student-presence`/`postgres` and `student-presence`/`adapter-test` seams
+already existed and can admit no new permission. The package goes when the
+retained services dissolve into the Student Presence application and domain
+layers; `modules/workforce/legacy/timetracking` keeps importing the retained
+rows until then.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).

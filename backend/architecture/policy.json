@@ -1087,11 +1087,11 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/active",
+      "path": "modules/studentpresence/legacy/repositories/active",
       "owner": "student-presence",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
+      "external_test_role": "e2e-test"
     },
     {
       "path": "database/repositories/audit",
@@ -1416,10 +1416,10 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/active",
+      "path": "modules/studentpresence/legacy/models/active",
       "owner": "student-presence",
       "role": "domain",
-      "internal_test_role": "module-internal-test",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -1647,11 +1647,11 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/active",
+      "path": "modules/studentpresence/legacy/services/active",
       "owner": "student-presence",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "e2e-test"
     },
     {
       "path": "services/activities",
@@ -2522,10 +2522,10 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/statistics",
+      "path": "modules/studentpresence/legacy/statistics",
       "owner": "student-presence",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -6344,17 +6344,6 @@
       "target_role": "public"
     },
     {
-      "id": "group-live-view.adapter.student-presence-application",
-      "description": "The live-group compatibility adapter delegates location resolution, presence mode, status-day precedence, and tracking indicators to the retained presence service (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "application"
-    },
-    {
       "id": "group-live-view.adapter.student-presence-domain",
       "description": "The live-group compatibility adapter groups the retained status-day rows before the owner resolves their precedence (#2702).",
       "scopes": [
@@ -6981,17 +6970,6 @@
       "target_role": "public"
     },
     {
-      "id": "open-room-move.compose.student-presence-application",
-      "description": "Compatibility binding: the room session lookup-or-create and the move use the retained Student Presence service until the owner exposes them publicly (ADR 0018).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "application"
-    },
-    {
       "id": "open-room-move.compose.student-presence-domain",
       "description": "Compatibility binding: the retained Student Presence room session is returned as its domain row until the owner exposes it publicly (ADR 0018).",
       "scopes": [
@@ -7034,17 +7012,6 @@
       "source_role": "adapter-test",
       "target_owner": "timetable-activities",
       "target_role": "test-support"
-    },
-    {
-      "id": "open-room-move.adapter-test.student-presence-application",
-      "description": "Open-room move integration tests fake the retained Student Presence binding, whose result type lives in the retained service (ADR 0018).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "open-room-move",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "application"
     },
     {
       "id": "open-room-move.adapter-test.student-presence-domain",
@@ -11304,17 +11271,6 @@
       "source_role": "compose",
       "target_owner": "inbound-rooms",
       "target_role": "http"
-    },
-    {
-      "id": "facilities.compose.student-presence-application",
-      "description": "Facilities compatibility composition adapts live-presence operations.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "application"
     },
     {
       "id": "facilities.compose.settings-application",
@@ -17307,17 +17263,6 @@
       "target_role": "public"
     },
     {
-      "id": "process-device-scan.compose.student-presence-application",
-      "description": "Compatibility binding (#2698): the visit, session and attendance ports forward to the retained presence service until Student Presence exposes the transitions publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "process-device-scan",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "application"
-    },
-    {
       "id": "process-device-scan.compose.student-presence-domain",
       "description": "Compatibility binding (#2698): the session port maps the retained active group row.",
       "scopes": [
@@ -17614,17 +17559,6 @@
       "target_role": "domain"
     },
     {
-      "id": "calendar-view.adapter.student-presence-application",
-      "description": "The supervision compatibility adapter reads running sessions, supervisions, visits, attendance and tracking indicators through the retained presence service (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "application"
-    },
-    {
       "id": "calendar-view.adapter.settings-platform-application",
       "description": "The supervision compatibility adapter prefetches and reads tenant settings through the retained settings service (#2703).",
       "scopes": [
@@ -17744,17 +17678,6 @@
       "source_role": "adapter-test",
       "target_owner": "student-presence",
       "target_role": "domain"
-    },
-    {
-      "id": "calendar-view.adapter-test.student-presence-application",
-      "description": "Adapter tests fake the retained presence service (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "application"
     },
     {
       "id": "calendar-view.adapter-test.settings-platform-application",
@@ -18018,17 +17941,6 @@
       "source_owner": "inbound-statistics",
       "source_role": "http",
       "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
-      "id": "inbound-statistics.student-presence-application",
-      "description": "Compatibility binding (#2703): the statistics handlers call the retained statistics service until Student Presence exposes the report publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_owner": "student-presence",
       "target_role": "application"
     },
     {
@@ -20861,6 +20773,868 @@
       "source_role": "module-behavior-test",
       "target_owner": "grade-transition",
       "target_role": "compose"
+    },
+    {
+      "id": "inbound-common.adapter-test.student-presence-domain",
+      "description": "The shared HTTP helper tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-common.adapter-test.student-presence-adapter",
+      "description": "The shared HTTP helper tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.adapter-test.student-presence-domain",
+      "description": "The student route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter-test.student-presence-adapter",
+      "description": "The student route tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.module-behavior-test.student-presence-domain",
+      "description": "The retained timetable behaviour tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.e2e-test.legacy-shared-domain",
+      "description": "The retained Presence behaviour tests pin calendar-day expectations with the retained calendar-date type (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.e2e-test.transaction-runtime-domain",
+      "description": "The retained Presence behaviour tests build the shared persistence base model and query options (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-public",
+      "description": "The retained Presence behaviour tests seed visits and attendance through the public Student Presence contract (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-compose",
+      "description": "The retained Presence behaviour tests compose the production Student Presence facade (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-domain",
+      "description": "The retained Presence behaviour tests seed and assert the retained rows (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-postgres",
+      "description": "The retained Presence behaviour tests drive the retained repositories they moved with (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "postgres"
+    },
+    {
+      "id": "student-presence.e2e-test.audit-platform-domain",
+      "description": "The retained Presence behaviour tests read the audit rows the services write (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.e2e-test.timetable-activities-domain",
+      "description": "The retained Presence behaviour tests seed the schedule rows the attendance sync mirrors into (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-adapter",
+      "description": "The retained Presence behaviour tests drive the retained services they moved with (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "student-presence.e2e-test.timetable-activities-application",
+      "description": "The retained Presence behaviour tests build the retained attendance sync service (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "student-presence.e2e-test.people-directory-application",
+      "description": "The retained Presence behaviour tests build the retained person service the staff names resolve through (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "student-presence.e2e-test.tenant-runtime-public",
+      "description": "The retained Presence behaviour tests bind the tenant unit of work the commands open transactions through (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.module-behavior-test.student-presence-domain",
+      "description": "The retained parent behaviour tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.module-behavior-test.student-presence-adapter",
+      "description": "The retained parent behaviour tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "organization-tenancy.module-behavior-test.student-presence-domain",
+      "description": "The retained operator provisioning tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.module-behavior-test.student-presence-adapter",
+      "description": "The retained timetable behaviour tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.module-behavior-test.student-presence-domain",
+      "description": "The retained person behaviour tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.module-behavior-test.student-presence-adapter",
+      "description": "The retained person behaviour tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "open-room-move.adapter-test.student-presence-adapter",
+      "description": "The open-room move composition tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.adapter-test.student-presence-domain",
+      "description": "The parent route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter-test.student-presence-domain",
+      "description": "The timetable route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter-test.student-presence-adapter",
+      "description": "The timetable route tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-usercontext.adapter-test.student-presence-domain",
+      "description": "The user-context route tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-usercontext",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "root-composition.module-internal-test.student-presence-adapter",
+      "description": "The cleanup CLI tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.module-internal-test.student-presence-domain",
+      "description": "The legacy entity-interface tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter-test.student-presence-domain",
+      "description": "The retained Presence in-package tests build the retained rows the services read (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "calendar-view.adapter-test.student-presence-adapter",
+      "description": "The supervision compatibility adapter tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.module-internal-test.student-presence-domain",
+      "description": "The retained enrollment service tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "scheduler-runtime.module-internal-test.student-presence-domain",
+      "description": "The scheduler tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "scheduler-runtime.module-internal-test.student-presence-adapter",
+      "description": "The scheduler tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.student-presence-domain",
+      "description": "The retained timetable service tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.student-presence-adapter",
+      "description": "The retained timetable service tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.module-internal-test.student-presence-domain",
+      "description": "The retained user-context service tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.module-internal-test.student-presence-adapter",
+      "description": "The retained user-context service tests still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "test-support.e2e-test.student-presence-domain",
+      "description": "The end-to-end timetable and isolation tests still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-common.http.student-presence-adapter",
+      "description": "The shared HTTP helpers still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-common",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-groups.http.student-presence-domain",
+      "description": "The group routes still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-groups",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-groups.http.student-presence-adapter",
+      "description": "The group routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-groups",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-operator.http.student-presence-adapter",
+      "description": "The operator routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.http.student-presence-domain",
+      "description": "The parent routes still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.http.student-presence-domain",
+      "description": "The student routes still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.http.student-presence-adapter",
+      "description": "The student routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.http.student-presence-adapter",
+      "description": "The timetable routes still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.cli.student-presence-adapter",
+      "description": "The cleanup CLI still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.compose.student-presence-domain",
+      "description": "The legacy composition roots still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "process-device-scan.compose.student-presence-adapter",
+      "description": "The device-scan composition still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "facilities.compose.student-presence-adapter",
+      "description": "The Facilities composition still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.student-presence-adapter",
+      "description": "The live-group compatibility adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-statistics.http.student-presence-adapter",
+      "description": "The statistics HTTP adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-statistics",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "student-presence.compose.student-presence-domain",
+      "description": "The Student Presence composition names the retained repository contracts it exposes to the legacy composition roots (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.domain.legacy-shared-domain",
+      "description": "The retained Presence rows carry calendar dates as the retained calendar-date type (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "domain",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.domain.transaction-runtime-domain",
+      "description": "The retained Presence rows embed the shared persistence base model and query options (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "domain",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter.legacy-shared-domain",
+      "description": "The retained Presence services compute calendar days with the retained calendar-date type (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter.transaction-runtime-domain",
+      "description": "The retained Presence services page and classify repository errors through the shared persistence base (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter.delivery-platform-application",
+      "description": "The retained Presence services name the realtime event types they queue after commit (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "student-presence.adapter.student-presence-public",
+      "description": "The retained Presence services persist visits and attendance through the public Student Presence contract (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.adapter.student-presence-domain",
+      "description": "The retained Presence services still speak the retained rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.adapter.tenant-runtime-public",
+      "description": "The retained Presence services open their own tenant transaction for commands that run without a request (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-view.adapter.student-presence-adapter",
+      "description": "The supervision compatibility adapter still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "school-structure.application.student-presence-domain",
+      "description": "The retained education services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.application.student-presence-domain",
+      "description": "The retained enrollment services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "care-plan.application.student-presence-domain",
+      "description": "The retained parent services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "organization-tenancy.application.student-presence-domain",
+      "description": "The retained operator provisioning service still reaches the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "scheduler-runtime.application.student-presence-domain",
+      "description": "The scheduler still reaches the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "scheduler-runtime.application.student-presence-adapter",
+      "description": "The scheduler still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.application.student-presence-domain",
+      "description": "The retained timetable services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.application.student-presence-adapter",
+      "description": "The retained timetable services still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.application.student-presence-domain",
+      "description": "The retained user-context service still reaches the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.application.student-presence-adapter",
+      "description": "The retained user-context service still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.application.student-presence-domain",
+      "description": "The retained person services still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "legacy-composition.compose.student-presence-adapter",
+      "description": "The legacy composition roots still reach the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "test-support.test-support.student-presence-domain",
+      "description": "The shared test fixtures still reach the retained Presence rows and repository contracts in modules/studentpresence/legacy/models/active (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "open-room-move.compose.student-presence-adapter",
+      "description": "The open-room move composition still reaches the retained Presence services in modules/studentpresence/legacy/services/active and modules/studentpresence/legacy/statistics (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
     }
   ]
 }

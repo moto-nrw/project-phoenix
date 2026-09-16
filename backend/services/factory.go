@@ -56,13 +56,14 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -81,7 +82,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1125,12 +1125,29 @@ func newFactory(
 		Logger:                   activeLogger,
 		Now:                      now,
 	}
-	activeService := active.NewService(activeServiceDeps)
-
-	// Inject settings resolver into active service so auto-clear of sick /
-	// excused flags respects the tenant's operations.sick_clear_mode and
-	// operations.excused_clear_mode settings.
-	activeService.SetSettingsService(PresenceSettings(settingsService))
+	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
+	// enrollment writes that change a child's live care data.
+	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
+		DB:          db,
+		Runtime:     tenantRuntime,
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		Logger:      logger.With("service", "parent-events"),
+	})
+	activeService := active.NewService(activeServiceDeps,
+		// The settings resolver lets auto-clear of sick / excused flags respect
+		// the tenant's operations.sick_clear_mode and
+		// operations.excused_clear_mode settings.
+		active.WithSettings(PresenceSettings(settingsService)),
+		// Session commands that run without a request transaction (scheduler
+		// timeouts, daily session end) open their own tenant transaction.
+		active.WithTenantRuntime(tenantRuntime),
+		// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der
+		// Tagesstatus in der Eltern-App (#2252) live nachlaedt.
+		active.WithGuardianWaker(pillEmitter),
+	)
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -2050,25 +2067,6 @@ func newFactory(
 	})
 	users.WirePersonCareParticipation(usersService, careLifecycleService)
 	schedule.WireCareParticipation(careDayService, careLifecycleService)
-	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
-	// enrollment writes that change a child's live care data.
-	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB:          db,
-		Runtime:     tenantRuntime,
-		ThreadRepo:  repos.ParentMessageThread,
-		MessageRepo: repos.ParentMessage,
-		Settings:    settingsService,
-		Broadcaster: realtimeHub,
-		Logger:      logger.With("service", "parent-events"),
-	})
-
-	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus in der Eltern-App (#2252) live nachlaedt.
-	if waker, ok := activeService.(interface {
-		SetGuardianWaker(active.GuardianWaker)
-	}); ok {
-		waker.SetGuardianWaker(pillEmitter)
-	}
-
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),
