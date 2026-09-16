@@ -1,4 +1,12 @@
 // Localization helpers for permission resources/actions
+//
+// Every permission moto ships is listed in
+// backend/auth/authorize/permissions/catalog.json, and the test beside this
+// file checks each catalog entry against the three tables below. A missing
+// entry used to fall back silently to the raw key ("manage_categories") or to
+// the English database description (#3238), so the fallbacks stay as a safety
+// net for permissions a school adds at runtime — not as a licence to skip the
+// German wording for a shipped one.
 
 export const resourceLabels: Record<string, string> = {
   users: "Benutzer",
@@ -20,6 +28,16 @@ export const resourceLabels: Record<string, string> = {
   calendar: "Kalender",
   staff: "Mitarbeitende",
   files: "Dateiablage",
+  auth: "Anmeldung",
+  guardians: "Eltern",
+  staff_documents: "Personalunterlagen",
+  student_documents: "Unterlagen der Kinder",
+  staff_notices: "Tagesinformationen",
+  class_day: "Klassenansicht",
+  supervision: "Aufsichten",
+  display: "Info-Point",
+  vacation: "Urlaub",
+  "*": "Alle Bereiche",
 };
 
 export const actionLabels: Record<string, string> = {
@@ -36,14 +54,35 @@ export const actionLabels: Record<string, string> = {
   financial: "Bank- & Steuerdaten",
   stammdaten: "Personalstammdaten",
   documents: "Personalunterlagen",
+  manage_categories: "Kategorien verwalten",
+  checkin: "An- und abmelden",
+  absence: "Abwesenheiten",
+  approve: "Genehmigen",
+  health: "Gesundheitsdaten",
+  legal: "Sorgerecht",
+  arrival_exception_write: "Ankunftszeit ändern",
   "*": "Alle",
+};
+
+/**
+ * Action labels that one resource needs to read differently. The action table
+ * is shared, so "financial" cannot say "Bank- & Steuerdaten" for staff and
+ * "Bankdaten" for guardians at the same time — and a school holds no tax data
+ * of a parent.
+ */
+const actionLabelsByPermission: Record<string, string> = {
+  "guardians:financial": "Bankdaten",
 };
 
 export function localizeResource(resource: string): string {
   return resourceLabels[resource] ?? resource;
 }
 
-export function localizeAction(action: string): string {
+export function localizeAction(action: string, resource?: string): string {
+  if (resource !== undefined) {
+    const specific = actionLabelsByPermission[`${resource}:${action}`];
+    if (specific !== undefined) return specific;
+  }
   return actionLabels[action] ?? action;
 }
 
@@ -51,7 +90,7 @@ export function formatPermissionDisplay(
   resource: string,
   action: string,
 ): string {
-  return `${localizeResource(resource)}: ${localizeAction(action)}`;
+  return `${localizeResource(resource)}: ${localizeAction(action, resource)}`;
 }
 
 /**
@@ -66,6 +105,9 @@ const permissionDescriptions: Record<string, string> = {
   "users:delete": "Benutzer löschen",
   "users:list": "Benutzer auflisten",
   "users:manage": "Benutzerverwaltung (Vollzugriff)",
+  "users:checkin": "Kinder in moto anmelden und abmelden",
+  "users:absence":
+    "Krankmeldungen und Abwesenheiten von Kindern eintragen und über Anfragen der Eltern entscheiden",
 
   // Activities
   "activities:create": "Neue Aktivitäten erstellen",
@@ -76,6 +118,18 @@ const permissionDescriptions: Record<string, string> = {
   "activities:manage": "Aktivitätenverwaltung (Vollzugriff)",
   "activities:enroll": "Kinder in Aktivitäten einschreiben",
   "activities:assign": "Betreuer zu Aktivitäten zuweisen",
+  "activities:manage_categories":
+    "Kategorien für Angebote anlegen, umbenennen und archivieren",
+
+  // Roles and permissions
+  "roles:create": "Neue Rollen erstellen",
+  "roles:read": "Rollen ansehen",
+  "roles:update": "Rollen bearbeiten",
+  "roles:delete": "Rollen löschen",
+  "permissions:create": "Neue Berechtigungen erstellen",
+  "permissions:read": "Berechtigungen ansehen",
+  "permissions:update": "Berechtigungen bearbeiten",
+  "permissions:delete": "Berechtigungen löschen",
 
   // Rooms
   "rooms:create": "Neue Räume erstellen",
@@ -140,6 +194,19 @@ const permissionDescriptions: Record<string, string> = {
 
   // Time Tracking
   "time_tracking:own": "Eigene Arbeitszeiten erfassen",
+  "time_tracking:manage":
+    "Arbeitszeiten aller Mitarbeitenden ansehen und bearbeiten",
+
+  // Urlaub
+  "vacation:approve": "Urlaubsanträge genehmigen oder ablehnen",
+
+  // Info-Point
+  "display:read": "Info-Point-Anzeigen und ihren Status ansehen",
+  "display:manage": "Info-Point-Anzeigen anlegen, umbenennen und löschen",
+
+  // Dateiablage
+  "files:manage":
+    "Ordner anlegen, festlegen wer sie sieht, Dateien hochladen und löschen",
 
   // Staff Stammdaten
   "staff:financial":
@@ -150,6 +217,21 @@ const permissionDescriptions: Record<string, string> = {
     "Allgemeine Personalunterlagen von Mitarbeitenden verwalten (Arbeitsvertrag, Zeugnis, Bewerbung, Sonstiges)",
   "staff:manage":
     "Mitarbeiter-Datensätze anderer Personen ändern (Notizen, Betreuungsprofil, Qualifikationen)",
+
+  // Personalunterlagen und Unterlagen der Kinder
+  "staff_documents:health":
+    "AU-Bescheinigungen von Mitarbeitenden ansehen, hochladen und löschen",
+  "student_documents:health":
+    "Gesundheitsunterlagen von Kindern ansehen, hochladen und löschen (Attest, Impfnachweis, Medikamentenplan)",
+  "student_documents:legal":
+    "Sorgerechtsnachweise von Kindern ansehen, hochladen und löschen",
+
+  // Schul-Portal (moto schule)
+  "class_day:read": "Tagesansicht der eigenen Klassen ansehen",
+  "class_day:arrival_exception_write":
+    "Für eine eigene Klasse an einem Tag eine andere Ankunftszeit eintragen",
+  "staff_notices:read": "Tagesinformationen der Leitung lesen und bestätigen",
+  "supervision:own": "Eigene Aufsichten aus dem Betreuungsplan durchführen",
 
   // Guardian payment data
   "guardians:financial":

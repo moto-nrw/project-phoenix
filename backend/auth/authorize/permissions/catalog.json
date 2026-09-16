@@ -1,0 +1,386 @@
+[
+  {
+    "resource": "*",
+    "action": "*"
+  },
+  {
+    "resource": "activities",
+    "action": "assign"
+  },
+  {
+    "resource": "activities",
+    "action": "create"
+  },
+  {
+    "resource": "activities",
+    "action": "delete"
+  },
+  {
+    "resource": "activities",
+    "action": "enroll"
+  },
+  {
+    "resource": "activities",
+    "action": "list"
+  },
+  {
+    "resource": "activities",
+    "action": "manage"
+  },
+  {
+    "resource": "activities",
+    "action": "manage_categories"
+  },
+  {
+    "resource": "activities",
+    "action": "read"
+  },
+  {
+    "resource": "activities",
+    "action": "update"
+  },
+  {
+    "resource": "admin",
+    "action": "*"
+  },
+  {
+    "resource": "auth",
+    "action": "manage"
+  },
+  {
+    "resource": "calendar",
+    "action": "manage"
+  },
+  {
+    "resource": "calendar",
+    "action": "own"
+  },
+  {
+    "resource": "class_day",
+    "action": "arrival_exception_write"
+  },
+  {
+    "resource": "class_day",
+    "action": "read"
+  },
+  {
+    "resource": "config",
+    "action": "manage"
+  },
+  {
+    "resource": "config",
+    "action": "read"
+  },
+  {
+    "resource": "config",
+    "action": "update"
+  },
+  {
+    "resource": "display",
+    "action": "manage"
+  },
+  {
+    "resource": "display",
+    "action": "read"
+  },
+  {
+    "resource": "feedback",
+    "action": "create"
+  },
+  {
+    "resource": "feedback",
+    "action": "delete"
+  },
+  {
+    "resource": "feedback",
+    "action": "list"
+  },
+  {
+    "resource": "feedback",
+    "action": "manage"
+  },
+  {
+    "resource": "feedback",
+    "action": "read"
+  },
+  {
+    "resource": "files",
+    "action": "manage"
+  },
+  {
+    "resource": "grade_transitions",
+    "action": "apply"
+  },
+  {
+    "resource": "grade_transitions",
+    "action": "create"
+  },
+  {
+    "resource": "grade_transitions",
+    "action": "delete"
+  },
+  {
+    "resource": "grade_transitions",
+    "action": "read"
+  },
+  {
+    "resource": "grade_transitions",
+    "action": "update"
+  },
+  {
+    "resource": "groups",
+    "action": "assign"
+  },
+  {
+    "resource": "groups",
+    "action": "create"
+  },
+  {
+    "resource": "groups",
+    "action": "delete"
+  },
+  {
+    "resource": "groups",
+    "action": "list"
+  },
+  {
+    "resource": "groups",
+    "action": "manage"
+  },
+  {
+    "resource": "groups",
+    "action": "read"
+  },
+  {
+    "resource": "groups",
+    "action": "update"
+  },
+  {
+    "resource": "guardians",
+    "action": "financial"
+  },
+  {
+    "resource": "iot",
+    "action": "manage"
+  },
+  {
+    "resource": "iot",
+    "action": "read"
+  },
+  {
+    "resource": "iot",
+    "action": "update"
+  },
+  {
+    "resource": "permissions",
+    "action": "create"
+  },
+  {
+    "resource": "permissions",
+    "action": "delete"
+  },
+  {
+    "resource": "permissions",
+    "action": "read"
+  },
+  {
+    "resource": "permissions",
+    "action": "update"
+  },
+  {
+    "resource": "roles",
+    "action": "create"
+  },
+  {
+    "resource": "roles",
+    "action": "delete"
+  },
+  {
+    "resource": "roles",
+    "action": "read"
+  },
+  {
+    "resource": "roles",
+    "action": "update"
+  },
+  {
+    "resource": "rooms",
+    "action": "create"
+  },
+  {
+    "resource": "rooms",
+    "action": "delete"
+  },
+  {
+    "resource": "rooms",
+    "action": "list"
+  },
+  {
+    "resource": "rooms",
+    "action": "manage"
+  },
+  {
+    "resource": "rooms",
+    "action": "read"
+  },
+  {
+    "resource": "rooms",
+    "action": "update"
+  },
+  {
+    "resource": "schedules",
+    "action": "create"
+  },
+  {
+    "resource": "schedules",
+    "action": "delete"
+  },
+  {
+    "resource": "schedules",
+    "action": "list"
+  },
+  {
+    "resource": "schedules",
+    "action": "manage"
+  },
+  {
+    "resource": "schedules",
+    "action": "read"
+  },
+  {
+    "resource": "schedules",
+    "action": "update"
+  },
+  {
+    "resource": "staff",
+    "action": "documents"
+  },
+  {
+    "resource": "staff",
+    "action": "financial"
+  },
+  {
+    "resource": "staff",
+    "action": "manage"
+  },
+  {
+    "resource": "staff",
+    "action": "stammdaten"
+  },
+  {
+    "resource": "staff_documents",
+    "action": "health"
+  },
+  {
+    "resource": "staff_notices",
+    "action": "read"
+  },
+  {
+    "resource": "student_documents",
+    "action": "health"
+  },
+  {
+    "resource": "student_documents",
+    "action": "legal"
+  },
+  {
+    "resource": "substitutions",
+    "action": "create"
+  },
+  {
+    "resource": "substitutions",
+    "action": "delete"
+  },
+  {
+    "resource": "substitutions",
+    "action": "list"
+  },
+  {
+    "resource": "substitutions",
+    "action": "manage"
+  },
+  {
+    "resource": "substitutions",
+    "action": "read"
+  },
+  {
+    "resource": "substitutions",
+    "action": "update"
+  },
+  {
+    "resource": "supervision",
+    "action": "own"
+  },
+  {
+    "resource": "system",
+    "action": "manage"
+  },
+  {
+    "resource": "time_tracking",
+    "action": "manage"
+  },
+  {
+    "resource": "time_tracking",
+    "action": "own"
+  },
+  {
+    "resource": "users",
+    "action": "absence"
+  },
+  {
+    "resource": "users",
+    "action": "checkin"
+  },
+  {
+    "resource": "users",
+    "action": "create"
+  },
+  {
+    "resource": "users",
+    "action": "delete"
+  },
+  {
+    "resource": "users",
+    "action": "list"
+  },
+  {
+    "resource": "users",
+    "action": "manage"
+  },
+  {
+    "resource": "users",
+    "action": "read"
+  },
+  {
+    "resource": "users",
+    "action": "update"
+  },
+  {
+    "resource": "vacation",
+    "action": "approve"
+  },
+  {
+    "resource": "visits",
+    "action": "create"
+  },
+  {
+    "resource": "visits",
+    "action": "delete"
+  },
+  {
+    "resource": "visits",
+    "action": "list"
+  },
+  {
+    "resource": "visits",
+    "action": "manage"
+  },
+  {
+    "resource": "visits",
+    "action": "read"
+  },
+  {
+    "resource": "visits",
+    "action": "update"
+  }
+]
