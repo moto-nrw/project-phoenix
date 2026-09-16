@@ -5,7 +5,7 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -33,14 +33,14 @@ type WorkforceAdminCapabilities struct {
 func NewWorkforceAdminCapabilities(
 	people users.PersonService,
 	documents users.StaffDocumentService,
-	sessions active.WorkSessionService,
-	absences active.StaffAbsenceService,
-	months active.WorkTimeMonthService,
-	ledger active.StaffBalanceAdjustmentService,
-	closing active.StaffMonthCloseService,
-	overview active.StaffOverviewService,
-	auditLog active.TimeTrackingAuditLogService,
-	export active.StaffTimeExportService,
+	sessions timetracking.WorkSessionService,
+	absences timetracking.StaffAbsenceService,
+	months timetracking.WorkTimeMonthService,
+	ledger timetracking.StaffBalanceAdjustmentService,
+	closing timetracking.StaffMonthCloseService,
+	overview timetracking.StaffOverviewService,
+	auditLog timetracking.TimeTrackingAuditLogService,
+	export timetracking.StaffTimeExportService,
 ) WorkforceAdminCapabilities {
 	capabilities := WorkforceAdminCapabilities{
 		Staff:        StaffDirectoryCapability(people),

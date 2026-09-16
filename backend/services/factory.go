@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -61,6 +60,7 @@ import (
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
@@ -135,16 +135,16 @@ type Factory struct {
 	Passkey              auth.PasskeyService
 	Active               active.Service
 	ActiveCleanup        active.CleanupService
-	WorkSession          active.WorkSessionService
-	WorkTimeMonth        active.WorkTimeMonthService
+	WorkSession          timetracking.WorkSessionService
+	WorkTimeMonth        timetracking.WorkTimeMonthService
 	Holidays             schedule.HolidayService
 	ClosingDays          schedule.ClosingDayService
-	StaffAbsence         active.StaffAbsenceService
-	StaffBalanceAdjust   active.StaffBalanceAdjustmentService
-	StaffMonthClose      active.StaffMonthCloseService
-	StaffOverview        active.StaffOverviewService
-	TimeTrackingAuditLog active.TimeTrackingAuditLogService
-	StaffTimeExport      active.StaffTimeExportService
+	StaffAbsence         timetracking.StaffAbsenceService
+	StaffBalanceAdjust   timetracking.StaffBalanceAdjustmentService
+	StaffMonthClose      timetracking.StaffMonthCloseService
+	StaffOverview        timetracking.StaffOverviewService
+	TimeTrackingAuditLog timetracking.TimeTrackingAuditLogService
+	StaffTimeExport      timetracking.StaffTimeExportService
 	Activities           activities.ActivityService
 	Education            education.Service
 	Substitution         education.SubstitutionModule
@@ -177,7 +177,7 @@ type Factory struct {
 	Materialization           schedule.MaterializationService
 	TemplateSplit             *schedule.TemplateSplitService
 	TimetableCleanup          schedule.TimetableCleanupService
-	TimeTrackingCleanup       active.TimeTrackingCleanupService
+	TimeTrackingCleanup       timetracking.TimeTrackingCleanupService
 	StudentChangeLogCleanup   users.StudentChangeLogCleanupService
 	Instance                  schedule.InstanceService
 	AutoStart                 schedule.AutoStartService
@@ -885,31 +885,6 @@ func newFactory(
 	// and into the existing GuardianProfileRepository.LoadProfileWithChildren.
 	guardianProfileLoader := users.NewGuardianProfileLoader(repos.GuardianProfile, db, logger.With("service", "guardian-profile-loader"))
 
-	// Initialize work session service (before active service - needed for NFC auto-check-in)
-	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook)
-	// Planned-shift lookups for the auto-checkout job (#1798).
-	workSessionService.SetStaffShiftRepo(NewTimeTrackingShifts(repos.StaffShift))
-	if broadcastAware, ok := workSessionService.(interface {
-		SetBroadcaster(active.EventPublisher)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	staffClockService := newStaffClockService(usersService, repos.RFIDCard.FindByID, workSessionService)
-
-	// Monatskarte read model (#1842) — everything computed on read, the
-	// Übertrag is live.
-	workTimeMonthService := active.NewWorkTimeMonthService(
-		repos.WorkSession,
-		repos.WorkSessionBreak,
-		repos.StaffAbsence,
-		StaffScheduleAssignments(repos.Staff),
-		NewWorkScheduleTargets(repos.StaffWorkSchedule),
-		NewWorkTimeTargetModels(repos.WorkTimeModel),
-		NewTimeTrackingShifts(repos.StaffShift),
-		PresenceSettings(settingsService),
-		activeLogger,
-	)
-
 	// Public holidays per Bundesland (#1418 3a): computed from the
 	// operations.federal_state setting, zero the Soll of their day.
 	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
@@ -919,99 +894,98 @@ func newFactory(
 	// /holidays endpoint keeps reporting only real public holidays.
 	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
 	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
-	workTimeMonthService.SetHolidayReader(nonWorkingDayService)
-	// Stundenkonto transactions (#1420) enter the carry chain by effective date.
-	workTimeMonthService.SetAdjustmentReader(repos.StaffBalanceAdjust)
-	// Frozen months (#1417) short-circuit the carry chain so a retroactive
-	// correction can no longer rewrite a closed month's Übertrag.
-	workTimeMonthService.SetSnapshotReader(MonthSnapshotCapability(repos.StaffMonthSnapshot))
-	// The session service's weekly summaries reduce their Soll by holidays
-	// too. The setter is not part of the WorkSessionService interface (it
-	// would break external mocks), hence the assertion.
-	if holidayAware, ok := workSessionService.(interface {
-		SetHolidayReader(active.HolidayDatesReader)
-	}); ok {
-		holidayAware.SetHolidayReader(nonWorkingDayService)
-	}
-
-	// School-defined Abwesenheitsarten (#2403). Constructed before the absence
-	// service so it can be injected there and resolve custom names on both the
-	// write path (which base type an art inherits) and the read paths.
+	// School-defined Abwesenheitsarten (#2403): the time-tracking services
+	// resolve custom names on both the write path (which base type an art
+	// inherits) and the read paths.
 	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
-	if typeAware, ok := workSessionService.(interface {
-		SetAbsenceTypeService(active.AbsenceTypeReader)
-	}); ok {
-		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
-	}
+	// Time-account changes fan out tenant-wide after commit.
+	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
+	// The #1843 sick cascade needs the schedule services, which are built
+	// long after the absence service; the bridge resolves it on every call
+	// and the binding below happens once those services exist.
+	var shiftPlanSyncer schedule.ShiftPlanSyncer
+
+	// Initialize work session service (before active service - needed for NFC auto-check-in)
+	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
+		// Planned-shift lookups for the auto-checkout job (#1798).
+		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffShift)),
+		timetracking.WithWorkSessionEvents(timeTrackingEvents),
+		// The session service's weekly summaries reduce their Soll by holidays too.
+		timetracking.WithWorkSessionHolidays(nonWorkingDayService),
+		timetracking.WithWorkSessionAbsenceTypes(staffAbsenceTypeService),
+	)
+	staffClockService := newStaffClockService(usersService, repos.RFIDCard.FindByID, workSessionService)
+
+	// Monatskarte read model (#1842) — everything computed on read, the
+	// Übertrag is live.
+	workTimeMonthService := timetracking.NewWorkTimeMonthService(
+		repos.WorkSession,
+		repos.WorkSessionBreak,
+		repos.StaffAbsence,
+		StaffScheduleAssignments(repos.Staff),
+		NewWorkScheduleTargets(repos.StaffWorkSchedule),
+		NewWorkTimeTargetModels(repos.WorkTimeModel),
+		NewTimeTrackingShifts(repos.StaffShift),
+		PresenceSettings(settingsService),
+		activeLogger,
+		timetracking.WithMonthHolidays(nonWorkingDayService),
+		// Stundenkonto transactions (#1420) enter the carry chain by effective date.
+		timetracking.WithMonthAdjustments(repos.StaffBalanceAdjust),
+		// Frozen months (#1417) short-circuit the carry chain so a retroactive
+		// correction can no longer rewrite a closed month's Übertrag.
+		timetracking.WithMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
+	)
 
 	// Initialize staff absence service
-	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService)
-	if typeAware, ok := staffAbsenceService.(interface {
-		SetAbsenceTypeService(active.AbsenceTypeReader)
-	}); ok {
-		typeAware.SetAbsenceTypeService(staffAbsenceTypeService)
-	}
-	if broadcastAware, ok := staffAbsenceService.(interface {
-		SetBroadcaster(active.EventPublisher)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	if loggerAware, ok := staffAbsenceService.(interface {
-		SetLogger(*slog.Logger)
-	}); ok {
-		loggerAware.SetLogger(activeLogger)
-	}
+	staffAbsenceService := timetracking.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit, PresenceSettings(settingsService), workTimeMonthService,
+		timetracking.WithAbsenceTypes(staffAbsenceTypeService),
+		timetracking.WithAbsenceEvents(timeTrackingEvents),
+		timetracking.WithAbsenceLogger(activeLogger),
+		// Deletes leave an append-only tombstone in the cross-staff audit log
+		// (#1417). The delete paths fail without this wiring.
+		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
+		// Vacation takeover at the moto introduction (#2132): the summary
+		// subtracts pre-introduction days, the write paths book/delete them.
+		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
+		// Absence email notifications (#1419 4d).
+		timetracking.WithAbsenceEmail(timetracking.AbsenceEmailDeps{
+			Settings:    PresenceSettings(settingsService),
+			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
+			StaffRepo:   absenceEmailStaffDirectory{source: repos.Staff},
+			SchoolRepo:  absenceEmailSchoolDirectory{schools: repos.School},
+			FrontendURL: frontendURL,
+			Logger:      activeLogger,
+		}),
+		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() schedule.ShiftPlanSyncer { return shiftPlanSyncer })),
+	)
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
 	// school-year reset. Reads the live balance through the month service.
-	staffBalanceAdjustService := active.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger)
-	if broadcastAware, ok := staffBalanceAdjustService.(interface {
-		SetBroadcaster(active.EventPublisher)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
-	// A booking inside a closed month (#1417) could not move its frozen
-	// closing balance, so the ledger rejects it.
-	staffBalanceAdjustService.SetSnapshotReader(MonthSnapshotCapability(repos.StaffMonthSnapshot))
-	// Deletes leave an append-only tombstone in the cross-staff audit log
-	// (#1417). Both services fail their delete paths without this wiring.
-	if deletionAware, ok := staffBalanceAdjustService.(interface {
-		SetDeletionAudit(active.TimeTrackingDeletionAudit)
-	}); ok {
-		deletionAware.SetDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
-	}
-	if deletionAware, ok := staffAbsenceService.(interface {
-		SetDeletionAudit(active.TimeTrackingDeletionAudit)
-	}); ok {
-		deletionAware.SetDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion))
-	}
-	// Vacation takeover at the moto introduction (#2132): the summary
-	// subtracts pre-introduction days, the write paths book/delete them.
-	if openingAware, ok := staffAbsenceService.(interface {
-		SetVacationOpeningRepository(activeModels.StaffVacationOpeningRepository)
-	}); ok {
-		openingAware.SetVacationOpeningRepository(repos.StaffVacationOpening)
-	}
+	staffBalanceAdjustService := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger,
+		timetracking.WithAdjustmentEvents(timeTrackingEvents),
+		// A booking inside a closed month (#1417) could not move its frozen
+		// closing balance, so the ledger rejects it.
+		timetracking.WithAdjustmentSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
+		// Deletes leave an append-only tombstone in the cross-staff audit log
+		// (#1417). The delete path fails without this wiring.
+		timetracking.WithAdjustmentDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
+	)
 
 	// Monatsabschluss (#1417): freezes a month's closing balance so a
 	// retroactive correction can no longer rewrite every later Übertrag.
-	staffMonthCloseService := active.NewStaffMonthCloseService(
+	staffMonthCloseService := timetracking.NewStaffMonthCloseService(
 		MonthSnapshotCapability(repos.StaffMonthSnapshot),
 		workTimeMonthService,
 		MonthCloseStaff(repos.Staff),
 		PresenceSettings(settingsService),
 		activeLogger,
+		timetracking.WithMonthCloseEvents(timeTrackingEvents),
 	)
-	if broadcastAware, ok := staffMonthCloseService.(interface {
-		SetBroadcaster(active.EventPublisher)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
 
 	// Tenant-wide time-tracking views (#1417 2a). Prefetches all inputs once
 	// and runs the SAME per-staff month math over in-memory readers, so the
 	// list can never drift from the /staff/{id} detail view.
-	staffOverviewService := active.NewStaffOverviewService(
+	staffOverviewService := timetracking.NewStaffOverviewService(
 		OverviewStaff(repos.Staff),
 		repos.WorkSession,
 		repos.WorkSessionBreak,
@@ -1024,11 +998,11 @@ func newFactory(
 		NewTimeTrackingShifts(repos.StaffShift),
 		PresenceSettings(settingsService),
 		activeLogger,
+		timetracking.WithOverviewHolidays(nonWorkingDayService),
+		// Vacation takeover (#2132): the Resturlaub column subtracts
+		// pre-introduction days exactly like the /staff/{id} detail view.
+		timetracking.WithOverviewVacationOpenings(repos.StaffVacationOpening),
 	)
-	staffOverviewService.SetHolidayReader(nonWorkingDayService)
-	// Vacation takeover (#2132): the Resturlaub column subtracts
-	// pre-introduction days exactly like the /staff/{id} detail view.
-	staffOverviewService.SetVacationOpeningReader(repos.StaffVacationOpening)
 
 	// Cross-staff payroll/evidence export (#1417 2b): rows via the overview's
 	// prefetch (month) and the single-staff export cells (day); every download
@@ -1049,11 +1023,11 @@ func newFactory(
 		return len(staff), withoutPersonnelNumber, nil
 	})
 
-	staffTimeExportService := active.NewStaffTimeExportService(
+	staffTimeExportService := timetracking.NewStaffTimeExportService(
 		staffOverviewService,
 		workSessionService,
 		TimeExportStaff(repos.Staff),
-		NewDataAccessAudit(repos.DataAccessLog),
+		NewTimeTrackingDataAccessAudit(repos.DataAccessLog),
 		PayrollExportSettings{Source: payrollStatusService},
 		activeLogger,
 		RenderTimeTrackingWorkbook,
@@ -1061,27 +1035,11 @@ func newFactory(
 
 	// Cross-staff audit feed (#1417): merges the four change trails into one
 	// keyset-paginated view. Read-only; permission gating at the route.
-	timeTrackingAuditLogService := active.NewTimeTrackingAuditLogService(
+	timeTrackingAuditLogService := timetracking.NewTimeTrackingAuditLogService(
 		NewTimeTrackingAuditReader(repos.TimeTrackingAuditLog),
 		StaffDisplayNames(repos.Staff),
 		PresenceSettings(settingsService),
 	)
-
-	// Absence email notifications (#1419 4d). Setter injection keeps the
-	// constructor stable and unit tests email-free (mirrors SetShiftPlanSyncer);
-	// the interface stays untouched via the assertion (like SetHolidayReader).
-	if emailAware, ok := staffAbsenceService.(interface {
-		SetAbsenceEmailDeps(active.AbsenceEmailDeps)
-	}); ok {
-		emailAware.SetAbsenceEmailDeps(active.AbsenceEmailDeps{
-			Settings:    PresenceSettings(settingsService),
-			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
-			StaffRepo:   absenceEmailStaffDirectory{source: repos.Staff},
-			SchoolRepo:  absenceEmailSchoolDirectory{schools: repos.School},
-			FrontendURL: frontendURL,
-			Logger:      activeLogger,
-		})
-	}
 
 	// Initialize attendance sync service (WP-B10). Implements
 	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
@@ -1509,10 +1467,10 @@ func newFactory(
 	// audit.work_session_edits) and active.staff_absences older than the
 	// tenant's retention window. Per-staff audit rows via DataDeletion
 	// (staff_id subject, added in migration 1.15.58).
-	timeTrackingCleanupService := active.NewTimeTrackingCleanupService(
+	timeTrackingCleanupService := timetracking.NewTimeTrackingCleanupService(
 		repos.WorkSession,
 		repos.StaffAbsence,
-		NewDeletionAudit(repos.DataDeletion),
+		NewTimeTrackingRetentionAudit(repos.DataDeletion),
 		PresenceSettings(settingsService),
 		logger.With("service", "time-tracking-cleanup"),
 	)
@@ -3183,10 +3141,10 @@ func newFactory(
 	)
 	factory.TenantSettings = tenantSettings
 
-	// #1843 sick cascade: setter-injected after assembly because the syncer
+	// #1843 sick cascade: bound after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence
-	// service (services/active) is constructed long before them.
-	staffAbsenceService.SetShiftPlanSyncer(schedule.NewShiftPlanSyncService(
+	// service is constructed long before them; the bridge resolves it per call.
+	shiftPlanSyncer = schedule.NewShiftPlanSyncService(
 		staffShiftService,
 		instanceService,
 		factory.TimetableData,
@@ -3196,7 +3154,7 @@ func newFactory(
 		db,
 		logger.With("service", "shift_plan_sync"),
 		today,
-	))
+	)
 	// The People Directory serves guardians through the owner's legacy
 	// guardian service (#2663); bind it now that the service exists.
 	factory.bindGuardianDirectory(persons, db)

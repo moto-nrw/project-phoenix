@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type workSessionAudit struct {
@@ -12,14 +12,14 @@ type workSessionAudit struct {
 }
 
 // NewWorkSessionAudit projects audit storage onto the work-session contract.
-func NewWorkSessionAudit(repo audit.WorkSessionEditRepository) active.WorkSessionAudit {
+func NewWorkSessionAudit(repo audit.WorkSessionEditRepository) timetracking.WorkSessionAudit {
 	if repo == nil {
 		return nil
 	}
 	return workSessionAudit{repo}
 }
 
-func (a workSessionAudit) CreateBatch(ctx context.Context, edits []*active.WorkSessionEdit) error {
+func (a workSessionAudit) CreateBatch(ctx context.Context, edits []*timetracking.WorkSessionEdit) error {
 	var rows []*audit.WorkSessionEdit
 	if edits != nil {
 		rows = make([]*audit.WorkSessionEdit, len(edits))
@@ -41,21 +41,21 @@ func (a workSessionAudit) CreateBatch(ctx context.Context, edits []*active.WorkS
 	return err
 }
 
-func (a workSessionAudit) GetBySessionID(ctx context.Context, id int64) ([]*active.WorkSessionEdit, error) {
+func (a workSessionAudit) GetBySessionID(ctx context.Context, id int64) ([]*timetracking.WorkSessionEdit, error) {
 	rows, err := a.WorkSessionEditRepository.GetBySessionID(ctx, id)
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]*active.WorkSessionEdit, len(rows))
+	result := make([]*timetracking.WorkSessionEdit, len(rows))
 	for i, row := range rows {
 		result[i] = projectWorkSessionEdit(row)
 	}
 	return result, err
 }
 
-func projectWorkSessionEdit(row *audit.WorkSessionEdit) *active.WorkSessionEdit {
+func projectWorkSessionEdit(row *audit.WorkSessionEdit) *timetracking.WorkSessionEdit {
 	if row == nil {
 		return nil
 	}
-	return &active.WorkSessionEdit{ID: row.ID, TenantID: row.TenantID, SessionID: row.SessionID, StaffID: row.StaffID, EditedBy: row.EditedBy, FieldName: row.FieldName, OldValue: row.OldValue, NewValue: row.NewValue, Notes: row.Notes, CreatedAt: row.CreatedAt}
+	return &timetracking.WorkSessionEdit{ID: row.ID, TenantID: row.TenantID, SessionID: row.SessionID, StaffID: row.StaffID, EditedBy: row.EditedBy, FieldName: row.FieldName, OldValue: row.OldValue, NewValue: row.NewValue, Notes: row.Notes, CreatedAt: row.CreatedAt}
 }

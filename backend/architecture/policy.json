@@ -2280,6 +2280,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/workforce/legacy/timetracking",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/workforce/inbound",
       "owner": "workforce",
       "role": "adapter",
@@ -15213,6 +15220,105 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-substitutions",
       "target_role": "http"
+    },
+    {
+      "id": "workforce.adapter-test.subject",
+      "description": "The retained time-tracking behaviour tests drive the compatibility package they moved with (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "same_owner": true,
+      "target_role": "adapter"
+    },
+    {
+      "id": "workforce.adapter-test.legacy-composition-behaviour",
+      "description": "The retained time-tracking behaviour tests build the legacy repository and service graph they exercise (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "workforce.adapter-test.legacy-shared-domain",
+      "description": "The retained time-tracking behaviour tests pin calendar-day expectations with the shared helpers (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter-test.student-presence-domain",
+      "description": "The retained time-tracking behaviour tests seed and assert the retained models/active work-session and absence rows (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter-test.transaction-domain",
+      "description": "The retained time-tracking behaviour tests build the shared persistence model and query options (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter-test.audit-domain",
+      "description": "The retained time-tracking behaviour tests read the audit rows the services write (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter-test.timetable-domain",
+      "description": "The retained overview behaviour test seeds the schedule rows the Soll derivation reads (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "workforce.adapter-test.settings-application",
+      "description": "The retained DATEV export behaviour test drives the payroll status service (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.adapter-test.settings-support",
+      "description": "The retained export and schedule adapter tests script a school's payroll and work-schedule settings through the settings test support (#3213).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "test-support"
     },
     {
       "id": "workforce.http.public",

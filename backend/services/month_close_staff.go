@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type monthCloseStaffRecords interface {
@@ -14,7 +14,7 @@ type monthCloseStaffRecords interface {
 type monthCloseStaffQuery struct{ source monthCloseStaffRecords }
 
 // MonthCloseStaff preserves the staff selection used by school-wide month close.
-func MonthCloseStaff(source monthCloseStaffRecords) active.MonthCloseStaffQuery {
+func MonthCloseStaff(source monthCloseStaffRecords) timetracking.MonthCloseStaffQuery {
 	return monthCloseStaffQuery{source: source}
 }
 

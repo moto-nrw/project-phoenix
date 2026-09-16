@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type workSessionStaffRecords interface {
@@ -16,23 +16,23 @@ type workSessionStaffRecords interface {
 
 type workSessionStaff struct{ source workSessionStaffRecords }
 
-func WorkSessionStaff(source workSessionStaffRecords) active.WorkSessionStaff {
+func WorkSessionStaff(source workSessionStaffRecords) timetracking.WorkSessionStaff {
 	return workSessionStaff{source: source}
 }
 
-func (q workSessionStaff) ScheduleAssignment(ctx context.Context, staffID int64) (*active.StaffScheduleAssignment, error) {
+func (q workSessionStaff) ScheduleAssignment(ctx context.Context, staffID int64) (*timetracking.StaffScheduleAssignment, error) {
 	return StaffScheduleAssignments(q.source).ScheduleAssignment(ctx, staffID)
 }
 
-func (q workSessionStaff) StaffNames(ctx context.Context, ids []int64) (map[int64]active.WorkSessionStaffName, error) {
+func (q workSessionStaff) StaffNames(ctx context.Context, ids []int64) (map[int64]timetracking.WorkSessionStaffName, error) {
 	rows, err := q.source.FindWithPersonByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[int64]active.WorkSessionStaffName, len(rows))
+	names := make(map[int64]timetracking.WorkSessionStaffName, len(rows))
 	for id, row := range rows {
 		if row != nil && row.Person != nil {
-			names[id] = active.WorkSessionStaffName{FirstName: row.Person.FirstName, LastName: row.Person.LastName}
+			names[id] = timetracking.WorkSessionStaffName{FirstName: row.Person.FirstName, LastName: row.Person.LastName}
 		}
 	}
 	return names, nil
@@ -41,7 +41,7 @@ func (q workSessionStaff) StaffNames(ctx context.Context, ids []int64) (map[int6
 // BindSchedule writes the schedule binding onto the staff row through the
 // owner's update path: the row is re-read so the write carries the current
 // master data and only the binding columns change.
-func (q workSessionStaff) BindSchedule(ctx context.Context, binding active.StaffScheduleBinding) error {
+func (q workSessionStaff) BindSchedule(ctx context.Context, binding timetracking.StaffScheduleBinding) error {
 	staff, err := q.source.FindByID(ctx, binding.ID)
 	if err != nil {
 		return err

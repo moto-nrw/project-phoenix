@@ -42,96 +42,24 @@ type workSessionServiceForSessionUnitTest struct {
 	ensureCheckedInFunc func(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 }
 
-func (w *workSessionServiceForSessionUnitTest) CheckIn(context.Context, int64, string, string, string) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) CheckInOn(context.Context, int64, timezone.Date, string, string, string) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) CheckOut(context.Context, int64, string) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) StartBreak(context.Context, int64, *int) (*activeModels.WorkSessionBreak, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) EndBreak(context.Context, int64) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) CheckOutOn(context.Context, int64, timezone.Date, string) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) StartBreakOn(context.Context, int64, timezone.Date, *int) (*activeModels.WorkSessionBreak, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) EndBreakOn(context.Context, int64, timezone.Date) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetSessionBreaks(context.Context, int64, int64) ([]*activeModels.WorkSessionBreak, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) UpdateSession(context.Context, int64, int64, SessionUpdateRequest) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) UpdateSessionAsAdmin(context.Context, int64, int64, int64, SessionUpdateRequest) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) CreateSessionAsAdmin(context.Context, int64, int64, AdminCreateSessionRequest) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetCurrentSession(context.Context, int64) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetLatestOpenSession(context.Context, int64) (*activeModels.WorkSession, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetHistory(context.Context, int64, timezone.Date, timezone.Date) (*HistoryResponse, error) {
-	return nil, nil
-}
-
-func (w *workSessionServiceForSessionUnitTest) GetHistoryIntersecting(context.Context, int64, timezone.Date, timezone.Date) (*HistoryResponse, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetSessionEdits(context.Context, int64, int64) ([]*WorkSessionEditView, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetSessionEditsForStaff(context.Context, int64, int64) ([]*WorkSessionEditView, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetTodayPresenceMap(context.Context) (map[int64]string, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) CleanupOpenSessions(context.Context) (int, error) {
-	return 0, nil
-}
-func (w *workSessionServiceForSessionUnitTest) AutoCheckoutDueSessions(context.Context, time.Duration) (int, error) {
-	return 0, nil
-}
-func (w *workSessionServiceForSessionUnitTest) SetStaffShiftRepo(WorkSessionShifts) {
-}
 func (w *workSessionServiceForSessionUnitTest) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error) {
 	if w.ensureCheckedInFunc != nil {
 		return w.ensureCheckedInFunc(ctx, staffID, source)
 	}
 	return &activeModels.WorkSession{}, nil
 }
-func (w *workSessionServiceForSessionUnitTest) ExportSessions(context.Context, int64, timezone.Date, timezone.Date, string) (*ExportFile, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) DayExportRows(context.Context, int64, timezone.Date, timezone.Date) ([]DayExportRow, error) {
-	return nil, nil
+
+// plannedStartNotReachedForSessionUnitTest stands in for the time clock's
+// refusal, matched by presence through its PlannedStartNotReachedError port.
+type plannedStartNotReachedForSessionUnitTest struct {
+	plannedStartTime string
+	currentTime      string
 }
 
-func (w *workSessionServiceForSessionUnitTest) DayExportRowsByStaffIDs(context.Context, []int64, timezone.Date, timezone.Date) (map[int64][]DayExportRow, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) AutoEndExpiredBreaks(context.Context) (int, error) {
-	return 0, nil
-}
-func (w *workSessionServiceForSessionUnitTest) GetStaffIDsWithSupervisionToday(context.Context) ([]int64, error) {
-	return nil, nil
-}
-func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *StaffScheduleBinding, ScheduleUpdateInput) error {
-	return nil
+func (e plannedStartNotReachedForSessionUnitTest) Error() string { return "planned start not reached" }
+
+func (e plannedStartNotReachedForSessionUnitTest) PlannedStartNotReached() (string, string) {
+	return e.plannedStartTime, e.currentTime
 }
 
 func newSessionSQLMockDB(t *testing.T) (*testpkg.DB, sqlmock.Sqlmock) {
@@ -725,9 +653,9 @@ func TestAssignMultipleSupervisorsNonCritical_WorkSessionBestEffortBranches(t *t
 	ctx := context.Background()
 	checkInResults := map[int64]error{
 		10: errors.New("auto check-in failed"),
-		20: &PlannedStartNotReachedError{
-			PlannedStartTime: "09:00",
-			CurrentTime:      "08:45",
+		20: plannedStartNotReachedForSessionUnitTest{
+			plannedStartTime: "09:00",
+			currentTime:      "08:45",
 		},
 		30: nil,
 	}

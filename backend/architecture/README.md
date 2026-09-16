@@ -265,13 +265,44 @@ under the same compatibility permissions (#2690). It replaced
 `api/time-tracking` and serves the public work-session, absence, month,
 ledger, month-close, overview, audit-log, export and personnel-record
 contracts of `modules/workforce`, which the root composition adapts from the
-retained `services/active` and `services/users` services. Its remaining
+retained time-tracking services in `modules/workforce/legacy/timetracking`
+and the retained `services/users` services. Its remaining
 `services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
 shifts and assignments) go with the shift services' move. The kiosk staff
 clock consumes the public device-scan contract in `modules/devicescan`
 (`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
 one rule anchored to that new point, and the staff-clock workflow reaches the
 Workforce time clock only through its own port.
+
+The retained Workforce time-tracking services
+(`modules/workforce/legacy/timetracking`, #3213) are classified
+`workforce`/`adapter` with `adapter-test` in both test scopes. They are the
+work-session, absence, month-card, ledger, month-close, overview, audit-log,
+export, vacation-opening, absence-type, labor-policy, payroll-configuration
+and GDPR-cleanup services that `services/active` used to hold, moved file for
+file with their tests: the root composition adapts them behind the public
+`modules/workforce` contracts exactly as before, and no HTTP path, status
+code, error string, authorization check, tenant scoping, payroll or DATEV
+output changed. Their production imports (`internal/timezone`,
+`models/active`, `models/base`, `tenant`) are covered by the existing
+`workforce.adapter.*` compatibility permissions; the Delivery producer, the
+scheduler, the CLI and the schedule-owned sick cascade are reached through
+ports the composition root binds (`TimeTrackingEvents`,
+`schedulerTimeTrackingCleanupPort`, the `services` root aliases and
+`ShiftPlanSyncBridge`). The move also replaced every post-construction setter
+of these services with construction-time options, because the composition
+surface guard records mutable wiring per package and a relocated setter would
+count as growth. The in-package tests build the retained calendar-date, model
+and base vocabulary through the package's own aliases (`vocabulary.go`)
+because the `workforce`/`adapter-test` internal seam already existed and can
+admit no new permission. The external behaviour tests keep importing the
+retained contracts directly under the `external_test`-scoped
+`workforce.adapter-test.*` rules added with the package: they exist only
+because PR mode cannot record debt for a package the candidate creates.
+Convert them to exact debt with the rule above once the package exists at a
+base SHA; the package itself goes when the Presence half (#3214) deletes
+`services/active` and its keys, and finally when the retained services
+dissolve into the Workforce application and domain layers.
 
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
