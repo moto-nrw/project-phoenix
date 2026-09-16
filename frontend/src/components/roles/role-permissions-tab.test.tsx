@@ -38,6 +38,11 @@ vi.mock("~/lib/auth-service", () => ({
 
 vi.mock("~/lib/permission-labels", () => ({
   localizeAction: (action: string) => action,
+  localizeDescription: (
+    _resource: string,
+    _action: string,
+    description?: string,
+  ) => description ?? "",
   localizeResource: (resource: string) => resource,
   formatPermissionDisplay: (resource: string, action: string) =>
     `${resource}:${action}`,
