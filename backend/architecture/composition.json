@@ -6144,26 +6144,6 @@
     },
     {
       "scope": "test",
-      "file": "services/parent/parent_announcement_notice_test.go",
-      "declaration": "buildNoticeFeedService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_announcement_service_test.go",
-      "declaration": "buildAnnouncementService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        33
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/parent/parent_care_exception_emit_test.go",
       "declaration": "TestSubmitCareException_EmitsSelfServiceMirrorPill",
       "target": "database/repositories.NewFactory",
@@ -6184,11 +6164,11 @@
     },
     {
       "scope": "test",
-      "file": "services/parent/parent_care_schedule_service_test.go",
+      "file": "services/parent/parent_care_schedule_features_test.go",
       "declaration": "buildCareScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        44
+        32
       ],
       "tables": []
     },
@@ -6629,67 +6609,16 @@
     },
     {
       "scope": "test",
-      "file": "services/parent/parent_request_sharing_service_test.go",
+      "file": "services/parent/parent_request_sharing_visibility_test.go",
       "declaration": "TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        25
       ],
       "tables": [
         "users.students",
         "users.students_guardians"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_request_sharing_service_test.go",
-      "declaration": "TestRequestSharingRejectsUnlinkedRecipientAndNonOwner",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        109
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        376
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "buildTodayStatusService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        31
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "buildTodayStatusServiceWithSchedule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "seedPickupScheduleForToday",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        104,
-        108
-      ],
-      "tables": []
     },
     {
       "scope": "test",

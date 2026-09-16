@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
 func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
@@ -34,13 +33,6 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 	assert.Nil(t, other[0].Reason, "the submitting guardian's free text stays private")
 }
 
-func TestPendingCareRequest_HidesAnotherGuardiansRequest(t *testing.T) {
-	t.Parallel()
-
-	pending := &scheduleModels.CareScheduleChangeRequest{SubmittedBy: 41}
-	assert.Nil(t, pendingCareRequest(pending, nil, 42, false))
-}
-
 func TestOwnExcusedRequests_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
@@ -52,13 +44,4 @@ func TestOwnExcusedRequests_HidesAnotherGuardiansRequest(t *testing.T) {
 	visible := visibleExcusedRequests(requests, 42, &requestShareVisibility{})
 	require.Len(t, visible, 1)
 	assert.Equal(t, "mine", visible[0].Note)
-}
-
-func TestOfferingDecisionBelongsOnlyToSubmittingGuardian(t *testing.T) {
-	t.Parallel()
-
-	decision := &enrollmentService.OfferingChangeDecision{SubmittedBy: 41, Reason: "private"}
-	visibility := &requestShareVisibility{}
-	assert.Nil(t, visibleOfferingDecision(decision, 42, visibility))
-	assert.Same(t, decision, visibleOfferingDecision(decision, 41, visibility))
 }
