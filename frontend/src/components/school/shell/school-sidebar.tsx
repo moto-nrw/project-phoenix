@@ -41,8 +41,9 @@ export function SchoolSidebar({
   const pathname = usePathname();
 
   const renderItem = (item: SchoolNavItem) => {
-    // Der Team-Chat ist standardmäßig aus; der Eintrag erscheint erst, wenn
-    // die Schule ihn eingeschaltet hat (siehe SchoolNavItem.optional).
+    // Der Team-Chat ist standardmäßig an (#3254), die Schule kann ihn
+    // ausschalten; der Eintrag erscheint erst, wenn feststeht, dass er an ist
+    // (siehe SchoolNavItem.optional).
     if (item.optional === "teamChat" && teamChat.available !== true) {
       return null;
     }

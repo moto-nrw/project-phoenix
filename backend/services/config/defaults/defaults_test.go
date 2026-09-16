@@ -145,6 +145,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_master_data_request_enabled",
 		"operations.parent_request_group_leader_review_enabled",
 		"operations.parent_news_enabled",
+		// OGS-internal Team-Chat (#2598), opt-out since #3254.
+		"operations.staff_messaging_enabled",
 		"operations.meal_plan_enabled",
 		"operations.meal_registration_enabled",
 		"operations.meal_registration_cutoff_time",
@@ -385,6 +387,24 @@ func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
 	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)
 	assert.Equal(t, true, def.DependsOn.Value)
+}
+
+// TestStaffMessagingEnabledSetting pins the Team-Chat as opt-out (#3254): a
+// school gets the colleague chat without doing anything and switches it off in
+// the settings if it does not want it.
+func TestStaffMessagingEnabledSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyStaffMessagingEnabled)
+	require.NotNil(t, def, "operations.staff_messaging_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "Team-Chat must default on (opt-out)")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "team", def.Category)
+	// Schools must be able to switch it off themselves, so it stays tenant-visible.
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Nil(t, def.DependsOn, "the switch itself must always be visible")
 }
 
 // TestRemovedStudentGroupScopeSettings pins the #2329 deletion: per-child
