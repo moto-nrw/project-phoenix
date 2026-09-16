@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1107,13 +1108,13 @@ func forEachTenantTimeTrackingStats(cc *cleanupContext) error {
 	return nil
 }
 
-func printTimeTrackingCleanupLine(output io.Writer, tenantID int64, r *active.TimeTrackingCleanupResult) {
+func printTimeTrackingCleanupLine(output io.Writer, tenantID int64, r *services.TimeTrackingCleanupResult) {
 	mustFprintf(output, "[tenant %d] sessions=%d absences=%d staff=%d retention=%dd cutoff=%s duration_ms=%d\n",
 		tenantID, r.SessionsDeleted, r.AbsencesDeleted, r.StaffAffected,
 		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
 }
 
-func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *active.TimeTrackingCleanupPreview) {
+func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *services.TimeTrackingCleanupPreview) {
 	mustFprintf(output, "[tenant %d] would-delete sessions=%d absences=%d staff=%d retention=%dd cutoff=%s",
 		tenantID, p.SessionsToDelete, p.AbsencesToDelete, p.StaffAffected,
 		p.RetentionDays, p.CutoffDate.Format(dateFormat))
@@ -1126,7 +1127,7 @@ func printTimeTrackingPreviewLine(output io.Writer, tenantID int64, p *active.Ti
 	mustFprintln(output)
 }
 
-func printTimeTrackingStatsLine(output io.Writer, tenantID int64, s *active.TimeTrackingCleanupStats) {
+func printTimeTrackingStatsLine(output io.Writer, tenantID int64, s *services.TimeTrackingCleanupStats) {
 	mustFprintf(output, "[tenant %d] sessions_total=%d absences_total=%d retention=%dd cutoff=%s",
 		tenantID, s.TotalSessions, s.TotalAbsences,
 		s.RetentionDays, s.CutoffDate.Format(dateFormat))

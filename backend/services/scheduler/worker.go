@@ -50,7 +50,7 @@ type WorkerDependencies struct {
 	Materializer              scheduleSvc.MaterializationService
 	TimetableCleanup          scheduleSvc.TimetableCleanupService
 	CalendarFeedCleanup       CalendarFeedCleaner
-	TimeTrackingCleanup       active.TimeTrackingCleanupService
+	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
 	StaffMessageCleanup       StaffMessageCleanup

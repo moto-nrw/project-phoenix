@@ -7,7 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 // capabilityError reports a Workforce sentinel through errors.Is while keeping
@@ -95,10 +95,10 @@ func (a absenceTypeAdministration) SetAllowance(ctx context.Context, input workf
 
 func mapNativeAbsenceTypeError(err error) error {
 	if validation, ok := errors.AsType[*workforce.InvalidAbsenceAllowanceError](err); ok {
-		return mapAbsenceTypeError(fmt.Errorf("%w: %s", active.ErrAbsenceTypeAllowanceInvalid, validation.Reason))
+		return mapAbsenceTypeError(fmt.Errorf("%w: %s", timetracking.ErrAbsenceTypeAllowanceInvalid, validation.Reason))
 	}
 	if errors.Is(err, workforce.ErrAbsenceTypeInvalid) {
-		return mapAbsenceTypeError(fmt.Errorf("%w: %s", active.ErrAbsenceTypeInvalid, err.Error()))
+		return mapAbsenceTypeError(fmt.Errorf("%w: %s", timetracking.ErrAbsenceTypeInvalid, err.Error()))
 	}
 	for _, kind := range absenceTypeErrorKinds {
 		if errors.Is(err, kind.capability) {
@@ -112,14 +112,14 @@ var absenceTypeErrorKinds = []struct {
 	service    error
 	capability error
 }{
-	{active.ErrAbsenceTypeNameTaken, workforce.ErrAbsenceTypeNameTaken},
-	{active.ErrAbsenceTypeNameReserved, workforce.ErrAbsenceTypeNameReserved},
-	{active.ErrAbsenceTypeInUse, workforce.ErrAbsenceTypeInUse},
-	{active.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
-	{active.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
-	{active.ErrAbsenceTypeInvalid, workforce.ErrAbsenceTypeInvalid},
-	{active.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
-	{active.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
+	{timetracking.ErrAbsenceTypeNameTaken, workforce.ErrAbsenceTypeNameTaken},
+	{timetracking.ErrAbsenceTypeNameReserved, workforce.ErrAbsenceTypeNameReserved},
+	{timetracking.ErrAbsenceTypeInUse, workforce.ErrAbsenceTypeInUse},
+	{timetracking.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
+	{timetracking.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
+	{timetracking.ErrAbsenceTypeInvalid, workforce.ErrAbsenceTypeInvalid},
+	{timetracking.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
+	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
 }
 
 func mapAbsenceTypeError(err error) error {

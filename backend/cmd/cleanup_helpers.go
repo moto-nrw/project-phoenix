@@ -43,7 +43,7 @@ type cleanupContext struct {
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
 	TimetableCleanupService    schedule.TimetableCleanupService
-	TimeTrackingCleanupService active.TimeTrackingCleanupService
+	TimeTrackingCleanupService services.TimeTrackingCleanupService
 	TenantRuntime              tenant.UnitOfWork
 	Output                     io.Writer
 	Logger                     *log.Logger
@@ -69,7 +69,7 @@ type sessionCleanupService interface {
 
 type retentionCleanupService = active.CleanupService
 type timetableCleanupService = schedule.TimetableCleanupService
-type timeTrackingCleanupService = active.TimeTrackingCleanupService
+type timeTrackingCleanupService = services.TimeTrackingCleanupService
 
 type cleanupRoot struct {
 	openDatabase        func() (*bun.DB, error)
@@ -78,7 +78,7 @@ type cleanupRoot struct {
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
 	retentionCleanup    func(*cleanupContext) active.CleanupService
 	timetableCleanup    func(*cleanupContext) schedule.TimetableCleanupService
-	timeTrackingCleanup func(*cleanupContext) active.TimeTrackingCleanupService
+	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
 }
 
 var defaultCleanupRoot = cleanupRoot{
@@ -324,7 +324,7 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimeTrackingCleanupService(ctx *cleanupContext) active.TimeTrackingCleanupService {
+func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
 	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 

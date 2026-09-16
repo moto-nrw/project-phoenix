@@ -5,7 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 // This file binds the presence-owned work-schedule ports of the retained
@@ -28,22 +28,22 @@ func NewWorkSessionSchedules(records WorkSessionScheduleRecords) *WorkSessionSch
 	return &WorkSessionSchedules{records: records}
 }
 
-func (r *WorkSessionSchedules) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*active.WorkScheduleRow, error) {
+func (r *WorkSessionSchedules) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*timetracking.WorkScheduleRow, error) {
 	rows, err := r.records.GetCurrentByStaffID(ctx, staffID)
 	return workScheduleRows(rows), err
 }
 
-func (r *WorkSessionSchedules) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*active.WorkScheduleRow, error) {
+func (r *WorkSessionSchedules) GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*timetracking.WorkScheduleRow, error) {
 	rows, err := r.records.GetByStaffIDAndDate(ctx, staffID, config.CalendarDate(date))
 	return workScheduleRows(rows), err
 }
 
-func (r *WorkSessionSchedules) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*active.WorkScheduleRow, error) {
+func (r *WorkSessionSchedules) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*timetracking.WorkScheduleRow, error) {
 	rows, err := r.records.FindByStaffIDsValidInRange(ctx, staffIDs, config.CalendarDate(from), config.CalendarDate(to))
 	return workScheduleRows(rows), err
 }
 
-func (r *WorkSessionSchedules) ReplaceSchedule(ctx context.Context, staffID int64, rows []*active.WorkScheduleRow, anchor timezone.Date) error {
+func (r *WorkSessionSchedules) ReplaceSchedule(ctx context.Context, staffID int64, rows []*timetracking.WorkScheduleRow, anchor timezone.Date) error {
 	return r.records.ReplaceSchedule(ctx, staffID, staffWorkScheduleRows(rows), config.CalendarDate(anchor))
 }
 
@@ -60,7 +60,7 @@ func NewWorkSessionTimeModels(records WorkSessionTimeModelRecords) *WorkSessionT
 	return &WorkSessionTimeModels{records: records}
 }
 
-func (r *WorkSessionTimeModels) FindByID(ctx context.Context, id int64) (*active.WorkTimeTemplate, error) {
+func (r *WorkSessionTimeModels) FindByID(ctx context.Context, id int64) (*timetracking.WorkTimeTemplate, error) {
 	row, err := r.records.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (r *WorkSessionTimeModels) FindByID(ctx context.Context, id int64) (*active
 // Create persists the template and its entries and writes the assigned
 // identity back onto the caller's value, which the service binds to the staff
 // member afterwards.
-func (r *WorkSessionTimeModels) Create(ctx context.Context, template *active.WorkTimeTemplate, entries []*active.WorkTimeTemplateEntry) error {
+func (r *WorkSessionTimeModels) Create(ctx context.Context, template *timetracking.WorkTimeTemplate, entries []*timetracking.WorkTimeTemplateEntry) error {
 	if template == nil {
 		return nil
 	}
@@ -87,22 +87,22 @@ func (r *WorkSessionTimeModels) Create(ctx context.Context, template *active.Wor
 	return nil
 }
 
-func workScheduleRows(rows []*config.StaffWorkSchedule) []*active.WorkScheduleRow {
+func workScheduleRows(rows []*config.StaffWorkSchedule) []*timetracking.WorkScheduleRow {
 	if rows == nil {
 		return nil
 	}
-	converted := make([]*active.WorkScheduleRow, len(rows))
+	converted := make([]*timetracking.WorkScheduleRow, len(rows))
 	for index, row := range rows {
 		converted[index] = workScheduleRow(row)
 	}
 	return converted
 }
 
-func workScheduleRow(row *config.StaffWorkSchedule) *active.WorkScheduleRow {
+func workScheduleRow(row *config.StaffWorkSchedule) *timetracking.WorkScheduleRow {
 	if row == nil {
 		return nil
 	}
-	return &active.WorkScheduleRow{
+	return &timetracking.WorkScheduleRow{
 		StaffID:            row.StaffID,
 		WeekIndex:          row.WeekIndex,
 		RotationLength:     row.RotationLength,
@@ -115,7 +115,7 @@ func workScheduleRow(row *config.StaffWorkSchedule) *active.WorkScheduleRow {
 	}
 }
 
-func staffWorkScheduleRows(rows []*active.WorkScheduleRow) []*config.StaffWorkSchedule {
+func staffWorkScheduleRows(rows []*timetracking.WorkScheduleRow) []*config.StaffWorkSchedule {
 	if rows == nil {
 		return nil
 	}
@@ -139,11 +139,11 @@ func staffWorkScheduleRows(rows []*active.WorkScheduleRow) []*config.StaffWorkSc
 	return converted
 }
 
-func workTimeTemplate(row *config.WorkTimeModel) *active.WorkTimeTemplate {
+func workTimeTemplate(row *config.WorkTimeModel) *timetracking.WorkTimeTemplate {
 	if row == nil {
 		return nil
 	}
-	return &active.WorkTimeTemplate{
+	return &timetracking.WorkTimeTemplate{
 		ID:                 row.ID,
 		Name:               row.Name,
 		RotationLength:     row.RotationLength,
@@ -152,16 +152,16 @@ func workTimeTemplate(row *config.WorkTimeModel) *active.WorkTimeTemplate {
 	}
 }
 
-func workTimeTemplateEntries(entries []*config.WorkTimeModelEntry) []*active.WorkTimeTemplateEntry {
+func workTimeTemplateEntries(entries []*config.WorkTimeModelEntry) []*timetracking.WorkTimeTemplateEntry {
 	if entries == nil {
 		return nil
 	}
-	converted := make([]*active.WorkTimeTemplateEntry, len(entries))
+	converted := make([]*timetracking.WorkTimeTemplateEntry, len(entries))
 	for index, entry := range entries {
 		if entry == nil {
 			continue
 		}
-		converted[index] = &active.WorkTimeTemplateEntry{
+		converted[index] = &timetracking.WorkTimeTemplateEntry{
 			WeekIndex:     entry.WeekIndex,
 			DayOfWeek:     entry.DayOfWeek,
 			TargetMinutes: entry.TargetMinutes,
@@ -171,7 +171,7 @@ func workTimeTemplateEntries(entries []*config.WorkTimeModelEntry) []*active.Wor
 	return converted
 }
 
-func workTimeModelEntries(entries []*active.WorkTimeTemplateEntry) []*config.WorkTimeModelEntry {
+func workTimeModelEntries(entries []*timetracking.WorkTimeTemplateEntry) []*config.WorkTimeModelEntry {
 	if entries == nil {
 		return nil
 	}

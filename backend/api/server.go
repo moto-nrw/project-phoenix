@@ -215,7 +215,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.Materializer = services.Materialization
 	deps.TimetableCleanup = services.TimetableCleanup
 	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
-	deps.TimeTrackingCleanup = services.TimeTrackingCleanup
+	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
 	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)

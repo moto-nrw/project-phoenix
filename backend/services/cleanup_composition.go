@@ -11,6 +11,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -105,13 +106,21 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	)
 }
 
-func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) active.TimeTrackingCleanupService {
+func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {
 	repos := repositories.NewTimeTrackingCleanupRepositories(db, command)
-	return active.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, NewDeletionAudit(repos.Deletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
+	return timetracking.NewTimeTrackingCleanupService(
+		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(repos.Deletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
 	)
 }
 
 func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
 	return repositories.NewSettingsCommandRepository(db)
 }
+
+// The time-tracking cleanup contract and its result shapes, exposed to CLI
+// composition the way AuditCommand is: the CLI keeps composing through this
+// root instead of importing the retained Workforce package.
+type TimeTrackingCleanupService = timetracking.TimeTrackingCleanupService
+type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
+type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
+type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats

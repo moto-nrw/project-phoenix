@@ -31,7 +31,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -44,7 +43,7 @@ type sickCascadeEnv struct {
 	db      *bun.DB
 	repos   *repositories.Factory
 	factory *services.Factory
-	syncer  activeSvc.ShiftPlanSyncer
+	syncer  scheduleSvc.ShiftPlanSyncer
 	ctx     context.Context
 	// tenantID is this test's own tenant (#2419); the env's raw-SQL and
 	// WithTenantTx paths need the ID, not just the context.
@@ -216,7 +215,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 
 	absenceID := int64(0)
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   yesterday.String(),
 			DateEnd:     tomorrow.String(),
@@ -284,7 +283,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 	// Idempotency: filing the same sick range again merges into the same
 	// absence and re-runs the cascade as a no-op.
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   yesterday.String(),
 			DateEnd:     tomorrow.String(),
@@ -308,7 +307,7 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	past := e.createShift(t, e.subject.ID, yesterday, "08:00", "12:00", nil)
 
 	e.inTx(t, func(ctx context.Context) error {
-		return e.syncer.MarkSickForRange(ctx, activeSvc.SickCascadeInput{
+		return e.syncer.MarkSickForRange(ctx, scheduleSvc.SickCascadeInput{
 			SubjectStaffID: e.subject.ID,
 			ActorStaffID:   e.admin.ID,
 			AbsenceID:      time.Now().UnixNano(),
@@ -328,7 +327,7 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	err := e.repos.StaffShift.Update(e.ctx, stored)
 	require.NoError(t, err)
 
-	before := activeSvc.SickCascadeInput{
+	before := scheduleSvc.SickCascadeInput{
 		SubjectStaffID: e.subject.ID,
 		ActorStaffID:   e.admin.ID,
 		AbsenceID:      absenceID,
@@ -368,7 +367,7 @@ func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
 	dayTwo := dayOne.AddDays(1)
 	e.createShift(t, e.subject.ID, dayOne, "08:00", "09:00", nil)
 	e.createShift(t, e.subject.ID, dayTwo, "08:00", "09:00", nil)
-	input := activeSvc.SickCascadeInput{
+	input := scheduleSvc.SickCascadeInput{
 		SubjectStaffID: e.subject.ID,
 		ActorStaffID:   e.admin.ID,
 		AbsenceID:      time.Now().UnixNano(),
@@ -411,7 +410,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 			}
 			close(lockHeld)
 			<-releaseLock
-			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 				AbsenceType: "sick",
 				DateStart:   day.String(),
 				DateEnd:     day.String(),
@@ -424,7 +423,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	creatorDone := make(chan error, 1)
 	go func() {
 		creatorDone <- testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 				AbsenceType: "sick",
 				DateStart:   day.String(),
 				DateEnd:     day.String(),
@@ -460,7 +459,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 
 	// HalfDay absences never cascade (guarded in the absence service).
 	e.inTx(t, func(ctx context.Context) error {
-		_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, activeSvc.CreateAbsenceRequest{
+		_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.subject.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),
@@ -475,7 +474,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 
 	// Boundary half days of a range are skipped by the syncer itself.
 	e.inTx(t, func(ctx context.Context) error {
-		return e.syncer.MarkSickForRange(ctx, activeSvc.SickCascadeInput{
+		return e.syncer.MarkSickForRange(ctx, scheduleSvc.SickCascadeInput{
 			SubjectStaffID: e.subject.ID,
 			DateStart:      tomorrow,
 			DateEnd:        dayAfter,
@@ -505,7 +504,7 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		created, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+		created, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   dayOne.String(),
 			DateEnd:     dayTwo.String(),
@@ -516,7 +515,7 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 		return err
 	})
 
-	before := activeSvc.SickCascadeInput{
+	before := scheduleSvc.SickCascadeInput{
 		AbsenceID:      absenceID,
 		SubjectStaffID: e.subject.ID,
 		ActorStaffID:   e.admin.ID,
@@ -565,7 +564,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	newStart := newDay.String()
 	newEnd := newDay.String()
 	err := testpkg.WithTenantTx(t, context.Background(), e.db, e.tenantID, func(ctx context.Context, _ bun.Tx) error {
-		_, updateErr := e.factory.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, activeSvc.UpdateAbsenceRequest{
+		_, updateErr := e.factory.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, services.UpdateAbsenceRequest{
 			DateStart: &newStart,
 			DateEnd:   &newEnd,
 		})
@@ -590,7 +589,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 	e := buildSickCascadeEnv(t)
 	day := timezone.TodayDate().AddDays(1)
 	absenceID := e.createSickAbsence(t, day, day)
-	input := activeSvc.SickCascadeInput{
+	input := scheduleSvc.SickCascadeInput{
 		AbsenceID:      absenceID,
 		SubjectStaffID: e.subject.ID,
 		ActorStaffID:   e.admin.ID,
@@ -649,7 +648,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 	day := timezone.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
 	absenceID := e.createSickAbsence(t, day, day)
-	input := activeSvc.SickCascadeInput{
+	input := scheduleSvc.SickCascadeInput{
 		AbsenceID:      absenceID,
 		SubjectStaffID: e.subject.ID,
 		ActorStaffID:   e.admin.ID,
@@ -712,7 +711,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 	cover := e.createShift(t, e.sub.ID, day, "08:00", "10:00", func(shift *scheduleModels.StaffShift) {
 		shift.OriginShiftID = &origin.ID
 	})
-	input := activeSvc.SickCascadeInput{
+	input := scheduleSvc.SickCascadeInput{
 		AbsenceID:      absenceID,
 		SubjectStaffID: e.subject.ID,
 		ActorStaffID:   e.admin.ID,
@@ -761,7 +760,7 @@ func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Dat
 	t.Helper()
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		created, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+		created, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   start.String(),
 			DateEnd:     end.String(),
@@ -788,7 +787,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),
@@ -916,7 +915,7 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
-		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+		resp, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, services.CreateAbsenceRequest{
 			AbsenceType: "sick",
 			DateStart:   tomorrow.String(),
 			DateEnd:     tomorrow.String(),

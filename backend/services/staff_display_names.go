@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type staffNameRecords interface {
@@ -15,7 +15,7 @@ type staffNameRecords interface {
 type staffDisplayNameQuery struct{ source staffNameRecords }
 
 // StaffDisplayNames projects the tenant-scoped staff batch query for audit readers.
-func StaffDisplayNames(source staffNameRecords) active.StaffDisplayNameQuery {
+func StaffDisplayNames(source staffNameRecords) timetracking.StaffDisplayNameQuery {
 	return staffDisplayNameQuery{source: source}
 }
 

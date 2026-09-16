@@ -168,7 +168,7 @@ type Scheduler struct {
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	calendarFeedCleanup        CalendarFeedCleaner
-	timeTrackingCleanup        active.TimeTrackingCleanupService
+	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
 	pwaUsageCleanup            pwaSvc.UsageService
 	staffMessageCleanup        StaffMessageCleanup

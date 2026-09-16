@@ -2,8 +2,8 @@
 // shift cancellations (Dienstplan) and per-day block absences (Betreuungsplan),
 // and deleting the report reverses exactly the rows it stamped.
 //
-// Implements active.ShiftPlanSyncer (declared in services/active because that
-// package cannot import this one). Both directions run inside the caller's
+// Implements ShiftPlanSyncer. The absence service in modules/workforce declares
+// the same port; the composition root bridges the two. Both directions run inside the caller's
 // tenant transaction and are FAIL-CLOSED: the first error aborts the whole
 // absence write, so a half-cascaded sick report never commits.
 package schedule
@@ -19,7 +19,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/uptrace/bun"
 )
 
@@ -64,7 +63,7 @@ func NewShiftPlanSyncService(
 	db *bun.DB,
 	logger *slog.Logger,
 	today ...func() timezone.Date,
-) active.ShiftPlanSyncer {
+) ShiftPlanSyncer {
 	service := &shiftPlanSyncService{
 		shifts:            shifts,
 		instances:         instances,
@@ -100,7 +99,7 @@ func (s *shiftPlanSyncService) lockStaffWrites(ctx context.Context, staffID int6
 // (per-staff advisory locks) strictly before ALL block writes (per-day locks,
 // ascending) — so the two lock classes never interleave across concurrent
 // requests and cannot deadlock against a parallel admin substitution save.
-func (s *shiftPlanSyncService) MarkSickForRange(ctx context.Context, in active.SickCascadeInput) error {
+func (s *shiftPlanSyncService) MarkSickForRange(ctx context.Context, in SickCascadeInput) error {
 	days := sickCascadeDays(in)
 	if len(days) == 0 {
 		return nil
@@ -127,7 +126,7 @@ func (s *shiftPlanSyncService) MarkSickForRange(ctx context.Context, in active.S
 	return nil
 }
 
-func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in active.SickCascadeInput, days []timezone.Date) error {
+func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in SickCascadeInput, days []timezone.Date) error {
 	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, in.SubjectStaffID, scheduleModel.Date(days[0]), scheduleModel.Date(days[len(days)-1]))
 	if err != nil {
 		return fmt.Errorf("sick cascade: load shifts: %w", err)
@@ -176,7 +175,7 @@ func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in a
 	return nil
 }
 
-func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in active.SickCascadeInput, days []timezone.Date, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in SickCascadeInput, days []timezone.Date, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
 	today := s.todayDate()
@@ -192,7 +191,7 @@ func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in act
 	return nil
 }
 
-func (s *shiftPlanSyncService) markBlocksForSickDay(ctx context.Context, in active.SickCascadeInput, day timezone.Date, reason *string, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *shiftPlanSyncService) markBlocksForSickDay(ctx context.Context, in SickCascadeInput, day timezone.Date, reason *string, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
 	}
@@ -227,7 +226,7 @@ func (s *shiftPlanSyncService) markBlocksForSickDay(ctx context.Context, in acti
 // with replacements stays cancelled, a block with an active substitute stays
 // absent — in both cases only the provenance stamp is cleared so the deleted
 // report stops owning them, and the admin resolves the rest manually.
-func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in active.SickCascadeInput) error {
+func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in SickCascadeInput) error {
 	if err := s.lockSickReversalStaffWrites(ctx, in); err != nil {
 		return err
 	}
@@ -251,7 +250,7 @@ func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in active.
 // full-day sick report. The staff lock is acquired before either side reads
 // shifts, and every affected future day lock is acquired in ascending order
 // before block writes, so the two directions cannot deadlock each other.
-func (s *shiftPlanSyncService) ReconcileSickRange(ctx context.Context, before, after active.SickCascadeInput) error {
+func (s *shiftPlanSyncService) ReconcileSickRange(ctx context.Context, before, after SickCascadeInput) error {
 	if before.SubjectStaffID != after.SubjectStaffID || before.AbsenceID != after.AbsenceID {
 		return fmt.Errorf("sick reconcile: before and after must identify the same absence")
 	}
@@ -286,7 +285,7 @@ func (s *shiftPlanSyncService) broadcastStaffingChanged(ctx context.Context, sou
 // in the same global order used by ApplyCancellation. Taking the subject lock
 // first and discovering a lower-ID replacement later creates the inverse lock
 // order and can deadlock against a concurrent replacement edit.
-func (s *shiftPlanSyncService) lockSickReversalStaffWrites(ctx context.Context, in active.SickCascadeInput) error {
+func (s *shiftPlanSyncService) lockSickReversalStaffWrites(ctx context.Context, in SickCascadeInput) error {
 	shifts, err := s.shiftRepo.List(ctx, map[string]any{"sick_absence_id": in.AbsenceID})
 	if err != nil {
 		return fmt.Errorf("sick clear: discover stamped shifts: %w", err)
@@ -327,7 +326,7 @@ func staffShiftIDs(shifts []*scheduleModel.StaffShift) []int64 {
 	return ids
 }
 
-func (s *shiftPlanSyncService) reconcileRemovedSickDays(ctx context.Context, before active.SickCascadeInput, removed map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *shiftPlanSyncService) reconcileRemovedSickDays(ctx context.Context, before SickCascadeInput, removed map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	if len(removed) == 0 {
 		return nil
 	}
@@ -337,7 +336,7 @@ func (s *shiftPlanSyncService) reconcileRemovedSickDays(ctx context.Context, bef
 	return s.clearStampedBlocks(ctx, before, removed, activeTouched)
 }
 
-func (s *shiftPlanSyncService) reconcileAddedSickDays(ctx context.Context, after active.SickCascadeInput, added map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *shiftPlanSyncService) reconcileAddedSickDays(ctx context.Context, after SickCascadeInput, added map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	if len(added) == 0 {
 		return nil
 	}
@@ -361,7 +360,7 @@ func (s *shiftPlanSyncService) acquireCascadeDayLocks(ctx context.Context, days 
 	return nil
 }
 
-func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in active.SickCascadeInput, onlyDays map[timezone.Date]bool) error {
+func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in SickCascadeInput, onlyDays map[timezone.Date]bool) error {
 	shifts, err := s.shiftRepo.List(ctx, map[string]any{"sick_absence_id": in.AbsenceID})
 	if err != nil {
 		return fmt.Errorf("sick clear: load stamped shifts: %w", err)
@@ -386,7 +385,7 @@ func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in a
 	return nil
 }
 
-func (s *shiftPlanSyncService) reactivateStampedShift(ctx context.Context, in active.SickCascadeInput, shift *scheduleModel.StaffShift) error {
+func (s *shiftPlanSyncService) reactivateStampedShift(ctx context.Context, in SickCascadeInput, shift *scheduleModel.StaffShift) error {
 	covers, err := s.shiftRepo.FindByOriginShiftID(ctx, shift.ID)
 	if err != nil {
 		return fmt.Errorf("sick clear: load covers of shift %d: %w", shift.ID, err)
@@ -419,7 +418,7 @@ func (s *shiftPlanSyncService) releaseStampedShift(ctx context.Context, shift *s
 	return nil
 }
 
-func (s *shiftPlanSyncService) clearStampedBlocks(ctx context.Context, in active.SickCascadeInput, onlyDays map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *shiftPlanSyncService) clearStampedBlocks(ctx context.Context, in SickCascadeInput, onlyDays map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	rows, err := s.loadStampedBlockRows(ctx, in.AbsenceID)
 	if err != nil || len(rows) == 0 {
 		return err
@@ -526,7 +525,7 @@ func sortedStampedBlockDays(byDay map[timezone.Date][]stampedSickBlockRow) []tim
 	return dates
 }
 
-func (s *shiftPlanSyncService) clearStampedBlocksForDay(ctx context.Context, in active.SickCascadeInput, day timezone.Date, entries []stampedSickBlockRow, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+func (s *shiftPlanSyncService) clearStampedBlocksForDay(ctx context.Context, in SickCascadeInput, day timezone.Date, entries []stampedSickBlockRow, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
 		return fmt.Errorf("sick clear: day lock %s: %w", day.String(), err)
 	}
@@ -603,7 +602,7 @@ func (s *shiftPlanSyncService) instanceHasActiveSubstitute(ctx context.Context, 
 
 // sickCascadeDays expands the absence range into the full sick days, skipping
 // half boundary days — a half sick day never cascades (#1843 product rule).
-func sickCascadeDays(in active.SickCascadeInput) []timezone.Date {
+func sickCascadeDays(in SickCascadeInput) []timezone.Date {
 	var days []timezone.Date
 	for d := in.DateStart; !d.After(in.DateEnd); d = d.AddDays(1) {
 		if in.SkipStartDay && d == in.DateStart {
@@ -617,7 +616,7 @@ func sickCascadeDays(in active.SickCascadeInput) []timezone.Date {
 	return days
 }
 
-func sickCascadeDayDifference(before, after active.SickCascadeInput) (removed, added map[timezone.Date]bool) {
+func sickCascadeDayDifference(before, after SickCascadeInput) (removed, added map[timezone.Date]bool) {
 	beforeDays := dateSet(sickCascadeDays(before))
 	afterDays := dateSet(sickCascadeDays(after))
 	removed = make(map[timezone.Date]bool)
