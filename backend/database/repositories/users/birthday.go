@@ -4,12 +4,12 @@ package users
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/uptrace/bun"
 )
 
 // birthdayRow is the ad-hoc scan target for both birthday queries. Its Birthday
@@ -26,7 +26,8 @@ type birthdayRow struct {
 	SchoolClass string        `bun:"school_class"`
 }
 
-// birthdayDayFilter renders the recurring-day match as a single SQL condition.
+// birthdayDayCondition is the recurring-day match; birthdayDayValues renders
+// the IN-list values bun binds into its single placeholder.
 //
 // A birthday recurs annually, so the match is on (month, day) and never on the
 // stored year. The comparison is a string one on `TO_CHAR(birthday, 'MM-DD')`
@@ -38,17 +39,14 @@ type birthdayRow struct {
 // decides which days it wants and adds the leap-day fallback itself, so a
 // list export ("everyone born in February") and the dashboard ("who has a
 // birthday today") can differ without the repository guessing.
-func birthdayDayFilter(days []users.MonthDay) (string, []any) {
-	if len(days) == 0 {
-		return "", nil
-	}
-	placeholders := make([]string, 0, len(days))
-	args := make([]any, 0, len(days))
+const birthdayDayCondition = `TO_CHAR("person".birthday, 'MM-DD') IN (?)`
+
+func birthdayDayValues(days []users.MonthDay) []string {
+	values := make([]string, 0, len(days))
 	for _, day := range days {
-		placeholders = append(placeholders, "?")
-		args = append(args, formatMonthDay(day))
+		values = append(values, formatMonthDay(day))
 	}
-	return "TO_CHAR(\"person\".birthday, 'MM-DD') IN (" + strings.Join(placeholders, ", ") + ")", args
+	return values
 }
 
 func formatMonthDay(day users.MonthDay) string {
@@ -91,8 +89,7 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 			timezone.TodayDate(),
 		)
 
-	condition, args := birthdayDayFilter(days)
-	query = query.Where(condition, args...)
+	query = query.Where(birthdayDayCondition, bun.List(birthdayDayValues(days)))
 	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {

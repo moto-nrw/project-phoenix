@@ -45,6 +45,23 @@ func (s *Store) ListOpenPresence(ctx context.Context, ids []int64) ([]int64, por
 	return result, stats, nil
 }
 
+// LockGroupSupervisions takes a table-level SHARE ROW EXCLUSIVE lock on
+// active.group_supervisors: unlike the row locks above it also blocks
+// inserts, which is what a caregiver capability re-check needs.
+func (s *Store) LockGroupSupervisions(ctx context.Context) (ports.Stats, error) {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return ports.Stats{}, err
+	}
+	started := time.Now()
+	_, err = db.ExecContext(ctx, "LOCK TABLE active.group_supervisors IN SHARE ROW EXCLUSIVE MODE")
+	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("lock group supervisions: %w", err)
+	}
+	return stats, nil
+}
+
 func (s *Store) LockOpenVisits(ctx context.Context, groupID int64) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

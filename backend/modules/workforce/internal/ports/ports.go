@@ -242,6 +242,7 @@ type SubstitutionStore interface {
 	UpdateGroupSubstitution(context.Context, domain.GroupSubstitution) (domain.GroupSubstitution, bool, domain.OperationStats, error)
 	DeleteGroupSubstitution(context.Context, int64) (domain.OperationStats, error)
 	DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (int64, domain.OperationStats, error)
+	LockGroupSubstitutions(context.Context) (domain.OperationStats, error)
 }
 
 // StaffAssignments is the consumer-owned port over the School Membership rows
