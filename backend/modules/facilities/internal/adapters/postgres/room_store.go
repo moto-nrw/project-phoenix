@@ -307,11 +307,10 @@ func applyRoomListFilter(query *bun.SelectQuery, filter domain.RoomFilter) (*bun
 	}
 	if filter.ExcludeSystem {
 		// Toilet rooms are never staff-visible: they are kiosk infrastructure
-		// with no planning meaning. Any other system room stays visible while
-		// it is released — this used to name the Schulhof directly, and now
-		// reads the stored release so a deactivated yard disappears here too
-		// and any future released system room is treated alike (#3064).
-		query = query.Where(`"room".name NOT IN (?, ?) AND (NOT "room".is_system OR "room".is_open_room)`, domain.WCRoomName, domain.WCRoomAliasName)
+		// with no planning meaning. The Schulhof stays selectable whether or
+		// not it is released: schools plan blocks there, and revoking the
+		// open-room release must not remove it from the planner (ADR 0019).
+		query = query.Where(`"room".name NOT IN (?, ?) AND (NOT "room".is_system OR "room".name = ?)`, domain.WCRoomName, domain.WCRoomAliasName, domain.SchulhofRoomName)
 	}
 	return query, false
 }

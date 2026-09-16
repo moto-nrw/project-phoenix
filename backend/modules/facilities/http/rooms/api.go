@@ -396,10 +396,9 @@ func visibleRooms(rooms []facilities.Room, includeSystem bool) []facilities.Room
 	visible := make([]facilities.Room, 0, len(rooms))
 	for _, room := range rooms {
 		// Mirrors the owner's ExcludeSystem predicate: toilet rooms are never
-		// staff-visible, any other system room stays visible while it is
-		// released. Reading the stored release rather than the Schulhof name
-		// keeps this in step with a deactivated yard (#3064).
-		if facilities.IsToiletRoomName(room.Name) || (room.IsSystem && !room.IsOpenRoom) {
+		// staff-visible, and the Schulhof stays selectable whether or not it
+		// is released (ADR 0019).
+		if facilities.IsToiletRoomName(room.Name) || (room.IsSystem && room.Name != facilities.SchulhofRoomName) {
 			continue
 		}
 		visible = append(visible, room)
