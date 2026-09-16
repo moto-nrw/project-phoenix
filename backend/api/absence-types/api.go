@@ -95,7 +95,6 @@ func (rs *Resource) Router() chi.Router {
 type CreateAbsenceTypeRequest struct {
 	Name             string `json:"name"`
 	AllowanceEnabled bool   `json:"allowance_enabled"`
-	OverrunPolicy    string `json:"overrun_policy"`
 }
 
 // UpdateAbsenceTypeRequest renames and/or (de)activates. Omitted fields stay
@@ -104,7 +103,6 @@ type UpdateAbsenceTypeRequest struct {
 	Name             *string `json:"name"`
 	IsActive         *bool   `json:"is_active"`
 	AllowanceEnabled *bool   `json:"allowance_enabled"`
-	OverrunPolicy    *string `json:"overrun_policy"`
 }
 
 // AbsenceTypeResponse is the wire format returned to clients. BaseType tells
@@ -116,7 +114,6 @@ type AbsenceTypeResponse struct {
 	BaseType         string `json:"base_type"`
 	IsActive         bool   `json:"is_active"`
 	AllowanceEnabled bool   `json:"allowance_enabled"`
-	OverrunPolicy    string `json:"overrun_policy"`
 }
 
 // AllowanceSummaryResponse keeps database IDs as strings on the wire, matching
@@ -157,7 +154,6 @@ func toAbsenceTypeResponse(t workforce.StaffAbsenceType) AbsenceTypeResponse {
 		BaseType:         t.BaseType,
 		IsActive:         t.IsActive,
 		AllowanceEnabled: t.AllowanceEnabled,
-		OverrunPolicy:    t.OverrunPolicy,
 	}
 }
 
@@ -217,7 +213,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	saved, err := rs.types.CreateAbsenceType(r.Context(), workforce.CreateAbsenceType{
-		Name: req.Name, AllowanceEnabled: req.AllowanceEnabled, OverrunPolicy: req.OverrunPolicy,
+		Name: req.Name, AllowanceEnabled: req.AllowanceEnabled,
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
@@ -238,7 +234,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	saved, err := rs.types.UpdateAbsenceType(r.Context(), workforce.UpdateAbsenceType{
-		ID: id, Name: req.Name, IsActive: req.IsActive, AllowanceEnabled: req.AllowanceEnabled, OverrunPolicy: req.OverrunPolicy,
+		ID: id, Name: req.Name, IsActive: req.IsActive, AllowanceEnabled: req.AllowanceEnabled,
 	})
 	if err != nil {
 		rs.renderError(w, r, err)

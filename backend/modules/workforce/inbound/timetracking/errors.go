@@ -92,6 +92,10 @@ func classifyAbsenceError(err error) render.Renderer {
 	case errors.Is(err, workforce.ErrAbsenceTypeNotFound):
 		return common.ErrorInvalidRequest(err)
 
+	// Kontingente may not go negative (#3256); the client explains the code.
+	case errors.Is(err, workforce.ErrVacationQuotaExceeded):
+		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+
 	case msg == "absence not found":
 		return common.ErrorNotFound(err)
 

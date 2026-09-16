@@ -26,7 +26,6 @@ const REGENERATIONSTAG: AbsenceType = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: true,
-  overrunPolicy: "block",
 };
 
 const SONDERURLAUB: AbsenceType = {
@@ -35,7 +34,6 @@ const SONDERURLAUB: AbsenceType = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: true,
-  overrunPolicy: "warn",
 };
 
 describe("useAbsenceTypeOptions", () => {

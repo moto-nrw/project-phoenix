@@ -3326,6 +3326,10 @@
       "write_owner": "workforce"
     },
     {
+      "name": "active.staff_vacation_quota_changes",
+      "write_owner": "workforce"
+    },
+    {
       "name": "active.student_status_days",
       "write_owner": "care-plan"
     },

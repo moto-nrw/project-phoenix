@@ -21,7 +21,7 @@ func TestCustomAbsenceAllowanceIsTenantIsolated(t *testing.T) {
 	admin := testpkg.CreateTestStaffForTenant(t, db, tenantA.TenantID, "Lea", "Mandant A")
 	svc := repos.StaffAbsenceType
 	absenceType, err := svc.CreateAbsenceType(tenantA.Context(), workforce.CreateAbsenceType{
-		Name: "Mandantentag", AllowanceEnabled: true, OverrunPolicy: workforce.AbsenceTypeOverrunBlock,
+		Name: "Mandantentag", AllowanceEnabled: true,
 	})
 	require.NoError(t, err)
 	_, err = svc.SetAllowance(tenantA.Context(), workforce.SetAbsenceTypeAllowance{

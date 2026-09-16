@@ -22,20 +22,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// absenceTypeOverrunBlock mirrors the model constant for a school-defined
-// absence type that rejects a booking above its own allowance.
-const absenceTypeOverrunBlock = "block"
-
 // insertAbsenceType writes one active.staff_absence_types row (a school-defined
 // Abwesenheitsart, #2403) in the test's tenant and returns its ID.
-func insertAbsenceType(t *testing.T, tc *testContext, name string, allowanceEnabled bool, overrunPolicy string) int64 {
+func insertAbsenceType(t *testing.T, tc *testContext, name string, allowanceEnabled bool) int64 {
 	t.Helper()
 	row := map[string]any{
 		"name":              name,
 		"base_type":         absenceTypeOther,
 		"is_active":         true,
 		"allowance_enabled": allowanceEnabled,
-		"overrun_policy":    overrunPolicy,
 		"tenant_id":         testpkg.Tenant(t),
 	}
 	var id int64
@@ -233,18 +228,85 @@ func TestAdminCreateStaffAbsence_UnknownStaff(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rec.Code)
 }
 
-func TestAdminCreateStaffAbsence_RejectsVacationType(t *testing.T) {
+func putVacationQuota(t *testing.T, tc *testContext, token string, staffID int64, year int, days float64) *httptest.ResponseRecorder {
+	t.Helper()
+	return testutil.ExecuteRequest(tc.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, fmt.Sprintf("/staff/%d/vacation/quota", staffID),
+		map[string]any{"year": year, "entitled_days": days, "reason": "Stellenumfang"}, testutil.WithJWTBearer(token)))
+}
+
+// #3256: the Leitung books vacation directly, without a request, and never
+// beyond the Resturlaub.
+func TestAdminCreateStaffAbsence_BooksVacationWithinQuota(t *testing.T) {
 	t.Parallel()
 
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t)
-	tomorrow := testpkg.TodayDate().AddDays(1)
+	// Mon 15.02.2027 and Tue 16.02.2027.
+	monday := testpkg.Date(2027, time.February, 15)
+	quota := putVacationQuota(t, tc, token, subjectID, 2027, 2)
+	require.Equal(t, http.StatusOK, quota.Code, quota.Body.String())
 
-	rec := postAbsence(t, tc, token, subjectID, map[string]any{
+	tooLong := postAbsence(t, tc, token, subjectID, map[string]any{
 		"absence_type": "vacation",
-		"date_start":   tomorrow.String(),
-		"date_end":     tomorrow.String(),
+		"date_start":   monday.String(),
+		"date_end":     monday.AddDays(2).String(),
 	})
-	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, http.StatusConflict, tooLong.Code, tooLong.Body.String())
+	assert.Contains(t, tooLong.Body.String(), `"vacation_quota_exceeded"`)
+
+	fits := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type": "vacation",
+		"date_start":   monday.String(),
+		"date_end":     monday.AddDays(1).String(),
+	})
+	require.Equal(t, http.StatusCreated, fits.Code, fits.Body.String())
+
+	overlapping := postAbsence(t, tc, token, subjectID, map[string]any{
+		"absence_type": "vacation",
+		"date_start":   monday.String(),
+		"date_end":     monday.String(),
+	})
+	require.Equal(t, http.StatusConflict, overlapping.Code, overlapping.Body.String())
+	assert.Contains(t, overlapping.Body.String(), "dates overlap")
+
+	var created struct {
+		Data struct {
+			Status      string   `json:"status"`
+			WorkingDays *float64 `json:"working_days"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(fits.Body.Bytes(), &created))
+	assert.Equal(t, "reported", created.Data.Status, "no request is created")
+	require.NotNil(t, created.Data.WorkingDays)
+	assert.Equal(t, 2.0, *created.Data.WorkingDays)
+
+	// Without a reason the claim does not change (#3256).
+	unreasoned := testutil.ExecuteRequest(tc.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPut, fmt.Sprintf("/staff/%d/vacation/quota", subjectID),
+		map[string]any{"year": 2027, "entitled_days": 5, "reason": "  "}, testutil.WithJWTBearer(token)))
+	require.Equal(t, http.StatusBadRequest, unreasoned.Code, unreasoned.Body.String())
+	assert.Contains(t, unreasoned.Body.String(), `"vacation_quota_reason_required"`)
+
+	// The reasoned change shows up in the time-tracking audit log.
+	var logged struct {
+		Old, New *float64
+		Reason   string
+	}
+	require.NoError(t, tc.db.NewRaw(`
+		SELECT (detail->>'old_entitled_days')::numeric AS old,
+		       (detail->>'new_entitled_days')::numeric AS new, reason
+		FROM audit.time_tracking_audit_log
+		WHERE tenant_id = ? AND source = 'vacation_quota' AND staff_id = ?`,
+		testpkg.Tenant(t), subjectID).Scan(testpkg.Ctx(t), &logged.Old, &logged.New, &logged.Reason))
+	assert.Nil(t, logged.Old, "the first claim has no previous value")
+	require.NotNil(t, logged.New)
+	assert.Equal(t, 2.0, *logged.New)
+	assert.Equal(t, "Stellenumfang", logged.Reason)
+
+	// The claim cannot drop below the booked days any more.
+	lowered := putVacationQuota(t, tc, token, subjectID, 2027, 1)
+	require.Equal(t, http.StatusConflict, lowered.Code, lowered.Body.String())
+	assert.Contains(t, lowered.Body.String(), `"vacation_quota_below_used"`)
 }
 
 func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing.T) {
@@ -254,7 +316,7 @@ func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing
 	tc, token, subjectID, _ := setupAbsenceAdminTest(t, func() time.Time {
 		return today.BerlinMidnight().Add(12 * time.Hour)
 	})
-	absenceTypeID := insertAbsenceType(t, tc, "Sonderurlaub", true, absenceTypeOverrunBlock)
+	absenceTypeID := insertAbsenceType(t, tc, "Sonderurlaub", true)
 
 	tomorrow := today.AddDays(1)
 	rec := postAbsence(t, tc, token, subjectID, map[string]any{
@@ -265,6 +327,7 @@ func TestAdminCreateStaffAbsence_RejectsBlockedCustomAllowanceOverrun(t *testing
 	})
 
 	assert.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"absence_allowance_exceeded"`)
 }
 
 // #2873: the comp-time preview endpoint returns the Stundenkonto projection
@@ -318,4 +381,40 @@ func TestAdminCompTimePreview_ReturnsProjection(t *testing.T) {
 		tc.router.ServeHTTP(hdRec, hdReq)
 		assert.Equal(t, http.StatusBadRequest, hdRec.Code, "half_day=%s: %s", halfDay, hdRec.Body.String())
 	}
+}
+
+// #3256: an approval may not push the Resturlaub below zero; the refusal is a
+// conflict the client can explain, not a server error.
+func TestApproveAbsence_RejectsBeyondVacationQuota(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStaffRoute(t)
+	suffix := time.Now().UnixNano()
+	editorPerson, editorAccount := testpkg.CreateTestPersonWithAccount(t, tc.db, "Approve", fmt.Sprintf("Editor-%d", suffix))
+	testpkg.CreateTestStaffForPerson(t, tc.db, editorPerson.ID)
+	subject := testpkg.CreateTestStaff(t, tc.db, "Approve", fmt.Sprintf("Subject-%d", suffix))
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(editorAccount.ID)
+	claims.Permissions = []string{"time_tracking:manage", "vacation:approve"}
+	token := testutil.MintTestJWT(t, claims)
+
+	quota := putVacationQuota(t, tc, token, subject.ID, 2027, 2)
+	require.Equal(t, http.StatusOK, quota.Code, quota.Body.String())
+	monday := testpkg.Date(2027, time.February, 15)
+	absenceID := insertAbsenceRow(t, tc, map[string]any{
+		"staff_id":     subject.ID,
+		"absence_type": absenceTypeVacation,
+		"date_start":   monday.String(),
+		"date_end":     monday.AddDays(2).String(),
+		"working_days": 3.0,
+		"status":       absenceStatusReqd,
+		"created_by":   subject.ID,
+		"requested_at": time.Now(),
+	})
+
+	rec := testutil.ExecuteRequest(tc.router, testutil.NewAuthenticatedRequest(
+		t, http.MethodPost, fmt.Sprintf("/staff/absences/%d/approve", absenceID),
+		map[string]any{}, testutil.WithJWTBearer(token)))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"vacation_quota_exceeded"`)
 }
