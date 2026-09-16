@@ -966,6 +966,21 @@ func TestActivityRunningElsewhereTreatsPlannerSessionsAsConflicts(t *testing.T) 
 	assert.True(t, activityRunningElsewhere([]*activeModels.Group{otherDeviceSameRoom}, 1, deviceID, false))
 }
 
+func TestActivityConflictDestination(t *testing.T) {
+	t.Parallel()
+
+	activityID := int64(10)
+	inGym := &activeModels.Group{GroupID: &activityID, RoomID: 1}
+	inYard := &activeModels.Group{GroupID: &activityID, RoomID: 2}
+
+	assert.Equal(t, int64(9), activityConflictDestination([]*activeModels.Group{inGym}, 9),
+		"a planned room is the kiosk preflight destination")
+	assert.Equal(t, int64(1), activityConflictDestination([]*activeModels.Group{inGym}, 0),
+		"a single running copy supplies the destination when none is planned")
+	assert.Zero(t, activityConflictDestination([]*activeModels.Group{inGym, inYard}, 0),
+		"copies in different rooms stay a conflict")
+}
+
 func TestMarkRollbackOnRoomCapacity(t *testing.T) {
 	t.Parallel()
 

@@ -127,6 +127,9 @@ func TestKioskStartJoinsAPhoneCreatedRoomStay(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Kiosk", "Start")
 	device := testpkg.CreateTestDevice(t, db, "schulhof-after-phone")
+	conflict, err := svc.CheckActivityConflict(ctx, play.ID, device.ID)
+	require.NoError(t, err)
+	assert.False(t, conflict.HasConflict, "preflight must not treat a joinable independent stay as a conflict")
 	started, err := svc.StartActivitySessionWithSupervisors(ctx, play.ID, device.ID, []int64{staff.ID}, &yard.ID)
 	require.NoError(t, err, "a kiosk start must join the phone-created stay")
 	assert.Equal(t, stay.ID, started.ID)
@@ -147,7 +150,10 @@ func TestKioskStartConflictsWithAPlannerSessionInTheSameRoom(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, db, "Kiosk", "Fußball")
 	device := testpkg.CreateTestDevice(t, db, "turnhalle-kiosk-planer")
-	_, err := svc.StartActivitySessionWithSupervisors(ctx, football.ID, device.ID, []int64{staff.ID}, &gym.ID)
+	conflict, err := svc.CheckActivityConflict(ctx, football.ID, device.ID)
+	require.NoError(t, err)
+	assert.True(t, conflict.HasConflict, "preflight must keep a planner session as a conflict")
+	_, err = svc.StartActivitySessionWithSupervisors(ctx, football.ID, device.ID, []int64{staff.ID}, &gym.ID)
 	require.ErrorIs(t, err, activeSvc.ErrSessionConflict)
 
 	var still activeModels.Group

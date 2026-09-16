@@ -357,6 +357,29 @@ func activityRunningElsewhere(sessions []*active.Group, roomID, deviceID int64, 
 	return false
 }
 
+// activityConflictDestination is the room the kiosk preflight compares
+// against: the activity's planned room when set, otherwise the single room
+// the running copies already occupy. A split across rooms stays a conflict.
+func activityConflictDestination(sessions []*active.Group, plannedRoomID int64) int64 {
+	if plannedRoomID > 0 {
+		return plannedRoomID
+	}
+	var roomID int64
+	for _, session := range sessions {
+		if session == nil || session.RoomID <= 0 {
+			continue
+		}
+		if roomID == 0 {
+			roomID = session.RoomID
+			continue
+		}
+		if session.RoomID != roomID {
+			return 0
+		}
+	}
+	return roomID
+}
+
 // updateDeviceLocation updates the device's room_id to track its last-used location.
 // This is fire-and-forget: a failure here should not block session creation.
 func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int64) {
@@ -1026,7 +1049,10 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 	return s.SupervisorRepo.Create(ctx, supervisor)
 }
 
-// CheckActivityConflict checks for conflicts before starting an activity session
+// CheckActivityConflict reports whether a kiosk start of activityID would
+// conflict. An independent room stay of that activity in the destination room
+// is joinable, matching StartActivitySessionWithSupervisors, so the preflight
+// does not push the tablet into a force-start that would end the stay.
 func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
 	// Check if device is already running another session
 	existingDeviceSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
@@ -1045,33 +1071,40 @@ func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceI
 		}, nil
 	}
 
-	// Check if activity is already active on a different device
 	existingActivitySessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
 
-	if len(existingActivitySessions) > 0 {
-		// Activity is already active on another device
-		existingSession := existingActivitySessions[0]
-		var conflictDeviceStr *string
-		if existingSession.DeviceID != nil {
-			deviceIDStr := fmt.Sprintf("%d", *existingSession.DeviceID)
-			conflictDeviceStr = &deviceIDStr
-		}
-		return &ActivityConflictInfo{
-			HasConflict:       true,
-			ConflictingGroup:  existingSession,
-			ConflictMessage:   fmt.Sprintf("Activity is already active on device %s", getDeviceIDString(existingSession.DeviceID)),
-			ConflictingDevice: conflictDeviceStr,
-			CanOverride:       true, // Administrative override is always possible
-		}, nil
+	activityIsSystem, err := s.systemActivity(ctx, activityID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+	plannedRoomID, err := s.getPlannedRoomID(ctx, activityID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+	destinationRoomID := activityConflictDestination(existingActivitySessions, plannedRoomID)
+	if !activityRunningElsewhere(existingActivitySessions, destinationRoomID, deviceID, activityIsSystem) {
+		return &ActivityConflictInfo{HasConflict: false, CanOverride: true}, nil
 	}
 
-	// No conflicts
+	existingSession := existingActivitySessions[0]
+	var conflictDeviceStr *string
+	if existingSession != nil && existingSession.DeviceID != nil {
+		deviceIDStr := fmt.Sprintf("%d", *existingSession.DeviceID)
+		conflictDeviceStr = &deviceIDStr
+	}
+	var devicePtr *int64
+	if existingSession != nil {
+		devicePtr = existingSession.DeviceID
+	}
 	return &ActivityConflictInfo{
-		HasConflict: false,
-		CanOverride: true,
+		HasConflict:       true,
+		ConflictingGroup:  existingSession,
+		ConflictMessage:   fmt.Sprintf("Activity is already active on device %s", getDeviceIDString(devicePtr)),
+		ConflictingDevice: conflictDeviceStr,
+		CanOverride:       true, // Administrative override is always possible
 	}, nil
 }
 
