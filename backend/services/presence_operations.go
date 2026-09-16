@@ -14,12 +14,22 @@ import (
 // retained models into the Student Presence owner's public values and passes
 // the retained operation errors through unchanged, so the routes keep their
 // exact error classification.
-type presenceOperations struct{ active active.Service }
+type presenceOperations struct {
+	active   active.Service
+	atSchool AtSchoolCounter
+}
+
+// AtSchoolCounter counts the students who read "Schule" right now (#3260).
+// The day plan it needs lives outside the presence owner.
+type AtSchoolCounter interface {
+	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error)
+}
 
 // NewPresenceOperations wires the retained active service behind the
-// presence operations contract.
-func NewPresenceOperations(service active.Service) presenceOperations {
-	return presenceOperations{active: service}
+// presence operations contract. A nil atSchool leaves the dashboard's
+// "Zuhause" figure unsplit.
+func NewPresenceOperations(service active.Service, atSchool AtSchoolCounter) presenceOperations {
+	return presenceOperations{active: service, atSchool: atSchool}
 }
 
 func legacyGroup(group studentpresence.LiveGroup) *activeModels.Group {
@@ -351,6 +361,14 @@ func (p presenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		CurrentActivities:   make([]studentpresence.CurrentActivity, 0, len(analytics.CurrentActivities)),
 		ActiveGroupsSummary: make([]studentpresence.ActiveGroupInfo, 0, len(analytics.ActiveGroupsSummary)),
 		LastUpdated:         analytics.LastUpdated,
+	}
+	if p.atSchool != nil && len(analytics.HomeCandidateIDs) > 0 {
+		atSchool, err := p.atSchool.CountAtSchoolToday(ctx, analytics.HomeCandidateIDs)
+		if err != nil {
+			return studentpresence.DashboardAnalytics{}, err
+		}
+		result.StudentsAtSchool = atSchool
+		result.StudentsHome = max(0, result.StudentsHome-atSchool)
 	}
 	for _, item := range analytics.RecentActivity {
 		result.RecentActivity = append(result.RecentActivity, studentpresence.RecentActivity{

@@ -150,6 +150,7 @@ export type HomeBlockKey =
   | "tile.students_on_playground"
   | "tile.students_sick"
   | "tile.students_excused"
+  | "tile.students_at_school"
   | "tile.students_home"
   | "tile.active_activities"
   | "tile.capacity_utilization"
@@ -203,6 +204,7 @@ const TILE_CONCEPT: Record<string, MotoConceptKey> = {
   "tile.students_on_playground": "schoolyard",
   "tile.students_sick": "sick",
   "tile.students_excused": "excused",
+  "tile.students_at_school": "atSchool",
   "tile.students_home": "home",
   "tile.active_activities": "activities",
   "tile.capacity_utilization": "utilization",
@@ -265,9 +267,15 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     always,
   ),
   tile(
+    "tile.students_at_school",
+    "Schule",
+    "Kinder, die heute erwartet werden und noch nicht eingecheckt sind.",
+    always,
+  ),
+  tile(
     "tile.students_home",
     "Zuhause",
-    "Kinder, die heute nicht in der Betreuung sind.",
+    "Kinder, die heute nicht oder nicht mehr in der Betreuung sind.",
     always,
   ),
   tile(
@@ -497,7 +505,7 @@ export function homeBlockHeight(key: HomeBlockKey): number {
  * schulweite „Laufende Betreuung" steht im Hinzufügen-Menü: für die Kraft in
  * der Sternengruppe ist die Bärengruppe Rauschen.
  *
- * Leitung: die Lage der Schule in vier Zahlen, was auf eine Entscheidung
+ * Leitung: die Lage der Schule in sechs Zahlen, was auf eine Entscheidung
  * wartet, das Personal, die Hinweise, der Ablauf des Tages und die laufende
  * Betreuung.
  *
@@ -527,13 +535,18 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "tile.students_sick", span: 1, col: 1, row: 0 },
     { key: "tile.students_excused", span: 1, col: 2, row: 0 },
     { key: "tile.students_home", span: 1, col: 3, row: 0 },
-    { key: "section.open_requests", span: 2, col: 0, row: 1 },
-    { key: "section.staff_today", span: 2, col: 2, row: 1 },
-    { key: "section.staff_notices", span: 2, col: 0, row: 3 },
-    { key: "section.day_flow", span: 2, col: 2, row: 3 },
-    { key: "section.messages", span: 2, col: 0, row: 5 },
-    { key: "section.active_groups", span: 2, col: 2, row: 5 },
-    { key: "section.birthdays", span: 4, col: 0, row: 7 },
+    // Zweite Kennzahl-Reihe (#3260): wer noch im Unterricht ist und wer auf
+    // dem Schulhof. Die Listen daneben und darunter liegen versetzt, so wie
+    // das Packen in Lesereihenfolge sie legt.
+    { key: "tile.students_at_school", span: 1, col: 0, row: 1 },
+    { key: "tile.students_on_playground", span: 1, col: 1, row: 1 },
+    { key: "section.open_requests", span: 2, col: 2, row: 1 },
+    { key: "section.staff_today", span: 2, col: 0, row: 2 },
+    { key: "section.staff_notices", span: 2, col: 2, row: 3 },
+    { key: "section.day_flow", span: 2, col: 0, row: 4 },
+    { key: "section.messages", span: 2, col: 2, row: 5 },
+    { key: "section.active_groups", span: 2, col: 0, row: 6 },
+    { key: "section.birthdays", span: 4, col: 0, row: 8 },
   ],
   // Die Vereinigung: erst der eigene Tag und die eigene Gruppe, dann die
   // Lage der Schule. Die Erinnerungen fehlen hier, weil die Jetzt-Zone und
@@ -546,10 +559,12 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "tile.students_sick", span: 1, col: 1, row: 5 },
     { key: "tile.students_excused", span: 1, col: 2, row: 5 },
     { key: "tile.students_home", span: 1, col: 3, row: 5 },
-    { key: "section.staff_today", span: 2, col: 0, row: 6 },
-    { key: "section.staff_notices", span: 2, col: 2, row: 6 },
-    { key: "section.day_flow", span: 2, col: 0, row: 8 },
-    { key: "section.birthdays", span: 2, col: 2, row: 8 },
+    { key: "tile.students_at_school", span: 1, col: 0, row: 6 },
+    { key: "tile.students_on_playground", span: 1, col: 1, row: 6 },
+    { key: "section.staff_today", span: 2, col: 2, row: 6 },
+    { key: "section.staff_notices", span: 2, col: 0, row: 7 },
+    { key: "section.day_flow", span: 2, col: 2, row: 8 },
+    { key: "section.birthdays", span: 2, col: 0, row: 9 },
   ],
 };
 

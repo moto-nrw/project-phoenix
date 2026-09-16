@@ -54,3 +54,17 @@ func TestCalculateStudentsHome(t *testing.T) {
 		})
 	}
 }
+
+// The "Schule" split (#3260) only looks at children the "Zuhause" tile
+// counts, so present children must not reach the day-plan check.
+func TestHomeCandidateIDsDropsPresentStudents(t *testing.T) {
+	t.Parallel()
+
+	got := homeCandidateIDs([]int64{4, 1, 3}, map[int64]bool{1: true, 9: true})
+	if len(got) != 2 || got[0] != 4 || got[1] != 3 {
+		t.Errorf("homeCandidateIDs = %v, want [4 3]", got)
+	}
+	if got := homeCandidateIDs(nil, nil); len(got) != 0 {
+		t.Errorf("homeCandidateIDs(nil, nil) = %v, want empty", got)
+	}
+}

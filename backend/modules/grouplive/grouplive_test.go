@@ -16,6 +16,8 @@ import (
 
 const today Date = "2026-08-21"
 
+var fakeNow = time.Date(2026, time.August, 21, 9, 15, 0, 0, time.UTC)
+
 // fakes implements every consumer-owned port with func fields; a nil field
 // answers with an empty value so each test only wires what it asserts.
 type fakes struct {
@@ -33,6 +35,8 @@ type fakes struct {
 	pickups            func(context.Context, []int64, Date) (map[int64]Pickup, error)
 	timetable          func(context.Context, []int64, Date) (map[int64]bool, error)
 	decide             func(DayInputs) DayDecision
+	atSchool           func(AtSchoolInputs) bool
+	careDayEnd         func(context.Context) (string, error)
 	handovers          func(context.Context, int64, Date) ([]Transfer, error)
 	prepare            func(context.Context) (context.Context, error)
 	photosEnabled      func(context.Context) (bool, error)
@@ -159,6 +163,20 @@ func (f *fakes) DecideDay(inputs DayInputs) DayDecision {
 	return f.decide(inputs)
 }
 
+func (f *fakes) AtSchoolBeforeCheckIn(inputs AtSchoolInputs) bool {
+	if f.atSchool == nil {
+		return false
+	}
+	return f.atSchool(inputs)
+}
+
+func (f *fakes) CareDayEnd(ctx context.Context) (string, error) {
+	if f.careDayEnd == nil {
+		return "18:00", nil
+	}
+	return f.careDayEnd(ctx)
+}
+
 func (f *fakes) GroupHandovers(ctx context.Context, groupID int64, date Date) ([]Transfer, error) {
 	f.handoverCalls++
 	if f.handovers == nil {
@@ -199,6 +217,8 @@ func (f *fakes) PendingByStudentForDate(ctx context.Context, date excusedrequest
 func (f *fakes) Today() Date { return today }
 
 func (f *fakes) Clock(at time.Time) string { return at.UTC().Format("15:04") }
+
+func (f *fakes) Now() time.Time { return fakeNow }
 
 // presenceFake answers per student from fixed maps.
 type presenceFake struct {
@@ -452,6 +472,91 @@ func TestGetProjectsRosterUnderFullAccess(t *testing.T) {
 	}, got.RoomStatus)
 	assert.Equal(t, TrackingIndicators{Labels: []string{"Hausaufgaben", "Mittag"}, Results: map[int64][]bool{11: {true, false}}}, got.TrackingIndicators)
 	assert.Equal(t, []Transfer{{ID: 5, GroupID: 1, SubstituteStaffID: 9, SubstituteName: "Vera Vertretung", EndDate: "2026-08-28"}}, got.Transfers)
+}
+
+// TestGetShowsSchoolBeforeTheFirstCheckIn pins #3260: an absent child the
+// owner's rule places in class reads "Schule", with the day decision, the
+// check-in fact, the pickup time, the care day end and the clock handed to
+// that rule. Present children and a rule answering false keep their location.
+func TestGetShowsSchoolBeforeTheFirstCheckIn(t *testing.T) {
+	t.Parallel()
+
+	checkIn := time.Date(2026, time.August, 21, 8, 10, 0, 0, time.UTC)
+	checkOut := time.Date(2026, time.August, 21, 14, 5, 0, 0, time.UTC)
+	pickupAt := time.Date(2026, time.August, 21, 15, 30, 0, 0, time.UTC)
+	var seen []AtSchoolInputs
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+		members: func(context.Context, int64) ([]RosterStudent, error) {
+			return []RosterStudent{
+				{ID: 21, FirstName: "Ella", LastName: "Erwartet"},
+				{ID: 22, FirstName: "Finn", LastName: "Fort"},
+				{ID: 23, FirstName: "Gil", LastName: "Da"},
+			}, nil
+		},
+		participants: func(context.Context, []int64, Date) (map[int64]bool, error) {
+			return map[int64]bool{21: true, 22: true, 23: true}, nil
+		},
+		snapshot: func(context.Context, []int64, Date) (PresenceSnapshot, error) {
+			return presenceFake{
+				locations: map[int64]Location{
+					21: {Name: "Abwesend"},
+					22: {Name: "Abwesend", Since: &checkOut},
+					23: {Name: "Anwesend - Raum A", Since: &checkIn},
+				},
+				attendances: map[int64]Attendance{
+					21: {Recorded: true},
+					22: {Recorded: true, CheckInTime: &checkIn, CheckOutTime: &checkOut},
+					23: {Recorded: true, Present: true, CheckInTime: &checkIn},
+				},
+			}, nil
+		},
+		pickups: func(context.Context, []int64, Date) (map[int64]Pickup, error) {
+			return map[int64]Pickup{21: {Date: today, PickupTime: &pickupAt}}, nil
+		},
+		decide: func(DayInputs) DayDecision {
+			return DayDecision{ComesToday: true, Reason: DayReasonArrivalSchedule}
+		},
+		careDayEnd: func(context.Context) (string, error) { return "17:00", nil },
+		atSchool: func(inputs AtSchoolInputs) bool {
+			seen = append(seen, inputs)
+			return !inputs.CheckedIn
+		},
+	}
+
+	got, err := newService(f).LiveGroup(context.Background(), 1)
+	require.NoError(t, err)
+	require.Len(t, got.Students, 3)
+
+	assert.Equal(t, "Schule", got.Students[0].Location)
+	assert.Nil(t, got.Students[0].LocationSince)
+	assert.Equal(t, "Abwesend", got.Students[1].Location, "a checked-out child is at home")
+	assert.Equal(t, &checkOut, got.Students[1].LocationSince)
+	assert.Equal(t, "Anwesend - Raum A", got.Students[2].Location)
+
+	require.Len(t, seen, 2, "the rule is only asked for children without an open check-in")
+	assert.Equal(t, AtSchoolInputs{
+		Decision:   DayDecision{ComesToday: true, Reason: DayReasonArrivalSchedule},
+		PickupTime: &pickupAt,
+		CareDayEnd: "17:00",
+		Now:        fakeNow,
+	}, seen[0])
+	assert.True(t, seen[1].CheckedIn)
+	assert.Nil(t, seen[1].PickupTime)
+}
+
+func TestGetFailsWhenTheCareDayEndCannotBeResolved(t *testing.T) {
+	t.Parallel()
+
+	f := &fakes{
+		caller:           fullCaller,
+		supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil },
+		careDayEnd:       func(context.Context) (string, error) { return "", errors.New("settings down") },
+	}
+
+	_, err := newService(f).LiveGroup(context.Background(), 1)
+	require.ErrorContains(t, err, "resolve care day end")
 }
 
 func TestGetPassesPresenceAndPlansIntoTheDayDecision(t *testing.T) {

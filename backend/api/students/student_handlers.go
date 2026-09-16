@@ -84,6 +84,7 @@ func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, 
 	snapshot, err := batch.ResolveMany(ctx, []string{
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
+		configModel.KeySessionEndTime,
 		configModel.KeyStudentPhotosEnabled,
 	})
 	if err != nil {

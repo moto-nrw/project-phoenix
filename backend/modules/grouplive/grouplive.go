@@ -163,6 +163,7 @@ type buildState struct {
 	arrivals   map[int64]Arrival
 	pickups    map[int64]Pickup
 	timetable  map[int64]bool
+	careDayEnd string
 }
 
 func (s *service) LiveGroup(ctx context.Context, requestedGroupID int64) (*Projection, error) {
@@ -450,9 +451,44 @@ func (s *service) loadPlanning(ctx context.Context, state *buildState) error {
 	if err != nil {
 		return fmt.Errorf("load pending excused requests: %w", err)
 	}
+	careDayEnd, err := s.deps.Settings.CareDayEnd(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve care day end: %w", err)
+	}
 	state.arrivals, state.pickups, state.timetable = arrivals, pickups, timetable
+	state.careDayEnd = careDayEnd
 	s.applyPlanning(state, pending)
 	return nil
+}
+
+// Location names the resolver emits for a child without an open check-in and
+// the name that replaces it before the first check-in (#3260). They mirror the
+// presence owner's labels, which this module cannot import.
+const (
+	absentLocation   = "Abwesend"
+	atSchoolLocation = "Schule"
+)
+
+// applyAtSchool turns "Abwesend" into "Schule" when the owner's rule says the
+// expected child is still in class. It needs the decision applyPlanning just
+// resolved, so it runs right after it.
+func (s *service) applyAtSchool(state *buildState, student *Student, decision DayDecision, attendance Attendance) {
+	if student.Location != absentLocation {
+		return
+	}
+	inputs := AtSchoolInputs{
+		Decision:   decision,
+		CheckedIn:  attendance.CheckInTime != nil,
+		CareDayEnd: state.careDayEnd,
+		Now:        s.deps.Calendar.Now(),
+	}
+	if pickup, ok := state.pickups[student.ID]; ok {
+		inputs.PickupTime = pickup.PickupTime
+	}
+	if s.deps.Planning.AtSchoolBeforeCheckIn(inputs) {
+		student.Location = atSchoolLocation
+		student.LocationSince = nil
+	}
 }
 
 func fullAccessIDs(students []Student) []int64 {
@@ -520,6 +556,7 @@ func (s *service) applyPlanning(state *buildState, pending map[int64]*pendingExc
 		}
 		student.DayPlanningReason = decision.Reason
 		student.DayPlanningLabel = planningLabel(decision)
+		s.applyAtSchool(state, student, decision, attendance)
 		applyTimes(student, inputs.Arrival, attendance, s.deps.Calendar)
 	}
 }

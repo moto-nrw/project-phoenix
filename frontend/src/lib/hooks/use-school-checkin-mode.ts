@@ -4,7 +4,7 @@ import { useCallback, useReducer, useRef, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { useToast } from "~/contexts/ToastContext";
 import {
-  isHomeLocation,
+  isNotCheckedInLocation,
   isSchoolyardLocation,
   parseLocation,
 } from "~/lib/location-helper";
@@ -34,7 +34,7 @@ const logger = createLogger({ component: "useSchoolCheckinMode" });
  *
  * Mirrors PresenceBadge.derivePresenceState so the card tint always agrees
  * with the badge on the same card:
- *   - empty / null / "Zuhause" → abwesend (red)
+ *   - empty / null / "Zuhause" / "Schule" → abwesend (red)
  *   - "Schulhof"              → schulhof (orange)
  *   - anything else incl.
  *     "Anwesend", "Unterwegs",
@@ -48,7 +48,7 @@ const logger = createLogger({ component: "useSchoolCheckinMode" });
 export function deriveCheckinState(
   currentLocation?: string | null,
 ): StudentCheckinState {
-  if (!currentLocation || isHomeLocation(currentLocation)) return "abwesend";
+  if (isNotCheckedInLocation(currentLocation)) return "abwesend";
   if (isSchoolyardLocation(currentLocation)) return "schulhof";
   return "anwesend";
 }

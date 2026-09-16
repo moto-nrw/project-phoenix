@@ -46,7 +46,7 @@ func (r studentStatusDayRepository) CountEffectiveDashboardAbsences(ctx context.
 	if err != nil {
 		return nil, err
 	}
-	return &activeModels.StudentStatusCounts{Sick: value.Sick, Excused: value.Excused, Total: value.Total}, nil
+	return &activeModels.StudentStatusCounts{Sick: value.Sick, Excused: value.Excused, Total: value.Total, UnaccountedIDs: value.UnaccountedIDs}, nil
 }
 
 func (r studentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date carePlanLegacy.ScheduleDate, at time.Time, source string) error {

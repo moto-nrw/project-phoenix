@@ -19,6 +19,7 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { groupService, studentService } from "~/lib/api";
 import { schoolCheckinStudent } from "~/lib/student-api";
+import { isAtSchoolLocation } from "~/lib/location-helper";
 import {
   useStudentData,
   type ExtendedStudent,
@@ -1184,10 +1185,13 @@ function StudentDetailPageContent() {
   // COMPUTED VALUES
   // =============================================================================
 
-  const isAtHome =
-    !student.current_location || student.current_location.startsWith("Zuhause");
-  const showCheckout = canCheckin && !isAtHome;
-  const showCheckin = canCheckin && isAtHome;
+  // "Schule" (#3260) is not checked in either: the child still needs a check-in.
+  const isNotCheckedIn =
+    !student.current_location ||
+    student.current_location.startsWith("Zuhause") ||
+    isAtSchoolLocation(student.current_location);
+  const showCheckout = canCheckin && !isNotCheckedIn;
+  const showCheckin = canCheckin && isNotCheckedIn;
 
   // =============================================================================
   // RENDER

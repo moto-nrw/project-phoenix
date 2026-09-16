@@ -174,6 +174,21 @@ describe("MyGroupBlock (#2180)", () => {
     expect(screen.getByText("Kommt 09:15")).toBeInTheDocument();
   });
 
+  // #3260: ohne Ankunftszeit, aber heute erwartet, ist das Kind im Unterricht.
+  it("nennt Schule für ein erwartetes Kind ohne Ankunftszeit", () => {
+    snapshot.current = withGroup({
+      away: [
+        student({ id: "1", current_location: "Schule" }),
+        student({ id: "2", first_name: "Paul", last_name: "Wolf" }),
+      ],
+    });
+
+    render(<MyGroupBlock />);
+
+    expect(screen.getByText("Schule")).toBeInTheDocument();
+    expect(screen.getByText("Zuhause")).toBeInTheDocument();
+  });
+
   it("sagt es, wenn alle da sind und keine Abholung mehr kommt", () => {
     render(<MyGroupBlock />);
 

@@ -19,6 +19,7 @@ import {
   type HomeMissingArrival,
   type HomePickup,
 } from "~/lib/hooks/use-home-group";
+import { isAtSchoolLocation } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -327,6 +328,10 @@ function AwayBadge({ student }: { readonly student: OgsLiveWireStudent }) {
         label={student.day_planning_label ?? "Kommt heute nicht"}
       />
     );
+  }
+  // Erwartet, aber ohne Ankunftszeit: noch im Unterricht (#3260).
+  if (isAtSchoolLocation(student.current_location)) {
+    return <StatusBadge tone="gray" label="Schule" />;
   }
   return <StatusBadge tone="gray" label="Zuhause" />;
 }
