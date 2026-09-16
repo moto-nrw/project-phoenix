@@ -14,11 +14,23 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 const operatorMFATestJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
+
+// newTestOperatorDirectory binds the retained operator directory port the
+// MFA and passkey services read operator rows through, over the Identity &
+// Access module the service root composes (#3252).
+func newTestOperatorDirectory(db *bun.DB) platform.OperatorDirectory {
+	directory, err := services.NewOperatorDirectoryForTests(db)
+	if err != nil {
+		panic(err)
+	}
+	return directory
+}
 
 func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
@@ -33,6 +45,7 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
+		Operators:   newTestOperatorDirectory(db),
 		TokenAuth:   tokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: email.NewEmail("Operator Tests", "ops-tests@example.test"),

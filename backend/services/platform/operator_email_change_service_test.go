@@ -381,15 +381,6 @@ func TestGetLogger_WithLogger(t *testing.T) {
 	assert.Equal(t, customLogger, svc.getLogger())
 }
 
-func TestLogOperatorRefreshDecision_NilLoggerDoesNotPanic(t *testing.T) {
-	t.Parallel()
-
-	svc := &operatorAuthService{OperatorAuthServiceConfig: OperatorAuthServiceConfig{Logger: nil}}
-	assert.NotPanics(t, func() {
-		svc.logOperatorRefreshDecision("expired", 42, 3)
-	})
-}
-
 // =============================================================================
 // Dispatch function tests with real Dispatcher + mock mailer
 // =============================================================================
@@ -683,7 +674,6 @@ type mockOperatorRepoInternal struct {
 	createFn            func(ctx context.Context, operator *platform.Operator) error
 	deleteFn            func(ctx context.Context, id int64) error
 	listFn              func(ctx context.Context) ([]*platform.Operator, error)
-	updateLastLoginFn   func(ctx context.Context, id int64) error
 }
 
 func (m *mockOperatorRepoInternal) FindByID(ctx context.Context, id int64) (*platform.Operator, error) {
@@ -735,18 +725,11 @@ func (m *mockOperatorRepoInternal) List(ctx context.Context) ([]*platform.Operat
 	return nil, nil
 }
 
-func (m *mockOperatorRepoInternal) UpdateLastLogin(ctx context.Context, id int64) error {
-	if m.updateLastLoginFn != nil {
-		return m.updateLastLoginFn(ctx, id)
-	}
-	return nil
-}
-
 // IncrementMFAAttempts / ResetMFAAttempts are part of OperatorRepository as
 // of #1430 review item #6 (atomic MFA lockout counter). Email-change tests
 // don't exercise the MFA flow, so the mock panics if any test reaches
 // them — that's a wiring red flag, not a no-op.
-func (m *mockOperatorRepoInternal) IncrementMFAAttempts(_ context.Context, _ int64, _ int, _ time.Duration) (platform.OperatorMFAAttemptResult, error) {
+func (m *mockOperatorRepoInternal) IncrementMFAAttempts(_ context.Context, _ int64, _ int, _ time.Duration) (OperatorMFAAttempts, error) {
 	panic("IncrementMFAAttempts not implemented in mockOperatorRepoInternal")
 }
 

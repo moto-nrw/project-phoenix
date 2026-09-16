@@ -22,6 +22,19 @@ const legacyTeacherRoleName = "teacher"
 // exactly that, so it is refused for this role.
 const lehrkraftRoleName = "lehrkraft"
 
+// ResolvedSchoolRole builds the role value the assignment rules below read
+// from the facts a caller outside the persistence model holds (the root's
+// Identity & Access role policy seam, #3252). A non-positive id is no
+// resolved role and yields nil.
+func ResolvedSchoolRole(id int64, tenantID *int64, name string, isSystem bool, baseRole *string) *authModels.Role {
+	if id <= 0 {
+		return nil
+	}
+	role := &authModels.Role{TenantID: tenantID, Name: name, IsSystem: isSystem, BaseRole: baseRole}
+	role.ID = id
+	return role
+}
+
 // IsLehrkraftSystemRole reports whether the role is the platform lehrkraft
 // system role. Name-matched and narrowed to system roles like the legacy
 // teacher block: a school's own custom role that happens to share the label

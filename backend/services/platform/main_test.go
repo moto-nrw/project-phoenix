@@ -1,6 +1,8 @@
 package platform_test
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"testing"
 	"time"
 
@@ -8,6 +10,16 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// testJWTSecret is generated at runtime to avoid hardcoded secret literals
+// that trigger secret scanners. All tests in this package share the value.
+var testJWTSecret = func() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
+}()
 
 // The operator auth/MFA flows under test hash passwords constantly; cheap
 // Argon2id params keep that off the test suite's critical path.

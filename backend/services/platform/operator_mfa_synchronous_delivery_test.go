@@ -44,6 +44,7 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	mailer := &cancelingOperatorMFAMailer{cancel: cancel}
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:      repos,
+		Operators:  newTestOperatorDirectory(db),
 		TokenAuth:  tokenAuth,
 		Dispatcher: email.NewDispatcher(mailer, nil),
 		JWTSecret:  operatorMFATestJWTSecret,

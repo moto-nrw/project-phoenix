@@ -1,5 +1,5 @@
 // Integration tests for operator-led school access management (issue #1021).
-package platform_test
+package auth_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func systemRoleID(t *testing.T, db *bun.DB, name string) int64 {
 	return id
 }
 
-func createTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, baseRole *string) *authModels.Role {
+func createAccessTenantRole(t *testing.T, db *bun.DB, name string, tenantID int64, baseRole *string) *authModels.Role {
 	t.Helper()
 	role := &authModels.Role{Name: name, IsSystem: false, BaseRole: baseRole}
 	role.SetTenantID(tenantID)
@@ -53,7 +53,7 @@ func cleanupTenantRole(t *testing.T, db *bun.DB, roleID int64) {
 	require.NoError(t, err)
 }
 
-func roleNamesAt(entries []platformSvc.AccountTenantAccessEntry, tenantID int64) []string {
+func roleNamesAt(entries []identityaccess.AccountTenantAccess, tenantID int64) []string {
 	for _, entry := range entries {
 		if entry.TenantID != tenantID {
 			continue
@@ -67,7 +67,7 @@ func roleNamesAt(entries []platformSvc.AccountTenantAccessEntry, tenantID int64)
 	return nil
 }
 
-func entryFor(entries []platformSvc.AccountTenantAccessEntry, tenantID int64) *platformSvc.AccountTenantAccessEntry {
+func entryFor(entries []identityaccess.AccountTenantAccess, tenantID int64) *identityaccess.AccountTenantAccess {
 	for i := range entries {
 		if entries[i].TenantID == tenantID {
 			return &entries[i]
@@ -127,7 +127,7 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -135,7 +135,7 @@ func TestIntegration_GrantAccountTenantAccess_AddsSchoolWithRole(t *testing.T) {
 	adminRoleID := systemRoleID(t, db, "admin")
 
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID},
+		accessGrant{RoleID: adminRoleID},
 		operator.ID, testClientIP)
 	require.NoError(t, err)
 
@@ -162,17 +162,17 @@ func TestIntegration_GrantAccountTenantAccess_CustomUserBaseCreatesCaregiverProf
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 	baseRole := authModels.BaseRoleUser
-	role := createTenantRole(t, db, "zugriff-custom-user", accessTargetTenantID(t), &baseRole)
+	role := createAccessTenantRole(t, db, "zugriff-custom-user", accessTargetTenantID(t), &baseRole)
 	defer cleanupTenantRole(t, db, role.ID)
 
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: role.ID}, operator.ID, testClientIP)
+		accessGrant{RoleID: role.ID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 	assert.Equal(t, []string{role.Name}, roleNamesAt(entries, accessTargetTenantID(t)))
 
@@ -191,7 +191,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -199,20 +199,19 @@ func TestIntegration_GrantAccountTenantAccess_RejectsDuplicate(t *testing.T) {
 	adminRoleID := systemRoleID(t, db, "admin")
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
-	var conflict *platformSvc.ConflictError
-	require.ErrorAs(t, err, &conflict, "granting the same school twice must conflict")
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
+	require.ErrorIs(t, err, identityaccess.ErrAccountTenantAccessExists, "granting the same school twice must conflict")
 }
 
 func TestIntegration_GrantAccountTenantAccess_RejectsGuardianRole(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -220,9 +219,9 @@ func TestIntegration_GrantAccountTenantAccess_RejectsGuardianRole(t *testing.T) 
 	guardianRoleID := systemRoleID(t, db, authModels.BaseRoleGuardian)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: guardianRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: guardianRoleID}, operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid, "guardian access must go through the guardian invitation flow")
 }
 
@@ -230,7 +229,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -240,9 +239,9 @@ func TestIntegration_GrantAccountTenantAccess_RejectsForeignTenantRole(t *testin
 	foreignRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-fremdrolle", testSchoolID(t))
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: foreignRole.ID}, operator.ID, testClientIP)
+		accessGrant{RoleID: foreignRole.ID}, operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid, "a role of another school must not be assignable")
 }
 
@@ -250,7 +249,7 @@ func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -259,7 +258,7 @@ func TestIntegration_UpdateAccountTenantRole_ReplacesAdminKeepsCaregiver(t *test
 	userRoleID := systemRoleID(t, db, "user")
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: userRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: userRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	// user -> admin: the caregiver role stays, because removing it has to run
@@ -278,7 +277,7 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account := testpkg.CreateTestAccount(t, db, "access-lehrkraft-regrant")
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
@@ -300,9 +299,9 @@ func TestIntegration_GrantAccountTenantAccess_RejectsLehrkraftForCaregiverProfil
 	// profile under a class_day-only JWT — must be rejected like on the
 	// role-update path.
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
+		accessGrant{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid, "a live caregiver profile must block a lehrkraft grant")
 }
 
@@ -310,7 +309,7 @@ func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -319,7 +318,7 @@ func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile
 	// Granting the caregiver role materializes the local person/staff/teacher
 	// identity at the target school.
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "user")}, operator.ID, testClientIP)
+		accessGrant{RoleID: systemRoleID(t, db, "user")}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	// Switching that account to Lehrkraft would strand the users.teachers
@@ -327,7 +326,7 @@ func TestIntegration_UpdateAccountTenantRole_RejectsLehrkraftForCaregiverProfile
 	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "lehrkraft"), operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid, "a caregiver profile must block the switch to lehrkraft")
 }
 
@@ -335,20 +334,20 @@ func TestIntegration_UpdateAccountTenantRole_RejectsChangesFromLehrkraft(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
+		accessGrant{RoleID: systemRoleID(t, db, "lehrkraft")}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	_, err = service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "admin"), operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 }
 
@@ -356,7 +355,7 @@ func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -365,15 +364,14 @@ func TestIntegration_UpdateAccountTenantRole_RequiresExistingAccess(t *testing.T
 
 	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t), adminRoleID, operator.ID, testClientIP)
 
-	var notFound *platformSvc.AccountTenantAccessNotFoundError
-	require.ErrorAs(t, err, &notFound)
+	require.ErrorIs(t, err, identityaccess.ErrAccountTenantAccessNotFound)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -381,7 +379,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesMappingAndRoles(t *tes
 	adminRoleID := systemRoleID(t, db, "admin")
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
@@ -401,16 +399,16 @@ func TestIntegration_RevokeAccountTenantAccess_AllowsCustomRoleNamedUser(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
-	role := createTenantRole(t, db, authModels.BaseRoleUser, accessTargetTenantID(t), nil)
+	role := createAccessTenantRole(t, db, authModels.BaseRoleUser, accessTargetTenantID(t), nil)
 	defer cleanupTenantRole(t, db, role.ID)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: role.ID}, operator.ID, testClientIP)
+		accessGrant{RoleID: role.ID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	entries, err := service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
@@ -424,14 +422,14 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 		t.Run(roleName, func(t *testing.T) {
 			db := testpkg.SetupTestDB(t)
 
-			service := buildProvisioningService(t, db)
+			service := buildOperatorAccountAccess(t, db)
 			ctx := context.Background()
 			account, cleanupAccount := setupAccessTestAccount(t, db)
 			defer cleanupAccount()
 			operator := testpkg.CreateTestOperator(t, db)
 
 			_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-				platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")}, operator.ID, testClientIP)
+				accessGrant{RoleID: systemRoleID(t, db, "admin")}, operator.ID, testClientIP)
 			require.NoError(t, err)
 
 			var roleID int64
@@ -452,7 +450,7 @@ func TestIntegration_RevokeAccountTenantAccess_RejectsRolesOwnedByOtherFeatures(
 			require.NoError(t, err)
 
 			_, err = service.RevokeAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
-			var invalid *platformSvc.InvalidDataError
+			var invalid *identityaccess.InvalidInputError
 			require.ErrorAs(t, err, &invalid)
 
 			entries, err := service.ListAccountTenantAccess(ctx, account.ID)
@@ -466,7 +464,7 @@ func TestIntegration_RevokeAccountTenantAccess_DeactivatesAccountWithoutRemainin
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-single-school")
@@ -492,19 +490,18 @@ func TestIntegration_ListAccountTenantAccess_UnknownAccount(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 
 	_, err := service.ListAccountTenantAccess(context.Background(), 0)
 
-	var notFound *platformSvc.AccountNotFoundError
-	require.ErrorAs(t, err, &notFound)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
 }
 
 func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -512,7 +509,7 @@ func TestIntegration_ListAccountTenantAccess_ReturnsSchoolsWithRoles(t *testing.
 	adminRoleID := systemRoleID(t, db, "admin")
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err)
 
 	entries, err := service.ListAccountTenantAccess(ctx, account.ID)
@@ -531,19 +528,18 @@ func TestIntegration_ListAccountTenantAccess_UnknownAccountID(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 
 	_, err := service.ListAccountTenantAccess(context.Background(), 99999999)
 
-	var notFound *platformSvc.AccountNotFoundError
-	require.ErrorAs(t, err, &notFound)
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotFound)
 }
 
 func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	// An account that carries no person anywhere: there is no name to copy, so
@@ -558,10 +554,10 @@ func TestIntegration_GrantAccountTenantAccess_RequiresNamesWithoutPerson(t *test
 	operator := testpkg.CreateTestOperator(t, db)
 
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")},
+		accessGrant{RoleID: systemRoleID(t, db, "admin")},
 		operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 
 	entries, listErr := service.ListAccountTenantAccess(ctx, account.ID)
@@ -573,7 +569,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-reactivate")
@@ -596,7 +592,7 @@ func TestIntegration_GrantAccountTenantAccess_ReactivatesAccountAfterRestoringLa
 
 	// Restoring the final revoked school access also restores login capability.
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{
+		accessGrant{
 			RoleID:    systemRoleID(t, db, "user"),
 			FirstName: "Wieder",
 			LastName:  "Aktiv",
@@ -626,7 +622,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateManuallyDeactivat
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
@@ -640,7 +636,7 @@ func TestIntegration_GrantAccountTenantAccess_DoesNotReactivateManuallyDeactivat
 	require.NoError(t, err)
 
 	_, err = service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: systemRoleID(t, db, "admin")},
+		accessGrant{RoleID: systemRoleID(t, db, "admin")},
 		operator.ID, testClientIP)
 	require.NoError(t, err)
 	assertAccountActive(t, db, account.ID, false)
@@ -650,37 +646,35 @@ func TestIntegration_RevokeAccountTenantAccess_UnknownSchool(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 
 	_, err := service.RevokeAccountTenantAccess(context.Background(), account.ID, 99999999, operator.ID, testClientIP)
 
-	var notFound *platformSvc.SchoolNotFoundError
-	require.ErrorAs(t, err, &notFound)
+	require.ErrorIs(t, err, identityaccess.ErrSchoolNotFound)
 }
 
 func TestIntegration_RevokeAccountTenantAccess_WithoutExistingAccess(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	account, cleanupAccount := setupAccessTestAccount(t, db)
 	defer cleanupAccount()
 	operator := testpkg.CreateTestOperator(t, db)
 
 	_, err := service.RevokeAccountTenantAccess(context.Background(), account.ID, accessTargetTenantID(t), operator.ID, testClientIP)
 
-	var notFound *platformSvc.AccountTenantAccessNotFoundError
-	require.ErrorAs(t, err, &notFound)
+	require.ErrorIs(t, err, identityaccess.ErrAccountTenantAccessNotFound)
 }
 
 func TestIntegration_UpdateAccountTenantRole_ToCaregiverCreatesLocalIdentity(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-no-person")
@@ -719,7 +713,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 	account := testpkg.CreateTestAccount(t, db, "access-no-caregiver-identity")
 	testpkg.EnsureTestTenant(t, db, accessTargetTenantID(t))
@@ -732,7 +726,7 @@ func TestIntegration_UpdateAccountTenantRole_ToCaregiverRequiresIdentity(t *test
 	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 }
 
@@ -744,7 +738,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	// A child's person record that happens to carry an account.
@@ -761,7 +755,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesStudentAsNameSource(t *testi
 	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 	assert.Contains(t, err.Error(), "unambiguous name",
 		"the refusal must come from the name resolution, not from an unrelated failure")
@@ -776,7 +770,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-ambiguous-name")
@@ -798,7 +792,7 @@ func TestIntegration_UpdateAccountTenantRole_RefusesAmbiguousNameSource(t *testi
 	_, err := service.UpdateAccountTenantRole(ctx, account.ID, accessTargetTenantID(t),
 		systemRoleID(t, db, "user"), operator.ID, testClientIP)
 
-	var invalid *platformSvc.InvalidDataError
+	var invalid *identityaccess.InvalidInputError
 	require.ErrorAs(t, err, &invalid)
 	assert.Contains(t, err.Error(), "unambiguous name",
 		"the refusal must come from the name resolution, not from an unrelated failure")
@@ -819,7 +813,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	service := buildProvisioningService(t, db)
+	service := buildOperatorAccountAccess(t, db)
 	ctx := context.Background()
 
 	account := testpkg.CreateTestAccount(t, db, "access-regrant-ambiguous")
@@ -841,7 +835,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 
 	// The first grant carries its own name, so the ambiguity never comes up.
 	_, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{
+		accessGrant{
 			RoleID:    adminRoleID,
 			FirstName: "Carla",
 			LastName:  "Beispiel",
@@ -853,7 +847,7 @@ func TestIntegration_GrantAccountTenantAccess_ReGrantReusesLocalIdentityDespiteA
 
 	// The re-grant brings no name — and must not need one.
 	entries, err := service.GrantAccountTenantAccess(ctx, account.ID, accessTargetTenantID(t),
-		platformSvc.GrantAccountTenantAccessRequest{RoleID: adminRoleID}, operator.ID, testClientIP)
+		accessGrant{RoleID: adminRoleID}, operator.ID, testClientIP)
 	require.NoError(t, err, "the retained identity answers the question the other schools cannot")
 
 	granted := entryFor(entries, accessTargetTenantID(t))

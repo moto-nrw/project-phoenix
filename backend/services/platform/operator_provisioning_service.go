@@ -14,7 +14,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -130,11 +129,6 @@ type OperatorProvisioningService interface {
 	ListSchoolSummaries(ctx context.Context) ([]*SchoolSummary, error)
 	ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*SchoolSummary, error)
 	ListOrganizationPersons(ctx context.Context, organizationID int64) ([]OperatorPersonInfo, error)
-	ListAccountTenantAccess(ctx context.Context, accountID int64) ([]AccountTenantAccessEntry, error)
-	ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]*authModels.Role, error)
-	GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, req GrantAccountTenantAccessRequest, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
-	UpdateAccountTenantRole(ctx context.Context, accountID, schoolID, roleID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
-	RevokeAccountTenantAccess(ctx context.Context, accountID, schoolID, operatorID int64, clientIP net.IP) ([]AccountTenantAccessEntry, error)
 }
 
 type OrganizationCapability interface {
@@ -211,26 +205,23 @@ func (s *operatorProvisioningService) withAdminTx(ctx context.Context, fn func(c
 
 // OperatorProvisioningServiceConfig holds dependencies for operator provisioning.
 type OperatorProvisioningServiceConfig struct {
-	Organizations         OrganizationCapability
-	SchoolRepo            platform.SchoolRepository
-	SummariesRepo         platform.OperatorSummariesRepository
-	CategoryRepo          activityModels.CategoryRepository
-	DeviceRepo            iotModels.DeviceRepository
-	RoleRepo              authModels.RoleRepository
-	AccountTenantRepo     authModels.AccountTenantRepository
-	AccountRoleRepo       authModels.AccountRoleRepository
-	AccountPermissionRepo authModels.AccountPermissionRepository
-	AuthEventRepo         auditModels.AuthEventRepository
-	PersonRepo            userModels.PersonRepository
-	StaffRepo             userModels.StaffRepository
-	AccountRepo           authModels.AccountRepository
-	TeacherRepo           userModels.TeacherRepository
-	StudentRepo           userModels.StudentRepository
-	GroupSupervisorRepo   activeModels.GroupSupervisorRepository
-	ActiveGroupRepo       ActiveDeviceSessionFinder
-	Settings              TenantSettingsResolver
-	InvitationService     authSvc.InvitationService
-	AuthService           authSvc.AuthService
+	Organizations       OrganizationCapability
+	SchoolRepo          platform.SchoolRepository
+	SummariesRepo       platform.OperatorSummariesRepository
+	CategoryRepo        activityModels.CategoryRepository
+	DeviceRepo          iotModels.DeviceRepository
+	RoleRepo            authModels.RoleRepository
+	AccountTenantRepo   authModels.AccountTenantRepository
+	PersonRepo          userModels.PersonRepository
+	StaffRepo           userModels.StaffRepository
+	AccountRepo         authModels.AccountRepository
+	TeacherRepo         userModels.TeacherRepository
+	StudentRepo         userModels.StudentRepository
+	GroupSupervisorRepo activeModels.GroupSupervisorRepository
+	ActiveGroupRepo     ActiveDeviceSessionFinder
+	Settings            TenantSettingsResolver
+	InvitationService   authSvc.InvitationService
+	AuthService         authSvc.AuthService
 	// SchoolIdentity provisions the person, staff and caregiver chain a
 	// school role requires (#2222) through Identity & Access.
 	SchoolIdentity authSvc.SchoolIdentityProvisioning

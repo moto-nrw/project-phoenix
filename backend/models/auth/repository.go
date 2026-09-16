@@ -91,7 +91,6 @@ type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
 	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
-	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 }
 
@@ -110,11 +109,6 @@ type AccountRoleRepository interface {
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
-	// DeleteByAccountRoleAndTenant removes a single role assignment scoped to
-	// one school. Unlike DeleteByAccountAndRole it never touches the account's
-	// assignments at other schools, which is what cross-tenant access
-	// management requires.
-	DeleteByAccountRoleAndTenant(ctx context.Context, accountID, roleID, tenantID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 }
@@ -336,19 +330,17 @@ type CaregiverChain struct {
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
-	Deactivate(ctx context.Context, accountID, tenantID int64) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
-	// FOR SHARE row lock. Transaction-only: it blocks a concurrent Deactivate
-	// until the caller's transaction commits, which is what makes a
+	// FOR SHARE row lock. Transaction-only: it blocks a concurrent membership
+	// revocation until the caller's transaction commits, which is what makes a
 	// membership check and a token write in that transaction atomic.
 	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
-	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
 }
 
 type StaffCalendarFeedOwner struct {

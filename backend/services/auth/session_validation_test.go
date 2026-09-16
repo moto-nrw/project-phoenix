@@ -12,7 +12,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +34,6 @@ func TestValidateSessionTokens(t *testing.T) {
 	require.NoError(t, err)
 	sessions, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	operatorSessions := repositories.NewSessionValidationPersistence(db).OperatorRefreshToken
 	ctx := testpkg.Ctx(t)
 	for _, portal := range []string{"tenant", "parent", "school", "platform"} {
 		t.Run(portal, func(t *testing.T) {
@@ -56,9 +54,11 @@ func TestValidateSessionTokens(t *testing.T) {
 			if portal == "platform" {
 				operator := testpkg.CreateTestOperator(t, db)
 				accountID = operator.ID
-				row := &platformModels.OperatorRefreshToken{OperatorID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family}
-				require.NoError(t, operatorSessions.Create(ctx, row))
-				tokenID = row.ID
+				stored, err := sessions.CreateOperatorSession(ctx, identityaccess.OperatorSession{
+					OperatorID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family,
+				})
+				require.NoError(t, err)
+				tokenID = stored.ID
 			} else {
 				stored, err := sessions.CreateAccountSession(ctx, identityaccess.AccountSession{
 					AccountID: accountID, TenantID: testpkg.Tenant(t), Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family, PortalScope: portal,
@@ -132,7 +132,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			_, err = service.ValidateSessionTokens(ctx, access, unknownRefresh, portal)
 			require.Error(t, err)
 			if portal == "platform" {
-				require.NoError(t, operatorSessions.Delete(ctx, tokenID))
+				require.NoError(t, sessions.DeleteOperatorSession(ctx, tokenID))
 			} else {
 				require.NoError(t, sessions.DeleteAccountSession(ctx, tokenID))
 			}

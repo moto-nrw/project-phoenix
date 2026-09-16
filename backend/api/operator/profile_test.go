@@ -118,7 +118,7 @@ func TestUpdateProfile_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"display_name": "New Display Name",
@@ -147,7 +147,7 @@ func TestUpdateProfile_EmptyDisplayName(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"display_name": "",
@@ -170,7 +170,7 @@ func TestUpdateProfile_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPut, "/profile", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -193,7 +193,7 @@ func TestUpdateProfile_InvalidData(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"display_name": "Some Name",
@@ -223,7 +223,7 @@ func TestChangePassword_Success(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"current_password": "currentpass",
@@ -247,7 +247,7 @@ func TestChangePassword_EmptyCurrentPassword(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"current_password": "",
@@ -271,7 +271,7 @@ func TestChangePassword_EmptyNewPassword(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"current_password": "currentpass",
@@ -295,7 +295,7 @@ func TestChangePassword_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	mockService := &mockOperatorAuthService{}
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	req := httptest.NewRequest(http.MethodPost, "/profile/password", bytes.NewReader([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
@@ -318,7 +318,7 @@ func TestChangePassword_PasswordMismatch(t *testing.T) {
 		},
 	}
 
-	resource := operator.NewProfileResource(mockService)
+	resource := newIdentityResource(mockService)
 
 	body := map[string]string{
 		"current_password": "wrongpass",

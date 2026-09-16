@@ -54,25 +54,6 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 	}, nil
 }
 
-// SessionValidationPersistence contains only the repositories consulted when
-// validating an existing token pair; it does not build the login/MFA graph.
-type SessionValidationPersistence struct {
-	Account              authModels.AccountRepository
-	AccountTenant        authModels.AccountTenantRepository
-	Operator             platformModels.OperatorRepository
-	OperatorRefreshToken platformModels.OperatorRefreshTokenRepository
-}
-
-func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
-	identity := newIdentityAccess(db, nil)
-	return &SessionValidationPersistence{
-		Account:              authRepo.NewAccountRepository(db),
-		AccountTenant:        authRepo.NewAccountTenantRepository(db),
-		Operator:             operatorRepository{identity: identity},
-		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
-	}
-}
-
 // NewOperatorAuditLogPersistence composes only the retained operator audit
 // contract over the Audit owner's platform-scoped ledger.
 func NewOperatorAuditLogPersistence(db *bun.DB) platformModels.OperatorAuditLogRepository {
