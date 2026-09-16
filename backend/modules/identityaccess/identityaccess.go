@@ -325,6 +325,9 @@ type Engine interface {
 	SchoolRoleQuery
 	RolePermissionQuery
 	SchoolMembershipQuery
+	AccountAuthentication
+	AccountSessionMaintenance
+	AccountClaimsQuery
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

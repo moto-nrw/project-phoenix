@@ -67,7 +67,11 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 	}
 
 	if opts.scope == passwordResetScopeParent {
-		hasGuardianRole, _, err := s.findGuardianTenantForAccount(ctx, account.ID)
+		sessions, err := s.accountSessions("initiate password reset")
+		if err != nil {
+			return nil, err
+		}
+		hasGuardianRole, _, err := sessions.FindGuardianTenant(ctx, account.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -76,7 +80,11 @@ func (s *Service) initiatePasswordReset(ctx context.Context, emailAddress string
 		}
 	}
 	if opts.scope == passwordResetScopeSchool {
-		hasSchoolRole, _, err := s.findSchoolPortalTenantForAccount(ctx, account.ID)
+		sessions, err := s.accountSessions("initiate password reset")
+		if err != nil {
+			return nil, err
+		}
+		hasSchoolRole, _, err := sessions.FindSchoolPortalTenant(ctx, account.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -263,8 +271,13 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		return &AuthError{Op: opHashPassword, Err: err}
 	}
 
+	sessions, err := s.accountSessions("reset password")
+	if err != nil {
+		return err
+	}
+
 	// Uses WithAdminTx (BYPASSRLS) because password reset is a pre-authentication flow
-	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
+	// with no JWT/tenant context. The session revocation touches auth.tokens which has
 	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
 	err = tenant.WithAdminTx(s.withTenantRuntime(ctx), s.db, func(ctx context.Context, tx bun.Tx) error {
 		// Update account password
@@ -278,7 +291,7 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 		}
 
 		// Invalidate all existing auth tokens for security
-		if _, err := s.deleteAccountTokensWithAudit(ctx, resetToken.AccountID, "password_reset", "", ""); err != nil {
+		if _, err := sessions.DeleteAccountSessionsWithAudit(ctx, resetToken.AccountID, "password_reset", "", ""); err != nil {
 			return fmt.Errorf("revoke tokens during password reset: %w", err)
 		}
 		return nil

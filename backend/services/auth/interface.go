@@ -175,4 +175,4 @@ type AuthService interface {
 	ListParentAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error)
 }
 
-// Note: The NewService function is implemented in auth_service.go
+// Note: The NewService function is implemented in service.go

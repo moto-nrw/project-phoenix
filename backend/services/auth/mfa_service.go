@@ -389,6 +389,24 @@ func (p MFAPolicy) RequiredFor(account *auth.Account) bool {
 	}
 }
 
+// RequiredForRoleNames is RequiredFor over a role-name set: the Identity &
+// Access login flows carry role names, not the retained account model.
+func (p MFAPolicy) RequiredForRoleNames(roleNames []string) bool {
+	return p.RequiredFor(AccountForMFAGate(0, "", roleNames))
+}
+
+// AccountForMFAGate builds the retained account value the MFA gate reads:
+// the identity plus name-only role stand-ins, exactly what the login flow
+// hydrated before consulting IsRequired.
+func AccountForMFAGate(accountID int64, email string, roleNames []string) *auth.Account {
+	account := &auth.Account{Model: modelBase.Model{ID: accountID}, Email: email}
+	account.Roles = make([]*auth.Role, len(roleNames))
+	for i, name := range roleNames {
+		account.Roles[i] = &auth.Role{Name: name}
+	}
+	return account
+}
+
 // IsRequired evaluates the tenant's security.mfa_mode setting against the
 // account's roles. Operator (platform-scope) sessions are handled by the
 // platform service in a later phase — this implementation rejects them.

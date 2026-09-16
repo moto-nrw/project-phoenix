@@ -368,14 +368,6 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	return account, nil
 }
 
-// UpdateLastLogin updates the last login timestamp for an account
-func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	now := time.Now()
-	account := &auth.Account{Model: modelBase.Model{ID: id}, LastLogin: &now}
-	_, err := r.UpdateColumns(ctx, account, "last_login")
-	return err
-}
-
 // UpdatePassword updates the password hash for an account and resets the
 // OTP flag (a permanent password replaces any one-time password).
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {

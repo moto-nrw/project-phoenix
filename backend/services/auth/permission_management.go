@@ -309,3 +309,11 @@ func (s *Service) GetRolePermissions(ctx context.Context, roleID int) ([]*auth.P
 	}
 	return permissions, nil
 }
+
+// getAccountPermissions retrieves all permissions for an account (both direct and role-based)
+// Uses the repository's FindByAccountID which combines direct and role-based permissions in a single query
+func (s *Service) getAccountPermissions(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
+	// FindByAccountID already uses a CTE to combine direct and role-based permissions
+	// in a single query, avoiding N+1 queries
+	return s.repos.Permission.FindByAccountID(ctx, accountID)
+}

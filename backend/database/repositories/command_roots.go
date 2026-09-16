@@ -7,12 +7,15 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
+	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -39,9 +42,12 @@ func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
 	}
 }
 
+// AuthCleanupRepositories are the retained repositories the auth cleanup
+// CLI composes. The expired session sweep runs through Identity & Access,
+// which the composition binds to the school and person lookups here (#3251).
 type AuthCleanupRepositories struct {
-	Account                authModels.AccountRepository
-	Token                  authModels.TokenRepository
+	School                 platformModels.SchoolRepository
+	Person                 userModels.PersonRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
 	PushSubscription       deliveryModels.PushSubscriptionRepository
@@ -50,7 +56,7 @@ type AuthCleanupRepositories struct {
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		Account: authRepo.NewAccountRepository(db), Token: NewTokenRepository(db),
+		School: platformRepo.NewSchoolRepository(db), Person: NewPersonRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
 		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}

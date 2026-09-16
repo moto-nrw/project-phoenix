@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -301,20 +302,24 @@ func (rs *Resource) completeMFAExchange(w http.ResponseWriter, r *http.Request, 
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	accessToken, refreshToken, err := rs.AuthService.IssueTokensForAuthenticatedAccount(
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session issuance unavailable")))
+		return
+	}
+	accessToken, refreshToken, err := rs.Sessions.IssueTokensForAuthenticatedAccount(
 		r.Context(), accountID, tenantID, ipAddress, userAgent,
 	)
 	if err != nil {
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+			case errors.Is(err, identityaccess.ErrAccountNotFound):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+			case errors.Is(err, identityaccess.ErrAccountInactive):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				common.RenderError(w, r, common.ErrorForbiddenWithCode(
-					authService.ErrMustUseSchoolPortal, "use_school_portal"))
+					identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

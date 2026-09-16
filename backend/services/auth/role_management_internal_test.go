@@ -212,13 +212,15 @@ func (r roleManagementRolePermissionRepo) FindRolePermissionsWithDetails(context
 	panic("FindRolePermissionsWithDetails not implemented")
 }
 
-type roleManagementTokenRepo struct {
-	noopTokenRepository
+// roleManagementSessions is the session port double of the role tests: it
+// observes the tenant-scoped revocation a role change requests.
+type roleManagementSessions struct {
+	stubAccountSessions
 
 	deleteByAccountIDFn func(context.Context, int64) error
 }
 
-func (r roleManagementTokenRepo) DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
+func (r *roleManagementSessions) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, _, _, _ string) ([]RevokedSession, error) {
 	if r.deleteByAccountIDFn != nil {
 		return nil, r.deleteByAccountIDFn(ctx, accountID)
 	}
@@ -230,10 +232,10 @@ func newRoleManagementService(
 	accountRepo authModel.AccountRepository,
 	accountRoleRepo authModel.AccountRoleRepository,
 	rolePermissionRepo authModel.RolePermissionRepository,
-	tokenRepo authModel.TokenRepository,
+	sessions AccountSessions,
 ) *Service {
 	svc, _, _, _ := newRoleManagementServiceWithIdentity(
-		roleRepo, accountRepo, accountRoleRepo, rolePermissionRepo, tokenRepo)
+		roleRepo, accountRepo, accountRoleRepo, rolePermissionRepo, sessions)
 	return svc
 }
 
@@ -247,7 +249,7 @@ func newRoleManagementServiceWithIdentity(
 	accountRepo authModel.AccountRepository,
 	accountRoleRepo authModel.AccountRoleRepository,
 	rolePermissionRepo authModel.RolePermissionRepository,
-	tokenRepo authModel.TokenRepository,
+	sessions AccountSessions,
 ) (*Service, *stubPersonRepository, func() []*userModel.Staff, *stubTeacherRepository) {
 	persons := newStubPersonRepository()
 	staff, staffAll := newStubStaffRepository()
@@ -259,13 +261,13 @@ func newRoleManagementServiceWithIdentity(
 			Account:        accountRepo,
 			AccountRole:    accountRoleRepo,
 			RolePermission: rolePermissionRepo,
-			Token:          tokenRepo,
 			Person:         persons,
 			Staff:          staff,
 			Teacher:        teachers,
 			Student:        newStubStudentRepository(),
 		},
-		logger: slog.Default(),
+		logger:   slog.Default(),
+		sessions: sessions,
 	}, persons, staffAll, teachers
 }
 
@@ -283,7 +285,7 @@ func TestRoleManagement_GetAccountRoleNames(t *testing.T) {
 			roleManagementAccountRepo{},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		roleNames, err := svc.GetAccountRoleNames(context.Background(), []int64{11, 22})
@@ -302,7 +304,7 @@ func TestRoleManagement_GetAccountRoleNames(t *testing.T) {
 			roleManagementAccountRepo{},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		roleNames, err := svc.GetAccountRoleNames(context.Background(), []int64{11})
@@ -326,7 +328,7 @@ func TestRoleManagement_GetAccountAvatarsByIDs(t *testing.T) {
 			},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		avatars, err := svc.GetAccountAvatarsByIDs(context.Background(), []int64{31, 44})
@@ -345,7 +347,7 @@ func TestRoleManagement_GetAccountAvatarsByIDs(t *testing.T) {
 			},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		avatars, err := svc.GetAccountAvatarsByIDs(context.Background(), []int64{99})
@@ -367,7 +369,7 @@ func TestRoleManagement_UpdateRole_ReturnsNotFoundOnLookupFailure(t *testing.T) 
 		roleManagementAccountRepo{},
 		roleManagementAccountRoleRepo{},
 		roleManagementRolePermissionRepo{},
-		roleManagementTokenRepo{},
+		&roleManagementSessions{},
 	)
 
 	err := svc.UpdateRole(context.Background(), &authModel.Role{Model: base.Model{ID: 42}})
@@ -398,7 +400,7 @@ func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) 
 				},
 			},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		err := svc.DeleteRole(context.Background(), 77)
@@ -417,7 +419,7 @@ func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) 
 					return expectedErr
 				},
 			},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		err := svc.DeleteRole(context.Background(), 77)
@@ -439,7 +441,7 @@ func TestRoleManagement_DeleteRole_PropagatesIntermediateFailures(t *testing.T) 
 			roleManagementAccountRepo{},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		err := svc.DeleteRole(context.Background(), 77)
@@ -462,7 +464,7 @@ func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
 			roleManagementAccountRepo{},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		roles, err := svc.ListRoles(context.Background(), map[string]interface{}{"active": true})
@@ -482,7 +484,7 @@ func TestRoleManagement_ListAndGetAccountRoles_ErrorPaths(t *testing.T) {
 			roleManagementAccountRepo{},
 			roleManagementAccountRoleRepo{},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 
 		roles, err := svc.GetAccountRoles(context.Background(), 51)
@@ -525,7 +527,7 @@ func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 				},
 			},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{
+			&roleManagementSessions{
 				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
 					revokedAccountID = accountID
 					return nil
@@ -559,7 +561,7 @@ func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 				},
 			},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{
+			&roleManagementSessions{
 				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
 					tokenCleanupCalled = true
 					return nil
@@ -591,7 +593,7 @@ func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 				},
 			},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{
+			&roleManagementSessions{
 				deleteByAccountIDFn: func(context.Context, int64) error {
 					tokenCleanupCalled = true
 					return nil
@@ -618,7 +620,7 @@ func TestRoleManagement_AssignAndRemoveRole_RevokeTokens(t *testing.T) {
 				},
 			},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{
+			&roleManagementSessions{
 				deleteByAccountIDFn: func(_ context.Context, accountID int64) error {
 					revokedAccountID = accountID
 					return nil
@@ -662,7 +664,7 @@ func TestRoleManagement_AssignRoleProvisionsSchoolIdentity(t *testing.T) {
 				createFn: func(context.Context, *authModel.AccountRole) error { return nil },
 			},
 			roleManagementRolePermissionRepo{},
-			roleManagementTokenRepo{},
+			&roleManagementSessions{},
 		)
 	}
 

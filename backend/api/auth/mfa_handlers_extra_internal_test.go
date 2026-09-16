@@ -276,8 +276,8 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	svc.VerifyCodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
 	svc.EnrollFn = func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled }
 	rs := &Resource{
-		MFAService:  svc,
-		AuthService: &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+		MFAService: svc,
+		Sessions:   &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
@@ -330,8 +330,8 @@ func TestMFAEnrollConfirm_InjectsTenantFromClaims(t *testing.T) {
 		return nil
 	}
 	rs := &Resource{
-		MFAService:  svc,
-		AuthService: &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
+		MFAService: svc,
+		Sessions:   &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
 	}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
