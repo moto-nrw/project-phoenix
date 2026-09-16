@@ -37,12 +37,10 @@ func TestUpdateCustomAbsenceTypeContract(t *testing.T) {
 
 	renamed := "  Renamed  "
 	enabled := true
-	block := workforce.AbsenceTypeOverrunBlock
-	updated, err := capability.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: created.ID, Name: &renamed, AllowanceEnabled: &enabled, OverrunPolicy: &block})
+	updated, err := capability.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: created.ID, Name: &renamed, AllowanceEnabled: &enabled})
 	require.NoError(t, err)
 	assert.Equal(t, "Renamed", updated.Name)
 	assert.True(t, updated.AllowanceEnabled)
-	assert.Equal(t, block, updated.OverrunPolicy)
 	assert.Equal(t, created.BaseType, updated.BaseType)
 
 	staff := testpkg.CreateTestStaff(t, db, "Type", "Usage")

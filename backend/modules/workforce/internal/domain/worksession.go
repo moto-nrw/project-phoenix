@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/openingbalance"
@@ -339,9 +340,16 @@ type StaffVacationQuota struct {
 	CarryoverDays float64
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
+	// ChangeReason and ChangedBy are write-only. With ChangedBy set, the
+	// upsert records the change with its reason in the same transaction.
+	ChangeReason string
+	ChangedBy    int64
 }
 
 func (q StaffVacationQuota) Validate() error {
+	if q.ChangedBy > 0 && strings.TrimSpace(q.ChangeReason) == "" {
+		return invalidWorkSession("reason is required")
+	}
 	if q.StaffID <= 0 {
 		return invalidWorkSession("staff_id is required")
 	}

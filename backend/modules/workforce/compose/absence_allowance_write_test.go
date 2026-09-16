@@ -85,7 +85,7 @@ func TestCustomAbsenceAllowanceSerializesConcurrentCorrections(t *testing.T) {
 	capability := buildWorkforce(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Concurrent", "Claim")
 	actor := testpkg.CreateTestStaff(t, db, "Lea", "Parallel")
-	absenceType, err := capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Concurrent", AllowanceEnabled: true, OverrunPolicy: workforce.AbsenceTypeOverrunBlock})
+	absenceType, err := capability.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Concurrent", AllowanceEnabled: true})
 	require.NoError(t, err)
 	input := workforce.SetAbsenceTypeAllowance{StaffID: staff.ID, AbsenceTypeID: absenceType.ID, Year: 2026, EntitledDays: 1, Reason: "Ausgangswert", ChangedBy: actor.ID}
 	_, err = capability.SetAllowance(ctx, input)

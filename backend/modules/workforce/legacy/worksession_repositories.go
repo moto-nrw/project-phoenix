@@ -1136,6 +1136,7 @@ func quotaToCapability(entity *activeModels.StaffVacationQuota) workforce.StaffV
 	return workforce.StaffVacationQuota{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, Year: entity.Year,
 		EntitledDays: entity.EntitledDays, CarryoverDays: entity.CarryoverDays, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt,
+		ChangeReason: entity.ChangeReason, ChangedBy: entity.ChangedBy,
 	}
 }
 

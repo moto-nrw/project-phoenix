@@ -29,12 +29,6 @@ const (
 	AbsenceStatusCanceled  = "canceled"
 )
 
-// Overrun policies of a school-defined absence type's own allowance.
-const (
-	AbsenceTypeOverrunWarn  = "warn"
-	AbsenceTypeOverrunBlock = "block"
-)
-
 // Date columns a retention cleanup may address on staff absences.
 const (
 	StaffAbsenceDateStart = "date_start"
@@ -178,7 +172,6 @@ type StaffAbsenceType struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
-	OverrunPolicy    string
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -189,7 +182,6 @@ type StaffAbsenceTypeFields struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
-	OverrunPolicy    string
 }
 
 // StaffAbsenceAudit is one status transition of an absence.
@@ -281,7 +273,6 @@ type AbsenceTypeAllowanceSummary struct {
 type CreateAbsenceType struct {
 	Name             string
 	AllowanceEnabled bool
-	OverrunPolicy    string
 }
 
 // UpdateAbsenceType patches an absence type; nil fields stay as they are, so a
@@ -291,7 +282,6 @@ type UpdateAbsenceType struct {
 	Name             *string
 	IsActive         *bool
 	AllowanceEnabled *bool
-	OverrunPolicy    *string
 }
 
 type SetAbsenceTypeAllowance struct {

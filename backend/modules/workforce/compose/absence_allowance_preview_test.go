@@ -9,13 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCustomAbsenceAllowanceOverrunPolicy(t *testing.T) {
+// Kontingente never go negative (#3256): every overrun is rejected, there is
+// no per-type "warn only" escape any more.
+func TestCustomAbsenceAllowanceRejectsOverrun(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	svc := buildWorkforce(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Preview", "Owner")
-	typ, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Preview", AllowanceEnabled: true, OverrunPolicy: workforce.AbsenceTypeOverrunBlock})
+	typ, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Preview", AllowanceEnabled: true})
 	require.NoError(t, err)
 	_, err = svc.SetAllowance(ctx, workforce.SetAbsenceTypeAllowance{StaffID: staff.ID, AbsenceTypeID: typ.ID, Year: 2026, EntitledDays: 0.5, Reason: "Initial claim", ChangedBy: staff.ID})
 	require.NoError(t, err)
@@ -23,16 +25,10 @@ func TestCustomAbsenceAllowanceOverrunPolicy(t *testing.T) {
 	require.ErrorIs(t, err, workforce.ErrAbsenceTypeAllowanceExceeded)
 	require.Len(t, preview, 1)
 	assert.Equal(t, -0.5, preview[0].RemainingDays)
-	warn := workforce.AbsenceTypeOverrunWarn
-	_, err = svc.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: typ.ID, OverrunPolicy: &warn})
-	require.NoError(t, err)
-	preview, err = svc.PreviewAllowanceBooking(ctx, staff.ID, typ.ID, "2026-09-07", "2026-09-07", false)
-	require.NoError(t, err)
+	preview, err = svc.PreviewAllowanceBooking(ctx, staff.ID, typ.ID, "2026-09-07", "2026-09-07", true)
+	require.NoError(t, err, "half a day fits the half-day claim exactly")
 	require.Len(t, preview, 1)
-	assert.Equal(t, -0.5, preview[0].RemainingDays)
-	block := workforce.AbsenceTypeOverrunBlock
-	_, err = svc.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: typ.ID, OverrunPolicy: &block})
-	require.NoError(t, err)
+	assert.Zero(t, preview[0].RemainingDays)
 	_, err = svc.CreateStaffAbsence(ctx, workforce.StaffAbsence{StaffID: staff.ID, CreatedBy: staff.ID, AbsenceType: workforce.AbsenceTypeOther, AbsenceTypeID: &typ.ID, Status: workforce.AbsenceStatusReported, DateStart: "2026-09-07", DateEnd: "2026-09-07", HalfDay: true})
 	require.NoError(t, err)
 	preview, err = svc.PreviewAllowanceBooking(ctx, staff.ID, typ.ID, "2026-09-07", "2026-09-07", true)
@@ -57,7 +53,7 @@ func TestCustomAbsenceAllowanceDoesNotCarryAcrossYears(t *testing.T) {
 	svc := buildWorkforce(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Rena", "Jahreswechsel")
 	admin := testpkg.CreateTestStaff(t, db, "Lea", "Jahreswechsel")
-	typ, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Gesundheitstag", AllowanceEnabled: true, OverrunPolicy: workforce.AbsenceTypeOverrunBlock})
+	typ, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Gesundheitstag", AllowanceEnabled: true})
 	require.NoError(t, err)
 	for _, year := range []int{2026, 2027} {
 		_, err = svc.SetAllowance(ctx, workforce.SetAbsenceTypeAllowance{
@@ -90,8 +86,8 @@ func TestAllowancePreviewDisabledAndForeignTypes(t *testing.T) {
 	preview, err = svc.PreviewAllowanceBooking(testpkg.TenantContext(foreignID), staff.ID, typ.ID, "2026-12-31", "2027-01-01", false)
 	require.ErrorIs(t, err, workforce.ErrAbsenceTypeNotFound)
 	assert.Nil(t, preview)
-	enabled, block := true, workforce.AbsenceTypeOverrunBlock
-	_, err = svc.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: typ.ID, AllowanceEnabled: &enabled, OverrunPolicy: &block})
+	enabled := true
+	_, err = svc.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: typ.ID, AllowanceEnabled: &enabled})
 	require.NoError(t, err)
 	preview, err = svc.PreviewAllowanceBooking(ctx, staff.ID, typ.ID, "2026-12-31", "2027-01-01", false)
 	require.ErrorIs(t, err, workforce.ErrAbsenceTypeAllowanceExceeded)

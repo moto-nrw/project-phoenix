@@ -965,6 +965,8 @@ class StaffAbsenceService {
       year: number;
       entitled_days: number;
       carryover_days: number;
+      /** Pflicht: erscheint im Änderungsprotokoll (#3256). */
+      reason: string;
     },
   ): Promise<StaffVacationQuotaSummary> {
     const response = await sessionFetch(
@@ -976,7 +978,15 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      throw new Error(`Failed to save quota: ${response.statusText}`);
+      const error = await readStaffAPIError(
+        response,
+        "Der Urlaubsanspruch konnte nicht gespeichert werden.",
+      );
+      throw new Error(
+        error.code === "vacation_quota_below_used"
+          ? "Der Anspruch ist kleiner als die schon genommenen und beantragten Tage. Bitte einen höheren Wert eintragen."
+          : "Der Urlaubsanspruch konnte nicht gespeichert werden.",
+      );
     }
     const json = (await response.json()) as {
       data: BackendStaffVacationQuotaSummary;
@@ -1053,8 +1063,15 @@ class StaffAbsenceService {
       },
     );
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      throw new Error(text || "Genehmigung fehlgeschlagen");
+      const error = await readStaffAPIError(
+        response,
+        "Genehmigung fehlgeschlagen",
+      );
+      throw new Error(
+        error.code === "vacation_quota_exceeded"
+          ? "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch oder lehnen Sie den Antrag ab."
+          : error.message,
+      );
     }
   }
 
@@ -1149,7 +1166,7 @@ class StaffAbsenceService {
         response,
         "Abwesenheit konnte nicht eingetragen werden",
       );
-      throw new Error(error.message);
+      throw new Error(absenceCreateErrorMessage(error));
     }
     const json = (await response.json()) as { data: StaffAbsenceRow };
     return json.data;
@@ -1488,6 +1505,29 @@ async function throwSessionWriteError(
 interface StaffAPIError {
   readonly code?: string;
   readonly message: string;
+}
+
+// Kontingente dürfen nicht ins Minus (#3256). Der Server nennt die Grenze nur
+// technisch; der Dialog zeigt die Zahlen selbst, hier steht der Satz dazu.
+function absenceCreateErrorMessage(error: StaffAPIError): string {
+  switch (error.code) {
+    case "vacation_quota_exceeded":
+      return "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.";
+    case "absence_allowance_exceeded":
+      return "Für diese Art sind nicht mehr genug Tage übrig. Erhöhen Sie zuerst den Anspruch.";
+    case "absence_type_inactive":
+      return "Diese Abwesenheitsart ist ausgeschaltet. Bitte eine andere wählen.";
+  }
+  if (
+    error.message.includes("dates overlap") ||
+    error.message.includes("absence overlaps")
+  ) {
+    return "An diesen Tagen ist schon eine Abwesenheit eingetragen.";
+  }
+  if (error.message.includes("no working days")) {
+    return "Der Zeitraum enthält keine Werktage.";
+  }
+  return error.message;
 }
 
 async function readStaffAPIError(

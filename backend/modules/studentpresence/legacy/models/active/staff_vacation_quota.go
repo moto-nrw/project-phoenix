@@ -23,6 +23,10 @@ type StaffVacationQuota struct {
 	Year          int     `bun:"year,notnull" json:"year"`
 	EntitledDays  float64 `bun:"entitled_days,notnull,default:30" json:"entitled_days"`
 	CarryoverDays float64 `bun:"carryover_days,notnull,default:0" json:"carryover_days"`
+	// ChangeReason and ChangedBy are write-only: with an actor the upsert also
+	// records the change in the reason trail (#3256).
+	ChangeReason string `bun:"-" json:"-"`
+	ChangedBy    int64  `bun:"-" json:"-"`
 }
 
 func (q *StaffVacationQuota) Validate() error {
