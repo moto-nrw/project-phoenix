@@ -79,9 +79,14 @@ const surfaceClass =
 const tableClass = "w-full border-collapse text-left text-sm";
 const headRowClass =
   "border-b border-gray-100 text-xs font-medium text-gray-500";
-const headCellClass = "px-3 py-3 sm:px-5";
+// Die Zellenmasse in drei Stufen (#2824): 12 px Zeilenpolster auf dem grossen
+// Monitor, 8 px auf einem kleinen oder flachen Bildschirm. Eine Liste ist die
+// haeufigste Seite des Portals, und die 8 px je Zeile summieren sich ueber
+// zwanzig Zeilen auf mehr als einen halben Bildschirm.
+const headCellClass = "px-5 py-3 max-sm:px-3 compact:px-4 compact:py-2";
 const bodyRowClass = "border-b border-gray-50 last:border-0";
-const bodyCellClass = "px-3 py-3 align-middle sm:px-5";
+const bodyCellClass =
+  "px-5 py-3 align-middle max-sm:px-3 compact:px-4 compact:py-2";
 
 // Deterministic width cycle: varied line lengths read as real data without
 // Math.random() (SSR-hydration-safe). First column widest, like a name.
@@ -497,7 +502,7 @@ export function DataTable<T>({
                 <tr>
                   <td
                     colSpan={columns.length}
-                    className="px-5 py-10 text-center text-sm text-gray-500"
+                    className="compact:py-6 px-5 py-10 text-center text-sm text-gray-500"
                   >
                     {emptyState ?? "Keine Einträge vorhanden."}
                   </td>

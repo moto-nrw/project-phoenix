@@ -326,7 +326,7 @@ export function TenantPage({
           Grund. Die spezielle Klasse überschreibt die ungeschichtete
           Flächenklasse auch dann zuverlässig, wenn Tailwind-Utilities in
           einer CSS-Layer stehen. */}
-      <header className="moto-content-surface rounded-2xl border p-5 shadow-sm max-sm:p-4">
+      <header className="moto-content-surface compact:p-4 rounded-2xl border p-5 shadow-sm max-sm:p-4">
         {back && (
           <MobileBackButton
             href={backHref}
@@ -351,9 +351,13 @@ export function TenantPage({
                   // Auch auf dem Telefon sichtbar: unter lg gibt es keine
                   // Shell-Kopfzeile mehr (wie in der Eltern-App), die
                   // Kopfkarte ist die einzige Trägerin des Seitennamens.
+                  // Der Desktop-Grad ist der Grundwert, Telefon und die
+                  // Dichte-Stufe kleiner Bildschirme ziehen ihn je eine
+                  // Stufe herunter (#2824). Beide Varianten schliessen
+                  // einander aus, es gilt also immer genau eine.
                   prominent
-                    ? "text-2xl leading-tight sm:text-[28px]"
-                    : "text-xl leading-tight sm:text-2xl",
+                    ? "compact:text-2xl text-[28px] leading-tight max-sm:text-2xl"
+                    : "compact:text-xl text-2xl leading-tight max-sm:text-xl",
                 )}
               >
                 {title}
@@ -406,7 +410,7 @@ export function TenantPage({
         {(searchSlot ?? hasSearchRow) && (
           <div
             className={cn(
-              "mt-4 max-sm:mt-3",
+              "compact:mt-3 mt-4 max-sm:mt-3",
               searchSlotHeight === "controls" && CONTROL_HEIGHT,
             )}
           >
@@ -439,7 +443,7 @@ export function TenantPage({
           nach 60 px Karte, und darunter stand der halbe Bildschirm nacktes
           Punktraster -- ein anderer Umriss auf jeder Seite. Jetzt haben die
           Seite mit einer Zeile, die mit dreißig und die leere denselben. */}
-      <div className="moto-tenant-body mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
+      <div className="moto-tenant-body compact:mt-4 compact:space-y-4 mt-6 space-y-6 max-sm:mt-4 max-sm:space-y-3">
         <TenantPageBody
           loading={loading}
           loadingLabel={loadingLabel ?? `Der Bereich „${title}“ wird geladen…`}
@@ -582,6 +586,10 @@ function TenantPageTabs({
   const tabClass = (active: boolean, disabled?: boolean) =>
     cn(
       "flex shrink-0 items-center gap-1.5 border-b-[3px] pb-3 text-base whitespace-nowrap transition-colors",
+      // Auf kleinen und flachen Bildschirmen eine Stufe enger (#2824): das
+      // Reiterband liegt zwischen Titel und Suchzeile und kostet dort Hoehe,
+      // die dem Inhalt fehlt.
+      "compact:pb-2 compact:text-sm",
       // Auf dem Telefon Pillen statt Grundlinie: eine graue Schrift mit
       // 3-px-Strich liest sich in einer 390-px-Spalte als Text, nicht als
       // Navigation. Die gefüllte Pille ist erkennbar ein Bedienelement.
@@ -737,7 +745,7 @@ function TenantPageTabs({
   return (
     // Die Randaufhebung gehoert dem Reiterband: seine Grundlinie laeuft ueber
     // die volle Kartenbreite, auf jedem Geraet.
-    <div className="-mx-5 mt-4 max-sm:-mx-4 max-sm:mt-3">
+    <div className="compact:-mx-4 compact:mt-3 -mx-5 mt-4 max-sm:-mx-4 max-sm:mt-3">
       {/* EIN Band auf allen Breiten. Unter sm scrollt es waagerecht und zeigt
           jeden Reiter; ab sm wird gemessen und der Ueberhang steht unter
           „Mehr". Vorher stand unter sm eine Auswahlliste -- sie zeigte nur den
@@ -753,7 +761,7 @@ function TenantPageTabs({
           ihnen trägt. Die Linie verbindet den Reiter zugleich sichtbar mit
           dem Inhalt darunter; eine einzeln getönte Pille sagt das nicht, sie
           liest sich als Filter. */}
-      <div className="relative border-b border-gray-200 max-sm:border-0 sm:px-5">
+      <div className="compact:px-4 relative border-b border-gray-200 px-5 max-sm:border-0 max-sm:px-0">
         <div ref={rowRef} className="flex items-end gap-6 max-sm:gap-0">
           <div
             ref={tablistRef}
