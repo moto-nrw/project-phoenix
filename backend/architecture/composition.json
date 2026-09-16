@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
+        300
       ],
       "tables": []
     },
@@ -178,7 +178,7 @@
       "declaration": "TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope",
       "target": "database/repositories.NewFactory",
       "lines": [
-        249
+        216
       ],
       "tables": [
         "auth.accounts",
@@ -211,7 +211,7 @@
       "declaration": "TestAccountParentRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        279
+        244
       ],
       "tables": []
     },
@@ -228,20 +228,10 @@
     {
       "scope": "test",
       "file": "database/repositories/auth/account_parent_repository_test.go",
-      "declaration": "TestAccountParentRepository_UpdateLastLogin",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        194
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_parent_repository_test.go",
       "declaration": "TestAccountParentRepository_UpdatePassword",
       "target": "database/repositories.NewFactory",
       "lines": [
-        227
+        194
       ],
       "tables": []
     },
@@ -547,17 +537,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        272
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_role_repository_test.go",
-      "declaration": "TestAccountRoleRepository_DeleteByAccountRoleAndTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        232
+        229
       ],
       "tables": []
     },
@@ -567,7 +547,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        309
+        266
       ],
       "tables": []
     },
@@ -607,7 +587,7 @@
       "declaration": "TestAccountRoleRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        353
+        310
       ],
       "tables": []
     },
@@ -2041,26 +2021,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         35
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/platform/operator_mfa_atomic_test.go",
-      "declaration": "TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/platform/operator_mfa_atomic_test.go",
-      "declaration": "TestOperatorRepository_ResetMFAAttempts_ClearsCounterAndLock",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        81
       ],
       "tables": []
     },
@@ -4449,6 +4409,16 @@
     },
     {
       "scope": "test",
+      "file": "services/auth/operator_authentication_integration_test.go",
+      "declaration": "buildOperatorIdentity",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        244
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/auth/passkey_service_test.go",
       "declaration": "TestPasskeyRepositories",
       "target": "database/repositories.NewFactory",
@@ -4501,7 +4471,7 @@
       "declaration": "TestValidateSessionTokens",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        26
       ],
       "tables": []
     },
@@ -6713,20 +6683,10 @@
     {
       "scope": "test",
       "file": "services/platform/operator_email_change_integration_test.go",
-      "declaration": "buildAuthService",
+      "declaration": "buildServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
         41
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/platform/operator_mfa_disable_tx_test.go",
-      "declaration": "TestOperatorMFAService_Disable_SuccessClearsEverything",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        115
       ],
       "tables": []
     },
@@ -6746,7 +6706,7 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        27
+        39
       ],
       "tables": []
     },
@@ -6766,12 +6726,11 @@
       "declaration": "TestOperatorPasskeyRepositories",
       "target": "database/repositories.NewFactory",
       "lines": [
-        777
+        779
       ],
       "tables": [
         "platform.operator_passkey_credentials",
-        "platform.operator_passkey_sessions",
-        "platform.operators"
+        "platform.operator_passkey_sessions"
       ]
     },
     {
@@ -24948,27 +24907,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 177,
+          "line": 178,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 499,
+          "line": 500,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 662,
+          "line": 663,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 900,
+          "line": 901,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1304,
+          "line": 1305,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -24978,7 +24937,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 299,
+          "line": 300,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -24988,22 +24947,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 178,
+          "line": 179,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 371,
+          "line": 372,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 415,
+          "line": 416,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 659,
+          "line": 660,
           "declaration": "type API"
         },
         {
@@ -25103,7 +25062,7 @@
         },
         {
           "file": "services/platform/operator_passkey_service.go",
-          "line": 72,
+          "line": 75,
           "declaration": "type operatorPasskeyService"
         }
       ]
@@ -25113,7 +25072,7 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 57,
+          "line": 60,
           "declaration": "sessionRepositoriesOf"
         },
         {
@@ -25140,6 +25099,11 @@
           "file": "services/factory_test_helpers.go",
           "line": 43,
           "declaration": "NewFactoryForTestsWithConfig"
+        },
+        {
+          "file": "services/operator_authentication_composition.go",
+          "line": 56,
+          "declaration": "operatorRepositoriesOf"
         }
       ]
     }
