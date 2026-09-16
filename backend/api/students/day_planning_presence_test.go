@@ -114,6 +114,15 @@ func TestListStudents_ExpectedChildReadsSchoolBeforeFirstCheckIn(t *testing.T) {
 	assert.NotEqual(t, "Schule", byID[present.ID].Location)
 	assert.NotEqual(t, "Abwesend", byID[present.ID].Location)
 
+	// The location filter must see the location resolved from the day plan,
+	// rather than the initial absent location used while building the response.
+	filteredReq := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&location=Schule&page_size=50", schoolClass), nil)
+	filteredRR := authExec(t, tc, filteredReq, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, filteredRR.Code, "body: %s", filteredRR.Body.String())
+	filtered := decodeStudentsByID(t, filteredRR.Body.Bytes())
+	require.Len(t, filtered, 1)
+	assert.Equal(t, "Schule", filtered[waiting.ID].Location)
+
 	// The dashboard counts through the same rule.
 	count, err := tc.resource.CountAtSchoolToday(testpkg.Ctx(t), []int64{
 		waiting.ID, checkedOut.ID, pickupPassed.ID, noPlan.ID, notComing.ID,

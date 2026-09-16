@@ -186,6 +186,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	responses = applyLocationFilter(responses, params.location)
 	responses = applyDayPlanningFilter(responses, params.dayStatus)
 	// Administrative filters (#1492): bus / photo consent / pickup rule.
 	// Applied here, before in-memory pagination, so server-side counts and

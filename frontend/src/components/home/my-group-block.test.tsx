@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { HomeGroupSnapshot, HomePickup } from "~/lib/hooks/use-home-group";
+import { getLocationBadgeTone, LOCATION_COLORS } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 
 const snapshot = vi.hoisted(() => ({
@@ -185,7 +186,10 @@ describe("MyGroupBlock (#2180)", () => {
 
     render(<MyGroupBlock />);
 
-    expect(screen.getByText("Schule")).toBeInTheDocument();
+    expect(screen.getByText("Schule")).toHaveStyle({
+      backgroundColor: getLocationBadgeTone(LOCATION_COLORS.AT_SCHOOL)
+        .backgroundColor,
+    });
     expect(screen.getByText("Zuhause")).toBeInTheDocument();
   });
 
