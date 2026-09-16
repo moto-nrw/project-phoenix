@@ -31,7 +31,7 @@ func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return care.New(care.Config{
-		RequestSharing: care.UnconfiguredRequestSharer{},
+		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChild,
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
@@ -51,7 +51,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	return care.New(care.Config{
-		RequestSharing: care.UnconfiguredRequestSharer{},
+		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChild,
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,

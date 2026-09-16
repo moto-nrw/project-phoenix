@@ -233,7 +233,7 @@ func careOfferingsService(
 	changes *offeringChangesStub,
 ) *Service {
 	svc := &Service{Config: Config{
-		RequestSharing: UnconfiguredRequestSharer{},
+		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
 		StudentRepo:    careOfferingsStudentRepoStub{},
 		DB:             db,

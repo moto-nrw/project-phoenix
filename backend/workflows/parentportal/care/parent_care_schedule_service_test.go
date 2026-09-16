@@ -66,7 +66,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *repositori
 		*requestService[0] = sf.CareRequests
 	}
 	return care.New(care.Config{
-		RequestSharing: care.UnconfiguredRequestSharer{},
+		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChild,
 		StudentRepo:    repos.Student,
 		Settings: parentSettingsStub{
