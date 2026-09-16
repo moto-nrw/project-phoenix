@@ -152,10 +152,25 @@ describe("ParentBottomNav", () => {
 
     expect(screen.getByText("Elternbriefe")).toBeVisible();
     expect(screen.getByText("Mittagessen")).toBeVisible();
+    expect(screen.getByText("Hilfe")).toBeVisible();
     expect(screen.getByText("Einstellungen")).toBeVisible();
     expect(screen.getByText("Neue Anmeldung")).toBeVisible();
     expect(screen.getByText("Abmelden")).toBeVisible();
     expect(screen.queryByText("Sprache")).not.toBeInTheDocument();
+  });
+
+  // Die Anleitung liegt ausserhalb des Portals: eigener Tab, und
+  // `role=parent` erspart den Eltern die Frage, fuer wen sie ist.
+  it("führt aus Mehr heraus in die Eltern-Anleitung", () => {
+    renderNav();
+
+    fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+
+    const help = document.querySelector('[data-parent-nav-item="help"]');
+    expect(help).toHaveAttribute("href", "/help?role=parent");
+    expect(help).toHaveAttribute("target", "_blank");
+    expect(help).toHaveAttribute("rel", "noopener noreferrer");
+    expect(help).toHaveAttribute("data-active", "false");
   });
 
   it("separates account actions from the regular Mehr targets", () => {
@@ -168,7 +183,9 @@ describe("ParentBottomNav", () => {
     );
     expect(accountGroup).not.toBeNull();
     expect(accountGroup).toHaveClass("border-t", "pt-5");
-    expect(accountGroup).toHaveTextContent("Einstellungen");
+    // Der Strich beginnt bei der Hilfe -- wie in der Seitenleiste, wo sie
+    // ueber den Einstellungen steht.
+    expect(accountGroup).toHaveTextContent("Hilfe");
   });
 
   it("asks for confirmation before signing out from Mehr", async () => {

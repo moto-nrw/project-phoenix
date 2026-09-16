@@ -2326,6 +2326,42 @@ describe("Sidebar", () => {
       expect(screen.getByLabelText("Zeiterfassung")).toBeInTheDocument();
     });
 
+    // Nackt auf `/help` fragte die Hilfe zuerst nach Rolle und
+    // Arbeitsweise der OGS -- alles Werte, die die Sitzung kennt.
+    it("gibt der Hilfe den Kontext der Sitzung mit", () => {
+      mockUsePathname.mockReturnValue("/students/search");
+      render(<Sidebar />);
+
+      const help = screen.getByRole("link", { name: "Hilfe" });
+      const target = new URL(
+        help.getAttribute("href") ?? "",
+        "https://moto.invalid",
+      );
+      expect(target.pathname).toBe("/help");
+      expect(target.searchParams.get("role")).toBe("caregiver");
+      expect(target.searchParams.get("nfc_enabled")).toBe("true");
+      expect(target.searchParams.get("presence_mode")).toBe("detailed");
+      expect(target.searchParams.get("group_mode")).toBe("fixed_groups");
+      expect(target.searchParams.get("return_to")).toBe("/students/search");
+    });
+
+    it("schickt eine Leitung in die Leitungs-Anleitung", () => {
+      mockIsAdmin.mockReturnValue(true);
+      mockUsePathname.mockReturnValue("/home");
+      mockUseOpenCareGroupMode.mockReturnValue(true);
+      mockUseNFCEnabled.mockReturnValue(false);
+      render(<Sidebar />);
+
+      const help = screen.getByRole("link", { name: "Hilfe" });
+      const target = new URL(
+        help.getAttribute("href") ?? "",
+        "https://moto.invalid",
+      );
+      expect(target.searchParams.get("role")).toBe("lead");
+      expect(target.searchParams.get("nfc_enabled")).toBe("false");
+      expect(target.searchParams.get("group_mode")).toBe("open_care");
+    });
+
     it("keeps the bottom-pinned items reachable as icons in the rail", () => {
       localStorage.setItem("sidebar-collapsed", "true");
       render(<Sidebar />);

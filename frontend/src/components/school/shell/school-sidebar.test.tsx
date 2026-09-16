@@ -66,7 +66,9 @@ describe("SchoolSidebar", () => {
     render(<SchoolSidebar teamChat={teamChat} />);
 
     const help = document.querySelector('[data-school-nav-item="help"]');
-    expect(help).toHaveAttribute("href", "/help");
+    // Mit `role` ueberspringt die Hilfe ihre Eingangsfrage: wer hier
+    // klickt, ist eine Lehrkraft.
+    expect(help).toHaveAttribute("href", "/help?role=teacher");
     expect(help).toHaveAttribute("target", "_blank");
     expect(help).toHaveAttribute("rel", "noopener noreferrer");
   });

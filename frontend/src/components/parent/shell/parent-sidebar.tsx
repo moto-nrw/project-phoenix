@@ -42,11 +42,16 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
     (item) =>
       item.key !== "settings" &&
       item.key !== "enroll" &&
+      item.key !== "help" &&
       (!item.gate || gates[item.gate]),
   );
 
+  // `external` wird hier mitgetragen, obwohl der einzige heutige Eintrag
+  // dieser Art -- die Hilfe -- unten von Hand steht: der Typ lässt externe
+  // Ziele in jeder Liste zu, und ein nächster soll nicht still über
+  // `parentPath` laufen.
   const renderItem = (item: ParentNavItem) => {
-    const active = isParentNavActive(item.href, pathname);
+    const active = !item.external && isParentNavActive(item.href, pathname);
     const count = item.badge ? (badges[item.badge] ?? 0) : 0;
     const label =
       item.key === "children"
@@ -55,7 +60,10 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
     return (
       <li key={item.key}>
         <NavLink
-          href={parentPath(item.href)}
+          href={item.external ? item.href : parentPath(item.href)}
+          {...(item.external
+            ? { target: "_blank", rel: "noopener noreferrer" }
+            : {})}
           data-parent-nav-item={item.key}
           data-active={active ? "true" : "false"}
           aria-current={active ? "page" : undefined}
@@ -105,6 +113,26 @@ export function ParentSidebar({ badges, gates, childCount }: ParentNavCounts) {
             className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
           >
             <ul className="space-y-1">
+              <li>
+                {/* Die Anleitung liegt ausserhalb des Portals: eigener Tab,
+                    nie ein Aktivzustand. `role=parent` erspart den Eltern
+                    die Frage, fuer wen die Anleitung ist. */}
+                <NavLink
+                  href="/help?role=parent"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-parent-nav-item="help"
+                  data-active="false"
+                  className={`${ROW} ${ROW_IDLE}`}
+                >
+                  <MotoNavIcon
+                    concept="help"
+                    active={false}
+                    className={`${ICON} text-gray-400`}
+                  />
+                  <span className="flex-1">{t("help")}</span>
+                </NavLink>
+              </li>
               <li>
                 <NavLink
                   href={parentPath("/parents/settings")}
