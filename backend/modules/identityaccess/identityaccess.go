@@ -330,6 +330,7 @@ type Engine interface {
 	AccountClaimsQuery
 	OperatorAuthentication
 	OperatorAccountAccess
+	AccountLifecycle
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

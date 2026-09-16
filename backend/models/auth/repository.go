@@ -51,30 +51,12 @@ type AccountRepository interface {
 	// after a successful verify so a single Account.Update can't
 	// inadvertently overwrite a concurrent increment.
 	ResetMFAAttempts(ctx context.Context, id int64) error
-	// IncrementPINAttempts atomically bumps pin_attempts by one and sets
-	// pin_locked_until to the application-clock deadline when the post-increment
-	// value reaches threshold. Mirrors IncrementMFAAttempts: the CAS-style
-	// UPDATE means N concurrent failed PIN entries count as N, not 1,
-	// closing the read-modify-write lockout-bypass race that the previous
-	// model-level Account.IncrementPINAttempts() suffered (issue #586).
-	IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (PINAttemptResult, error)
-	// ResetPINAttempts atomically clears pin_attempts + pin_locked_until
-	// after a successful PIN verify.
-	ResetPINAttempts(ctx context.Context, id int64) error
 }
 
 // MFAAttemptResult is the post-update snapshot returned by
 // AccountRepository.IncrementMFAAttempts. Used by callers to decide
 // whether the increment triggered the lockout transition.
 type MFAAttemptResult struct {
-	Attempts    int
-	LockedUntil *time.Time
-}
-
-// PINAttemptResult is the post-update snapshot returned by
-// AccountRepository.IncrementPINAttempts. Mirrors MFAAttemptResult so the
-// caller can tell whether this attempt crossed the lockout threshold.
-type PINAttemptResult struct {
 	Attempts    int
 	LockedUntil *time.Time
 }
@@ -98,13 +80,6 @@ type PermissionRepository interface {
 	base.CRUDRepository[*Permission]
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
-	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
-	// LockAccountPermissionSourcesForTenant takes FOR SHARE locks on the
-	// direct grants and role-permission rows that make up the account's
-	// effective permissions at a tenant. Transaction-only: it lets a caller
-	// read the permission set and write a token derived from it without a
-	// concurrent revocation committing in between.
-	LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
@@ -131,12 +106,6 @@ type RolePermissionRepository interface {
 type AccountRoleRepository interface {
 	base.CRUDRepository[*AccountRole]
 	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountRole, error)
-	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
-	// FindByAccountIDForTenantForShare is FindByAccountIDForTenant with a FOR
-	// SHARE row lock. Transaction-only: it lets a caller re-check a role and
-	// write in the same transaction without a concurrent revocation slipping
-	// in between.
-	FindByAccountIDForTenantForShare(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error

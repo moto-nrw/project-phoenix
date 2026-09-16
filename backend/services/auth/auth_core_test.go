@@ -50,12 +50,21 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 }
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
+	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
+	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+}
+
+// setupAuthFactory composes the service factory the auth service and the
+// Identity & Access module are wired through, for tests that drive the
+// module's public contract directly.
+func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *services.Factory {
+	t.Helper()
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
 	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
-	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+	return serviceFactory
 }
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
@@ -65,7 +74,10 @@ func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 	require.NoError(t, err)
 	repos, compositionErr := repositories.NewInvitationPersistence(db)
 	require.NoError(t, compositionErr)
+	schoolIdentity, compositionErr := services.NewSchoolIdentityForTests(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, compositionErr)
 	service := auth.NewInvitationService(auth.InvitationServiceConfig{
+		SchoolIdentity:    schoolIdentity,
 		TokenAuth:         signer,
 		InvitationRepo:    repos.InvitationToken,
 		AccountRepo:       repos.Account,
@@ -73,12 +85,9 @@ func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
-		PersonRepo:        repos.Person,
-		StaffRepo:         repos.Staff, TeacherRepo: repos.Teacher,
-		StudentRepo: repos.Student,
-		SchoolRepo:  repos.School,
-		Mailer:      email.NewMockMailer(),
-		FrontendURL: config.FrontendURL, SchoolURL: config.SchoolURL,
+		SchoolRepo:        repos.School,
+		Mailer:            email.NewMockMailer(),
+		FrontendURL:       config.FrontendURL, SchoolURL: config.SchoolURL,
 		InvitationExpiry: 48 * time.Hour, DB: db,
 	})
 	testpkg.SetTenantRuntime(t, service, db)

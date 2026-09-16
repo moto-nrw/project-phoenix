@@ -3,6 +3,7 @@ package compose
 import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -18,7 +19,12 @@ func (schoolRolePolicy) Validate(role *dataimport.SchoolRole, tenantID int64) er
 }
 
 func (schoolRolePolicy) NeedsCaregiver(role *dataimport.SchoolRole) bool {
-	return authService.RoleNeedsCaregiverProfile(assignmentFacts(role))
+	if role == nil {
+		return false
+	}
+	return identityaccess.RoleNeedsCaregiverProfile(&identityaccess.RoleFacts{
+		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+	})
 }
 
 // These policies consume only classification and tenancy facts, not loaded

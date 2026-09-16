@@ -32,6 +32,11 @@ type Dependencies struct {
 	// the operator-led school access of accounts. It requires Sessions;
 	// compositions without it report ErrOperatorAuthenticationUnavailable.
 	Operators *OperatorDependencies
+	// Lifecycle composes the account lifecycle flows (#3225): staff PIN,
+	// staff preview, staff offboarding, school identity, parent accounts and
+	// guardian relative access. It requires Sessions; compositions without
+	// it report ErrAccountLifecycleUnavailable.
+	Lifecycle *LifecycleDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -76,11 +81,15 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators)
+	lifecycle, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle)
 	if err != nil {
 		return nil, err
 	}
-	e := engine{service: service, auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess}
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	e := engine{service: service, auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
 	}
@@ -124,6 +133,9 @@ type engine struct {
 	// without operator dependencies.
 	operatorAuth  *application.OperatorAuthentication
 	accountAccess *application.OperatorAccountAccess
+	// lifecycle is nil when the module was composed without lifecycle
+	// dependencies.
+	lifecycle *application.AccountLifecycle
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
 }

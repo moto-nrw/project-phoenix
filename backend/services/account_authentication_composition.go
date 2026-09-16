@@ -45,23 +45,39 @@ type accountAuthenticationWiring struct {
 	// operators composes the operator flows (#3252); nil leaves them
 	// unavailable, as the cleanup roots compose the module.
 	operators *identityaccessCompose.OperatorDependencies
+	// lifecycle binds the account lifecycle seams (#3225); nil composes the
+	// module without them (cleanup roots, repository fixtures).
+	lifecycle *lifecycleWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
 // schools and persons for claims material, the auth event ledger for audit
-// evidence, push subscriptions for revocation follow-ups.
+// evidence, push subscriptions for revocation follow-ups. lifecycle carries
+// the repositories the lifecycle seams bind (#3225), extracted here so the
+// factory is read in one place.
 type sessionRepositories struct {
 	schools           platformModels.SchoolRepository
 	persons           userModels.PersonRepository
 	authEvents        auditModels.AuthEventRepository
 	pushSubscriptions deliveryModels.PushSubscriptionRepository
+	lifecycle         lifecycleRepositories
 }
 
 func sessionRepositoriesOf(repos *repositories.Factory) sessionRepositories {
 	if repos == nil {
 		return sessionRepositories{}
 	}
-	return sessionRepositories{schools: repos.School, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription}
+	lifecycle := lifecycleRepositories{
+		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
+		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
+	}
+	if repos.GuardianInvitation != nil {
+		lifecycle.guardianInvitations = auth.NewGuardianInvitationStore(repos.GuardianInvitation)
+	}
+	return sessionRepositories{
+		schools: repos.School, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+		lifecycle: lifecycle,
+	}
 }
 
 // newIdentityAccessWithSessions composes the Identity & Access module with
@@ -80,9 +96,20 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if mfa == nil {
 		mfa = func() auth.MFAService { return nil }
 	}
+	var lifecycleBinding *lifecycleWiring
+	if wiring.lifecycle != nil {
+		bound := *wiring.lifecycle
+		bound.repos = wiring.repos.lifecycle
+		lifecycleBinding = &bound
+	}
+	lifecycle, err := lifecycleDependencies(lifecycleBinding, wiring.logger)
+	if err != nil {
+		return nil, err
+	}
 	return identityaccessCompose.New(identityaccessCompose.Dependencies{
-		DB:      db,
-		Observe: observe,
+		Lifecycle: lifecycle,
+		DB:        db,
+		Observe:   observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
 			Schools:       schoolDirectory{schools: wiring.repos.schools},
 			Persons:       personDirectory{persons: wiring.repos.persons},
@@ -516,7 +543,7 @@ func (p pushSubscriptionCleanup) DeleteOrphaned(ctx context.Context) error {
 // translates the public contract back into the retained error envelope.
 type accountSessions struct{ module *identityaccess.Module }
 
-func newAccountSessions(module *identityaccess.Module) auth.AccountSessions {
+func newAccountSessions(module *identityaccess.Module) *accountSessions {
 	return &accountSessions{module: module}
 }
 
@@ -702,10 +729,12 @@ func retainedLoginResult(result *identityaccess.LoginResult) *auth.LoginResult {
 	}
 }
 
-var retainedSentinels = []struct {
+type retainedSentinel struct {
 	public   error
 	retained error
-}{
+}
+
+var retainedSentinels = []retainedSentinel{
 	{identityaccess.ErrInvalidCredentials, auth.ErrInvalidCredentials},
 	{identityaccess.ErrAccountNotFound, auth.ErrAccountNotFound},
 	{identityaccess.ErrAccountInactive, auth.ErrAccountInactive},
@@ -738,14 +767,16 @@ func authServiceError(err error) error {
 	if errors.As(err, &operation) && operation == err {
 		return &auth.AuthError{Op: operation.Op, Err: authServiceError(operation.Err)}
 	}
-	for _, sentinel := range retainedSentinels {
-		if !errors.Is(err, sentinel.public) {
-			continue
+	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels} {
+		for _, sentinel := range sentinels {
+			if !errors.Is(err, sentinel.public) {
+				continue
+			}
+			if err == sentinel.public {
+				return sentinel.retained
+			}
+			return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
 		}
-		if err == sentinel.public {
-			return sentinel.retained
-		}
-		return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
 	}
 	return err
 }

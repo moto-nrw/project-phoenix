@@ -129,7 +129,7 @@ type OperatorDependencies struct {
 	Logger        *slog.Logger
 }
 
-func newOperatorFlows(service *application.Service, store *postgres.Store, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
+func newOperatorFlows(service *application.Service, store *postgres.Store, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -167,7 +167,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		Sessions:      auth,
 		Schools:       schoolDirectory{sessions.Schools},
 		Organizations: organizationDirectory{deps.Organizations},
-		Identities:    schoolIdentityProvisioner{deps.Identities},
+		Identities:    schoolIdentityProvisioner{source: deps.Identities, lifecycle: lifecycle},
 		Policy:        schoolRolePolicy{deps.RolePolicy},
 		Audit:         authAudit{sessions.Audit},
 		OperatorAudit: operatorAudit{deps.Audit},
@@ -224,7 +224,10 @@ func (d organizationDirectory) ListOrganizationNames(ctx context.Context, ids []
 	return result, nil
 }
 
-type schoolIdentityProvisioner struct{ source SchoolIdentityProvisioner }
+type schoolIdentityProvisioner struct {
+	source    SchoolIdentityProvisioner
+	lifecycle *application.AccountLifecycle
+}
 
 func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {
 	return p.source.HasLivePersonAtSchool(ctx, accountID)
@@ -247,6 +250,20 @@ func (p schoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, 
 }
 
 func (p schoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error {
+	if p.lifecycle != nil {
+		role := request.Role
+		_, err := p.lifecycle.EnsureSchoolIdentity(ctx, domain.SchoolIdentityInput{
+			AccountID: request.AccountID, TenantID: request.TenantID,
+			Role: &domain.RoleFacts{
+				ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+			},
+			FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
+		})
+		if errors.Is(err, domain.ErrSchoolIdentityNamesRequired) || errors.Is(err, domain.ErrSchoolIdentityPersonIsStudent) {
+			return &domain.InvalidInputError{Err: err}
+		}
+		return err
+	}
 	err := p.source.EnsureSchoolIdentity(ctx, SchoolIdentityRequest{
 		AccountID: request.AccountID, TenantID: request.TenantID, Role: schoolRoleFact(request.Role),
 		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,

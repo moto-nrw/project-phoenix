@@ -49,7 +49,7 @@ func (r *AccountTenantRepository) ListActiveAccountIDsForTenant(ctx context.Cont
 // FindEffectivePermissionNamesByAccountIDsForTenant resolves the effective
 // permission names (resource:action, matching Permission.GetFullName) of every
 // given account at one tenant: role-granted UNION directly-granted, exactly
-// the union FindByAccountIDForTenant performs for a single account. The names
+// the union FindByAccountID performs for a single account. The names
 // are returned raw so the caller can apply the same wildcard-aware matcher
 // route authorization uses.
 func (r *PermissionRepository) FindEffectivePermissionNamesByAccountIDsForTenant(ctx context.Context, accountIDs []int64, tenantID int64) (map[int64][]string, error) {

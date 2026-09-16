@@ -79,7 +79,7 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 		Passwords:     passwordHasher{},
 		Organizations: tenancyDirectory{query: wiring.organizations},
 		Identities: schoolIdentityProvisioner{
-			repos:     auth.SchoolIdentityRepos{Persons: wiring.repos.persons, Staff: wiring.repos.staff, Teachers: wiring.repos.teachers, Students: wiring.repos.students},
+			persons: wiring.repos.persons, staff: wiring.repos.staff, teachers: wiring.repos.teachers, students: wiring.repos.students,
 			directory: wiring.persons, membership: wiring.membership,
 		},
 		RolePolicy: schoolRolePolicy{},
@@ -229,13 +229,16 @@ func (d tenancyDirectory) ListOrganizationNames(ctx context.Context, ids []int64
 // school-access path uses, so the guards cannot drift from the tenant RBAC
 // path.
 type schoolIdentityProvisioner struct {
-	repos      auth.SchoolIdentityRepos
+	persons    userModels.PersonRepository
+	staff      userModels.StaffRepository
+	teachers   userModels.TeacherRepository
+	students   userModels.StudentRepository
 	directory  peopledirectory.Query
 	membership schoolmembership.Query
 }
 
 func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error) {
-	person, err := p.repos.Persons.FindByAccountID(ctx, accountID)
+	person, err := p.persons.FindByAccountID(ctx, accountID)
 	if err != nil {
 		return false, err
 	}
@@ -243,7 +246,7 @@ func (p schoolIdentityProvisioner) HasLivePersonAtSchool(ctx context.Context, ac
 }
 
 func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]identityaccessCompose.AccountPersonIdentity, error) {
-	persons, err := p.repos.Persons.List(ctx, map[string]interface{}{"account_id": accountID})
+	persons, err := p.persons.List(ctx, map[string]interface{}{"account_id": accountID})
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +274,7 @@ func (p schoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accou
 // repository reports "no student" as sql.ErrNoRows wrapped in a
 // DatabaseError.
 func (p schoolIdentityProvisioner) personIsStudent(ctx context.Context, personID int64) (bool, error) {
-	student, err := p.repos.Students.FindByPersonID(ctx, personID)
+	student, err := p.students.FindByPersonID(ctx, personID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, nil
@@ -282,18 +285,13 @@ func (p schoolIdentityProvisioner) personIsStudent(ctx context.Context, personID
 }
 
 func (p schoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return auth.HasLiveCaregiverProfile(ctx, p.repos.Persons, p.repos.Staff, p.repos.Teachers, accountID)
+	return auth.HasLiveCaregiverProfile(ctx, p.persons, p.staff, p.teachers, accountID)
 }
 
-func (p schoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, request identityaccessCompose.SchoolIdentityRequest) error {
-	_, err := auth.EnsureSchoolIdentity(ctx, p.repos, auth.SchoolIdentityInput{
-		AccountID: request.AccountID, TenantID: request.TenantID, Role: auth.ResolvedSchoolRole(request.Role.ID, request.Role.TenantID, request.Role.Name, request.Role.IsSystem, request.Role.BaseRole),
-		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
-	})
-	if errors.Is(err, auth.ErrSchoolIdentityNamesRequired) || errors.Is(err, auth.ErrSchoolIdentityPersonIsStudent) {
-		return &identityaccess.InvalidInputError{Err: err}
-	}
-	return err
+func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identityaccessCompose.SchoolIdentityRequest) error {
+	// Production compositions bind the module's account-lifecycle chain
+	// (#3225). This fallback only runs when that chain was not composed.
+	return errors.New("school identity provisioning is not composed")
 }
 
 // ListAccountIdentityFacts resolves, per school, whether a person and a
@@ -355,7 +353,9 @@ func (schoolRolePolicy) IsLehrkraftSystemRole(role identityaccess.SchoolRole) bo
 }
 
 func (schoolRolePolicy) RoleNeedsStaffRecord(role identityaccess.SchoolRole) bool {
-	return auth.RoleNeedsStaffRecord(auth.ResolvedSchoolRole(role.ID, role.TenantID, role.Name, role.IsSystem, role.BaseRole))
+	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
+		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+	})
 }
 
 func (schoolRolePolicy) LehrkraftRoleImmutable() error { return auth.ErrLehrkraftRoleImmutable }

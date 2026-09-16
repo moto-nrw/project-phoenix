@@ -171,7 +171,11 @@ func (s *Service) AssignRoleToAccount(ctx context.Context, accountID, roleID int
 		// identity fields, so the switch belongs to offboarding plus a fresh
 		// account. Roles that legitimately run without a profile (admin) are
 		// unaffected.
-		if RoleNeedsCaregiverProfile(role) {
+		provisioning, err := s.schoolIdentity("assign role")
+		if err != nil {
+			return err
+		}
+		if provisioning.RoleNeedsCaregiverProfile(RoleFactsOf(role)) {
 			isLehrkraft, roleErr := s.accountHoldsLehrkraftRole(txCtx, int64(accountID))
 			if roleErr != nil {
 				return &AuthError{Op: "assign role", Err: roleErr}
@@ -292,15 +296,14 @@ func isGuardianTierRole(role *auth.Role) bool {
 // left to the flows that do have a name (staff creation, invitation), which is
 // also why nothing here fails when there is none.
 func (s *Service) ensureIdentityForAssignedRole(ctx context.Context, accountID int64, role *auth.Role) error {
-	if _, err := EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
-		Persons:  s.repos.Person,
-		Staff:    s.repos.Staff,
-		Teachers: s.repos.Teacher,
-		Students: s.repos.Student,
-	}, SchoolIdentityInput{
+	provisioning, err := s.schoolIdentity("provision school identity")
+	if err != nil {
+		return err
+	}
+	if _, err := provisioning.EnsureSchoolIdentity(ctx, SchoolIdentityInput{
 		AccountID:    accountID,
 		TenantID:     tenant.FromContext(ctx),
-		Role:         role,
+		Role:         RoleFactsOf(role),
 		CreatePerson: false,
 	}); err != nil {
 		return &AuthError{Op: "provision school identity", Err: err}
@@ -408,4 +411,30 @@ func (s *Service) GetAccountAvatarsByIDs(ctx context.Context, accountIDs []int64
 		return nil, &AuthError{Op: "get account avatars by IDs", Err: err}
 	}
 	return avatars, nil
+}
+
+var (
+	// ErrRoleNotFound returned when role doesn't exist
+	ErrRoleNotFound = errors.New("role not found")
+
+	// ErrSystemRoleImmutable returned when attempting to modify a system role
+	ErrSystemRoleImmutable = errors.New("system roles cannot be modified")
+)
+
+// RoleOperations manage roles and their assignments.
+type RoleOperations interface {
+	// Role Management
+	CreateRole(ctx context.Context, name, description string, baseRole *string) (*auth.Role, error)
+	GetRoleByID(ctx context.Context, id int) (*auth.Role, error)
+	ResolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error)
+	UpdateRole(ctx context.Context, role *auth.Role) error
+	DeleteRole(ctx context.Context, id int) error
+	ListRoles(ctx context.Context, filters map[string]interface{}) ([]*auth.Role, error)
+	AssignRoleToAccount(ctx context.Context, accountID, roleID int) error
+	ReplaceAccountRole(ctx context.Context, accountID, roleID int) error
+	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int) error
+	GetAccountRoles(ctx context.Context, accountID int) ([]*auth.Role, error)
+	GetAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	GetAccountEmailsByIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
+	GetAccountAvatarsByIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }

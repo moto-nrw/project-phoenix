@@ -226,7 +226,7 @@ func (s *stubAccountSessions) FindGuardianTenant(ctx context.Context, accountID 
 			return err
 		}
 		for _, mapping := range mappings {
-			roles, roleErr := s.repos.AccountRole.FindByAccountIDForTenant(ctx, accountID, mapping.TenantID)
+			roles, roleErr := s.repos.AccountRole.FindByAccountID(tenant.WithTenantID(ctx, mapping.TenantID), accountID)
 			if roleErr != nil {
 				if isNotFoundError(roleErr) {
 					continue
@@ -241,7 +241,7 @@ func (s *stubAccountSessions) FindGuardianTenant(ctx context.Context, accountID 
 					}
 					return lookupErr
 				}
-				if role != nil && strings.EqualFold(role.Name, guardianRoleName) {
+				if role != nil && strings.EqualFold(role.Name, "guardian") {
 					found, tenantID = true, mapping.TenantID
 					return nil
 				}
@@ -266,7 +266,7 @@ func (s *stubAccountSessions) FindSchoolPortalTenant(ctx context.Context, accoun
 			return err
 		}
 		for _, mapping := range mappings {
-			roles, roleErr := s.repos.AccountRole.FindByAccountIDForTenant(ctx, accountID, mapping.TenantID)
+			roles, roleErr := s.repos.AccountRole.FindByAccountID(tenant.WithTenantID(ctx, mapping.TenantID), accountID)
 			if roleErr != nil {
 				if isNotFoundError(roleErr) {
 					continue
@@ -274,7 +274,7 @@ func (s *stubAccountSessions) FindSchoolPortalTenant(ctx context.Context, accoun
 				return roleErr
 			}
 			for _, assignment := range roles {
-				if assignment.Role != nil && isSchoolPortalRole(assignment.Role) {
+				if assignment.Role != nil && IsLehrkraftSystemRole(assignment.Role) {
 					found, tenantID = true, mapping.TenantID
 					return nil
 				}

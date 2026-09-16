@@ -98,8 +98,9 @@ func (s *Store) ListTenantMappings(ctx context.Context, accountID int64) ([]doma
 	return mappings, stats, nil
 }
 
-// DeactivateTenantMapping marks the mapping inactive and drops the staff
-// calendar feed token the membership carried.
+// DeactivateTenantMapping keeps the row (with deactivated_at) so a later
+// re-invitation can reactivate it; the staff calendar feed token dies with
+// the membership.
 func (s *Store) DeactivateTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {

@@ -222,9 +222,12 @@ type OperatorProvisioningServiceConfig struct {
 	Settings            TenantSettingsResolver
 	InvitationService   authSvc.InvitationService
 	AuthService         authSvc.AuthService
-	AuditLogRepo        platform.OperatorAuditLogRepository
-	DB                  *bun.DB
-	Logger              *slog.Logger
+	// SchoolIdentity provisions the person, staff and caregiver chain a
+	// school role requires (#2222) through Identity & Access.
+	SchoolIdentity authSvc.SchoolIdentityProvisioning
+	AuditLogRepo   platform.OperatorAuditLogRepository
+	DB             *bun.DB
+	Logger         *slog.Logger
 }
 
 // NewOperatorProvisioningService creates a provisioning service.
@@ -579,7 +582,7 @@ func (s *operatorProvisioningService) ensureSchoolIdentityWithCaregiver(
 	if err := s.ensureSchoolIdentityForCaregiverRequest(ctx, accountID, schoolID, role, req); err != nil {
 		return err
 	}
-	if req.CaregiverEnabled && !authSvc.IsPlatformCaregiverRole(role) {
+	if req.CaregiverEnabled && !s.SchoolIdentity.IsPlatformCaregiverRole(authSvc.RoleFactsOf(role)) {
 		if err := s.ensureUserRole(ctx, accountID); err != nil {
 			return fmt.Errorf("assign caregiver role: %w", err)
 		}
@@ -593,15 +596,14 @@ func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
 	role *authModels.Role,
 	req CreateSchoolAccountRequest,
 ) error {
-	_, err := authSvc.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityRepos{
-		Persons:  s.PersonRepo,
-		Staff:    s.StaffRepo,
-		Teachers: s.TeacherRepo,
-		Students: s.StudentRepo,
-	}, authSvc.SchoolIdentityInput{
+	provisioning, err := s.schoolIdentityProvisioning()
+	if err != nil {
+		return err
+	}
+	_, err = provisioning.EnsureSchoolIdentity(ctx, authSvc.SchoolIdentityInput{
 		AccountID:        accountID,
 		TenantID:         schoolID,
-		Role:             role,
+		Role:             authSvc.RoleFactsOf(role),
 		FirstName:        req.FirstName,
 		LastName:         req.LastName,
 		Position:         req.Position,
@@ -613,6 +615,15 @@ func (s *operatorProvisioningService) ensureSchoolIdentityForCaregiverRequest(
 		return &InvalidDataError{Err: err}
 	}
 	return err
+}
+
+// schoolIdentityProvisioning reports the Identity & Access port the school
+// identity chain is provisioned through; a missing port is a wiring error.
+func (s *operatorProvisioningService) schoolIdentityProvisioning() (authSvc.SchoolIdentityProvisioning, error) {
+	if s.SchoolIdentity == nil {
+		return nil, errors.New("operator provisioning service: school identity provisioning is not composed")
+	}
+	return s.SchoolIdentity, nil
 }
 
 func (s *operatorProvisioningService) ensureUserRole(ctx context.Context, accountID int64) error {

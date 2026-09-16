@@ -72,6 +72,7 @@ type LoginAccount struct {
 	Username     string
 	PasswordHash string
 	Active       bool
+	UpdatedAt    time.Time
 }
 
 // RoleAssignment is one role an account holds at a school, with the facts the
