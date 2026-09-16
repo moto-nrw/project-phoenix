@@ -97,7 +97,7 @@ export interface OpenRoomSessionView {
   readonly block: OpenRoomBlockView | null;
 }
 
-export interface OpenRoomBlockView {
+interface OpenRoomBlockView {
   readonly instanceId: string;
   readonly startTime: string;
   readonly endTime: string;
