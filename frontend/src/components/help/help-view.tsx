@@ -7,14 +7,11 @@ import {
   ArrowLeft,
   ChevronRight,
   CircleHelp,
-  ExternalLink,
   Menu,
-  MessageCircleQuestion,
   Search,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import {
   Drawer,
@@ -26,23 +23,75 @@ import {
 } from "~/components/ui/drawer";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { cn } from "~/lib/utils";
 import {
-  getPrototypeTopics,
-  PROTOTYPE_GROUP_LABELS,
-  type PrototypeGroupMode,
-  type PrototypePresenceMode,
-  type PrototypeRole,
-  type PrototypeTopic,
-  type PrototypeTopicGroup,
-} from "./prototype-data";
-import { usePrototypeSidebarScrollRestoration } from "./prototype-sidebar-scroll";
+  getHelpTopics,
+  helpGroupLabel,
+  helpTopicMatchesRole,
+  HELP_GROUPS,
+  HELP_ROLES,
+  type HelpGroupMode,
+  type HelpPresenceMode,
+  type HelpRole,
+  type HelpTopic,
+  type HelpTopicGroup,
+} from "./help-content";
+import { HelpEntry, type HelpEntryAnswers } from "./help-entry";
+import { useHelpSidebarScrollRestoration } from "./help-sidebar-scroll";
 
-const CHATGPT_URL = "https://chatgpt.com/";
-const HELP_CONTENT_ID = "prototype-help-content";
+// Reihenfolge der Oberthemen je Rolle. Jede Rolle hat eine eigene
+// Seitenleiste (#2229, Informationsarchitektur Abschnitt 3).
+const GROUP_ORDER_BY_ROLE: Readonly<
+  Record<HelpRole, readonly HelpTopicGroup[]>
+> = {
+  caregiver: [
+    "einstieg",
+    "tagesplanung",
+    "kinder",
+    "gruppen",
+    "team",
+    "arbeitszeit",
+    "nfc",
+    "probleme",
+  ],
+  // Leitung: erst einrichten, dann der laufende Betrieb, zuletzt Einstellen
+  // und Auswerten (#2229, Informationsarchitektur Abschnitt 7).
+  lead: [
+    "einstieg",
+    "einrichten",
+    "kinderdaten",
+    "elternarbeit",
+    "anmeldeverwaltung",
+    "personal",
+    "planung",
+    "nfc",
+    "arbeitszeit",
+    "auswertung",
+    "konfiguration",
+    "probleme",
+  ],
+  parent: ["einstieg", "mein-kind", "nachrichten", "anmeldung", "probleme"],
+  teacher: ["einstieg", "klasse", "aufsicht", "nachrichten", "probleme"],
+};
+
+// Wer die geoeffnete Anleitung liest. Steht ueber dem Titel der Startseite,
+// damit eine falsche Rolle sofort auffaellt.
+const ROLE_KICKER: Readonly<Record<HelpRole, string>> = {
+  caregiver: "Für Betreuungskräfte",
+  lead: "Für die Leitung",
+  parent: "Für Eltern",
+  teacher: "Für Lehrkräfte",
+};
+
+/**
+ * Erstes Adress-Segment einer Gruppenseite: `/help/gruppe/einstieg`.
+ * Kein Artikel traegt diese Kennung, die beiden Raeume kollidieren also
+ * nicht.
+ */
+const GROUP_PATH_SEGMENT = "gruppe";
+const HELP_CONTENT_ID = "help-content-main";
 const INTERNAL_APP_ORIGIN = "https://moto.invalid";
-const MOBILE_HELP_DRAWER_ID = "prototype-mobile-topic-drawer";
+const MOBILE_HELP_DRAWER_ID = "help-mobile-topic-drawer";
 type MobileHelpDrawerMode = "topics" | "search";
 type OpenMobileHelpDrawer = (
   mode: MobileHelpDrawerMode,
@@ -65,38 +114,53 @@ const DOCUMENTATION_SECTIONS = {
   related: { id: "weitere-themen", label: "Weitere Themen" },
 } as const;
 
-function chatGptUrlFor(
-  documentationUrl: string,
-  topic?: PrototypeTopic,
-): string {
-  const prompt = [
-    `Ich sehe mir diese moto-Hilfe an: ${documentationUrl}`,
-    topic ? `Das aktuelle Thema ist: ${topic.question}` : null,
-    "Helfen Sie mir, die Anleitung zu verstehen.",
-    "Nutzen Sie die verlinkte Hilfe als Grundlage.",
-    "Erklären Sie die Schritte einfach und konkret.",
-    topic ? "Beginnen Sie beim aktuellen Thema." : null,
-    topic
-      ? "Beantworten Sie auch Fragen zu anderen Themen der moto-Hilfe."
-      : "Beantworten Sie Fragen zur gesamten moto-Hilfe.",
-    "Fragen Sie kurz nach, wenn meine Frage unklar ist.",
-  ]
-    .filter((line): line is string => line != null)
-    .join("\n");
-  const chatGptUrl = new URL(CHATGPT_URL);
-  chatGptUrl.searchParams.set("prompt", prompt);
-  return chatGptUrl.toString();
+type TableOfContentsItem = {
+  readonly id: string;
+  readonly label: string;
+  readonly show: boolean;
+  readonly children?: readonly {
+    readonly id: string;
+    readonly label: string;
+  }[];
+};
+
+/**
+ * Anker fuer die Zwischenueberschriften von `instructionGroups`, damit sie in
+ * „Auf dieser Seite" verlinkbar sind. Backticks fallen weg, Umlaute werden
+ * ausgeschrieben. Gleiche Titel wuerden denselben Anker ergeben und beim
+ * Springen immer den ersten treffen -- ab dem zweiten haengt eine Nummer an.
+ */
+function instructionGroupAnchors(
+  groups: NonNullable<HelpTopic["instructionGroups"]>,
+): readonly string[] {
+  const used = new Map<string, number>();
+  return groups.map((group) => {
+    const base =
+      group.title
+        .replaceAll("`", "")
+        .toLowerCase()
+        .replaceAll("ä", "ae")
+        .replaceAll("ö", "oe")
+        .replaceAll("ü", "ue")
+        .replaceAll("ß", "ss")
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "abschnitt";
+    const seen = used.get(base) ?? 0;
+    used.set(base, seen + 1);
+    const suffix = seen === 0 ? "" : `-${seen + 1}`;
+    return `${DOCUMENTATION_SECTIONS.instructions.id}-${base}${suffix}`;
+  });
 }
 
-function isRole(value: string | null): value is PrototypeRole {
-  return value === "caregiver" || value === "lead";
+function isRole(value: string | null): value is HelpRole {
+  return value !== null && (HELP_ROLES as readonly string[]).includes(value);
 }
 
-function isPresenceMode(value: string | null): value is PrototypePresenceMode {
+function isPresenceMode(value: string | null): value is HelpPresenceMode {
   return value === "detailed" || value === "binary";
 }
 
-function isGroupMode(value: string | null): value is PrototypeGroupMode {
+function isGroupMode(value: string | null): value is HelpGroupMode {
   return value === "fixed_groups" || value === "open_care";
 }
 
@@ -122,7 +186,7 @@ function normalizeSearchText(value: string): string {
     .replaceAll("ß", "ss");
 }
 
-function topicMatchesSearch(topic: PrototypeTopic, query: string): boolean {
+function topicMatchesSearch(topic: HelpTopic, query: string): boolean {
   const searchText = [
     topic.title,
     topic.question,
@@ -132,7 +196,7 @@ function topicMatchesSearch(topic: PrototypeTopic, query: string): boolean {
       group.title,
       ...group.steps,
     ]) ?? []),
-    topic.note,
+    ...(topic.notes ?? []),
   ]
     .filter((value): value is string => value != null)
     .join(" ");
@@ -160,27 +224,7 @@ function InlineCode({ text }: Readonly<{ text: string }>) {
   );
 }
 
-function ChatGptPrototypeLink({
-  className,
-  href,
-}: Readonly<{ className?: string; href: string }>) {
-  return (
-    <ButtonLink
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      variant="surface"
-      size="md"
-      className={cn("gap-2 whitespace-nowrap", className)}
-    >
-      <MessageCircleQuestion className="h-4 w-4" aria-hidden="true" />
-      Frag ChatGPT
-      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-    </ButtonLink>
-  );
-}
-
-function BackToAppPrototypeLink({
+function BackToAppLink({
   className,
   href,
   label = "Zurück zur App",
@@ -248,7 +292,7 @@ function TopicSearch({
   );
 }
 
-function PrototypeMobileHeader({
+function HelpMobileHeader({
   appHref,
   homeHref,
   drawerMode,
@@ -297,7 +341,7 @@ function PrototypeMobileHeader({
           >
             <Search className="h-5 w-5" aria-hidden="true" />
           </Button>
-          <BackToAppPrototypeLink
+          <BackToAppLink
             href={appHref}
             label="Zur App"
             className="min-h-11 shrink-0 px-3"
@@ -308,7 +352,7 @@ function PrototypeMobileHeader({
   );
 }
 
-function TopicImage({ topic }: Readonly<{ topic: PrototypeTopic }>) {
+function TopicImage({ topic }: Readonly<{ topic: HelpTopic }>) {
   if (!topic.image || !topic.imageAlt) return null;
   return (
     <figure className="moto-content-surface overflow-hidden rounded-2xl border">
@@ -327,18 +371,89 @@ function TopicImage({ topic }: Readonly<{ topic: PrototypeTopic }>) {
   );
 }
 
+/**
+ * Adresse einer Gruppenseite, abgeleitet aus der aktuellen Abfrage: Rolle
+ * und Einstellungen der OGS bleiben erhalten.
+ */
+function groupHrefFrom(
+  hrefFor: (topicId?: string) => string,
+  group: HelpTopicGroup,
+): string {
+  const [, query] = hrefFor().split("?");
+  const path = `/help/${GROUP_PATH_SEGMENT}/${encodeURIComponent(group)}`;
+  return query ? `${path}?${query}` : path;
+}
+
+/**
+ * Eine Oberkategorie als eigene Seite: alle ihre Themen als Karten.
+ *
+ * Das Fragezeichen einer App-Seite zeigt hierher, wenn mehrere Anleitungen
+ * zu ihr passen. Statt eine davon zu raten, fuehrt es in die Kategorie und
+ * laesst die Leserin waehlen.
+ */
+function GroupOverview({
+  group,
+  topics,
+  role,
+  presenceMode,
+  groupMode,
+  hrefFor,
+}: Readonly<{
+  group: HelpTopicGroup;
+  topics: readonly HelpTopic[];
+  role: HelpRole;
+  presenceMode: HelpPresenceMode;
+  groupMode: HelpGroupMode;
+  hrefFor: (topicId?: string) => string;
+}>) {
+  const groupTopics = topics.filter((item) => item.group === group);
+  return (
+    <section className="max-w-4xl">
+      <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
+        {ROLE_KICKER[role]}
+      </p>
+      <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
+        {helpGroupLabel(group, presenceMode, groupMode)}
+      </h1>
+      <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">
+        {groupTopics.length === 1
+          ? "Zu diesem Bereich gibt es eine Anleitung."
+          : `Zu diesem Bereich gibt es ${groupTopics.length} Anleitungen. Wählen Sie die passende.`}
+      </p>
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        {groupTopics.map((item) => {
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.id}
+              href={hrefFor(item.id)}
+              className="moto-content-surface group rounded-2xl border p-5 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              <Icon className="text-moto-blue h-6 w-6" aria-hidden="true" />
+              <h2 className="mt-4 font-semibold text-gray-950">{item.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-600">
+                {item.summary}
+              </p>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function RelatedTopics({
   topic,
   topicsById,
   hrefFor,
 }: Readonly<{
-  topic: PrototypeTopic;
-  topicsById: ReadonlyMap<string, PrototypeTopic>;
+  topic: HelpTopic;
+  topicsById: ReadonlyMap<string, HelpTopic>;
   hrefFor: (topicId?: string) => string;
 }>) {
   const related = topic.related
     .map((id) => topicsById.get(id))
-    .filter((item): item is PrototypeTopic => item != null);
+    .filter((item): item is HelpTopic => item != null);
   return (
     <section
       id={DOCUMENTATION_SECTIONS.related.id}
@@ -376,49 +491,55 @@ function RelatedTopics({
 function DocumentationArticle({
   topic,
   topicsById,
+  presenceMode,
+  groupMode,
   hrefFor,
 }: Readonly<{
-  topic: PrototypeTopic;
-  topicsById: ReadonlyMap<string, PrototypeTopic>;
+  topic: HelpTopic;
+  topicsById: ReadonlyMap<string, HelpTopic>;
+  presenceMode: HelpPresenceMode;
+  groupMode: HelpGroupMode;
   hrefFor: (topicId?: string) => string;
 }>) {
-  const isDraft = topic.status === "draft";
   const troubleshootingTopic = topic.troubleshooting
     ? topicsById.get(topic.troubleshooting)
     : undefined;
-  const tableOfContents = [
+  const instructionGroups = topic.instructionGroups ?? [];
+  const instructionAnchors = instructionGroupAnchors(instructionGroups);
+  const tableOfContents: readonly TableOfContentsItem[] = [
     {
       ...DOCUMENTATION_SECTIONS.requirements,
-      show: !isDraft && Boolean(topic.requirements?.length),
+      show: Boolean(topic.requirements?.length),
     },
     {
       ...DOCUMENTATION_SECTIONS.instructions,
-      show:
-        !isDraft &&
-        (topic.steps.length > 0 || Boolean(topic.instructionGroups?.length)),
+      show: topic.steps.length > 0 || Boolean(topic.instructionGroups?.length),
+      children: instructionGroups.map((group, groupIndex) => ({
+        id: instructionAnchors[groupIndex] ?? "",
+        label: group.title,
+      })),
     },
     {
       ...DOCUMENTATION_SECTIONS.result,
-      show: !isDraft && Boolean(topic.result),
+      show: Boolean(topic.result),
     },
     {
       ...DOCUMENTATION_SECTIONS.tip,
-      show: !isDraft && Boolean(topic.note),
+      show: Boolean(topic.notes?.length),
     },
     {
       ...DOCUMENTATION_SECTIONS.differences,
-      show: !isDraft && Boolean(topic.differences?.length),
+      show: Boolean(topic.differences?.length),
     },
     {
       ...DOCUMENTATION_SECTIONS.troubleshooting,
       show:
-        !isDraft &&
-        (Boolean(troubleshootingTopic) ||
-          Boolean(topic.troubleshootingDetails?.length)),
+        Boolean(troubleshootingTopic) ||
+        Boolean(topic.troubleshootingDetails?.length),
     },
     {
       ...DOCUMENTATION_SECTIONS.example,
-      show: !isDraft && Boolean(topic.image),
+      show: Boolean(topic.image),
     },
     {
       ...DOCUMENTATION_SECTIONS.related,
@@ -441,8 +562,13 @@ function DocumentationArticle({
           <li aria-hidden="true">
             <ChevronRight className="h-4 w-4 text-gray-400" />
           </li>
-          <li className="font-medium text-gray-500">
-            {PROTOTYPE_GROUP_LABELS[topic.group]}
+          <li>
+            <Link
+              href={groupHrefFrom(hrefFor, topic.group)}
+              className="font-medium text-gray-500 transition-colors hover:text-gray-900"
+            >
+              {helpGroupLabel(topic.group, presenceMode, groupMode)}
+            </Link>
           </li>
           <li aria-hidden="true">
             <ChevronRight className="h-4 w-4 text-gray-400" />
@@ -456,7 +582,7 @@ function DocumentationArticle({
       <article className="max-w-2xl min-w-0">
         <header>
           <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-            {PROTOTYPE_GROUP_LABELS[topic.group]}
+            {helpGroupLabel(topic.group, presenceMode, groupMode)}
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-tight text-balance text-gray-950 sm:text-5xl">
             {topic.question}
@@ -466,110 +592,102 @@ function DocumentationArticle({
           </p>
         </header>
 
-        {isDraft ? (
-          <section className="pt-12">
-            <Alert
-              type="info"
-              message="Dieser Artikel ist noch nicht ausgearbeitet. Der Eintrag zeigt bereits die geplante Struktur der Hilfe."
-              announce="off"
-            />
+        {topic.requirements && topic.requirements.length > 0 && (
+          <section
+            id={DOCUMENTATION_SECTIONS.requirements.id}
+            className="scroll-mt-8 pt-14"
+          >
+            <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
+              {DOCUMENTATION_SECTIONS.requirements.label}
+            </h2>
+            <ul className="marker:text-moto-green-strong mt-6 list-disc space-y-3 pl-6">
+              {topic.requirements.map((requirement) => (
+                <li
+                  key={requirement}
+                  className="pl-2 text-base leading-7 text-gray-700"
+                >
+                  <InlineCode text={requirement} />
+                </li>
+              ))}
+            </ul>
           </section>
-        ) : (
-          <>
-            {topic.requirements && topic.requirements.length > 0 && (
-              <section
-                id={DOCUMENTATION_SECTIONS.requirements.id}
-                className="scroll-mt-8 pt-14"
-              >
-                <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
-                  {DOCUMENTATION_SECTIONS.requirements.label}
-                </h2>
-                <ul className="marker:text-moto-green-strong mt-6 list-disc space-y-3 pl-6">
-                  {topic.requirements.map((requirement) => (
-                    <li
-                      key={requirement}
-                      className="pl-2 text-base leading-7 text-gray-700"
-                    >
-                      <InlineCode text={requirement} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <section
-              id={DOCUMENTATION_SECTIONS.instructions.id}
-              className="scroll-mt-8 pt-14"
-            >
-              <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
-                {DOCUMENTATION_SECTIONS.instructions.label}
-              </h2>
-              {topic.instructionGroups && topic.instructionGroups.length > 0 ? (
-                <div className="mt-7 space-y-10">
-                  {topic.instructionGroups.map((group) => {
-                    const items = group.steps.map((step, stepIndex) => (
-                      <li
-                        key={`${stepIndex}-${step}`}
-                        className="pl-2 text-base leading-7 text-gray-700"
-                      >
-                        <InlineCode text={step} />
-                      </li>
-                    ));
-
-                    return (
-                      <section key={group.title}>
-                        <h3 className="text-lg font-semibold text-gray-950">
-                          {group.title}
-                        </h3>
-                        {group.description ? (
-                          <p className="mt-2 text-base leading-7 text-gray-600">
-                            <InlineCode text={group.description} />
-                          </p>
-                        ) : null}
-                        {group.ordered === false ? (
-                          <ul className="marker:text-moto-green-strong mt-4 list-disc space-y-4 pl-6">
-                            {items}
-                          </ul>
-                        ) : (
-                          <ol className="marker:text-moto-green-strong mt-4 list-decimal space-y-4 pl-6 marker:font-semibold">
-                            {items}
-                          </ol>
-                        )}
-                      </section>
-                    );
-                  })}
-                </div>
-              ) : (
-                <ol className="marker:text-moto-green-strong mt-6 list-decimal space-y-4 pl-6 marker:font-semibold">
-                  {topic.steps.map((step, stepIndex) => (
-                    <li
-                      key={`${stepIndex}-${step}`}
-                      className="pl-2 text-base leading-7 text-gray-700"
-                    >
-                      <InlineCode text={step} />
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </section>
-
-            {topic.result && (
-              <section
-                id={DOCUMENTATION_SECTIONS.result.id}
-                className="scroll-mt-8 pt-12"
-              >
-                <h2 className="text-2xl font-semibold tracking-tight text-gray-950">
-                  {DOCUMENTATION_SECTIONS.result.label}
-                </h2>
-                <p className="mt-5 text-base leading-7 text-gray-700">
-                  <InlineCode text={topic.result} />
-                </p>
-              </section>
-            )}
-          </>
         )}
 
-        {!isDraft && topic.note && (
+        <section
+          id={DOCUMENTATION_SECTIONS.instructions.id}
+          className="scroll-mt-8 pt-14"
+        >
+          <h2 className="text-2xl font-semibold tracking-tight text-balance text-gray-950">
+            {DOCUMENTATION_SECTIONS.instructions.label}
+          </h2>
+          {instructionGroups.length > 0 ? (
+            <div className="mt-7 space-y-10">
+              {instructionGroups.map((group, groupIndex) => {
+                const items = group.steps.map((step, stepIndex) => (
+                  <li
+                    key={`${stepIndex}-${step}`}
+                    className="pl-2 text-base leading-7 text-gray-700"
+                  >
+                    <InlineCode text={step} />
+                  </li>
+                ));
+
+                return (
+                  <section
+                    key={group.title}
+                    id={instructionAnchors[groupIndex]}
+                    className="scroll-mt-8"
+                  >
+                    <h3 className="text-lg font-semibold text-gray-950">
+                      <InlineCode text={group.title} />
+                    </h3>
+                    {group.description ? (
+                      <p className="mt-2 text-base leading-7 text-gray-600">
+                        <InlineCode text={group.description} />
+                      </p>
+                    ) : null}
+                    {group.ordered === false ? (
+                      <ul className="marker:text-moto-green-strong mt-4 list-disc space-y-4 pl-6">
+                        {items}
+                      </ul>
+                    ) : (
+                      <ol className="marker:text-moto-green-strong mt-4 list-decimal space-y-4 pl-6 marker:font-semibold">
+                        {items}
+                      </ol>
+                    )}
+                  </section>
+                );
+              })}
+            </div>
+          ) : (
+            <ol className="marker:text-moto-green-strong mt-6 list-decimal space-y-4 pl-6 marker:font-semibold">
+              {topic.steps.map((step, stepIndex) => (
+                <li
+                  key={`${stepIndex}-${step}`}
+                  className="pl-2 text-base leading-7 text-gray-700"
+                >
+                  <InlineCode text={step} />
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+
+        {topic.result && (
+          <section
+            id={DOCUMENTATION_SECTIONS.result.id}
+            className="scroll-mt-8 pt-12"
+          >
+            <h2 className="text-2xl font-semibold tracking-tight text-gray-950">
+              {DOCUMENTATION_SECTIONS.result.label}
+            </h2>
+            <p className="mt-5 text-base leading-7 text-gray-700">
+              <InlineCode text={topic.result} />
+            </p>
+          </section>
+        )}
+
+        {topic.notes && topic.notes.length > 0 && (
           <section
             id={DOCUMENTATION_SECTIONS.tip.id}
             className="scroll-mt-8 pt-12"
@@ -577,15 +695,22 @@ function DocumentationArticle({
             <h2 className="mb-5 text-2xl font-semibold tracking-tight text-gray-950">
               {DOCUMENTATION_SECTIONS.tip.label}
             </h2>
-            <Alert
-              type="info"
-              message={topic.note.replaceAll("`", "")}
-              announce="off"
-            />
+            {/* Liste statt Alert: Alert nimmt nur reinen Text, damit gingen
+                die in Backticks gesetzten Schaltflaechen-Namen verloren. */}
+            <ul className="marker:text-moto-green-strong mt-5 list-disc space-y-3 pl-6">
+              {topic.notes.map((note) => (
+                <li
+                  key={note}
+                  className="pl-2 text-base leading-7 text-gray-700"
+                >
+                  <InlineCode text={note} />
+                </li>
+              ))}
+            </ul>
           </section>
         )}
 
-        {!isDraft && topic.differences && topic.differences.length > 0 && (
+        {topic.differences && topic.differences.length > 0 && (
           <section
             id={DOCUMENTATION_SECTIONS.differences.id}
             className="scroll-mt-8 pt-12"
@@ -606,46 +731,45 @@ function DocumentationArticle({
           </section>
         )}
 
-        {!isDraft &&
-          (troubleshootingTopic || topic.troubleshootingDetails?.length) && (
-            <section
-              id={DOCUMENTATION_SECTIONS.troubleshooting.id}
-              className="scroll-mt-8 pt-12"
-            >
-              <h2 className="text-2xl font-semibold tracking-tight text-gray-950">
-                {DOCUMENTATION_SECTIONS.troubleshooting.label}
-              </h2>
-              {topic.troubleshootingDetails &&
-                topic.troubleshootingDetails.length > 0 && (
-                  <ul className="marker:text-moto-green-strong mt-5 list-disc space-y-3 pl-6">
-                    {topic.troubleshootingDetails.map((detail) => (
-                      <li
-                        key={detail}
-                        className="pl-2 text-base leading-7 text-gray-700"
-                      >
-                        <InlineCode text={detail} />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              {troubleshootingTopic && (
-                <Link
-                  href={hrefFor(troubleshootingTopic.id)}
-                  className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  <span className="font-semibold text-gray-900">
-                    {troubleshootingTopic.title}
-                  </span>
-                  <ChevronRight
-                    className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-gray-700"
-                    aria-hidden="true"
-                  />
-                </Link>
+        {(troubleshootingTopic || topic.troubleshootingDetails?.length) && (
+          <section
+            id={DOCUMENTATION_SECTIONS.troubleshooting.id}
+            className="scroll-mt-8 pt-12"
+          >
+            <h2 className="text-2xl font-semibold tracking-tight text-gray-950">
+              {DOCUMENTATION_SECTIONS.troubleshooting.label}
+            </h2>
+            {topic.troubleshootingDetails &&
+              topic.troubleshootingDetails.length > 0 && (
+                <ul className="marker:text-moto-green-strong mt-5 list-disc space-y-3 pl-6">
+                  {topic.troubleshootingDetails.map((detail) => (
+                    <li
+                      key={detail}
+                      className="pl-2 text-base leading-7 text-gray-700"
+                    >
+                      <InlineCode text={detail} />
+                    </li>
+                  ))}
+                </ul>
               )}
-            </section>
-          )}
+            {troubleshootingTopic && (
+              <Link
+                href={hrefFor(troubleshootingTopic.id)}
+                className="moto-content-surface group mt-5 flex items-center justify-between rounded-2xl border p-4 shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <span className="font-semibold text-gray-900">
+                  {troubleshootingTopic.title}
+                </span>
+                <ChevronRight
+                  className="h-4 w-4 shrink-0 text-gray-400 group-hover:text-gray-700"
+                  aria-hidden="true"
+                />
+              </Link>
+            )}
+          </section>
+        )}
 
-        {!isDraft && topic.image && (
+        {topic.image && (
           <section
             id={DOCUMENTATION_SECTIONS.example.id}
             className="scroll-mt-8 pt-12"
@@ -683,6 +807,23 @@ function DocumentationArticle({
                   >
                     {item.label}
                   </a>
+                  {item.children && item.children.length > 0 ? (
+                    // Die Zwischenueberschriften von „So geht es" stehen
+                    // eingerueckt darunter, damit die Ebene ohne Nummerierung
+                    // erkennbar bleibt.
+                    <ul className="mt-3 space-y-3 border-l border-gray-200 pl-4">
+                      {item.children.map((child) => (
+                        <li key={child.id}>
+                          <a
+                            href={`#${child.id}`}
+                            className="block text-sm leading-5 text-gray-500 hover:text-gray-950"
+                          >
+                            <InlineCode text={child.label} />
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </li>
               ))}
             </ul>
@@ -693,8 +834,7 @@ function DocumentationArticle({
   );
 }
 
-function PrototypeMobileDrawer({
-  chatGptHref,
+function HelpMobileDrawer({
   drawerMode,
   drawerOpen,
   filteredTopicCount,
@@ -705,7 +845,6 @@ function PrototypeMobileDrawer({
   searchQuery,
   topicNavigation,
 }: Readonly<{
-  chatGptHref: string;
   drawerMode: MobileHelpDrawerMode;
   drawerOpen: boolean;
   filteredTopicCount: number;
@@ -772,17 +911,13 @@ function PrototypeMobileDrawer({
         </DrawerHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
-          <div className="space-y-2 border-b border-gray-200 pb-5">
+          <div className="border-b border-gray-200 pb-5">
             <TopicSearch
-              id="prototype-topic-search-mobile"
+              id="help-topic-search-mobile"
               autoFocus={drawerMode === "search"}
               query={searchQuery}
               resultCount={filteredTopicCount}
               onQueryChange={onSearchQueryChange}
-            />
-            <ChatGptPrototypeLink
-              href={chatGptHref}
-              className="min-h-11 w-full"
             />
           </div>
           <div className="mt-6 pb-4">{topicNavigation}</div>
@@ -792,26 +927,35 @@ function PrototypeMobileDrawer({
   );
 }
 
-function PrototypeDocumentationShell({
+function HelpDocumentationShell({
   topic,
+  group,
   topics,
   filteredTopics,
   invalidTopic,
   role,
+  presenceMode,
+  groupMode,
   hrefFor,
+  restartHref,
   appHref,
-  chatGptHref,
   searchQuery,
   onSearchQueryChange,
 }: Readonly<{
-  topic?: PrototypeTopic;
-  topics: readonly PrototypeTopic[];
-  filteredTopics: readonly PrototypeTopic[];
+  topic?: HelpTopic;
+  /** Gesetzt auf einer Gruppenseite; dann bleibt `topic` leer. */
+  group?: HelpTopicGroup;
+  topics: readonly HelpTopic[];
+  filteredTopics: readonly HelpTopic[];
   invalidTopic: boolean;
-  role: PrototypeRole;
+  role: HelpRole;
+  /** Steuern Gruppen-Ueberschriften, die von der Arbeitsweise abhaengen. */
+  presenceMode: HelpPresenceMode;
+  groupMode: HelpGroupMode;
   hrefFor: (topicId?: string) => string;
+  /** Zurueck zur Rollenauswahl: die Wortmarke ist der Weg dorthin. */
+  restartHref: string;
   appHref: string;
-  chatGptHref: string;
   searchQuery: string;
   onSearchQueryChange: (query: string) => void;
 }>) {
@@ -823,7 +967,7 @@ function PrototypeDocumentationShell({
   const desktopSearchInputRef = useRef<HTMLInputElement | null>(null);
   const mainContentRef = useRef<HTMLElement | null>(null);
   const focusContentAfterTopicNavigationRef = useRef(false);
-  const desktopTopicScrollAreaRef = usePrototypeSidebarScrollRestoration();
+  const desktopTopicScrollAreaRef = useHelpSidebarScrollRestoration();
 
   const handleMobileDrawerOpenChange = useCallback((open: boolean) => {
     setMobileDrawerOpen(open);
@@ -862,21 +1006,10 @@ function PrototypeDocumentationShell({
     );
   }, []);
 
-  const groupOrder =
-    role === "lead"
-      ? (["leitung"] satisfies readonly PrototypeTopicGroup[])
-      : ([
-          "einstieg",
-          "tagesplanung",
-          "kinder",
-          "gruppen",
-          "team",
-          "arbeitszeit",
-          "nfc",
-          "probleme",
-        ] satisfies readonly PrototypeTopicGroup[]);
+  const groupOrder = GROUP_ORDER_BY_ROLE[role];
+
   const topicNavigation = (
-    <nav aria-label="Themen im Prototyp" className="space-y-7">
+    <nav aria-label="Hilfethemen" className="space-y-7">
       {filteredTopics.length === 0 && (
         <EmptyState
           variant="compact"
@@ -903,7 +1036,7 @@ function PrototypeDocumentationShell({
         return (
           <div key={group}>
             <p className="mb-2 px-3 text-sm font-bold tracking-tight text-gray-950">
-              {PROTOTYPE_GROUP_LABELS[group]}
+              {helpGroupLabel(group, presenceMode, groupMode)}
             </p>
             <div className="space-y-1">
               {groupTopics.map((item) => (
@@ -944,9 +1077,9 @@ function PrototypeDocumentationShell({
       >
         Zum Inhalt
       </ButtonLink>
-      <PrototypeMobileHeader
+      <HelpMobileHeader
         appHref={appHref}
-        homeHref={hrefFor()}
+        homeHref={restartHref}
         drawerMode={mobileDrawerMode}
         drawerOpen={mobileDrawerOpen}
         onOpenDrawer={openMobileDrawer}
@@ -955,24 +1088,22 @@ function PrototypeDocumentationShell({
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-200 bg-white lg:flex">
         <div className="flex h-20 shrink-0 items-center gap-3 border-b border-gray-200 px-6">
           <Link
-            href={hrefFor()}
+            href={restartHref}
             className="focus-visible:ring-moto-blue rounded-lg focus-visible:ring-2 focus-visible:outline-none"
           >
             <span className="text-xl font-bold tracking-tight text-gray-950">
               moto Hilfe
             </span>
           </Link>
-          <StatusBadge label="Prototyp" tone="orange" />
         </div>
-        <div className="space-y-2 border-b border-gray-200 px-5 py-4">
+        <div className="border-b border-gray-200 px-5 py-4">
           <TopicSearch
-            id="prototype-topic-search-desktop"
+            id="help-topic-search-desktop"
             inputRef={desktopSearchInputRef}
             query={searchQuery}
             resultCount={filteredTopics.length}
             onQueryChange={onSearchQueryChange}
           />
-          <ChatGptPrototypeLink href={chatGptHref} className="w-full" />
         </div>
         <div
           ref={desktopTopicScrollAreaRef}
@@ -981,7 +1112,7 @@ function PrototypeDocumentationShell({
           {topicNavigation}
         </div>
         <div className="shrink-0 border-t border-gray-200 px-5 py-4">
-          <BackToAppPrototypeLink href={appHref} className="w-full" />
+          <BackToAppLink href={appHref} className="w-full" />
         </div>
       </aside>
 
@@ -990,7 +1121,7 @@ function PrototypeDocumentationShell({
         id={HELP_CONTENT_ID}
         tabIndex={-1}
         className={cn(
-          "mx-auto w-full scroll-mt-20 px-4 py-8 sm:px-6 lg:scroll-mt-8 lg:px-12",
+          "relative z-10 mx-auto w-full scroll-mt-20 px-4 py-8 sm:px-6 lg:scroll-mt-8 lg:px-12",
           topic ? "max-w-6xl" : "max-w-5xl",
         )}
       >
@@ -1001,7 +1132,7 @@ function PrototypeDocumentationShell({
               aria-hidden="true"
             />
             <h1 className="mt-4 text-2xl font-semibold text-gray-950">
-              Dieses Thema ist im Prototyp nicht enthalten.
+              Dieses Thema gibt es nicht.
             </h1>
             <p className="mt-2 text-gray-600">
               Öffnen Sie die Übersicht und wählen Sie ein vorhandenes Thema.
@@ -1019,12 +1150,23 @@ function PrototypeDocumentationShell({
           <DocumentationArticle
             topic={topic}
             topicsById={topicsById}
+            presenceMode={presenceMode}
+            groupMode={groupMode}
+            hrefFor={hrefFor}
+          />
+        ) : group ? (
+          <GroupOverview
+            group={group}
+            topics={topics}
+            role={role}
+            presenceMode={presenceMode}
+            groupMode={groupMode}
             hrefFor={hrefFor}
           />
         ) : (
           <section className="max-w-4xl">
             <p className="text-moto-green-strong text-sm font-bold tracking-wide uppercase">
-              {role === "lead" ? "Für die Leitung" : "Für Betreuungskräfte"}
+              {ROLE_KICKER[role]}
             </p>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight text-gray-950 sm:text-5xl">
               Was möchten Sie erledigen?
@@ -1034,9 +1176,7 @@ function PrototypeDocumentationShell({
             </p>
             <div className="mt-8 grid gap-4 sm:grid-cols-2">
               {topics
-                .filter(
-                  (item) => item.audience === "all" || item.audience === role,
-                )
+                .filter((item) => helpTopicMatchesRole(item, role))
                 .slice(0, 6)
                 .map((item) => {
                   const Icon = item.icon;
@@ -1064,8 +1204,7 @@ function PrototypeDocumentationShell({
         )}
       </main>
 
-      <PrototypeMobileDrawer
-        chatGptHref={chatGptHref}
+      <HelpMobileDrawer
         drawerMode={mobileDrawerMode}
         drawerOpen={mobileDrawerOpen}
         filteredTopicCount={filteredTopics.length}
@@ -1080,19 +1219,19 @@ function PrototypeDocumentationShell({
   );
 }
 
-export function HelpPrototype() {
+export function HelpView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const params = useParams<{ topic?: string[] }>();
 
   const rawRole = searchParams.get("role");
-  const role: PrototypeRole = isRole(rawRole) ? rawRole : "caregiver";
+  const roleFromParam: HelpRole | null = isRole(rawRole) ? rawRole : null;
   const rawPresenceMode = searchParams.get("presence_mode");
-  const presenceMode: PrototypePresenceMode = isPresenceMode(rawPresenceMode)
+  const presenceMode: HelpPresenceMode = isPresenceMode(rawPresenceMode)
     ? rawPresenceMode
     : "unknown";
   const rawGroupMode = searchParams.get("group_mode");
-  const groupMode: PrototypeGroupMode = isGroupMode(rawGroupMode)
+  const groupMode: HelpGroupMode = isGroupMode(rawGroupMode)
     ? rawGroupMode
     : "unknown";
   const rawNfcEnabled = searchParams.get("nfc_enabled");
@@ -1101,18 +1240,33 @@ export function HelpPrototype() {
   const appHref = appHrefFrom(searchParams.get("return_to"));
 
   const topics = useMemo(
-    () => getPrototypeTopics(presenceMode, groupMode, nfcEnabled),
+    () => getHelpTopics(presenceMode, groupMode, nfcEnabled),
     [groupMode, nfcEnabled, presenceMode],
   );
+  // `/help/gruppe/<id>` fuehrt auf eine Oberkategorie, alles
+  // andere auf einen Artikel.
+  const firstSegment = params.topic?.[0];
+  const isGroupPath = firstSegment === GROUP_PATH_SEGMENT;
+  const groupId = isGroupPath ? params.topic?.[1] : undefined;
+  const topicId = isGroupPath ? undefined : firstSegment;
+  const topic = topics.find((item) => item.id === topicId);
+
+  // Ein geteilter Link auf einen Artikel soll den Einstieg nicht erzwingen:
+  // fehlt die Rolle, wird sie aus dem Artikel abgeleitet. Nur der Aufruf
+  // ganz ohne Artikel und ohne Rolle fragt nach (siehe showEntry unten).
+  // Traegt der Artikel mehrere Rollen, sagt er nichts ueber die Person aus --
+  // dann bleibt es beim Rueckfall unten.
+  const roleFromTopic: HelpRole | null =
+    topic && topic.audience !== "all" && typeof topic.audience === "string"
+      ? topic.audience
+      : null;
+  const role: HelpRole = roleFromParam ?? roleFromTopic ?? "caregiver";
+  const showEntry = roleFromParam === null && topicId === undefined;
+
   const roleTopics = useMemo(
-    () =>
-      topics.filter(
-        (item) => item.audience === "all" || item.audience === role,
-      ),
+    () => topics.filter((item) => helpTopicMatchesRole(item, role)),
     [role, topics],
   );
-  const topicId = params.topic?.[0];
-  const topic = topics.find((item) => item.id === topicId);
   const [searchQuery, setSearchQuery] = useState("");
   const filteredTopics = useMemo(() => {
     const query = searchQuery.trim();
@@ -1135,15 +1289,14 @@ export function HelpPrototype() {
       if (groupMode === "unknown") queryParams.delete("group_mode");
       else queryParams.set("group_mode", groupMode);
       const nextPath = nextTopicId
-        ? `/help/prototype/${encodeURIComponent(nextTopicId)}`
-        : "/help/prototype";
+        ? `/help/${encodeURIComponent(nextTopicId)}`
+        : "/help";
       return `${nextPath}?${queryParams.toString()}`;
     },
     [groupMode, nfcEnabled, presenceMode, role, searchParams],
   );
 
   const currentHelpPath = hrefFor(topicId);
-  const [documentationUrl, setDocumentationUrl] = useState(currentHelpPath);
 
   useEffect(() => {
     if (searchParams.has("schoolyard")) {
@@ -1151,16 +1304,6 @@ export function HelpPrototype() {
     }
   }, [currentHelpPath, router, searchParams]);
 
-  useEffect(() => {
-    setDocumentationUrl(
-      new URL(currentHelpPath, window.location.origin).toString(),
-    );
-  }, [currentHelpPath]);
-
-  const chatGptHref = useMemo(
-    () => chatGptUrlFor(documentationUrl, topic),
-    [documentationUrl, topic],
-  );
   useEffect(() => {
     if (!topicId && window.location.hash) {
       const legacyTopicId = window.location.hash.slice(1);
@@ -1174,7 +1317,46 @@ export function HelpPrototype() {
     }
   }, [hrefFor, router, searchParams, topicId, topics]);
 
-  const invalidTopic = topicId != null && topic == null;
+  // Die Wortmarke "moto Hilfe" fuehrt zurueck zur Rollenauswahl: ohne Rolle
+  // in der Adresse fragt die Seite wieder, fuer wen die Anleitung ist.
+  const restartHref = useMemo(() => {
+    const returnTo = searchParams.get("return_to");
+    return returnTo
+      ? `/help?return_to=${encodeURIComponent(returnTo)}`
+      : "/help";
+  }, [searchParams]);
+
+  const handleEntrySubmit = useCallback(
+    (answers: HelpEntryAnswers) => {
+      const queryParams = new URLSearchParams();
+      const returnTo = searchParams.get("return_to");
+      if (returnTo) queryParams.set("return_to", returnTo);
+      queryParams.set("role", answers.role);
+      if (answers.nfcEnabled !== null) {
+        queryParams.set("nfc_enabled", String(answers.nfcEnabled));
+      }
+      if (answers.presenceMode !== "unknown") {
+        queryParams.set("presence_mode", answers.presenceMode);
+      }
+      if (answers.groupMode !== "unknown") {
+        queryParams.set("group_mode", answers.groupMode);
+      }
+      router.push(`/help?${queryParams.toString()}`);
+    },
+    [router, searchParams],
+  );
+
+  const group = HELP_GROUPS.find((item) => item === groupId);
+  const invalidTopic =
+    (topicId != null && topic == null) || (groupId != null && group == null);
+
+  if (showEntry) {
+    return (
+      <div className="moto-dotted-background moto-dotted-background--fullscreen min-h-screen bg-gray-50 pb-12">
+        <HelpEntry onSubmit={handleEntrySubmit} />
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1185,15 +1367,18 @@ export function HelpPrototype() {
           : "moto-dotted-background moto-dotted-background--fullscreen bg-gray-50",
       )}
     >
-      <PrototypeDocumentationShell
+      <HelpDocumentationShell
         topic={topic}
+        group={group}
         topics={roleTopics}
         filteredTopics={filteredTopics}
         invalidTopic={invalidTopic}
         role={role}
+        presenceMode={presenceMode}
+        groupMode={groupMode}
         hrefFor={hrefFor}
+        restartHref={restartHref}
         appHref={appHref}
-        chatGptHref={chatGptHref}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
       />

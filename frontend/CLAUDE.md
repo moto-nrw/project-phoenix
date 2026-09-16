@@ -50,8 +50,8 @@ Build all new UI from `src/components/ui/` (and `ui/page-header/`); never hand-r
 Before user-visible changes, read `.claude/rules/verstaendlichkeit.md` and run
 its checklist against the real screen; record the result in the PR. Load
 `moto-einfache-sprache` before writing German copy. For changed tenant flows,
-read `.claude/rules/help-guide-sync.md` and update the guide/screenshots in the
-same PR when required.
+read `.claude/rules/help-guide-sync.md` and update the affected help articles in
+the same PR when required.
 
 ### Before/After Screenshots for UI Changes (MANDATORY)
 

@@ -21,7 +21,10 @@ import {
 } from "~/lib/tenant-context";
 import { normalizeTenantPathname } from "~/lib/tenant-path";
 import { matchesPathPrefix } from "~/lib/section-navigation";
-import { getHelpTopicForPath } from "~/lib/help-topics";
+import {
+  getHelpTopicForPath,
+  getParentHelpTopicForPath,
+} from "~/lib/help-topics";
 import { ContextHelpLink } from "~/components/help/context-help-link";
 
 // Import extracted components
@@ -205,8 +208,14 @@ export function Header() {
   const schoolPageTitle =
     mode === "school" ? schoolTitleForPath(pathname) : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
-  const contextualHelpTopic =
-    mode === "teacher" ? (helpTopic ?? getHelpTopicForPath(pathname)) : null;
+  // Das Fragezeichen neben der Brotkrume. Jedes Portal hat seine eigenen
+  // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
+  // Elternportal, deshalb zwei getrennte Nachschlagewege.
+  const contextualHelpTopic = (() => {
+    if (mode === "teacher") return helpTopic ?? getHelpTopicForPath(pathname);
+    if (mode === "parent") return getParentHelpTopicForPath(pathname);
+    return null;
+  })();
 
   // Derive user info from ShellAuth context
   const userName = user?.name ?? "Benutzer";
@@ -357,7 +366,13 @@ export function Header() {
               {contextualHelpTopic ? (
                 <ContextHelpLink
                   topic={contextualHelpTopic}
-                  containerClassName="hidden md:inline-flex"
+                  // Eltern sind fast immer am Handy. Ein Fragezeichen, das
+                  // erst ab Tablet auftaucht, erreicht sie nie. Im
+                  // Personal-Portal bleibt die schmale Kopfzeile frei: dort
+                  // ist die Hilfe über die Seitenleiste erreichbar.
+                  containerClassName={
+                    mode === "parent" ? undefined : "hidden md:inline-flex"
+                  }
                 />
               ) : null}
             </div>

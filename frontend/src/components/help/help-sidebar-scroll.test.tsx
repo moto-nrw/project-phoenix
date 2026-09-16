@@ -1,14 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { usePrototypeSidebarScrollRestoration } from "./prototype-sidebar-scroll";
+import { useHelpSidebarScrollRestoration } from "./help-sidebar-scroll";
 
 function ScrollArea() {
-  const scrollAreaRef = usePrototypeSidebarScrollRestoration();
+  const scrollAreaRef = useHelpSidebarScrollRestoration();
   return <div ref={scrollAreaRef} data-testid="sidebar-scroll-area" />;
 }
 
-describe("usePrototypeSidebarScrollRestoration", () => {
+describe("useHelpSidebarScrollRestoration", () => {
   it("restores the sidebar position after the route remounts its shell", () => {
     const firstRender = render(<ScrollArea />);
     screen.getByTestId("sidebar-scroll-area").scrollTop = 900;

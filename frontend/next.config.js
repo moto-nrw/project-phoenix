@@ -50,6 +50,33 @@ const config = {
         destination: "/:tenant/activities",
         permanent: true,
       },
+      // The three guide pages became one topic-per-page help area. Their URLs
+      // are in circulation (printed onepager, bookmarks, support mails), so
+      // they must not 404.
+      //
+      // Old anchor links keep working without a rule per topic: a browser
+      // carries the fragment across a redirect whose target has none, so
+      // /help/features#kindersuche arrives as /help#kindersuche, and HelpView
+      // turns a hash that names a known topic into /help/kindersuche.
+      //
+      // /help/nfc/erste-schritte is deliberately absent — that page still
+      // exists as the printed NFC onepager, and a redirect on the parent path
+      // does not capture it.
+      {
+        source: "/help/setup",
+        destination: "/help",
+        permanent: true,
+      },
+      {
+        source: "/help/features",
+        destination: "/help",
+        permanent: true,
+      },
+      {
+        source: "/help/nfc",
+        destination: "/help",
+        permanent: true,
+      },
     ];
   },
 };

@@ -45,7 +45,7 @@ vi.mock("~/components/ui/logout-modal", () => ({
 
 vi.mock("~/components/help/context-help-link", () => ({
   ContextHelpLink: ({ topic }: { topic: string }) => (
-    <a href={`/help/prototype/${topic}`} data-testid="context-help-link">
+    <a href={`/help/${topic}`} data-testid="context-help-link">
       Hilfe
     </a>
   ),
@@ -305,7 +305,7 @@ describe("Header", () => {
 
     expect(screen.getByTestId("context-help-link")).toHaveAttribute(
       "href",
-      "/help/prototype/kindersuche",
+      "/help/kindersuche",
     );
   });
 

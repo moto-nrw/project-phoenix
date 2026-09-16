@@ -915,7 +915,7 @@ describe("proxy", () => {
     it("serves nested /help/* on a tenant subdomain without rewriting", () => {
       const res = proxy(
         makeRequest(
-          `http://${TENANT_SUBDOMAIN_HOST}/help/setup`,
+          `http://${TENANT_SUBDOMAIN_HOST}/help/kindersuche`,
           TENANT_SUBDOMAIN_HOST,
         ),
       );
@@ -935,9 +935,12 @@ describe("proxy", () => {
       expect(res.headers.get("Content-Security-Policy")).toBeTruthy();
     });
 
-    it("serves /help/nfc on the parents host without rewriting to /parents or blocking", () => {
+    it("serves /help/nfc/erste-schritte on the parents host without rewriting to /parents or blocking", () => {
       const res = proxy(
-        makeRequest(`http://${PARENTS_HOSTNAME}/help/nfc`, PARENTS_HOSTNAME),
+        makeRequest(
+          `http://${PARENTS_HOSTNAME}/help/nfc/erste-schritte`,
+          PARENTS_HOSTNAME,
+        ),
       );
 
       expect(res.status).not.toBe(404);

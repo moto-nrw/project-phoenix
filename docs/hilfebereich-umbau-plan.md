@@ -1,6 +1,7 @@
 # Hilfebereich: Umbau- und Implementierungsplan
 
-**Status:** Konzept abgeschlossen, klickbarer Prototyp in Arbeit
+**Status:** Umgestellt. Der Prototyp ist die Hilfe; `/help` zeigt ihn, das
+alte Guide-System ist entfernt. Was davon noch offen ist, steht in Abschnitt 8.
 **Zielbranch:** `development`
 **Issue:** #2229 (Hilfebereich neu strukturieren)
 **Grundlagen:** ADR 0008 (Format und Plattform), ADR 0009 (Zielgruppen und Personalisierung)
@@ -37,12 +38,12 @@ Gebaut wird ausschließlich mit dem, was die App ohnehin mitbringt:
 | ------------------ | ------------------------------------------------------------------------ | -------------------------------------------- |
 | Seiten und Routing | Next.js 16 App Router, React 19                                          | `src/app/help/**`                            |
 | Darstellung        | eigene Komponenten aus dem moto-UI-Kit, Tailwind 4                       | `src/components/help/`, `src/components/ui/` |
-| Inhalte            | typisiertes TS, `GuideChapter` → `GuideStep`                             | `src/components/help/guide-data*.ts`         |
-| Suche              | fuse.js über einen aus den Inhalten abgeleiteten Index                   | `guide-search.ts`, `help-search.tsx`         |
+| Inhalte            | typisiertes TS, ein flacher `HelpTopic` je Frage                         | `src/components/help/help-content.ts`        |
+| Suche              | Filter über Titel, Frage, Kurztext, Schritte und Tipps, nur im Browser   | in `help-view.tsx`                           |
 | Icons              | lucide-react                                                             | in den Inhaltsdaten referenziert             |
-| Screenshots        | `next/image` auf statischen Dateien                                      | `public/help/screens/` (77 Dateien)          |
-| PDF                | Playwright rendert die öffentlichen Seiten, pdf-lib legt den Hintergrund | `scripts/generate-guides.ts`                 |
-| Tests              | vitest                                                                   | 5 Dateien, u. a. `help-search-sync.test.ts`  |
+| Screenshots        | `next/image`; die Artikel setzen derzeit kein `image`                    | `public/help/screens/` (87 Dateien)          |
+| PDF                | Playwright rendert nur noch den gedruckten NFC-Onepager                  | `scripts/generate-guides.ts`                 |
+| Tests              | vitest                                                                   | u. a. `help-topics.test.ts` als Wächter      |
 
 Neue Abhängigkeiten sind für diesen Umbau **nicht vorgesehen**. Wird doch eine gebraucht, ist das
 eine Abweichung von ADR 0008 und gehört in der PR-Beschreibung begründet.
@@ -58,8 +59,9 @@ Der Prototyp beantwortet diese Frage:
 > Welche Navigation hilft OGS-Personal, aus einem langen Kapitel schnell zu genau einem Thema zu
 > kommen?
 
-Er liegt isoliert unter `/help/prototype` und verändert die vier bestehenden Hilfe- und PDF-Routen
-nicht. Der erste Vergleich umfasste drei deutlich verschiedene Varianten. Ausgewählt wurde die
+Er lag zunächst isoliert unter `/help/prototype`. Seit der Umstellung ist er die Hilfe: er liegt
+unter `/help`, die drei Guide-Seiten sind entfernt und leiten dorthin weiter. Der erste Vergleich
+umfasste drei deutlich verschiedene Varianten. Ausgewählt wurde die
 Seitenleisten-Lösung: Auf Desktop bleibt die Navigation am linken Fensterrand stehen und scrollt
 unabhängig vom Artikel. Sie ist keine Karte im Inhaltsbereich. Auf kleinen Bildschirmen wird sie zu
 einer ausklappbaren Themenliste. Die verworfenen Aufgaben- und Sucheinstiege bleiben über die
@@ -68,9 +70,9 @@ Commit-Historie des Prototyp-Branches nachvollziehbar, sind aber nicht mehr Teil
 Rolle, Thema und die drei anleitungsrelevanten Konfigurationswerte sind teilbar. Beispiele:
 
 ```text
-/help/prototype/kindersuche?role=caregiver&nfc_enabled=false&presence_mode=binary&group_mode=open_care
-/help/prototype/datenverwaltung?role=lead&nfc_enabled=true&presence_mode=detailed&group_mode=fixed_groups
-/help/prototype/nfc-kinder-auschecken?nfc_enabled=true&presence_mode=detailed&group_mode=fixed_groups
+/help/kindersuche?role=caregiver&nfc_enabled=false&presence_mode=binary&group_mode=open_care
+/help/datenverwaltung?role=lead&nfc_enabled=true&presence_mode=detailed&group_mode=fixed_groups
+/help/nfc-kinder-auschecken?nfc_enabled=true&presence_mode=detailed&group_mode=fixed_groups
 ```
 
 Die Parameter bilden ausschließlich die drei in
@@ -87,9 +89,10 @@ Suchtreffer erhalten alle drei Parameter. Fehlt ein Wert oder ist er ungültig, 
 Hilfe erreichbar und zeigt keine nur aus diesem Wert abgeleitete Variante. `schoolyard` gehört
 ausdrücklich nicht zu diesem URL-Vertrag.
 
-Der Prototyp zeigt außerdem, wie ein alter Hash-Link im Browser auf eine Themenseite wechseln kann.
-Die spätere Produktionslösung muss diese Weiterleitung so kapseln, dass Druck- und PDF-Ansichten
-unverändert bleiben.
+Alte Hash-Links wechseln im Browser auf die Themenseite. Das trägt jetzt die Weiterleitung mit:
+`/help/features#kindersuche` landet als `/help#kindersuche`, weil ein Browser das Fragment über
+eine Weiterleitung ohne eigenes Fragment mitnimmt, und `help-view.tsx` macht daraus
+`/help/kindersuche`. Die Druckseite `/help/nfc/erste-schritte` bleibt davon unberührt.
 
 Ein kompakter Einstieg „Frag ChatGPT“ steht oben in der festen Seitenleiste und im mobilen Kopf.
 Er öffnet ChatGPT mit einem vorausgefüllten Prompt. Der Prompt nennt die Adresse der aktuell
@@ -105,7 +108,7 @@ Pfad aus dem optionalen URL-Parameter `return_to`. Ohne diesen Parameter führt 
 App-Startseite. Externe Ziele und andere Hilfe-Seiten sind als Rücksprungziel ausgeschlossen.
 
 Eine Suche steht direkt unter „moto Hilfe“. Sie durchsucht Titel, Fragen, Kurzbeschreibungen,
-Schritte und Tipps der typisierten Prototyp-Inhalte. Treffer erscheinen sofort als anklickbare
+Schritte und Tipps der typisierten Hilfe-Inhalte. Treffer erscheinen sofort als anklickbare
 Themen in der vorhandenen Navigation. Die Suche läuft nur im Browser und braucht weder einen
 eigenen Suchdienst noch einen zusätzlichen Index.
 
@@ -115,7 +118,7 @@ Themenseitenleiste und die moto-Farben bleiben erhalten. Ein zusätzlicher URL-P
 nicht mehr nötig. Beispiel:
 
 ```text
-/help/prototype/kindersuche?role=caregiver
+/help/kindersuche?role=caregiver
 ```
 
 ## 3. Arbeitspakete
@@ -167,48 +170,60 @@ parallel laufen; **D5** ist ein Defekt und hängt an nichts.
 
 ### Strang A — Gerüst (kein Inhaltswechsel)
 
-**A1 · `guide-data.ts` zerlegen** — Größe M, Risiko **hoch (Koordination)**
-Eine Datei pro Kapitel, Barrel-Export behält die heutigen Namen (`setupChapters`, `appChapters`,
-`nfcChapters`, `nfcQuickstartChapters`), damit kein Konsument sich ändert. Rein mechanisch, kein Satz
-Inhalt wird angefasst.
-_Mit im selben PR:_ `.claude/rules/help-guide-sync.md` und der Skill `help-guide-sync` benennen
-`guide-data.ts` als „die Content-Datei" — beide werden sonst falsch.
-_Fertig wenn:_ `pnpm run check` grün, alle 5 Hilfe-Testdateien unverändert grün, Diff enthält keine
-Textänderung.
+**A1 · `guide-data.ts` zerlegen** — gegenstandslos
+Das Paket wollte die 3.000-Zeilen-Datei in eine Datei pro Kapitel zerlegen und dabei über einen
+Barrel-Export die Namen `setupChapters`, `appChapters` und `nfcChapters` erhalten, damit kein
+Konsument sich ändert. Beides ist überholt: die Datei ist gelöscht, die Kapitelsätze existieren
+nicht mehr, und die Inhalte liegen als flache Artikelliste in `help-content.ts`. Damit entfällt
+auch der Konflikt-Flaschenhals, um den dieses Paket herum geplant war — Artikel sind einzelne
+Funktionen und stehen sich beim Merge seltener im Weg als Schritte in einem Kapitelbaum.
+Die Nacharbeit an Regel und Skill, die A1 mittragen sollte, ist erledigt.
 
-**A2 · Route pro Thema** — Größe L, Risiko mittel
-`/help/<topic>` (flach, siehe §7.1), generiert aus dem Kapitelbaum. Die Themen-Id bleibt die heutige
-Anker-Id. Die Route akzeptiert die drei optionalen, typisierten Konfigurationsparameter
-`nfc_enabled`, `presence_mode` und `group_mode`; unbekannte Werte erzeugen keine Variante.
-_Zwingend:_ Weiterleitung der alten Anker-URLs (`/help/features#betreuungsplan` →
-`/help/betreuungsplan`). Im Umlauf sind PDFs, Support-Mails und Suchtreffer.
-_Fertig wenn:_ jede der 108 Themen-Routen auflösbar, alte Anker leiten weiter, Suchtreffer zeigen auf
-die neuen Routen.
+**A2 · Route pro Thema** — abgeschlossen
+`/help/<topic>` ist flach (§7.1). Statt aus einem Kapitelbaum erzeugt zu werden, liegt hinter allen
+Adressen **eine** Route: der optionale Catch-all `src/app/help/[[...topic]]/page.tsx`. Er bedient
+`/help` (Einstieg), `/help/<thema>` und `/help/gruppe/<kategorie>`. Die Themen-Id ist der Slug und
+kommt aus `HELP_TOPICS`. Die Route nimmt `role`, `nfc_enabled`, `presence_mode`, `group_mode` und
+`return_to`; unbekannte Werte erzeugen keine Variante.
+_Weiterleitungen:_ `/help/setup`, `/help/features` und `/help/nfc` liegen als permanente
+Weiterleitungen in `next.config.js`. Alte Anker-Links brauchen keine Regel pro Thema: der Browser
+nimmt das Fragment über die Weiterleitung mit, und `help-view.tsx` macht aus `/help#kindersuche`
+die Adresse `/help/kindersuche`. Im Browser geprüft.
+_Fertig:_ jede Id in `HELP_TOPICS` löst in jeder Einstellungs-Kombination auf
+(`help-topics.test.ts`), die drei alten Adressen leiten weiter, ein unbekanntes Thema zeigt eine
+Sackgassen-Seite mit Weg zurück.
 
-**A3 · Seitenleiste und Querverweise** — Größe M, Risiko niedrig
-Persistente Navigation aus dem Kapitelbaum, „verwandte Themen" am Seitenende. Bauteile aus
-`components/ui/` (Regel `frontend-ui-kit.md`), kein fremdes Theme. Themenlinks, Querverweise und
-Suchtreffer erhalten `role`, `nfc_enabled`, `presence_mode`, `group_mode` und `return_to`.
+**A3 · Seitenleiste und Querverweise** — abgeschlossen
+Die Navigation steht als feste Seitenleiste und wird auf kleinen Bildschirmen zur ausklappbaren
+Themenliste. Sie kommt nicht aus einem Kapitelbaum, sondern aus `group` je Artikel plus
+`GROUP_ORDER_BY_ROLE` für die Reihenfolge der Kategorien. „Weitere Themen" am Seitenende speist
+sich aus `related`. Bauteile aus `components/ui/` (Regel `frontend-ui-kit.md`). Themenlinks,
+Querverweise und Suchtreffer tragen `role`, `nfc_enabled`, `presence_mode`, `group_mode` und
+`return_to` weiter.
+_Eine Falle, die bleibt:_ `related` läuft durch denselben Rollenfilter wie die Seitenleiste. Ein
+Verweis auf einen Artikel, den die Rolle nicht sieht, verschwindet lautlos.
 
-**A4 · Suchindex splitten** — Größe S, Risiko niedrig
-Index pro Guide statt global auf Modulebene. Nebenwirkung: das 264-KB-Bundle verschwindet.
-_Fertig wenn:_ `help-search-sync.test.ts` grün, Bundle der Hilfeseiten messbar kleiner.
+**A4 · Suchindex splitten** — gegenstandslos
+Es gibt keinen Index. Die Suche filtert die geladenen Artikel der Rolle direkt im Browser über
+Titel, Frage, Kurztext, Schritte und Tipps (`help-view.tsx`); fuse.js ist nicht mehr beteiligt.
+Das 264-KB-Bundle ist mit `guide-data.ts` verschwunden. Dafür ist eine neue Stelle entstanden, die
+Aufmerksamkeit braucht — siehe Abschnitt 8.
 
-**A5 · PDF-Pipeline** — Größe S, Risiko niedrig
-Durch den flachen Schnitt (§7.1) entfällt der befürchtete Umbau: die Themen liegen unter
-`/help/<topic>`, die vier heutigen Guide-Routen (`/help/setup`, `/help/features`, `/help/nfc`,
-`/help/nfc/erste-schritte`) bleiben unangetastet und **werden zur Druck- und PDF-Ansicht**. Keiner
-dieser Slugs kollidiert mit einer der 108 Themen-Ids (geprüft). `generate-guides.ts` und der
-CI-Schritt in `build.yml` ändern sich damit **gar nicht**. Kein PDF pro Thema.
-_Fertig wenn:_ die vier PDFs entstehen unverändert, `MIN_PDF_BYTES`-Prüfung greift.
+**A5 · PDF-Pipeline** — Größe S, abgeschlossen
+Anders entschieden als hier zunächst geplant: die drei Guide-Seiten bleiben **nicht** als
+Druckansicht stehen, sie sind entfernt. Eine Themenseite ist kein druckbares Handbuch, und ein PDF
+pro Thema wollte niemand (§6). Übrig bleibt der gedruckte NFC-Onepager `/help/nfc/erste-schritte`:
+er ist das Blatt im Versandkarton und damit ein eigenes Produkt, kein Hilfe-Artikel. Er liegt als
+statische Route neben dem Catch-all und gewinnt gegen ihn, weil Next.js konkrete Segmente zuerst
+prüft. `generate-guides.ts` rendert nur noch ihn; der CI-Schritt in `build.yml` bleibt unverändert.
+_Fertig:_ `nfc-erste-schritte.pdf` entsteht weiter, `MIN_PDF_BYTES` bleibt der Wächter.
 
 ### Strang B — Kontextuelle Hilfe (unabhängig von A)
 
 **B1 · `HelpTopicId` ableiten** — Größe S, Risiko niedrig
 Literal-Union aus dem Kapitelbaum. Ein Tippfehler wird damit zum Compile-Fehler.
-Im klickbaren Prototyp ist `HELP_TOPICS` vorübergehend die gemeinsame, typisierte Registry für
-Prototyp-Inhalte und App-Zuordnung; B3 prüft, dass jeder Eintrag in beiden Darstellungsvarianten
-auflösbar ist. Mit A1 wird die Union aus dem Produktions-Kapitelbaum abgeleitet.
+`HELP_TOPICS` ist die gemeinsame, typisierte Registry für Hilfe-Inhalte und App-Zuordnung; B3
+prüft, dass jeder Eintrag in jeder Einstellungs-Kombination auflösbar ist.
 
 **B2 · Kontextuelle Hilfe im Seitenkopf** — Größe S, Risiko niedrig
 Der feste Seitenkopf der Mitarbeiter-App löst das Thema zentral aus dem aktuellen Pfad auf. Einzelne
@@ -218,8 +233,8 @@ Tooltip. Verlinkt **vor A2** auf `/help/features#<id>`, danach ohne Änderung an
 `/help/<id>`. Beim Einstieg aus der App setzt der zentrale Link
 `nfc_enabled`, `presence_mode` und `group_mode` aus den bereits aufgelösten Mandanten-Metadaten sowie
 `role` und den aktuellen internen Pfad als `return_to`.
-Der klickbare Prototyp ist die ausdrückliche Zwischenstufe: Solange A2 noch nicht umgesetzt ist,
-verweist er auf `/help/prototype/<id>`. Diese Route ist kein Produktionsvertrag.
+Die Zwischenstufe ist vorbei: der Link zeigt auf `/help/<id>`, und diese Adresse ist jetzt der
+Vertrag. Ein Umbenennen einer Themen-Id bricht ihn — B3(a) macht das zum Testfehler.
 _Regeln:_ kein Thema → kein Symbol (nie ersatzweise auf die Startseite); immer gleicher Tab als
 normaler `<Link>` — ungespeicherte Eingaben schützt der vorhandene `use-navigation-guard` von selbst
 (§7.2); mobil nicht mit dem globalen Hilfe-Eintrag der Bottom-Nav konkurrieren.
@@ -302,8 +317,8 @@ Aufrufstellen. **A1 ist der Flaschenhals**, nicht wegen des Aufwands, sondern we
 | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | **A1 kollidiert mit jedem offenen Feature-Branch** | 88 % der Guide-Änderungen laufen im Feature-PR mit; 36 Konflikte gab es schon ohne Umbau       | In **einem** PR, angekündigt, zügig gemergt. Nicht über mehrere Tage offen halten. Ideal: an einem Tag mit wenigen offenen Guide-Branches |
 | Alte Anker-URLs brechen                            | PDFs, Support-Mails, Suchtreffer im Umlauf                                                     | Weiterleitungen in A2 sind Pflicht, nicht Kür                                                                                             |
-| ~~PDF-Erzeugung bricht~~                           | entfällt: die vier Guide-Routen bleiben als Druckansicht bestehen (§7.1, A5)                   | `MIN_PDF_BYTES` bleibt der Wächter                                                                                                        |
-| Regelwerk veraltet                                 | `help-guide-sync.md` und der gleichnamige Skill benennen `guide-data.ts` als die Content-Datei | Im selben PR wie A1 aktualisieren                                                                                                         |
+| ~~PDF-Erzeugung bricht~~                           | entfällt: es wird nur noch der gedruckte NFC-Onepager gerendert (A5)                           | `MIN_PDF_BYTES` bleibt der Wächter                                                                                                        |
+| ~~Regelwerk veraltet~~                             | erledigt: Regel und Skill beschreiben `help-content.ts` und die Themenhilfe                    | beim nächsten Strukturwechsel wieder mitziehen                                                                                            |
 | Themen-Ids werden zum Vertrag                      | B2 bindet App-Seiten an Themen; ein Umbenennen bricht den Link                                 | B3(a) macht es zum Compile-/Testfehler statt zum stillen Bruch                                                                            |
 | Screenshot-Drift                                   | 77 Bilder, neuer Schnitt macht einen Teil ungültig                                             | In D3 mitplanen, nicht nachgelagert                                                                                                       |
 
@@ -340,8 +355,40 @@ gh pr list --state open --json number,title,files \
   --jq '.[] | select(.files[].path | startswith("frontend/src/components/help/")) | "\(.number) \(.title)"'
 ```
 
-**7.4 Situations-Einstiege („Ich möchte …") kommen nach D3**, nicht in den ersten Wurf. Sie wären ein
+**7.5 Situations-Einstiege („Ich möchte …") kommen nach D3**, nicht in den ersten Wurf. Sie wären ein
 dritter Weg in die Hilfe neben den Rollenkarten (D2) und den Hilfe-Symbolen in der App (B2). Gute
 Situations-Einstiege lassen sich erst schreiben, wenn die Themen neu geschnitten sind — vorher legt
 man eine aufgabenförmige Schicht über softwareförmige Inhalte und wiederholt damit genau die Kritik
 aus #2229 eine Ebene höher.
+
+## 8. Was die Umstellung offen lässt
+
+Die Hilfe liegt unter `/help`, das alte Guide-System ist entfernt. Offen bleibt:
+
+- **Lehrkräfte.** Die 15 Artikel der Rolle `teacher` stehen, sind aber noch nicht am laufenden
+  moto schule nachgeprüft: die genannten Beschriftungen stammen aus dem Code, nicht vom Bildschirm.
+  Dafür muss eine Leitung einen Lehrkraft-Zugang anlegen. Bis dahin gilt für diese 15 Artikel
+  nicht, was `.claude/rules/help-guide-sync.md` verlangt („die Beschriftungen am echten Bildschirm
+  ablesen").
+- **Screenshots.** Die 87 Dateien unter `public/help/screens/` gehören zum alten Guide; kein
+  Artikel setzt `image`. Sie bleiben liegen, weil sie die in `frontend-ui-kit.md` genannte
+  visuelle Referenz sind — aber niemand zieht sie mehr nach. Entweder kommen sie in die Artikel
+  zurück (D3) oder sie brauchen einen eigenen Ort.
+- **Eröffnungssalden.** `/database/personal/opening-balances` springt ohne das Recht
+  `time_tracking:manage` still auf `/database/personal` zurück, statt die Verbotsseite zu zeigen.
+  Solange das so ist, lässt sich der Ablauf nicht abschreiten und der Artikel nicht schreiben.
+- **Leere Geräte-Einstellungen.** Ohne NFC zeigt der Einstellungs-Reiter `Geräte` nichts an,
+  erscheint aber. Eine Anleitung kann das nur beschreiben, nicht heilen.
+- **`help-content.ts` liegt im Bündel jeder App-Seite.** `ContextHelpLink` ruft `getHelpTopics()`
+  nur, um eine einzige Frage zu beantworten: Gibt es zu diesem Thema einen Artikel für diese Rolle?
+  Dafür zieht es die vollständige Inhaltsdatei samt allen Artikeltexten und rund 60 Symbolen aus
+  lucide-react in das Client-Bündel jeder Seite mit Seitenkopf. Das ist derselbe Befund wie in
+  Abschnitt 1 zum alten Suchindex, nur an einer breiteren Stelle: vorher traf es die Hilfeseiten,
+  jetzt die App.
+  _Sichtbar geworden an:_ `time-tracking/page.test.tsx` scheiterte an `KeyRound`, weil der
+  Symbol-Mock der Seite die Symbole der Hilfe-Inhalte nicht kennen kann. Der Test vertritt jetzt
+  den Hilfe-Link, wie `header.test.tsx` es schon tat — das behebt den Test, nicht die Ursache.
+  _Vorschlag:_ die Sichtbarkeit in ein eigenes, inhaltsfreies Modul ziehen (Thema → Rollen und die
+  drei Einstellungsmengen), das `ContextHelpLink` allein importiert. Die Artikeltexte blieben dann
+  im Bündel der Hilfe, wo sie hingehören. Messen vor dem Umbau: `docs/agents/frontend-performance.md`
+  nennt die Budgets.

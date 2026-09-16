@@ -375,7 +375,7 @@ Jede alte Route bleibt als Weiterleitung erhalten. Schulen haben Lesezeichen,
 und die Hilfe-Anleitung nennt Pfade. Eine Weiterleitung wird nicht später
 aufgeräumt, sie gehört zum Umbau.
 
-Die Hilfe-Anleitung (`components/help/guide-data.ts`) und ihre Screenshots
+Die Hilfe (`components/help/help-content.ts`) und ihre Screenshots
 werden im selben Zug nachgezogen — jeder Schritt, der einen Pfad oder einen
 Namen nennt, den dieser Umbau ändert.
 

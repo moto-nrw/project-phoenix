@@ -5,7 +5,7 @@ import { useLayoutEffect, useRef } from "react";
 let savedScrollTop = 0;
 
 /** Keeps the desktop topic list in place when the catch-all route remounts. */
-export function usePrototypeSidebarScrollRestoration() {
+export function useHelpSidebarScrollRestoration() {
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
 
   useLayoutEffect(() => {

@@ -1,16 +1,25 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
+import { useMemo } from "react";
 import { QuestionIcon } from "@phosphor-icons/react";
 import { ButtonLink } from "~/components/ui/button";
 import { Tooltip } from "~/components/ui/tooltip";
+import {
+  getHelpTopics,
+  helpTopicMatchesRole,
+} from "~/components/help/help-content";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
   useOpenCareGroupMode,
   usePresenceMode,
 } from "~/lib/tenant-context";
-import type { HelpTopicId } from "~/lib/help-topics";
+import {
+  buildHelpHref,
+  type HelpRole,
+  type HelpTopicId,
+} from "~/lib/help-topics";
 import { cn } from "~/lib/utils";
 
 interface ContextHelpLinkProps {
@@ -21,7 +30,7 @@ interface ContextHelpLinkProps {
 
 interface ContextHelpHrefOptions {
   readonly topic: HelpTopicId;
-  readonly role: "caregiver" | "lead";
+  readonly role: HelpRole;
   readonly nfcEnabled: boolean;
   readonly presenceMode: "detailed" | "binary";
   readonly groupMode: "fixed_groups" | "open_care";
@@ -30,21 +39,9 @@ interface ContextHelpHrefOptions {
 
 export function buildContextHelpHref({
   topic,
-  role,
-  nfcEnabled,
-  presenceMode,
-  groupMode,
-  returnTo,
+  ...context
 }: ContextHelpHrefOptions): string {
-  const query = new URLSearchParams({
-    role,
-    nfc_enabled: String(nfcEnabled),
-    presence_mode: presenceMode,
-    group_mode: groupMode,
-    return_to: returnTo,
-  });
-
-  return `/help/prototype/${encodeURIComponent(topic)}?${query.toString()}`;
+  return buildHelpHref(context, topic);
 }
 
 export function ContextHelpLink({
@@ -54,7 +51,7 @@ export function ContextHelpLink({
 }: Readonly<ContextHelpLinkProps>) {
   const rawPathname = usePathname();
   const searchParams = useSearchParams();
-  const { user } = useShellAuth();
+  const { user, mode } = useShellAuth();
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
@@ -62,14 +59,37 @@ export function ContextHelpLink({
   const returnTo = currentQuery
     ? `${rawPathname}?${currentQuery}`
     : rawPathname;
+  const role: HelpRole =
+    mode === "parent"
+      ? "parent"
+      : user?.roles.includes("admin")
+        ? "lead"
+        : "caregiver";
+  const groupMode = openCareGroupMode ? "open_care" : "fixed_groups";
+
+  // Nicht jede Seite hat fuer jede Rolle eine passende Anleitung: `/settings`
+  // und `/tagesinformationen` duerfen Betreuungskraefte oeffnen, ihre Artikel
+  // sind aber fuer die Leitung geschrieben. Dann fuehrte der Knopf in eine
+  // fremde Seitenleiste mit einer Brotkrume, die es fuer die Rolle nicht gibt.
+  // Lieber kein Fragezeichen als eines, das in die falsche Anleitung fuehrt.
+  const hasArticleForRole = useMemo(
+    () =>
+      getHelpTopics(presenceMode, groupMode, nfcEnabled).some(
+        (item) => item.id === topic && helpTopicMatchesRole(item, role),
+      ),
+    [groupMode, nfcEnabled, presenceMode, role, topic],
+  );
+
   const href = buildContextHelpHref({
     topic,
-    role: user?.roles.includes("admin") ? "lead" : "caregiver",
+    role,
     nfcEnabled,
     presenceMode,
-    groupMode: openCareGroupMode ? "open_care" : "fixed_groups",
+    groupMode,
     returnTo,
   });
+
+  if (!hasArticleForRole) return null;
 
   return (
     <Tooltip
