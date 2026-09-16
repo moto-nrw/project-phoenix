@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 

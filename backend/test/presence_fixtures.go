@@ -121,3 +121,13 @@ func CreateTestScheduledCheckout(tb testing.TB, db *bun.DB, studentID, staffID i
 	require.NoError(tb, err, "Failed to create test scheduled checkout")
 	return id
 }
+
+// PresenceModule composes the Student Presence owner over the test database
+// for tests that need the owner's own outcome, such as a rejected duplicate
+// visit, rather than a fixture that already asserts success.
+func PresenceModule(tb testing.TB, db *bun.DB) *studentpresence.Module {
+	tb.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(tb, err)
+	return presence
+}

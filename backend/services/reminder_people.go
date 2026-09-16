@@ -5,10 +5,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 
-	active "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 

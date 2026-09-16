@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 // classifyPresence maps a retained presence service failure to the port

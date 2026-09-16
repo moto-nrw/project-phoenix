@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 // AttendanceRoomRecords is the retained room read and lock contract.

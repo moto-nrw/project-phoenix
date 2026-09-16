@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // StudentScheduleRepositories contains the Care Plan compatibility adapters

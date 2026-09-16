@@ -11,15 +11,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -93,8 +91,6 @@ func (m *mockActiveSvcForSSE) GetTrackingIndicators(_ context.Context, _ []int64
 	return map[int64][]bool{}, nil
 }
 
-func (m *mockActiveSvcForSSE) SetSettingsService(_ activeSvc.SettingsResolver) {}
-func (m *mockActiveSvcForSSE) SetTenantRuntime(_ tenant.UnitOfWork)            {}
 func (m *mockActiveSvcForSSE) GetPresenceMode(_ context.Context) (string, error) {
 	return "detailed", nil
 }

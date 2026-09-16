@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 type studentStatusDayRepository struct{ capability careplan.Capability }

@@ -10,9 +10,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

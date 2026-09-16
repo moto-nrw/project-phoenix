@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -362,13 +361,13 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repoActive.NewGroupRepository(nil, repositories.NewPresenceGroupRecords(db), nil)
+	repo := repositories.NewSessionCleanupRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability).Group
 	presence := repositories.NewPresenceGroupRecords(db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	groups, err := presence.QueryGroupRecords(ctx42, repoActive.GroupRecordFilter{})
+	groups, err := presence.QueryGroupRecords(ctx42, repositories.PresenceGroupRecordFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -383,7 +382,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	groups, err = presence.QueryGroupRecords(ctx43, repoActive.GroupRecordFilter{})
+	groups, err = presence.QueryGroupRecords(ctx43, repositories.PresenceGroupRecordFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {

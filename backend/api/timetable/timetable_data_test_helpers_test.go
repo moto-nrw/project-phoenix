@@ -12,7 +12,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -50,13 +49,13 @@ func testTimetableDataWithOfferingCallbacks(
 		panic(err)
 	}
 	activityInstanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
-	supervisorRepo := activeRepo.NewGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db))
+	supervisorRepo := presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db))
 	var today func() timezone.Date
 	if len(clocks) > 0 && clocks[0] != nil {
 		clock := clocks[0]
 		today = func() timezone.Date { return timezone.DateFromTime(clock()) }
 		activityInstanceRepo = scheduleRepo.NewActivityInstanceRepository(db, clock)
-		supervisorRepo = activeRepo.NewGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), clock)
+		supervisorRepo = presenceCompose.NewLegacyGroupSupervisorRepository(repositories.NewPresenceSupervisionRecords(db), clock)
 	}
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	if err != nil {

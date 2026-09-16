@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 type activeSchoolQuery struct {

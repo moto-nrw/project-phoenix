@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

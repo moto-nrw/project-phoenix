@@ -6,12 +6,10 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
@@ -21,6 +19,8 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
@@ -110,8 +110,8 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
 		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
-		ActiveGroup:               activeRepo.NewGroupRepository(nil, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: bookings})),
-		GroupSupervisor:           activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now),
+		ActiveGroup:               presenceCompose.NewLegacyGroupRepository(nil, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: bookings}), presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{})),
+		GroupSupervisor:           presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now),
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),
