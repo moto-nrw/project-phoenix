@@ -3,13 +3,13 @@ package repositories
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )

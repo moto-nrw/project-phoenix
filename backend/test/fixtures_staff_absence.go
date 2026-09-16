@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

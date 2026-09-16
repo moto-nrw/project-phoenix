@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"

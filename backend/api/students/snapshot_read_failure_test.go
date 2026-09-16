@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

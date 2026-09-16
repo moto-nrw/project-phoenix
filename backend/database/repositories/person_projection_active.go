@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // visitorProjection composes open visits and home-school identity through

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"

@@ -6,7 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 type attendanceEducationGroups struct {

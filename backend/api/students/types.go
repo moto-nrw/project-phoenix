@@ -11,9 +11,9 @@ import (
 
 	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // validateDepartureCompanionNote bounds the free-text "mit wem" companion note

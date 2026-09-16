@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 

@@ -12,8 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/statistics"
 )
 
 type statisticsAuditLog struct {

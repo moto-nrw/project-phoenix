@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,7 +107,7 @@ func TestBuildSchoolCheckinResponse_NotCheckedIn(t *testing.T) {
 
 // =============================================================================
 // activeService.IsSchoolCheckinNoop — pure decision logic, no mocks needed
-// (moved from the handler into services/active with the batch orchestration,
+// (moved from the handler into modules/studentpresence/legacy/services/active with the batch orchestration,
 // review #2372; cases and assertions unchanged)
 // =============================================================================
 
