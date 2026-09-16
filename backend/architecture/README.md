@@ -399,6 +399,27 @@ permission checks. The `root-composition.to.import-http` mount replaces the
 and the ORM are compatibility permissions, not target dependencies. Convert
 them to exact debt with the rule above once the package exists at a base SHA.
 
+The user-context read side (who is the caller, which tenant, which
+permissions: the request-memoized identity chain, the SSE subscription
+resolution, the parent request-review policy and the student-access decision)
+is retained as the `inbound-usercontext`/`adapter` compatibility package
+`modules/identityaccess/legacy/usercontext`, and its `/api/me` routes are
+served by `modules/identityaccess/inbound/usercontext` under the same owner's
+`http` role (#3224). Both replaced `services/usercontext` and `api/usercontext`
+with unchanged behaviour, paths, status codes, error strings and authorization
+checks; their 49 baseline entries fell with the old packages. The read side
+could not land on the existing `identity-access`/`application` point: it still
+returns the retained `models/*` rows to twenty consumers, and PR mode rejects
+a new permission on a point that exists at the base SHA. Every
+`inbound-usercontext.adapter.*`, `inbound-usercontext.http.*` and
+`inbound-usercontext.adapter-test.*` rule and every
+`<consumer>.<role>.inbound-usercontext-adapter` rule (including the
+`root-composition.compose.inbound-usercontext-http` mount) is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+packages exist at a base SHA, and dissolve the adapter into the Identity &
+Access application and public contract under #2725.
+
 The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
 behaviour tests drive through their real services, so those tests name a school's

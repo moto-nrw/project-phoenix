@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 

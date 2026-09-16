@@ -213,7 +213,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 ## 9. Auth Code Location — Audit Before Adding
 
-**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `services/auth/` (and `services/usercontext/`) — match the existing layering rather than creating a third home.**
+**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `services/auth/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
 
 `backend/auth/` is NOT legacy. It contains structured low-level utility packages:
 
@@ -226,7 +226,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 - New low-level primitive (hash, parse, verify)? → `backend/auth/{subdomain}/`
 - New business flow (login, invite, reset)? → `services/auth/`
-- New permission decision? → `services/usercontext/` or `backend/auth/authorize/policy/`
+- New permission decision? → `modules/identityaccess/legacy/usercontext/` or `backend/auth/authorize/policy/`
 - Handler needs to authorize? → call the service or middleware, never decide inline
 
 ---
@@ -294,7 +294,7 @@ The four violations this rule originally named were all extracted in issue #586 
 | `Visit.EndVisit()` | `services/active/` (with logging, events, audit) |
 | `Device.IsOnline()` (hardcoded 5 min) | service + `iot.device_online_window_minutes` setting |
 | `Group` default duration (hardcoded 30 min) | settings registry |
-| `Account.HasPermission()` | `services/usercontext` / `backend/auth/authorize` |
+| `Account.HasPermission()` | `modules/identityaccess/legacy/usercontext` / `backend/auth/authorize` |
 
 Remaining known hits: `RFIDCard.Activate/Deactivate` (`models/users/rfid_card.go`) — don't copy that pattern.
 
