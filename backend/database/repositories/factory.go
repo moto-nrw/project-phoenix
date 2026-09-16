@@ -573,7 +573,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ParentRequestShare:  users.NewParentRequestShareEventRepository(db),
 		ParentRequestEvent:  users.NewParentRequestEventRepository(db),
 
-		CaregiverBindingLock: users.NewCaregiverBindingLocker(db),
+		// The caregiver blocker re-check locks four owners' binding tables;
+		// each owner takes its own table lock through its public capability.
+		CaregiverBindingLock: users.NewCaregiverBindingLocker(NewCaregiverBindingOwners(timetableDependencies, presenceCapability)),
 
 		// Staff Stammdaten (#1423) belong to Workforce (#2690): the retained
 		// contracts are served by the adapters over the one facade.

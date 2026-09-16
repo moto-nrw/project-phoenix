@@ -3,7 +3,6 @@ package users
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -101,27 +100,31 @@ func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.Se
 	return query.Where(`at.account_id IN (?)`, bun.List(staffAccountIDs))
 }
 
-// unreadPredicate is the correctness core of every unread number in this
+// The unread predicate is the correctness core of every unread number in this
 // feature: "message <alias> is strictly after the reader's cursor AND the
 // reader did not write it".
 //
-// It lives in exactly ONE place on purpose. The inbox's per-thread unread_count
-// column, the onlyUnread filter, and the sidebar badge all consume it, so a fix
-// here cannot land in one copy and silently skip the others — which is how an
-// inbox count and a sidebar badge start disagreeing.
+// The three constants below are the SAME predicate over three message aliases
+// (m for the sidebar badge, cm for the inbox's per-thread unread_count column,
+// um for the onlyUnread filter). They are spelled out because the query
+// analyser attributes only constant SQL fragments to their tables; keep the
+// three bodies textually identical apart from the alias, so a fix cannot land
+// in one copy and silently skip the others — which is how an inbox count and a
+// sidebar badge start disagreeing.
 //
 // The comparison is a TUPLE, not two independent tests: clock_timestamp() can
 // stamp two messages with the same created_at, and the message list breaks
 // those ties by id. Comparing the pair keeps a newer timestamp from mixing with
 // an older id and skipping a message out of the unread set. The `?` binds the
 // reader's account id.
-func unreadPredicate(alias string) string {
-	return fmt.Sprintf(
-		`(%[1]s.created_at, %[1]s.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
-		 AND %[1]s.sender_account_id <> ?`,
-		alias,
-	)
-}
+const (
+	unreadPredicateM = `(m.created_at, m.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
+		 AND m.sender_account_id <> ?`
+	unreadPredicateCM = `(cm.created_at, cm.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
+		 AND cm.sender_account_id <> ?`
+	unreadPredicateUM = `(um.created_at, um.id) > (COALESCE(r.last_read_at, '1970-01-01'::timestamptz), COALESCE(r.last_read_message_id, 0))
+		 AND um.sender_account_id <> ?`
+)
 
 // MarkReadUpTo advances the account's cursor in one thread to the supplied
 // composite.
@@ -165,7 +168,7 @@ func (r *StaffMessageReadRepository) UnreadCount(ctx context.Context, accountID 
 			ON p.thread_id = m.thread_id AND p.account_id = ?`, accountID).
 		Join(`LEFT JOIN users.staff_message_reads AS "r"
 			ON r.thread_id = m.thread_id AND r.account_id = ?`, accountID).
-		Where(unreadPredicate("m"), accountID)
+		Where(unreadPredicateM, accountID)
 
 	query = base.WithTenantFilter(ctx, query, "m")
 
@@ -184,12 +187,12 @@ func (r *StaffMessageReadRepository) UnreadCount(ctx context.Context, accountID 
 // the viewer. Threads without any message are skipped — a get-or-create that
 // was never followed by a send must not clutter the inbox.
 func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID int64, onlyUnread bool) ([]*users.StaffInboxThread, error) {
-	unreadSub := fmt.Sprintf(`(
+	const unreadSub = `(
 		SELECT COUNT(*)
 		FROM users.staff_messages cm
 		WHERE cm.thread_id = t.id
-		  AND %s
-	) AS unread_count`, unreadPredicate("cm"))
+		  AND ` + unreadPredicateCM + `
+	) AS unread_count`
 
 	var rows []*users.StaffInboxThread
 	query := base.GetDB(ctx, r.db).NewSelect().
@@ -221,10 +224,10 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 	query = base.WithTenantFilter(ctx, query, "t")
 
 	if onlyUnread {
-		query = query.Where(fmt.Sprintf(`EXISTS (
+		query = query.Where(`EXISTS (
 			SELECT 1 FROM users.staff_messages um
-			WHERE um.thread_id = t.id AND %s
-		)`, unreadPredicate("um")), accountID)
+			WHERE um.thread_id = t.id AND `+unreadPredicateUM+`
+		)`, accountID)
 	}
 
 	if err := query.Scan(ctx); err != nil {

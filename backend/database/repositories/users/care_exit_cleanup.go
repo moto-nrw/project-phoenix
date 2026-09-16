@@ -397,16 +397,8 @@ func (r *CareExitCleanupRepository) LockImpactRowsForCareExit(ctx context.Contex
 			return &modelBase.DatabaseError{Op: "lock source offerings for care exit", Err: err}
 		}
 	}
-	statements := []struct {
-		op  string
-		sql string
-	}{
-		{"lock people for care exit", `SELECT person.id FROM users.persons AS person JOIN users.students AS student ON student.person_id = person.id AND student.tenant_id = person.tenant_id WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`},
-	}
-	for _, statement := range statements {
-		if _, err := db.ExecContext(ctx, statement.sql, tenantID, bun.List(studentIDs)); err != nil {
-			return &modelBase.DatabaseError{Op: statement.op, Err: base.TranslateNotFound(err)}
-		}
+	if _, err := db.ExecContext(ctx, `SELECT person.id FROM users.persons AS person JOIN users.students AS student ON student.person_id = person.id AND student.tenant_id = person.tenant_id WHERE student.tenant_id = ? AND student.id IN (?) FOR UPDATE OF person`, tenantID, bun.List(studentIDs)); err != nil {
+		return &modelBase.DatabaseError{Op: "lock people for care exit", Err: base.TranslateNotFound(err)}
 	}
 	if err := r.presence.LockOpenPresence(ctx, studentIDs); err != nil {
 		return &modelBase.DatabaseError{Op: "lock presence for care exit", Err: err}

@@ -73,6 +73,10 @@ func (e engine) DeleteGroupAssignmentsByTeacher(ctx context.Context, teacherID i
 	return rows, mapError(err)
 }
 
+func (e engine) LockGroupAssignments(ctx context.Context) error {
+	return mapError(e.service.LockGroupAssignments(ctx))
+}
+
 func classAssignmentToPublic(value domain.ClassAssignment) schoolmembership.ClassAssignment {
 	return schoolmembership.ClassAssignment{
 		ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,

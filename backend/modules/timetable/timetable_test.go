@@ -281,6 +281,11 @@ func (e *recordingEngine) DeletePlannedSupervisorsByStaff(context.Context, int64
 	return 0, nil
 }
 
+func (e *recordingEngine) LockPlannedSupervisors(context.Context) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) CapActivePlannedSupervisors(context.Context, int64, string) (int64, error) {
 	e.calls++
 	return 0, nil

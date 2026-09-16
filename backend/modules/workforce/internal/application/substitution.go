@@ -103,6 +103,14 @@ func (s *Service) DeleteGroupSubstitution(ctx context.Context, id int64) error {
 	})
 }
 
+func (s *Service) LockGroupSubstitutions(ctx context.Context) error {
+	return s.run("lock_group_substitutions", func(stats *domain.OperationStats) error {
+		queryStats, err := s.store.LockGroupSubstitutions(ctx)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (s *Service) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID int64, from string) (result int64, err error) {
 	if from == "" {
 		return 0, &domain.InvalidGroupSubstitutionError{Reason: "from is required"}

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -101,6 +102,68 @@ func TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary(t *testin
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, timezone.NewDate(2026, 8, 24).AddDays(5), rows[0].FirstBookinglessDay)
+}
+
+// TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation pins
+// the conflict-update CASE: a task the school confirmed directly keeps its
+// confirmation when a booking expiry lands on the same child, while every other
+// combination takes the incoming values.
+func TestCareWithdrawalCompletionRepository_UpsertPreservesSchoolConfirmation(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	repo := repoUsers.NewCareWithdrawalCompletionRepository(db)
+	actor := testpkg.CreateTestAccount(t, db, "withdrawal-confirmer")
+	gap := timezone.NewDate(2026, 8, 24)
+
+	t.Run("booking expiry does not overwrite a school confirmation", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Behalten", "Bestätigt", "1a")
+		studentID := student.ID
+		confirmed := &userModels.CareWithdrawalCompletion{
+			StudentID: &studentID, FirstBookinglessDay: gap,
+			Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedBy: &actor.ID,
+			WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+		}
+		require.NoError(t, repo.UpsertPending(ctx, confirmed))
+
+		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+			StudentID: &studentID, FirstBookinglessDay: gap.AddDays(3),
+			Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+		}))
+
+		stored, err := repo.FindByID(ctx, confirmed.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+		assert.Equal(t, userModels.CareWithdrawalTriggerDirectSchool, stored.Trigger)
+		assert.Equal(t, "admin", stored.WithdrawalConfirmedRole)
+		require.NotNil(t, stored.WithdrawalConfirmedBy)
+		assert.Equal(t, actor.ID, *stored.WithdrawalConfirmedBy)
+		assert.Equal(t, gap.AddDays(3), stored.FirstBookinglessDay, "the gap itself always follows the incoming row")
+	})
+
+	t.Run("school confirmation replaces an expired booking", func(t *testing.T) {
+		student := testpkg.CreateTestStudent(t, db, "Ersetzt", "Abgelaufen", "1a")
+		studentID := student.ID
+		expired := &userModels.CareWithdrawalCompletion{
+			StudentID: &studentID, FirstBookinglessDay: gap,
+			Trigger: userModels.CareWithdrawalTriggerBookingExpired, WithdrawalConfirmedRole: "system", WithdrawalConfirmedAt: time.Now(),
+		}
+		require.NoError(t, repo.UpsertPending(ctx, expired))
+
+		require.NoError(t, repo.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
+			StudentID: &studentID, FirstBookinglessDay: gap,
+			Trigger: userModels.CareWithdrawalTriggerDirectSchool, WithdrawalConfirmedBy: &actor.ID,
+			WithdrawalConfirmedRole: "admin", WithdrawalConfirmedAt: time.Now(),
+		}))
+
+		stored, err := repo.FindByID(ctx, expired.ID)
+		require.NoError(t, err)
+		require.NotNil(t, stored)
+		assert.Equal(t, userModels.CareWithdrawalTriggerDirectSchool, stored.Trigger)
+		assert.Equal(t, "admin", stored.WithdrawalConfirmedRole)
+		require.NotNil(t, stored.WithdrawalConfirmedBy)
+		assert.Equal(t, actor.ID, *stored.WithdrawalConfirmedBy)
+	})
 }
 
 func TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingCompletionWhenEnrollmentIsOpen(t *testing.T) {
