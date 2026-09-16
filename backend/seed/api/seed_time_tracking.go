@@ -75,6 +75,11 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
+	// Krank-Urlaubstage stay usable until 31.03. of the following year
+	// (#3257); the other arts keep the default and expire on 31.12.
+	if err := seedAbsenceTypeCarryover(rt, sickLeaveTypeID, "03-31"); err != nil {
+		return err
+	}
 	conversionTypeID, err := seedCustomAbsenceType(rt, "Umwandlungstag")
 	if err != nil {
 		return err
@@ -173,6 +178,11 @@ func (seedTimeTrackingHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 			if err := seedCustomAbsenceTypeAllowance(rt, claim.typeID, staffID, todayDate.Year(), claim.days, claim.reason); err != nil {
 				return err
 			}
+		}
+		// A rest from the previous year that nobody used: from April on the
+		// Vorjahr card shows it as expired instead of dropping it (#3257).
+		if err := seedCustomAbsenceTypeAllowance(rt, sickLeaveTypeID, staffID, todayDate.Year()-1, 4, "Krank in den Herbstferien"); err != nil {
+			return err
 		}
 		// Booked by the Leitung without a request: one Krank-Urlaubstag and
 		// one vacation day, both still ahead.
@@ -399,6 +409,19 @@ func seedCustomAbsenceType(rt *Runtime, name string) (int64, error) {
 		return 0, fmt.Errorf("parse absence type id %q: %w", raw, err)
 	}
 	return id, nil
+}
+
+func seedAbsenceTypeCarryover(rt *Runtime, absenceTypeID int64, until string) error {
+	currentAuth := rt.Client.auth
+	defer rt.Client.BindAuth(currentAuth)
+	rt.Client.BindAuth(rt.TenantAuth)
+	if _, err := rt.Client.Put(
+		fmt.Sprintf("/api/absence-types/%d", absenceTypeID),
+		map[string]any{"allowance_enabled": true, "carryover_until": until},
+	); err != nil {
+		return fmt.Errorf("seed absence type carryover: %w", err)
+	}
+	return nil
 }
 
 func seedCustomAbsenceTypeAllowance(rt *Runtime, absenceTypeID, staffID int64, year int, days float64, reason string) error {

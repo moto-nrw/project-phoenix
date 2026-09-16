@@ -1324,21 +1324,26 @@ export const appChapters: readonly GuideChapter[] = [
           "Zeigt je Person, wie viele Urlaubstage, Regenerationstage oder andere Tage noch übrig sind, und trägt Abwesenheiten direkt ein.",
         steps: [
           "Arten anlegen: `Datenverwaltung` -> `Abwesenheitsarten` -> `Abwesenheitsart anlegen`. Name eintragen, zum Beispiel `Regenerationstag`, `Krank-Urlaubstag` oder `Umwandlungstag`. `Tage je Person zählen (Kontingent)` anhaken und speichern. Umbenennen oder ausschalten geht dort über das Menü mit den drei Punkten.",
-          "Kontingent je Person: `Mitarbeiter` öffnen, Person wählen, Reiter `Abwesenheiten`. Die Karte `Kontingente` zeigt für Urlaub und jede Art mit Kontingent `Anspruch`, `Genommen`, `Vorgemerkt` und `Übrig`. Oben lässt sich das Jahr wechseln, zum Beispiel im Dezember für das nächste Jahr.",
+          "Verfall festlegen: bei der Art unter `Rest verfällt` wählen, wie lange ein Rest nutzbar ist. `Am Jahresende (31.12.)` oder bis zu einem Monatsende im Folgejahr, zum Beispiel `Bis 31.03. des Folgejahres` für Krank-Urlaubstage.",
+          "Kontingent je Person: `Mitarbeiter` öffnen, Person wählen, Reiter `Abwesenheiten`. Die Karte `Kontingente` zeigt für Urlaub und jede Art mit Kontingent `Anspruch`, `Genommen`, `Vorgemerkt` und `Übrig`. Oben lässt sich das Jahr wechseln, zum Beispiel im Dezember für das nächste Jahr. Unter jeder Art steht, wann der Rest verfällt, und im neuen Jahr, wie viele Tage aus dem Vorjahr noch nutzbar sind.",
           "Anspruch ändern: an der Art `Anspruch ändern` wählen, mit `+` und `−` die Tage anpassen (halbe Tage mit Komma, z. B. 1,5), eine Begründung eintragen und `Speichern`. Die Änderung steht mit Begründung im Änderungsprotokoll. Beim Start mit moto tragen Sie die Tage ein, die zum Stichtag noch übrig sind.",
           "Beim Urlaub öffnet `Anspruch ändern` die Felder `Jahresanspruch` und `Übertrag aus Vorjahr`. Auch hier ist eine Begründung Pflicht, und die Änderung steht im Änderungsprotokoll.",
           "Eintragen ohne Antrag: im Reiter `Abwesenheiten` `Abwesenheit eintragen` wählen. Zeitraum oder halben Tag wählen, dann die Art: `Urlaub`, eine eigene Art, `Freizeitausgleich`, `Fortbildung` oder `Sonstige`. Neben jeder Art steht, wie viele Tage noch übrig sind. Unten zeigt moto, wie viele Tage danach übrig bleiben. `Eintragen` bucht sofort, es entsteht kein Antrag.",
+          "Tage zwischen Jahresende und Verfallsdatum gehen zuerst vom Rest des Vorjahres ab, erst danach vom neuen Jahr. Vor dem Eintragen zeigt moto, wie viele Tage aus welchem Jahr abgehen und bis wann der Rest nutzbar ist.",
           "Krankheit trägt weiterhin `Krank melden` daneben ein, weil sie Dienst- und Betreuungsplan ändert.",
         ],
         checklist: [
           "Kontingente gehen nicht ins Minus. Reicht der Rest nicht, lässt sich nicht eintragen. Erst den Anspruch erhöhen oder eine andere Art wählen.",
+          "Nach dem Verfallsdatum ist der Rest nicht mehr buchbar. moto löscht ihn nicht, sondern zeigt ihn als verfallen an.",
+          "Bei `Freizeitausgleich` weist moto auf Kontingente hin, die noch offen sind und später verfallen.",
+          "Beim Urlaub gilt der Verfall nicht. Dort tragen Sie den `Übertrag aus Vorjahr` wie bisher selbst ein.",
           "Das gilt auch für Urlaub: Anträge und Genehmigungen über den Resturlaub hinaus lehnt moto ab.",
           "Nur das Stundenkonto darf ins Minus: Freizeitausgleich zieht das Tagessoll ab und fragt vorher nach einer Bestätigung.",
           "Alle anderen Arten schreiben das Tagessoll gut. Die Überstunden bleiben gleich.",
           "Mitarbeitende können ihren Urlaub weiter selbst beantragen. Von der Leitung eingetragene Tage können sie nur ansehen.",
         ],
         screenshot:
-          "Reiter Abwesenheiten mit der Karte Kontingente: Urlaub und eigene Arten mit Anspruch, Genommen, Vorgemerkt und Übrig.",
+          "Reiter Abwesenheiten mit der Karte Kontingente: Urlaub und eigene Arten mit Anspruch, Genommen, Vorgemerkt und Übrig, darunter wann der Rest verfällt.",
         image: "/help/screens/mitarbeiter-kontingente.webp",
       },
       {
