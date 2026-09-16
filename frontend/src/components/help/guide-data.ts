@@ -1223,7 +1223,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Team-Chat",
         icon: MessageSquare,
         summary:
-          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Team-Chat ist an jeder Schule eingeschaltet. Ein Admin kann ihn unter `Einstellungen` -> `Betrieb` -> `Team-Chat für Mitarbeitende` ausschalten. Dann fehlt der Bereich für alle.",
+          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Team-Chat ist standardmäßig eingeschaltet. Ein Admin kann ihn unter `Einstellungen` -> `Betrieb` -> `Team-Chat für Mitarbeitende` ausschalten. Dann fehlt der Bereich für alle.",
         steps: [
           "`Team-Chat` in der Seitenleiste öffnen.",
           "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule. Lehrkräfte sind mit `Lehrkraft` gekennzeichnet; sie lesen und antworten in ihrem Portal „moto schule“ unter `Nachrichten` (siehe `Lehrkraft schreibt Nachrichten`).",
