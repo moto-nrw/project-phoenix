@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 
@@ -160,11 +162,11 @@ type Factory struct {
 	TenantSettings            *config.TenantOperations
 	PayrollStatus             config.PayrollStatusGetter
 	Schedule                  schedule.Service
-	StaffShifts               schedule.StaffShiftService
-	StaffShiftSeries          schedule.StaffShiftSeriesService
-	StaffAssignments          schedule.StaffAssignmentService
-	StaffScheduleOverview     schedule.StaffScheduleOverviewGetter
-	ShiftTypes                schedule.ShiftTypeService
+	StaffShifts               shiftplanning.StaffShiftService
+	StaffShiftSeries          shiftplanning.StaffShiftSeriesService
+	StaffAssignments          shiftplanning.StaffAssignmentService
+	StaffScheduleOverview     shiftplanning.StaffScheduleOverviewGetter
+	ShiftTypes                shiftplanning.ShiftTypeService
 	PlanningTracks            schedule.PlanningTrackService
 	PickupSchedule            schedule.PickupScheduleService
 	PartialAbsence            schedule.PartialAbsenceService
@@ -283,7 +285,7 @@ type Factory struct {
 	// StaffMessaging (OGS-internal colleague chat, #2598)
 	StaffMessaging communication.StaffMessagingRuntime
 	// StaffNotice (Tagesinformationen: interne Hinweise der Leitung, #2180)
-	StaffNotice schedule.StaffNoticeService
+	StaffNotice shiftplanning.StaffNoticeService
 
 	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
 	// Exposed so the API layer can wake a child's guardians (its message-
@@ -901,7 +903,7 @@ func newFactory(
 	// The #1843 sick cascade needs the schedule services, which are built
 	// long after the absence service; the bridge resolves it on every call
 	// and the binding below happens once those services exist.
-	var shiftPlanSyncer schedule.ShiftPlanSyncer
+	var shiftPlanSyncer shiftplanning.ShiftPlanSyncer
 
 	// Initialize work session service (before active service - needed for NFC auto-check-in)
 	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
@@ -954,7 +956,7 @@ func newFactory(
 			FrontendURL: frontendURL,
 			Logger:      activeLogger,
 		}),
-		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() schedule.ShiftPlanSyncer { return shiftPlanSyncer })),
+		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
 	)
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,
@@ -1250,31 +1252,27 @@ func newFactory(
 	})
 
 	// Initialize shift type service (Schichtarten, #1836)
-	shiftTypeService := schedule.NewShiftTypeService(
+	shiftTypeService := shiftplanning.NewShiftTypeService(
 		repos.ShiftType,
 		logger.With("service", "shift_type"),
 	)
 	planningTrackService := schedule.NewPlanningTrackService(repos.PlanningTrack, db)
 
 	// Initialize staff shift service (Dienstplan, #1376 core slice)
-	staffShiftService := schedule.NewStaffShiftService(
+	staffShiftService := shiftplanning.NewStaffShiftService(
 		repos.StaffShift,
 		repos.Staff,
 		shiftTypeService,
 		db,
 		logger.With("service", "staff_shift"),
+		shiftplanning.WithStaffShiftSeriesExceptions(repos.StaffShiftSeriesException),
+		// #1884: shift moves append a shift_moved Änderungsprotokoll entry.
+		shiftplanning.WithStaffShiftDeviationEvents(repos.DeviationEvent),
+		shiftplanning.WithStaffShiftBroadcaster(realtimeHub),
 	)
-	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
-	// #1884: shift moves append a shift_moved Änderungsprotokoll entry.
-	staffShiftService.SetDeviationEventRepo(repos.DeviationEvent)
-	if broadcastAware, ok := staffShiftService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
 
 	// Recurring shift series (Dienstplan-Serien, #1889)
-	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
+	staffShiftSeriesService := shiftplanning.NewStaffShiftSeriesService(
 		repos.StaffShiftSeries,
 		repos.StaffShiftSeriesException,
 		repos.StaffShift,
@@ -1284,23 +1282,19 @@ func newFactory(
 		db,
 		logger.With("service", "staff_shift_series"),
 		staffShiftService,
-		today,
+		shiftplanning.WithStaffShiftSeriesToday(today),
+		shiftplanning.WithStaffShiftSeriesBroadcaster(realtimeHub),
 	)
-	if broadcastAware, ok := staffShiftSeriesService.(interface {
-		SetBroadcaster(realtime.Broadcaster)
-	}); ok {
-		broadcastAware.SetBroadcaster(realtimeHub)
-	}
 	// Self-service Betreuungsplan assignments for a staff member ("Mein Tag",
 	// #1844) — the "Ort/Aufgabe" the Dienstplan shift alone cannot express.
-	staffAssignmentService := schedule.NewStaffAssignmentService(schedule.StaffAssignmentDependencies{
+	staffAssignmentService := shiftplanning.NewStaffAssignmentService(shiftplanning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    repos.InstanceStaff,
 		ActivityInstanceRepo: repos.ActivityInstance,
 		RoomRepo:             repos.Room,
 		ActivityGroupRepo:    repos.ActivityGroup,
 	}, logger.With("service", "staff_assignment"))
 
-	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
+	staffScheduleOverviewService := shiftplanning.NewStaffScheduleOverviewService(shiftplanning.StaffScheduleOverviewDependencies{
 		Shifts:        repos.StaffShift,
 		ShiftWeeks:    repos.StaffShift,
 		Instances:     repos.ActivityInstance,
@@ -1818,7 +1812,7 @@ func newFactory(
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
 		Logger: logger.With("service", "substitution"),
-		Schedule: newScheduleSubstitutionBridge(schedule.NewSubstitutionAdapter(schedule.SubstitutionAdapterDependencies{
+		Schedule: newScheduleSubstitutionBridge(shiftplanning.NewSubstitutionAdapter(shiftplanning.SubstitutionAdapterDependencies{
 			Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 			Staff: repos.Staff, Engine: instanceService, Broadcaster: realtimeHub,
 			Logger: logger.With("service", "schedule-substitution"),
@@ -2652,7 +2646,7 @@ func newFactory(
 		Logger:           logger.With("service", "announcement"),
 	})
 
-	staffNoticeService := schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
+	staffNoticeService := shiftplanning.NewStaffNoticeService(shiftplanning.StaffNoticeServiceConfig{
 		Repo:    repos.StaffNotice,
 		Periods: repos.CalendarPeriod,
 		Names:   newStaffNoticeNameLookup(persons),
@@ -3157,7 +3151,7 @@ func newFactory(
 	// #1843 sick cascade: bound after assembly because the syncer
 	// (services/schedule) needs the schedule services while the absence
 	// service is constructed long before them; the bridge resolves it per call.
-	shiftPlanSyncer = schedule.NewShiftPlanSyncService(
+	shiftPlanSyncer = shiftplanning.NewShiftPlanSyncService(
 		staffShiftService,
 		instanceService,
 		factory.TimetableData,

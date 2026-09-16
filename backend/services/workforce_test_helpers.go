@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -70,7 +70,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	staffAbsenceTypeService := AbsenceTypes(repos.StaffAbsenceType)
 	timeTrackingEvents := TimeTrackingEvents(realtimeHub)
 	today := timezone.CalendarDateClock(optionalClock(clocks))
-	var shiftPlanSyncer schedule.ShiftPlanSyncer
+	var shiftPlanSyncer shiftplanning.ShiftPlanSyncer
 	workSessionService := timetracking.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, NewWorkSessionAudit(repos.WorkSessionEdit), repos.StaffAbsence, repos.GroupSupervisor, repos.ActiveGroup, WorkSessionStaff(repos.Staff), NewWorkSessionSchedules(repos.StaffWorkSchedule), NewWorkSessionTimeModels(repos.WorkTimeModel), PresenceSettings(settingsService), activeLogger, db, RenderTimeTrackingPDF, RenderTimeTrackingWorkbook,
 		timetracking.WithWorkSessionShifts(NewTimeTrackingShifts(repos.StaffShift)),
 		timetracking.WithWorkSessionEvents(timeTrackingEvents),
@@ -99,7 +99,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		timetracking.WithAbsenceLogger(activeLogger),
 		timetracking.WithAbsenceDeletionAudit(NewTimeTrackingDeletionAudit(repos.TimeTrackingDeletion)),
 		timetracking.WithVacationOpenings(repos.StaffVacationOpening),
-		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() schedule.ShiftPlanSyncer { return shiftPlanSyncer })),
+		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
 	)
 
 	staffBalanceAdjustService := timetracking.NewStaffBalanceAdjustmentService(repos.StaffBalanceAdjust, workTimeMonthService, PresenceSettings(settingsService), activeLogger,
@@ -169,11 +169,11 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	shifts := schedule.NewStaffShiftService(repos.StaffShift, repos.Staff, schedule.NewShiftTypeService(repos.ShiftType, logger), db, logger)
-	shifts.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
-	shifts.SetDeviationEventRepo(repos.DeviationEvent)
-	shifts.(interface{ SetBroadcaster(realtime.Broadcaster) }).SetBroadcaster(realtimeHub)
-	shiftPlanSyncer = schedule.NewShiftPlanSyncService(shifts, timetable.Instance, timetable.TimetableData,
+	shifts := shiftplanning.NewStaffShiftService(repos.StaffShift, repos.Staff, shiftplanning.NewShiftTypeService(repos.ShiftType, logger), db, logger,
+		shiftplanning.WithStaffShiftSeriesExceptions(repos.StaffShiftSeriesException),
+		shiftplanning.WithStaffShiftDeviationEvents(repos.DeviationEvent),
+		shiftplanning.WithStaffShiftBroadcaster(realtimeHub))
+	shiftPlanSyncer = shiftplanning.NewShiftPlanSyncService(shifts, timetable.Instance, timetable.TimetableData,
 		repos.StaffShift, repos.InstanceStaff, realtimeHub, db, logger, today)
 	return WorkforceTestModule{Users: usersService, StaffDocuments: staffDocumentService, WorkSession: workSessionService, StaffAbsence: staffAbsenceService, WorkTimeMonth: workTimeMonthService, StaffBalanceAdjust: staffBalanceAdjustService, StaffMonthClose: staffMonthCloseService, StaffOverview: staffOverviewService, TimeTrackingAuditLog: timeTrackingAuditLogService, StaffTimeExport: staffTimeExportService, Settings: settingsService}, nil
 }
