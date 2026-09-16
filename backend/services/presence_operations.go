@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -17,6 +18,7 @@ import (
 type presenceOperations struct {
 	active   active.Service
 	atSchool AtSchoolCounter
+	logger   *slog.Logger
 }
 
 // AtSchoolCounter counts the students who read "Schule" right now (#3260).
@@ -28,8 +30,11 @@ type AtSchoolCounter interface {
 // NewPresenceOperations wires the retained active service behind the
 // presence operations contract. A nil atSchool leaves the dashboard's
 // "Zuhause" figure unsplit.
-func NewPresenceOperations(service active.Service, atSchool AtSchoolCounter) presenceOperations {
-	return presenceOperations{active: service, atSchool: atSchool}
+func NewPresenceOperations(service active.Service, atSchool AtSchoolCounter, logger *slog.Logger) presenceOperations {
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return presenceOperations{active: service, atSchool: atSchool, logger: logger}
 }
 
 func legacyGroup(group studentpresence.LiveGroup) *activeModels.Group {
@@ -362,10 +367,7 @@ func (p presenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		ActiveGroupsSummary: make([]studentpresence.ActiveGroupInfo, 0, len(analytics.ActiveGroupsSummary)),
 		LastUpdated:         analytics.LastUpdated,
 	}
-	result.StudentsAtSchool, result.StudentsHome, err = splitAtSchoolFromHome(ctx, p.atSchool, analytics.StudentsHome, analytics.HomeCandidateIDs)
-	if err != nil {
-		return studentpresence.DashboardAnalytics{}, err
-	}
+	result.StudentsAtSchool, result.StudentsHome = splitAtSchoolOrKeepHome(ctx, p.atSchool, analytics.StudentsHome, analytics.HomeCandidateIDs, p.logger)
 	for _, item := range analytics.RecentActivity {
 		result.RecentActivity = append(result.RecentActivity, studentpresence.RecentActivity{
 			Type: item.Type, GroupName: item.GroupName, RoomName: item.RoomName, Count: item.Count, Timestamp: item.Timestamp,
@@ -382,6 +384,15 @@ func (p presenceOperations) DashboardAnalytics(ctx context.Context) (studentpres
 		})
 	}
 	return result, nil
+}
+
+func splitAtSchoolOrKeepHome(ctx context.Context, counter AtSchoolCounter, home int, candidates []int64, logger *slog.Logger) (int, int) {
+	atSchool, remainingHome, err := splitAtSchoolFromHome(ctx, counter, home, candidates)
+	if err == nil {
+		return atSchool, remainingHome
+	}
+	logger.Warn("failed to split at-school students from dashboard home count", "error", err)
+	return 0, home
 }
 
 // splitAtSchoolFromHome moves the "Zuhause" candidates still in class into

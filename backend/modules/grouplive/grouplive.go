@@ -28,6 +28,13 @@ const studentPhotoStoredURLPrefix = "/uploads/student-photos/"
 type Query interface {
 	LiveGroup(ctx context.Context, requestedGroupID int64) (*Projection, error)
 	ListGroups(ctx context.Context) ([]Group, error)
+	AtSchoolCounter
+}
+
+// AtSchoolCounter is the tenant-scoped day-plan projection the presence
+// dashboard uses to split children still in class from the home figure.
+type AtSchoolCounter interface {
+	CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error)
 }
 
 // Dependencies are the consumer-owned ports the projection reads through.
@@ -216,6 +223,68 @@ func (s *service) ListGroups(ctx context.Context) ([]Group, error) {
 	return groups, err
 }
 
+// CountAtSchoolToday applies the same planning and pre-check-in rule as the
+// live-group projection, without loading group membership or caller access.
+// Its callers already provide the dashboard's tenant-scoped home candidates.
+func (s *service) CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	if err := s.validateAtSchoolCounterDependencies(); err != nil {
+		return 0, err
+	}
+	ctx, err := s.deps.Settings.Prepare(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve projection settings: %w", err)
+	}
+	today := s.deps.Calendar.Today()
+	presence, err := s.deps.Presence.Snapshot(ctx, studentIDs, today)
+	if err != nil {
+		return 0, fmt.Errorf("load student locations: %w", err)
+	}
+	arrivals, err := s.deps.Planning.Arrivals(ctx, studentIDs, today)
+	if err != nil {
+		return 0, fmt.Errorf("load arrival times: %w", err)
+	}
+	pickups, err := s.deps.Planning.Pickups(ctx, studentIDs, today)
+	if err != nil {
+		return 0, fmt.Errorf("load pickup times: %w", err)
+	}
+	timetable, err := s.deps.Planning.TimetablePlannedStudentIDs(ctx, studentIDs, today)
+	if err != nil {
+		return 0, fmt.Errorf("load timetable planning: %w", err)
+	}
+	careDayEnd, err := s.deps.Settings.CareDayEnd(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("resolve care day end: %w", err)
+	}
+
+	count := 0
+	now := s.deps.Calendar.Now()
+	for _, studentID := range studentIDs {
+		attendance, _ := presence.Attendance(studentID)
+		inputs := DayInputs{Present: attendance.Present, HasTimetable: timetable[studentID]}
+		if arrival, ok := arrivals[studentID]; ok {
+			inputs.Arrival = &arrival
+		}
+		var pickupTime *time.Time
+		if pickup, ok := pickups[studentID]; ok {
+			inputs.Pickup = &pickup
+			pickupTime = pickup.PickupTime
+		}
+		if s.deps.Planning.AtSchoolBeforeCheckIn(AtSchoolInputs{
+			Decision:   s.deps.Planning.DecideDay(inputs),
+			CheckedIn:  attendance.CheckInTime != nil,
+			PickupTime: pickupTime,
+			CareDayEnd: careDayEnd,
+			Now:        now,
+		}) {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (s *service) validateDependencies() error {
 	if err := s.validateGroupDependencies(); err != nil {
 		return err
@@ -230,6 +299,13 @@ func (s *service) validateDependencies() error {
 func (s *service) validateGroupDependencies() error {
 	if s.deps.Access == nil || s.deps.Groups == nil {
 		return errors.New("OGS group live service is not fully configured")
+	}
+	return nil
+}
+
+func (s *service) validateAtSchoolCounterDependencies() error {
+	if s.deps.Presence == nil || s.deps.Planning == nil || s.deps.Settings == nil || s.deps.Calendar == nil {
+		return errors.New("at-school counter is not fully configured")
 	}
 	return nil
 }

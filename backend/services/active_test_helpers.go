@@ -58,7 +58,7 @@ func (m ActiveTestModule) AttendanceStaff() attendanceRouteStaff {
 // PresenceOperations binds the retained active service behind the presence
 // operations contract the active routes consume.
 func (m ActiveTestModule) PresenceOperations() presenceOperations {
-	return NewPresenceOperations(m.Active, nil)
+	return NewPresenceOperations(m.Active, nil, slog.Default())
 }
 
 func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (ActiveTestModule, error) {

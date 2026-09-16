@@ -258,6 +258,34 @@ func newService(f *fakes) Query {
 	})
 }
 
+func TestCountAtSchoolToday(t *testing.T) {
+	t.Parallel()
+	pickupPassed := fakeNow.Add(-time.Minute)
+	f := &fakes{
+		snapshot: func(context.Context, []int64, Date) (PresenceSnapshot, error) {
+			return presenceFake{attendances: map[int64]Attendance{
+				2: {CheckInTime: &fakeNow},
+			}}, nil
+		},
+		pickups: func(context.Context, []int64, Date) (map[int64]Pickup, error) {
+			return map[int64]Pickup{3: {PickupTime: &pickupPassed}}, nil
+		},
+		decide: func(DayInputs) DayDecision {
+			return DayDecision{ComesToday: true, Reason: DayReasonPickupSchedule}
+		},
+		atSchool: func(inputs AtSchoolInputs) bool {
+			return inputs.Decision.ComesToday && !inputs.CheckedIn &&
+				(inputs.PickupTime == nil || inputs.Now.Before(*inputs.PickupTime))
+		},
+	}
+
+	count, err := newService(f).CountAtSchoolToday(context.Background(), []int64{1, 2, 3})
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	assert.Equal(t, []int64{1, 2, 3}, f.snapshotIDs)
+}
+
 func fullCaller(context.Context) (Caller, error) {
 	return Caller{CanReadGroups: true, CanReviewExcusedRequests: true}, nil
 }

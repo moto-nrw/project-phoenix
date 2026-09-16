@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,4 +69,19 @@ func TestSplitAtSchoolFromHome(t *testing.T) {
 		_, _, err := splitAtSchoolFromHome(context.Background(), &atSchoolCounterFake{err: boom}, 1, []int64{1})
 		require.ErrorIs(t, err, boom)
 	})
+}
+
+func TestSplitAtSchoolOrKeepHome(t *testing.T) {
+	t.Parallel()
+
+	atSchool, home := splitAtSchoolOrKeepHome(
+		context.Background(),
+		&atSchoolCounterFake{err: errors.New("planning down")},
+		4,
+		[]int64{1},
+		slog.Default(),
+	)
+
+	assert.Equal(t, 0, atSchool)
+	assert.Equal(t, 4, home)
 }
