@@ -41,14 +41,15 @@ func NewCommand(deps Dependencies) openroommove.Command {
 
 // MoveToOpenRoom records the move. Order inside the unit:
 //
-//  1. lock the room row (Facilities) and require its release, so a release
-//     removed concurrently rejects the move instead of racing it;
+//  1. load the room (Facilities) without locking it and require its release,
+//     so an unreleased room is rejected before any session or visit is touched;
 //  2. resolve the room's system activity (Timetable & Activities),
 //     provisioning it on first use under a tenant-wide lock;
 //  3. find or create the room's session for that activity (Student Presence);
-//  4. move the children into it (Student Presence), which locks the children,
-//     checks the caller's source-side rights and the room capacity, and ends
-//     each current visit before recording the new one.
+//  4. move the children into it (Student Presence), which locks the children
+//     and the involved sessions, then the room capacity row, matching check-in;
+//  5. lock the room row and re-check the release so a concurrent un-release
+//     still rejects the move, without taking that lock before the sessions.
 //
 // A failure anywhere returns an error and the transaction owner rolls back.
 func (c *command) MoveToOpenRoom(ctx context.Context, move openroommove.Move) (openroommove.Result, error) {
@@ -73,12 +74,9 @@ func (c *command) move(ctx context.Context, move openroommove.Move, result *open
 		return openroommove.ErrInvalidMove
 	}
 	return c.deps.Runtime.WithinTenant(ctx, func(txCtx context.Context) error {
-		room, err := c.deps.Rooms.FindRoomForUpdate(txCtx, move.RoomID)
+		room, err := c.loadRoom(txCtx, move.RoomID)
 		if err != nil {
-			if errors.Is(err, facilities.ErrRoomNotFound) {
-				return openroommove.ErrRoomNotFound
-			}
-			return fmt.Errorf("open room move: lock room %d: %w", move.RoomID, err)
+			return err
 		}
 		if !room.IsOpenRoom {
 			return openroommove.ErrRoomNotReleased
@@ -96,8 +94,17 @@ func (c *command) move(ctx context.Context, move openroommove.Move, result *open
 		if err != nil {
 			return err
 		}
+
+		locked, err := c.lockRoom(txCtx, move.RoomID)
+		if err != nil {
+			return err
+		}
+		if !locked.IsOpenRoom {
+			return openroommove.ErrRoomNotReleased
+		}
+
 		*result = openroommove.Result{
-			RoomID:        room.ID,
+			RoomID:        locked.ID,
 			RoomSessionID: sessionID,
 			Moved:         outcome.Moved,
 			Unchanged:     outcome.Unchanged,
@@ -105,6 +112,26 @@ func (c *command) move(ctx context.Context, move openroommove.Move, result *open
 		}
 		return nil
 	})
+}
+
+func (c *command) loadRoom(ctx context.Context, id int64) (facilities.Room, error) {
+	room, err := c.deps.Rooms.FindRoom(ctx, id)
+	return c.readRoom(id, room, err, "load")
+}
+
+func (c *command) lockRoom(ctx context.Context, id int64) (facilities.Room, error) {
+	room, err := c.deps.Rooms.FindRoomForUpdate(ctx, id)
+	return c.readRoom(id, room, err, "lock")
+}
+
+func (c *command) readRoom(id int64, room facilities.Room, err error, op string) (facilities.Room, error) {
+	if err != nil {
+		if errors.Is(err, facilities.ErrRoomNotFound) {
+			return facilities.Room{}, openroommove.ErrRoomNotFound
+		}
+		return facilities.Room{}, fmt.Errorf("open room move: %s room %d: %w", op, id, err)
+	}
+	return room, nil
 }
 
 // activitySpec describes the system activity a room session runs under.

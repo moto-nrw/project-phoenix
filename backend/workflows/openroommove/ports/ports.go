@@ -12,9 +12,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 )
 
-// Rooms is the Facilities surface the move uses: the room row stays locked
-// until the move commits, so its release cannot change underneath it.
+// Rooms is the Facilities surface the move uses. The unlocked read supplies
+// the room's identity and a fail-fast release check. The update lock is taken
+// after student and session locks so a concurrent check-in cannot deadlock
+// against this move; the locked re-read is what makes the release check final.
 type Rooms interface {
+	FindRoom(context.Context, int64) (facilities.Room, error)
 	FindRoomForUpdate(context.Context, int64) (facilities.Room, error)
 }
 

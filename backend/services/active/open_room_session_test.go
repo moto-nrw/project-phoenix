@@ -120,6 +120,7 @@ func TestKioskStartJoinsAPhoneCreatedRoomStay(t *testing.T) {
 
 	yard := testpkg.CreateTestRoom(t, db, "Schulhof Phone zuerst")
 	play := testpkg.CreateTestActivityGroup(t, db, "Schulhof Freispiel Phone zuerst")
+	markActivitySystem(t, db, play.ID)
 	stay, err := presence.EnsureOpenRoomSession(ctx, yard.ID, play.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stay.DeviceID)
@@ -131,6 +132,33 @@ func TestKioskStartJoinsAPhoneCreatedRoomStay(t *testing.T) {
 	assert.Equal(t, stay.ID, started.ID)
 	require.NotNil(t, started.DeviceID)
 	assert.Equal(t, device.ID, *started.DeviceID)
+}
+
+func TestKioskStartConflictsWithAPlannerSessionInTheSameRoom(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := setupActiveService(t, db)
+	ctx := testpkg.Ctx(t)
+
+	gym := testpkg.CreateTestRoom(t, db, "Turnhalle Planer")
+	football := testpkg.CreateTestActivityGroup(t, db, "Fußball Planer")
+	planner := testpkg.CreateTestActiveGroup(t, db, football.ID, gym.ID)
+	assert.Nil(t, planner.DeviceID, "planner and app starts are device-less")
+
+	staff := testpkg.CreateTestStaff(t, db, "Kiosk", "Fußball")
+	device := testpkg.CreateTestDevice(t, db, "turnhalle-kiosk-planer")
+	_, err := svc.StartActivitySessionWithSupervisors(ctx, football.ID, device.ID, []int64{staff.ID}, &gym.ID)
+	require.ErrorIs(t, err, activeSvc.ErrSessionConflict)
+
+	var still activeModels.Group
+	require.NoError(t, db.NewSelect().
+		Model(&still).
+		ModelTableExpr(`active.groups AS "group"`).
+		Where("id = ?", planner.ID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Scan(ctx))
+	assert.Nil(t, still.EndTime, "the planner session must keep running")
+	assert.Nil(t, still.DeviceID, "the kiosk must not attach to the planner session")
 }
 
 func TestOpenRoomMoveNeedsNoSupervisionAtTheDestination(t *testing.T) {

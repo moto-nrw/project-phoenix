@@ -503,6 +503,28 @@ func openSessionForActivity(groups []*active.Group, activityID int64) *active.Gr
 	return deviceLess
 }
 
+// joinableOpenSession is the session a kiosk start may attach to: a running
+// kiosk copy of the activity, or an independent room stay. Device-less
+// planner and app sessions of the same activity are not joinable.
+func joinableOpenSession(groups []*active.Group, activityID int64, activityIsSystem bool) *active.Group {
+	existing := openSessionForActivity(groups, activityID)
+	if existing == nil || existing.DeviceID != nil || existing.IsIndependentRoomSession(activityIsSystem) {
+		return existing
+	}
+	return nil
+}
+
+func (s *service) systemActivity(ctx context.Context, activityID int64) (bool, error) {
+	if s.ActivityGroupRepo == nil {
+		return false, nil
+	}
+	activity, err := s.ActivityGroupRepo.FindByID(ctx, activityID)
+	if err != nil {
+		return false, err
+	}
+	return activity != nil && activity.IsSystem, nil
+}
+
 func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error) {
 	group, err := s.GroupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)
 	if err != nil {

@@ -113,9 +113,10 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		}
 
 		// Check for conflicts inside the transaction with the lock held.
-		// A device-less stay of this activity in the destination room is the
-		// phone-created Schulhof session: the kiosk start joins it instead of
-		// conflicting. Any other running copy of the activity still conflicts.
+		// A kiosk start may join an independent room stay of this activity
+		// (phone-created Schulhof / offener Raum). A device-less planner or
+		// app session of the same activity is a real conflict: attaching the
+		// kiosk would let ending the kiosk close that offering.
 		existingDeviceSession, err := s.GroupRepo.FindActiveByDeviceID(txCtx, deviceID)
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
@@ -132,11 +133,16 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
 		}
 
+		activityIsSystem, err := s.systemActivity(txCtx, activityID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
 		groups, err := s.GroupRepo.FindActiveByRoomID(txCtx, finalRoomID)
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
-		joinable := openSessionForActivity(groups, activityID)
+		joinable := joinableOpenSession(groups, activityID, activityIsSystem)
 		if joinable != nil && joinable.DeviceID != nil && *joinable.DeviceID != deviceID {
 			return &ActiveError{Op: operation, Err: ErrSessionConflict}
 		}
@@ -145,7 +151,7 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
-		if activityRunningElsewhere(existingActivitySessions, finalRoomID, deviceID) {
+		if activityRunningElsewhere(existingActivitySessions, finalRoomID, deviceID, activityIsSystem) {
 			return &ActiveError{Op: operation, Err: ErrSessionConflict}
 		}
 
@@ -277,14 +283,19 @@ func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int
 }
 
 // createSessionBase creates a new active group session and transfers visits from recent sessions.
-// An open session of this activity in the room is reused so a kiosk start joins
-// a phone-created Schulhof stay instead of opening a second group.
+// A kiosk start reuses an independent room stay of this activity so the phone
+// move and the Schulhof kiosk share one session. Device-less planner/app
+// sessions of the same activity are not joinable.
 func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, roomID int64) (*active.Group, int, error) {
 	groups, err := s.GroupRepo.FindActiveByRoomID(ctx, roomID)
 	if err != nil {
 		return nil, 0, err
 	}
-	if existing := openSessionForActivity(groups, activityID); existing != nil {
+	activityIsSystem, err := s.systemActivity(ctx, activityID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if existing := joinableOpenSession(groups, activityID, activityIsSystem); existing != nil {
 		if existing.DeviceID != nil && *existing.DeviceID != deviceID {
 			return nil, 0, ErrSessionConflict
 		}
@@ -332,15 +343,16 @@ func (s *service) finishSessionStart(ctx context.Context, group *active.Group, d
 	return group, int(transferredCount), nil
 }
 
-func activityRunningElsewhere(sessions []*active.Group, roomID, deviceID int64) bool {
+func activityRunningElsewhere(sessions []*active.Group, roomID, deviceID int64, activityIsSystem bool) bool {
 	for _, session := range sessions {
 		if session == nil {
 			continue
 		}
-		sameRoomStay := session.RoomID == roomID && (session.DeviceID == nil || *session.DeviceID == deviceID)
-		if !sameRoomStay {
-			return true
+		sameDevice := session.DeviceID != nil && *session.DeviceID == deviceID
+		if session.RoomID == roomID && (sameDevice || session.IsIndependentRoomSession(activityIsSystem)) {
+			continue
 		}
+		return true
 	}
 	return false
 }

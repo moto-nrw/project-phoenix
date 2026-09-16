@@ -18,11 +18,32 @@ import (
 // are covered by the integration tests with a real database.
 
 type fakeRooms struct {
-	room facilities.Room
-	err  error
+	room     facilities.Room
+	err      error
+	lockRoom *facilities.Room
+	lockErr  error
+	order    *[]string
+}
+
+func (f *fakeRooms) note(step string) {
+	if f.order != nil {
+		*f.order = append(*f.order, step)
+	}
+}
+
+func (f *fakeRooms) FindRoom(context.Context, int64) (facilities.Room, error) {
+	f.note("FindRoom")
+	return f.room, f.err
 }
 
 func (f *fakeRooms) FindRoomForUpdate(context.Context, int64) (facilities.Room, error) {
+	f.note("FindRoomForUpdate")
+	if f.lockErr != nil {
+		return facilities.Room{}, f.lockErr
+	}
+	if f.lockRoom != nil {
+		return *f.lockRoom, nil
+	}
 	return f.room, f.err
 }
 
@@ -65,9 +86,13 @@ func (f *fakeActivities) CreateCategory(_ context.Context, input timetable.Creat
 type fakeRoomSessions struct {
 	roomID, activityID int64
 	calls              int
+	order              *[]string
 }
 
 func (f *fakeRoomSessions) EnsureOpenRoomSession(_ context.Context, roomID, activityID int64) (int64, error) {
+	if f.order != nil {
+		*f.order = append(*f.order, "EnsureOpenRoomSession")
+	}
 	f.roomID, f.activityID = roomID, activityID
 	f.calls++
 	return 555, nil
@@ -80,9 +105,13 @@ type fakeMoves struct {
 	calls      int
 	outcome    ports.MoveOutcome
 	err        error
+	order      *[]string
 }
 
 func (f *fakeMoves) MoveIntoRoomSession(_ context.Context, sessionID int64, studentIDs []int64, actor openroommove.Actor) (ports.MoveOutcome, error) {
+	if f.order != nil {
+		*f.order = append(*f.order, "MoveIntoRoomSession")
+	}
 	f.sessionID, f.studentIDs, f.actor = sessionID, studentIDs, actor
 	f.calls++
 	return f.outcome, f.err
@@ -95,6 +124,7 @@ type harness struct {
 	moves      *fakeMoves
 	lockKeys   []string
 	txCalls    int
+	order      []string
 	observed   []ports.Observation
 	command    openroommove.Command
 }
@@ -106,6 +136,9 @@ func newHarness(room facilities.Room) *harness {
 		sessions:   &fakeRoomSessions{},
 		moves:      &fakeMoves{},
 	}
+	h.rooms.order = &h.order
+	h.sessions.order = &h.order
+	h.moves.order = &h.order
 	h.command = NewCommand(Dependencies{
 		Rooms:        h.rooms,
 		Activities:   h.activities,
@@ -179,6 +212,9 @@ func TestMoveToOpenRoomRequiresTheRelease(t *testing.T) {
 	if h.activities.listCalls != 0 || h.sessions.calls != 0 || h.moves.calls != 0 {
 		t.Fatalf("an unreleased room reached activities=%d sessions=%d moves=%d",
 			h.activities.listCalls, h.sessions.calls, h.moves.calls)
+	}
+	if len(h.order) != 1 || h.order[0] != "FindRoom" {
+		t.Fatalf("order = %v, want only the unlocked room read", h.order)
 	}
 }
 
@@ -349,4 +385,53 @@ func TestMoveToOpenRoomReturnsThePresenceFailureUnchanged(t *testing.T) {
 	if len(h.observed) != 1 || !errors.Is(h.observed[0].Err, presenceErr) {
 		t.Fatalf("observations = %+v, want the failure observed", h.observed)
 	}
+	if got, want := h.order, []string{"FindRoom", "EnsureOpenRoomSession", "MoveIntoRoomSession"}; !equalStrings(got, want) {
+		t.Fatalf("order = %v, want %v (the room is locked only after a successful move)", got, want)
+	}
+}
+
+func TestMoveToOpenRoomLocksTheRoomAfterStudentsAndSessions(t *testing.T) {
+	t.Parallel()
+	h := newHarness(releasedRoom(7, "Turnhalle"))
+	h.activities.listResults = [][]timetable.Group{{sharedActivity(23)}}
+	h.moves.outcome = ports.MoveOutcome{Moved: []int64{1}}
+
+	if _, err := h.command.MoveToOpenRoom(context.Background(), move(7, 1)); err != nil {
+		t.Fatalf("MoveToOpenRoom: %v", err)
+	}
+
+	want := []string{"FindRoom", "EnsureOpenRoomSession", "MoveIntoRoomSession", "FindRoomForUpdate"}
+	if !equalStrings(h.order, want) {
+		t.Fatalf("order = %v, want %v so the room row is locked after the presence write", h.order, want)
+	}
+}
+
+func TestMoveToOpenRoomReChecksTheReleaseAfterTheMove(t *testing.T) {
+	t.Parallel()
+	h := newHarness(releasedRoom(7, "Turnhalle"))
+	h.activities.listResults = [][]timetable.Group{{sharedActivity(23)}}
+	unreleased := releasedRoom(7, "Turnhalle")
+	unreleased.IsOpenRoom = false
+	h.rooms.lockRoom = &unreleased
+
+	_, err := h.command.MoveToOpenRoom(context.Background(), move(7, 1))
+
+	if !errors.Is(err, openroommove.ErrRoomNotReleased) {
+		t.Fatalf("error = %v, want ErrRoomNotReleased after the locked re-check", err)
+	}
+	if h.sessions.calls != 1 || h.moves.calls != 1 {
+		t.Fatalf("sessions=%d moves=%d, want both to run before the locked re-check", h.sessions.calls, h.moves.calls)
+	}
+}
+
+func equalStrings(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }
