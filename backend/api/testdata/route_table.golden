@@ -617,6 +617,7 @@ POST /api/active/supervisors/{id}/end
 POST /api/active/tracking-indicators
 POST /api/active/visits/
 POST /api/active/visits/move-to-group
+POST /api/active/visits/move-to-room
 POST /api/active/visits/move-to-transit
 POST /api/active/visits/student/{studentId}/checkin
 POST /api/active/visits/student/{studentId}/checkout

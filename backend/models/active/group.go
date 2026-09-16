@@ -83,6 +83,13 @@ func (g *Group) HasTemplate() bool {
 	return g.GroupID != nil
 }
 
+// IsIndependentRoomSession reports a device-less stay under a system
+// activity: the room's own session (#3066), not occupancy of an activity
+// running there. activityIsSystem is the linked template's is_system flag.
+func (g *Group) IsIndependentRoomSession(activityIsSystem bool) bool {
+	return g.DeviceID == nil && g.HasTemplate() && activityIsSystem
+}
+
 // TemplateID returns the parent template's ID and true when the session is
 // template-backed, or (0, false) when it is spontaneous. Callers should treat
 // this as the only sanctioned way to dereference GroupID — direct pointer

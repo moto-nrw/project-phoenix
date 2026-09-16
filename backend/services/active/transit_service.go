@@ -201,14 +201,23 @@ func (s *service) assignTransitStudentsToActiveGroup(ctx context.Context, studen
 // revalidates the caller's source/target access against the locked move state
 // before any current visit is ended or recreated.
 func (s *service) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error) {
-	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, &auth)
+	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, &auth, false)
 }
 
-func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
+// MoveStudentsToOpenRoomSessionAuthorized moves children into the room session
+// of a released room (#3066). Everything the ordinary move locks and validates
+// still applies, including the caller's rights over each child's current
+// place; only the destination no longer has to be supervised, because a
+// released room is a shared destination rather than someone's supervision.
+func (s *service) MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error) {
+	return s.moveStudentsToActiveGroup(ctx, studentIDs, roomSessionID, &auth, true)
+}
+
+func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, openRoomTarget bool) (*StudentMoveResult, error) {
 	var result *StudentMoveResult
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		var moveErr error
-		result, moveErr = s.moveStudentsToActiveGroupLocked(txCtx, studentIDs, activeGroupID, auth)
+		result, moveErr = s.moveStudentsToActiveGroupLocked(txCtx, studentIDs, activeGroupID, auth, openRoomTarget)
 		return moveErr
 	})
 	if err != nil {
@@ -217,7 +226,7 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	return result, nil
 }
 
-func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization) (*StudentMoveResult, error) {
+func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentIDs []int64, activeGroupID int64, auth *StudentMoveAuthorization, openRoomTarget bool) (*StudentMoveResult, error) {
 	const op = "MoveStudentsToActiveGroup"
 
 	if activeGroupID <= 0 || len(studentIDs) == 0 {
@@ -298,7 +307,7 @@ func (s *service) moveStudentsToActiveGroupLocked(ctx context.Context, studentID
 			}
 			return result, nil
 		}
-		if err := s.authorizeStudentMove(ctx, *auth, targetGroup, moveIDs, openAttendance, currentVisits, op); err != nil {
+		if err := s.authorizeStudentMove(ctx, *auth, targetGroup, moveIDs, openAttendance, currentVisits, op, openRoomTarget); err != nil {
 			return nil, err
 		}
 		uniqueIDs = moveIDs
@@ -650,6 +659,7 @@ func (s *service) authorizeStudentMove(
 	openAttendance map[int64]studentpresence.Attendance,
 	currentVisits map[int64]*studentpresence.Visit,
 	op string,
+	openRoomTarget bool,
 ) error {
 	allowed, supervisedGroups, err := s.moveTargetAccess(ctx, auth, targetGroup.ID, op)
 	if err != nil {
@@ -673,6 +683,13 @@ func (s *service) authorizeStudentMove(
 		if _, ok := supervisedGroups[currentVisit.ActiveGroupID]; !ok {
 			return studentMoveForbidden(op)
 		}
+	}
+	if openRoomTarget {
+		// A released room is a shared destination (#3066): taking supervision
+		// there is not a prerequisite, and its room session legitimately runs
+		// beside activity sessions, so the push rule's "one supervised session"
+		// check does not apply. Every source-side right above still does.
+		return nil
 	}
 	return s.ensureMoveTargetIsSupervised(ctx, targetGroup, op)
 }

@@ -193,17 +193,63 @@ func (r *GroupRepository) FindActiveByDeviceIDWithNames(ctx context.Context, dev
 }
 
 // CheckRoomConflict reports another open group occupying the room.
+// Independent room stays (device-less sessions of a system activity) share
+// the room with activities by design and do not count as occupancy (#3066).
 func (r *GroupRepository) CheckRoomConflict(ctx context.Context, roomID int64, excludeGroupID int64) (bool, *active.Group, error) {
 	groups, err := r.records.QueryGroupRecords(ctx, GroupRecordFilter{RoomID: &roomID, OpenOnly: true})
 	if err != nil {
 		return false, nil, err
 	}
+	occupants := make([]*active.Group, 0, len(groups))
+	activityIDs := make([]int64, 0, len(groups))
+	seenActivity := make(map[int64]struct{}, len(groups))
 	for _, group := range groups {
-		if excludeGroupID <= 0 || group.ID != excludeGroupID {
-			return true, group, nil
+		if excludeGroupID > 0 && group.ID == excludeGroupID {
+			continue
 		}
+		occupants = append(occupants, group)
+		if group.DeviceID != nil {
+			continue
+		}
+		templateID, ok := group.TemplateID()
+		if !ok {
+			continue
+		}
+		if _, seen := seenActivity[templateID]; seen {
+			continue
+		}
+		seenActivity[templateID] = struct{}{}
+		activityIDs = append(activityIDs, templateID)
+	}
+	systemByActivity, err := r.systemActivitiesByID(ctx, activityIDs)
+	if err != nil {
+		return false, nil, err
+	}
+	for _, group := range occupants {
+		templateID, ok := group.TemplateID()
+		if ok && group.IsIndependentRoomSession(systemByActivity[templateID]) {
+			continue
+		}
+		return true, group, nil
 	}
 	return false, nil, nil
+}
+
+func (r *GroupRepository) systemActivitiesByID(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	result := make(map[int64]bool, len(ids))
+	if len(ids) == 0 {
+		return result, nil
+	}
+	activities, err := r.queryActivityGroupsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	for _, activity := range activities {
+		if activity != nil {
+			result[activity.ID] = activity.IsSystem
+		}
+	}
+	return result, nil
 }
 
 // UpdateLastActivity updates the last activity timestamp for a session

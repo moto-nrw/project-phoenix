@@ -20,11 +20,6 @@ import (
 
 // Activity Session Management with Conflict Detection
 
-// determineSessionRoomID determines the room for a session with conflict checking
-func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
-	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail, true)
-}
-
 // broadcastActivityStartEvent broadcasts SSE event for activity start
 func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active.Group, supervisorIDs []int64) {
 	if s.Broadcaster == nil || group == nil {
@@ -117,21 +112,59 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 			return err
 		}
 
-		// Check for conflicts inside the transaction with the lock held
-		conflictInfo, err := s.CheckActivityConflict(txCtx, activityID, deviceID)
+		// Check for conflicts inside the transaction with the lock held.
+		// A kiosk start may join an independent room stay of this activity
+		// (phone-created Schulhof / offener Raum). A device-less planner or
+		// app session of the same activity is a real conflict: attaching the
+		// kiosk would let ending the kiosk close that offering.
+		existingDeviceSession, err := s.GroupRepo.FindActiveByDeviceID(txCtx, deviceID)
 		if err != nil {
 			return &ActiveError{Op: operation, Err: err}
 		}
-		if conflictInfo.HasConflict {
+		if existingDeviceSession != nil {
 			return &ActiveError{Op: operation, Err: ErrSessionConflict}
 		}
 
-		finalRoomID, err := s.determineSessionRoomID(txCtx, activityID, roomID)
+		finalRoomID, err := s.determineRoomIDWithStrategy(txCtx, activityID, roomID, RoomConflictIgnore, true)
 		if err != nil {
 			return err
 		}
 		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
 			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
+		}
+
+		activityIsSystem, err := s.systemActivity(txCtx, activityID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+
+		groups, err := s.GroupRepo.FindActiveByRoomID(txCtx, finalRoomID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		joinable := joinableOpenSession(groups, activityID, activityIsSystem)
+		if joinable != nil && joinable.DeviceID != nil && *joinable.DeviceID != deviceID {
+			return &ActiveError{Op: operation, Err: ErrSessionConflict}
+		}
+
+		existingActivitySessions, err := s.GroupRepo.FindActiveByGroupID(txCtx, activityID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if activityRunningElsewhere(existingActivitySessions, finalRoomID, deviceID, activityIsSystem) {
+			return &ActiveError{Op: operation, Err: ErrSessionConflict}
+		}
+
+		excludeID := int64(0)
+		if joinable != nil {
+			excludeID = joinable.ID
+		}
+		hasConflict, _, err := s.GroupRepo.CheckRoomConflict(txCtx, finalRoomID, excludeID)
+		if err != nil {
+			return &ActiveError{Op: operation, Err: err}
+		}
+		if hasConflict {
+			return &ActiveError{Op: operation, Err: ErrRoomConflict}
 		}
 
 		_, err = createSession(txCtx, finalRoomID)
@@ -249,8 +282,32 @@ func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int
 	return nil
 }
 
-// createSessionBase creates a new active group session and transfers visits from recent sessions
+// createSessionBase creates a new active group session and transfers visits from recent sessions.
+// A kiosk start reuses an independent room stay of this activity so the phone
+// move and the Schulhof kiosk share one session. Device-less planner/app
+// sessions of the same activity are not joinable.
 func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, roomID int64) (*active.Group, int, error) {
+	groups, err := s.GroupRepo.FindActiveByRoomID(ctx, roomID)
+	if err != nil {
+		return nil, 0, err
+	}
+	activityIsSystem, err := s.systemActivity(ctx, activityID)
+	if err != nil {
+		return nil, 0, err
+	}
+	if existing := joinableOpenSession(groups, activityID, activityIsSystem); existing != nil {
+		if existing.DeviceID != nil && *existing.DeviceID != deviceID {
+			return nil, 0, ErrSessionConflict
+		}
+		if existing.DeviceID == nil && deviceID > 0 {
+			existing.DeviceID = &deviceID
+			if err := s.GroupRepo.Update(ctx, existing); err != nil {
+				return nil, 0, err
+			}
+		}
+		return s.finishSessionStart(ctx, existing, deviceID, roomID)
+	}
+
 	now := time.Now()
 	newGroup := &active.Group{
 		StartTime:      now,
@@ -265,13 +322,15 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	if err := s.GroupRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
+	return s.finishSessionStart(ctx, newGroup, deviceID, roomID)
+}
 
-	// Auto-update device location to the room where the session is starting
+func (s *service) finishSessionStart(ctx context.Context, group *active.Group, deviceID, roomID int64) (*active.Group, int, error) {
 	if deviceID > 0 {
 		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
 
-	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, newGroup.ID, deviceID)
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, group.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -281,7 +340,44 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		}
 	}
 
-	return newGroup, int(transferredCount), nil
+	return group, int(transferredCount), nil
+}
+
+func activityRunningElsewhere(sessions []*active.Group, roomID, deviceID int64, activityIsSystem bool) bool {
+	for _, session := range sessions {
+		if session == nil {
+			continue
+		}
+		sameDevice := session.DeviceID != nil && *session.DeviceID == deviceID
+		if session.RoomID == roomID && (sameDevice || session.IsIndependentRoomSession(activityIsSystem)) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// activityConflictDestination is the room the kiosk preflight compares
+// against: the activity's planned room when set, otherwise the single room
+// the running copies already occupy. A split across rooms stays a conflict.
+func activityConflictDestination(sessions []*active.Group, plannedRoomID int64) int64 {
+	if plannedRoomID > 0 {
+		return plannedRoomID
+	}
+	var roomID int64
+	for _, session := range sessions {
+		if session == nil || session.RoomID <= 0 {
+			continue
+		}
+		if roomID == 0 {
+			roomID = session.RoomID
+			continue
+		}
+		if session.RoomID != roomID {
+			return 0
+		}
+	}
+	return roomID
 }
 
 // updateDeviceLocation updates the device's room_id to track its last-used location.
@@ -953,7 +1049,10 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 	return s.SupervisorRepo.Create(ctx, supervisor)
 }
 
-// CheckActivityConflict checks for conflicts before starting an activity session
+// CheckActivityConflict reports whether a kiosk start of activityID would
+// conflict. An independent room stay of that activity in the destination room
+// is joinable, matching StartActivitySessionWithSupervisors, so the preflight
+// does not push the tablet into a force-start that would end the stay.
 func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
 	// Check if device is already running another session
 	existingDeviceSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
@@ -972,33 +1071,40 @@ func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceI
 		}, nil
 	}
 
-	// Check if activity is already active on a different device
 	existingActivitySessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
 
-	if len(existingActivitySessions) > 0 {
-		// Activity is already active on another device
-		existingSession := existingActivitySessions[0]
-		var conflictDeviceStr *string
-		if existingSession.DeviceID != nil {
-			deviceIDStr := fmt.Sprintf("%d", *existingSession.DeviceID)
-			conflictDeviceStr = &deviceIDStr
-		}
-		return &ActivityConflictInfo{
-			HasConflict:       true,
-			ConflictingGroup:  existingSession,
-			ConflictMessage:   fmt.Sprintf("Activity is already active on device %s", getDeviceIDString(existingSession.DeviceID)),
-			ConflictingDevice: conflictDeviceStr,
-			CanOverride:       true, // Administrative override is always possible
-		}, nil
+	activityIsSystem, err := s.systemActivity(ctx, activityID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+	plannedRoomID, err := s.getPlannedRoomID(ctx, activityID)
+	if err != nil {
+		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
+	}
+	destinationRoomID := activityConflictDestination(existingActivitySessions, plannedRoomID)
+	if !activityRunningElsewhere(existingActivitySessions, destinationRoomID, deviceID, activityIsSystem) {
+		return &ActivityConflictInfo{HasConflict: false, CanOverride: true}, nil
 	}
 
-	// No conflicts
+	existingSession := existingActivitySessions[0]
+	var conflictDeviceStr *string
+	if existingSession != nil && existingSession.DeviceID != nil {
+		deviceIDStr := fmt.Sprintf("%d", *existingSession.DeviceID)
+		conflictDeviceStr = &deviceIDStr
+	}
+	var devicePtr *int64
+	if existingSession != nil {
+		devicePtr = existingSession.DeviceID
+	}
 	return &ActivityConflictInfo{
-		HasConflict: false,
-		CanOverride: true,
+		HasConflict:       true,
+		ConflictingGroup:  existingSession,
+		ConflictMessage:   fmt.Sprintf("Activity is already active on device %s", getDeviceIDString(devicePtr)),
+		ConflictingDevice: conflictDeviceStr,
+		CanOverride:       true, // Administrative override is always possible
 	}, nil
 }
 

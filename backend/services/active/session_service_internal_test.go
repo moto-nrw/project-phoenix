@@ -914,6 +914,73 @@ func TestCreateSessionBase_Branches(t *testing.T) {
 	})
 }
 
+func TestOpenSessionForActivityJoinsOnlyIndependentDeviceLessStays(t *testing.T) {
+	t.Parallel()
+
+	activityID := int64(10)
+	otherID := int64(11)
+	deviceID := int64(20)
+	kiosk := &activeModels.Group{GroupID: &activityID, DeviceID: &deviceID, RoomID: 1}
+	independent := &activeModels.Group{GroupID: &activityID, RoomID: 1}
+	planner := &activeModels.Group{GroupID: &activityID, RoomID: 1}
+	other := &activeModels.Group{GroupID: &otherID, RoomID: 1}
+
+	t.Run("device-owned session of the activity wins", func(t *testing.T) {
+		got := joinableOpenSession([]*activeModels.Group{independent, kiosk}, activityID, true)
+		assert.Equal(t, kiosk, got)
+	})
+
+	t.Run("independent room stay is joinable", func(t *testing.T) {
+		got := joinableOpenSession([]*activeModels.Group{independent}, activityID, true)
+		assert.Equal(t, independent, got)
+	})
+
+	t.Run("planner session of a regular activity is not joinable", func(t *testing.T) {
+		got := joinableOpenSession([]*activeModels.Group{planner}, activityID, false)
+		assert.Nil(t, got)
+	})
+
+	t.Run("other activities are ignored", func(t *testing.T) {
+		got := joinableOpenSession([]*activeModels.Group{other, independent}, activityID, true)
+		assert.Equal(t, independent, got)
+	})
+}
+
+func TestActivityRunningElsewhereTreatsPlannerSessionsAsConflicts(t *testing.T) {
+	t.Parallel()
+
+	activityID := int64(10)
+	deviceID := int64(20)
+	otherDevice := int64(21)
+	sameDevice := &activeModels.Group{GroupID: &activityID, DeviceID: &deviceID, RoomID: 1}
+	independent := &activeModels.Group{GroupID: &activityID, RoomID: 1}
+	planner := &activeModels.Group{GroupID: &activityID, RoomID: 1}
+	elsewhere := &activeModels.Group{GroupID: &activityID, DeviceID: &otherDevice, RoomID: 2}
+	otherDeviceSameRoom := &activeModels.Group{GroupID: &activityID, DeviceID: &otherDevice, RoomID: 1}
+
+	assert.False(t, activityRunningElsewhere([]*activeModels.Group{sameDevice}, 1, deviceID, false))
+	assert.False(t, activityRunningElsewhere([]*activeModels.Group{independent}, 1, deviceID, true))
+	assert.True(t, activityRunningElsewhere([]*activeModels.Group{planner}, 1, deviceID, false),
+		"a device-less planner session in the same room must conflict")
+	assert.True(t, activityRunningElsewhere([]*activeModels.Group{elsewhere}, 1, deviceID, false))
+	assert.True(t, activityRunningElsewhere([]*activeModels.Group{otherDeviceSameRoom}, 1, deviceID, false))
+}
+
+func TestActivityConflictDestination(t *testing.T) {
+	t.Parallel()
+
+	activityID := int64(10)
+	inGym := &activeModels.Group{GroupID: &activityID, RoomID: 1}
+	inYard := &activeModels.Group{GroupID: &activityID, RoomID: 2}
+
+	assert.Equal(t, int64(9), activityConflictDestination([]*activeModels.Group{inGym}, 9),
+		"a planned room is the kiosk preflight destination")
+	assert.Equal(t, int64(1), activityConflictDestination([]*activeModels.Group{inGym}, 0),
+		"a single running copy supplies the destination when none is planned")
+	assert.Zero(t, activityConflictDestination([]*activeModels.Group{inGym, inYard}, 0),
+		"copies in different rooms stay a conflict")
+}
+
 func TestMarkRollbackOnRoomCapacity(t *testing.T) {
 	t.Parallel()
 

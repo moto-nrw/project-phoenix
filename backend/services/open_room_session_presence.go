@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -51,21 +52,28 @@ func (s openRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, id
 			activityIDs = append(activityIDs, *row.ActivityGroupID)
 		}
 	}
-	names := make(map[int64]string, len(activityIDs))
+	activities := make(map[int64]timetable.Group, len(activityIDs))
 	if len(activityIDs) > 0 {
 		groups, err := s.activities.ListGroups(ctx, timetable.GroupFilter{IDs: activityIDs})
 		if err != nil {
 			return nil, err
 		}
 		for _, group := range groups {
-			names[group.ID] = group.Name
+			activities[group.ID] = group
 		}
 	}
 	result := make([]supervisiondashboard.RunningSession, 0, len(rows))
 	for _, row := range rows {
 		session := supervisiondashboard.RunningSession{ActiveGroupID: row.ActiveGroupID, RoomID: row.RoomID, StartTime: row.StartTime, SupervisorStaffIDs: row.SupervisorStaffIDs}
 		if row.ActivityGroupID != nil {
-			session.ActivityName = names[*row.ActivityGroupID]
+			activity := activities[*row.ActivityGroupID]
+			session.ActivityName = activity.Name
+			// Independent stays are device-less system sessions (#3066). A
+			// kiosk-owned Schulhof Freispiel is a real supervision, not one.
+			session.IndependentStays = (&activeModels.Group{
+				GroupID:  row.ActivityGroupID,
+				DeviceID: row.DeviceID,
+			}).IsIndependentRoomSession(activity.IsSystem)
 		}
 		result = append(result, session)
 	}

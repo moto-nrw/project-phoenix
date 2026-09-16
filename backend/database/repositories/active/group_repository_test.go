@@ -844,6 +844,51 @@ func TestActiveGroupRepository_CheckRoomConflict(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, hasConflict)
 	})
+
+	t.Run("independent room stay is not occupancy", func(t *testing.T) {
+		roomActivity := testpkg.CreateTestActivityGroup(t, db, "OpenRoomConflict")
+		markActivitySystem(t, db, roomActivity.ID)
+		room := testpkg.CreateTestRoom(t, db, "OpenRoomConflictRoom")
+		now := time.Now()
+		stay := &active.Group{
+			StartTime:    now,
+			LastActivity: now,
+			GroupID:      ptrtest.Ptr(roomActivity.ID),
+			RoomID:       room.ID,
+		}
+		require.NoError(t, repo.Create(ctx, stay))
+
+		hasConflict, conflicting, err := repo.CheckRoomConflict(ctx, room.ID, 0)
+		require.NoError(t, err)
+		assert.False(t, hasConflict, "a device-less system activity must not occupy the room")
+		assert.Nil(t, conflicting)
+
+		football := testpkg.CreateTestActivityGroup(t, db, "FootballConflict")
+		footballSession := &active.Group{
+			StartTime:    now,
+			LastActivity: now,
+			GroupID:      ptrtest.Ptr(football.ID),
+			RoomID:       room.ID,
+		}
+		require.NoError(t, repo.Create(ctx, footballSession))
+
+		hasConflict, conflicting, err = repo.CheckRoomConflict(ctx, room.ID, 0)
+		require.NoError(t, err)
+		assert.True(t, hasConflict, "a regular activity still occupies the room")
+		require.NotNil(t, conflicting)
+		assert.Equal(t, footballSession.ID, conflicting.ID)
+	})
+}
+
+func markActivitySystem(t *testing.T, db *testpkg.DB, activityID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("activities.groups").
+		Set("is_system = TRUE").
+		Where("id = ?", activityID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
 }
 
 // ============================================================================

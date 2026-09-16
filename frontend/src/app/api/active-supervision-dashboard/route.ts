@@ -61,8 +61,13 @@ interface WireOpenRoom {
   name: string;
   is_user_supervising: boolean;
   active_group_ids: string[];
+  has_occupying_session?: boolean;
   student_count: number;
-  students: Array<WireVisit & { activity_name?: string }>;
+  // independent: the child stays in the released room without taking part
+  // in an activity (#3066).
+  students: Array<
+    WireVisit & { activity_name?: string; independent?: boolean }
+  >;
 }
 
 interface WireActiveSession {
@@ -269,8 +274,11 @@ interface ActiveSupervisionDashboardResponse {
     name: string;
     isUserSupervising: boolean;
     activeGroupIds: string[];
+    hasOccupyingSession: boolean;
     studentCount: number;
-    students: Array<SupervisionVisit & { activityName?: string }>;
+    students: Array<
+      SupervisionVisit & { activityName?: string; independent: boolean }
+    >;
   }>;
   schulhofStatus: {
     exists: boolean;
@@ -403,10 +411,12 @@ function mapDashboard(wire: WireDashboard): ActiveSupervisionDashboardResponse {
       name: room.name,
       isUserSupervising: room.is_user_supervising,
       activeGroupIds: room.active_group_ids ?? [],
+      hasOccupyingSession: room.has_occupying_session === true,
       studentCount: room.student_count,
       students: (room.students ?? []).map((student) => ({
         ...toSupervisionVisit(student),
         activityName: student.activity_name,
+        independent: student.independent === true,
       })),
     })),
     schulhofStatus: wire.schulhof_status
