@@ -260,6 +260,33 @@ func (rs *Resource) CountAtSchoolToday(ctx context.Context, studentIDs []int64) 
 	return count, nil
 }
 
+// enrichCurrentLocationWithDayPlanning resolves the same status and day-plan
+// facts as the list and detail responses before the direct location endpoint
+// returns its compact projection.
+func (rs *Resource) enrichCurrentLocationWithDayPlanning(ctx context.Context, response *StudentResponse) error {
+	if response == nil {
+		return nil
+	}
+	now := rs.Now()
+	responses := []StudentResponse{*response}
+	if err := rs.applyStatusDaysForDate(ctx, responses, now); err != nil {
+		return err
+	}
+	attendances := map[int64]*activeService.AttendanceStatus{}
+	if response.HasFullAccess {
+		attendance, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, response.ID)
+		if err != nil {
+			return err
+		}
+		attendances[response.ID] = attendance
+	}
+	if _, err := rs.enrichWithDayPlanning(ctx, responses, timezone.DateFromTime(now), true, attendances); err != nil {
+		return err
+	}
+	*response = responses[0]
+	return nil
+}
+
 // applyAtSchoolLocation turns "Abwesend" into "Schule" for every full-access
 // child the day plan expects who has not checked in yet (#3260). It runs after
 // applyDayPlanning because the rule reads the plan it just resolved; the

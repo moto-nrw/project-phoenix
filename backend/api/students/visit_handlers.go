@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -52,26 +51,10 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	now := rs.Now()
-	single := []StudentResponse{response}
-	if err := rs.applyStatusDaysForDate(r.Context(), single, now); err != nil {
+	if err := rs.enrichCurrentLocationWithDayPlanning(r.Context(), &response); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	attendances := map[int64]*activeService.AttendanceStatus{}
-	if hasFullAccess {
-		attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
-		if err != nil {
-			renderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		attendances[student.ID] = attendanceStatus
-	}
-	if _, err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, attendances); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	response = single[0]
 
 	// Create location response structure
 	locationResponse := struct {
