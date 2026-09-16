@@ -1995,18 +1995,34 @@ describe("staff-api", () => {
 
     it("throws when saving vacation quota fails", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
-      mockFetch.mockResolvedValueOnce({
-        ok: false,
-        statusText: "Conflict",
-      } as Response);
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Internal Server Error",
+          text: () => Promise.resolve(""),
+        } as Response)
+        .mockResolvedValueOnce({
+          ok: false,
+          statusText: "Conflict",
+          text: () =>
+            Promise.resolve(
+              JSON.stringify({
+                error: "vacation quota exceeded: 2026: remaining -2",
+                code: "vacation_quota_below_used",
+              }),
+            ),
+        } as Response);
+      const payload = { year: 2026, entitled_days: 30, carryover_days: 1 };
 
       await expect(
-        staffAbsenceService.setVacationQuota("1", {
-          year: 2026,
-          entitled_days: 30,
-          carryover_days: 1,
-        }),
-      ).rejects.toThrow("Failed to save quota: Conflict");
+        staffAbsenceService.setVacationQuota("1", payload),
+      ).rejects.toThrow("Der Urlaubsanspruch konnte nicht gespeichert werden.");
+      // #3256: a claim below the used days is explained, not echoed.
+      await expect(
+        staffAbsenceService.setVacationQuota("1", payload),
+      ).rejects.toThrow(
+        "Der Anspruch ist kleiner als die schon genommenen und beantragten Tage.",
+      );
     });
 
     it("approves and denies absences with decision notes", async () => {
@@ -2053,6 +2069,24 @@ describe("staff-api", () => {
       );
       await expect(staffAbsenceService.deny(8, "")).rejects.toThrow(
         "Missing reason",
+      );
+    });
+
+    it("explains an approval beyond the Resturlaub (#3256)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: "vacation quota exceeded: 2026: remaining 1, needed 3",
+              code: "vacation_quota_exceeded",
+            }),
+          ),
+      } as Response);
+
+      await expect(staffAbsenceService.approve(7)).rejects.toThrow(
+        "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch oder lehnen Sie den Antrag ab.",
       );
     });
 
@@ -2188,6 +2222,41 @@ describe("staff-api", () => {
         }),
       ).rejects.toThrow("overlapping absence");
     });
+
+    it.each([
+      [
+        { code: "vacation_quota_exceeded", error: "vacation quota exceeded" },
+        "Dafür reicht der Resturlaub nicht. Erhöhen Sie zuerst den Urlaubsanspruch.",
+      ],
+      [
+        {
+          code: "absence_allowance_exceeded",
+          error: "staff absence type allowance exceeded",
+        },
+        "Für diese Art sind nicht mehr genug Tage übrig. Erhöhen Sie zuerst den Anspruch.",
+      ],
+      [
+        { error: "dates overlap with an existing absence" },
+        "An diesen Tagen ist schon eine Abwesenheit eingetragen.",
+      ],
+    ])(
+      "explains a refused booking in German (#3256): %o",
+      async (payload, message) => {
+        const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+        mockFetch.mockResolvedValueOnce({
+          ok: false,
+          text: () => Promise.resolve(JSON.stringify(payload)),
+        } as Response);
+
+        await expect(
+          staffAbsenceService.createAbsence("1", {
+            absence_type: "vacation",
+            date_start: "2026-07-14",
+            date_end: "2026-07-14",
+          }),
+        ).rejects.toThrow(message);
+      },
+    );
 
     it("loads the comp_time Saldo-Vorschau (#2873)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;

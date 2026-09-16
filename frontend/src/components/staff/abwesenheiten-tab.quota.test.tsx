@@ -63,7 +63,7 @@ function quota(
   };
 }
 
-const EDIT_BUTTON = { name: "Urlaubsanspruch bearbeiten" };
+const EDIT_BUTTON = { name: "Anspruch ändern: Urlaub" };
 
 async function openQuotaEditor() {
   fireEvent.click(await screen.findByRole("button", EDIT_BUTTON));
@@ -74,8 +74,8 @@ async function openQuotaEditor() {
 }
 
 // Der Urlaubsanspruch wird am Objekt bearbeitet (BAUARTEN-SPEC Bauart 2 Regeln
-// 3 bis 5, #3119): der Stift an der Kennzahl schaltet den Abschnitt in den
-// Bearbeiten-Zustand, „Speichern“ steht unten in `EditActions`, Fehler stehen
+// 3 bis 5, #3119): „Anspruch ändern“ an der Urlaubskarte schaltet sie in den
+// Bearbeiten-Zustand (#3256), „Speichern“ steht unten in `EditActions`, Fehler stehen
 // im Alert oben und am Feld. Es gibt kein Modal mehr.
 describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
   beforeEach(() => {
@@ -99,14 +99,14 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
       />,
     );
 
-    expect(await screen.findByText("Resturlaub")).toBeInTheDocument();
+    expect(await screen.findByText("Übrig")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 
     const fields = await openQuotaEditor();
-    // Im Bearbeiten-Zustand weichen die Kacheln dem Formular, der Stift ist
-    // damit der einzige Einstieg und im Formular nicht mehr da.
+    // Im Bearbeiten-Zustand weichen die Zahlen der Karte dem Formular, der
+    // Einstieg ist damit im Formular nicht mehr da.
     expect(screen.queryByRole("button", EDIT_BUTTON)).not.toBeInTheDocument();
-    expect(screen.queryByText("Resturlaub")).not.toBeInTheDocument();
+    expect(screen.queryByText("Übrig")).not.toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(fields.entitled).toHaveValue(30);
     expect(fields.carryover).toHaveValue(2);
@@ -125,7 +125,7 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
     expect(stable.toast.success).toHaveBeenCalledWith(
       "Urlaubsanspruch gespeichert.",
     );
-    // Zurück in der Anzeige mit neu geladenen Kacheln.
+    // Zurück in der Anzeige mit neu geladenen Zahlen.
     expect(await screen.findByRole("button", EDIT_BUTTON)).toBeInTheDocument();
     expect(mocks.getVacationQuota).toHaveBeenCalledTimes(2);
   });
@@ -199,8 +199,8 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
       screen.queryByLabelText("Jahresanspruch (Tage)"),
     ).not.toBeInTheDocument();
     expect(mocks.setVacationQuota).not.toHaveBeenCalled();
-    // Die Kacheln zeigen weiter den gespeicherten Stand (30 + 2).
-    expect(screen.getByText("30 + 2 Übertrag")).toBeInTheDocument();
+    // Die Karte zeigt weiter den gespeicherten Stand (30 + 2).
+    expect(screen.getByText("30 + 2 aus dem Vorjahr")).toBeInTheDocument();
 
     const reopened = await openQuotaEditor();
     expect(reopened.entitled).toHaveValue(30);
@@ -216,7 +216,7 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
       />,
     );
 
-    expect(await screen.findByText("Resturlaub")).toBeInTheDocument();
+    expect(await screen.findByText("Übrig")).toBeInTheDocument();
     expect(screen.queryByRole("button", EDIT_BUTTON)).not.toBeInTheDocument();
   });
 });

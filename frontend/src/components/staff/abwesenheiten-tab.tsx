@@ -10,8 +10,8 @@ import {
 import { useSWRConfig } from "swr";
 import {
   CalendarClock,
+  CalendarPlus,
   Check,
-  Clock3,
   Pencil,
   Thermometer,
   Trash2,
@@ -26,11 +26,9 @@ import {
   type SickReportStaff,
 } from "~/components/staff/sick-report-modal";
 import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
-import { CustomAllowanceAbsenceModal } from "~/components/staff/custom-allowance-modals";
-import {
-  AllowanceValue,
-  EditCustomAllowanceModal,
-} from "~/components/staff/custom-allowance-editor";
+import { AbsenceBookingModal } from "~/components/staff/absence-booking-modal";
+import { CustomAllowanceEditForm } from "~/components/staff/custom-allowance-editor";
+import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
 import {
   ABSENCE_TYPE_HEX,
   ABSENCE_TYPE_LABEL,
@@ -45,7 +43,6 @@ import {
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -60,7 +57,7 @@ import {
   SkeletonRegion,
 } from "~/components/ui/page-skeletons";
 import { SectionCard } from "~/components/ui/section-card";
-import { StatCard, type StatCardTone } from "~/components/ui/stat-card";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { Textarea } from "~/components/ui/textarea";
@@ -200,31 +197,30 @@ export function AbwesenheitenTab({
 }: {
   readonly staffId: string;
   readonly canEdit: boolean;
-  // Der Urlaubsanspruch hängt an einer eigenen Berechtigung: PUT
+  // Der Anspruch hängt an einer eigenen Berechtigung: PUT
   // /api/staff/{id}/vacation/quota verlangt time_tracking:manage, nicht die
   // Antragsentscheidung (vacation:approve darf nur lesen, #2906).
   readonly canEditQuota: boolean;
   readonly canManageSickReports: boolean;
-  // Passed in from the staff detail page so the "Krank melden" modal has the
-  // person's name. Optional so the tab still renders (without the action)
-  // where the staff object is not available (#1843).
+  // Passed in from the staff detail page so the booking and sick-report
+  // dialogs have the person's name. Optional so the tab still renders
+  // (without those actions) where the staff object is not available (#1843).
   readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
-  const year = Number.parseInt(berlinTodayISO().slice(0, 4), 10);
-  const [allowanceYear, setAllowanceYear] = useState(year);
+  const currentYear = Number.parseInt(berlinTodayISO().slice(0, 4), 10);
+  // Ein Jahr für alle Kontingente und die Listen darunter (#3256): im
+  // Dezember lässt sich so der Anspruch fürs nächste Jahr eintragen.
+  const [year, setYear] = useState(currentYear);
   const [quota, setQuota] = useState<StaffVacationQuotaSummary | null>(null);
+  const [absenceTypes, setAbsenceTypes] = useState<AbsenceType[]>([]);
   const [customAllowances, setCustomAllowances] = useState<
     { type: AbsenceType; summary: AbsenceTypeAllowanceSummary }[]
   >([]);
-  const [bookingAllowances, setBookingAllowances] = useState<
-    { type: AbsenceType; summary: AbsenceTypeAllowanceSummary }[]
-  >([]);
-  const [allowanceModal, setAllowanceModal] = useState<{
-    type: AbsenceType;
-    summary: AbsenceTypeAllowanceSummary;
-  } | null>(null);
-  const [customAbsenceModal, setCustomAbsenceModal] = useState(false);
+  // Welche Kontingent-Karte gerade bearbeitet wird: "vacation" oder die ID
+  // der eigenen Art (BAUARTEN-SPEC Bauart 2 Regel 3, #3119).
+  const [editing, setEditing] = useState<string | null>(null);
+  const [bookingOpen, setBookingOpen] = useState(false);
   const [absences, setAbsences] = useState<StaffAbsenceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
@@ -232,9 +228,6 @@ export function AbwesenheitenTab({
   const [questionModal, setQuestionModal] = useState<StaffAbsenceRow | null>(
     null,
   );
-  // Der Urlaubsanspruch wird am Objekt bearbeitet (BAUARTEN-SPEC Bauart 2
-  // Regel 3, #3119): die Kennzahl-Kacheln weichen dem Bearbeiten-Zustand.
-  const [quotaEditing, setQuotaEditing] = useState(false);
   const [openingModal, setOpeningModal] = useState(false);
   // Vacation takeover deletion (#2132) runs through the shared
   // ConfirmDeleteModal at tab level instead of nesting a dialog inside the
@@ -246,9 +239,6 @@ export function AbwesenheitenTab({
   // refetches the page data, and a conditional `{staff && <Modal/>}` render
   // would then unmount the modal mid-success-state (#1843).
   const [sickStaff, setSickStaff] = useState<SickReportStaff | null>(null);
-  const [managedAbsenceType, setManagedAbsenceType] = useState<
-    "sick" | "comp_time"
-  >("sick");
   const [deleteTarget, setDeleteTarget] = useState<StaffAbsenceRow | null>(
     null,
   );
@@ -274,7 +264,7 @@ export function AbwesenheitenTab({
         setLoading(true);
       }
       try {
-        const [q, abs, absenceTypes] = await Promise.all([
+        const [q, abs, types] = await Promise.all([
           staffAbsenceService.getVacationQuota(staffId, year),
           staffAbsenceService.getAbsences(
             staffId,
@@ -283,34 +273,19 @@ export function AbwesenheitenTab({
           ),
           staff ? absenceTypeService.getAbsenceTypes() : Promise.resolve([]),
         ]);
-        const allowanceTypes = absenceTypes.filter(
-          (type) => type.allowanceEnabled,
-        );
-        const allowanceSummaries = await Promise.all(
+        const allowanceTypes = types.filter((type) => type.allowanceEnabled);
+        const summaries = await Promise.all(
           allowanceTypes.map((type) =>
-            absenceTypeService.getAllowance(type.id, staffId, allowanceYear),
+            absenceTypeService.getAllowance(type.id, staffId, year),
           ),
         );
-        const bookingSummaries =
-          allowanceYear === year
-            ? allowanceSummaries
-            : await Promise.all(
-                allowanceTypes.map((type) =>
-                  absenceTypeService.getAllowance(type.id, staffId, year),
-                ),
-              );
         setQuota(q);
         setAbsences(abs);
+        setAbsenceTypes(types);
         setCustomAllowances(
           allowanceTypes.map((type, index) => ({
             type,
-            summary: allowanceSummaries[index]!,
-          })),
-        );
-        setBookingAllowances(
-          allowanceTypes.map((type, index) => ({
-            type,
-            summary: bookingSummaries[index]!,
+            summary: summaries[index]!,
           })),
         );
         // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
@@ -334,11 +309,12 @@ export function AbwesenheitenTab({
         setLoading(false);
       }
     },
-    [allowanceYear, staff, staffId, year, swrMutate, toast],
+    [staff, staffId, year, swrMutate, toast],
   );
 
   useEffect(() => {
-    reload();
+    // Ein Jahreswechsel lädt still nach: der Reiter bleibt stehen.
+    void reload({ silent: true });
   }, [reload]);
 
   const pending = useMemo(() => pendingAbsences(absences), [absences]);
@@ -366,7 +342,7 @@ export function AbwesenheitenTab({
     setDeleteError("");
     try {
       await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
-      toast.success("Krankmeldung gelöscht.");
+      toast.success(`${absenceRowActionNoun(deleteTarget)} gelöscht.`);
       setDeleteTarget(null);
       await Promise.all([refreshPlanCaches(), reload()]);
     } catch (err) {
@@ -378,204 +354,155 @@ export function AbwesenheitenTab({
     }
   };
 
+  const afterBooking = async () => {
+    await Promise.all([refreshPlanCaches(), reload({ silent: true })]);
+  };
+
   const content = (
     <div className="space-y-5">
       <SectionCard
-        title="Urlaub und Abwesenheiten"
+        title="Kontingente"
         headingLevel={3}
-        description="Urlaubskonto, gemeldete Krankheitstage und Freizeitausgleich dieser Person."
+        description="Wie viele Tage diese Person je Art hat und noch übrig sind."
         actions={
-          <>
+          canManageSickReports && staff ? (
             <div className="flex flex-wrap items-center gap-2">
-              {canManageSickReports && staff && (
-                <>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => {
-                      setManagedAbsenceType("sick");
-                      setSickStaff(staff);
-                    }}
-                  >
-                    <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
-                    Krank melden
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => {
-                      setManagedAbsenceType("comp_time");
-                      setSickStaff(staff);
-                    }}
-                  >
-                    <Clock3 className="mr-1.5 h-4 w-4" aria-hidden />
-                    Freizeitausgleich eintragen
-                  </Button>
-                </>
-              )}
-              {canManageSickReports &&
-              staff &&
-              bookingAllowances.some((entry) => entry.type.isActive) ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => setCustomAbsenceModal(true)}
-                >
-                  <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
-                  Weitere Abwesenheit
-                </Button>
-              ) : null}
-              {canManageSickReports && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="md"
-                  onClick={() => setOpeningModal(true)}
-                >
-                  <CalendarClock className="mr-1.5 h-4 w-4" aria-hidden />
-                  Urlaubs-Übernahme
-                </Button>
-              )}
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                onClick={() => setBookingOpen(true)}
+              >
+                <CalendarPlus className="mr-1.5 h-4 w-4" aria-hidden />
+                Abwesenheit eintragen
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setSickStaff(staff)}
+              >
+                <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+                Krank melden
+              </Button>
             </div>
-            <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
-              Jahr {year}
-            </span>
-          </>
+          ) : undefined
         }
         bodyClassName="mt-4 space-y-4"
       >
-        {quotaEditing && quota ? (
-          <QuotaEditForm
-            staffId={staffId}
-            quota={quota}
-            year={year}
-            onCancel={() => setQuotaEditing(false)}
-            onSaved={async () => {
-              setQuotaEditing(false);
-              await reload();
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <SegmentedControl
+            ariaLabel="Kalenderjahr"
+            items={[currentYear - 1, currentYear, currentYear + 1].map(
+              (value) => ({ value: String(value), label: String(value) }),
+            )}
+            value={String(year)}
+            onChange={(value) => {
+              setEditing(null);
+              setYear(Number(value));
             }}
           />
-        ) : (
-          <>
-            {/* Quota KPI cards */}
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <QuotaTile
-                label="Resturlaub"
-                value={`${quota?.remaining_days ?? 0}`}
-                hint="Tage"
-                tone="primary"
-              />
-              <QuotaTile
-                label="Anspruch"
-                value={`${(quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)}`}
-                hint={
-                  (quota?.carryover_days ?? 0) > 0
-                    ? `${quota?.entitled_days ?? 0} + ${quota?.carryover_days ?? 0} Übertrag`
-                    : "Tage"
-                }
-                tone="primary"
-                onEdit={
-                  canEditQuota && quota
-                    ? () => setQuotaEditing(true)
-                    : undefined
-                }
-              />
-              <QuotaTile
-                label="Genommen"
-                value={`${quota?.taken_days ?? 0}`}
-                hint="genehmigt"
-                tone="success"
-              />
-              <QuotaTile
-                label="Beantragt"
-                value={`${quota?.reserved_days ?? 0}`}
-                hint="offene Anträge"
-                tone={(quota?.reserved_days ?? 0) > 0 ? "amber" : "primary"}
-              />
-            </div>
-
-            {quota?.opening && (
-              <VacationOpeningSummary opening={quota.opening} />
-            )}
-          </>
-        )}
+          {canEditQuota ? (
+            <CatalogManageLink
+              href="/database/absence-types"
+              label="Abwesenheitsarten verwalten"
+            />
+          ) : null}
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <AllowanceCard
+            title="Urlaub"
+            year={year}
+            entitled={
+              (quota?.entitled_days ?? 0) + (quota?.carryover_days ?? 0)
+            }
+            entitledHint={
+              (quota?.carryover_days ?? 0) > 0
+                ? `${formatNumber(quota?.entitled_days ?? 0)} + ${formatNumber(quota?.carryover_days ?? 0)} aus dem Vorjahr`
+                : undefined
+            }
+            taken={(quota?.taken_days ?? 0) + (quota?.taken_before_days ?? 0)}
+            takenHint={
+              (quota?.taken_before_days ?? 0) > 0
+                ? `davon ${formatDayCount(quota?.taken_before_days ?? 0)} vor moto`
+                : undefined
+            }
+            reserved={quota?.reserved_days ?? 0}
+            remaining={quota?.remaining_days ?? 0}
+            onEdit={
+              canEditQuota && quota ? () => setEditing("vacation") : undefined
+            }
+            extraAction={
+              canManageSickReports && quota ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  onClick={() => setOpeningModal(true)}
+                >
+                  <CalendarClock className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                  Urlaubs-Übernahme
+                </Button>
+              ) : null
+            }
+            editForm={
+              editing === "vacation" && quota ? (
+                <QuotaEditForm
+                  staffId={staffId}
+                  quota={quota}
+                  year={year}
+                  onCancel={() => setEditing(null)}
+                  onSaved={async () => {
+                    setEditing(null);
+                    await reload({ silent: true });
+                  }}
+                />
+              ) : null
+            }
+            footer={
+              quota?.opening ? (
+                <VacationOpeningSummary opening={quota.opening} />
+              ) : null
+            }
+          />
+          {customAllowances.map((entry) => (
+            <AllowanceCard
+              key={entry.type.id}
+              title={entry.type.name}
+              year={year}
+              retired={!entry.type.isActive}
+              entitled={entry.summary.entitledDays}
+              taken={entry.summary.takenDays}
+              reserved={entry.summary.reservedDays}
+              remaining={entry.summary.remainingDays}
+              onEdit={
+                canEditQuota ? () => setEditing(entry.type.id) : undefined
+              }
+              editForm={
+                editing === entry.type.id ? (
+                  <CustomAllowanceEditForm
+                    staffId={staffId}
+                    year={year}
+                    type={entry.type}
+                    summary={entry.summary}
+                    onCancel={() => setEditing(null)}
+                    onSaved={async () => {
+                      setEditing(null);
+                      await reload({ silent: true });
+                    }}
+                  />
+                ) : null
+              }
+            />
+          ))}
+        </div>
+        {staff && canEditQuota && customAllowances.length === 0 ? (
+          <p className="text-sm text-gray-500">
+            Regenerationstage oder Krank-Urlaubstage zählen? Legen Sie dafür
+            unter „Abwesenheitsarten verwalten“ eine Art mit Kontingent an.
+          </p>
+        ) : null}
       </SectionCard>
-
-      {customAllowances.length > 0 ? (
-        <SectionCard title="Weitere Kontingente" headingLevel={3}>
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-            <p className="text-sm text-gray-500">
-              Diese Tage gelten nur für die jeweilige Abwesenheitsart.
-            </p>
-            <div className="w-36">
-              <label
-                htmlFor="allowance-year"
-                className="mb-1 block text-xs font-medium text-gray-600"
-              >
-                Kalenderjahr
-              </label>
-              <CustomSelect
-                id="allowance-year"
-                value={String(allowanceYear)}
-                onChange={(value) => setAllowanceYear(Number(value))}
-                options={Array.from(
-                  { length: 101 },
-                  (_, index) => 2100 - index,
-                ).map((value) => ({
-                  value: String(value),
-                  label: String(value),
-                }))}
-              />
-            </div>
-          </div>
-          <div className="space-y-3">
-            {customAllowances.map((entry) => (
-              <div
-                key={entry.type.id}
-                className="moto-content-surface rounded-xl border p-3 shadow-sm"
-              >
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <h4 className="text-sm font-semibold text-gray-900">
-                    {entry.type.name}
-                  </h4>
-                  {canManageSickReports ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="compact"
-                      onClick={() => setAllowanceModal(entry)}
-                    >
-                      <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />
-                      Anspruch ändern
-                    </Button>
-                  ) : null}
-                </div>
-                <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                  <AllowanceValue
-                    label="Anspruch"
-                    value={entry.summary.entitledDays}
-                  />
-                  <AllowanceValue
-                    label="Vorgemerkt"
-                    value={entry.summary.reservedDays}
-                  />
-                  <AllowanceValue
-                    label="Genommen"
-                    value={entry.summary.takenDays}
-                  />
-                  <AllowanceValue
-                    label="Verbleibend"
-                    value={entry.summary.remainingDays}
-                  />
-                </dl>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      ) : null}
 
       <PendingAbsences
         rows={pending}
@@ -633,7 +560,6 @@ export function AbwesenheitenTab({
         <SickReportModal
           isOpen
           staff={sickStaff}
-          absenceType={managedAbsenceType}
           onClose={() => setSickStaff(null)}
           onCreated={() => {
             Promise.all([refreshPlanCaches(), reload({ silent: true })]).catch(
@@ -724,28 +650,14 @@ export function AbwesenheitenTab({
           }}
         />
       )}
-      {allowanceModal ? (
-        <EditCustomAllowanceModal
-          staffId={staffId}
-          year={allowanceYear}
-          entry={allowanceModal}
-          onClose={() => setAllowanceModal(null)}
-          onSaved={async () => {
-            setAllowanceModal(null);
-            await reload();
-          }}
-        />
-      ) : null}
-      {customAbsenceModal && staff ? (
-        <CustomAllowanceAbsenceModal
+      {bookingOpen && staff ? (
+        <AbsenceBookingModal
           staff={staff}
-          year={year}
-          entries={bookingAllowances.filter((entry) => entry.type.isActive)}
-          absences={absences}
-          onClose={() => setCustomAbsenceModal(false)}
+          types={absenceTypes}
+          onClose={() => setBookingOpen(false)}
           onSaved={async () => {
-            setCustomAbsenceModal(false);
-            await reload();
+            setBookingOpen(false);
+            await afterBooking();
           }}
         />
       ) : null}
@@ -753,6 +665,117 @@ export function AbwesenheitenTab({
   );
 
   return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
+}
+
+function formatNumber(days: number): string {
+  return String(Math.round(days * 10) / 10).replace(".", ",");
+}
+
+// Eine Kontingent-Karte (#3256): Urlaub und jede eigene Art mit Kontingent
+// sehen gleich aus, damit „wie viel ist noch übrig" an einer Stelle steht.
+// Im Bearbeiten-Zustand weichen die Zahlen dem Formular.
+function AllowanceCard({
+  title,
+  year,
+  retired = false,
+  entitled,
+  entitledHint,
+  taken,
+  takenHint,
+  reserved,
+  remaining,
+  onEdit,
+  extraAction,
+  editForm,
+  footer,
+}: {
+  readonly title: string;
+  readonly year: number;
+  readonly retired?: boolean;
+  readonly entitled: number;
+  readonly entitledHint?: string;
+  readonly taken: number;
+  readonly takenHint?: string;
+  readonly reserved: number;
+  readonly remaining: number;
+  readonly onEdit?: () => void;
+  readonly extraAction?: ReactNode;
+  readonly editForm?: ReactNode;
+  readonly footer?: ReactNode;
+}) {
+  const isEditing = Boolean(editForm);
+  return (
+    <section
+      aria-label={`${title} ${year}`}
+      className={`moto-content-surface space-y-3 rounded-xl border p-4 shadow-sm ${
+        isEditing ? "lg:col-span-2" : ""
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <h4 className="truncate text-sm font-semibold text-gray-900">
+            {title}
+          </h4>
+          {retired ? <StatusBadge tone="gray" label="ausgeschaltet" /> : null}
+        </div>
+        {isEditing ? null : (
+          <div className="flex flex-wrap items-center gap-1">
+            {extraAction}
+            {onEdit ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                onClick={onEdit}
+                aria-label={`Anspruch ändern: ${title}`}
+              >
+                <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+                Anspruch ändern
+              </Button>
+            ) : null}
+          </div>
+        )}
+      </div>
+      {isEditing ? (
+        editForm
+      ) : (
+        <DataGrid columns={4}>
+          <DataField label="Anspruch">
+            <span className="tabular-nums">{formatDayCount(entitled)}</span>
+            {entitledHint ? (
+              <span className="block text-xs text-gray-500">
+                {entitledHint}
+              </span>
+            ) : null}
+          </DataField>
+          <DataField label="Genommen">
+            <span className="tabular-nums">{formatDayCount(taken)}</span>
+            {takenHint ? (
+              <span className="block text-xs text-gray-500">{takenHint}</span>
+            ) : null}
+          </DataField>
+          <DataField label="Vorgemerkt">
+            <span className="tabular-nums">{formatDayCount(reserved)}</span>
+            {reserved > 0 ? (
+              <span className="block text-xs text-gray-500">
+                offene Anträge
+              </span>
+            ) : null}
+          </DataField>
+          <DataField label="Übrig">
+            <span
+              className={`font-semibold tabular-nums ${
+                remaining < 0 ? "text-moto-red-strong" : "text-gray-900"
+              }`}
+            >
+              {formatDayCount(remaining)}
+            </span>
+          </DataField>
+        </DataGrid>
+      )}
+      {isEditing ? null : footer}
+    </section>
+  );
 }
 
 // Deletion of a vacation takeover (#2132). Own component so the tab renders
@@ -869,49 +892,6 @@ function PendingAbsences({
         ))}
       </ul>
     </div>
-  );
-}
-
-function QuotaTile({
-  label,
-  value,
-  hint,
-  tone,
-  onEdit,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly hint: string;
-  readonly tone: "primary" | "success" | "amber" | "muted";
-  readonly onEdit?: () => void;
-}) {
-  const cardTone = {
-    primary: "gray",
-    success: "green",
-    amber: "orange",
-    muted: "gray",
-  }[tone] as StatCardTone;
-  return (
-    <StatCard
-      label={label}
-      value={value}
-      hint={hint}
-      tone={cardTone}
-      action={
-        onEdit ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onEdit}
-            aria-label="Urlaubsanspruch bearbeiten"
-            title="Urlaubsanspruch bearbeiten"
-          >
-            <Pencil className="h-3.5 w-3.5" aria-hidden />
-          </Button>
-        ) : undefined
-      }
-    />
   );
 }
 
