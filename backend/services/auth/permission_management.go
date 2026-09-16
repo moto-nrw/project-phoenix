@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -316,4 +317,29 @@ func (s *Service) getAccountPermissions(ctx context.Context, accountID int64) ([
 	// FindByAccountID already uses a CTE to combine direct and role-based permissions
 	// in a single query, avoiding N+1 queries
 	return s.repos.Permission.FindByAccountID(ctx, accountID)
+}
+
+var (
+	// ErrPermissionNotFound returned when permission doesn't exist
+	ErrPermissionNotFound = errors.New("permission not found")
+)
+
+// PermissionOperations manage permissions and their grants.
+type PermissionOperations interface {
+	// Permission Management
+	CreatePermission(ctx context.Context, name, description, resource, action string) (*auth.Permission, error)
+	GetPermissionByID(ctx context.Context, id int) (*auth.Permission, error)
+	GetPermissionByName(ctx context.Context, name string) (*auth.Permission, error)
+	UpdatePermission(ctx context.Context, permission *auth.Permission) error
+	DeletePermission(ctx context.Context, id int) error
+	ListPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Permission, error)
+	GrantPermissionToAccount(ctx context.Context, accountID, permissionID int) error
+	DenyPermissionToAccount(ctx context.Context, accountID, permissionID int) error
+	RemovePermissionFromAccount(ctx context.Context, accountID, permissionID int) error
+	GetAccountPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
+	GetAccountDirectPermissions(ctx context.Context, accountID int) ([]*auth.Permission, error)
+	AssignPermissionToRole(ctx context.Context, roleID, permissionID int) error
+	ReplaceRolePermissions(ctx context.Context, roleID int, permissionIDs []int64) error
+	RemovePermissionFromRole(ctx context.Context, roleID, permissionID int) error
+	GetRolePermissions(ctx context.Context, roleID int) ([]*auth.Permission, error)
 }

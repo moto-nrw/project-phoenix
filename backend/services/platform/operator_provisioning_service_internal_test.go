@@ -2581,42 +2581,6 @@ func TestRestoreOrganization_ConcurrentRestoreMapsToNotDeleted(t *testing.T) {
 // IsPlatformCaregiverRole (was the package-local shouldCreateTeacher)
 // ---------------------------------------------------------------------------
 
-// The local copy was folded into the shared predicate in services/auth (#2222)
-// so the four school-access paths stop answering the same question differently.
-// One case changed with it: the retired "teacher" role now counts as a platform
-// caregiver role, matching the invitation flow and the caregiver-profile guard.
-// Nothing reaches this decision with that role — every school-access path
-// refuses it before provisioning (ErrRoleLegacyTeacherNotAssignable).
-func TestIsPlatformCaregiverRole(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name     string
-		roleName string
-		want     bool
-	}{
-		{"user role", "user", true},
-		{"teacher role", "teacher", true},
-		{"admin role", "admin", false},
-		{"uppercase Teacher", "Teacher", true},
-		{"whitespace user", " user ", true},
-		{"mixed case USER", "USER", true},
-		{"empty string", "", false},
-		{"unknown role", "moderator", false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			role := &authModels.Role{Name: tt.roleName, IsSystem: true}
-			assert.Equal(t, tt.want, authSvc.IsPlatformCaregiverRole(role))
-		})
-	}
-
-	t.Run("a school's own role of the same tier is not the platform role", func(t *testing.T) {
-		base := authModels.BaseRoleUser
-		assert.False(t, authSvc.IsPlatformCaregiverRole(&authModels.Role{Name: "OGS-Kraft", BaseRole: &base}))
-	})
-}
-
 func TestEnrichAccountTenantOrganizationsPreservesDatabaseNameOrdering(t *testing.T) {
 	t.Parallel()
 

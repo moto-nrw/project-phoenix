@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -334,3 +335,51 @@ func (s *Service) persistPasswordResetDelivery(ctx context.Context, meta email.D
 }
 
 // Note: sanitizeEmailError is defined in invitation_service.go and shared across the package
+
+// Password reset rate limit outcomes.
+var (
+	// ErrRateLimitExceeded returned when password reset attempts exceed rate limit
+	ErrRateLimitExceeded = errors.New("too many password reset requests")
+)
+
+// RateLimitError provides additional context for rate-limit responses.
+type RateLimitError struct {
+	Err      error
+	Attempts int
+	RetryAt  time.Time
+}
+
+// Error returns the error message for the rate limit error.
+func (e *RateLimitError) Error() string {
+	if e.Err == nil {
+		return "rate limit exceeded"
+	}
+	return e.Err.Error()
+}
+
+// Unwrap returns the underlying error.
+func (e *RateLimitError) Unwrap() error {
+	return e.Err
+}
+
+// RetryAfterSeconds returns the positive number of seconds until retry, or zero if already allowed.
+func (e *RateLimitError) RetryAfterSeconds(now time.Time) int {
+	if e == nil || e.RetryAt.IsZero() {
+		return 0
+	}
+	if !e.RetryAt.After(now) {
+		return 0
+	}
+	return int(e.RetryAt.Sub(now).Seconds())
+}
+
+// PasswordResetOperations run the password reset flows and their maintenance.
+type PasswordResetOperations interface {
+	// Password Reset
+	InitiatePasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
+	InitiateParentPasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
+	InitiateSchoolPasswordReset(ctx context.Context, email string) (*auth.PasswordResetToken, error)
+	ResetPassword(ctx context.Context, token, newPassword string) error
+	CleanupExpiredRateLimits(ctx context.Context) (int, error)
+	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
+}

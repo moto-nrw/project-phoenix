@@ -246,12 +246,12 @@ func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
 		require.NoError(t, err)
 
 		// The other school's assignment is gone...
-		remainingOther, err := repo.FindByAccountIDForTenant(testpkg.Ctx(t), account.ID, otherTenantID)
+		remainingOther, err := repo.FindByAccountID(testpkg.TenantContext(otherTenantID), account.ID)
 		require.NoError(t, err)
 		assert.Empty(t, remainingOther)
 
 		// ...while the home school keeps its own.
-		remainingHome, err := repo.FindByAccountIDForTenant(testpkg.Ctx(t), account.ID, testpkg.Tenant(t))
+		remainingHome, err := repo.FindByAccountID(testpkg.Ctx(t), account.ID)
 		require.NoError(t, err)
 		assert.Len(t, remainingHome, 1)
 	})

@@ -25,7 +25,7 @@ type AuthTestModule struct {
 	// service delegates its session flows to (#3251); the auth HTTP tests
 	// hand it to the routes that call the public contract directly.
 	AccountAuthentication *identityaccess.Module
-	StaffPINAuth          auth.StaffPINAuthenticator
+	StaffPINAuth          StaffPINAuthenticator
 	Invitation            auth.InvitationService
 	GuardianInvitation    auth.GuardianInvitationService
 	Schools               platform.SchoolService
@@ -47,11 +47,14 @@ func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTest
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
+	schoolIdentity, err := NewSchoolIdentityForTests(db, unit)
+	if err != nil {
+		return InvitationTestModule{}, err
+	}
 	service := auth.NewInvitationService(auth.InvitationServiceConfig{
 		TokenAuth: signer, InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
 		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role, PermissionRepo: repos.Permission,
-		AccountRoleRepo: repos.AccountRole, PersonRepo: repos.Person, StaffRepo: repos.Staff,
-		TeacherRepo: repos.Teacher, StudentRepo: repos.Student, SchoolRepo: repos.School, DB: db,
+		AccountRoleRepo: repos.AccountRole, SchoolIdentity: schoolIdentity, SchoolRepo: repos.School, DB: db,
 	})
 	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	return InvitationTestModule{Persistence: repos, Invitation: service}, nil
@@ -107,15 +110,26 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 		return AuthTestModule{}, err
 	}
 	var service *auth.Service
+	var guardian auth.GuardianInvitationService
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(r), tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
+		lifecycle: &lifecycleWiring{
+			settings: settings.Settings, audit: command,
+			admin: func() *auth.Service { return service },
+			delivery: func() auth.GuardianInvitationDelivery {
+				delivery, _ := guardian.(auth.GuardianInvitationDelivery)
+				return delivery
+			},
+		},
 	})
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	authConfig.Sessions = newAccountSessions(identityAccess)
+	accountSessionsPort := newAccountSessions(identityAccess)
+	authConfig.Sessions = accountSessionsPort
+	authConfig.Lifecycle = accountSessionsPort
 	service, err = auth.NewService(r, authConfig, db, logger)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -136,25 +150,25 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	invitation := auth.NewInvitationService(auth.InvitationServiceConfig{
 		TokenAuth:      authConfig.TokenAuth,
 		InvitationRepo: r.InvitationToken, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
-		RoleRepo: r.Role, PermissionRepo: r.Permission, AccountRoleRepo: r.AccountRole,
-		PersonRepo: r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, StudentRepo: r.Student, SchoolRepo: r.School,
+		RoleRepo: r.Role, PermissionRepo: r.Permission, AccountRoleRepo: r.AccountRole, SchoolRepo: r.School,
 		Mailer: mailer, Dispatcher: dispatcher, FrontendURL: frontendURL, SchoolURL: schoolURL,
-		DefaultFrom: defaultFrom, InvitationExpiry: time.Duration(inviteHours) * time.Hour, MailIdentity: identity, DB: db, Logger: logger,
+		DefaultFrom: defaultFrom, InvitationExpiry: time.Duration(inviteHours) * time.Hour, MailIdentity: identity,
+		SchoolIdentity: accountSessionsPort, DB: db, Logger: logger,
 	})
 	invitation.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	delivery, err := NewDeliveryTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	guardian := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
+	guardian = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo: r.GuardianInvitation, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
 		AccountRoleRepo: r.AccountRole, RoleRepo: r.Role, PersonRepo: r.Person, GuardianProfileRepo: r.GuardianProfile,
 		StudentGuardianRepo: r.StudentGuardian, Audit: command, StudentRepo: r.Student, SchoolRepo: r.School,
-		EnrollmentBackfiller: r.ParentEnrollmentRequest, SettingsResolver: settings.Settings, OutboxEnqueuer: delivery.EmailOutbox,
+		EnrollmentBackfiller: r.ParentEnrollmentRequest, RelativeAccess: accountSessionsPort, SettingsResolver: settings.Settings, OutboxEnqueuer: delivery.EmailOutbox,
 		FrontendURL: parentsURL, FallbackExpiry: time.Duration(inviteHours) * time.Hour, DB: db, Logger: logger,
 	})
 	guardian.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: service, MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
+	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: NewStaffPINAuthenticator(identityAccess), MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
 		Schools: platform.NewSchoolService(r.School), Settings: settings.Settings}, nil
 }
 
@@ -179,11 +193,18 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 		repos: sessionRepositoriesOf(repos), tokenAuth: cfg.TokenAuth, settings: cfg.Settings, audit: cfg.Audit, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
+		lifecycle: &lifecycleWiring{
+			settings: cfg.Settings, audit: cfg.Audit,
+			admin:    func() *auth.Service { return service },
+			delivery: func() auth.GuardianInvitationDelivery { return nil },
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	cfg.Sessions = newAccountSessions(identityAccess)
+	port := newAccountSessions(identityAccess)
+	cfg.Sessions = port
+	cfg.Lifecycle = port
 	service, err = auth.NewService(repos, &cfg, db, logger)
 	return service, err
 }

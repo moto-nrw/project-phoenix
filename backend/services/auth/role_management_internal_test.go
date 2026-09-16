@@ -254,20 +254,22 @@ func newRoleManagementServiceWithIdentity(
 	persons := newStubPersonRepository()
 	staff, staffAll := newStubStaffRepository()
 	teachers := newStubTeacherRepository()
+	repos := &repositories.Factory{
+		Role:           roleRepo,
+		Account:        accountRepo,
+		AccountRole:    accountRoleRepo,
+		RolePermission: rolePermissionRepo,
+		Person:         persons,
+		Staff:          staff,
+		Teacher:        teachers,
+		Student:        newStubStudentRepository(),
+	}
 
 	return &Service{
-		repos: &repositories.Factory{
-			Role:           roleRepo,
-			Account:        accountRepo,
-			AccountRole:    accountRoleRepo,
-			RolePermission: rolePermissionRepo,
-			Person:         persons,
-			Staff:          staff,
-			Teacher:        teachers,
-			Student:        newStubStudentRepository(),
-		},
-		logger:   slog.Default(),
-		sessions: sessions,
+		repos:     repos,
+		logger:    slog.Default(),
+		sessions:  sessions,
+		lifecycle: &stubAccountSessions{repos: repos},
 	}, persons, staffAll, teachers
 }
 

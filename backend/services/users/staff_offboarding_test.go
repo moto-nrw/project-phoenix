@@ -530,23 +530,20 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
+	schoolIdentity, identityErr := services.NewSchoolIdentityForTests(sc.db, testpkg.TenantRuntime(t, sc.db))
+	require.NoError(t, identityErr)
 	invSvc := authSvcPkg.NewInvitationService(authSvcPkg.InvitationServiceConfig{
+		SchoolIdentity:    schoolIdentity,
 		InvitationRepo:    sc.repos.InvitationToken,
 		AccountRepo:       sc.repos.Account,
 		AccountTenantRepo: sc.repos.AccountTenant,
 		RoleRepo:          sc.repos.Role,
 		AccountRoleRepo:   sc.repos.AccountRole,
-		PersonRepo:        sc.repos.Person,
-		StaffRepo:         sc.repos.Staff,
-		TeacherRepo:       sc.repos.Teacher,
-		// Accepting onto an existing person checks that person is not a child's
-		// record, so the repository is required, not optional (#2222).
-		StudentRepo:      sc.repos.Student,
-		SchoolRepo:       sc.repos.School,
-		Mailer:           email.NewMockMailer(),
-		FrontendURL:      "http://localhost:3000",
-		InvitationExpiry: time.Hour,
-		DB:               sc.db,
+		SchoolRepo:        sc.repos.School,
+		Mailer:            email.NewMockMailer(),
+		FrontendURL:       "http://localhost:3000",
+		InvitationExpiry:  time.Hour,
+		DB:                sc.db,
 	})
 	testpkg.SetTenantRuntime(t, invSvc, sc.db)
 

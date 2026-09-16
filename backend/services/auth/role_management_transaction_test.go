@@ -321,6 +321,6 @@ func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) 
 	// Staff, because Lehrkraft is personnel; no caregiver profile, because it is
 	// class_day-read-only by design.
 	require.NotNil(t, identity)
-	require.NotNil(t, identity.Staff)
-	assert.Nil(t, identity.Teacher, "the Lehrkraft role never earns a caregiver profile")
+	require.NotZero(t, identity.StaffID)
+	assert.Zero(t, identity.TeacherID, "the Lehrkraft role never earns a caregiver profile")
 }

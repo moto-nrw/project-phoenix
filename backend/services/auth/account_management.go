@@ -138,3 +138,14 @@ func (s *Service) GetAccountsWithRolesAndPermissions(ctx context.Context, filter
 	}
 	return accounts, nil
 }
+
+// AccountAdministrationOperations activate, update and list accounts.
+type AccountAdministrationOperations interface {
+	// Account Management Extensions
+	ActivateAccount(ctx context.Context, accountID int) error
+	DeactivateAccount(ctx context.Context, accountID int) error
+	UpdateAccount(ctx context.Context, account *auth.Account) error
+	ListAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
+	GetAccountsByRole(ctx context.Context, roleName string) ([]*auth.Account, error)
+	GetAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
+}
