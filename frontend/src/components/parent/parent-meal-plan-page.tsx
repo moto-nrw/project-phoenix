@@ -1032,10 +1032,17 @@ export function ParentMealPlanPage() {
   // The head must not promise more than the body below it delivers. Without the
   // meal registration the page only lists dishes, so the "when" half of the
   // subtitle would be a promise the page never keeps. In the states that show no
-  // plan at all (loading, load error, no linked child, meal plan switched off)
-  // the head carries no subtitle; the body explains those states itself.
+  // plan at all (loading, load error, an empty week, no linked child, meal
+  // plan switched off) the head carries no subtitle; the body explains those
+  // states itself.
   const showsPlan =
-    !loadingSchools && !schoolsError && hasLinkedChildren && schools.length > 0;
+    !loadingSchools &&
+    !schoolsError &&
+    hasLinkedChildren &&
+    schools.length > 0 &&
+    weekReady &&
+    !weekError &&
+    !weekIsEmpty;
   const headerDescription = !showsPlan
     ? undefined
     : selectedSchool?.registrationEnabled
