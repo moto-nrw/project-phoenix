@@ -250,11 +250,3 @@ func TestDeviceProtectedError(t *testing.T) {
 	assert.Contains(t, err.Error(), "protected")
 	assert.Contains(t, err.Error(), "web-manual device")
 }
-
-func TestAccountNotFoundError(t *testing.T) {
-	t.Parallel()
-
-	err := &platform.AccountNotFoundError{AccountID: 42}
-	assert.Contains(t, err.Error(), "42")
-	assert.Contains(t, err.Error(), "not found")
-}

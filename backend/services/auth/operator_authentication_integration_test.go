@@ -275,10 +275,6 @@ func (a operatorAccountAccess) ListAccountTenantAccess(ctx context.Context, acco
 	return a.module.ListAccountTenantAccess(ctx, accountID)
 }
 
-func (a operatorAccountAccess) ListAssignableSchoolRoles(ctx context.Context, schoolID int64) ([]identityaccess.AccountTenantRole, error) {
-	return a.module.ListAssignableSchoolRoles(ctx, schoolID)
-}
-
 func (a operatorAccountAccess) GrantAccountTenantAccess(ctx context.Context, accountID, schoolID int64, grant accessGrant, operatorID int64, clientIP net.IP) ([]identityaccess.AccountTenantAccess, error) {
 	return a.module.GrantAccountTenantAccess(ctx, identityaccess.GrantAccountTenantAccess{
 		AccountID: accountID, SchoolID: schoolID, RoleID: grant.RoleID,
