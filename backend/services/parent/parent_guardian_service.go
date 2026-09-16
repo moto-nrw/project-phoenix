@@ -197,18 +197,18 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	}
 	// A child whose care at this school has ended keeps read access to what
 	// happened, but nothing new can be submitted for them (#2487).
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
-	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if (input.CanPickup || input.IsEmergencyContact) && !child.hasPermission(authorize.GuardianPermissionPickupManage) {
+	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(authorize.GuardianPermissionPickupManage) {
 		return nil, ErrGuardianPermissionDenied
 	}
 
 	var result *ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -229,7 +229,7 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 			PreferredContactMethod: "phone",
 			LanguagePreference:     "de",
 		}
-		profile.SetTenantID(child.tenantID)
+		profile.SetTenantID(child.TenantID)
 		applyContactInput(profile, &input.Contact)
 		if profile.Email != nil {
 			profile.PreferredContactMethod = "email"
@@ -251,7 +251,7 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 			EmergencyPriority:  1,
 		}
 		authorize.ApplyDefaultStudentGuardianRole(link)
-		link.SetTenantID(child.tenantID)
+		link.SetTenantID(child.TenantID)
 		inserted, err := s.StudentGuardianRepo.LinkIfNotExists(txCtx, link)
 		if err != nil {
 			return err
@@ -264,20 +264,20 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 		if err != nil {
 			return err
 		}
-		if err := s.auditContactChanges(txCtx, child.tenantID, accountID, studentID, profile.ID, guardianContactSnapshot{}, profile, phones); err != nil {
+		if err := s.auditContactChanges(txCtx, child.TenantID, accountID, studentID, profile.ID, guardianContactSnapshot{}, profile, phones); err != nil {
 			return err
 		}
 		flagInput := GuardianRelationshipInput{
 			CanPickup:          &input.CanPickup,
 			IsEmergencyContact: &input.IsEmergencyContact,
 		}
-		if err := s.auditPickupFlagChanges(txCtx, child.tenantID, accountID, studentID, profile.ID, flagInput, false, false); err != nil {
+		if err := s.auditPickupFlagChanges(txCtx, child.TenantID, accountID, studentID, profile.ID, flagInput, false, false); err != nil {
 			return err
 		}
 
 		result = projectChildGuardian(profile, link, phones, accountID, true,
-			child.hasPermission(authorize.GuardianPermissionPickupManage), false)
-		capturedTenant := child.tenantID
+			child.HasPermission(authorize.GuardianPermissionPickupManage), false)
+		capturedTenant := child.TenantID
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
@@ -294,7 +294,7 @@ func (s *service) CreateGuardianContact(ctx context.Context, accountID, studentI
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("guardian_profile_id", result.GuardianProfileID),
-		slog.Int64("tenant_id", child.tenantID),
+		slog.Int64("tenant_id", child.TenantID),
 	)
 	return result, nil
 }
@@ -307,12 +307,12 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 	if err != nil {
 		return nil, err
 	}
-	canEdit := child.hasPermission(authorize.GuardianPermissionGuardianEdit)
-	canManage := child.hasPermission(authorize.GuardianPermissionPickupManage)
+	canEdit := child.HasPermission(authorize.GuardianPermissionGuardianEdit)
+	canManage := child.HasPermission(authorize.GuardianPermissionPickupManage)
 	// A school can disable the whole feature: when off, the list still shows
 	// guardians (read) but advertises no edit affordances, so the UI hides them.
 	if canEdit || canManage {
-		enabled, err := s.guardianManagementEnabled(ctx, child.tenantID)
+		enabled, err := s.guardianManagementEnabled(ctx, child.TenantID)
 		if err != nil {
 			return nil, err
 		}
@@ -322,7 +322,7 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 		}
 	}
 	var out []*ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		callerStudents, err := s.callerFamilyStudentSet(txCtx, accountID)
 		if err != nil {
 			return err
@@ -359,7 +359,7 @@ func (s *service) ListChildGuardians(ctx context.Context, accountID, studentID i
 				// instead of masking it as ErrGuardianNotLinked (403), which would
 				// hide the inconsistency from monitoring.
 				s.Logger.Error("parent child guardian link points to missing profile",
-					slog.Int64("tenant_id", child.tenantID),
+					slog.Int64("tenant_id", child.TenantID),
 					slog.Int64("student_id", studentID),
 					slog.Int64("student_guardian_id", link.ID),
 					slog.Int64("guardian_profile_id", link.GuardianProfileID),
@@ -390,14 +390,14 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 	}
 	// A child whose care at this school has ended keeps read access to what
 	// happened, but nothing new can be submitted for them (#2487).
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
-	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
 	var result *ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -534,19 +534,19 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		if err != nil {
 			return err
 		}
-		if err := s.auditContactChanges(txCtx, child.tenantID, accountID, studentID, guardianProfileID, before, profile, phones); err != nil {
+		if err := s.auditContactChanges(txCtx, child.TenantID, accountID, studentID, guardianProfileID, before, profile, phones); err != nil {
 			return err
 		}
 		// Containment passed (or self), so the edited profile does not escape the
 		// caller's family: not shared-locked from this caller's view.
 		result = projectChildGuardian(profile, link, phones, accountID, true,
-			child.hasPermission(authorize.GuardianPermissionPickupManage), false)
+			child.HasPermission(authorize.GuardianPermissionPickupManage), false)
 
 		affectedStudents := make([]int64, 0, len(profileLinks))
 		for _, pl := range profileLinks {
 			affectedStudents = append(affectedStudents, pl.StudentID)
 		}
-		capturedTenant := child.tenantID
+		capturedTenant := child.TenantID
 		tenant.RegisterAfterCommit(txCtx, func() {
 			for _, sid := range affectedStudents {
 				s.broadcastStudentUpdated(capturedTenant, sid)
@@ -565,7 +565,7 @@ func (s *service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("guardian_profile_id", guardianProfileID),
-		slog.Int64("tenant_id", child.tenantID),
+		slog.Int64("tenant_id", child.TenantID),
 	)
 	return result, nil
 }
@@ -600,20 +600,20 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 	}
 	// A child whose care at this school has ended keeps read access to what
 	// happened, but nothing new can be submitted for them (#2487).
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
-	if err := s.requireGuardianManagementEnabled(ctx, child.tenantID); err != nil {
+	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if editsFlags && !child.hasPermission(authorize.GuardianPermissionPickupManage) {
+	if editsFlags && !child.HasPermission(authorize.GuardianPermissionPickupManage) {
 		return nil, ErrGuardianPermissionDenied
 	}
-	if editsDetails && !child.hasPermission(authorize.GuardianPermissionGuardianEdit) {
+	if editsDetails && !child.HasPermission(authorize.GuardianPermissionGuardianEdit) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	var result *ChildGuardian
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -754,7 +754,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 			// silently reporting success.
 			return ErrGuardianNotLinked
 		}
-		if err := s.auditPickupFlagChanges(txCtx, child.tenantID, accountID, studentID, guardianProfileID, input, oldCanPickup, oldEmergency); err != nil {
+		if err := s.auditPickupFlagChanges(txCtx, child.TenantID, accountID, studentID, guardianProfileID, input, oldCanPickup, oldEmergency); err != nil {
 			return err
 		}
 
@@ -767,10 +767,10 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 			return err
 		}
 		result = projectChildGuardian(profile, link, phones, accountID,
-			child.hasPermission(authorize.GuardianPermissionGuardianEdit),
-			child.hasPermission(authorize.GuardianPermissionPickupManage), escapes)
+			child.HasPermission(authorize.GuardianPermissionGuardianEdit),
+			child.HasPermission(authorize.GuardianPermissionPickupManage), escapes)
 
-		capturedTenant := child.tenantID
+		capturedTenant := child.TenantID
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.broadcastStudentUpdated(capturedTenant, studentID)
 		})
@@ -784,7 +784,7 @@ func (s *service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("guardian_profile_id", guardianProfileID),
-		slog.Int64("tenant_id", child.tenantID),
+		slog.Int64("tenant_id", child.TenantID),
 		slog.Bool("pickup_changed", input.CanPickup != nil),
 		slog.Bool("emergency_changed", input.IsEmergencyContact != nil),
 	)

@@ -58,11 +58,11 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 	}
 	// A child whose care at this school has ended keeps read access to what
 	// happened, but nothing new can be submitted for them (#2487).
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
 
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataRequestEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, configModels.KeyParentMasterDataRequestEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
@@ -71,7 +71,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 	}
 
 	var created []*usersModels.StudentDataChangeRequest
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		// The permission check above used a snapshot. Acquire the same student
 		// row lock as a care exit and re-check its interval before inserting any
 		// pending request, so an exit cannot commit in the gap before this write.
@@ -111,7 +111,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 				NewValue:    newRaw,
 				Status:      usersModels.DataChangeStatusPending,
 			}
-			row.SetTenantID(child.tenantID)
+			row.SetTenantID(child.TenantID)
 			if createErr := s.ChangeRequestRepo.Create(txCtx, row); createErr != nil {
 				if isPendingChangeRequestUniqueViolation(createErr) {
 					return ErrMasterDataDuplicatePending
@@ -149,7 +149,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 			// created↔decision ref paired: the thread timeline and the deep-link
 			// into the Änderungsanfragen queue resolve the exact row for any
 			// field, not just created[0]. Best-effort, after commit.
-			capturedTenant := child.tenantID
+			capturedTenant := child.TenantID
 			refIDs := make([]int64, len(created))
 			for i, row := range created {
 				refIDs[i] = row.ID
@@ -185,7 +185,7 @@ func (s *service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 	s.Logger.Info("parent submitted master data change request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
-		slog.Int64("tenant_id", child.tenantID),
+		slog.Int64("tenant_id", child.TenantID),
 		slog.Int("fields", len(created)),
 	)
 	return created, nil
@@ -201,7 +201,7 @@ func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		return nil, err
 	}
 	var out []*usersModels.StudentDataChangeRequest
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		rows, listErr := s.ChangeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
 			return listErr
@@ -212,7 +212,7 @@ func (s *service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		}
 		out = make([]*usersModels.StudentDataChangeRequest, 0, len(rows))
 		for _, row := range rows {
-			if row != nil && visibility.allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
+			if row != nil && visibility.Allows(RequestShareMasterData, row.ID, accountID, row.SubmittedBy) {
 				out = append(out, row)
 			}
 		}
@@ -237,11 +237,11 @@ func (s *service) EditMasterDataRequest(
 	if err != nil {
 		return nil, err
 	}
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
 	var out *usersModels.StudentDataChangeRequest
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr

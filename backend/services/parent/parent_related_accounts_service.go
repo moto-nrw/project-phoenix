@@ -86,7 +86,7 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	}
 
 	var out []*RelatedAccount
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		links, err := s.StudentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
@@ -171,11 +171,11 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 	// further guardian account is such a change, and ChildFeatures already
 	// switches the button off — this is the half that also holds for a direct
 	// API call.
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return nil, err
 	}
 
-	mode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	mode, err := s.Settings.ResolveStringForTenant(ctx, child.TenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
@@ -186,7 +186,7 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 
 	requestedBy := accountID
 	var result *authService.InviteToStudentResult
-	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -225,18 +225,18 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return err
 	}
 	// Removing a guardian account is a change like any other (#2487).
-	if err := child.requireCareRunning(); err != nil {
+	if err := child.RequireCareRunning(); err != nil {
 		return err
 	}
 
-	mode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	mode, err := s.Settings.ResolveStringForTenant(ctx, child.TenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
 		return fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
 	if mode == configModels.ParentInviteModeDisabled {
 		return ErrRemoveDisabled
 	}
-	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
+	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, configModels.KeyGuardianParentCanRemove)
 	if err != nil {
 		return fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
@@ -244,7 +244,7 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return ErrRemoveDisabled
 	}
 
-	return tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	return tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
