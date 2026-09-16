@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/uptrace/bun"
@@ -29,18 +31,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // StaffNoticeResource ist die HTTP-Ressource der Tagesinformationen.
 type StaffNoticeResource struct {
-	Service  scheduleSvc.StaffNoticeService
+	Service  shiftplanning.StaffNoticeService
 	identity IdentityFunc
 	db       *bun.DB
 }
 
 // NewStaffNoticeResource verdrahtet die Ressource.
-func NewStaffNoticeResource(service scheduleSvc.StaffNoticeService, identity IdentityFunc, db *bun.DB) *StaffNoticeResource {
+func NewStaffNoticeResource(service shiftplanning.StaffNoticeService, identity IdentityFunc, db *bun.DB) *StaffNoticeResource {
 	if service == nil || identity == nil || db == nil {
 		panic("staff notice resource: service, identity and db are required")
 	}
@@ -59,8 +60,8 @@ func (rs *StaffNoticeResource) Router() chi.Router {
 		// Anlegen, sie ist kein Recht, das jemand anderes halten könnte.
 		write := common.RequiresPermission(permissions.AdminWildcard)
 
-		r.With(read, withTx).Get("/today", rs.todayFor(scheduleSvc.StaffNoticeReaderStaff))
-		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledgeFor(scheduleSvc.StaffNoticeReaderStaff))
+		r.With(read, withTx).Get("/today", rs.todayFor(shiftplanning.StaffNoticeReaderStaff))
+		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledgeFor(shiftplanning.StaffNoticeReaderStaff))
 
 		r.With(write, withTx).Get("/", rs.list)
 		r.With(write, withTx).Post("/", rs.create)
@@ -82,8 +83,8 @@ func (rs *StaffNoticeResource) SchoolRouter() chi.Router {
 	common.ProtectedSchoolGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.StaffNoticesRead)
 
-		r.With(read, withTx).Get("/today", rs.todayFor(scheduleSvc.StaffNoticeReaderLehrkraft))
-		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledgeFor(scheduleSvc.StaffNoticeReaderLehrkraft))
+		r.With(read, withTx).Get("/today", rs.todayFor(shiftplanning.StaffNoticeReaderLehrkraft))
+		r.With(read, withTx).Post("/{noticeId}/acknowledge", rs.acknowledgeFor(shiftplanning.StaffNoticeReaderLehrkraft))
 	})
 
 	return r
@@ -349,18 +350,18 @@ func noticeIDFromURL(r *http.Request) (int64, error) {
 	return id, nil
 }
 
-func decodeNoticeInput(r *http.Request) (scheduleSvc.StaffNoticeInput, error) {
+func decodeNoticeInput(r *http.Request) (shiftplanning.StaffNoticeInput, error) {
 	var req noticeRequest
 	if err := render.DecodeJSON(r.Body, &req); err != nil {
-		return scheduleSvc.StaffNoticeInput{}, errors.New("invalid request body")
+		return shiftplanning.StaffNoticeInput{}, errors.New("invalid request body")
 	}
 
 	validFrom, err := timezone.ParseDate(req.ValidFrom)
 	if err != nil {
-		return scheduleSvc.StaffNoticeInput{}, errors.New("valid_from must be a date (YYYY-MM-DD)")
+		return shiftplanning.StaffNoticeInput{}, errors.New("valid_from must be a date (YYYY-MM-DD)")
 	}
 
-	in := scheduleSvc.StaffNoticeInput{
+	in := shiftplanning.StaffNoticeInput{
 		Title:                   req.Title,
 		Body:                    req.Body,
 		Priority:                req.Priority,
@@ -377,7 +378,7 @@ func decodeNoticeInput(r *http.Request) (scheduleSvc.StaffNoticeInput, error) {
 	if req.ValidUntil != nil && *req.ValidUntil != "" {
 		until, err := timezone.ParseDate(*req.ValidUntil)
 		if err != nil {
-			return scheduleSvc.StaffNoticeInput{}, errors.New("valid_until must be a date (YYYY-MM-DD)")
+			return shiftplanning.StaffNoticeInput{}, errors.New("valid_until must be a date (YYYY-MM-DD)")
 		}
 		in.ValidUntil = &until
 	}
@@ -386,9 +387,9 @@ func decodeNoticeInput(r *http.Request) (scheduleSvc.StaffNoticeInput, error) {
 
 func renderNoticeServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, scheduleSvc.ErrStaffNoticeNotFound):
+	case errors.Is(err, shiftplanning.ErrStaffNoticeNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrStaffNoticeInvalid):
+	case errors.Is(err, shiftplanning.ErrStaffNoticeInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))

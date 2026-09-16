@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301
+        299
       ],
       "tables": []
     },
@@ -7443,76 +7443,6 @@
     },
     {
       "scope": "test",
-      "file": "services/schedule/shift_plan_sync_service_test.go",
-      "declaration": "buildSickCascadeEnv",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        65
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_CreateDefaultsIsIdempotent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        84
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_CreateInactivePersists",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        163
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_CreateValidationAndNameTaken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        32
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_DeleteNullsReferencingShift",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        120
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_UpdateAndDelete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_assignment_service_integration_test.go",
-      "declaration": "TestStaffAssignmentServiceListForStaff",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        54
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/schedule/staff_pool_test.go",
       "declaration": "TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse",
       "target": "database/repositories.NewFactory",
@@ -7568,101 +7498,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         144
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        347,
-        438
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        90,
-        94
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        296
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        182,
-        212
-      ],
-      "tables": [
-        "users.staff"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "createOverviewShift",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        155
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "createOverviewTenantFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        48
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_shift_series_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_SeriesFieldsRideExistingReads",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        796
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_shift_series_integration_test.go",
-      "declaration": "setupSeriesTest",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/substitution_module_interface_test.go",
-      "declaration": "newScheduleSubstitutionModule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        508
       ],
       "tables": []
     },
@@ -25184,27 +25019,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 177,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 501,
+          "line": 499,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 664,
+          "line": 662,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 902,
+          "line": 900,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1306,
+          "line": 1304,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -25214,7 +25049,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 301,
+          "line": 299,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -25224,22 +25059,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 180,
+          "line": 178,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 373,
+          "line": 371,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 415,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 661,
+          "line": 659,
           "declaration": "type API"
         },
         {
@@ -25359,12 +25194,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 452,
+          "line": 454,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 502,
+          "line": 504,
           "declaration": "newFactory"
         },
         {
