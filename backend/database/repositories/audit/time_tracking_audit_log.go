@@ -22,7 +22,8 @@ WHERE ev.tenant_id = ?
     OR (? AND ev.source = 'deletion')
     OR (? AND ev.source = 'personnel_number')
     OR (? AND ev.source = 'vacation_opening')
-    OR (? AND ev.source = 'absence_type_allowance'))
+    OR (? AND ev.source = 'absence_type_allowance')
+    OR (? AND ev.source = 'vacation_quota'))
   AND (?::timestamptz IS NULL OR ev.occurred_at >= ?)
   AND (?::timestamptz IS NULL OR ev.occurred_at < ?)
   AND (?::bigint = 0 OR ? = ANY(ev.staff_ids))
@@ -81,7 +82,7 @@ func (r *timeTrackingAuditLogRepository) ListEntries(ctx context.Context, filter
 	var entries []*auditModels.TimeTrackingAuditLogEntry
 	if err := runtimeDB(ctx, r.runtime).NewRaw(timeTrackingAuditLogViewQuery,
 		tenantID,
-		selected[0], selected[1], selected[2], selected[3], selected[4], selected[5], selected[6], selected[7], selected[8],
+		selected[0], selected[1], selected[2], selected[3], selected[4], selected[5], selected[6], selected[7], selected[8], selected[9],
 		from, from, to, to,
 		filter.StaffID, filter.StaffID,
 		filter.ActorStaffID, filter.ActorStaffID,

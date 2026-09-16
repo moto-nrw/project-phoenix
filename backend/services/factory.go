@@ -130,7 +130,7 @@ type Factory struct {
 	settingsRuntimeDB    *bun.DB
 	Auth                 auth.AuthService
 	Audit                auditModels.Command
-	StaffPINAuth         auth.StaffPINAuthenticator
+	StaffPINAuth         StaffPINAuthenticator
 	MFA                  auth.MFAService
 	Passkey              auth.PasskeyService
 	Active               active.Service
@@ -1573,6 +1573,21 @@ func newFactory(
 	// runtime back from the auth service at call time, so SetMFAService and
 	// SetTenantRuntime keep their meaning.
 	var authService *auth.Service
+	// The operator flows (#3252) share the module: the operator MFA service
+	// is constructed after it and read at call time.
+	var operatorMFAService platform.OperatorMFAService
+	operatorDependencies, err := newOperatorDependencies(operatorAuthenticationWiring{
+		repos:         operatorRepositoriesOf(repos),
+		organizations: organizations,
+		persons:       persons,
+		membership:    membership,
+		mfa:           func() platform.OperatorMFAService { return operatorMFAService },
+		logger:        platformLogger,
+	})
+	if err != nil {
+		return nil, err
+	}
+	var guardianInvitationService auth.GuardianInvitationService
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos),
 		tokenAuth: authConfig.TokenAuth,
@@ -1583,12 +1598,26 @@ func newFactory(
 		tenantRuntime: func(ctx context.Context) context.Context {
 			return authService.WithTenantRuntime(ctx)
 		},
-		mfa: func() auth.MFAService { return authService.CurrentMFAService() },
+		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
+		operators: operatorDependencies,
+		// The lifecycle flows (#3225) read the retained role management and
+		// the guardian invitation delivery back at call time; both are
+		// composed below.
+		lifecycle: &lifecycleWiring{
+			settings: settingsService, audit: auditCommand,
+			admin: func() *auth.Service { return authService },
+			delivery: func() auth.GuardianInvitationDelivery {
+				delivery, _ := guardianInvitationService.(auth.GuardianInvitationDelivery)
+				return delivery
+			},
+		},
 	})
 	if err != nil {
 		return nil, err
 	}
-	authConfig.Sessions = newAccountSessions(identityAccess)
+	accountSessionsPort := newAccountSessions(identityAccess)
+	authConfig.Sessions = accountSessionsPort
+	authConfig.Lifecycle = accountSessionsPort
 	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
@@ -1644,10 +1673,6 @@ func newFactory(
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
-		PersonRepo:        repos.Person,
-		StaffRepo:         repos.Staff,
-		TeacherRepo:       repos.Teacher,
-		StudentRepo:       repos.Student,
 		SchoolRepo:        repos.School,
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
@@ -1656,6 +1681,7 @@ func newFactory(
 		DefaultFrom:       defaultFrom,
 		InvitationExpiry:  invitationTokenExpiry,
 		MailIdentity:      tenantMailIdentity,
+		SchoolIdentity:    accountSessionsPort,
 		DB:                db,
 		Logger:            authLogger,
 	})
@@ -1691,7 +1717,7 @@ func newFactory(
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService := platform.NewOutboxService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService := auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
+	guardianInvitationService = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:       repos.GuardianInvitation,
 		AccountRepo:          repos.Account,
 		AccountTenantRepo:    repos.AccountTenant,
@@ -1705,6 +1731,7 @@ func newFactory(
 		SchoolRepo:           repos.School,
 		OutboxEnqueuer:       emailOutboxService,
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
+		RelativeAccess:       accountSessionsPort,
 		SettingsResolver:     settingsService,
 		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
 		FallbackExpiry:       invitationTokenExpiry,
@@ -1934,11 +1961,12 @@ func newFactory(
 	}
 
 	// Initialize platform services (operator dashboard)
+	operatorDirectory := newOperatorDirectory(identityAccess)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:         repos.Operator,
+		OperatorRepo:         operatorDirectory,
+		Sessions:             newOperatorSessions(identityAccess),
 		AuditLogRepo:         repos.OperatorAuditLog,
 		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
-		RefreshTokenRepo:     repos.OperatorRefreshToken,
 		InvitationTokenRepo:  repos.OperatorInvitationToken,
 		DB:                   db,
 		Logger:               platformLogger,
@@ -1960,8 +1988,9 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
 	}
-	operatorMFAService, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
+	operatorMFAService, err = platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
+		Operators:   operatorDirectory,
 		TokenAuth:   operatorMFATokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
@@ -1973,13 +2002,12 @@ func newFactory(
 	if err != nil {
 		return nil, fmt.Errorf("init operator mfa service: %w", err)
 	}
-	// Wire the MFA gate into the operator auth service so /operator/auth/login
-	// returns challenge tokens when MFA is required (= always, hardcoded for
-	// platform scope). Done post-construction to break the
-	// OperatorAuthService ↔ OperatorMFAService cycle.
-	operatorAuthService.SetMFAService(operatorMFAService)
+	// The Identity & Access operator login reads operatorMFAService through
+	// the gate closure above, so /operator/auth/login returns challenge
+	// tokens from here on (MFA is mandatory for the platform scope).
 	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
 		Repos:               repos,
+		Operators:           operatorDirectory,
 		MFAService:          operatorMFAService,
 		AuthService:         operatorAuthService,
 		DB:                  db,
@@ -2687,29 +2715,27 @@ func newFactory(
 	}
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
-		Organizations:         organizations,
-		SchoolRepo:            repos.School,
-		SummariesRepo:         repos.OperatorSummaries,
-		CategoryRepo:          repos.ActivityCategory,
-		DeviceRepo:            repos.Device,
-		RoleRepo:              repos.Role,
-		AccountTenantRepo:     repos.AccountTenant,
-		AccountRoleRepo:       repos.AccountRole,
-		AccountPermissionRepo: repos.AccountPermission,
-		AuthEventRepo:         repos.AuthEvent,
-		PersonRepo:            repos.Person,
-		StaffRepo:             repos.Staff,
-		AccountRepo:           repos.Account,
-		TeacherRepo:           repos.Teacher,
-		StudentRepo:           repos.Student,
-		GroupSupervisorRepo:   repos.GroupSupervisor,
-		ActiveGroupRepo:       repos.ActiveGroup,
-		Settings:              settingsService,
-		InvitationService:     invitationService,
-		AuthService:           authService,
-		AuditLogRepo:          repos.OperatorAuditLog,
-		DB:                    db,
-		Logger:                platformLogger,
+		Organizations:       organizations,
+		SchoolRepo:          repos.School,
+		SummariesRepo:       repos.OperatorSummaries,
+		CategoryRepo:        repos.ActivityCategory,
+		DeviceRepo:          repos.Device,
+		RoleRepo:            repos.Role,
+		AccountTenantRepo:   repos.AccountTenant,
+		PersonRepo:          repos.Person,
+		StaffRepo:           repos.Staff,
+		AccountRepo:         repos.Account,
+		TeacherRepo:         repos.Teacher,
+		StudentRepo:         repos.Student,
+		GroupSupervisorRepo: repos.GroupSupervisor,
+		ActiveGroupRepo:     repos.ActiveGroup,
+		Settings:            settingsService,
+		InvitationService:   invitationService,
+		AuthService:         authService,
+		SchoolIdentity:      accountSessionsPort,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		DB:                  db,
+		Logger:              platformLogger,
 	})
 
 	listExportService := listexport.NewService()
@@ -2967,7 +2993,7 @@ func newFactory(
 		settingsRuntimeDB:       db,
 		Auth:                    authService,
 		Audit:                   auditCommand,
-		StaffPINAuth:            authService,
+		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
 		MFA:                     mfaService,
 		Passkey:                 passkeyService,
 		Active:                  activeService,

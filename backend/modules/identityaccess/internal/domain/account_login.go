@@ -72,6 +72,7 @@ type LoginAccount struct {
 	Username     string
 	PasswordHash string
 	Active       bool
+	UpdatedAt    time.Time
 }
 
 // RoleAssignment is one role an account holds at a school, with the facts the
@@ -87,6 +88,8 @@ type RoleAssignment struct {
 type School struct {
 	ID             int64
 	OrganizationID int64
+	Name           string
+	Slug           string
 	Active         bool
 	Deleted        bool
 }
@@ -318,6 +321,9 @@ type AuthEvent struct {
 	IPAddress    string
 	UserAgent    string
 	ErrorMessage string
+	// TenantAccess is set on the tenant-visible school access events an
+	// operator causes (granted, role changed, revoked).
+	TenantAccess *TenantAccessEvidence
 	// RevokedSessions is set on token_revoked events.
 	RevokedSessions *RevokedSessionsEvidence
 	// PendingWipe marks a token_revoked event that records an account-wide
@@ -325,6 +331,18 @@ type AuthEvent struct {
 	PendingWipe *PendingWipeEvidence
 	// CompletedWipe is set on account_wide_wipe_completed events.
 	CompletedWipe *CompletedWipeEvidence
+}
+
+// TenantAccessEvidence describes an operator-led change of the school
+// access of an account. RemovedRoles is meaningful for a role change,
+// AccountDeactivated for a revocation, Role for a grant or role change.
+type TenantAccessEvidence struct {
+	SchoolID           int64
+	SchoolName         string
+	Role               string
+	RemovedRoles       []string
+	AccountDeactivated bool
+	OperatorID         int64
 }
 
 type RevokedSessionsEvidence struct {

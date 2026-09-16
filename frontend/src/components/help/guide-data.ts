@@ -1306,11 +1306,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Das tägliche Soll als Dezimalstunden mit Komma oder Punkt eingeben, zum Beispiel `4,45`; moto zeigt die daraus berechnete Dauer an und rundet auf die nächste volle Minute, halbe Minuten werden aufgerundet. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
           "Beim Umstieg auf moto den Resturlaub über die `Urlaubs-Übernahme` erfassen: Stichtag und Resturlaub zum Stichtag eintragen; moto errechnet daraus die vor der Einführung bereits genommenen Tage. Der Jahresanspruch bleibt unverändert, spätere Anspruchskorrekturen wirken sich weiterhin korrekt auf den Rest aus. Auch ein überzogenes Konto (negativer Rest) lässt sich abbilden.",
-          "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
+          "Freizeitausgleich trägt die Leitung über `Abwesenheit eintragen` im Reiter `Abwesenheiten` ein (siehe `Kontingente und Abwesenheiten eintragen`): einen ganzen freien Zeitraum oder einen halben einzelnen Tag. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
           "Vor dem Speichern zeigt das Fenster den aktuellen Stand des Stundenkontos, den Abzug für den Eintrag und den Stand danach. Bereits geplanter Freizeitausgleich ist eingerechnet. Fällt das Konto unter null, warnt moto und fragt nach einer Bestätigung per Häkchen. Nach Absprache mit dem Träger ist die Buchung trotzdem möglich, das Konto darf ins Minus laufen.",
-          "Eigene Bezeichnungen für Abwesenheiten pflegt die Leitung unter `Datenverwaltung` -> `Abwesenheitsarten`: `Abwesenheitsart anlegen`, Name eintragen, fertig. Danach steht die Bezeichnung im Feld `Art der Abwesenheit` zur Wahl. Ein vorhandener Eintrag lässt sich dort umbenennen oder über das Menü mit den drei Punkten aus der Auswahl nehmen; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.",
+          "Eigene Abwesenheitsarten wie `Regenerationstag` pflegt die Leitung unter `Datenverwaltung` -> `Abwesenheitsarten`: `Abwesenheitsart anlegen`, Name eintragen, bei Bedarf `Tage je Person zählen (Kontingent)` anhaken, speichern. Danach steht die Art beim Eintragen zur Wahl. Ein vorhandener Eintrag lässt sich dort umbenennen oder über das Menü mit den drei Punkten aus der Auswahl nehmen; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.",
           "Aus einem offenen Abwesenheits-Fenster führt der Link `Abwesenheitsarten verwalten` neben dem Feld dorthin. Er öffnet ein neues Fenster, damit Ihr angefangener Eintrag stehen bleibt.",
-          "Eine eigene Abwesenheitsart wird wie `Sonstige` berechnet. Sie kann ein eigenes Jahreskontingent haben. Den Anspruch ändern Sie im Mitarbeiterprofil.",
+          "Eine eigene Abwesenheitsart schreibt wie `Sonstige` das Tagessoll gut. Mit Kontingent zählt moto die Tage je Person; den Anspruch ändern Sie im Mitarbeiterprofil.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -1321,6 +1321,31 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
         printCompact: true,
+      },
+      {
+        id: "mitarbeiter-kontingente",
+        title: "Kontingente und Abwesenheiten eintragen",
+        icon: CalendarDays,
+        summary:
+          "Zeigt je Person, wie viele Urlaubstage, Regenerationstage oder andere Tage noch übrig sind, und trägt Abwesenheiten direkt ein.",
+        steps: [
+          "Arten anlegen: `Datenverwaltung` -> `Abwesenheitsarten` -> `Abwesenheitsart anlegen`. Name eintragen, zum Beispiel `Regenerationstag`, `Krank-Urlaubstag` oder `Umwandlungstag`. `Tage je Person zählen (Kontingent)` anhaken und speichern. Umbenennen oder ausschalten geht dort über das Menü mit den drei Punkten.",
+          "Kontingent je Person: `Mitarbeiter` öffnen, Person wählen, Reiter `Abwesenheiten`. Die Karte `Kontingente` zeigt für Urlaub und jede Art mit Kontingent `Anspruch`, `Genommen`, `Vorgemerkt` und `Übrig`. Oben lässt sich das Jahr wechseln, zum Beispiel im Dezember für das nächste Jahr.",
+          "Anspruch ändern: an der Art `Anspruch ändern` wählen, mit `+` und `−` die Tage anpassen (halbe Tage mit Komma, z. B. 1,5), eine Begründung eintragen und `Speichern`. Die Änderung steht mit Begründung im Änderungsprotokoll. Beim Start mit moto tragen Sie die Tage ein, die zum Stichtag noch übrig sind.",
+          "Beim Urlaub öffnet `Anspruch ändern` die Felder `Jahresanspruch` und `Übertrag aus Vorjahr`. Auch hier ist eine Begründung Pflicht, und die Änderung steht im Änderungsprotokoll.",
+          "Eintragen ohne Antrag: im Reiter `Abwesenheiten` `Abwesenheit eintragen` wählen. Zeitraum oder halben Tag wählen, dann die Art: `Urlaub`, eine eigene Art, `Freizeitausgleich`, `Fortbildung` oder `Sonstige`. Neben jeder Art steht, wie viele Tage noch übrig sind. Unten zeigt moto, wie viele Tage danach übrig bleiben. `Eintragen` bucht sofort, es entsteht kein Antrag.",
+          "Krankheit trägt weiterhin `Krank melden` daneben ein, weil sie Dienst- und Betreuungsplan ändert.",
+        ],
+        checklist: [
+          "Kontingente gehen nicht ins Minus. Reicht der Rest nicht, lässt sich nicht eintragen. Erst den Anspruch erhöhen oder eine andere Art wählen.",
+          "Das gilt auch für Urlaub: Anträge und Genehmigungen über den Resturlaub hinaus lehnt moto ab.",
+          "Nur das Stundenkonto darf ins Minus: Freizeitausgleich zieht das Tagessoll ab und fragt vorher nach einer Bestätigung.",
+          "Alle anderen Arten schreiben das Tagessoll gut. Die Überstunden bleiben gleich.",
+          "Mitarbeitende können ihren Urlaub weiter selbst beantragen. Von der Leitung eingetragene Tage können sie nur ansehen.",
+        ],
+        screenshot:
+          "Reiter Abwesenheiten mit der Karte Kontingente: Urlaub und eigene Arten mit Anspruch, Genommen, Vorgemerkt und Übrig.",
+        image: "/help/screens/mitarbeiter-kontingente.webp",
       },
       {
         id: "mitarbeiter-vorschau",
@@ -1783,7 +1808,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Zeigt Resturlaub, Anträge, Wochen- oder Monatsansichten und nachvollziehbare Korrekturen.",
         steps: [
           "In der Karte `Urlaub` Resturlaub, beantragte, genehmigte und abgelehnte Anträge prüfen.",
-          "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft.",
+          "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft. Mehr als den Resturlaub können Sie nicht beantragen; dann hilft die OGS-Leitung weiter.",
           "Eigene Urlaubsanträge in `Meine Anträge` verfolgen und offene oder zukünftige genehmigte Anträge bei Bedarf stornieren.",
           "Stellt die Leitung eine `Rückfrage`, erscheint sie unabhängig von Jahr und Alter des Antrags im eigenen Bereich `Rückfragen`: die Antwort im Textfeld ergänzen und mit `Antwort senden & erneut einreichen` den Antrag zurück zur Entscheidung geben.",
           "In der Tabelle `Zeiterfassung` zwischen Woche und Monat wechseln und mit `Diese Woche` oder `Diesen Monat` zurückspringen.",

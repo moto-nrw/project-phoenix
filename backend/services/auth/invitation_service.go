@@ -60,10 +60,6 @@ type InvitationServiceConfig struct {
 	RoleRepo          authModels.RoleRepository
 	PermissionRepo    authModels.PermissionRepository
 	AccountRoleRepo   authModels.AccountRoleRepository
-	PersonRepo        userModels.PersonRepository
-	StaffRepo         userModels.StaffRepository
-	TeacherRepo       userModels.TeacherRepository
-	StudentRepo       userModels.StudentRepository
 	SchoolRepo        platformModels.SchoolRepository
 	Mailer            email.Mailer
 	Dispatcher        *email.Dispatcher
@@ -79,22 +75,22 @@ type InvitationServiceConfig struct {
 	// moto (#1936). This send bypasses the outbox, so it stamps the header
 	// itself. Optional: nil sends without a Reply-To, exactly as before.
 	MailIdentity email.ReplyToResolver
-	DB           *bun.DB
-	Logger       *slog.Logger
+	// SchoolIdentity provisions the person, staff and caregiver chain an
+	// accepted invitation's role requires (#2222) through Identity & Access.
+	SchoolIdentity SchoolIdentityProvisioning
+	DB             *bun.DB
+	Logger         *slog.Logger
 }
 
 type invitationService struct {
 	tokenAuth         *jwt.TokenAuth
+	schoolIdentity    SchoolIdentityProvisioning
 	invitationRepo    authModels.InvitationTokenRepository
 	accountRepo       authModels.AccountRepository
 	accountTenantRepo authModels.AccountTenantRepository
 	roleRepo          authModels.RoleRepository
 	permissionRepo    authModels.PermissionRepository
 	accountRoleRepo   authModels.AccountRoleRepository
-	personRepo        userModels.PersonRepository
-	staffRepo         userModels.StaffRepository
-	teacherRepo       userModels.TeacherRepository
-	studentRepo       userModels.StudentRepository
 	schoolRepo        platformModels.SchoolRepository
 	dispatcher        *email.Dispatcher
 	frontendURL       string
@@ -125,16 +121,13 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 	}
 	return &invitationService{
 		tokenAuth:         config.TokenAuth,
+		schoolIdentity:    config.SchoolIdentity,
 		invitationRepo:    config.InvitationRepo,
 		accountRepo:       config.AccountRepo,
 		accountTenantRepo: config.AccountTenantRepo,
 		roleRepo:          config.RoleRepo,
 		permissionRepo:    config.PermissionRepo,
 		accountRoleRepo:   config.AccountRoleRepo,
-		personRepo:        config.PersonRepo,
-		staffRepo:         config.StaffRepo,
-		teacherRepo:       config.TeacherRepo,
-		studentRepo:       config.StudentRepo,
 		schoolRepo:        config.SchoolRepo,
 		dispatcher:        dispatcher,
 		frontendURL:       trimmedFrontend,
@@ -195,7 +188,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	}
 	// A school-portal invitation must link to the school portal, not the
 	// staff frontend — decided here, before the send is queued (#2207).
-	schoolPortal := isSchoolPortalRole(role)
+	schoolPortal := IsLehrkraftSystemRole(role)
 	// Queue the email until the surrounding tenant transaction commits: the
 	// staff import creates invitations mid-transaction, and a rolled-back
 	// token must never reach an inbox as a dead link. Outside a tenant tx
@@ -675,7 +668,10 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	if role == nil {
 		return &AuthError{Op: "assign caregiver role", Err: fmt.Errorf("role not found")}
 	}
-	if IsPlatformCaregiverRole(role) {
+	if s.schoolIdentity == nil {
+		return &AuthError{Op: "assign caregiver role", Err: ErrAccountLifecycleUnavailable}
+	}
+	if s.schoolIdentity.IsPlatformCaregiverRole(RoleFactsOf(role)) {
 		return nil
 	}
 	// Defense in depth for tokens minted before the creation-side check
@@ -747,15 +743,13 @@ func (s *invitationService) provisionSchoolIdentity(
 		position = *invitation.Position
 	}
 
-	_, err = EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
-		Persons:  s.personRepo,
-		Staff:    s.staffRepo,
-		Teachers: s.teacherRepo,
-		Students: s.studentRepo,
-	}, SchoolIdentityInput{
+	if s.schoolIdentity == nil {
+		return &AuthError{Op: "provision school identity", Err: ErrAccountLifecycleUnavailable}
+	}
+	_, err = s.schoolIdentity.EnsureSchoolIdentity(ctx, SchoolIdentityInput{
 		AccountID: accountID,
 		TenantID:  invitation.TenantID,
-		Role:      role,
+		Role:      RoleFactsOf(role),
 		FirstName: firstName,
 		LastName:  lastName,
 		Position:  position,
@@ -808,7 +802,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("actor_account_id", actorAccountID))
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, isSchoolPortalRole(role))
+	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, IsLehrkraftSystemRole(role))
 	return nil
 }
 

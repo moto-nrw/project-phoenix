@@ -190,4 +190,34 @@ describe("VacationRequestModal questioned absences", () => {
     });
     window.removeEventListener(ABSENCES_REFRESH_EVENT, listener);
   });
+
+  // #3256: der Resturlaub darf nicht ins Minus, der Antrag wird gesperrt.
+  it("blocks a request beyond the Resturlaub and says whom to ask", () => {
+    render(
+      <VacationRequestModal
+        isOpen
+        onClose={vi.fn()}
+        onSubmitted={vi.fn()}
+        remainingDays={1}
+        existingVacations={[]}
+      />,
+    );
+
+    act(() => {
+      mocks.calendarProps?.onChange({
+        from: new Date(2027, 6, 5),
+        to: new Date(2027, 6, 7),
+      });
+    });
+
+    expect(
+      screen.getByText(
+        "Das sind 2 Tage mehr, als du noch hast. Sprich bitte mit der OGS-Leitung.",
+      ),
+    ).toBeInTheDocument();
+    const send = screen.getByRole("button", { name: "Antrag senden" });
+    expect(send).toBeDisabled();
+    fireEvent.click(send);
+    expect(mocks.requestVacation).not.toHaveBeenCalled();
+  });
 });

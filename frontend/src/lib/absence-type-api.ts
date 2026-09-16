@@ -18,7 +18,6 @@ interface BackendAbsenceType {
   base_type: string;
   is_active: boolean;
   allowance_enabled: boolean;
-  overrun_policy: "warn" | "block";
 }
 
 export interface AbsenceType {
@@ -28,8 +27,11 @@ export interface AbsenceType {
   /** The standard type whose calculation this art inherits (today: "other"). */
   readonly baseType: string;
   readonly isActive: boolean;
+  /**
+   * The art keeps an own yearly account per person. A booking above it is
+   * always refused (#3256).
+   */
   readonly allowanceEnabled: boolean;
-  readonly overrunPolicy: "warn" | "block";
 }
 
 function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
@@ -39,7 +41,6 @@ function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
     baseType: data.base_type,
     isActive: data.is_active,
     allowanceEnabled: data.allowance_enabled,
-    overrunPolicy: data.overrun_policy,
   };
 }
 
@@ -48,7 +49,8 @@ class AbsenceTypeApiError extends Error {
   readonly detail: string;
 
   constructor(status: number, detail: string) {
-    super(`HTTP ${status}: ${detail}`);
+    // The detail is the server's German reason; it is shown as-is.
+    super(detail);
     this.name = "AbsenceTypeApiError";
     this.status = status;
     this.detail = detail;
@@ -108,7 +110,6 @@ class AbsenceTypeService {
     name: string,
     config: {
       allowanceEnabled: boolean;
-      overrunPolicy: "warn" | "block";
     },
   ): Promise<AbsenceType> {
     const response = await sessionFetch("/api/staff/absence-types", {
@@ -117,7 +118,6 @@ class AbsenceTypeService {
       body: JSON.stringify({
         name,
         allowance_enabled: config.allowanceEnabled,
-        overrun_policy: config.overrunPolicy,
       }),
     });
     return readOne(response);
@@ -130,7 +130,6 @@ class AbsenceTypeService {
       name?: string;
       isActive?: boolean;
       allowanceEnabled?: boolean;
-      overrunPolicy?: "warn" | "block";
     },
   ): Promise<AbsenceType> {
     const response = await sessionFetch(`/api/staff/absence-types/${id}`, {
@@ -143,9 +142,6 @@ class AbsenceTypeService {
           : {}),
         ...(changes.allowanceEnabled !== undefined
           ? { allowance_enabled: changes.allowanceEnabled }
-          : {}),
-        ...(changes.overrunPolicy !== undefined
-          ? { overrun_policy: changes.overrunPolicy }
           : {}),
       }),
     });

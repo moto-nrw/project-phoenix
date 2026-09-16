@@ -35,30 +35,15 @@ function sections(): SectionConfig[] {
         },
         {
           name: "allowanceEnabled",
-          label: "Eigenes Jahreskontingent",
+          label: "Tage je Person zählen (Kontingent)",
           type: "checkbox",
           colSpan: 2,
           helperText:
-            "Wie viele Tage jede Person im Jahr hat, tragen Sie im Profil der Person ein.",
-        },
-        {
-          name: "overrunPolicy",
-          label: "Wenn keine Tage mehr übrig sind",
-          type: "select",
-          options: [
-            { value: "warn", label: "Warnen und trotzdem eintragen" },
-            { value: "block", label: "Eintragen verhindern" },
-          ],
-          helperText:
-            "Gilt nur, wenn diese Art ein eigenes Jahreskontingent hat.",
+            "Die Tage je Person tragen Sie unter Mitarbeiter im Reiter Abwesenheiten ein. Mehr als dort steht, lässt sich nicht eintragen.",
         },
       ],
     },
   ];
-}
-
-function policyOf(values: Record<string, unknown>): "warn" | "block" {
-  return values.overrunPolicy === "block" ? "block" : "warn";
 }
 
 const config: CatalogConfig<AbsenceType> = {
@@ -66,10 +51,10 @@ const config: CatalogConfig<AbsenceType> = {
   title: "Abwesenheitsarten",
   singular: "Abwesenheitsart",
   purpose:
-    "Eigene Namen für Abwesenheiten, zusätzlich zu Urlaub, Krank, Fortbildung und Sonstige.",
+    "Eigene Arten wie Regenerationstag, zusätzlich zu Urlaub, Krank, Fortbildung, Sonstige und Freizeitausgleich.",
   searchPlaceholder: "Abwesenheitsart suchen…",
   emptyDescription:
-    "Legen Sie einen eigenen Namen an, wenn Urlaub, Krank, Fortbildung und Sonstige nicht reichen. Diese vier gehören zum System und stehen immer zur Verfügung.",
+    "Legen Sie eine eigene Art an, zum Beispiel Regenerationstag oder Krank-Urlaubstag. Urlaub, Krank, Fortbildung, Sonstige und Freizeitausgleich gibt es immer.",
   stats: (types) => {
     const inactive = types.filter((type) => !type.isActive).length;
     const active = types.length - inactive;
@@ -80,20 +65,18 @@ const config: CatalogConfig<AbsenceType> = {
   toRow: (type) => ({
     name: type.name,
     subtitle: type.allowanceEnabled
-      ? "Mit eigenem Jahreskontingent"
-      : "Wird wie Sonstige berechnet",
+      ? "Mit Kontingent je Person"
+      : "Ohne Kontingent",
     retired: !type.isActive,
   }),
   sections,
   toFormValues: (type) => ({
     name: type.name,
     allowanceEnabled: type.allowanceEnabled,
-    overrunPolicy: type.overrunPolicy,
   }),
   createDefaults: {
     name: "",
     allowanceEnabled: false,
-    overrunPolicy: "warn",
   },
   // Der POST nimmt die vollständige Konfiguration an und speichert sie in
   // einem Vorgang. Ein fehlgeschlagener Nachtrag kann so keinen Eintrag mit
@@ -103,7 +86,6 @@ const config: CatalogConfig<AbsenceType> = {
       String(values.name ?? "").trim(),
       {
         allowanceEnabled: Boolean(values.allowanceEnabled),
-        overrunPolicy: policyOf(values),
       },
     );
   },
@@ -111,7 +93,6 @@ const config: CatalogConfig<AbsenceType> = {
     absenceTypeService.updateAbsenceType(type.id, {
       name: String(values.name ?? type.name).trim(),
       allowanceEnabled: Boolean(values.allowanceEnabled),
-      overrunPolicy: policyOf(values),
     }),
   retire: {
     menuLabel: "Nicht mehr anbieten",

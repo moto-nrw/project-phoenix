@@ -384,17 +384,14 @@ func buildAccountResponse(account *authModel.Account) *AccountResponse {
 // buildSchoolIdentityResponse exposes the provisioned ids, or nil when nothing
 // was provisioned.
 func buildSchoolIdentityResponse(identity *authService.SchoolIdentity) *SchoolIdentityResponse {
-	if identity == nil || identity.Person == nil || identity.Staff == nil {
+	if identity == nil || identity.PersonID == 0 || identity.StaffID == 0 {
 		return nil
 	}
-	resp := &SchoolIdentityResponse{
-		PersonID: identity.Person.ID,
-		StaffID:  identity.Staff.ID,
+	return &SchoolIdentityResponse{
+		PersonID:  identity.PersonID,
+		StaffID:   identity.StaffID,
+		TeacherID: identity.TeacherID,
 	}
-	if identity.Teacher != nil {
-		resp.TeacherID = identity.Teacher.ID
-	}
-	return resp
 }
 
 // refreshToken handles token refresh

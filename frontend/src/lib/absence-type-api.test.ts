@@ -31,7 +31,6 @@ describe("absenceTypeService allowances", () => {
               base_type: "other",
               is_active: true,
               allowance_enabled: true,
-              overrun_policy: "block",
             },
           ],
         }),
@@ -43,7 +42,6 @@ describe("absenceTypeService allowances", () => {
       expect.objectContaining({
         id: "12",
         allowanceEnabled: true,
-        overrunPolicy: "block",
       }),
     ]);
   });
@@ -58,7 +56,6 @@ describe("absenceTypeService allowances", () => {
             base_type: "other",
             is_active: true,
             allowance_enabled: true,
-            overrun_policy: "block",
           },
         }),
         { status: 201, headers: { "Content-Type": "application/json" } },
@@ -68,11 +65,9 @@ describe("absenceTypeService allowances", () => {
     await expect(
       absenceTypeService.createAbsenceType("Regenerationstag", {
         allowanceEnabled: true,
-        overrunPolicy: "block",
       }),
     ).resolves.toMatchObject({
       allowanceEnabled: true,
-      overrunPolicy: "block",
     });
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/staff/absence-types",
@@ -81,7 +76,6 @@ describe("absenceTypeService allowances", () => {
         body: JSON.stringify({
           name: "Regenerationstag",
           allowance_enabled: true,
-          overrun_policy: "block",
         }),
       }),
     );

@@ -54,6 +54,7 @@ func TestOperatorMFAService_RecordAudit_PanicInGoroutineRecovers(t *testing.T) {
 	require.NoError(t, err)
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
+		Operators: newTestOperatorDirectory(db),
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,

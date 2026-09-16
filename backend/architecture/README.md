@@ -556,13 +556,40 @@ administrative transaction and otherwise run on the root connection; the
 operator flows open the transaction where rotation or revocation and its
 audit evidence must commit together. `platform.operator_audit_log` is
 appended through the Audit owner's appender as a platform-scoped ledger
-(`models/audit.OperatorAuditEntry`, no tenant handshake). The retained
-`models/platform` operator repository contracts are compatibility adapters in
-the legacy composition (`database/repositories/operator_identity.go`), bound
-at construction, and go with #2751. The foreign `auth.accounts` reads of the
-People Directory, Care Plan parent and CLI packages use owner queries bound
-the same way (`identity_ports.go`): the account lookup and active-account
-subquery of `database/repositories/auth` and the public account fact. The
+(`models/audit.OperatorAuditEntry`, no tenant handshake). Operator login with
+its mandatory MFA gate, the MFA-proven token issue, refresh with rotation
+recovery, profile and password changes with their session revocation, and
+the operator-led school access of accounts (which schools an existing
+account reaches, with which role; `auth.account_tenants`,
+`auth.account_roles` and `auth.account_permissions` writes with the
+account's session revocation) live in the module's application layer as the
+public `OperatorAuthentication` and `OperatorAccountAccess` capabilities
+(#3252). The facts those flows need from other owners (the operator MFA
+service, the operator audit ledger, the pending e-mail change links, the
+password policy, schools and organisations, the People Directory and School
+Membership identity chain a school access provisions, the retained role
+assignment rules) are bound at the serving root through public-typed seams
+(`compose.OperatorDependencies`). The login, refresh, profile, password and
+school-access handlers live in `modules/identityaccess/inbound/operator`,
+the owner's HTTP adapter, and call the public contract there. `api/operator`
+keeps the operator router with its middleware chain and rate limiters,
+mounts those handlers (`inbound-operator.http.identity-access-http`) and
+hands them its error bodies, so the operator surface keeps one wire format.
+The rules of the new `identity-access/http` role are anchored to that
+package; `api/operator` itself still has no rule for the public package.
+The retained `services/platform` operator service keeps the MFA and passkey
+token exchange (`OperatorSessions`), the profile read and the e-mail change;
+operator rows reach the retained MFA, passkey, invitation and e-mail change
+flows through the `OperatorDirectory` port the root binds to the public
+module. The public audit evidence is typed (`TenantAccessEvidence`,
+`OperatorAccessChange`); the root renders it into the ledger keys. The former
+`models/platform` operator and refresh-session repository contracts and
+their compatibility adapters are deleted; the operator invitation, e-mail
+change, MFA and passkey flows stay under #2722, #2723 and #2724. The foreign
+`auth.accounts` reads of the People Directory, Care Plan parent and CLI
+packages use owner queries bound the same way (`identity_ports.go`): the
+account lookup and active-account subquery of `database/repositories/auth`
+and the public account fact. The
 same owner serves the account refresh sessions behind tenant, parent and
 school login, refresh, tenant switching, logout, session validation and
 revocation (#2720): `auth.tokens` is read and written only through the
@@ -583,8 +610,10 @@ ledger, push subscriptions) are bound at the serving root through
 public-typed seams (`compose.SessionDependencies`). The retained
 `services/auth.Service` keeps the `AuthService` contract by delegating its
 session methods to a consumer-owned port the root binds to the public
-module; `api/auth` calls the public contract directly, while `api/parent`,
-`api/operator`, the school portal and the SSE routes keep the delegation
+module; `api/auth` and the operator identity routes
+(`modules/identityaccess/inbound/operator`) call the public contract
+directly, while `api/parent`, the school portal and the SSE routes keep the
+delegation
 because no target rule lets those inbound packages import the identity-access
 public package. The legacy `auth.accounts_parents` model, repository and its
 six `/auth/parent-accounts` routes stay unchanged; the table has no target
