@@ -4,10 +4,10 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
-// The snapshot type and its location resolver live in services/active, where
+// The snapshot type and its location resolver live in modules/studentpresence/legacy/services/active, where
 // the underlying attendance/visit/group data originates. These aliases keep
 // the historical api/common call sites working unchanged; the batch loader
 // below stays here as the shared api-layer read helper.
@@ -30,7 +30,7 @@ var ResolveBinaryLocation = activeService.ResolveBinaryLocation
 
 // ResolveYardRoomColor returns the tenant's Schulhof room color, nil when none
 // is configured. Only binary mode needs it — see the doc comment on the
-// services/active original.
+// modules/studentpresence/legacy/services/active original.
 var ResolveYardRoomColor = activeService.ResolveYardRoomColor
 
 // YardLocationLabel is the binary-mode label for a student on the schoolyard.

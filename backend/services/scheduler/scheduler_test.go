@@ -13,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1093,8 +1093,6 @@ func (m *mockActiveService) GetCrossTenantStudents(_ context.Context, _ int64) (
 func (m *mockActiveService) GetTrackingIndicators(_ context.Context, _ []int64, _ []string) (map[int64][]bool, error) {
 	return nil, nil
 }
-func (m *mockActiveService) SetSettingsService(_ activeService.SettingsResolver) {}
-func (m *mockActiveService) SetTenantRuntime(_ tenant.UnitOfWork)                {}
 func (m *mockActiveService) GetPresenceMode(_ context.Context) (string, error) {
 	return "detailed", nil
 }

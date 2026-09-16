@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 
 	"github.com/stretchr/testify/require"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // staffGroupSupervisorRepository attaches the supervising staff member to

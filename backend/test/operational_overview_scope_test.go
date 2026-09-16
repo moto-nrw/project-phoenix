@@ -14,7 +14,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,7 +134,7 @@ func TestOperationalOverviewNeverCrossesTenants(t *testing.T) {
 	assertSeesOnlyOwn := func(tb testing.TB, ownTenant, ownGroup, foreignGroup int64) {
 		tb.Helper()
 		err := WithTenantTx(t, context.Background(), db, ownTenant, func(txCtx context.Context, _ bun.Tx) error {
-			groups, err := presence.QueryGroupRecords(txCtx, repoActive.GroupRecordFilter{})
+			groups, err := presence.QueryGroupRecords(txCtx, repositories.PresenceGroupRecordFilter{})
 			require.NoError(tb, err)
 
 			ids := make(map[int64]bool, len(groups))
