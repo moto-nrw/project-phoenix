@@ -55,7 +55,7 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 		},
 	}
 	// This route does not read visits; an unexpected presence call must fail.
-	rs := NewResource(active, nil, nil, nil, nil, settings, common.ProtectedTenantRoutes, slog.Default(), struct{ PresenceQueries }{}, requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("tracking must not bind staff") }), authorizationForTest())
+	rs := NewResource(active, nil, nil, nil, nil, settings, common.ProtectedTenantRoutes, slog.Default(), struct{ PresenceQueries }{}, requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("tracking must not bind staff") }), authorizationForTest(), nil)
 	router := rs.Router()
 
 	body, err := json.Marshal(map[string]any{"student_ids": []int64{student.ID}})

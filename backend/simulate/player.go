@@ -55,6 +55,9 @@ type RuntimeCounts struct {
 	DailyCheckouts     int
 	FeedbackSubmitted  int
 	SessionsEnded      int
+	// IndependentStays counts children moved into a released room without
+	// joining an activity there (#3066).
+	IndependentStays int
 }
 
 type Action interface {

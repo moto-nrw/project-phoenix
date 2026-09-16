@@ -3,6 +3,7 @@ import { getCachedSession, sessionFetch } from "./session-cache";
 import api from "./api";
 import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
+import type { ApiError } from "~/lib/api-error";
 
 const logger = createLogger({ component: "ActiveService" });
 import {
@@ -955,6 +956,46 @@ export const activeService = {
         target_active_group_id: Number.parseInt(activeGroupId, 10),
       },
     );
+  },
+
+  /**
+   * Records that the children now use a released room (#3066): an independent
+   * room stay, not participation in an activity running there. Rejects with an
+   * ApiError whose `code` is `room_not_released` when the release was removed
+   * after the room list was loaded.
+   */
+  moveStudentsToOpenRoom: async (
+    studentIds: string[],
+    roomId: string,
+  ): Promise<StudentMoveResult> => {
+    const response = await sessionFetch("/api/active/visits/move-to-room", {
+      method: "POST",
+      body: JSON.stringify({
+        student_ids: studentIds.map((id) => Number.parseInt(id, 10)),
+        target_room_id: Number.parseInt(roomId, 10),
+      }),
+    });
+    if (!response.ok) {
+      let code: string | undefined;
+      try {
+        code = ((await response.json()) as { code?: string }).code;
+      } catch {
+        code = undefined;
+      }
+      logger.error("proxy fetch failed", {
+        operation: "Move students to open room",
+        status: response.status,
+        code,
+      });
+      const error = new Error(
+        `Move students to open room failed: ${response.status}`,
+      ) as ApiError;
+      error.status = response.status;
+      error.code = code;
+      throw error;
+    }
+    const payload = (await response.json()) as ApiResponse<StudentMoveResult>;
+    return payload.data;
   },
 
   // Schulhof (Schoolyard) - Permanent Tab Functions

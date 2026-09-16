@@ -37,6 +37,7 @@ import { SpontaneousActivityStart } from "~/components/active-supervisions/spont
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   additionalSupervisionTarget,
+  occupiedRoomIdsForSpontaneousStart,
   openRoomRosterActiveGroupId,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
@@ -182,19 +183,14 @@ function MeinRaumPageContent() {
     [openRooms],
   );
 
-  const occupiedRoomIds = useMemo(() => {
-    const ids = allRooms
-      .map((room) => room.room_id)
-      .filter((roomId): roomId is string => Boolean(roomId));
-    // A released room that currently holds a session is occupied too, even
-    // though it is not one of the caller's own tabs. The spontaneous modal
-    // treats such a destination as navigation to the running supervision
-    // instead of disabling it; every normal occupied room stays unavailable.
-    for (const room of openRooms) {
-      if (room.activeGroupIds.length > 0) ids.push(room.roomId);
-    }
-    return ids;
-  }, [allRooms, openRooms]);
+  const occupiedRoomIds = useMemo(
+    () =>
+      occupiedRoomIdsForSpontaneousStart({
+        ownSupervisionRoomIds: allRooms.map((room) => room.room_id),
+        openRooms,
+      }),
+    [allRooms, openRooms],
+  );
 
   // Set breadcrumb so the header names what is open — a shared room by its
   // room name, an own supervision by its session (parallel sessions can share

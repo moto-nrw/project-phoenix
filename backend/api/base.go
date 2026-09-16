@@ -56,6 +56,7 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
+	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
@@ -1452,6 +1453,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
 	presence := newStudentPresence(db, logger)
+	openRoomPresence, ok := api.Services.Active.(openRoomMoveCompose.RetainedPresence)
+	if !ok {
+		return errors.New("open room move: the active service does not provide the room session operations")
+	}
+	openRoomMove, err := newOpenRoomMove(modules, openRoomPresence, logger)
+	if err != nil {
+		return err
+	}
 	teacherGroupIDs := func(ctx context.Context, teacherID int64) ([]int64, error) {
 		groups, err := api.Services.Education.GetTeacherGroups(ctx, teacherID)
 		if err != nil {
@@ -1465,7 +1474,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		}
 		return ids, nil
 	}
-	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization())
+	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
 	if err != nil {

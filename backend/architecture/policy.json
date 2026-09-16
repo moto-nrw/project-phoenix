@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 10,
+  "policy_epoch": 11,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -348,6 +348,10 @@
     },
     {
       "id": "session-end",
+      "kind": "workflow"
+    },
+    {
+      "id": "open-room-move",
       "kind": "workflow"
     },
     {
@@ -2401,6 +2405,34 @@
     {
       "path": "workflows/sessionend/compose",
       "owner": "session-end",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/openroommove",
+      "owner": "open-room-move",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/openroommove/ports",
+      "owner": "open-room-move",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/openroommove/internal/application",
+      "owner": "open-room-move",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/openroommove/compose",
+      "owner": "open-room-move",
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -6792,6 +6824,270 @@
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "session-end",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.port.facilities",
+      "description": "Open-room move ports name the Facilities room lock through its public contract (#3066).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "port",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.application.facilities",
+      "description": "Open-room move requires the Facilities release of the locked room through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.port.timetable-activities",
+      "description": "Open-room move ports name the Timetable system activity and category capability through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "port",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.application.timetable-activities",
+      "description": "Open-room move resolves and provisions the room's system activity through the Timetable public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.port.public",
+      "description": "Open-room move ports carry the workflow's own actor and skipped-child records.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "port",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.application.ports",
+      "description": "Open-room move consumes its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "open-room-move",
+      "target_role": "port"
+    },
+    {
+      "id": "open-room-move.application.public",
+      "description": "Open-room move implements its own public command contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.decision-test.facilities",
+      "description": "Open-room move decision tests fake the Facilities room lock through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "workflow-decision-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.decision-test.timetable-activities",
+      "description": "Open-room move decision tests fake the Timetable system activity capability through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "workflow-decision-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.decision-test.public",
+      "description": "Open-room move decision tests assert the public result and errors.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "workflow-decision-test",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.compose.public",
+      "description": "Open-room move composition returns the workflow command facade.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.compose.application",
+      "description": "Open-room move composition constructs its single command provider.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "open-room-move",
+      "target_role": "application"
+    },
+    {
+      "id": "open-room-move.compose.port",
+      "description": "Open-room move composition accepts consumer-owned owner inputs.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "open-room-move",
+      "target_role": "port"
+    },
+    {
+      "id": "open-room-move.compose.tenant-runtime",
+      "description": "Open-room move composition binds the joining tenant UnitOfWork and its transaction lock.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.compose.student-presence-application",
+      "description": "Compatibility binding: the room session lookup-or-create and the move use the retained Student Presence service until the owner exposes them publicly (ADR 0018).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "open-room-move.compose.student-presence-domain",
+      "description": "Compatibility binding: the retained Student Presence room session is returned as its domain row until the owner exposes it publicly (ADR 0018).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "open-room-move.adapter-test.compose",
+      "description": "Open-room move integration tests bind the production composition.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "open-room-move",
+      "target_role": "compose"
+    },
+    {
+      "id": "open-room-move.adapter-test.facilities-compose",
+      "description": "Open-room move integration tests compose the facilities owner.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "open-room-move.adapter-test.timetable-test-support",
+      "description": "Open-room move integration tests compose the Timetable owner through its test support.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "test-support"
+    },
+    {
+      "id": "open-room-move.adapter-test.student-presence-application",
+      "description": "Open-room move integration tests fake the retained Student Presence binding, whose result type lives in the retained service (ADR 0018).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "open-room-move.adapter-test.student-presence-domain",
+      "description": "Open-room move integration tests fake the retained Student Presence binding, which returns the room session row (ADR 0018).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "student-presence.http.to.open-room-move",
+      "description": "The staff move-to-room endpoint calls exactly the open-room move facade (#3066).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.to.open-room-move-compose",
+      "description": "The API root composes the open-room move workflow.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "open-room-move",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.to.open-room-move-public",
+      "description": "The API root passes the open-room move command to the active resource.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "open-room-move",
       "target_role": "public"
     },
     {

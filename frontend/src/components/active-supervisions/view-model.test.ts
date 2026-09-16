@@ -11,6 +11,7 @@ import {
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
   additionalSupervisionTarget,
+  occupiedRoomIdsForSpontaneousStart,
   withActiveSupervisionPresence,
 } from "./view-model";
 
@@ -640,5 +641,26 @@ describe("supervision tab identity (#2265)", () => {
         },
       }),
     ).toBeNull();
+  });
+
+  it("keeps a released room selectable when it only holds independent stays", () => {
+    expect(
+      occupiedRoomIdsForSpontaneousStart({
+        ownSupervisionRoomIds: ["werkraum"],
+        openRooms: [
+          { roomId: "sporthalle", hasOccupyingSession: false },
+          { roomId: "schulhof", hasOccupyingSession: true },
+        ],
+      }),
+    ).toEqual(["werkraum", "schulhof"]);
+  });
+
+  it("still occupies a released room that runs an empty activity session", () => {
+    expect(
+      occupiedRoomIdsForSpontaneousStart({
+        ownSupervisionRoomIds: [],
+        openRooms: [{ roomId: "sporthalle", hasOccupyingSession: true }],
+      }),
+    ).toEqual(["sporthalle"]);
   });
 });
