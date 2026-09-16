@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -136,7 +138,7 @@ func TestValidateOfferingSourceInput(t *testing.T) {
 			sourceOfferingIDs: []int64{12},
 			targetGroupType:   activitiesModel.TargetGroupTypeAngebot,
 			weekdayAssignments: []WeekdayRosterAssignment{
-				{Weekday: activitiesModel.WeekdayMonday, StaffIDs: []int64{31}, PrimaryStaffID: int64Ptr(31)},
+				{Weekday: activitiesModel.WeekdayMonday, StaffIDs: []int64{31}, PrimaryStaffID: testpkg.Int64Ptr(31)},
 				{Weekday: activitiesModel.WeekdayTuesday, StaffIDs: []int64{32}, StudentIDs: []int64{}},
 				{Weekday: activitiesModel.WeekdayWednesday},
 			},

@@ -105,7 +105,7 @@ func (s *TimetableDataService) GetStaffPoolForInstance(ctx context.Context, inst
 	if err != nil {
 		return nil, fmt.Errorf("load shifts: %w", err)
 	}
-	weekFrom, weekTo := containingCalendarWeek(timezone.Date(date))
+	weekFrom, weekTo := ContainingCalendarWeek(timezone.Date(date))
 	usedWeeks, err := s.deps.StaffShiftRepo.FindUsedCalendarWeeks(ctx, scheduleModel.Date(weekFrom), scheduleModel.Date(weekTo))
 	if err != nil {
 		return nil, fmt.Errorf("load used shift weeks: %w", err)
@@ -114,7 +114,7 @@ func (s *TimetableDataService) GetStaffPoolForInstance(ctx context.Context, inst
 	if err != nil {
 		return nil, fmt.Errorf("load staff directory: %w", err)
 	}
-	sortOverviewStaff(staff)
+	SortOverviewStaff(staff)
 
 	facts := buildStaffPoolFacts(instance, plannable, rows, shifts)
 	entries := make([]StaffPoolEntry, 0, len(staff))
@@ -219,7 +219,7 @@ func buildStaffPoolEntry(target *scheduleModel.ActivityInstance, staffID int64, 
 	}
 	sort.Strings(entry.ShiftWindows)
 	if entry.OnShift {
-		entry.CoversWindow = len(uncoveredShiftIntervals(
+		entry.CoversWindow = len(UncoveredShiftIntervals(
 			timezone.NormalizeWallClock(target.StartTime), timezone.NormalizeWallClock(target.EndTime), staffShifts,
 		)) == 0
 	}

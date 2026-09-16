@@ -1,3 +1,11 @@
+// Package shiftplanning composes the HTTP runtime of the staff-shift and
+// shift-type administration routes over the Workforce capability (#2689).
+// The route adapters themselves must not own the HTTP platform, so this
+// package supplies authentication, tenant transaction scoping, permission
+// names, actor resolution and the shared response envelope through their
+// Runtime. The public StaffShiftPlanning and ShiftTypeAdministration
+// contracts it mounts are served by the retained services in
+// modules/workforce/legacy/shiftplanning (#3219).
 package shiftplanning
 
 import (

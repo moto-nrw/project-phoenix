@@ -32,15 +32,10 @@ import (
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
-	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
-
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
+	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
+	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
+	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
@@ -48,25 +43,6 @@ import (
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
-	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
-	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
-
-	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
-	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
-	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
-	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
-	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -74,17 +50,28 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
+	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
+	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -93,6 +80,8 @@ import (
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
@@ -102,15 +91,21 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
+	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
+	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
+	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -120,11 +115,14 @@ import (
 	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
+	workforceShiftServices "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
+	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
 // offeringSourceOptions narrows the enrollment decision service to the
@@ -1416,7 +1414,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	}
 	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.StaffShifts = workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
-		Planning: workforceShiftPlanning.NewStaffShiftPlanning(workforceShiftPlanning.PlanningDependencies{
+		Planning: workforceShiftServices.NewStaffShiftPlanning(workforceShiftServices.PlanningDependencies{
 			Shifts: api.Services.StaffShifts, Series: api.Services.StaffShiftSeries,
 			Overview: api.Services.StaffScheduleOverview, PlanExport: api.Services.PlanExport,
 		}),
@@ -1425,7 +1423,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
 	})
 	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(
-		workforceShiftPlanning.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
+		workforceShiftServices.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
