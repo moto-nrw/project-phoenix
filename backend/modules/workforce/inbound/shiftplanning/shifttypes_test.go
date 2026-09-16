@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	shiftservices "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -33,7 +35,7 @@ type shiftTypeRoute struct {
 func setupShiftTypeRoute(t *testing.T) *shiftTypeRoute {
 	t.Helper()
 	db, module := testutil.SetupShiftTypeModule(t)
-	resource := NewShiftTypesResource(NewShiftTypeAdministration(module.ShiftTypes, module.Activities.SetCategoryShiftTypeLinks), db)
+	resource := NewShiftTypesResource(shiftservices.NewShiftTypeAdministration(module.ShiftTypes, module.Activities.SetCategoryShiftTypeLinks), db)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.Tenant(t)

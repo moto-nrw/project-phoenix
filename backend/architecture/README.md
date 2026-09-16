@@ -245,19 +245,65 @@ and delete the adapter with the last consumer of those contracts.
 
 The Workforce shift-planning HTTP composition
 (`modules/workforce/inbound/shiftplanning`) is classified `workforce`/`http`
-for the same reason (#2689). It serves the public `StaffShiftPlanning` and
-`ShiftTypeAdministration` contracts from the retained `services/schedule` and
-`services/planexport` services and maps their `models/schedule` rows. Every
-`workforce.http.*` rule is a compatibility permission, not a target
-dependency: the `timetable-activities`, `document-rendering` and
-`legacy-shared` edges go when the shift services move into the Workforce
-owner, and the `inbound-common`, `security-runtime`, `tenant-runtime`,
-`orm-sql` and route-adapter edges follow the same conversion the
-`workforce.adapter.*` rules above are bound to. Convert them to exact debt
+for the same reason (#2689). It mounts the `/api/staff-shifts` and
+`/api/shift-types` route adapters over the public `StaffShiftPlanning` and
+`ShiftTypeAdministration` contracts. Every `workforce.http.*` rule is a
+compatibility permission, not a target dependency: the `inbound-common`,
+`security-runtime`, `tenant-runtime`, `orm-sql` and route-adapter edges
+follow the same conversion the `workforce.adapter.*` rules above are bound
+to, and the `timetable-domain` and `legacy-shared-domain` edges remain for
+the time-tracking composition below. The `timetable-application` and
+`document-rendering` edges fell with #3219. Convert the rest to exact debt
 once the package exists at a base SHA.
 The retained `models/schedule` repository contracts are served from
 `database/repositories` over the Workforce facade; that package's
 `models/schedule` import is already recorded debt.
+
+The retained staff-shift, shift-type, assignment, Dienstplan overview,
+staff-notice, shift-plan sync and substitution services that
+`services/schedule` used to hold are retained as the
+`inbound-staff-shifts`/`adapter` compatibility package
+`modules/workforce/legacy/shiftplanning` (#3219), moved file for file with
+their behaviour tests. The package also serves the public `StaffShiftPlanning`
+and `ShiftTypeAdministration` contracts that the shift-planning HTTP
+composition used to map, so the implementations now sit behind the contracts
+and the HTTP composition only mounts the routes. No HTTP path, status code,
+error string, authorization check, tenant scoping, coverage-conflict or
+substitution semantics changed. The services could not land on the existing
+`workforce`/`adapter` point: they still speak the retained `models/schedule`,
+`models/audit`, `models/config` and `models/facilities` rows, the Delivery
+producer, the plan export capability and the retained timetable services in
+`services/schedule`, and PR mode rejects a new permission on a point that
+exists at the base SHA. Every `inbound-staff-shifts.adapter.*`,
+`inbound-staff-shifts.module-internal-test.*` and
+`inbound-staff-shifts.module-behavior-test.*` rule and every
+`<consumer>.<role>.inbound-staff-shifts-adapter` rule is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+package exists at a base SHA, and dissolve the services into the Workforce
+application and domain layers under #2730. The `adapter` role also covers the
+`cmp.Or` logger fallback the helper-consolidation ratchet requires
+(`inbound-staff-shifts.adapter.test`). The move replaced the post-construction
+setters of the shift and series services with construction-time options,
+because the composition surface guard records mutable wiring per package and
+a relocated setter would count as growth. Four subjects the ticket listed stay
+in `services/schedule` because they are methods of, or are served through,
+the retained timetable services and the two packages may only depend in one
+direction: the shift-coverage probe (`DetectShiftCoverage`, reached through
+`TimetableDataService`), the staff pool (a `TimetableDataService` method),
+the whole-day bulk substitution (an `InstanceService` method over the
+deviation pipeline) and the student partial-absence service (a student-care
+write over the care-exception lock). The shift-coverage interval vocabulary
+the overview and the probe share stays in `services/schedule`
+(`shift_coverage_intervals.go`) and the moved overview binds it through the
+package's own aliases (`vocabulary.go`). Seven package-private helpers the
+moved services shared with the retained timetable services (`isoWeekday`,
+`marshalDeviationValue`, `normalizeActor`, `int64FilterArgs`, `legacyList`,
+`broadcastStaffingChanged`, `isPlannableInstance`; `legacy_helpers.go`) and
+the overview test fakes now exist in both packages, because exporting them
+would widen the retained timetable package that #3218 dissolves. The copies
+are temporary debt that goes with the retained services under #2730 and
+#3218; a fix to the #1844 staffing broadcast must land in both until then.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
@@ -266,9 +312,10 @@ under the same compatibility permissions (#2690). It replaced
 ledger, month-close, overview, audit-log, export and personnel-record
 contracts of `modules/workforce`, which the root composition adapts from the
 retained time-tracking services in `modules/workforce/legacy/timetracking`
-and the retained `services/users` services. Its remaining
-`services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
-shifts and assignments) go with the shift services' move. The kiosk staff
+and the retained `services/users` services. Its own-shift, assignment and
+staff-notice routes reach the retained services in
+`modules/workforce/legacy/shiftplanning` (`workforce.http.inbound-staff-shifts-adapter`,
+#3219) and still map their `models/schedule` rows. The kiosk staff
 clock consumes the public device-scan contract in `modules/devicescan`
 (`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
 one rule anchored to that new point, and the staff-clock workflow reaches the

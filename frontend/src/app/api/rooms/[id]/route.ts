@@ -27,6 +27,10 @@ interface RoomUpdateRequest {
 
   // Backend fields (snake_case) - for compatibility
   device_id?: string;
+  // Permanent release as "offener Raum" (#3064). The client sends it only
+  // when the form carried a value; an omitted field must stay omitted so the
+  // backend keeps the standing release, and `false` is a revocation.
+  is_open_room?: boolean;
 }
 
 /**
@@ -43,6 +47,8 @@ interface BackendRoomResponse {
     color: string;
     device_id?: string;
     is_occupied: boolean;
+    is_system?: boolean;
+    is_open_room?: boolean;
     activity_name?: string;
     group_name?: string;
     supervisor_name?: string;
@@ -60,6 +66,8 @@ interface BackendRoomResponse {
   color?: string;
   device_id?: string;
   is_occupied?: boolean;
+  is_system?: boolean;
+  is_open_room?: boolean;
   activity_name?: string;
   group_name?: string;
   supervisor_name?: string;
@@ -110,6 +118,8 @@ export const GET = createGetHandler(
             color: roomData.color,
             device_id: roomData.device_id,
             is_occupied: roomData.is_occupied ?? false,
+            is_system: roomData.is_system,
+            is_open_room: roomData.is_open_room,
             activity_name: roomData.activity_name,
             group_name: roomData.group_name,
             supervisor_names:
@@ -130,6 +140,8 @@ export const GET = createGetHandler(
             color: response.color,
             device_id: response.device_id,
             is_occupied: response.is_occupied ?? false,
+            is_system: response.is_system,
+            is_open_room: response.is_open_room,
             activity_name: response.activity_name,
             group_name: response.group_name,
             supervisor_names:
@@ -199,6 +211,12 @@ export const PUT = createPutHandler<BackendRoom, RoomUpdateRequest>(
         color: body.color,
         // Handle deviceId (camelCase from frontend) to device_id (snake_case for backend)
         device_id: body.device_id ?? body.deviceId,
+        // Forwarded only as a boolean: the backend reads an omitted field as
+        // "leave the release as it is", so dropping it here silently turned
+        // every revocation of "Offener Raum" into a no-op (#3276).
+        ...(typeof body.is_open_room === "boolean"
+          ? { is_open_room: body.is_open_room }
+          : {}),
       };
 
       // Update the room via the API and get the updated room data
