@@ -460,15 +460,22 @@ func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Re
 	common.Respond(w, r, http.StatusOK, toResponse(refreshed), successMsg)
 }
 
+const (
+	ErrCodePhaseNameExists           = "enrollment.phase_name_exists"
+	ErrCodePhaseCareOfferingConflict = "enrollment.phase_care_offering_conflict"
+)
+
 // phaseWriteErrorRenderer maps phase create/update failures onto their HTTP
 // status: duplicate name -> 409, missing phase -> 404, validation -> 400,
-// everything else -> 500.
+// everything else -> 500. The 409 cases carry a stable code and render only
+// the sentinel text: the wrapped cause is a Postgres constraint message that
+// must not reach the UI (#3263).
 func phaseWriteErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, enrollmentService.ErrPhaseDuplicateName):
-		return common.ErrorConflict(err)
+		return common.ErrorConflictWithCode(enrollmentService.ErrPhaseDuplicateName, ErrCodePhaseNameExists)
 	case errors.Is(err, enrollmentService.ErrPhaseCareOfferingConflict):
-		return common.ErrorConflict(err)
+		return common.ErrorConflictWithCode(enrollmentService.ErrPhaseCareOfferingConflict, ErrCodePhaseCareOfferingConflict)
 	case errors.Is(err, enrollmentService.ErrPhaseNotFound):
 		return common.ErrorNotFound(err)
 	case errors.Is(err, enrollmentService.ErrInvalidPhase):
