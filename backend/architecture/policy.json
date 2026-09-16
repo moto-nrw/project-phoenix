@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 11,
+  "policy_epoch": 12,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -352,6 +352,10 @@
     },
     {
       "id": "open-room-move",
+      "kind": "workflow"
+    },
+    {
+      "id": "parent-portal",
       "kind": "workflow"
     },
     {
@@ -2284,6 +2288,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/workforce/legacy/shiftplanning",
+      "owner": "inbound-staff-shifts",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/workforce/inbound",
       "owner": "workforce",
       "role": "adapter",
@@ -2429,6 +2440,20 @@
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/parentportal/care",
+      "owner": "parent-portal",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/parentportal/messaging",
+      "owner": "parent-portal",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
     },
     {
       "path": "workflows/reminderdelivery/compose",
@@ -15536,6 +15561,440 @@
       "target_role": "test-support"
     },
     {
+      "id": "parent-portal.application.security-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained guardian permission checks (auth/authorize); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.legacy-shared-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained calendar-date and wall-clock helpers (internal/timezone); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.settings-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained school setting keys (models/config); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.settings-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained settings service (services/config); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.enrollment-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained care-offering rows (models/enrollment); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.enrollment-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained care-period readers and offering-change and course request service (services/enrollment); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.care-plan-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained parent child repository (models/parent); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.care-plan-public",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained Care Plan date (modules/careplan); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.application.people-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained student rows and departure modes (models/users); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.people-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained request-reason policy (services/users); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.timetable-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained weekly-plan request rows and weekday numbers (models/schedule); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.timetable-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained arrival, pickup and weekly-plan request services (services/schedule); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.student-presence-public",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained attendance reader (modules/studentpresence); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.application.student-presence-domain",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained status-day rows (modules/studentpresence/legacy/models/active); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.application.tenant-runtime",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained tenant and admin transactions (tenant); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.application.orm-sql",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained database handle and transaction (github.com/uptrace/bun); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "care-plan.application.parent-portal",
+      "description": "services/parent delegates the relocated parent-portal flows until #3228 deletes the package (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
+      "target_owner": "parent-portal",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.subject",
+      "description": "The relocated parent-portal tests drive the care coordinator they moved with; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.legacy-composition",
+      "description": "The relocated parent-portal tests build the legacy repository and service graph they exercise; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.integration-test.identity-adapter",
+      "description": "The relocated parent-portal tests build the staff claims a weekly-plan decision needs; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "parent-portal.integration-test.student-presence-compose",
+      "description": "The relocated parent-portal tests build the attendance reader from the Student Presence composition; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.integration-test.security-application",
+      "description": "The relocated parent-portal tests grant guardian permissions by name; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.legacy-shared-domain",
+      "description": "The relocated parent-portal tests pin calendar-day expectations with the shared helpers; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.integration-test.settings-domain",
+      "description": "The relocated parent-portal tests name the school settings they script; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.integration-test.settings-application",
+      "description": "The relocated parent-portal tests stub the settings service; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.enrollment-domain",
+      "description": "The relocated parent-portal tests build care-offering and offering-change rows; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.integration-test.enrollment-application",
+      "description": "The relocated parent-portal tests stub the retained enrollment readers and request service; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.care-plan-domain",
+      "description": "The relocated parent-portal tests stub the retained parent child repository; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.integration-test.people-domain",
+      "description": "The relocated parent-portal tests stub the retained student repository and build the retained announcement and message rows; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.integration-test.timetable-domain",
+      "description": "The relocated parent-portal tests seed and assert the retained weekly-plan rows and schedule sentinels; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.integration-test.timetable-application",
+      "description": "The relocated parent-portal tests wire the retained schedule services and pin their sentinels; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.support",
+      "description": "The relocated parent-portal in-package tests use hermetic database support (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "parent-portal.integration-test.enrollment-public",
+      "description": "The relocated parent-portal tests build the public enrollment care-period and offering records their stubs return; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.integration-test.student-presence-public",
+      "description": "The relocated parent-portal tests build the public attendance rows the today-status derivation reads; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.application.communication-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained parent event emitter (services/parentmessaging); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.delivery-application",
+      "description": "Compatibility binding of the retained parent-portal coordinator to the retained staff parent-message notifier (modules/delivery/application/notifications); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.application.care",
+      "description": "The parent-portal messaging flows return the care package's guardian-child and note sentinels, so errors.Is keeps matching one value (#3227).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "application",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.integration-test.communication-support",
+      "description": "The relocated parent-portal messaging tests build the shared parent conversation core from the Communication test support; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "parent-portal.integration-test.delivery-application",
+      "description": "The relocated parent-portal messaging tests record the staff parent-message notifications; compatibility permission until the package exists at a base SHA (#3227).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "workflow-integration-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
       "id": "workforce.http.public",
       "description": "The Workforce shift-planning HTTP composition serves and calls the public Workforce contracts.",
       "scopes": [
@@ -15622,17 +16081,6 @@
       "source_role": "http",
       "target_owner": "timetable-activities",
       "target_role": "domain"
-    },
-    {
-      "id": "workforce.http.timetable-application",
-      "description": "The Workforce shift-planning composition serves the public planning contracts from the retained schedule services while they migrate (#2689).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
     },
     {
       "id": "workforce.http.orm-sql",
@@ -19350,17 +19798,6 @@
       "target_role": "public"
     },
     {
-      "id": "workforce.http.document-rendering-public",
-      "description": "The Workforce shift-planning composition renders the printable Dienstplan through the public plan export capability (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "document-rendering",
-      "target_role": "public"
-    },
-    {
       "id": "legacy-composition.compose.to.document-rendering.public",
       "description": "The legacy root names the public plan export capability it composes (#2706).",
       "scopes": [
@@ -22127,6 +22564,488 @@
       "source_owner": "inbound-usercontext",
       "source_role": "adapter",
       "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.legacy-shared-domain",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning still speak the retained calendar-date type and slice helpers while #2730 dissolves them into the Workforce application (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.timetable-activities-domain",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning still read and write the retained models/schedule and models/activities rows (staff shifts, series, shift types, instances, calendar periods) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.audit-platform-domain",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning append the shift_moved Änderungsprotokoll rows through the retained models/audit contract (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.transaction-runtime-domain",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning build the shared persistence base and query options (models/base) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.transaction-runtime-postgres",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning take the per-staff advisory lock through database/repositories/base (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.settings-platform-domain",
+      "description": "The retained Dienstplan overview in modules/workforce/legacy/shiftplanning derives weekly targets from the retained work-time model rows (models/config) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.facilities-domain",
+      "description": "The retained assignment and overview services in modules/workforce/legacy/shiftplanning resolve room names from the retained models/facilities rows (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.people-directory-domain",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning read staff, person and staff-notice rows through the retained models/users contracts (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.delivery-platform-application",
+      "description": "The retained staff-shift and series services in modules/workforce/legacy/shiftplanning queue the staff time-tracking invalidation through the Delivery producer (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.delivery-platform-public",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning broadcast staffing changes through the retained realtime hub contract (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.document-rendering-public",
+      "description": "The retained StaffShiftPlanning implementation in modules/workforce/legacy/shiftplanning serves the Dienstplan export from the public plan export capability (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.workforce-public",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning serve the public StaffShiftPlanning and ShiftTypeAdministration contracts of modules/workforce (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.timetable-activities-application",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning still reach the retained timetable services in services/schedule: the instance engine and deviation inputs, the timetable data reads, the holiday reader, the week-pattern rule and the shared shift-coverage interval vocabulary (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.tenant-runtime-public",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning scope their locks, after-commit hooks and broadcasts through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.orm-sql",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning bind the ORM handle for the advisory locks and the retained SQL sentinels (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.test",
+      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning keep the cmp.Or logger fallback the helper-consolidation ratchet requires (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_class": "test"
+    },
+    {
+      "id": "root-composition.compose.inbound-staff-shifts-adapter",
+      "description": "The root composition binds the StaffShiftPlanning and ShiftTypeAdministration contracts from the retained staff-shift services in modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.compose.inbound-staff-shifts-adapter",
+      "description": "The legacy service factory and its test modules still build the retained staff-shift services in modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "adapter"
+    },
+    {
+      "id": "workforce.http.inbound-staff-shifts-adapter",
+      "description": "The Workforce time-tracking HTTP composition still serves own shifts, assignments and staff notices from the retained services in modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "adapter"
+    },
+    {
+      "id": "document-rendering.adapter.inbound-staff-shifts-adapter",
+      "description": "The retained plan export adapter still reads the Dienstplan overview from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.legacy-shared-domain",
+      "description": "The retained staff-shift unit tests pin calendar-day expectations with the retained calendar-date type (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.timetable-activities-domain",
+      "description": "The retained staff-shift unit tests build the retained models/schedule and models/activities rows their mocks serve (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.audit-platform-domain",
+      "description": "The retained shift-move unit tests capture the shift_moved Änderungsprotokoll rows through the retained models/audit contract (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.transaction-runtime-domain",
+      "description": "The retained staff-shift unit tests build the shared persistence model and query options (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.settings-platform-domain",
+      "description": "The retained Dienstplan overview unit tests script work-time model rows (models/config) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.facilities-domain",
+      "description": "The retained assignment and overview unit tests script room rows (models/facilities) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.people-directory-domain",
+      "description": "The retained staff-shift unit tests script staff, person and staff-notice rows (models/users) (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.delivery-platform-public",
+      "description": "The retained staff-shift broadcast unit tests record the realtime events the services queue (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.timetable-activities-application",
+      "description": "The retained Dienstplan overview unit tests build the retained holiday reader and coverage interval vocabulary from services/schedule (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.tenant-runtime-public",
+      "description": "The retained staff-shift unit tests scope contexts and after-commit hooks through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "document-rendering.adapter-test.inbound-staff-shifts-adapter",
+      "description": "The retained plan export adapter tests still build the Dienstplan overview from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "adapter"
+    },
+    {
+      "id": "workforce.adapter-test.inbound-staff-shifts-adapter",
+      "description": "The Workforce shift-planning HTTP tests still bind the shift-type administration from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-staff-shifts",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.subject",
+      "description": "The retained staff-shift behaviour tests drive the compatibility package they moved with (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.legacy-composition-compose",
+      "description": "The retained staff-shift behaviour tests build the legacy repository and service graph they exercise (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.legacy-shared-domain",
+      "description": "The retained staff-shift behaviour tests pin calendar-day expectations with the retained calendar-date type (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.timetable-activities-domain",
+      "description": "The retained staff-shift behaviour tests seed and assert the retained models/schedule and models/activities rows (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.audit-platform-domain",
+      "description": "The retained sick-cascade behaviour tests read the audit rows the shift-plan sync writes (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.settings-platform-domain",
+      "description": "The retained Dienstplan overview behaviour tests seed the work-time model rows the weekly targets derive from (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.people-directory-domain",
+      "description": "The retained staff-shift behaviour tests seed and assert the retained staff and person rows (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.delivery-platform-public",
+      "description": "The retained shift-plan sync behaviour tests record the realtime events the cascade queues (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.school-structure-application",
+      "description": "The retained substitution behaviour tests drive the schedule substitution through the retained education substitution service (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.timetable-activities-application",
+      "description": "The retained staff-shift behaviour tests build the retained timetable services their subjects depend on (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.tenant-runtime-public",
+      "description": "The retained staff-shift behaviour tests scope contexts through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.e2e-test.inbound-staff-shifts-adapter",
+      "description": "The Workforce contract tests bind the StaffShiftPlanning contract from modules/workforce/legacy/shiftplanning (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-staff-shifts",
       "target_role": "adapter"
     },
     {

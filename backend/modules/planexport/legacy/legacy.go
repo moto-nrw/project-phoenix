@@ -17,6 +17,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -48,13 +49,13 @@ type InstanceStudentCountSource interface {
 // be nil, in which case the matching port stays unbound and the capability
 // prints without that detail — the same contract the retained service had.
 type Sources struct {
-	Overview       scheduleSvc.StaffScheduleOverviewGetter
+	Overview       shiftplanning.StaffScheduleOverviewGetter
 	ShiftTypes     ShiftTypeSource
-	Instances      scheduleSvc.ActivityInstanceRangeReader
+	Instances      shiftplanning.ActivityInstanceRangeReader
 	InstanceStaff  scheduleSvc.InstanceStaffBatchReader
 	Students       InstanceStudentCountSource
-	Rooms          scheduleSvc.RoomBatchReader
-	Staff          scheduleSvc.StaffOverviewReader
+	Rooms          shiftplanning.RoomBatchReader
+	Staff          shiftplanning.StaffOverviewReader
 	ActivityGroups ActivityGroupSource
 	PlanningTracks PlanningTrackSource
 	ClosingDays    scheduleSvc.ClosingDayService
@@ -121,7 +122,7 @@ func parseRange(from, to planexport.Date) (timezone.Date, timezone.Date, error) 
 }
 
 type overviewAdapter struct {
-	source scheduleSvc.StaffScheduleOverviewGetter
+	source shiftplanning.StaffScheduleOverviewGetter
 }
 
 func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
@@ -209,7 +210,7 @@ func (a shiftTypeAdapter) ListShiftTypes(ctx context.Context) ([]*planexport.Shi
 }
 
 type instanceAdapter struct {
-	source scheduleSvc.ActivityInstanceRangeReader
+	source shiftplanning.ActivityInstanceRangeReader
 }
 
 func (a instanceAdapter) InstancesInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.Instance, error) {
@@ -279,7 +280,7 @@ func (a instanceStaffAdapter) InstanceStaffByInstanceIDs(ctx context.Context, in
 }
 
 type roomAdapter struct {
-	source scheduleSvc.RoomBatchReader
+	source shiftplanning.RoomBatchReader
 }
 
 func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport.Room, error) {
@@ -298,7 +299,7 @@ func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport
 }
 
 type staffAdapter struct {
-	source scheduleSvc.StaffOverviewReader
+	source shiftplanning.StaffOverviewReader
 }
 
 func (a staffAdapter) StaffByIDs(ctx context.Context, ids []int64) (map[int64]*planexport.StaffMember, error) {

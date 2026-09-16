@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -37,12 +39,12 @@ func clock(hour, minute int) time.Time {
 func ptr[T any](v T) *T { return &v }
 
 type fakeOverview struct {
-	overview *scheduleSvc.StaffScheduleOverview
+	overview *shiftplanning.StaffScheduleOverview
 	err      error
 	from, to timezone.Date
 }
 
-func (f *fakeOverview) GetOverview(_ context.Context, from, to timezone.Date) (*scheduleSvc.StaffScheduleOverview, error) {
+func (f *fakeOverview) GetOverview(_ context.Context, from, to timezone.Date) (*shiftplanning.StaffScheduleOverview, error) {
 	f.from, f.to = from, to
 	return f.overview, f.err
 }
@@ -179,10 +181,10 @@ func TestOverviewAdapterMapsEveryPrintedField(t *testing.T) {
 	cover.OriginShiftID = ptr[int64](1)
 	headless := &usersModel.Staff{}
 	headless.ID = 9
-	source := &fakeOverview{overview: &scheduleSvc.StaffScheduleOverview{
+	source := &fakeOverview{overview: &shiftplanning.StaffScheduleOverview{
 		Staff:  []*usersModel.Staff{staffRow(7, "Franziska", "Kessener"), nil, headless},
 		Shifts: []*scheduleModel.StaffShift{cancelled, nil, cover},
-		Assignments: []scheduleSvc.StaffScheduleAssignment{{
+		Assignments: []shiftplanning.StaffScheduleAssignment{{
 			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa", ActivityGroupID: ptr[int64](21), RoomName: "Speisesaal",
 			IsSubstitute: true, IsAbsent: true,
@@ -358,7 +360,7 @@ func TestNewLeavesUnboundSourcesOptional(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := New(Sources{
-		Overview: &fakeOverview{overview: &scheduleSvc.StaffScheduleOverview{
+		Overview: &fakeOverview{overview: &shiftplanning.StaffScheduleOverview{
 			Staff:  []*usersModel.Staff{staffRow(7, "Franziska", "Kessener")},
 			Shifts: []*scheduleModel.StaffShift{shiftRow(1, 7, monday)},
 		}},

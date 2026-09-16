@@ -3,9 +3,10 @@ package services
 import (
 	"log/slog"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -13,7 +14,7 @@ import (
 // so wie die Factory: eigenes Repository, Kalenderzeiträume für das
 // Wochenmuster und das echte Personenverzeichnis hinter der Bestätigungsliste.
 // Adapter-Tests holen sich den Dienst hier, statt die Legacy-Factory zu bauen.
-func NewStaffNoticeTestService(db *bun.DB) (schedule.StaffNoticeService, error) {
+func NewStaffNoticeTestService(db *bun.DB) (shiftplanning.StaffNoticeService, error) {
 	timetable, err := repositories.NewTimetableTestRepositories(db)
 	if err != nil {
 		return nil, err
@@ -22,7 +23,7 @@ func NewStaffNoticeTestService(db *bun.DB) (schedule.StaffNoticeService, error) 
 	if err != nil {
 		return nil, err
 	}
-	return schedule.NewStaffNoticeService(schedule.StaffNoticeServiceConfig{
+	return shiftplanning.NewStaffNoticeService(shiftplanning.StaffNoticeServiceConfig{
 		Repo:    scheduleRepo.NewStaffNoticeRepository(db),
 		Periods: timetable.CalendarPeriod,
 		Names:   newStaffNoticeNameLookup(persons),

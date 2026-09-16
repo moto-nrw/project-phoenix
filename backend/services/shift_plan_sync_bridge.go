@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // errShiftPlanSyncUnbound keeps the cascade fail-closed when the composition
@@ -17,15 +17,15 @@ var errShiftPlanSyncUnbound = errors.New("shift plan sync: schedule cascade is n
 // carry the same fields; neither package may import the other. The cascade is
 // resolved on every call because the schedule services are assembled after
 // the absence service.
-func ShiftPlanSyncBridge(resolve func() schedule.ShiftPlanSyncer) timetracking.ShiftPlanSyncer {
+func ShiftPlanSyncBridge(resolve func() shiftplanning.ShiftPlanSyncer) timetracking.ShiftPlanSyncer {
 	return shiftPlanSyncBridge{resolve: resolve}
 }
 
 type shiftPlanSyncBridge struct {
-	resolve func() schedule.ShiftPlanSyncer
+	resolve func() shiftplanning.ShiftPlanSyncer
 }
 
-func (b shiftPlanSyncBridge) syncer() (schedule.ShiftPlanSyncer, error) {
+func (b shiftPlanSyncBridge) syncer() (shiftplanning.ShiftPlanSyncer, error) {
 	if b.resolve == nil {
 		return nil, errShiftPlanSyncUnbound
 	}
@@ -68,8 +68,8 @@ func (b shiftPlanSyncBridge) ReassignSickStamps(ctx context.Context, fromAbsence
 	return syncer.ReassignSickStamps(ctx, fromAbsenceID, toAbsenceID)
 }
 
-func scheduleSickCascade(in timetracking.SickCascadeInput) schedule.SickCascadeInput {
-	return schedule.SickCascadeInput{
+func scheduleSickCascade(in timetracking.SickCascadeInput) shiftplanning.SickCascadeInput {
+	return shiftplanning.SickCascadeInput{
 		SubjectStaffID: in.SubjectStaffID,
 		DateStart:      in.DateStart,
 		DateEnd:        in.DateEnd,

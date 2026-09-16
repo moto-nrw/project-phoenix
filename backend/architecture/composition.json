@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        302
+        299
       ],
       "tables": []
     },
@@ -178,7 +178,7 @@
       "declaration": "TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        249
       ],
       "tables": [
         "auth.accounts",
@@ -211,7 +211,7 @@
       "declaration": "TestAccountParentRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        279
       ],
       "tables": []
     },
@@ -228,10 +228,20 @@
     {
       "scope": "test",
       "file": "database/repositories/auth/account_parent_repository_test.go",
-      "declaration": "TestAccountParentRepository_UpdatePassword",
+      "declaration": "TestAccountParentRepository_UpdateLastLogin",
       "target": "database/repositories.NewFactory",
       "lines": [
         194
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_parent_repository_test.go",
+      "declaration": "TestAccountParentRepository_UpdatePassword",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        227
       ],
       "tables": []
     },
@@ -537,7 +547,17 @@
       "declaration": "TestAccountRoleRepository_DeleteByAccountID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        229
+        272
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/account_role_repository_test.go",
+      "declaration": "TestAccountRoleRepository_DeleteByAccountRoleAndTenant",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        232
       ],
       "tables": []
     },
@@ -547,7 +567,7 @@
       "declaration": "TestAccountRoleRepository_DeleteByRoleID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        266
+        309
       ],
       "tables": []
     },
@@ -587,7 +607,7 @@
       "declaration": "TestAccountRoleRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        310
+        353
       ],
       "tables": []
     },
@@ -2021,6 +2041,26 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         35
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/platform/operator_mfa_atomic_test.go",
+      "declaration": "TestOperatorRepository_IncrementMFAAttempts_AtomicUnderRace",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        28
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/platform/operator_mfa_atomic_test.go",
+      "declaration": "TestOperatorRepository_ResetMFAAttempts_ClearsCounterAndLock",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        81
       ],
       "tables": []
     },
@@ -4409,16 +4449,6 @@
     },
     {
       "scope": "test",
-      "file": "services/auth/operator_authentication_integration_test.go",
-      "declaration": "buildOperatorIdentity",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        244
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/auth/passkey_service_test.go",
       "declaration": "TestPasskeyRepositories",
       "target": "database/repositories.NewFactory",
@@ -4471,7 +4501,7 @@
       "declaration": "TestValidateSessionTokens",
       "target": "database/repositories.NewFactory",
       "lines": [
-        26
+        27
       ],
       "tables": []
     },
@@ -6134,26 +6164,6 @@
     },
     {
       "scope": "test",
-      "file": "services/parent/parent_announcement_notice_test.go",
-      "declaration": "buildNoticeFeedService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_announcement_service_test.go",
-      "declaration": "buildAnnouncementService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        33
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/parent/parent_care_exception_emit_test.go",
       "declaration": "TestSubmitCareException_EmitsSelfServiceMirrorPill",
       "target": "database/repositories.NewFactory",
@@ -6174,11 +6184,11 @@
     },
     {
       "scope": "test",
-      "file": "services/parent/parent_care_schedule_service_test.go",
+      "file": "services/parent/parent_care_schedule_features_test.go",
       "declaration": "buildCareScheduleService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        44
+        32
       ],
       "tables": []
     },
@@ -6619,67 +6629,16 @@
     },
     {
       "scope": "test",
-      "file": "services/parent/parent_request_sharing_service_test.go",
+      "file": "services/parent/parent_request_sharing_visibility_test.go",
       "declaration": "TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        25
       ],
       "tables": [
         "users.students",
         "users.students_guardians"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_request_sharing_service_test.go",
-      "declaration": "TestRequestSharingRejectsUnlinkedRecipientAndNonOwner",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        109
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        376
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "buildTodayStatusService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        31
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "buildTodayStatusServiceWithSchedule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        50
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/parent/parent_today_status_service_test.go",
-      "declaration": "seedPickupScheduleForToday",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        104,
-        108
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -6754,10 +6713,20 @@
     {
       "scope": "test",
       "file": "services/platform/operator_email_change_integration_test.go",
-      "declaration": "buildServiceFactory",
+      "declaration": "buildAuthService",
       "target": "database/repositories.NewFactory",
       "lines": [
         41
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/platform/operator_mfa_disable_tx_test.go",
+      "declaration": "TestOperatorMFAService_Disable_SuccessClearsEverything",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        115
       ],
       "tables": []
     },
@@ -6777,7 +6746,7 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        27
       ],
       "tables": []
     },
@@ -6797,11 +6766,12 @@
       "declaration": "TestOperatorPasskeyRepositories",
       "target": "database/repositories.NewFactory",
       "lines": [
-        779
+        777
       ],
       "tables": [
         "platform.operator_passkey_credentials",
-        "platform.operator_passkey_sessions"
+        "platform.operator_passkey_sessions",
+        "platform.operators"
       ]
     },
     {
@@ -7402,76 +7372,6 @@
     },
     {
       "scope": "test",
-      "file": "services/schedule/shift_plan_sync_service_test.go",
-      "declaration": "buildSickCascadeEnv",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        65
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_CreateDefaultsIsIdempotent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        84
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_CreateInactivePersists",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        163
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_CreateValidationAndNameTaken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        32
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_DeleteNullsReferencingShift",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        120
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/shift_type_service_test.go",
-      "declaration": "TestShiftTypeService_UpdateAndDelete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_assignment_service_integration_test.go",
-      "declaration": "TestStaffAssignmentServiceListForStaff",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        54
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/schedule/staff_pool_test.go",
       "declaration": "TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse",
       "target": "database/repositories.NewFactory",
@@ -7527,101 +7427,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         144
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        347,
-        438
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        90,
-        94
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        296
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        182,
-        212
-      ],
-      "tables": [
-        "users.staff"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "createOverviewShift",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        155
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_schedule_overview_integration_test.go",
-      "declaration": "createOverviewTenantFixture",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        48
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_shift_series_integration_test.go",
-      "declaration": "TestStaffScheduleOverview_SeriesFieldsRideExistingReads",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        796
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_shift_series_integration_test.go",
-      "declaration": "setupSeriesTest",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/substitution_module_interface_test.go",
-      "declaration": "newScheduleSubstitutionModule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        508
       ],
       "tables": []
     },
@@ -25143,27 +24948,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 180,
+          "line": 177,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 502,
+          "line": 499,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 665,
+          "line": 662,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 903,
+          "line": 900,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1307,
+          "line": 1304,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -25173,7 +24978,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 302,
+          "line": 299,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -25183,22 +24988,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 181,
+          "line": 178,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 374,
+          "line": 371,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 418,
+          "line": 415,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 662,
+          "line": 659,
           "declaration": "type API"
         },
         {
@@ -25298,7 +25103,7 @@
         },
         {
           "file": "services/platform/operator_passkey_service.go",
-          "line": 75,
+          "line": 72,
           "declaration": "type operatorPasskeyService"
         }
       ]
@@ -25308,7 +25113,7 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 60,
+          "line": 57,
           "declaration": "sessionRepositoriesOf"
         },
         {
@@ -25318,12 +25123,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 452,
+          "line": 454,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 502,
+          "line": 504,
           "declaration": "newFactory"
         },
         {
@@ -25335,11 +25140,6 @@
           "file": "services/factory_test_helpers.go",
           "line": 43,
           "declaration": "NewFactoryForTestsWithConfig"
-        },
-        {
-          "file": "services/operator_authentication_composition.go",
-          "line": 56,
-          "declaration": "operatorRepositoriesOf"
         }
       ]
     }
