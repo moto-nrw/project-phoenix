@@ -243,7 +243,7 @@ export function PlannedNowSection({
                             ? "Starten"
                             : instance.startAvailableAt
                               ? `Starten ab ${new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit" }).format(new Date(instance.startAvailableAt))}`
-                              : "Noch nicht verfügbar"}
+                              : "Nur für Eingeplante"}
                       </button>
                     </div>
 
