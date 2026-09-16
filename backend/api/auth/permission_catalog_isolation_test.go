@@ -141,7 +141,7 @@ func setupPlatformPermissionRoute(t *testing.T) chi.Router {
 
 	svc, err := services.NewAuthTestModule(serveDB, testpkg.TenantRuntime(t, serveDB))
 	require.NoError(t, err)
-	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, serveDB)
+	authResource := authAPI.NewResource(svc.Auth, svc.Invitation, nil, svc.AccountAuthentication, serveDB)
 	router := testutil.NewTenantRouter(serveDB)
 	router.Mount("/auth", authResource.Router())
 	return router

@@ -29,7 +29,7 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	// The blanket attachment in api/base.go is what production requests run

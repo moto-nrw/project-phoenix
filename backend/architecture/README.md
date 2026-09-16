@@ -387,6 +387,50 @@ common package moves, the calendar-date edge with the retained
 fixtures that still name them. Convert them to exact debt with the rule above
 once the package exists at a base SHA.
 
+The retained Presence services, rows and repositories (#3214) moved file for
+file, with their tests, out of the legacy packages the HTTP composition left
+behind: `services/active` into
+`modules/studentpresence/legacy/services/active` (`student-presence`/`adapter`,
+`adapter-test` in the package, `e2e-test` for the behaviour tests that compose
+the legacy repository and service graph over a real database),
+`services/statistics` into `modules/studentpresence/legacy/statistics`
+(`student-presence`/`adapter`, `adapter-test`), `models/active` into
+`modules/studentpresence/legacy/models/active` (`student-presence`/`domain`,
+`adapter-test`) and `database/repositories/active` into
+`modules/studentpresence/legacy/repositories/active`
+(`student-presence`/`postgres`, `e2e-test`). The root composition serves the
+public `modules/studentpresence` contracts from them exactly as before; no
+HTTP path, status code, error string, authorization check or tenant scoping
+changed, and the IoT error strings PyrePortal maps stay byte-identical. Every
+`*.student-presence-adapter`, `*.student-presence-domain`,
+`student-presence.adapter.*`, `student-presence.domain.*`,
+`student-presence.e2e-test.*`, `student-presence.compose.student-presence-domain`
+and `student-presence.adapter-test.student-presence-domain` rule that names
+#3214 is a compatibility permission, not a target dependency: PR mode cannot
+record debt for a package the candidate creates, so the 87 baseline entries
+that named the four old paths (the 28 recorded against #2737 and the 59 that
+other Contract tickets held for their own imports of those packages) became
+these rules instead of new keys. Convert them to exact
+debt with the rule above once the packages exist at a base SHA, and remove
+each rule with the last consumer of the retained contract. The move also
+replaced the retained services' post-construction setters (settings resolver,
+tenant runtime, guardian waker) and the session repository's room-directory
+binder with construction-time options, because the composition surface guard
+records mutable wiring per package; the legacy repository root rebinds the
+room owner behind the directory it installed at construction. The legacy
+composition roots and the retained timetable and isolation tests reach the
+retained repositories only through the `Legacy*` names in
+`modules/studentpresence/compose`, so no package outside Student Presence
+imports the retained Postgres package. The retained repositories parse
+calendar dates through the row vocabulary (`models/active/vocabulary.go`) and
+the retained services' in-package tests build the shared persistence base
+through the package's own aliases (`vocabulary.go`), because the
+`student-presence`/`postgres` and `student-presence`/`adapter-test` seams
+already existed and can admit no new permission. The package goes when the
+retained services dissolve into the Student Presence application and domain
+layers; `modules/workforce/legacy/timetracking` keeps importing the retained
+rows until then.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
@@ -480,19 +524,24 @@ filter the runtime scoped the caller to, so tenant-scoped callers see only
 their school's sessions while the tenantless pre-authentication flows
 resolve every school's rows; the writes join the caller's transaction, which
 for login, refresh, switch and logout is the administrative transaction the
-auth service opens around rotation and its audit evidence. The retained
-`models/auth.TokenRepository` contract is a compatibility adapter in the
-legacy composition (`database/repositories/account_sessions.go`), bound at
-construction, and goes with #2751; the former `database/repositories/auth`
-token repository is deleted. The login, refresh, switch and revocation
-orchestration itself, with its identity-access-owned `auth.accounts` and
-`auth.account_tenants` repositories, stays in `services/auth` under #2720
-until the #2725 re-cut moves those files into the module as a whole, because
-`identity-access/application` may not import the module's public package
-without a ratchet loosening. The legacy
-`auth.accounts_parents` model, repository and its six
-`/auth/parent-accounts` routes stay unchanged; the table has no target owner
-and that conflict stays open under #2720.
+module opens around rotation and its audit evidence. The login, refresh,
+tenant and school switch, logout, session validation, session cleanup and
+revocation orchestration lives in the module's application layer (#3251),
+with the `auth.accounts`, `auth.account_tenants`, role and permission reads
+it needs served by the module's own store; the retained
+`models/auth.TokenRepository` contract and its compatibility adapter are
+deleted. The facts the flows need from other owners (schools, persons, the
+password verifier, the JWT codec, the MFA gate, the settings lock, the audit
+ledger, push subscriptions) are bound at the serving root through
+public-typed seams (`compose.SessionDependencies`). The retained
+`services/auth.Service` keeps the `AuthService` contract by delegating its
+session methods to a consumer-owned port the root binds to the public
+module; `api/auth` calls the public contract directly, while `api/parent`,
+`api/operator`, the school portal and the SSE routes keep the delegation
+because no target rule lets those inbound packages import the identity-access
+public package. The legacy `auth.accounts_parents` model, repository and its
+six `/auth/parent-accounts` routes stay unchanged; the table has no target
+owner and that conflict stays open under #2720.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its

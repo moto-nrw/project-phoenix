@@ -16,7 +16,7 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"

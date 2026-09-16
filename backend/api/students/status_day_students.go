@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 

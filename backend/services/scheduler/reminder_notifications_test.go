@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 
 	// Populates the settings registry, so the tick test can assert against the
 	// registered default instead of a literal copy of it.

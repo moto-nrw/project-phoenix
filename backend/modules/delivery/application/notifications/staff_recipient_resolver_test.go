@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

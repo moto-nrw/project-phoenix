@@ -72,6 +72,12 @@ type UnitOfWork struct {
 	withTransaction func(context.Context, any) context.Context
 }
 
+// IsZero reports whether the unit of work carries no transaction functions,
+// which is the state of a composition root that never configured one.
+func (uow UnitOfWork) IsZero() bool {
+	return uow.withinTenant == nil && uow.withinAdmin == nil && uow.savepoint == nil && uow.retryable == nil
+}
+
 // WithTransactionDetacher installs the persistence adapter operation used to
 // mask its private transaction context. It keeps context-key ownership inside
 // the adapter that reads the key.

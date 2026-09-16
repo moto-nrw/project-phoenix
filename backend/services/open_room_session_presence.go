@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 type openRoomActivityQuery interface {

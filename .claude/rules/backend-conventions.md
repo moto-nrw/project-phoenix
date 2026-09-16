@@ -291,7 +291,7 @@ The four violations this rule originally named were all extracted in issue #586 
 
 | Was in model | Now lives at |
 |---|---|
-| `Visit.EndVisit()` | `services/active/` (with logging, events, audit) |
+| `Visit.EndVisit()` | `modules/studentpresence/legacy/services/active/` (with logging, events, audit) |
 | `Device.IsOnline()` (hardcoded 5 min) | service + `iot.device_online_window_minutes` setting |
 | `Group` default duration (hardcoded 30 min) | settings registry |
 | `Account.HasPermission()` | `modules/identityaccess/legacy/usercontext` / `backend/auth/authorize` |

@@ -7,7 +7,6 @@ import (
 
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories/active"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
@@ -32,10 +31,10 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -51,6 +50,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 
 	"github.com/uptrace/bun"
 )
@@ -96,7 +96,6 @@ type Factory struct {
 	RolePermission         authModels.RolePermissionRepository
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
-	Token                  authModels.TokenRepository
 	PasswordResetToken     authModels.PasswordResetTokenRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
@@ -497,7 +496,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		now = clocks[0]
 	}
 	deviceFleet := mustNewDeviceFleet(db)
-	groupSupervisor := active.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now)
+	groupSupervisor := presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db), now)
 	enrollmentModule := enrollmentCompose.New()
 	parentAnnouncement := NewParentAnnouncementRepository(db, enrollmentModule, now)
 	auditRepositoryRuntime := func(ctx context.Context) (bun.IDB, int64) {
@@ -545,7 +544,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RolePermission:         auth.NewRolePermissionRepository(db),
 		AccountRole:            auth.NewAccountRoleRepository(db),
 		AccountPermission:      auth.NewAccountPermissionRepository(db),
-		Token:                  accountSessionRepository{identity: identity},
 		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
 		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
@@ -635,7 +633,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StudentEnrollment:  nil, // bound to Timetable below
 
 		// Active repositories
-		ActiveGroup:           active.NewGroupRepository(activeDeviceDirectory{devices: deviceFleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability})),
+		ActiveGroup:           presenceCompose.NewLegacyGroupRepository(activeDeviceDirectory{devices: deviceFleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}), presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{})),
 		GroupSupervisor:       groupSupervisor,
 		CrossTenant:           &visitorProjection{visits: presenceCapability},
 		StudentStatusDay:      nil, // bound to Care Plan below

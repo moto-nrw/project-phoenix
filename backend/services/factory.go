@@ -45,8 +45,6 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
-	identityaccessModule "github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -57,13 +55,14 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -82,7 +81,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -1125,12 +1123,29 @@ func newFactory(
 		Logger:                   activeLogger,
 		Now:                      now,
 	}
-	activeService := active.NewService(activeServiceDeps)
-
-	// Inject settings resolver into active service so auto-clear of sick /
-	// excused flags respects the tenant's operations.sick_clear_mode and
-	// operations.excused_clear_mode settings.
-	activeService.SetSettingsService(PresenceSettings(settingsService))
+	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
+	// enrollment writes that change a child's live care data.
+	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
+		DB:          db,
+		Runtime:     tenantRuntime,
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: repos.ParentMessage,
+		Settings:    settingsService,
+		Broadcaster: realtimeHub,
+		Logger:      logger.With("service", "parent-events"),
+	})
+	activeService := active.NewService(activeServiceDeps,
+		// The settings resolver lets auto-clear of sick / excused flags respect
+		// the tenant's operations.sick_clear_mode and
+		// operations.excused_clear_mode settings.
+		active.WithSettings(PresenceSettings(settingsService)),
+		// Session commands that run without a request transaction (scheduler
+		// timeouts, daily session end) open their own tenant transaction.
+		active.WithTenantRuntime(tenantRuntime),
+		// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der
+		// Tagesstatus in der Eltern-App (#2252) live nachlaedt.
+		active.WithGuardianWaker(pillEmitter),
+	)
 
 	// Initialize activities service
 	activitiesService, err := activities.NewService(
@@ -1556,7 +1571,31 @@ func newFactory(
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
 	authConfig.Audit = auditCommand
-	authService, err := auth.NewService(repos, authConfig, db, authLogger)
+
+	// Identity & Access serves tenant, parent and school login, refresh,
+	// switching, logout, session validation, cleanup and revocation (#3251).
+	// The auth service delegates its session methods to the module through
+	// its consumer-owned port; the module reads the MFA gate and the tenant
+	// runtime back from the auth service at call time, so SetMFAService and
+	// SetTenantRuntime keep their meaning.
+	var authService *auth.Service
+	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+		repos:     sessionRepositoriesOf(repos),
+		tokenAuth: authConfig.TokenAuth,
+		settings:  settingsService,
+		audit:     auditCommand,
+		logger:    authLogger,
+		observe:   observeIdentityAccess,
+		tenantRuntime: func(ctx context.Context) context.Context {
+			return authService.WithTenantRuntime(ctx)
+		},
+		mfa: func() auth.MFAService { return authService.CurrentMFAService() },
+	})
+	if err != nil {
+		return nil, err
+	}
+	authConfig.Sessions = newAccountSessions(identityAccess)
+	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -1844,16 +1883,9 @@ func newFactory(
 
 	// Enrollment acceptance grants parents portal access through the public
 	// Identity & Access capability instead of the account, mapping and role
-	// repositories (#2699).
-	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
-		DB: db,
-		Observe: func(observation identityaccessCompose.Observation) {
-			observeIdentityAccess(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccessModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
+	// repositories (#2699); it is the same module instance the auth service
+	// delegates its session flows to.
+	guardianAccess := identityAccess
 	// Data Import (#2708): every accepted row is committed through the owner
 	// commands the composer binds. The observer records rows
 	// parsed/accepted/rejected per run without personal data.
@@ -2050,25 +2082,6 @@ func newFactory(
 	})
 	users.WirePersonCareParticipation(usersService, careLifecycleService)
 	schedule.WireCareParticipation(careDayService, careLifecycleService)
-	// Chat-pill emitter (#1803): also provides guardian-only invalidations for
-	// enrollment writes that change a child's live care data.
-	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB:          db,
-		Runtime:     tenantRuntime,
-		ThreadRepo:  repos.ParentMessageThread,
-		MessageRepo: repos.ParentMessage,
-		Settings:    settingsService,
-		Broadcaster: realtimeHub,
-		Logger:      logger.With("service", "parent-events"),
-	})
-
-	// Anwesenheitswechsel wecken die Sorgeberechtigten, damit der Tagesstatus in der Eltern-App (#2252) live nachlaedt.
-	if waker, ok := activeService.(interface {
-		SetGuardianWaker(active.GuardianWaker)
-	}); ok {
-		waker.SetGuardianWaker(pillEmitter)
-	}
-
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),

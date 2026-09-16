@@ -3,7 +3,7 @@ package timetracking
 import (
 	"log/slog"
 
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // The retained services take their optional collaborators at construction.

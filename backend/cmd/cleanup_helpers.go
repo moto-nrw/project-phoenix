@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -213,7 +213,12 @@ func newCleanupAuditCommand() (services.AuditCommand, error) {
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
-	return services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+	service, err := services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+	if err != nil {
+		slog.Default().Error("auth cleanup service composition failed", "error", err)
+		return nil
+	}
+	return service
 }
 
 func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {

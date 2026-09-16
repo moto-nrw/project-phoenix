@@ -54,7 +54,7 @@ func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -85,7 +85,7 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 		"disable emergency_list_health_info for the isolated tenant")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -112,7 +112,7 @@ func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing
 	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = failingTenantShellSettings{SettingsService: authRoute.SettingsService}
 
 	router := chi.NewRouter()
@@ -146,7 +146,7 @@ func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing
 		"store an unreadable emergency_list_health_info override")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()

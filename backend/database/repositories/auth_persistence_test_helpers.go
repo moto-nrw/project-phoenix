@@ -59,7 +59,6 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 type SessionValidationPersistence struct {
 	Account              authModels.AccountRepository
 	AccountTenant        authModels.AccountTenantRepository
-	Token                authModels.TokenRepository
 	Operator             platformModels.OperatorRepository
 	OperatorRefreshToken platformModels.OperatorRefreshTokenRepository
 }
@@ -69,7 +68,6 @@ func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
 	return &SessionValidationPersistence{
 		Account:              authRepo.NewAccountRepository(db),
 		AccountTenant:        authRepo.NewAccountTenantRepository(db),
-		Token:                accountSessionRepository{identity: identity},
 		Operator:             operatorRepository{identity: identity},
 		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
 	}

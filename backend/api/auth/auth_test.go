@@ -61,7 +61,7 @@ func setupAuthRoute(t *testing.T) *testContext {
 func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
 	t.Helper()
 	db, svc := testutil.SetupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, svc.AccountAuthentication, db)
 	resource.SettingsService = svc.Settings
 	resource.SetGuardianInvitationService(svc.GuardianInvitation)
 	return db, resource
@@ -2009,7 +2009,7 @@ func TestListTenants(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2081,7 +2081,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 
 	db, authRoute := setupAuthDependenciesRoute(t)
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 
 	return &testContext{
 		db:       db,
@@ -2303,7 +2303,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 	require.NoError(t, err)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

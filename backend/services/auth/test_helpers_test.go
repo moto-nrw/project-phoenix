@@ -191,10 +191,6 @@ func (noopAccountRepository) List(context.Context, map[string]interface{}) ([]*a
 	panic("List not implemented")
 }
 
-func (noopAccountRepository) UpdateLastLogin(context.Context, int64) error {
-	panic("UpdateLastLogin not implemented")
-}
-
 func (noopAccountRepository) UpdatePassword(context.Context, int64, string) error {
 	panic("UpdatePassword not implemented")
 }
@@ -1160,121 +1156,6 @@ func (r *stubPersonRepository) FindByID(_ context.Context, id interface{}) (*use
 	return nil, sql.ErrNoRows
 }
 
-// noopTokenRepository provides default panic implementations.
-type noopTokenRepository struct{}
-
-func (noopTokenRepository) Create(context.Context, *authModel.Token) error {
-	panic("Create not implemented")
-}
-
-func (noopTokenRepository) FindByID(context.Context, interface{}) (*authModel.Token, error) {
-	panic("FindByID not implemented")
-}
-
-func (noopTokenRepository) Update(context.Context, *authModel.Token) error {
-	panic("Update not implemented")
-}
-
-func (noopTokenRepository) Delete(context.Context, interface{}) error {
-	panic("Delete not implemented")
-}
-
-func (noopTokenRepository) List(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
-	panic("List not implemented")
-}
-
-func (noopTokenRepository) FindByToken(context.Context, string) (*authModel.Token, error) {
-	panic("FindByToken not implemented")
-}
-
-func (noopTokenRepository) FindByTokenForUpdate(context.Context, string) (*authModel.Token, error) {
-	panic("FindByTokenForUpdate not implemented")
-}
-
-func (noopTokenRepository) MarkRotated(context.Context, int64, string, []byte, time.Time) error {
-	panic("MarkRotated not implemented")
-}
-
-func (noopTokenRepository) DeleteExpiredRotatedForAccount(context.Context, int64, time.Time) error {
-	panic("DeleteExpiredRotatedForAccount not implemented")
-}
-
-func (noopTokenRepository) FindByAccountID(context.Context, int64) ([]*authModel.Token, error) {
-	panic("FindByAccountID not implemented")
-}
-
-func (noopTokenRepository) FindByAccountIDAndIdentifier(context.Context, int64, string) (*authModel.Token, error) {
-	panic("FindByAccountIDAndIdentifier not implemented")
-}
-
-func (noopTokenRepository) CountExpiredTokens(context.Context) (int, error) {
-	panic("CountExpiredTokens not implemented")
-}
-
-func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
-	panic("DeleteExpiredTokens not implemented")
-}
-
-func (noopTokenRepository) ListInactiveAccountIDsWithLiveTokens(context.Context) ([]int64, error) {
-	panic("ListInactiveAccountIDsWithLiveTokens not implemented")
-}
-
-func (noopTokenRepository) HasLiveTokensCreatedAfter(context.Context, int64, time.Time) (bool, error) {
-	panic("HasLiveTokensCreatedAfter not implemented")
-}
-
-func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
-	panic("DeleteByAccountIDReturning not implemented")
-}
-
-func (noopTokenRepository) DeleteAllByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
-	panic("DeleteAllByAccountIDReturning not implemented")
-}
-
-func (noopTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(context.Context, int64, time.Time) ([]*authModel.Token, error) {
-	panic("DeleteByAccountIDCreatedAtOrBeforeReturning not implemented")
-}
-
-func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64, string) error {
-	panic("DeleteByAccountIDAndIdentifier not implemented")
-}
-
-func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
-	panic("FindValidTokens not implemented")
-}
-
-func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, string, int) ([]*authModel.Token, error) {
-	panic("CleanupOldTokensForAccountReturning not implemented")
-}
-
-func (noopTokenRepository) RetireFamily(context.Context, int64, string, time.Time) error {
-	panic("RetireFamily not implemented")
-}
-
-func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {
-	panic("DeleteByFamilyIDReturning not implemented")
-}
-
-func (noopTokenRepository) GetLatestTokenInFamily(context.Context, string) (*authModel.Token, error) {
-	panic("GetLatestTokenInFamily not implemented")
-}
-
-func (noopTokenRepository) DeleteByTenantIDReturning(context.Context, int64) ([]*authModel.Token, error) {
-	panic("DeleteByTenantIDReturning not implemented")
-}
-
-// stubTokenRepository tracks delete operations for verification.
-type stubTokenRepository struct {
-	noopTokenRepository
-
-	mu                sync.Mutex
-	deletedAccountIDs []int64
-}
-
-func newStubTokenRepository() *stubTokenRepository {
-	return &stubTokenRepository{}
-}
-
 type stubAccountTenantRepository struct {
 	mu       sync.Mutex
 	mappings map[int64]*authModel.AccountTenant
@@ -1375,29 +1256,6 @@ func (r *stubAccountTenantRepository) ListAllAccounts(context.Context) ([]authMo
 }
 func (r *stubAccountTenantRepository) ListTenantAccessByAccountID(context.Context, int64) ([]authModel.AccountTenantAccessInfo, error) {
 	return nil, nil
-}
-
-func (r *stubTokenRepository) DeleteByAccountIDReturning(_ context.Context, accountID int64) ([]*authModel.Token, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.deletedAccountIDs = append(r.deletedAccountIDs, accountID)
-	return nil, nil
-}
-
-func (r *stubTokenRepository) DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
-	return r.DeleteByAccountIDReturning(ctx, accountID)
-}
-
-func (r *stubTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, _ time.Time) ([]*authModel.Token, error) {
-	return r.DeleteByAccountIDReturning(ctx, accountID)
-}
-
-func (r *stubTokenRepository) DeletedAccountIDs() []int64 {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]int64, len(r.deletedAccountIDs))
-	copy(out, r.deletedAccountIDs)
-	return out
 }
 
 // newStubStaffRepository returns a testpkg.StaffRepoMock configured to behave
