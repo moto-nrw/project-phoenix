@@ -1,8 +1,6 @@
 package admin
 
 import (
-	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,11 +12,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/education"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/uptrace/bun"
 )
 
@@ -29,29 +24,31 @@ const (
 	//
 	// Both properties are load-bearing for the revert UI. It must offer exactly
 	// the transition the backend considers latest (`applied_at DESC NULLS LAST,
-	// id DESC` in LockLatestApplied) or the admin gets a 409, refetches, and is
-	// offered the same rejected target forever. At second precision two applies
-	// in the same second serialized identically, hiding a real ordering behind
-	// the id tiebreak; a variable-width fraction would be worse still, since the
-	// client compares these strings lexically and ".5Z" sorts before "Z"
-	// (#405 review).
+	// id DESC` in the owner's latest-applied lock) or the admin gets a 409,
+	// refetches, and is offered the same rejected target forever. At second
+	// precision two applies in the same second serialized identically, hiding a
+	// real ordering behind the id tiebreak; a variable-width fraction would be
+	// worse still, since the client compares these strings lexically and ".5Z"
+	// sorts before "Z" (#405 review).
 	timeFormatISO8601        = "2006-01-02T15:04:05.000000Z"
-	errMsgNoAccountID        = "no account ID in context"
 	errMsgInvalidTransition  = "invalid transition ID"
 	errMsgTransitionNotFound = "grade transition not found"
 )
 
-// GradeTransitionResource handles grade transition API endpoints
+// GradeTransitionResource is the HTTP adapter of the grade transition
+// workflow (#2711). It parses, authorizes per route, calls exactly one
+// workflow command and renders the outcome; the workflow owns the lock
+// order, the preview fingerprint and the owner commands.
 type GradeTransitionResource struct {
-	service *educationService.GradeTransitionService
-	db      *bun.DB
+	workflow *gradetransition.Workflow
+	db       *bun.DB
 }
 
 // NewGradeTransitionResource creates a new grade transition resource
-func NewGradeTransitionResource(service *educationService.GradeTransitionService, db *bun.DB) *GradeTransitionResource {
+func NewGradeTransitionResource(workflow *gradetransition.Workflow, db *bun.DB) *GradeTransitionResource {
 	return &GradeTransitionResource{
-		service: service,
-		db:      db,
+		workflow: workflow,
+		db:       db,
 	}
 }
 
@@ -164,12 +161,56 @@ type MappingResponse struct {
 	Action    string  `json:"action"` // "promote" or "graduate"
 }
 
+// PreviewResponse is the wire shape of a transition preview.
+type PreviewResponse struct {
+	TransitionID    int64                    `json:"transition_id,string"`
+	AcademicYear    string                   `json:"academic_year"`
+	TotalStudents   int                      `json:"total_students"`
+	ToPromote       int                      `json:"to_promote"`
+	ToGraduate      int                      `json:"to_graduate"`
+	ByMapping       []MappingPreviewResponse `json:"by_mapping"`
+	UnmappedClasses []UnmappedClassResponse  `json:"unmapped_classes"`
+	Warnings        []string                 `json:"warnings"`
+	Fingerprint     string                   `json:"fingerprint"`
+}
+
+// MappingPreviewResponse shows the impact of a single mapping.
+type MappingPreviewResponse struct {
+	FromClass    string  `json:"from_class"`
+	ToClass      *string `json:"to_class,omitempty"`
+	StudentCount int     `json:"student_count"`
+	Action       string  `json:"action"` // "promote" or "graduate"
+}
+
+// UnmappedClassResponse shows a class not included in the transition.
+type UnmappedClassResponse struct {
+	ClassName    string `json:"class_name"`
+	StudentCount int    `json:"student_count"`
+}
+
+// ResultResponse is the wire shape of an apply or revert outcome.
+type ResultResponse struct {
+	TransitionID      int64    `json:"transition_id,string"`
+	Status            string   `json:"status"`
+	StudentsPromoted  int      `json:"students_promoted"`
+	StudentsGraduated int      `json:"students_graduated"`
+	CanRevert         bool     `json:"can_revert"`
+	Warnings          []string `json:"warnings"`
+}
+
+// SuggestedMappingResponse is one auto-suggested class mapping.
+type SuggestedMappingResponse struct {
+	FromClass    string  `json:"from_class"`
+	ToClass      *string `json:"to_class,omitempty"`
+	StudentCount int     `json:"student_count"`
+	IsGraduating bool    `json:"is_graduating"`
+	// Ambiguous marks a class whose name does not match the grade pattern, so
+	// the graduation guess is not confident. The editor must not preselect
+	// Abgang for these.
+	Ambiguous bool `json:"ambiguous,omitempty"`
+}
+
 // HistoryResponse represents one grade transition history row in API responses.
-//
-// It exists so the ledger's ids cross the wire as strings like every other id in
-// this API; rendering the model directly would emit them as JSON numbers (the
-// json tags on models/education.GradeTransitionHistory and base.Model are shared
-// with persistence and are not this endpoint's to change).
 //
 // The ledger's rfid_tag column is deliberately NOT part of this shape: this
 // route requires only grade_transitions:read, which does not imply the right to
@@ -193,18 +234,11 @@ type HistoryResponse struct {
 	StudentState string `json:"student_state"`
 }
 
-// toHistoryResponses converts the ledger rows to their API shape. states maps a
-// student id to its current lifecycle state; an id missing from it is reported
-// as purged, which is what an absent student row means.
-func toHistoryResponses(rows []*education.GradeTransitionHistory, states map[int64]string) []HistoryResponse {
+func toHistoryResponses(rows []gradetransition.HistoryEntry) []HistoryResponse {
 	out := make([]HistoryResponse, 0, len(rows))
 	for _, h := range rows {
-		state, ok := states[h.StudentID]
-		if !ok {
-			state = educationService.GraduateStatePurged
-		}
 		out = append(out, HistoryResponse{
-			StudentState: state,
+			StudentState: h.StudentState,
 			ID:           h.ID,
 			TransitionID: h.TransitionID,
 			StudentID:    h.StudentID,
@@ -219,8 +253,15 @@ func toHistoryResponses(rows []*education.GradeTransitionHistory, states map[int
 	return out
 }
 
-// toTransitionResponse converts a model to a response
-func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
+func mappingAction(mapping gradetransition.TransitionMapping) string {
+	if mapping.IsGraduating() {
+		return gradetransition.ActionGraduated
+	}
+	return gradetransition.ActionPromoted
+}
+
+// toTransitionResponse converts an owner transition to its wire shape.
+func toTransitionResponse(t gradetransition.Transition) TransitionResponse {
 	resp := TransitionResponse{
 		ID:           t.ID,
 		AcademicYear: t.AcademicYear,
@@ -228,27 +269,20 @@ func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
 		CreatedAt:    t.CreatedAt.UTC().Format(timeFormatISO8601),
 		CreatedBy:    t.CreatedBy,
 		Notes:        t.Notes,
-		CanModify:    t.CanModify(),
+		CanModify:    t.IsDraft(),
 		CanApply:     t.CanApply(),
-		CanRevert:    t.CanRevert(),
+		CanRevert:    t.IsApplied(),
+		AppliedBy:    t.AppliedBy,
+		RevertedBy:   t.RevertedBy,
 	}
-
 	if t.AppliedAt != nil {
 		formatted := t.AppliedAt.UTC().Format(timeFormatISO8601)
 		resp.AppliedAt = &formatted
-	}
-	if t.AppliedBy != nil {
-		resp.AppliedBy = t.AppliedBy
 	}
 	if t.RevertedAt != nil {
 		formatted := t.RevertedAt.UTC().Format(timeFormatISO8601)
 		resp.RevertedAt = &formatted
 	}
-	if t.RevertedBy != nil {
-		resp.RevertedBy = t.RevertedBy
-	}
-
-	// Convert mappings
 	if len(t.Mappings) > 0 {
 		resp.Mappings = make([]MappingResponse, 0, len(t.Mappings))
 		for _, m := range t.Mappings {
@@ -256,30 +290,75 @@ func toTransitionResponse(t *education.GradeTransition) TransitionResponse {
 				ID:        m.ID,
 				FromClass: m.FromClass,
 				ToClass:   m.ToClass,
-				Action:    m.GetAction(),
+				Action:    mappingAction(m),
 			})
 		}
 	}
-
 	return resp
+}
+
+func toPreviewResponse(preview gradetransition.Preview) PreviewResponse {
+	resp := PreviewResponse{
+		TransitionID: preview.TransitionID, AcademicYear: preview.AcademicYear,
+		TotalStudents: preview.TotalStudents, ToPromote: preview.ToPromote, ToGraduate: preview.ToGraduate,
+		ByMapping:       make([]MappingPreviewResponse, 0, len(preview.ByMapping)),
+		UnmappedClasses: make([]UnmappedClassResponse, 0, len(preview.UnmappedClasses)),
+		Warnings:        preview.Warnings,
+		Fingerprint:     preview.Fingerprint,
+	}
+	if resp.Warnings == nil {
+		resp.Warnings = []string{}
+	}
+	for _, m := range preview.ByMapping {
+		resp.ByMapping = append(resp.ByMapping, MappingPreviewResponse{
+			FromClass: m.FromClass, ToClass: m.ToClass, StudentCount: m.StudentCount, Action: previewAction(m.Action),
+		})
+	}
+	for _, u := range preview.UnmappedClasses {
+		resp.UnmappedClasses = append(resp.UnmappedClasses, UnmappedClassResponse{ClassName: u.ClassName, StudentCount: u.StudentCount})
+	}
+	return resp
+}
+
+// previewAction renders the mapping action in the verb form the UI expects.
+func previewAction(action string) string {
+	if action == gradetransition.ActionGraduated {
+		return "graduate"
+	}
+	return "promote"
+}
+
+func toResultResponse(result gradetransition.Result) ResultResponse {
+	warnings := result.Warnings
+	if warnings == nil {
+		warnings = []string{}
+	}
+	return ResultResponse{
+		TransitionID: result.TransitionID, Status: result.Status,
+		StudentsPromoted: result.StudentsPromoted, StudentsGraduated: result.StudentsGraduated,
+		CanRevert: result.CanRevert, Warnings: warnings,
+	}
+}
+
+func toMappings(requests []MappingRequest) []gradetransition.Mapping {
+	if requests == nil {
+		return nil
+	}
+	mappings := make([]gradetransition.Mapping, 0, len(requests))
+	for _, m := range requests {
+		mappings = append(mappings, gradetransition.Mapping{FromClass: m.FromClass, ToClass: m.ToClass})
+	}
+	return mappings
 }
 
 // Handlers
 
 // list returns all grade transitions
 func (rs *GradeTransitionResource) list(w http.ResponseWriter, r *http.Request) {
-	options := base.NewQueryOptions()
-
-	// Parse pagination
 	page, pageSize := common.ParsePagination(r)
-
-	// Parse filters
-	filter := base.NewFilter()
-	if status := r.URL.Query().Get("status"); status != "" {
-		filter.Equal("status", status)
-	}
-	if academicYear := r.URL.Query().Get("academic_year"); academicYear != "" {
-		filter.Equal("academic_year", academicYear)
+	filter := gradetransition.ListFilter{
+		Status:       r.URL.Query().Get("status"),
+		AcademicYear: r.URL.Query().Get("academic_year"),
 	}
 
 	// Keyset mode: `after_id` windows by strictly increasing id instead of page
@@ -295,24 +374,20 @@ func (rs *GradeTransitionResource) list(w http.ResponseWriter, r *http.Request) 
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid after_id")))
 			return
 		}
-		filter.GreaterThan("id", afterID)
-		sorting := &base.Sorting{}
-		sorting.AddField("id", base.SortAsc)
-		options.Sorting = sorting
+		// after_id=0 is a real cursor: the first keyset window (id > 0, id ASC).
+		// A zero int64 would look like "no cursor" and keep newest-first order.
+		filter.AfterID = &afterID
 		// A cursor request is always the first offset window of its remainder.
 		page = 1
 	}
+	filter.Page, filter.PageSize = page, pageSize
 
-	options.WithPagination(page, pageSize)
-	options.Filter = filter
-
-	transitions, total, err := rs.service.List(r.Context(), options)
+	transitions, total, err := rs.workflow.ListTransitions(r.Context(), filter)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderReadError(w, r, err)
 		return
 	}
 
-	// Convert to response format
 	responses := make([]TransitionResponse, 0, len(transitions))
 	for _, t := range transitions {
 		responses = append(responses, toTransitionResponse(t))
@@ -339,41 +414,14 @@ func (rs *GradeTransitionResource) create(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Get account ID from JWT
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(errors.New(errMsgNoAccountID)))
-		return
-	}
-	accountID := int64(claims.ID)
-
-	// Convert request to service request
-	createReq := educationService.CreateTransitionRequest{
+	transition, err := rs.workflow.CreateDraft(r.Context(), gradetransition.Draft{
 		AcademicYear: req.AcademicYear,
 		Notes:        req.Notes,
-		CreatedBy:    accountID,
-	}
-
-	// Convert mappings
-	for _, m := range req.Mappings {
-		createReq.Mappings = append(createReq.Mappings, educationService.MappingRequest{
-			FromClass: m.FromClass,
-			ToClass:   m.ToClass,
-		})
-	}
-
-	tenantID := tenant.FromContext(r.Context())
-	var transition *education.GradeTransition
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		var txErr error
-		transition, txErr = rs.service.Create(ctx, createReq)
-		return txErr
-	}); err != nil {
-		if errors.Is(err, educationService.ErrInvalidTransitionData) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		Mappings:     toMappings(req.Mappings),
+	})
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		rs.renderDraftMutationError(w, r, err)
 		return
 	}
 
@@ -387,7 +435,7 @@ func (rs *GradeTransitionResource) getByID(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	transition, err := rs.service.GetByID(r.Context(), id)
+	transition, err := rs.workflow.FindTransition(r.Context(), id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 		return
@@ -409,32 +457,21 @@ func (rs *GradeTransitionResource) update(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Convert request to service request
-	updateReq := educationService.UpdateTransitionRequest{
-		Notes: req.Notes,
-	}
+	patch := gradetransition.DraftPatch{Notes: req.Notes}
 	if req.AcademicYear != "" {
-		updateReq.AcademicYear = &req.AcademicYear
+		patch.AcademicYear = &req.AcademicYear
 	}
-
-	// Convert mappings if provided (nil = not provided, empty = clear all)
+	// Mappings: nil = not provided, empty = clear all.
 	if req.Mappings != nil {
-		updateReq.Mappings = make([]educationService.MappingRequest, 0, len(req.Mappings))
-		for _, m := range req.Mappings {
-			updateReq.Mappings = append(updateReq.Mappings, educationService.MappingRequest{
-				FromClass: m.FromClass,
-				ToClass:   m.ToClass,
-			})
+		patch.Mappings = toMappings(req.Mappings)
+		if patch.Mappings == nil {
+			patch.Mappings = []gradetransition.Mapping{}
 		}
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	var transition *education.GradeTransition
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		var txErr error
-		transition, txErr = rs.service.Update(ctx, id, updateReq)
-		return txErr
-	}); err != nil {
+	transition, err := rs.workflow.UpdateDraft(r.Context(), id, patch)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
 		rs.renderDraftMutationError(w, r, err)
 		return
 	}
@@ -449,15 +486,26 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.service.Delete(ctx, id)
-	}); err != nil {
+	if err := rs.workflow.DeleteDraft(r.Context(), id); err != nil {
+		tenant.MarkRollback(r.Context())
 		rs.renderDraftMutationError(w, r, err)
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Grade transition deleted successfully")
+}
+
+// renderReadError classifies the outcomes of a read: an unauthorized
+// principal is a 403, a missing transition a 404, everything else a fault.
+func (rs *GradeTransitionResource) renderReadError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, gradetransition.ErrUnauthorized):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, gradetransition.ErrTransitionNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
 }
 
 // renderDraftMutationError classifies the expected outcomes of editing or
@@ -468,11 +516,13 @@ func (rs *GradeTransitionResource) delete(w http.ResponseWriter, r *http.Request
 // fault and stays 500 (#405 review).
 func (rs *GradeTransitionResource) renderDraftMutationError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, educationService.ErrTransitionNotDraft):
+	case errors.Is(err, gradetransition.ErrUnauthorized):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, gradetransition.ErrTransitionNotDraft):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, gradetransition.ErrTransitionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
-	case errors.Is(err, educationService.ErrInvalidTransitionData):
+	case errors.Is(err, gradetransition.ErrInvalidTransitionData):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -486,20 +536,16 @@ func (rs *GradeTransitionResource) preview(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	preview, err := rs.service.Preview(r.Context(), id)
+	preview, err := rs.workflow.Preview(r.Context(), id)
 	if err != nil {
 		// A missing or foreign-tenant id is the same normal outcome the detail
 		// and history endpoints classify as 404 — not a server fault (#405
 		// review).
-		if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderReadError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, preview, "Transition preview generated successfully")
+	common.Respond(w, r, http.StatusOK, toPreviewResponse(preview), "Transition preview generated successfully")
 }
 
 // apply executes the grade transition
@@ -509,20 +555,12 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Get account ID from JWT
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(errors.New(errMsgNoAccountID)))
-		return
-	}
-	accountID := int64(claims.ID)
-
 	// The body is optional: an absent or EMPTY one (io.EOF) means "no preview to
 	// check". Anything else must be rejected. A truncated or malformed payload
-	// used to be swallowed, leaving ExpectedFingerprint empty — which ApplyChecked
-	// reads as "caller opted out of the stale-preview check", so a destructive
-	// transition ran unguarded on a cohort that may have changed since the admin
-	// confirmed it (#405 review).
+	// used to be swallowed, leaving ExpectedFingerprint empty — which the
+	// workflow reads as "caller opted out of the stale-preview check", so a
+	// destructive transition ran unguarded on a cohort that may have changed
+	// since the admin confirmed it (#405 review).
 	var req ApplyRequest
 	if r.Body != nil {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil && !errors.Is(err, io.EOF) {
@@ -531,18 +569,16 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
-	tenantID := tenant.FromContext(r.Context())
-	var result interface{}
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		var txErr error
-		result, txErr = rs.service.ApplyChecked(ctx, id, accountID, req.ExpectedFingerprint)
-		return txErr
-	}); err != nil {
+	result, err := rs.workflow.Apply(r.Context(), id, req.ExpectedFingerprint)
+	if err != nil {
+		// The route middleware owns the ambient transaction and commits on
+		// every non-5xx response, so the 4xx paths request the rollback here.
+		tenant.MarkRollback(r.Context())
 		rs.renderApplyError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, result, "Grade transition applied successfully")
+	common.Respond(w, r, http.StatusOK, toResultResponse(result), "Grade transition applied successfully")
 }
 
 // renderApplyError classifies the expected outcomes of applying a transition.
@@ -555,13 +591,15 @@ func (rs *GradeTransitionResource) apply(w http.ResponseWriter, r *http.Request)
 // server fault and stays 500 (#405 review).
 func (rs *GradeTransitionResource) renderApplyError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, educationService.ErrGraduatesCheckedIn):
+	case errors.Is(err, gradetransition.ErrUnauthorized):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, gradetransition.ErrGraduatesCheckedIn):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "graduates_checked_in"))
-	case errors.Is(err, educationService.ErrPreviewStale):
+	case errors.Is(err, gradetransition.ErrPreviewStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "preview_stale"))
-	case errors.Is(err, educationService.ErrTransitionNotDraft):
+	case errors.Is(err, gradetransition.ErrTransitionNotDraft):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_draft"))
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, gradetransition.ErrTransitionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -575,26 +613,14 @@ func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Get account ID from JWT
-	claims := jwt.ClaimsFromCtx(r.Context())
-	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(errors.New(errMsgNoAccountID)))
-		return
-	}
-	accountID := int64(claims.ID)
-
-	tenantID := tenant.FromContext(r.Context())
-	var result interface{}
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		var txErr error
-		result, txErr = rs.service.Revert(ctx, id, accountID)
-		return txErr
-	}); err != nil {
+	result, err := rs.workflow.Revert(r.Context(), id)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
 		rs.renderRevertError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, result, "Grade transition reverted successfully")
+	common.Respond(w, r, http.StatusOK, toResultResponse(result), "Grade transition reverted successfully")
 }
 
 // renderRevertError classifies the expected outcomes of reverting a
@@ -606,11 +632,13 @@ func (rs *GradeTransitionResource) revert(w http.ResponseWriter, r *http.Request
 // 500 (#405 review).
 func (rs *GradeTransitionResource) renderRevertError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, educationService.ErrNotLatestApplied):
+	case errors.Is(err, gradetransition.ErrUnauthorized):
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, gradetransition.ErrNotLatestApplied):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_latest_transition"))
-	case errors.Is(err, educationService.ErrTransitionNotApplied):
+	case errors.Is(err, gradetransition.ErrTransitionNotApplied):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "not_applied"))
-	case errors.Is(err, sql.ErrNoRows):
+	case errors.Is(err, gradetransition.ErrTransitionNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -619,10 +647,13 @@ func (rs *GradeTransitionResource) renderRevertError(w http.ResponseWriter, r *h
 
 // getDistinctClasses returns all distinct school class values
 func (rs *GradeTransitionResource) getDistinctClasses(w http.ResponseWriter, r *http.Request) {
-	classes, err := rs.service.GetDistinctClasses(r.Context())
+	classes, err := rs.workflow.ListClasses(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderReadError(w, r, err)
 		return
+	}
+	if classes == nil {
+		classes = []string{}
 	}
 
 	common.Respond(w, r, http.StatusOK, classes, "Distinct classes retrieved successfully")
@@ -630,13 +661,20 @@ func (rs *GradeTransitionResource) getDistinctClasses(w http.ResponseWriter, r *
 
 // suggestMappings returns auto-suggested class mappings
 func (rs *GradeTransitionResource) suggestMappings(w http.ResponseWriter, r *http.Request) {
-	suggestions, err := rs.service.SuggestMappings(r.Context())
+	suggestions, err := rs.workflow.SuggestMappings(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderReadError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, suggestions, "Mapping suggestions generated successfully")
+	responses := make([]SuggestedMappingResponse, 0, len(suggestions))
+	for _, s := range suggestions {
+		responses = append(responses, SuggestedMappingResponse{
+			FromClass: s.FromClass, ToClass: s.ToClass, StudentCount: s.StudentCount, IsGraduating: s.IsGraduating, Ambiguous: s.Ambiguous,
+		})
+	}
+
+	common.Respond(w, r, http.StatusOK, responses, "Mapping suggestions generated successfully")
 }
 
 // getHistory returns the history records for a transition
@@ -646,18 +684,14 @@ func (rs *GradeTransitionResource) getHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	history, states, err := rs.service.GetHistoryWithStudentStates(r.Context(), id)
+	history, err := rs.workflow.History(r.Context(), id)
 	if err != nil {
 		// A nonexistent transition must be a 404, not a 200 with an empty list:
-		// the ledger query alone returns zero rows for both, so the service
+		// the ledger query alone returns zero rows for both, so the workflow
 		// resolves the transition first and surfaces not-found here (#405 review).
-		if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New(errMsgTransitionNotFound)))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderReadError(w, r, err)
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toHistoryResponses(history, states), "Transition history retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toHistoryResponses(history), "Transition history retrieved successfully")
 }

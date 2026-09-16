@@ -33,7 +33,7 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userS
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
-		TagReleaser:           repos.GradeTransition,
+		TagReleaser:           repos.StudentTagReleaser(),
 		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: func(context.Context) error { return nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
@@ -49,7 +49,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLif
 	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
-		TagReleaser:  repos.GradeTransition,
+		TagReleaser:  repos.StudentTagReleaser(),
 		AuditService: userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: func(ctx context.Context) error {
 			return scheduleService.LockTenantRecurrenceWrites(ctx, db)

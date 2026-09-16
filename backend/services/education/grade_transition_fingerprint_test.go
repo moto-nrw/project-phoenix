@@ -15,22 +15,22 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGraduation(t *testing.T) {
+func TestGradeTransitionWorkflow_Fingerprint_PromotionToGraduateNamedClassIsNotGraduation(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-fingerprint-sentinel@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	fromClass := fmt.Sprintf("4fp-%s", suffix)
@@ -39,11 +39,10 @@ func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGr
 
 	student := testpkg.CreateTestStudent(t, db, "Fingerprint", "Child", fromClass)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, &targetClass)
+	id := f.createDraft(t, ctx, "2025-2026", promote(fromClass, targetClass))
 
 	// What the admin reviewed: a PROMOTION into the class named "graduate".
-	promotePreview, err := service.Preview(ctx, transition.ID)
+	promotePreview, err := wf.Preview(ctx, id)
 	require.NoError(t, err)
 	require.NotEmpty(t, promotePreview.Fingerprint)
 	require.Equal(t, 1, promotePreview.ToPromote, "mapping with a target class is a promotion")
@@ -51,30 +50,28 @@ func TestGradeTransitionService_Fingerprint_PromotionToGraduateNamedClassIsNotGr
 
 	// Another admin turns that mapping into a graduation (Abgang) — the same
 	// source class, the same single child, a completely different outcome.
-	_, err = db.NewUpdate().
-		TableExpr("education.grade_transition_mappings").
-		Set("to_class = NULL").
-		Where("transition_id = ?", transition.ID).
-		Exec(ctx)
+	_, err = wf.UpdateDraft(ctx, id, gradetransition.DraftPatch{
+		Mappings: []gradetransition.Mapping{graduate(fromClass)},
+	})
 	require.NoError(t, err)
 
-	graduatePreview, err := service.Preview(ctx, transition.ID)
+	graduatePreview, err := wf.Preview(ctx, id)
 	require.NoError(t, err)
 	require.Equal(t, 1, graduatePreview.ToGraduate)
 	assert.NotEqual(t, promotePreview.Fingerprint, graduatePreview.Fingerprint,
 		"a promotion into a class named %q must not digest like a graduation", targetClass)
 
 	// The confirmation the admin actually gave must no longer apply.
-	_, err = service.ApplyChecked(ctx, transition.ID, account.ID, promotePreview.Fingerprint)
-	require.ErrorIs(t, err, educationService.ErrPreviewStale)
+	_, err = wf.Apply(ctx, id, promotePreview.Fingerprint)
+	require.ErrorIs(t, err, gradetransition.ErrPreviewStale)
 
 	// And the child was not graduated behind that refused apply.
 	var status string
 	require.NoError(t, db.NewSelect().TableExpr("users.students").Column("status").
 		Where("id = ?", student.ID).Scan(ctx, &status))
-	assert.Equal(t, "active", status)
+	assert.Equal(t, string(users.StudentStatusActive), status)
 
 	// The freshly reviewed graduation fingerprint is accepted.
-	_, err = service.ApplyChecked(ctx, transition.ID, account.ID, graduatePreview.Fingerprint)
+	_, err = wf.Apply(ctx, id, graduatePreview.Fingerprint)
 	require.NoError(t, err)
 }

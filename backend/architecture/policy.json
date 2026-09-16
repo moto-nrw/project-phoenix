@@ -421,6 +421,10 @@
     {
       "id": "student-deletion",
       "kind": "workflow"
+    },
+    {
+      "id": "grade-transition",
+      "kind": "workflow"
     }
   ],
   "roles": [
@@ -3178,6 +3182,20 @@
     {
       "path": "workflows/studentdeletion/compose",
       "owner": "student-deletion",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/gradetransition",
+      "owner": "grade-transition",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/gradetransition/compose",
+      "owner": "grade-transition",
       "role": "compose",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -20475,6 +20493,268 @@
       "source_owner": "student-deletion",
       "source_role": "public",
       "target_class": "crypto"
+    },
+    {
+      "id": "grade-transition.to.school-structure",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.to.people-directory",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.to.school-membership",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.to.student-presence",
+      "description": "Grade Transition coordinates the public owner capability required by #2711.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.public.school-structure.domain",
+      "description": "The class renames match on the School Structure class normalization shared with the student side (#2711).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "grade-transition.public.crypto",
+      "description": "The transition preview fingerprint is a SHA-256 digest compared in constant time (#2711).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "public",
+      "target_class": "crypto"
+    },
+    {
+      "id": "grade-transition.compose.transition.grade-transition.public",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.compose.transition.security-runtime.contract",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "grade-transition.compose.transition.audit-platform.postgres",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "grade-transition.compose.transition.audit-platform.domain",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "grade-transition.compose.transition.audit-platform.application",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "audit-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "grade-transition.compose.transition.legacy-shared.domain",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "grade-transition.compose.transition.tenant-runtime.public",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.compose.transition.school-structure.compose",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "grade-transition.compose.transition.student-presence.compose",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "grade-transition.compose.database-binding",
+      "description": "Bind owner adapters to the shared database and ambient UnitOfWork; no workflow SQL (#2711).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "legacy-composition.compose.transition.grade-transition.public",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "legacy-composition.compose.transition.grade-transition.compose",
+      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "grade-transition",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-admin.http.transition.grade-transition.public",
+      "description": "The admin HTTP surface runs the school-year rollover through the owner workflow (#2711).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-admin",
+      "source_role": "http",
+      "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.workflow-decision-test.people-directory.public",
+      "description": "Grade Transition decision tests stub the People Directory port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.workflow-decision-test.student-presence.public",
+      "description": "Grade Transition decision tests stub the Student Presence port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "grade-transition.workflow-decision-test.school-structure.public",
+      "description": "Grade Transition decision tests stub the School Structure port with the owner's public types (#2711).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "grade-transition",
+      "source_role": "workflow-decision-test",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.module-behavior-test.transition.grade-transition.public",
+      "description": "Grade Transition integration tests use real owner composition and the outer tenant UnitOfWork (#2711).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "grade-transition",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.module-behavior-test.transition.grade-transition.compose",
+      "description": "Grade Transition integration tests use real owner composition and the outer tenant UnitOfWork (#2711).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "grade-transition",
+      "target_role": "compose"
     }
   ]
 }

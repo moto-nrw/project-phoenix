@@ -41,7 +41,7 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 			CareExitRepo:   repos.CareExit,
 			CleanupRepo:    repos.CareExitCleanup,
 			WithdrawalRepo: repos.CareWithdrawal,
-			TagReleaser:    repos.GradeTransition,
+			TagReleaser:    repos.TagReleaser,
 			AuditService:   userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 			BookingsAuthoritative: func(context.Context) (bool, error) {
 				return authoritative, nil

@@ -2799,7 +2799,7 @@
       "declaration": "TestGroupRepositoryListWithRoomsPreservesJoinSortPaginationAndEmptySlice",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        18
       ],
       "tables": []
     },
@@ -5822,50 +5822,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         22
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/grade_transition_class_list_entries_test.go",
-      "declaration": "setupClassListEntryTransitionTest",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        30
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/grade_transition_roster_reconcile_test.go",
-      "declaration": "TestGradeTransitionService_Apply_ReconcilesFutureRosters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        36
-      ],
-      "tables": [
-        "activities.student_enrollments",
-        "schedule.instance_students",
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/education/grade_transition_roster_reconcile_test.go",
-      "declaration": "newRosterReconcilingTransitionService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        385
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/education/grade_transition_service_test.go",
-      "declaration": "setupGradeTransitionServiceTest",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        33
       ],
       "tables": []
     },
@@ -26728,12 +26684,12 @@
       "locations": [
         {
           "file": "services/factory.go",
-          "line": 450,
+          "line": 454,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 500,
+          "line": 504,
           "declaration": "newFactory"
         },
         {
