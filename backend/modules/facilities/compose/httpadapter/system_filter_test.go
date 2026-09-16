@@ -38,9 +38,8 @@ func markRoomAsSystem(t *testing.T, db *bun.DB, tenantID, roomID int64) {
 }
 
 // releaseRoom marks a room as a permanently released open room, mirroring what
-// migration 1.15.370 and the Schulhof provisioning do. Staff visibility of a
-// system room follows the stored release, not its name (#3064), so a fabricated
-// Schulhof has to carry the release the real one gets.
+// migration 1.15.372 and the Schulhof provisioning do. Staff visibility does
+// not depend on it (ADR 0019); the open-room filter does.
 func releaseRoom(t *testing.T, db *bun.DB, tenantID, roomID int64, released bool) {
 	t.Helper()
 	_, err := db.NewUpdate().
@@ -196,13 +195,13 @@ func TestGetAvailableRooms_IncludesOnlySchulhofFromSystemRoomsByDefault(t *testi
 	})
 }
 
-// TestRoomLists_RespectARevokedSchulhofRelease is the coverage the name-based
-// predicate could never carry: staff visibility of a system room follows the
-// stored release (#3064), so an administrator who deactivates the yard must see
-// it disappear from the staff lists — enforced server-side, not by a hidden
-// button. Everything else about the room is untouched, which is why
-// include_system still returns it.
-func TestRoomLists_RespectARevokedSchulhofRelease(t *testing.T) {
+// TestRoomLists_KeepTheSchulhofSelectableWithoutRelease pins ADR 0019: the
+// open-room release decides whether the yard is an open room, not whether
+// staff can pick it. Schools that plan blocks in the Schulhof revoke the
+// release (#3276) and must still find the yard in the planner, in spontaneous
+// activities and in the available-rooms list. A revoked release previously
+// hid the yard from every one of those lists.
+func TestRoomLists_KeepTheSchulhofSelectableWithoutRelease(t *testing.T) {
 	t.Parallel()
 	tc := setupRoomsRoute(t)
 	tenantID := newRoomFilterTestTenant(t, tc.db)
@@ -226,34 +225,73 @@ func TestRoomLists_RespectARevokedSchulhofRelease(t *testing.T) {
 
 	releaseRoom(t, tc.db, tenantID, schulhof.ID, false)
 
-	t.Run("revoked_schulhof_is_hidden_from_the_room_list", func(t *testing.T) {
+	t.Run("revoked_schulhof_stays_in_the_room_list", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())
 		assert.True(t, ids[normal.ID], "unrelated rooms stay listed")
-		assert.False(t, ids[schulhof.ID],
-			"a deactivated Schulhof must not keep its permanent staff visibility")
+		assert.True(t, ids[schulhof.ID],
+			"a Schulhof without release must stay selectable for planning")
 	})
 
-	t.Run("revoked_schulhof_is_hidden_from_available_rooms", func(t *testing.T) {
+	t.Run("revoked_schulhof_stays_in_available_rooms", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/available", nil)
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())
-		assert.False(t, ids[schulhof.ID],
-			"the available-rooms endpoint must apply the same release rule")
+		assert.True(t, ids[schulhof.ID],
+			"the available-rooms endpoint must apply the same rule")
 	})
 
-	t.Run("revoked_schulhof_is_still_reachable_with_include_system", func(t *testing.T) {
+	t.Run("revoked_schulhof_is_not_an_open_room", func(t *testing.T) {
+		req := testutil.NewRequest("GET", "/?is_open_room=true", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
+		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+		ids := roomResponseIDs(t, rr.Body.Bytes())
+		assert.False(t, ids[schulhof.ID],
+			"visibility must not bring the yard back into the open-room navigation")
+	})
+
+	t.Run("revoked_schulhof_is_reachable_with_include_system", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?include_system=true", nil)
 		rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())
-		assert.True(t, ids[schulhof.ID],
-			"removing a release hides the room from staff lists, it does not delete it")
+		assert.True(t, ids[schulhof.ID], "include_system still returns every room")
 	})
+}
+
+// TestRoomLists_HideOtherSystemRoomsRegardlessOfRelease keeps the WC hidden
+// even if a stale row carries a release, and keeps a non-Schulhof system room
+// out of staff lists: only the yard is exempt by name.
+func TestRoomLists_HideOtherSystemRoomsRegardlessOfRelease(t *testing.T) {
+	t.Parallel()
+	tc := setupRoomsRoute(t)
+	tenantID := newRoomFilterTestTenant(t, tc.db)
+	claims := testutil.AdminTestClaimsForTenant(1, tenantID)
+
+	system := testpkg.CreateTestRoomForTenant(t, tc.db, tenantID, "ReleasedSystemRoom")
+	wc := testpkg.CreateTestRoomForTenant(t, tc.db, tenantID, "ReleasedWCRoom")
+	markRoomAsSystem(t, tc.db, tenantID, system.ID)
+	markRoomAsSystem(t, tc.db, tenantID, wc.ID)
+	setRoomNameAndBuilding(t, tc.db, tenantID, wc.ID, facilitiesModule.WCRoomName, "Sanitär")
+	releaseRoom(t, tc.db, tenantID, system.ID, true)
+	releaseRoom(t, tc.db, tenantID, wc.ID, true)
+
+	for _, path := range []string{"/", "/available"} {
+		t.Run(path, func(t *testing.T) {
+			req := testutil.NewRequest("GET", path, nil)
+			rr := testutil.ExecuteWithAuth(t, tc.router, req, claims)
+			assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+			ids := roomResponseIDs(t, rr.Body.Bytes())
+			assert.False(t, ids[system.ID], "a non-Schulhof system room stays hidden")
+			assert.False(t, ids[wc.ID], "a WC stays hidden even with a stale release")
+		})
+	}
 }
