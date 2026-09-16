@@ -296,7 +296,14 @@ deviation pipeline) and the student partial-absence service (a student-care
 write over the care-exception lock). The shift-coverage interval vocabulary
 the overview and the probe share stays in `services/schedule`
 (`shift_coverage_intervals.go`) and the moved overview binds it through the
-package's own aliases (`vocabulary.go`).
+package's own aliases (`vocabulary.go`). Seven package-private helpers the
+moved services shared with the retained timetable services (`isoWeekday`,
+`marshalDeviationValue`, `normalizeActor`, `int64FilterArgs`, `legacyList`,
+`broadcastStaffingChanged`, `isPlannableInstance`; `legacy_helpers.go`) and
+the overview test fakes now exist in both packages, because exporting them
+would widen the retained timetable package that #3218 dissolves. The copies
+are temporary debt that goes with the retained services under #2730 and
+#3218; a fix to the #1844 staffing broadcast must land in both until then.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`

@@ -10,6 +10,8 @@ import (
 	"database/sql"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -64,7 +66,7 @@ func TestShiftService_CreateReplacementRejectsMissingOrigin(t *testing.T) {
 	}
 
 	replacement := validShift(8)
-	replacement.OriginShiftID = int64Ptr(999)
+	replacement.OriginShiftID = testpkg.Int64Ptr(999)
 
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.Error(t, err)
@@ -84,7 +86,7 @@ func TestShiftService_CreateReplacementRejectsCrossDateOrigin(t *testing.T) {
 	}
 
 	replacement := validShift(8) // date 2026-07-06
-	replacement.OriginShiftID = int64Ptr(5)
+	replacement.OriginShiftID = testpkg.Int64Ptr(5)
 
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.Error(t, err)
@@ -111,7 +113,7 @@ func TestShiftService_CreateReplacementAcceptsSameDayCancelledOrigin(t *testing.
 	}
 
 	replacement := validShift(8)
-	replacement.OriginShiftID = int64Ptr(5)
+	replacement.OriginShiftID = testpkg.Int64Ptr(5)
 
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.NoError(t, err)
@@ -131,7 +133,7 @@ func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
 	}
 
 	replacement := validShift(8)
-	replacement.OriginShiftID = int64Ptr(5)
+	replacement.OriginShiftID = testpkg.Int64Ptr(5)
 
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.Error(t, err)
@@ -155,7 +157,7 @@ func TestShiftService_CreateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 	}
 
 	replacement := validShift(8)
-	replacement.OriginShiftID = int64Ptr(5)
+	replacement.OriginShiftID = testpkg.Int64Ptr(5)
 	replacement.StartTime = wall(6, 0) // starts before the origin
 	replacement.EndTime = wall(18, 0)  // ends after the origin
 
@@ -184,7 +186,7 @@ func TestShiftService_CreateReplacementAcceptsWindowInsideOrigin(t *testing.T) {
 	}
 
 	replacement := validShift(8)
-	replacement.OriginShiftID = int64Ptr(5)
+	replacement.OriginShiftID = testpkg.Int64Ptr(5)
 	replacement.StartTime = wall(8, 0) // shares the origin's start boundary
 	replacement.EndTime = wall(12, 0)  // ends inside the origin
 
@@ -203,7 +205,7 @@ func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
 
 	existing := validShift(8) // replacement on 2026-07-06
 	existing.ID = 3
-	existing.OriginShiftID = int64Ptr(5)
+	existing.OriginShiftID = testpkg.Int64Ptr(5)
 	origin := validShift(7) // origin on 2026-07-06, cancelled
 	origin.ID = 5
 	origin.Cancelled = true
@@ -237,7 +239,7 @@ func TestShiftService_UpdateReplacementRejectsWindowOutsideOrigin(t *testing.T) 
 
 	existing := validShift(8) // replacement on 2026-07-06, 08:00–16:00, inside origin
 	existing.ID = 3
-	existing.OriginShiftID = int64Ptr(5)
+	existing.OriginShiftID = testpkg.Int64Ptr(5)
 	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
 	origin.ID = 5
 	origin.Cancelled = true
@@ -274,7 +276,7 @@ func TestShiftService_UpdateOriginRejectsResizeStrandingCover(t *testing.T) {
 	cover := validShift(8) // replacement 10:00–16:00, inside the origin
 	cover.ID = 3
 	cover.StartTime = wall(10, 0)
-	cover.OriginShiftID = int64Ptr(5)
+	cover.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return origin, nil
 	}
@@ -306,7 +308,7 @@ func TestShiftService_UpdateOriginResizeKeepingCoversSucceeds(t *testing.T) {
 	cover := validShift(8) // replacement 10:00–16:00, inside the origin
 	cover.ID = 3
 	cover.StartTime = wall(10, 0)
-	cover.OriginShiftID = int64Ptr(5)
+	cover.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return origin, nil
 	}
@@ -342,7 +344,7 @@ func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {
 
 	existing := validShift(8)
 	existing.ID = 3
-	existing.OriginShiftID = int64Ptr(5)
+	existing.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
@@ -377,7 +379,7 @@ func TestShiftService_CreateReplacementRejectsSelfReplacement(t *testing.T) {
 	}
 
 	replacement := validShift(7) // staff 7 covers staff 7's own cancelled shift
-	replacement.OriginShiftID = int64Ptr(5)
+	replacement.OriginShiftID = testpkg.Int64Ptr(5)
 
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.Error(t, err)
@@ -400,7 +402,7 @@ func TestShiftService_UpdateOriginRejectsDateMoveWithCovers(t *testing.T) {
 	}
 	cover := validShift(8)
 	cover.ID = 11
-	cover.OriginShiftID = int64Ptr(5)
+	cover.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByOriginShiftIDFunc = func(_ context.Context, originID int64) ([]*scheduleModels.StaffShift, error) {
 		assert.Equal(t, int64(5), originID)
 		return []*scheduleModels.StaffShift{cover}, nil
@@ -646,8 +648,8 @@ func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T)
 	}
 	existingCover := validShift(8)
 	existingCover.ID = 11
-	existingCover.OriginShiftID = int64Ptr(5)
-	existingCover.ShiftTypeID = int64Ptr(4) // the now-inactive type
+	existingCover.OriginShiftID = testpkg.Int64Ptr(5)
+	existingCover.ShiftTypeID = testpkg.Int64Ptr(4) // the now-inactive type
 	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{existingCover}, nil
 	}
@@ -662,7 +664,7 @@ func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T)
 		Cancelled:    true,
 		ActorStaffID: 1,
 		Replacements: []ShiftReplacementInput{
-			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: int64Ptr(4)},
+			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: testpkg.Int64Ptr(4)},
 		},
 	})
 	require.NoError(t, err, "an existing cover's since-deactivated type must survive a rebuild")
@@ -700,7 +702,7 @@ func TestShiftService_ApplyCancellation_RejectsNewInactiveCoverType(t *testing.T
 		Cancelled:    true,
 		ActorStaffID: 1,
 		Replacements: []ShiftReplacementInput{
-			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: int64Ptr(4)},
+			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: testpkg.Int64Ptr(4)},
 		},
 	})
 	require.Error(t, err)
@@ -726,10 +728,10 @@ func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testi
 	}
 	cover1 := validShift(8)
 	cover1.ID = 11
-	cover1.OriginShiftID = int64Ptr(5)
+	cover1.OriginShiftID = testpkg.Int64Ptr(5)
 	cover2 := validShift(9)
 	cover2.ID = 12
-	cover2.OriginShiftID = int64Ptr(5)
+	cover2.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{cover1, cover2}, nil
 	}
@@ -778,7 +780,7 @@ func TestShiftService_ApplyCancellation_RejectsCancellingAReplacement(t *testing
 	svc, repo, _ := shiftServiceFixture()
 	existing := validShift(8)
 	existing.ID = 11
-	existing.OriginShiftID = int64Ptr(5)
+	existing.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
@@ -855,7 +857,7 @@ func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing
 	existingCover.ID = 11
 	existingCover.StartTime = wall(8, 0)
 	existingCover.EndTime = wall(12, 0)
-	existingCover.OriginShiftID = int64Ptr(5)
+	existingCover.OriginShiftID = testpkg.Int64Ptr(5)
 	existingCover.ChangeReason = &coverReason
 	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{existingCover}, nil
@@ -913,8 +915,8 @@ func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T
 	// Staff 8 currently holds the inactive type.
 	existingCover := validShift(8)
 	existingCover.ID = 11
-	existingCover.OriginShiftID = int64Ptr(5)
-	existingCover.ShiftTypeID = int64Ptr(4)
+	existingCover.OriginShiftID = testpkg.Int64Ptr(5)
+	existingCover.ShiftTypeID = testpkg.Int64Ptr(4)
 	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{existingCover}, nil
 	}
@@ -925,7 +927,7 @@ func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T
 		ActorStaffID: 1,
 		Replacements: []ShiftReplacementInput{
 			// Different staff (9) tries to inherit staff 8's inactive type.
-			{StaffID: 9, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: int64Ptr(4)},
+			{StaffID: 9, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: testpkg.Int64Ptr(4)},
 		},
 	})
 	require.Error(t, err)
@@ -996,7 +998,7 @@ func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
 	// set (staff 8) drops entirely.
 	droppedCover := validShift(3)
 	droppedCover.ID = 11
-	droppedCover.OriginShiftID = int64Ptr(5)
+	droppedCover.OriginShiftID = testpkg.Int64Ptr(5)
 	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{droppedCover}, nil
 	}
@@ -1036,7 +1038,7 @@ func TestShiftService_ApplyCancellation_RejectsCoverMovedAfterDiscovery(t *testi
 	}
 	staleCover := validShift(3)
 	staleCover.ID = 11
-	staleCover.OriginShiftID = int64Ptr(origin.ID)
+	staleCover.OriginShiftID = testpkg.Int64Ptr(origin.ID)
 	movedCover := *staleCover
 	movedCover.StaffID = 4
 	coverReads := 0

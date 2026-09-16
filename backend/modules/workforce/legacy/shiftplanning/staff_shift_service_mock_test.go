@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -279,8 +281,6 @@ func shiftServiceWithTypes(types map[int64]*scheduleModels.ShiftType) (StaffShif
 	svc := NewStaffShiftService(repo, staffRepo, &stubShiftTypeService{types: types}, nil, nil)
 	return svc, repo, staffRepo
 }
-
-func int64Ptr(v int64) *int64 { return &v }
 
 func wall(hour, minute int) time.Time {
 	return time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)
@@ -988,7 +988,7 @@ func TestShiftService_CreateRejectsInactiveShiftType(t *testing.T) {
 	})
 
 	shift := validShift(7)
-	shift.ShiftTypeID = int64Ptr(4)
+	shift.ShiftTypeID = testpkg.Int64Ptr(4)
 
 	_, err := svc.CreateShift(context.Background(), shift)
 	require.Error(t, err)
@@ -1003,7 +1003,7 @@ func TestShiftService_CreateAllowsActiveShiftType(t *testing.T) {
 	})
 
 	shift := validShift(7)
-	shift.ShiftTypeID = int64Ptr(4)
+	shift.ShiftTypeID = testpkg.Int64Ptr(4)
 
 	_, err := svc.CreateShift(context.Background(), shift)
 	require.NoError(t, err)
@@ -1015,7 +1015,7 @@ func TestShiftService_CreateRejectsUnknownShiftType(t *testing.T) {
 	svc, _, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{})
 
 	shift := validShift(7)
-	shift.ShiftTypeID = int64Ptr(4)
+	shift.ShiftTypeID = testpkg.Int64Ptr(4)
 
 	_, err := svc.CreateShift(context.Background(), shift)
 	require.Error(t, err)
@@ -1042,14 +1042,14 @@ func TestShiftService_UpdateKeepsAlreadyAttachedInactiveType(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	existing.ShiftTypeID = int64Ptr(4)
+	existing.ShiftTypeID = testpkg.Int64Ptr(4)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
 
 	update := validShift(7)
 	update.ID = 5
-	update.ShiftTypeID = int64Ptr(4) // re-sends the same, now-inactive type
+	update.ShiftTypeID = testpkg.Int64Ptr(4) // re-sends the same, now-inactive type
 
 	_, err := svc.UpdateShift(context.Background(), update)
 	require.NoError(t, err, "keeping a shift's already-attached inactive type must stay allowed")
@@ -1065,14 +1065,14 @@ func TestShiftService_UpdateRejectsSwitchToDifferentInactiveType(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	existing.ShiftTypeID = int64Ptr(4)
+	existing.ShiftTypeID = testpkg.Int64Ptr(4)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
 
 	update := validShift(7)
 	update.ID = 5
-	update.ShiftTypeID = int64Ptr(9) // switches to a *different* inactive type
+	update.ShiftTypeID = testpkg.Int64Ptr(9) // switches to a *different* inactive type
 
 	_, err := svc.UpdateShift(context.Background(), update)
 	require.Error(t, err)
@@ -1089,14 +1089,14 @@ func TestShiftService_UpdateAllowsSwitchToActiveType(t *testing.T) {
 
 	existing := validShift(7)
 	existing.ID = 5
-	existing.ShiftTypeID = int64Ptr(4)
+	existing.ShiftTypeID = testpkg.Int64Ptr(4)
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
 
 	update := validShift(7)
 	update.ID = 5
-	update.ShiftTypeID = int64Ptr(9)
+	update.ShiftTypeID = testpkg.Int64Ptr(9)
 
 	_, err := svc.UpdateShift(context.Background(), update)
 	require.NoError(t, err)
@@ -1124,7 +1124,7 @@ func TestShiftService_ListAttachesShiftTypes(t *testing.T) {
 
 	typed := validShift(7)
 	typed.ID = 1
-	typed.ShiftTypeID = int64Ptr(4)
+	typed.ShiftTypeID = testpkg.Int64Ptr(4)
 	untyped := validShift(8)
 	untyped.ID = 2
 	repo.findByDateRangeFunc = func(_ context.Context, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
@@ -1151,7 +1151,7 @@ func TestShiftService_ListForStaffAttachesShiftTypes(t *testing.T) {
 
 	typed := validShift(7)
 	typed.ID = 1
-	typed.ShiftTypeID = int64Ptr(4)
+	typed.ShiftTypeID = testpkg.Int64Ptr(4)
 	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{typed}, nil
 	}
@@ -1197,7 +1197,7 @@ func TestShiftService_ListPropagatesShiftTypeResolveError(t *testing.T) {
 
 	typed := validShift(7)
 	typed.ID = 1
-	typed.ShiftTypeID = int64Ptr(4)
+	typed.ShiftTypeID = testpkg.Int64Ptr(4)
 	repo.findByDateRangeFunc = func(_ context.Context, _, _ scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
 		return []*scheduleModels.StaffShift{typed}, nil
 	}
