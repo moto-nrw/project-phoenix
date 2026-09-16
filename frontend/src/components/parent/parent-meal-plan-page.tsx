@@ -1029,12 +1029,25 @@ export function ParentMealPlanPage() {
   // Today only counts when it falls inside the displayed (work) week.
   const todayInWeek = weekDates.includes(today);
 
+  // The head must not promise more than the body below it delivers. Without the
+  // meal registration the page only lists dishes, so the "when" half of the
+  // subtitle would be a promise the page never keeps. In the states that show no
+  // plan at all (loading, load error, no linked child, meal plan switched off)
+  // the head carries no subtitle; the body explains those states itself.
+  const showsPlan =
+    !loadingSchools && !schoolsError && hasLinkedChildren && schools.length > 0;
+  const headerDescription = !showsPlan
+    ? undefined
+    : selectedSchool?.registrationEnabled
+      ? t("subtitle")
+      : t("subtitleMealsOnly");
+
   return (
     <ParentPage>
       <ParentPageHeader
         kicker={t("kicker")}
         title={t("title")}
-        description={t("subtitle")}
+        description={headerDescription}
         actions={
           schools.length > 1 ? (
             <CustomSelect

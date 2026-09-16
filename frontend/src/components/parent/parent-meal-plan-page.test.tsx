@@ -438,4 +438,92 @@ describe("ParentMealPlanPage", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  const SUBTITLE_WITH_REGISTRATION =
+    "Hier sehen Sie, wann Ihr Kind mitisst und was es gibt.";
+  const SUBTITLE_MEALS_ONLY = "Hier sehen Sie, was es zu essen gibt.";
+
+  it("promises only the dishes while the meal registration is switched off", async () => {
+    render(<ParentMealPlanPage />);
+
+    expect(await screen.findByText(SUBTITLE_MEALS_ONLY)).toBeInTheDocument();
+    expect(
+      screen.queryByText(SUBTITLE_WITH_REGISTRATION),
+    ).not.toBeInTheDocument();
+  });
+
+  it("promises the participation days once the meal registration is switched on", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getMealParticipation.mockResolvedValue({
+      weekdays: [],
+      effective_from: "2026-08-10",
+      cutoff_time: "09:00",
+      days: [],
+    });
+
+    render(<ParentMealPlanPage />);
+
+    expect(
+      await screen.findByText(SUBTITLE_WITH_REGISTRATION),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
+  });
+
+  it("carries no subtitle while no plan can be shown", async () => {
+    mocks.listMyChildren.mockReturnValue(new Promise(() => {}));
+
+    const { rerender, unmount } = render(<ParentMealPlanPage />);
+
+    // Loading.
+    expect(
+      screen.queryByText(SUBTITLE_WITH_REGISTRATION),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
+
+    // No linked child.
+    mocks.listMyChildren.mockResolvedValue([]);
+    rerender(<ParentMealPlanPage key="no-children" />);
+    expect(
+      await screen.findByText("Noch kein Kind verknüpft"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(SUBTITLE_WITH_REGISTRATION),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
+
+    // Meal plan switched off for the school.
+    mocks.listMyChildren.mockResolvedValue([
+      {
+        student_id: "child-1",
+        tenant_id: "school-1",
+        first_name: "Mia",
+        last_name: "Muster",
+        school_name: "OGS Am Berg",
+      },
+    ]);
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: false,
+      meal_registration_enabled: false,
+    });
+    rerender(<ParentMealPlanPage key="disabled-school" />);
+    expect(
+      await screen.findByText(
+        "Für Ihre Schule ist der Essensplan derzeit nicht freigeschaltet.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
+
+    unmount();
+
+    // Resolving the schools failed.
+    mocks.listMyChildren.mockRejectedValue(new Error("network failed"));
+    render(<ParentMealPlanPage key="schools-error" />);
+    expect(
+      await screen.findByText("Essensplan konnte nicht geladen werden."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(SUBTITLE_MEALS_ONLY)).not.toBeInTheDocument();
+  });
 });
