@@ -32,7 +32,7 @@ const logger = createLogger({ component: "TeamChatInbox" });
 
 const DISABLED_TITLE = "Der Team-Chat ist ausgeschaltet";
 const DISABLED_DESCRIPTION =
-  "Ihre Schule hat den Team-Chat nicht eingeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
+  "Ihre Schule hat den Team-Chat ausgeschaltet. Wenden Sie sich an die OGS-Leitung, wenn Sie ihn nutzen möchten.";
 
 /** Leerzustand des Posteingangs — Form wie `TenantPage.empty`. */
 interface TeamChatEmptyState {
@@ -179,7 +179,7 @@ export function TeamChatInbox({
   ).length;
   const stats = chatEnabled
     ? `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`
-    : "Team-Chat ist nicht eingeschaltet";
+    : "Ausgeschaltet";
 
   const composeButton = chatEnabled ? (
     <Button
