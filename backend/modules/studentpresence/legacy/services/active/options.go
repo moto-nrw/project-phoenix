@@ -19,9 +19,16 @@ func WithSettings(resolver SettingsResolver) ServiceOption {
 
 // WithTenantRuntime supplies the transaction runtime bound to this service's
 // repository pool. Commands that run without a request transaction, such as
-// the cleanup jobs, open their own tenant transaction through it.
+// the cleanup jobs, open their own tenant transaction through it. A zero
+// runtime leaves the service on the runtime carried by the request context,
+// as the former setter did when the composition root never called it.
 func WithTenantRuntime(runtime tenant.UnitOfWork) ServiceOption {
-	return func(s *service) { s.tenantRuntime = &runtime }
+	return func(s *service) {
+		if runtime.IsZero() {
+			return
+		}
+		s.tenantRuntime = &runtime
+	}
 }
 
 // WithGuardianWaker binds the parent-portal wake-up after attendance changes
