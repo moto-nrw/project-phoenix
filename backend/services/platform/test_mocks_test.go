@@ -113,7 +113,6 @@ type mockAccountTenantRepo struct {
 	listAccountsByTenantIDFn     func(ctx context.Context, tenantID int64) ([]auth.TenantAccountInfo, error)
 	listAccountsByOrganizationFn func(ctx context.Context, organizationID int64) ([]auth.OrgAccountInfo, error)
 	listAllAccountsFn            func(ctx context.Context) ([]auth.OrgAccountInfo, error)
-	deactivateFn                 func(ctx context.Context, accountID, tenantID int64) error
 }
 
 func (m *mockAccountTenantRepo) Create(ctx context.Context, mapping *auth.AccountTenant) error {
@@ -126,13 +125,6 @@ func (m *mockAccountTenantRepo) Create(ctx context.Context, mapping *auth.Accoun
 func (m *mockAccountTenantRepo) EnsureActive(ctx context.Context, mapping *auth.AccountTenant) error {
 	if m.ensureActiveFn != nil {
 		return m.ensureActiveFn(ctx, mapping)
-	}
-	return nil
-}
-
-func (m *mockAccountTenantRepo) Deactivate(ctx context.Context, accountID, tenantID int64) error {
-	if m.deactivateFn != nil {
-		return m.deactivateFn(ctx, accountID, tenantID)
 	}
 	return nil
 }

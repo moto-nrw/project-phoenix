@@ -330,13 +330,12 @@ type CaregiverChain struct {
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
-	Deactivate(ctx context.Context, accountID, tenantID int64) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
-	// FOR SHARE row lock. Transaction-only: it blocks a concurrent Deactivate
-	// until the caller's transaction commits, which is what makes a
+	// FOR SHARE row lock. Transaction-only: it blocks a concurrent membership
+	// revocation until the caller's transaction commits, which is what makes a
 	// membership check and a token write in that transaction atomic.
 	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
