@@ -3100,7 +3100,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        162
+        225
       ],
       "tables": [
         "users.care_withdrawal_completions"
@@ -3112,7 +3112,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        20
+        21
       ],
       "tables": []
     },
@@ -3122,7 +3122,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingCompletionWhenEnrollmentIsOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        110
+        173
       ],
       "tables": []
     },
@@ -3132,7 +3132,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap",
       "target": "database/repositories.NewFactory",
       "lines": [
-        56
+        57
       ],
       "tables": []
     },
@@ -3142,7 +3142,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary",
       "target": "database/repositories.NewFactory",
       "lines": [
-        88
+        89
       ],
       "tables": []
     },
@@ -3152,7 +3152,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        129
+        192
       ],
       "tables": []
     },
@@ -5165,7 +5165,7 @@
       "declaration": "newLoginGateScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        70
+        71
       ],
       "tables": [
         "auth.account_tenants",
@@ -8851,26 +8851,6 @@
     },
     {
       "scope": "test",
-      "file": "services/usercontext/usercontext_service_test.go",
-      "declaration": "TestUserContextService_UpdateAvatar",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        590
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/usercontext/usercontext_service_test.go",
-      "declaration": "setupUserContextService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        25
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/users/birthday_service_test.go",
       "declaration": "TestBirthdayRepositoriesRejectAnEmptyDaySet",
       "target": "database/repositories.NewFactory",
@@ -11511,26 +11491,6 @@
       "target": "services.NewFactory",
       "lines": [
         115
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/usercontext/usercontext_test.go",
-      "declaration": "setupTestContext",
-      "target": "api/testutil.SetupAPITest",
-      "lines": [
-        52
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "api/usercontext/usercontext_test.go",
-      "declaration": "setupTestContext",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        53
       ],
       "tables": []
     },
@@ -24643,26 +24603,6 @@
       "target": "services/scheduler.NewScheduler",
       "lines": [
         61
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/usercontext/usercontext_service_test.go",
-      "declaration": "TestUserContextService_UpdateAvatar",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        565
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/usercontext/usercontext_service_test.go",
-      "declaration": "setupUserContextService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        24
       ],
       "tables": []
     },

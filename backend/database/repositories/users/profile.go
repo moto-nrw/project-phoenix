@@ -105,21 +105,24 @@ func applyProfileFilter(query *bun.SelectQuery, field string, value interface{})
 	}
 }
 
-// applyProfileStringLikeFilter applies LIKE filter for string fields
+// applyProfileStringLikeFilter applies LIKE filter for string fields. column is
+// one of the qualified column expressions this file owns, never caller input.
 func applyProfileStringLikeFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
 	if strValue, ok := value.(string); ok {
-		return query.Where(column+" ILIKE ?", "%"+strValue+"%")
+		return query.Where("? ILIKE ?", bun.Safe(column), "%"+strValue+"%")
 	}
 	return query
 }
 
-// applyNonEmptyStringFilter applies filter for non-empty or empty string fields
+// applyNonEmptyStringFilter applies filter for non-empty or empty string
+// fields. column is one of the qualified column expressions this file owns,
+// never caller input.
 func applyNonEmptyStringFilter(query *bun.SelectQuery, column string, value interface{}) *bun.SelectQuery {
 	if boolValue, ok := value.(bool); ok {
 		if boolValue {
-			return query.Where(column + " IS NOT NULL AND " + column + " != ''")
+			return query.Where("? IS NOT NULL AND ? != ''", bun.Safe(column), bun.Safe(column))
 		}
-		return query.Where(column + " IS NULL OR " + column + " = ''")
+		return query.Where("? IS NULL OR ? = ''", bun.Safe(column), bun.Safe(column))
 	}
 	return query
 }

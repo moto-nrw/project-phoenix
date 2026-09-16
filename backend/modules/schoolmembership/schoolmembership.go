@@ -260,6 +260,10 @@ type Command interface {
 	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
 	DeleteGroupAssignment(context.Context, int64) error
 	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
+	// LockGroupAssignments takes a SHARE ROW EXCLUSIVE table lock on the
+	// group assignment rows for the caller's transaction, so a caregiver
+	// capability re-check cannot race a concurrent assignment write.
+	LockGroupAssignments(context.Context) error
 }
 
 type Capability interface {
@@ -312,6 +316,7 @@ type teachingAssignmentEngine interface {
 	UpdateGroupAssignment(context.Context, UpdateGroupAssignment) (GroupAssignment, error)
 	DeleteGroupAssignment(context.Context, int64) error
 	DeleteGroupAssignmentsByTeacher(context.Context, int64) (int64, error)
+	LockGroupAssignments(context.Context) error
 }
 
 type Module struct {

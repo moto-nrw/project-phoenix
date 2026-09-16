@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"

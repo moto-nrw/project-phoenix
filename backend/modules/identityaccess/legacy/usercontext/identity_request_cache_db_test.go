@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

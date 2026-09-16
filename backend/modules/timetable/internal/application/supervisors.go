@@ -102,6 +102,14 @@ func (s *Service) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) err
 	})
 }
 
+func (s *Service) LockPlannedSupervisors(ctx context.Context) error {
+	return s.run("lock_planned_supervisors", func(stats *domain.OperationStats) error {
+		queryStats, err := s.store.LockPlannedSupervisors(ctx)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
 func (s *Service) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (result int64, err error) {
 	err = s.runWrite(ctx, "delete_planned_supervisors_by_staff", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, deleteErr := s.store.DeletePlannedSupervisorsByStaff(txCtx, staffID)

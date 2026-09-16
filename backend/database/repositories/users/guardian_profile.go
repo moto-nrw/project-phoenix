@@ -113,9 +113,7 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = repoBase.WithTenantFilter(ctx, query, "guardian_profile")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to find guardian profiles by ids: %w", err)
@@ -170,9 +168,7 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 		// strings.EqualFold in services/auth). Deduped by the result map below.
 		Where(`LOWER("role".name) = ?`, strings.ToLower(authModels.BaseRoleGuardian))
 
-	if where, val, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
-		query = query.Where(where, val)
-	}
+	query = repoBase.WithTenantFilter(ctx, query, "guardian_profile")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("failed to find active portal guardian profiles by ids: %w", err)
@@ -194,9 +190,7 @@ func (r *GuardianProfileRepository) LockByIDForUpdate(ctx context.Context, id in
 		Where(`"guardian_profile".id = ?`, id).
 		For("UPDATE")
 
-	if where, tenantID, ok := repoBase.TenantWhere(ctx, "guardian_profile"); ok {
-		query.Where(where, tenantID)
-	}
+	query = repoBase.WithTenantFilter(ctx, query, "guardian_profile")
 
 	if err := query.Scan(ctx, &profileID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

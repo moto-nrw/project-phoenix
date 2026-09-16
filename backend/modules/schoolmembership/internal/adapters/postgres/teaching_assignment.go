@@ -253,6 +253,24 @@ func (s *Store) DeleteGroupAssignmentsByTeacher(ctx context.Context, teacherID i
 	return execDelete(ctx, query, "delete group assignments by teacher")
 }
 
+// LockGroupAssignments takes a table-level SHARE ROW EXCLUSIVE lock on
+// education.group_teacher: it also blocks inserts, which is what a caregiver
+// capability re-check needs.
+func (s *Store) LockGroupAssignments(ctx context.Context) (domain.OperationStats, error) {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	_, err = db.ExecContext(ctx, "LOCK TABLE education.group_teacher IN SHARE ROW EXCLUSIVE MODE")
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("school membership postgres: lock group assignments: %w", err)
+	}
+	return stats, nil
+}
+
 func classAssignmentSelect(db bun.IDB, model any) *bun.SelectQuery {
 	return db.NewSelect().Model(model).ModelTableExpr(`education.class_teachers AS "class_assignment"`)
 }

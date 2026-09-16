@@ -22,7 +22,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
+	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
