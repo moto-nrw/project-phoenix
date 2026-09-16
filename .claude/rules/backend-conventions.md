@@ -226,7 +226,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 - New low-level primitive (hash, parse, verify)? → `backend/auth/{subdomain}/`
 - New business flow (login, invite, reset)? → `services/auth/`
-- New permission decision? → `modules/identityaccess/legacy/usercontext/` or `backend/auth/authorize/policy/`
+- New permission decision? → `backend/auth/authorize/policy/` (`modules/identityaccess/legacy/usercontext/` is the retained user-context read side under #2725: do not extend it)
 - Handler needs to authorize? → call the service or middleware, never decide inline
 
 ---

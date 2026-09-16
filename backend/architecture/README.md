@@ -409,16 +409,20 @@ served by `modules/identityaccess/inbound/usercontext` under the same owner's
 with unchanged behaviour, paths, status codes, error strings and authorization
 checks; their 49 baseline entries fell with the old packages. The read side
 could not land on the existing `identity-access`/`application` point: it still
-returns the retained `models/*` rows to twenty consumers, and PR mode rejects
+returns the retained `models/*` rows to its consumers, and PR mode rejects
 a new permission on a point that exists at the base SHA. Every
 `inbound-usercontext.adapter.*`, `inbound-usercontext.http.*` and
-`inbound-usercontext.adapter-test.*` rule and every
-`<consumer>.<role>.inbound-usercontext-adapter` rule (including the
-`root-composition.compose.inbound-usercontext-http` mount) is a compatibility
+`inbound-usercontext.adapter-test.*` rule, every
+`<consumer>.<role>.inbound-usercontext-adapter` rule and the
+`root-composition.compose.inbound-usercontext-http` mount is a compatibility
 permission that exists only because PR mode cannot record debt for a package
 the candidate creates: convert them to exact debt with the rule above once the
 packages exist at a base SHA, and dissolve the adapter into the Identity &
-Access application and public contract under #2725.
+Access application and public contract under #2725. The adapter role also
+covers the `net/http` status constants the SSE setup error carries through
+the generic `external.http-router.adapter` rule, and the former
+`inbound-usercontext.to.identity-access` target rule is removed until that
+contract exists.
 
 The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
