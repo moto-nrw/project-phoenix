@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -46,6 +46,12 @@ type ServiceConfig struct {
 	TokenAuth           *jwt.TokenAuth
 	Settings            configSvc.SettingsService
 	Audit               auditModels.Command
+	// Sessions is the consumer-owned port over the Identity & Access
+	// account-authentication capability (#3251): login, refresh, switching,
+	// session validation, cleanup and revocation moved there. The retained
+	// flows (staff preview, password reset, role and account management,
+	// offboarding) and the AuthService session methods delegate to it.
+	Sessions AccountSessions
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -72,7 +78,12 @@ func NewServiceConfig(
 	}, nil
 }
 
-// Service provides authentication and authorization functionality
+// Service provides the retained authentication and user management
+// functionality: registration and school linking, password change and
+// reset, role and permission management, account lifecycle, staff preview
+// and offboarding. Tenant, parent and school login, refresh, switching,
+// logout, session validation, cleanup and revocation are served by Identity
+// & Access through the Sessions port (#3251).
 type Service struct {
 	repos               *repositories.Factory
 	tokenAuth           *jwt.TokenAuth
@@ -83,21 +94,19 @@ type Service struct {
 	schoolURL           string
 	passwordResetExpiry time.Duration
 	rateLimitEnabled    bool
-	jwtExpiry           time.Duration
-	jwtRefreshExpiry    time.Duration
 	txHandler           *tenant.TransactionRunner
 	db                  *bun.DB
 	logger              *slog.Logger
 	settings            configSvc.SettingsService
 	audit               auditModels.Command
 	tenantRuntime       *tenant.UnitOfWork
-	// mfaService is optional. When non-nil and an account requires MFA the
-	// login flow returns a challenge token instead of an access/refresh
-	// pair; when nil the gate is bypassed and login behaves as before.
-	// Wired post-construction via SetMFAService to break the
-	// AuthService ↔ MFAService construction-order dependency.
+	sessions            AccountSessions
+	// mfaService is optional. The Identity & Access login flows read it
+	// through CurrentMFAService at call time, so SetMFAService keeps its
+	// meaning: nil disables the gate and login behaves as a plain
+	// password login. Wired post-construction to break the
+	// AuthService <-> MFAService construction-order dependency.
 	mfaService MFAService
-	refreshSF  singleflight.Group // deduplicates concurrent token refresh calls
 }
 
 func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
@@ -105,6 +114,13 @@ func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
 		return ctx
 	}
 	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
+}
+
+// WithTenantRuntime attaches the unit of work the service was composed
+// with; the Identity & Access composition opens its session transactions
+// under it.
+func (s *Service) WithTenantRuntime(ctx context.Context) context.Context {
+	return s.withTenantRuntime(ctx)
 }
 
 // detachedTenantContext preserves tenant/runtime values while isolating
@@ -156,13 +172,12 @@ func NewService(
 		schoolURL:           config.SchoolURL,
 		passwordResetExpiry: config.PasswordResetExpiry,
 		rateLimitEnabled:    config.RateLimitEnabled,
-		jwtExpiry:           tokenAuth.JwtExpiry,
-		jwtRefreshExpiry:    tokenAuth.JwtRefreshExpiry,
 		txHandler:           tenant.NewTransactionRunner(),
 		db:                  db,
 		logger:              logger,
 		settings:            config.Settings,
 		audit:               config.Audit,
+		sessions:            config.Sessions,
 	}, nil
 }
 
@@ -175,6 +190,18 @@ func (s *Service) getLogger() *slog.Logger {
 // — calling with nil clears the gate.
 func (s *Service) SetMFAService(svc MFAService) {
 	s.mfaService = svc
+}
+
+// CurrentMFAService returns the MFA gate the login flows consult; nil means
+// the gate is disabled.
+func (s *Service) CurrentMFAService() MFAService {
+	return s.mfaService
+}
+
+// AccountSessions returns the Identity & Access port the service delegates
+// session work to.
+func (s *Service) AccountSessions() AccountSessions {
+	return s.sessions
 }
 
 func (s *Service) runInTx(
@@ -195,8 +222,18 @@ func (s *Service) runInTx(
 	})
 }
 
-// VerifyAccountTenantMembership reports whether the account has a tenant
-// mapping for the given school (issue #584; repository result verbatim).
-func (s *Service) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	return s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, accountID, tenantID)
+func hasAmbientTx(ctx context.Context) bool {
+	_, ok := tenant.TransactionFromContext(ctx)
+	return ok
+}
+
+func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
+	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
+}
+
+// VerifyPassword checks a plain-text password against its Argon2id hash. It
+// is the credential check the Identity & Access login flows are composed
+// with, so password hashing stays in one place.
+func VerifyPassword(password, hash string) (bool, error) {
+	return userpass.VerifyPassword(password, hash)
 }

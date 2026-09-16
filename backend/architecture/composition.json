@@ -922,7 +922,7 @@
       "declaration": "TestAccountRepository_CalendarFeedToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        596
+        564
       ],
       "tables": []
     },
@@ -942,7 +942,7 @@
       "declaration": "TestAccountRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        566
+        534
       ],
       "tables": []
     },
@@ -962,7 +962,7 @@
       "declaration": "TestAccountRepository_EnsureCalendarFeedToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        634
+        602
       ],
       "tables": []
     },
@@ -972,7 +972,7 @@
       "declaration": "TestAccountRepository_FindAccountsWithRolesAndPermissions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        356
+        324
       ],
       "tables": [
         "auth.account_roles"
@@ -1026,7 +1026,7 @@
       "declaration": "TestAccountRepository_FindEmailsByAccountIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        526
+        494
       ],
       "tables": []
     },
@@ -1046,7 +1046,7 @@
       "declaration": "TestAccountRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        386
+        354
       ],
       "tables": [
         "auth.account_roles"
@@ -1068,17 +1068,7 @@
       "declaration": "TestAccountRepository_UpdateAvatar",
       "target": "database/repositories.NewFactory",
       "lines": [
-        331
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_repository_test.go",
-      "declaration": "TestAccountRepository_UpdateLastLogin",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        277
+        299
       ],
       "tables": []
     },
@@ -1088,7 +1078,7 @@
       "declaration": "TestAccountRepository_UpdatePassword",
       "target": "database/repositories.NewFactory",
       "lines": [
-        309
+        277
       ],
       "tables": []
     },
@@ -1098,7 +1088,7 @@
       "declaration": "TestAccountRepository_UpdateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        581
+        549
       ],
       "tables": []
     },
@@ -2057,256 +2047,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         25
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        459
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_AdminTxIgnoresTenantFilter",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        647
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_EmptyPortalScopeUsesUnknown",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        691
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_IgnoresOtherPortal",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        533
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_StaffGroupSharesTenantAndOrg",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        609
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CleanupOldTokensForAccount_TenantCapLeavesUnknownIsolated",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        568
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        34
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_CreateValidation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        877
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        97
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteAllByAccountIDReturningIgnoresTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        346
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        286
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteByAccountIDCreatedAtOrBeforeIncludesRefreshSuccessor",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        374
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteByAccountIDReturningKeepsOtherSchoolInAdminTx",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        311
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteByFamilyID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        415
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteByTenantID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        896
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteExpiredRotatedForAccount",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        718
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_DeleteExpiredTokens",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        178
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_FindByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        139
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_FindByToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        74
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_GetLatestTokenInFamily",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        760
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_HasLiveTokensCreatedAfter",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        219
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        121
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_ListWithFilters",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        817
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/token_adapter_test.go",
-      "declaration": "TestTokenRepository_RotationHandoffLifecycle",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        239
       ],
       "tables": []
     },
@@ -5409,16 +5149,6 @@
     },
     {
       "scope": "test",
-      "file": "services/auth/auth_login_internal_test.go",
-      "declaration": "setupInternalAuthService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        92
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/auth/auth_login_school_atomicity_test.go",
       "declaration": "TestVerifyCodeForAccount_RefusesForeignPortalChallenge",
       "target": "database/repositories.NewFactory",
@@ -5435,7 +5165,7 @@
       "declaration": "newLoginGateScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        69
+        70
       ],
       "tables": [
         "auth.account_tenants",
@@ -5495,6 +5225,16 @@
       "tables": [
         "users.guardian_profiles"
       ]
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/internal_service_test.go",
+      "declaration": "setupInternalAuthService",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        22
+      ],
+      "tables": []
     },
     {
       "scope": "test",
@@ -5620,11 +5360,21 @@
     },
     {
       "scope": "test",
+      "file": "services/auth/session_validation_test.go",
+      "declaration": "TestValidateSessionTokens",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        27
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/auth/token_revocation_audit_test.go",
       "declaration": "TestLogoutRevokesTokensWhenAuditFails",
       "target": "database/repositories.NewFactory",
       "lines": [
-        77
+        78
       ],
       "tables": [
         "auth.tokens"
@@ -5636,7 +5386,7 @@
       "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        107
+        108
       ],
       "tables": [
         "audit.auth_events",
@@ -10033,7 +9783,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        462
+        412
       ],
       "tables": []
     },
@@ -26466,18 +26216,8 @@
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services/auth|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
       "locations": [
         {
-          "file": "services/auth/auth_service.go",
-          "line": 77,
-          "declaration": "type Service"
-        },
-        {
-          "file": "services/auth/auth_service.go",
-          "line": 125,
-          "declaration": "NewService"
-        },
-        {
           "file": "services/auth/cleanup_composition.go",
-          "line": 31,
+          "line": 29,
           "declaration": "NewCleanupService"
         },
         {
@@ -26494,6 +26234,16 @@
           "file": "services/auth/passkey_service.go",
           "line": 116,
           "declaration": "type passkeyService"
+        },
+        {
+          "file": "services/auth/service.go",
+          "line": 88,
+          "declaration": "type Service"
+        },
+        {
+          "file": "services/auth/service.go",
+          "line": 141,
+          "declaration": "NewService"
         }
       ]
     },
@@ -26521,13 +26271,23 @@
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
       "locations": [
         {
+          "file": "services/account_authentication_composition.go",
+          "line": 57,
+          "declaration": "sessionRepositoriesOf"
+        },
+        {
+          "file": "services/auth_test_helpers.go",
+          "line": 165,
+          "declaration": "NewAuthServiceForTests"
+        },
+        {
           "file": "services/factory.go",
-          "line": 454,
+          "line": 452,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 504,
+          "line": 502,
           "declaration": "newFactory"
         },
         {

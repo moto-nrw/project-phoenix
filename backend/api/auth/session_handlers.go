@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -42,7 +43,11 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		trustedDeviceCookie = c.Value
 	}
 
-	result, err := rs.AuthService.LoginWithMFAGate(
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("login unavailable")))
+		return
+	}
+	result, err := rs.Sessions.LoginWithMFAGate(
 		r.Context(), req.Email, req.Password, ipAddress, userAgent, req.TenantSlug, trustedDeviceCookie,
 	)
 	if err != nil {
@@ -51,20 +56,20 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch result.Status {
-	case authService.LoginStatusMFARequired:
+	case identityaccess.LoginStatusMFARequired:
 		tde := result.TrustedDeviceEnabled
 		tdd := result.TrustedDeviceDays
 		render.JSON(w, r, LoginResponse{
-			Status:               string(authService.LoginStatusMFARequired),
+			Status:               string(identityaccess.LoginStatusMFARequired),
 			ChallengeToken:       result.ChallengeToken,
 			MaskedEmail:          result.MaskedEmail,
 			TrustedDeviceEnabled: &tde,
 			TrustedDeviceDays:    &tdd,
 		})
 		return
-	case authService.LoginStatusMFAEnrollmentRequired:
+	case identityaccess.LoginStatusMFAEnrollmentRequired:
 		render.JSON(w, r, LoginResponse{
-			Status:                string(authService.LoginStatusMFAEnrollmentRequired),
+			Status:                string(identityaccess.LoginStatusMFAEnrollmentRequired),
 			AccessToken:           result.AccessToken,
 			MaskedEmail:           result.MaskedEmail,
 			MFAEnrollmentRequired: true,
@@ -73,55 +78,57 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	render.JSON(w, r, LoginResponse{
-		Status:       string(authService.LoginStatusAuthenticated),
+		Status:       string(identityaccess.LoginStatusAuthenticated),
 		AccessToken:  result.AccessToken,
 		RefreshToken: result.RefreshToken,
 	})
 }
 
-// handleLoginError centralises the error-to-HTTP mapping for /auth/login so
-// both the legacy and the MFA-aware paths agree on what comes back.
+// handleLoginError centralises the error-to-HTTP mapping for /auth/login.
+// The Identity & Access flow reports which operation failed and carries the
+// public sentinel; the MFA sentinels still come from the retained MFA
+// service through the gate.
 func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err error) {
-	var authErr *authService.AuthError
+	var authErr *identityaccess.AuthenticationError
 	if errors.As(err, &authErr) {
 		switch {
-		case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
-		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+		case errors.Is(err, identityaccess.ErrInvalidCredentials):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+		case errors.Is(err, identityaccess.ErrAccountNotFound):
 			// Mask the specific error so attackers can't enumerate accounts.
-			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
-		case errors.Is(authErr.Err, authService.ErrAccountInactive):
-			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
-		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-		case errors.Is(authErr.Err, authService.ErrParentMustUseParentPortal):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+		case errors.Is(err, identityaccess.ErrAccountInactive):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+		case errors.Is(err, identityaccess.ErrTenantNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
+		case errors.Is(err, identityaccess.ErrTenantAccessDenied):
+			common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+		case errors.Is(err, identityaccess.ErrParentMustUseParentPortal):
 			// Guardian-only account at the staff login. The code is what the
 			// frontend switches on to point the user at the parents portal —
 			// matching on the English message text would be brittle. Safe to
-			// be specific: this branch is only reachable once
-			// validateLoginCredentials has already accepted the password, so
-			// it tells the caller nothing about an account they don't own.
+			// be specific: this branch is only reachable once the credential
+			// check has already accepted the password, so it tells the caller
+			// nothing about an account they don't own.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				authService.ErrParentMustUseParentPortal, "use_parent_portal"))
-		case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+				identityaccess.ErrParentMustUseParentPortal, "use_parent_portal"))
+		case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 			// School-portal-only account at the staff login (#2207). Same
 			// shape as the guardian split above: a stable code the frontend
 			// switches on to point the user at moto schule.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
-				authService.ErrMustUseSchoolPortal, "use_school_portal"))
-		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
+				identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
+		case errors.Is(err, authService.ErrMFARateLimited):
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too
 			// many code requests" message instead of a generic 5xx.
 			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
-		case errors.Is(authErr.Err, authService.ErrMFALocked):
+		case errors.Is(err, authService.ErrMFALocked):
 			// Account hit the failed-attempt lockout threshold while we were
 			// preparing the next challenge. Same HTTP status as rate limit,
 			// distinct message body — handled separately on the frontend.
 			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
-		case errors.Is(authErr.Err, authService.ErrMFAStatusUnavailable):
+		case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 			// MFA gate couldn't determine required/enrolled status (settings
 			// or credentials lookup failed with a non-not-found error).
 			// Refuse this login rather than fail-open. 503 lets the client
@@ -399,31 +406,35 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session refresh unavailable")))
+		return
+	}
 	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
-	accessToken, newRefreshToken, err := rs.AuthService.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
+	accessToken, newRefreshToken, err := rs.Sessions.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
 	if err != nil {
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidToken):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidToken))
-			case errors.Is(authErr.Err, authService.ErrTokenExpired):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTokenExpired))
-			case errors.Is(authErr.Err, authService.ErrTokenNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTokenNotFound))
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantNotFound))
-			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-			case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+			case errors.Is(err, identityaccess.ErrInvalidToken):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
+			case errors.Is(err, identityaccess.ErrTokenExpired):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenExpired))
+			case errors.Is(err, identityaccess.ErrTokenNotFound):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTokenNotFound))
+			case errors.Is(err, identityaccess.ErrAccountNotFound):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
+			case errors.Is(err, identityaccess.ErrAccountInactive):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+			case errors.Is(err, identityaccess.ErrTenantNotFound):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantNotFound))
+			case errors.Is(err, identityaccess.ErrTenantAccessDenied):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+			case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 				// The account is school-portal-only at this school (#2207).
 				// 401, not 403: the tenant session is simply over, and the
 				// frontend's refresh path turns a 401 into a clean logout.
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrMustUseSchoolPortal))
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrMustUseSchoolPortal))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
@@ -449,7 +460,11 @@ func (rs *Resource) logout(w http.ResponseWriter, r *http.Request) {
 	ipAddress := getClientIP(r)
 	userAgent := r.Header.Get(headerUserAgent)
 
-	err := rs.AuthService.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
+	if rs.Sessions == nil {
+		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("logout unavailable")))
+		return
+	}
+	err := rs.Sessions.LogoutWithAudit(r.Context(), refreshToken, ipAddress, userAgent)
 	if err != nil {
 		// Even if there's an error, we want to consider the logout successful from the client's perspective
 		// Log the error on the server side for debugging

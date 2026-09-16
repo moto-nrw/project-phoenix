@@ -45,8 +45,6 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
-	identityaccessModule "github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
@@ -1556,7 +1554,31 @@ func newFactory(
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
 	authConfig.Audit = auditCommand
-	authService, err := auth.NewService(repos, authConfig, db, authLogger)
+
+	// Identity & Access serves tenant, parent and school login, refresh,
+	// switching, logout, session validation, cleanup and revocation (#3251).
+	// The auth service delegates its session methods to the module through
+	// its consumer-owned port; the module reads the MFA gate and the tenant
+	// runtime back from the auth service at call time, so SetMFAService and
+	// SetTenantRuntime keep their meaning.
+	var authService *auth.Service
+	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+		repos:     sessionRepositoriesOf(repos),
+		tokenAuth: authConfig.TokenAuth,
+		settings:  settingsService,
+		audit:     auditCommand,
+		logger:    authLogger,
+		observe:   observeIdentityAccess,
+		tenantRuntime: func(ctx context.Context) context.Context {
+			return authService.WithTenantRuntime(ctx)
+		},
+		mfa: func() auth.MFAService { return authService.CurrentMFAService() },
+	})
+	if err != nil {
+		return nil, err
+	}
+	authConfig.Sessions = newAccountSessions(identityAccess)
+	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -1844,16 +1866,9 @@ func newFactory(
 
 	// Enrollment acceptance grants parents portal access through the public
 	// Identity & Access capability instead of the account, mapping and role
-	// repositories (#2699).
-	guardianAccess, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
-		DB: db,
-		Observe: func(observation identityaccessCompose.Observation) {
-			observeIdentityAccess(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccessModule.ErrorCode(observation.Err), observation.Err)
-		},
-	})
-	if err != nil {
-		return nil, err
-	}
+	// repositories (#2699); it is the same module instance the auth service
+	// delegates its session flows to.
+	guardianAccess := identityAccess
 	// Data Import (#2708): every accepted row is committed through the owner
 	// commands the composer binds. The observer records rows
 	// parsed/accepted/rejected per run without personal data.

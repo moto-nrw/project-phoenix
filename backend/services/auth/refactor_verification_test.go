@@ -38,13 +38,11 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 		Active:       true,
 		PasswordHash: testpkg.StrPtr("$argon2id$v=19$m=65536,t=3,p=2$somesalt$somehash"),
 	})
-	tokenRepo := newStubTokenRepository()
 	roleRepo := newStubRoleRepository()
 
 	// Create factory with repositories
 	repos := &repositories.Factory{
 		Account: accountRepo,
-		Token:   tokenRepo,
 		Role:    roleRepo,
 	}
 
@@ -65,7 +63,6 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	// Verify service can access repositories through factory
 	require.NotNil(t, service.repos, "Service should store factory reference")
 	require.NotNil(t, service.repos.Account, "Should access Account repo through factory")
-	require.NotNil(t, service.repos.Token, "Should access Token repo through factory")
 	require.NotNil(t, service.repos.Role, "Should access Role repo through factory")
 
 	// Verify the platform-scoped account lookup uses the repository factory.

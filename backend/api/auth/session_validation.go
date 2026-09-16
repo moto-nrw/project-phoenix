@@ -6,9 +6,10 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/go-chi/render"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 func (rs *Resource) validateSession(w http.ResponseWriter, r *http.Request) {
@@ -22,16 +23,27 @@ func (rs *Resource) validateSession(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid session validation request")))
 		return
 	}
-	validator, ok := rs.AuthService.(authService.SessionTokenValidator)
-	if !ok {
+	if rs.Sessions == nil {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session validation unavailable")))
 		return
 	}
-	claims, err := validator.ValidateSessionTokens(r.Context(), input.AccessToken, input.RefreshToken, input.Portal)
+	claims, err := rs.Sessions.ValidateSessionTokens(r.Context(), input.AccessToken, input.RefreshToken, input.Portal)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidToken))
+		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidToken))
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
-	render.JSON(w, r, claims)
+	render.JSON(w, r, sessionClaimsResponse(claims))
+}
+
+// sessionClaimsResponse renders the validated claims in the access-token
+// claim shape the frontend hand-off consumes.
+func sessionClaimsResponse(claims identityaccess.SessionClaims) *jwt.AppClaims {
+	return &jwt.AppClaims{
+		ID: int(claims.AccountID), Sub: claims.Email, Username: claims.Username, FirstName: claims.FirstName, LastName: claims.LastName,
+		Roles: claims.Roles, Permissions: claims.Permissions, IsAdmin: claims.IsAdmin, Scope: claims.Scope,
+		TenantID: claims.TenantID, OrgID: claims.OrgID, FamilyID: claims.FamilyID,
+		ReadOnly: claims.ReadOnly, ActingAdminID: claims.ActingAdminID, PreviewID: claims.PreviewID,
+		CommonClaims: jwt.CommonClaims{ExpiresAt: claims.ExpiresAt, IssuedAt: claims.IssuedAt},
+	}
 }

@@ -22,6 +22,11 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// Sessions composes the account-authentication flows (#3251): tenant,
+	// parent and school login, refresh, switching, logout, session validation,
+	// cleanup and revocation. Compositions that only read identity facts
+	// leave it nil; the flows then report ErrAccountAuthenticationUnavailable.
+	Sessions *SessionDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -62,7 +67,15 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return identityaccess.NewModule(engine{service: service}), nil
+	auth, err := newAccountAuthentication(service, store, dependencies.Sessions)
+	if err != nil {
+		return nil, err
+	}
+	e := engine{service: service, auth: auth}
+	if dependencies.Sessions != nil {
+		e.runtime = dependencies.Sessions.TenantRuntime
+	}
+	return identityaccess.NewModule(e), nil
 }
 
 type transaction struct{}
@@ -94,7 +107,13 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 	return callback(ctx)
 }
 
-type engine struct{ service *application.Service }
+type engine struct {
+	service *application.Service
+	// auth is nil when the module was composed without session dependencies.
+	auth *application.AccountAuthentication
+	// runtime attaches the composed unit of work ahead of every session flow.
+	runtime func(context.Context) context.Context
+}
 
 func (e engine) FindAccount(ctx context.Context, id int64) (identityaccess.Account, error) {
 	value, err := e.service.FindAccount(ctx, id)

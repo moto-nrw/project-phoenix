@@ -50,7 +50,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	scope, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, configModel.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
@@ -86,7 +86,7 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 		"store an unknown parent_request_reason_policy override")
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, configModel.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource))

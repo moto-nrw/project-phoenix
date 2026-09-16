@@ -136,3 +136,154 @@ type Observation struct {
 }
 
 type Observer func(Observation)
+
+// AccountLoginStore is the persistence port over the identity-owned facts
+// tenant, parent and school login, refresh, switching and session validation
+// read: the account row with its credential, the school mappings and the
+// tenant-scoped roles and permissions. Every statement runs on the
+// connection the caller's context carries; the locking variants require an
+// ambient transaction.
+type AccountLoginStore interface {
+	// HasActiveAccountTenant reports an active mapping of the account at the
+	// school.
+	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+	// FindLoginAccountByEmail matches case-insensitively.
+	FindLoginAccountByEmail(ctx context.Context, email string) (domain.LoginAccount, bool, domain.OperationStats, error)
+	FindLoginAccount(ctx context.Context, id int64, forUpdate bool) (domain.LoginAccount, bool, domain.OperationStats, error)
+	// RecordAccountLogin stamps the last login; on the login path it also
+	// takes the account row lock the session cap serializes on.
+	RecordAccountLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error)
+	// ListActiveTenantIDs returns the schools the account is actively mapped
+	// to in mapping-creation order.
+	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// LockActiveTenantMappingShared is HasActiveAccountTenant with a FOR
+	// SHARE lock so a revocation cannot commit under a mint.
+	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+	// ListAccountRolesAtTenant returns the roles the account holds at the
+	// school, with their role facts; forShare pins the assignment rows.
+	ListAccountRolesAtTenant(ctx context.Context, accountID, tenantID int64, forShare bool) ([]domain.RoleAssignment, domain.OperationStats, error)
+	// ListAccountPermissionsAtTenant returns the distinct effective
+	// permission names (resource:action) granted directly or through roles.
+	ListAccountPermissionsAtTenant(ctx context.Context, accountID, tenantID int64) ([]string, domain.OperationStats, error)
+	// LockAccountPermissionSources pins the direct grants and the role
+	// permissions the effective set derives from.
+	LockAccountPermissionSources(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
+}
+
+// SchoolDirectory is the consumer-owned port over the Organisation & Tenancy
+// school facts login resolves. Missing schools report found=false; every
+// other failure is an error.
+type SchoolDirectory interface {
+	FindSchool(ctx context.Context, id int64) (domain.School, bool, error)
+	FindSchoolBySubdomain(ctx context.Context, subdomain string) (domain.School, bool, error)
+	// LockSchoolShared reads the school under a FOR SHARE lock inside the
+	// caller's transaction.
+	LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error)
+	// ListActiveSchoolsOfAccount returns the live, active schools the
+	// account is actively mapped to.
+	ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]domain.School, error)
+}
+
+// PersonDirectory is the consumer-owned port over the People Directory name
+// of an account's person row in the tenant the context carries.
+type PersonDirectory interface {
+	FindPersonName(ctx context.Context, accountID int64) (firstName, lastName string, found bool, err error)
+}
+
+// PasswordVerifier checks a password against the stored hash.
+type PasswordVerifier interface {
+	VerifyPassword(password, hash string) (bool, error)
+}
+
+// TokenCodec signs and parses the session JWTs.
+type TokenCodec interface {
+	IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (accessToken, refreshToken string, err error)
+	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
+	// ParseAccessToken verifies the signature and expiry of an access JWT.
+	ParseAccessToken(token string) (domain.SessionClaims, error)
+	// ParseRefreshToken verifies the signature of a refresh JWT and refuses
+	// challenge, enrollment and preview tokens.
+	ParseRefreshToken(token string) (domain.RefreshClaims, error)
+	RefreshExpiry() time.Duration
+}
+
+// MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.
+type MFAPolicy interface {
+	RequiredFor(roleNames []string) bool
+}
+
+// MFAGate is the consumer-owned port over the retained MFA service. An
+// unconfigured gate (Configured false) means "not required / not enrolled".
+type MFAGate interface {
+	Configured() bool
+	IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error)
+	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
+	// ResolvePolicyInTx re-reads the policy on the caller's transaction, past
+	// every request-scoped cache.
+	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
+	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
+	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error)
+	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error)
+	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
+	TrustedDeviceDays(ctx context.Context, tenantID int64) int
+}
+
+// MFAPolicyLock pins a school's MFA mode for the rest of the caller's
+// transaction, in shared mode.
+type MFAPolicyLock interface {
+	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
+}
+
+// AuthAudit is the consumer-owned port over the Audit platform's
+// authentication ledger.
+type AuthAudit interface {
+	// RecordAuthEvent appends the event on the caller's transaction.
+	RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error
+	ListPendingAccountWideWipes(ctx context.Context) ([]domain.PendingAccountWideWipe, error)
+	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]domain.PendingAccountWideWipe, error)
+}
+
+// PushSubscriptionCleanup is the consumer-owned port over the Delivery
+// platform's push subscription rows a session revocation orphans.
+type PushSubscriptionCleanup interface {
+	DeleteStaffByAccount(ctx context.Context, accountID int64) error
+	DeleteSchoolByAccount(ctx context.Context, accountID int64) error
+	DeleteParentByAccount(ctx context.Context, accountID int64) error
+	DeleteByTokenFamily(ctx context.Context, accountID int64, familyID string) error
+	DeleteUnboundByAccount(ctx context.Context, accountID, tenantID int64, portal string) error
+	DeleteOrphaned(ctx context.Context) error
+}
+
+// Runtime is the tenant transaction runtime the account flows run under:
+// administrative transactions for the pre-authentication flows, tenant
+// transactions for audit evidence, and the after-commit hooks a revocation
+// defers its cleanup to.
+type Runtime interface {
+	WithAdminTx(ctx context.Context, fn func(context.Context) error) error
+	WithTenantTx(ctx context.Context, tenantID int64, fn func(context.Context) error) error
+	// RunInTx joins the caller's transaction, runs tenantless scoped callers
+	// administratively and otherwise opens the tenant's transaction.
+	RunInTx(ctx context.Context, fn func(context.Context) error) error
+	IsAdminTx(ctx context.Context) bool
+	HasTransaction(ctx context.Context) bool
+	HasAfterCommitHooks(ctx context.Context) bool
+	RegisterAfterCommit(ctx context.Context, fn func())
+	TenantID(ctx context.Context) int64
+	Scope(ctx context.Context) string
+	OrgID(ctx context.Context) int64
+	WithTenantID(ctx context.Context, tenantID int64) context.Context
+	// Detach strips the transaction, the tenant and the after-commit hooks
+	// so independent cleanup cannot join the caller's outcome.
+	Detach(ctx context.Context) context.Context
+	WithoutTransaction(ctx context.Context) context.Context
+}
+
+// Rotation is the refresh-rotation recovery policy shared with the operator
+// portal.
+type Rotation interface {
+	RecoveryGrace() time.Duration
+	MaxRecoveryHops() int
+	RecoveryProofHash(ctx context.Context) []byte
+	MatchesRecoveryProof(ctx context.Context, expected []byte) bool
+	FamilyFingerprint(familyID string) string
+}

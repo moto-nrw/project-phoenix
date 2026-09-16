@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -28,9 +29,18 @@ const (
 	pathPermissions  = "/permissions"
 )
 
+// AccountSessions is the Identity & Access capability the login, refresh,
+// logout, tenant-switch, session-validation, MFA exchange and token routes
+// call directly (#3251).
+type AccountSessions interface {
+	identityaccess.AccountAuthentication
+	identityaccess.AccountSessionMaintenance
+}
+
 // Resource defines the auth resource
 type Resource struct {
 	AuthService                authService.AuthService
+	Sessions                   AccountSessions
 	InvitationService          authService.InvitationService
 	GuardianInvitationService  authService.GuardianInvitationService
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
@@ -73,10 +83,12 @@ func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitat
 	rs.GuardianInvitationService = svc
 }
 
-// NewResource creates a new auth resource
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService platformSvc.SchoolService, db *bun.DB) *Resource {
+// NewResource creates a new auth resource. sessions is the Identity & Access
+// account-authentication capability the session routes call (#3251).
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService platformSvc.SchoolService, sessions AccountSessions, db *bun.DB) *Resource {
 	return &Resource{
 		AuthService:       authService,
+		Sessions:          sessions,
 		InvitationService: invitationService,
 		SchoolService:     schoolService,
 		db:                db,
@@ -296,7 +308,7 @@ func (rs *Resource) Router() chi.Router {
 					// Token management
 					r.Route("/tokens", func(r chi.Router) {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
-						r.With(common.RequiresPermission(permUsersManage)).Delete("/", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.RevokeAllTokens, common.ErrorInternalServer))
+						r.With(common.RequiresPermission(permUsersManage)).Delete("/", common.IDAction("accountId", common.MsgInvalidAccountID, rs.revokeAllTokens, common.ErrorInternalServer))
 					})
 
 					// MFA admin override ("Godmode") — issue #1308 Phase 6.

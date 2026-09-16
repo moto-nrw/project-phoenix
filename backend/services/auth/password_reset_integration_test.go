@@ -21,13 +21,13 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
-func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
+func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubAccountSessions, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
 	service, accounts, tokens, rateRepo, sessions, mailer, mock, cleanup := newPasswordResetTestEnvWithMailer(t, testpkg.NewCapturingMailer())
 	capturing, _ := mailer.(*testpkg.CapturingMailer)
 	return service, accounts, tokens, rateRepo, sessions, capturing, mock, cleanup
 }
 
-func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, email.Mailer, sqlmock.Sqlmock, func()) {
+func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubAccountSessions, email.Mailer, sqlmock.Sqlmock, func()) {
 	t.Helper()
 
 	sqlDB, mock, err := sqlmock.New()
@@ -42,7 +42,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 	accounts := newStubAccountRepository(account)
 	resetTokens := newStubPasswordResetTokenRepository()
 	rateRepo := newTestRateLimitRepo()
-	sessionTokens := newStubTokenRepository()
+	sessions := newStubAccountSessions()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
@@ -59,11 +59,13 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		Role:                   newStubRoleRepository(guardianRole),
 		PasswordResetToken:     resetTokens,
 		PasswordResetRateLimit: rateRepo,
-		Token:                  sessionTokens,
 	}
+
+	sessions.repos = repos
 
 	service := &Service{
 		repos:               repos,
+		sessions:            sessions,
 		dispatcher:          dispatcher,
 		defaultFrom:         newDefaultFromEmail(),
 		frontendURL:         "http://localhost:3000",
@@ -82,7 +84,7 @@ func newPasswordResetTestEnvWithMailer(t *testing.T, mailer email.Mailer) (*Serv
 		require.NoError(t, mock.ExpectationsWereMet())
 	}
 
-	return service, accounts, resetTokens, rateRepo, sessionTokens, mailer, mock, cleanup
+	return service, accounts, resetTokens, rateRepo, sessions, mailer, mock, cleanup
 }
 
 func grantGuardianRoleForPasswordReset(t *testing.T, service *Service, accountID, tenantID int64) {
