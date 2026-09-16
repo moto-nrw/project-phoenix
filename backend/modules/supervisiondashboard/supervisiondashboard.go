@@ -252,12 +252,16 @@ type Visit struct {
 
 // OpenRoom is one released room and every child currently recorded there.
 type OpenRoom struct {
-	RoomID            int64             `json:"room_id,string"`
-	Name              string            `json:"name"`
-	IsUserSupervising bool              `json:"is_user_supervising"`
-	ActiveGroupIDs    []string          `json:"active_group_ids"`
-	StudentCount      int               `json:"student_count"`
-	Students          []OpenRoomStudent `json:"students"`
+	RoomID            int64    `json:"room_id,string"`
+	Name              string   `json:"name"`
+	IsUserSupervising bool     `json:"is_user_supervising"`
+	ActiveGroupIDs    []string `json:"active_group_ids"`
+	// HasOccupyingSession is true when any session in the room counts as
+	// occupancy (#3066). Independent stays do not occupy: Spontanes Angebot
+	// can still start in a released room that only holds those stays.
+	HasOccupyingSession bool              `json:"has_occupying_session"`
+	StudentCount        int               `json:"student_count"`
+	Students            []OpenRoomStudent `json:"students"`
 }
 
 // OpenRoomStudent reuses the selected session's visit projection.

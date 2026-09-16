@@ -153,8 +153,9 @@ type RunningSession struct {
 	ActiveGroupID int64
 	RoomID        int64
 	ActivityName  string
-	// IndependentStays marks the room's own session (#3066): the children in
-	// it stay in the room without taking part in an activity.
+	// IndependentStays marks a device-less system session (#3066): the
+	// children stay in the room without taking part in an activity. A
+	// device-owned system session (kiosk Schulhof) is not independent.
 	IndependentStays   bool
 	StartTime          time.Time
 	SupervisorStaffIDs []int64

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -67,9 +68,12 @@ func (s openRoomSessionPresence) FindOpenSessionsInRooms(ctx context.Context, id
 		if row.ActivityGroupID != nil {
 			activity := activities[*row.ActivityGroupID]
 			session.ActivityName = activity.Name
-			// A system activity marks the room's own session (#3066): its
-			// children stay in the room without taking part in an activity.
-			session.IndependentStays = activity.IsSystem
+			// Independent stays are device-less system sessions (#3066). A
+			// kiosk-owned Schulhof Freispiel is a real supervision, not one.
+			session.IndependentStays = (&activeModels.Group{
+				GroupID:  row.ActivityGroupID,
+				DeviceID: row.DeviceID,
+			}).IsIndependentRoomSession(activity.IsSystem)
 		}
 		result = append(result, session)
 	}

@@ -110,8 +110,12 @@ func (s *service) assembleOpenRooms(in openRoomInputs, attendance map[int64]Atte
 		sort.Slice(sessions, func(i, j int) bool { return sessions[i].StartTime.Before(sessions[j].StartTime) })
 		ids := make([]string, 0, len(sessions))
 		supervising := false
+		occupying := false
 		for _, session := range sessions {
 			ids = append(ids, strconv.FormatInt(session.ActiveGroupID, 10))
+			if !session.IndependentStays {
+				occupying = true
+			}
 			for _, supervisorID := range session.SupervisorStaffIDs {
 				if staffID != nil && supervisorID == *staffID {
 					supervising = true
@@ -126,7 +130,7 @@ func (s *service) assembleOpenRooms(in openRoomInputs, attendance map[int64]Atte
 				Visit:       s.buildVisit(row, attendance, fullAccess, photosEnabled),
 				Independent: session.IndependentStays,
 			}
-			// The room's own session runs under a system activity; naming it
+			// A device-less system session is the room's own stay; naming it
 			// would present an independent stay as activity participation.
 			if !session.IndependentStays {
 				student.ActivityName = session.ActivityName
@@ -135,7 +139,8 @@ func (s *service) assembleOpenRooms(in openRoomInputs, attendance map[int64]Atte
 		}
 		result = append(result, OpenRoom{
 			RoomID: room.ID, Name: room.Name, IsUserSupervising: supervising,
-			ActiveGroupIDs: ids, StudentCount: len(students), Students: students,
+			ActiveGroupIDs: ids, HasOccupyingSession: occupying,
+			StudentCount: len(students), Students: students,
 		})
 	}
 	sort.Slice(result, func(i, j int) bool {

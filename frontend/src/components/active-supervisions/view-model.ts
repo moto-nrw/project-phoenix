@@ -61,6 +61,12 @@ export interface OpenRoomView {
   readonly name: string;
   readonly isUserSupervising: boolean;
   readonly activeGroupIds: readonly string[];
+  /**
+   * True when any session in the room occupies it for Spontanes Angebot.
+   * Independent stays do not occupy: a gym that only holds those stays
+   * stays selectable (#3066).
+   */
+  readonly hasOccupyingSession?: boolean;
   readonly studentCount: number;
   readonly students: readonly VisitDisplayLike[];
 }
@@ -207,6 +213,30 @@ export function sessionsOutsideOpenRooms(
   return rooms.filter(
     (room) => !room.room_id || !openRoomIds.has(room.room_id),
   );
+}
+
+/**
+ * Room ids Spontanes Angebot must treat as occupied.
+ *
+ * Own supervisions occupy their room. A released room occupies only when it
+ * holds an occupying session: independent stays share the room with a new
+ * activity and must not disable the destination (#3066).
+ */
+export function occupiedRoomIdsForSpontaneousStart(options: {
+  readonly ownSupervisionRoomIds: readonly (string | undefined)[];
+  readonly openRooms: readonly Pick<
+    OpenRoomView,
+    "roomId" | "hasOccupyingSession"
+  >[];
+}): string[] {
+  const ids: string[] = [];
+  for (const roomId of options.ownSupervisionRoomIds) {
+    if (roomId) ids.push(roomId);
+  }
+  for (const room of options.openRooms) {
+    if (room.hasOccupyingSession) ids.push(room.roomId);
+  }
+  return ids;
 }
 
 /**
