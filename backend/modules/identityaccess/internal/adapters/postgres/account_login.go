@@ -242,7 +242,6 @@ func (s *Store) ListAccountPermissionsAtTenant(ctx context.Context, accountID, t
 		TableExpr(`auth.permissions AS "permission"`).
 		ColumnExpr(`"permission".resource || ':' || "permission".action`).
 		Join(`JOIN (?) AS "aap" ON "aap".permission_id = "permission".id`, direct.UnionAll(fromRoles)).
-		OrderExpr(`"permission".resource || ':' || "permission".action ASC`).
 		Scan(ctx, &names)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(names))}
 	if err != nil {

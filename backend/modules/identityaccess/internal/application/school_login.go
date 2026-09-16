@@ -414,9 +414,6 @@ func (s *AccountAuthentication) loadSchoolMetadataForTenant(ctx context.Context,
 		if lookupErr != nil {
 			return fmt.Errorf("lookup school %d for school metadata: %w", tenantID, lookupErr)
 		}
-		if !schoolFound {
-			return fmt.Errorf("lookup school %d for school metadata: %w", tenantID, domain.ErrTenantNotFound)
-		}
 		activeMapping, _, lookupErr = s.store.HasActiveAccountTenant(adminCtx, account.ID, tenantID)
 		if lookupErr != nil {
 			return fmt.Errorf("verify account %d membership at school %d: %w", account.ID, tenantID, lookupErr)
@@ -425,7 +422,7 @@ func (s *AccountAuthentication) loadSchoolMetadataForTenant(ctx context.Context,
 	}); txErr != nil {
 		return nil, txErr
 	}
-	if !school.Live() {
+	if !schoolFound || !school.Live() {
 		return nil, failed("load school metadata", domain.ErrTenantNotFound)
 	}
 	if !activeMapping {
