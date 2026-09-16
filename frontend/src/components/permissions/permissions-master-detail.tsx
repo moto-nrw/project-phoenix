@@ -52,6 +52,7 @@ function buildSubtitle(permission: Permission): string {
   if (description?.trim()) return description;
   return `${localizeResource(permission.resource)} · ${localizeAction(
     permission.action,
+    permission.resource,
   )}`;
 }
 
@@ -177,7 +178,7 @@ function PermissionStammdatenTab({ permission }: { permission: Permission }) {
             {localizeResource(permission.resource)}
           </DataField>
           <DataField label="Aktion">
-            {localizeAction(permission.action)}
+            {localizeAction(permission.action, permission.resource)}
           </DataField>
           <DataField label="Technischer Name" fullWidth mono>
             {technicalName}
