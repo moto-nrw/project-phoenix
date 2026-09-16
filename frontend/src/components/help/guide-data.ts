@@ -1005,7 +1005,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
         ],
         screenshot:
-          "Offener Raum `Schulhof` mit dem Abzeichen `Offener Raum` oben. Der eigene Block ist aufgeklappt, die Blöcke der anderen sind eingeklappt, darunter steht `Ohne Angebot`.",
+          "Offener Raum `Schulhof`: oben der eigene Block `Tanzen` mit seiner Liste, darunter die eingeklappten Blöcke der anderen und `Ohne Angebot`.",
         image: "/help/screens/offene-raeume.webp",
       },
       {
