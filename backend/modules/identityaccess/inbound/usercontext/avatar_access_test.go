@@ -12,9 +12,9 @@ import (
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	usercontextsvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 )
 

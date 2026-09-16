@@ -26,13 +26,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 

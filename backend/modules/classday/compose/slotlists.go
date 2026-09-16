@@ -22,9 +22,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // CareDayResolver is the retained schedule service's care-day derivation.

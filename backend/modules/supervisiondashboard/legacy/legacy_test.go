@@ -18,6 +18,7 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
@@ -26,7 +27,6 @@ import (
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // The retained interfaces are wide; the mocks embed them and override only

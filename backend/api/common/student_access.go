@@ -1,7 +1,7 @@
 // Package common - student_access.go
 //
 // Thin re-export shims over the student-data-access policy, which lives in
-// services/usercontext (StudentAccessContext + ResolveStudentAccess). Handlers
+// modules/identityaccess/legacy/usercontext (StudentAccessContext + ResolveStudentAccess). Handlers
 // in different packages (students, active, …) keep calling
 // common.DetermineStudentAccess so the api layer does not own the
 // student-access decision.
@@ -11,7 +11,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 )
 
 // StudentAccessContext re-exports the usercontext type so existing callers'

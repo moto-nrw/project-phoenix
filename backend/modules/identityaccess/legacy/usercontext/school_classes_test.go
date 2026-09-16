@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
