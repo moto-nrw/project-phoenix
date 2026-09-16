@@ -59,12 +59,12 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repo := platformRepo.NewOperatorSummariesRepository(db)
 	ctx := context.Background()
-	now := time.Now().UnixNano()
+	now := testpkg.UniqueSuffix()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 
 	org := &platformModels.Organization{
-		Model:  modelBase.Model{ID: now},
+		Model:  modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 		Name:   fmt.Sprintf("PWA Usage Org %d", now),
 		Slug:   fmt.Sprintf("pwa-usage-%d", now),
 		Active: true,
@@ -83,8 +83,8 @@ func TestOperatorSummariesRepository_PWAUsage(t *testing.T) {
 		require.NoError(t, schoolRepo.Create(ctx, s))
 		return s
 	}
-	schoolX := mkSchool(now+10, "x")
-	schoolY := mkSchool(now+11, "y")
+	schoolX := mkSchool(testpkg.UniqueTestTenantID(t), "x")
+	schoolY := mkSchool(testpkg.UniqueTestTenantID(t), "y")
 
 	acctStaff := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-staff-%d", now))
 	acctGuardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("pwa-guardian-%d", now))

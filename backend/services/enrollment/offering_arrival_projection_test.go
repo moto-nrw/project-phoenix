@@ -59,7 +59,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 	participation := usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
-		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.GradeTransition,
+		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
 		AuditService:          usersService.NewStudentAuditService(env.repos.StudentFieldEdit, slog.Default()),
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 		DB:                    env.db, Logger: slog.Default(),

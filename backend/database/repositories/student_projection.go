@@ -4,7 +4,6 @@ import (
 	"context"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -24,9 +23,6 @@ func (f *Factory) bindStudentDirectories(students peopledirectory.StudentQuery, 
 	}
 	if repo, ok := f.ParentEnrollablePhase.(*parentRepo.EnrollablePhaseRepository); ok {
 		repo.BindStudentDirectory(parentStudentDirectory{students})
-	}
-	if repo, ok := f.GradeTransition.(*educationRepo.GradeTransitionRepository); ok {
-		repo.BindStudentDirectory(educationStudentDirectory{students: students, commands: commands})
 	}
 	f.bindAuditStudentDirectory()
 }
@@ -74,53 +70,4 @@ func (d parentStudentDirectory) ListStudentsByID(ctx context.Context, ids []int6
 		})
 	}
 	return result, nil
-}
-
-type educationStudentDirectory struct {
-	students peopledirectory.StudentQuery
-	commands peopledirectory.StudentCommand
-}
-
-func (d educationStudentDirectory) ListStudentsByID(ctx context.Context, ids []int64) ([]educationRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByID(ctx, ids)
-	return toEducationStudents(students), err
-}
-
-func (d educationStudentDirectory) ListStudentsByClasses(ctx context.Context, classes []string) ([]educationRepo.DirectoryStudent, error) {
-	students, err := d.students.ListStudentsByClasses(ctx, classes)
-	return toEducationStudents(students), err
-}
-
-func (d educationStudentDirectory) ListSchoolClasses(ctx context.Context) ([]string, error) {
-	return d.students.ListSchoolClasses(ctx)
-}
-
-func (d educationStudentDirectory) PromoteStudents(ctx context.Context, ids []int64, fromClass, toClass string) (int64, error) {
-	return d.commands.PromoteStudents(ctx, ids, fromClass, toClass)
-}
-
-func (d educationStudentDirectory) RevertStudentClass(ctx context.Context, id int64, fromClass, toClass string) (int64, error) {
-	return d.commands.RevertStudentClass(ctx, id, fromClass, toClass)
-}
-
-func (d educationStudentDirectory) GraduateStudentsByClasses(ctx context.Context, classes []string) (int64, error) {
-	return d.commands.GraduateStudentsByClasses(ctx, classes)
-}
-
-func (d educationStudentDirectory) GraduateStudents(ctx context.Context, ids []int64) (int64, error) {
-	return d.commands.GraduateStudents(ctx, ids)
-}
-
-func (d educationStudentDirectory) ReactivateStudents(ctx context.Context, ids []int64, status string) ([]int64, error) {
-	return d.commands.ReactivateStudents(ctx, ids, status)
-}
-
-func toEducationStudents(students []peopledirectory.Student) []educationRepo.DirectoryStudent {
-	result := make([]educationRepo.DirectoryStudent, 0, len(students))
-	for _, student := range students {
-		result = append(result, educationRepo.DirectoryStudent{
-			ID: student.ID, PersonID: student.PersonID, SchoolClass: student.SchoolClass, Status: student.Status,
-		})
-	}
-	return result
 }

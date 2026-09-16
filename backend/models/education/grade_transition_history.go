@@ -1,20 +1,19 @@
 package education
 
 import (
-	"errors"
-	"strings"
-
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// Transition action constants
+// Action constants for grade transition history
 const (
 	ActionPromoted  = "promoted"
 	ActionGraduated = "graduated"
 	ActionUnchanged = "unchanged"
 )
 
-// GradeTransitionHistory records individual student changes during a grade transition
+// GradeTransitionHistory is the persistence shape of one child's row in a
+// transition's history. The owner capability lives in
+// modules/schoolstructure (#2711); this struct remains for row fixtures.
 type GradeTransitionHistory struct {
 	base.Model `bun:"schema:education,table:grade_transition_history"`
 	base.TenantModel
@@ -35,57 +34,4 @@ type GradeTransitionHistory struct {
 	// lets a revert give it back. NULL means the child held no tag (or the row
 	// predates the column) and the revert re-links nothing.
 	RFIDTag *string `bun:"rfid_tag" json:"rfid_tag,omitempty"`
-}
-
-// Validate ensures history data is valid
-func (h *GradeTransitionHistory) Validate() error {
-	h.PersonName = strings.TrimSpace(h.PersonName)
-	h.FromClass = strings.TrimSpace(h.FromClass)
-	h.Action = strings.TrimSpace(h.Action)
-
-	if h.TransitionID <= 0 {
-		return errors.New("transition_id is required")
-	}
-
-	if h.StudentID <= 0 {
-		return errors.New("student_id is required")
-	}
-
-	if h.PersonName == "" {
-		return errors.New("person_name is required")
-	}
-
-	if h.FromClass == "" {
-		return errors.New("from_class is required")
-	}
-
-	if h.Action == "" {
-		return errors.New("action is required")
-	}
-
-	if h.Action != ActionPromoted && h.Action != ActionGraduated && h.Action != ActionUnchanged {
-		return errors.New("invalid action: must be promoted, graduated, or unchanged")
-	}
-
-	// Trim to_class if provided
-	if h.ToClass != nil {
-		trimmed := strings.TrimSpace(*h.ToClass)
-		if trimmed == "" {
-			h.ToClass = nil
-		} else {
-			h.ToClass = &trimmed
-		}
-	}
-
-	return nil
-}
-
-// WasGraduated returns true if this record represents a graduating student
-func (h *GradeTransitionHistory) WasGraduated() bool {
-	return h.Action == ActionGraduated
-}
-
-// WasPromoted returns true if this record represents a promoted student
-func (h *GradeTransitionHistory) WasPromoted() bool {
-	return h.Action == ActionPromoted
 }

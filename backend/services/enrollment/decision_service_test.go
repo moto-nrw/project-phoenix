@@ -143,7 +143,7 @@ func newDecisionServiceForTestWithDependencies(
 		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
-			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.GradeTransition,
+			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
 			AuditService:          usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
 			BookingsAuthoritative: testBookingsAuthority(settings),
 			DB:                    env.db, Logger: slog.Default(),

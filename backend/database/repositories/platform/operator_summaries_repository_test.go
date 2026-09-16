@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
@@ -60,24 +59,27 @@ func listOperatorOrganizationPersons(t *testing.T, ctx context.Context, db *bun.
 func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	now := time.Now().UnixNano()
+	// Names carry a unique suffix; IDs come from the process-local tenant band.
+	// A raw time.Now().UnixNano() ID collides when two parallel tests read the
+	// same nanosecond and surfaces as organizations_pkey / schools_pkey.
+	now := testpkg.UniqueSuffix()
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 
 	orgA := &platformModels.Organization{
-		Model:  modelBase.Model{ID: now},
+		Model:  modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 		Name:   fmt.Sprintf("Summaries Alpha %d", now),
 		Slug:   fmt.Sprintf("sum-alpha-%d", now),
 		Active: true,
 	}
 	orgB := &platformModels.Organization{
-		Model:  modelBase.Model{ID: now + 1},
+		Model:  modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 		Name:   fmt.Sprintf("Summaries Beta %d", now),
 		Slug:   fmt.Sprintf("sum-beta-%d", now),
 		Active: true,
 	}
 	orgADel := &platformModels.Organization{
-		Model:  modelBase.Model{ID: now + 2},
+		Model:  modelBase.Model{ID: testpkg.UniqueTestTenantID(t)},
 		Name:   fmt.Sprintf("Summaries Trash %d", now),
 		Slug:   fmt.Sprintf("sum-trash-%d", now),
 		Active: true,
@@ -101,19 +103,19 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 		return s
 	}
 
-	schoolA1 := mkSchool(now+10, orgA.ID,
+	schoolA1 := mkSchool(testpkg.UniqueTestTenantID(t), orgA.ID,
 		fmt.Sprintf("Alpha One %d", now),
 		fmt.Sprintf("alpha-one-%d", now),
 		fmt.Sprintf("a1-%d", now))
-	schoolA2 := mkSchool(now+11, orgA.ID,
+	schoolA2 := mkSchool(testpkg.UniqueTestTenantID(t), orgA.ID,
 		fmt.Sprintf("Alpha Two %d", now),
 		fmt.Sprintf("alpha-two-%d", now),
 		fmt.Sprintf("a2-%d", now))
-	schoolB1 := mkSchool(now+12, orgB.ID,
+	schoolB1 := mkSchool(testpkg.UniqueTestTenantID(t), orgB.ID,
 		fmt.Sprintf("Beta One %d", now),
 		fmt.Sprintf("beta-one-%d", now),
 		fmt.Sprintf("b1-%d", now))
-	schoolADel := mkSchool(now+13, orgA.ID,
+	schoolADel := mkSchool(testpkg.UniqueTestTenantID(t), orgA.ID,
 		fmt.Sprintf("Alpha Trash %d", now),
 		fmt.Sprintf("alpha-trash-%d", now),
 		fmt.Sprintf("at-%d", now))

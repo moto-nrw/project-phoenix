@@ -5,7 +5,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -35,7 +34,7 @@ type StudentTestRepositories struct {
 	CareExit                     usersModels.CareExitRepository
 	CareExitCleanup              usersModels.CareExitCleanupRepository
 	CareWithdrawal               usersModels.CareWithdrawalCompletionRepository
-	GradeTransition              educationModels.GradeTransitionRepository
+	TagReleaser                  StudentTagReleaser
 	StudentDeletionAudit         auditModels.StudentDeletionRepository
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository
@@ -101,7 +100,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		GuardianFinancialChange:      r.GuardianFinancialChange,
 		SubstitutionChange:           r.SubstitutionChange,
 		EnrollmentTestRepositories:   enrollment, CareExit: lifecycle.CareExit, CareExitCleanup: lifecycle.CareExitCleanup,
-		CareWithdrawal: lifecycle.CareWithdrawal, GradeTransition: lifecycle.GradeTransition,
+		CareWithdrawal: lifecycle.CareWithdrawal, TagReleaser: lifecycle.TagReleaser,
 		StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
 		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),

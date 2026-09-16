@@ -19,6 +19,11 @@ func (e *recordingEngine) LockEnrollmentClassWrites(context.Context) error {
 	return nil
 }
 
+func (e *recordingEngine) LockEnrollmentClassWritesExclusive(context.Context) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, error) {
 	e.calls++
 	return map[int64]bool{}, nil

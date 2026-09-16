@@ -30,6 +30,12 @@ func (m *Module) LockEnrollmentClassWrites(ctx context.Context) error {
 	return m.engine.LockEnrollmentClassWrites(ctx)
 }
 
+// LockEnrollmentClassWritesExclusive takes the class-writes gate exclusively
+// for the caller's transaction; see StudentCommand.
+func (m *Module) LockEnrollmentClassWritesExclusive(ctx context.Context) error {
+	return m.engine.LockEnrollmentClassWritesExclusive(ctx)
+}
+
 func (m *Module) ApplyEnrollmentProfile(ctx context.Context, id int64, input enrollment.ProfilePatch) error {
 	if id <= 0 {
 		return &InvalidStudentError{Reason: "student ID is required"}

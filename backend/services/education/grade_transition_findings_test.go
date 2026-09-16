@@ -2,21 +2,42 @@ package education_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/gofrs/uuid"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
+
+// assertStudentStatus reads the lifecycle status a transition left behind.
+//
+// The late-arrival guard that used to live in this package
+// (grade_transition_late_arrival_test.go) moved to
+// workflows/gradetransition/apply_test.go as
+// TestApplyRefusesChildAddedAfterCohortSnapshot: the only seam between the
+// cohort snapshot and the re-read under the locks is the People Directory
+// port, which a test in this package may not import.
+func assertStudentStatus(t *testing.T, db *bun.DB, studentID int64, want users.StudentStatus) {
+	t.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var status string
+	require.NoError(t, db.NewSelect().
+		TableExpr(`users.students`).
+		Column("status").
+		Where("id = ?", studentID).
+		Scan(ctx, &status))
+	assert.Equal(t, string(want), status)
+}
 
 // letterOnlySuffix returns a short digit-free token so a class name never
 // accidentally matches the grade-number pattern (which any digit would).
@@ -43,20 +64,19 @@ func letterOnlySuffix(t *testing.T) string {
 	return letters[:6]
 }
 
-// TestGradeTransitionService_Revert_RestoresOriginalStatus covers the P1 fix:
+// TestGradeTransitionWorkflow_Revert_RestoresOriginalStatus covers the P1 fix:
 // graduation includes every non-alumnus row, so a class may hold pending
 // (future) enrollments. A revert must return each graduate to the status it
 // held before the transition, not blanket-activate everyone.
-func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_RestoresOriginalStatus(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-status-restore@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4pending-%s", suffix)
@@ -71,10 +91,9 @@ func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	id := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
 
-	_, err = service.Apply(ctx, transition.ID, account.ID)
+	_, err = wf.Apply(ctx, id, "")
 	require.NoError(t, err)
 
 	// Graduated -> alumnus (soft-deleted).
@@ -83,7 +102,7 @@ func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
 		Where("id = ?", student.ID).Scan(ctx, &status))
 	assert.Equal(t, string(users.StudentStatusAlumnus), status)
 
-	_, err = service.Revert(ctx, transition.ID, account.ID)
+	_, err = wf.Revert(ctx, id)
 	require.NoError(t, err)
 
 	// Restored to PENDING, not active — a future enrollment must not be
@@ -94,21 +113,20 @@ func TestGradeTransitionService_Revert_RestoresOriginalStatus(t *testing.T) {
 		"revert must restore the pre-transition status, not blanket-activate")
 }
 
-// TestGradeTransitionService_Revert_EnforcesReverseOrder covers the P1 fix:
+// TestGradeTransitionWorkflow_Revert_EnforcesReverseOrder covers the P1 fix:
 // only the most recently applied transition may be reverted. Reverting an older
 // one out of order would replay its history over the classes a newer transition
 // has since written, so the server must reject it (409 → ErrNotLatestApplied)
 // until the newer one is reverted first.
-func TestGradeTransitionService_Revert_EnforcesReverseOrder(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_EnforcesReverseOrder(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-reverse-order@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	classA1 := fmt.Sprintf("1order-%s", suffix)
@@ -120,42 +138,39 @@ func TestGradeTransitionService_Revert_EnforcesReverseOrder(t *testing.T) {
 	testpkg.CreateTestStudent(t, db, "Order", "B", classB1)
 
 	// Apply the OLDER transition first, then a NEWER one on a different class.
-	older := testpkg.CreateTestGradeTransition(t, db, "2024-2025", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, older.ID, classA1, testpkg.StrPtr(classA2))
-	_, err := service.Apply(ctx, older.ID, account.ID)
+	older := f.createDraft(t, ctx, "2024-2025", promote(classA1, classA2))
+	_, err := wf.Apply(ctx, older, "")
 	require.NoError(t, err)
 
-	newer := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, newer.ID, classB1, testpkg.StrPtr(classB2))
-	_, err = service.Apply(ctx, newer.ID, account.ID)
+	newer := f.createDraft(t, ctx, "2025-2026", promote(classB1, classB2))
+	_, err = wf.Apply(ctx, newer, "")
 	require.NoError(t, err)
 
 	// Reverting the older one while the newer is still applied is refused.
-	_, err = service.Revert(ctx, older.ID, account.ID)
-	require.ErrorIs(t, err, educationService.ErrNotLatestApplied)
+	_, err = wf.Revert(ctx, older)
+	require.ErrorIs(t, err, gradetransition.ErrNotLatestApplied)
 
 	// Reverting the latest works, and then the older one becomes revertable.
-	_, err = service.Revert(ctx, newer.ID, account.ID)
+	_, err = wf.Revert(ctx, newer)
 	require.NoError(t, err)
-	_, err = service.Revert(ctx, older.ID, account.ID)
+	_, err = wf.Revert(ctx, older)
 	require.NoError(t, err)
 }
 
-// TestGradeTransitionService_Revert_PreservesLaterClassEdit covers the P2 fix:
+// TestGradeTransitionWorkflow_Revert_PreservesLaterClassEdit covers the P2 fix:
 // a revert must not clobber a class a child was moved into after the transition.
 // A student promoted 1a -> 2a and then manually moved to 2b must stay in 2b when
 // the transition is reverted, because their current class no longer matches the
 // class the transition assigned.
-func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
+func TestGradeTransitionWorkflow_Revert_PreservesLaterClassEdit(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-preserve-edit@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	fromClass := fmt.Sprintf("1edit-%s", suffix)
@@ -164,10 +179,9 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Moved", "Child", fromClass)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
+	id := f.createDraft(t, ctx, "2025-2026", promote(fromClass, toClass))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
+	_, err := wf.Apply(ctx, id, "")
 	require.NoError(t, err)
 
 	// Admin manually moves the child to another class after the transition.
@@ -178,7 +192,7 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	result, err := service.Revert(ctx, transition.ID, account.ID)
+	result, err := wf.Revert(ctx, id)
 	require.NoError(t, err)
 
 	// The manual correction survives — revert must NOT force the child back to
@@ -199,26 +213,18 @@ func TestGradeTransitionService_Revert_PreservesLaterClassEdit(t *testing.T) {
 	assert.True(t, warned, "expected a warning that a promoted student could not be reverted")
 }
 
-// TestGradeTransitionService_Apply_RejectsCheckedInGraduate covers the P1 fix:
+// TestGradeTransitionWorkflow_Apply_RejectsCheckedInGraduate covers the P1 fix:
 // a graduating child with an open visit would become an alumnus the kiosk can
 // no longer check out. The apply must be refused until they are checked out.
-func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
+func TestGradeTransitionWorkflow_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
-	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: newGradeTransitionRepository(t, db),
-		StudentRepo:    usersRepo.NewStudentRepository(db),
-		PersonRepo:     usersRepo.NewPersonRepository(db),
-		Presence:       graduationPresence(t, db),
-		DB:             db,
-	})
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-checked-in@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4checkedin-%s", suffix)
@@ -231,12 +237,12 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	// Open visit (nil exit time) = currently checked into a room.
 	testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, time.Now().Add(-time.Hour), nil)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	id := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
 
-	_, err := service.Apply(ctx, transition.ID, account.ID)
-	require.Error(t, err)
+	_, err := wf.Apply(ctx, id, "")
+	require.ErrorIs(t, err, gradetransition.ErrGraduatesCheckedIn)
 	assert.Contains(t, err.Error(), "checked in")
+	assert.Contains(t, err.Error(), "1 student(s) must be checked out first")
 
 	// Nothing changed — the child is still active (not stranded as alumnus).
 	var status string
@@ -245,14 +251,15 @@ func TestGradeTransitionService_Apply_RejectsCheckedInGraduate(t *testing.T) {
 	assert.Equal(t, string(users.StudentStatusActive), status)
 }
 
-// TestGradeTransitionService_SuggestMappings_MarksAmbiguous covers the P1 fix:
+// TestGradeTransitionWorkflow_SuggestMappings_MarksAmbiguous covers the P1 fix:
 // a class name without a grade pattern must be flagged Ambiguous so the editor
 // does not silently preselect Abgang for placeholder/free-form classes.
-func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
+func TestGradeTransitionWorkflow_SuggestMappings_MarksAmbiguous(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
 	defer cancel()
@@ -268,7 +275,7 @@ func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
 	testpkg.CreateTestStudent(t, db, "Odd", "Class", ambiguousClass)
 	testpkg.CreateTestStudent(t, db, "Normal", "Class", numericClass)
 
-	suggestions, err := service.SuggestMappings(ctx)
+	suggestions, err := wf.SuggestMappings(ctx)
 	require.NoError(t, err)
 
 	var foundAmbiguous, foundNumeric bool
@@ -287,21 +294,20 @@ func TestGradeTransitionService_SuggestMappings_MarksAmbiguous(t *testing.T) {
 	assert.True(t, foundNumeric, "expected a suggestion for %s", numericClass)
 }
 
-// TestGradeTransitionService_ApplyChecked_RejectsStalePreview covers the P1 fix:
+// TestGradeTransitionWorkflow_Apply_RejectsStalePreview covers the P1 fix:
 // the admin's confirmation is bound to the preview they reviewed. If another
 // admin moves a child into a graduating class after the preview was rendered,
 // applying the confirmed preview would graduate a child nobody approved — so the
 // apply must be refused (409 → ErrPreviewStale) until the preview is reloaded.
-func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
+func TestGradeTransitionWorkflow_Apply_RejectsStalePreview(t *testing.T) {
 	t.Parallel()
 
-	service, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 15*time.Second)
 	defer cancel()
-
-	account := testpkg.CreateTestAccount(t, db, "transition-stale-preview@test.local")
 
 	suffix := uuid.Must(uuid.NewV4()).String()[:8]
 	gradClass := fmt.Sprintf("4stale-%s", suffix)
@@ -310,10 +316,9 @@ func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
 	reviewed := testpkg.CreateTestStudent(t, db, "Reviewed", "Child", gradClass)
 	latecomer := testpkg.CreateTestStudent(t, db, "Late", "Child", otherClass)
 
-	transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-	testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, gradClass, nil) // graduate
+	id := f.createDraft(t, ctx, "2025-2026", graduate(gradClass))
 
-	preview, err := service.Preview(ctx, transition.ID)
+	preview, err := wf.Preview(ctx, id)
 	require.NoError(t, err)
 	require.NotEmpty(t, preview.Fingerprint, "preview must expose a fingerprint to confirm against")
 	require.Equal(t, 1, preview.ToGraduate)
@@ -326,74 +331,26 @@ func TestGradeTransitionService_ApplyChecked_RejectsStalePreview(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, err = service.ApplyChecked(ctx, transition.ID, account.ID, preview.Fingerprint)
-	require.ErrorIs(t, err, educationService.ErrPreviewStale)
+	_, err = wf.Apply(ctx, id, preview.Fingerprint)
+	require.ErrorIs(t, err, gradetransition.ErrPreviewStale)
 
 	// Nothing was applied: both children keep their status and the transition
 	// stays a draft.
-	assertStudentStatus := func(studentID int64, expected users.StudentStatus) {
-		var status string
-		require.NoError(t, db.NewSelect().TableExpr(`users.students`).Column("status").
-			Where("id = ?", studentID).Scan(ctx, &status))
-		assert.Equal(t, string(expected), status)
-	}
-	assertStudentStatus(reviewed.ID, users.StudentStatusActive)
-	assertStudentStatus(latecomer.ID, users.StudentStatusActive)
+	assertStudentStatus(t, db, reviewed.ID, users.StudentStatusActive)
+	assertStudentStatus(t, db, latecomer.ID, users.StudentStatusActive)
+
+	current, err := wf.FindTransition(ctx, id)
+	require.NoError(t, err)
+	assert.True(t, current.IsDraft(), "a refused apply leaves the transition a draft")
 
 	// Reloading the preview shows the new reality and unblocks the apply.
-	fresh, err := service.Preview(ctx, transition.ID)
+	fresh, err := wf.Preview(ctx, id)
 	require.NoError(t, err)
 	assert.Equal(t, 2, fresh.ToGraduate, "the reloaded preview includes the child that was moved in")
 	assert.NotEqual(t, preview.Fingerprint, fresh.Fingerprint)
 
-	_, err = service.ApplyChecked(ctx, transition.ID, account.ID, fresh.Fingerprint)
+	_, err = wf.Apply(ctx, id, fresh.Fingerprint)
 	require.NoError(t, err)
-	assertStudentStatus(reviewed.ID, users.StudentStatusAlumnus)
-	assertStudentStatus(latecomer.ID, users.StudentStatusAlumnus)
-}
-
-// failingCountRepo wraps the real repository and fails every per-class student
-// count, simulating the transient database error the suggestion loop used to
-// swallow.
-type failingCountRepo struct {
-	educationModel.GradeTransitionRepository
-}
-
-var errCountUnavailable = errors.New("student count unavailable")
-
-func (r *failingCountRepo) GetStudentCountByClass(_ context.Context, _ string) (int, error) {
-	return 0, errCountUnavailable
-}
-
-func (r *failingCountRepo) GetStudentCountsByClasses(_ context.Context, _ []string) (map[string]int, error) {
-	return nil, errCountUnavailable
-}
-
-// TestGradeTransitionService_SuggestMappings_CountErrorPropagates covers the
-// #405 review fix: a failed GetStudentCountByClass must fail the whole
-// suggestion instead of silently dropping the class — an admin could otherwise
-// create a transition that omits an affected cohort without ever seeing an
-// error.
-func TestGradeTransitionService_SuggestMappings_CountErrorPropagates(t *testing.T) {
-	t.Parallel()
-
-	_, db, cleanup := setupGradeTransitionServiceTest(t)
-	defer cleanup()
-
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
-	defer cancel()
-
-	// At least one non-empty class so the loop reaches the failing count.
-	className := "3f" + letterOnlySuffix(t)
-	testpkg.CreateTestStudent(t, db, "Count", "Fails", className)
-
-	service := educationService.NewGradeTransitionService(educationService.GradeTransitionServiceDependencies{
-		TransitionRepo: &failingCountRepo{
-			GradeTransitionRepository: newGradeTransitionRepository(t, db),
-		},
-	})
-
-	suggestions, err := service.SuggestMappings(ctx)
-	require.ErrorIs(t, err, errCountUnavailable)
-	assert.Nil(t, suggestions)
+	assertStudentStatus(t, db, reviewed.ID, users.StudentStatusAlumnus)
+	assertStudentStatus(t, db, latecomer.ID, users.StudentStatusAlumnus)
 }

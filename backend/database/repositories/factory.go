@@ -158,7 +158,6 @@ type Factory struct {
 	// ClassArrivalException holds class-wide arrival day exceptions (#2962).
 	ClassArrivalException scheduleModels.ClassArrivalExceptionRepository
 	GroupSubstitution     educationModels.GroupSubstitutionRepository
-	GradeTransition       educationModels.GradeTransitionRepository
 
 	// Schedule domain
 	Dateframe                 scheduleModels.DateframeRepository
@@ -601,7 +600,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
 		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     nil, // bound to Workforce below
-		GradeTransition:       education.NewGradeTransitionRepository(db),
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
 		// belong to School Calendar and are bound below.
