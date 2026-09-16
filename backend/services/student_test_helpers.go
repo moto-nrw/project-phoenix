@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -327,7 +329,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		ActiveSupervisorCreator: activeService,
 		Audit:                   repos.SubstitutionChange, DB: db, Broadcaster: realtimeHub,
 		Logger: logger.With("service", "substitution"),
-		Schedule: newScheduleSubstitutionBridge(schedule.NewSubstitutionAdapter(schedule.SubstitutionAdapterDependencies{
+		Schedule: newScheduleSubstitutionBridge(shiftplanning.NewSubstitutionAdapter(shiftplanning.SubstitutionAdapterDependencies{
 			Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 			Staff: repos.Staff, Engine: instanceService, Broadcaster: realtimeHub,
 			Logger: logger.With("service", "schedule-substitution"),

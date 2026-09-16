@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -18,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -32,10 +33,10 @@ type Resource struct {
 	WorkSessionService  workforce.WorkSessions
 	StaffAbsenceService workforce.StaffAbsences
 	PersonService       workforce.StaffDirectory
-	StaffShiftService   scheduleSvc.StaffShiftService
+	StaffShiftService   shiftplanning.StaffShiftService
 	// StaffAssignmentService backs GET /assignments — the staff member's own
 	// Betreuungsplan blocks (Ort/Aufgabe) for a day (#1844).
-	StaffAssignmentService scheduleSvc.StaffAssignmentService
+	StaffAssignmentService shiftplanning.StaffAssignmentService
 	// WorkTimeMonthService backs GET /month-summary — the Monatskarte (#1842).
 	WorkTimeMonthService workforce.WorkTimeMonths
 	// Calendar backs GET /holidays and GET /closing-days — the tenant's public
@@ -54,8 +55,8 @@ type Dependencies struct {
 	StaffAbsences workforce.StaffAbsences
 	Staff         workforce.StaffDirectory
 	WorkTimeMonth workforce.WorkTimeMonths
-	StaffShifts   scheduleSvc.StaffShiftService
-	Assignments   scheduleSvc.StaffAssignmentService
+	StaffShifts   shiftplanning.StaffShiftService
+	Assignments   shiftplanning.StaffAssignmentService
 	Calendar      workforce.PlanningCalendar
 	// AccountStartDate resolves the tenant's time-account start day; nil
 	// renders an empty start date.
@@ -819,7 +820,7 @@ func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
 
 	shifts, err := rs.StaffShiftService.ListShiftsForStaff(r.Context(), staffID, from, to)
 	if err != nil {
-		if errors.Is(err, scheduleSvc.ErrShiftInvalid) || errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge) {
+		if errors.Is(err, shiftplanning.ErrShiftInvalid) || errors.Is(err, shiftplanning.ErrShiftRangeTooLarge) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
@@ -879,7 +880,7 @@ type assignmentResponse struct {
 	UnderstaffedAck bool    `json:"understaffed_ack"`
 }
 
-func toAssignmentResponses(assignments []*scheduleSvc.StaffAssignment) []assignmentResponse {
+func toAssignmentResponses(assignments []*shiftplanning.StaffAssignment) []assignmentResponse {
 	out := make([]assignmentResponse, 0, len(assignments))
 	for _, a := range assignments {
 		out = append(out, assignmentResponse{
@@ -922,7 +923,7 @@ func (rs *Resource) getOwnAssignments(w http.ResponseWriter, r *http.Request) {
 
 	assignments, err := rs.StaffAssignmentService.ListAssignmentsForStaff(r.Context(), staffID, from, to)
 	if err != nil {
-		if errors.Is(err, scheduleSvc.ErrShiftInvalid) || errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge) {
+		if errors.Is(err, shiftplanning.ErrShiftInvalid) || errors.Is(err, shiftplanning.ErrShiftRangeTooLarge) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
