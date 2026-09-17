@@ -20,7 +20,7 @@ func init() {
 		Description: pickupExtensionTasksDescription,
 		// 1.15.299 is the latest change to schedule.student_pickup_exceptions,
 		// which the day tasks reference.
-		DependsOn: []string{roomsRetireAtSchoolColorVersion, absenceAllowanceCarryoverVersion, autoPartialAbsenceVersion},
+		DependsOn: []string{compositePKIndexesVersion, roomsRetireAtSchoolColorVersion, absenceAllowanceCarryoverVersion, autoPartialAbsenceVersion},
 	})
 
 	Migrations.MustRegister(pickupExtensionTasksUp, pickupExtensionTasksDown)
@@ -62,8 +62,8 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 		CREATE TABLE IF NOT EXISTS schedule.pickup_extension_tasks (
 			id                   BIGSERIAL PRIMARY KEY,
 			tenant_id            BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
-			student_id           BIGINT NOT NULL REFERENCES users.students(id) ON DELETE CASCADE,
-			pickup_exception_id  BIGINT REFERENCES schedule.student_pickup_exceptions(id) ON DELETE CASCADE,
+			student_id           BIGINT NOT NULL,
+			pickup_exception_id  BIGINT,
 			task_date            DATE,
 			weekday              SMALLINT,
 			effective_from       DATE,
@@ -77,6 +77,12 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 				OR (pickup_exception_id IS NULL AND task_date IS NULL
 					AND weekday BETWEEN 1 AND 5 AND effective_from IS NOT NULL)
 			),
+			CONSTRAINT fk_pickup_extension_task_student
+				FOREIGN KEY (tenant_id, student_id)
+				REFERENCES users.students(tenant_id, id) ON DELETE CASCADE,
+			CONSTRAINT fk_pickup_extension_task_exception
+				FOREIGN KEY (tenant_id, pickup_exception_id)
+				REFERENCES schedule.student_pickup_exceptions(tenant_id, id) ON DELETE CASCADE,
 			CONSTRAINT chk_pickup_extension_task_later CHECK (pickup_time > previous_pickup_time)
 		);
 

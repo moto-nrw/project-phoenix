@@ -33,16 +33,22 @@ export function PickupExtensionTodos({
   /** Recht am Betreuungsplan und Betreuungsplan eingeschaltet. */
   enabled: boolean;
 }>) {
-  const { tasks, refresh } = usePickupExtensions(enabled);
+  const { tasks, error, refresh } = usePickupExtensions(enabled);
   // Die Liste im Fenster bleibt fest, solange es offen ist: das Neuladen
   // nach jeder Entscheidung darf die Reihenfolge nicht verschieben.
   const [open, setOpen] = useState<readonly PickupExtension[]>([]);
 
-  if (!enabled || (tasks.length === 0 && open.length === 0)) return null;
+  if (!enabled || (tasks.length === 0 && open.length === 0 && !error))
+    return null;
 
   return (
     <>
-      {tasks.length > 0 ? (
+      {error ? (
+        <Alert
+          type="error"
+          message="Die Aufgaben konnten nicht geladen werden. Bitte laden Sie die Seite neu."
+        />
+      ) : tasks.length > 0 ? (
         <Alert
           type="warning"
           announce="polite"
