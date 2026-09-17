@@ -43,6 +43,7 @@ func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *r
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
 		Operators:   newTestOperatorDirectory(db),
+		Records:     newTestOperatorMFARecords(db),
 		TokenAuth:   tokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: email.NewEmail("Operator Tests", "ops-tests@example.test"),
@@ -271,7 +272,7 @@ func TestOperatorMFAService_StartChallenge_UnknownOperator_Rejected(t *testing.T
 func TestOperatorMFAService_VerifyCodeForOperator_HappyPath(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	svc, repos, db := newTestOperatorMFAService(t)
+	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
@@ -282,7 +283,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_HappyPath(t *testing.T) {
 	// Read the active challenge directly to learn its plaintext-equivalent code.
 	// We can't read the plaintext; instead synthesize a fresh challenge whose
 	// hash we control by writing a known code via the auth.HashShortCode helper.
-	active, err := repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, op.ID)
+	active, err := newTestOperatorMFARecords(db).FindActiveChallenge(ctx, op.ID)
 	require.NoError(t, err)
 	require.NotNil(t, active)
 

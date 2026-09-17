@@ -89,7 +89,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	e := engine{service: service, auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle}
+	e := engine{
+		service: service, mfa: application.NewOperatorMFA(service, store), auth: auth,
+		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle,
+	}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
 	}
@@ -127,6 +130,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 
 type engine struct {
 	service *application.Service
+	mfa     *application.OperatorMFA
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed
@@ -388,6 +392,14 @@ func mapError(err error) error {
 		return identityaccess.ErrAccountSessionNotFound
 	case errors.Is(err, domain.ErrAccountSessionRotated):
 		return identityaccess.ErrAccountSessionRotated
+	case errors.Is(err, domain.ErrOperatorMFACredentialNotFound):
+		return identityaccess.ErrOperatorMFACredentialNotFound
+	case errors.Is(err, domain.ErrOperatorMFAChallengeNotFound):
+		return identityaccess.ErrOperatorMFAChallengeNotFound
+	case errors.Is(err, domain.ErrOperatorMFAChallengeStateChanged):
+		return identityaccess.ErrOperatorMFAChallengeStateChanged
+	case errors.Is(err, domain.ErrOperatorTrustedDeviceNotFound):
+		return identityaccess.ErrOperatorTrustedDeviceNotFound
 	default:
 		return err
 	}

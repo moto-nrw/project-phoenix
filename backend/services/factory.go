@@ -1982,6 +1982,7 @@ func newFactory(
 	operatorMFAService, err = platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
 		Operators:   operatorDirectory,
+		Records:     newOperatorMFARecords(identityAccess),
 		TokenAuth:   operatorMFATokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: defaultFrom,
