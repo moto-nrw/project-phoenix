@@ -9,3 +9,6 @@ type CareDocument = careplan.CareDocument
 type CareDocumentCleanup = careplan.CareDocumentCleanup
 type CareExitRemoval = careplan.CareExitRemoval
 type CareExitSourceRemoval = careplan.CareExitSourceRemoval
+type WithdrawalCompletion = careplan.WithdrawalCompletion
+type WithdrawalListFilter = careplan.WithdrawalListFilter
+type WithdrawalCompletionKey = careplan.WithdrawalCompletionKey

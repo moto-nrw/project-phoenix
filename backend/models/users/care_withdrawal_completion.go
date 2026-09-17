@@ -139,7 +139,9 @@ type CareWithdrawalCompletionRepository interface {
 	ListPending(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)
 	ListPendingByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*CareWithdrawalCompletion, error)
 	ListResolved(ctx context.Context, filter CareWithdrawalCompletionFilter) ([]*CareWithdrawalCompletion, int, error)
-	ListParticipationBoundaries(ctx context.Context, studentIDs []int64, includeBookingBoundaries bool) (map[int64]timezone.Date, error)
+	// ListParticipationBoundaries takes the caller's tenant student rows
+	// (FindByIDs) so the enrolment end needs no second directory read (#3221).
+	ListParticipationBoundaries(ctx context.Context, students map[int64]*Student, includeBookingBoundaries bool) (map[int64]timezone.Date, error)
 	ListPendingStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]bool, error)
 	MarkResolved(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)
 	MarkDeleted(ctx context.Context, id, actorAccountID int64, at time.Time) (bool, error)

@@ -121,7 +121,7 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation) er
 	remaining, localErr := EnforceLegacyBaseline(violations, manifest)
 	var baseErr error
 	if options.baseRef != "" {
-		baseErr = compareWithBase(options, policy, manifest)
+		baseErr = compareWithBase(options, policy, manifest, violations)
 	}
 	if err := errors.Join(localErr, baseErr); err != nil {
 		return fmt.Errorf("%w\nremaining legacy violations: %d", err, remaining)
@@ -130,13 +130,13 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation) er
 	return nil
 }
 
-func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest) error {
+func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest, violations []Violation) error {
 	basePolicy, baseManifest, err := LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
 	if err != nil {
 		return err
 	}
 	return errors.Join(
-		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest),
+		CompareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest, violations),
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
 		CompareCompositionSurface(options.project, options.baseRef),
 	)
