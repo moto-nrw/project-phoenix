@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -17,7 +17,7 @@ type MirroredSession = application.MirroredSession
 
 // NewSessionMirror binds the optional mirror to the retained timetable data
 // service. The root supplies the post-commit event publisher.
-func NewSessionMirror(data *scheduleSvc.TimetableDataService, activities activitiesSvc.ActivityService, publish application.MirrorPublisher, logger *slog.Logger) application.SessionMirror {
+func NewSessionMirror(data *timetableplanning.TimetableDataService, activities activitiesSvc.ActivityService, publish application.MirrorPublisher, logger *slog.Logger) application.SessionMirror {
 	if data == nil {
 		return nil
 	}
@@ -25,7 +25,7 @@ func NewSessionMirror(data *scheduleSvc.TimetableDataService, activities activit
 }
 
 type mirrorTimetable struct {
-	data       *scheduleSvc.TimetableDataService
+	data       *timetableplanning.TimetableDataService
 	activities activitiesSvc.ActivityService
 }
 

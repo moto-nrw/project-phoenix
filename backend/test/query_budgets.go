@@ -22,7 +22,7 @@ type queryBudget struct {
 //
 //   - Never raise a number. A scenario that needs more statements is an N+1
 //     regression until proven otherwise; the fix is a batch load keyed by an
-//     ID set (services/schedule/timetable_read_exception_conflicts.go, the
+//     ID set (modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, the
 //     FindByStudentIDsAndDate calls, is the reference shape).
 //   - Lower a number when a fix removes statements, so the win cannot regress.
 //   - Every new list endpoint gets an entry plus a test calling
@@ -94,7 +94,7 @@ var queryBudgets = map[string]queryBudget{
 	// the number of periods. Pinned exact so an owner-boundary move fails
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
-	// services/schedule — GET /planned-now backing list, 8 eligible instances:
+	// modules/timetable/legacy/timetableplanning — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
 	// modules/schoolcalendar/portal — ListMyStaffEvents over a week, 8 appointments.
@@ -212,7 +212,7 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 	case got > budget.max:
 		tb.Errorf("query budget exceeded: scenario %q issued %d statements, budget %d.\n"+
 			"  Likely an N+1: a query inside a loop over rows. Batch-load by ID set instead\n"+
-			"  (reference: services/schedule/timetable_read_exception_conflicts.go, FindByStudentIDsAndDate).\n"+
+			"  (reference: modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, FindByStudentIDsAndDate).\n"+
 			"  Never raise the register entry.\n%s",
 			scenario, got, budget.max, indentQueries(queries))
 	case budget.exact && got < budget.max:

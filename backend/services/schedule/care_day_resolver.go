@@ -491,14 +491,14 @@ func (p *carePlans) hasArrivalSchedule(studentID int64, date timezone.Date) bool
 	if p.arrivalByStudentDate[studentID][date] != nil {
 		return true
 	}
-	return p.arrivalByStudentWeekday[studentID][isoWeekday(date)] != nil
+	return p.arrivalByStudentWeekday[studentID][effectiveISOWeekday(date)] != nil
 }
 
 // effectiveArrival mirrors the exception-beats-schedule merge of
 // GetBulkEffectiveArrivalTimesForDate for one day, minus the note loading the
 // derivation has no use for.
 func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *EffectiveArrivalTime {
-	weekday := isoWeekday(date)
+	weekday := effectiveISOWeekday(date)
 	result := &EffectiveArrivalTime{Date: date, WeekdayName: schedule.WeekdayNames[weekday]}
 
 	if exc, ok := p.arrivalExceptions[studentID][date]; ok {
@@ -529,7 +529,7 @@ func (p *carePlans) effectiveArrival(studentID int64, date timezone.Date) *Effec
 
 // effectivePickup is the pickup-side mirror of effectiveArrival.
 func (p *carePlans) effectivePickup(studentID int64, date timezone.Date) *EffectivePickupTime {
-	weekday := isoWeekday(date)
+	weekday := effectiveISOWeekday(date)
 	result := &EffectivePickupTime{Date: date, WeekdayName: schedule.WeekdayNames[weekday]}
 
 	if exc, ok := p.pickupExceptions[studentID][date]; ok {

@@ -5,12 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -25,7 +24,7 @@ type SubstitutionAdapterDependencies struct {
 	Instances     scheduleModel.ActivityInstanceRepository
 	InstanceStaff scheduleModel.InstanceStaffRepository
 	Staff         userModels.StaffRepository
-	Engine        schedule.InstanceService
+	Engine        timetableplanning.InstanceService
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger
 }
@@ -59,8 +58,8 @@ type SubstitutionOverview struct {
 }
 
 type SubstitutionMutation struct {
-	Appointment *schedule.ApplyDeviationsResult
-	WholeDays   *schedule.BulkSubstitutionResult
+	Appointment *timetableplanning.ApplyDeviationsResult
+	WholeDays   *timetableplanning.BulkSubstitutionResult
 	AfterCommit func(context.Context)
 }
 
@@ -174,7 +173,7 @@ func (a *SubstitutionAdapter) loadTargets(ctx context.Context, include bool) ([]
 	return targets, nil
 }
 
-func (a *SubstitutionAdapter) ApplyAppointment(ctx context.Context, instanceID int64, input schedule.ApplyDeviationsInput) (*SubstitutionMutation, error) {
+func (a *SubstitutionAdapter) ApplyAppointment(ctx context.Context, instanceID int64, input timetableplanning.ApplyDeviationsInput) (*SubstitutionMutation, error) {
 	result, err := a.deps.Engine.ApplyDeviations(ctx, instanceID, input)
 	if err != nil {
 		return nil, err
@@ -185,7 +184,7 @@ func (a *SubstitutionAdapter) ApplyAppointment(ctx context.Context, instanceID i
 	}, nil
 }
 
-func (a *SubstitutionAdapter) ApplyWholeDays(ctx context.Context, input schedule.BulkSubstitutionInput) (*SubstitutionMutation, error) {
+func (a *SubstitutionAdapter) ApplyWholeDays(ctx context.Context, input timetableplanning.BulkSubstitutionInput) (*SubstitutionMutation, error) {
 	result, err := a.deps.Engine.ApplyBulkSubstitution(ctx, input)
 	if err != nil {
 		return nil, err
@@ -211,9 +210,9 @@ func (a *SubstitutionAdapter) End(ctx context.Context, substitutionID, actorAcco
 		return nil, ErrSubstitutionNotRunning
 	}
 	selected := []int64{row.InstanceID}
-	return a.ApplyAppointment(ctx, row.InstanceID, schedule.ApplyDeviationsInput{
+	return a.ApplyAppointment(ctx, row.InstanceID, timetableplanning.ApplyDeviationsInput{
 		ActorAccountID: &actorAccountID,
-		SubstitutionRemovals: []schedule.DeviationSubstitutionRemovalInput{{
+		SubstitutionRemovals: []timetableplanning.DeviationSubstitutionRemovalInput{{
 			StaffID: row.StaffID, InstanceIDs: &selected,
 		}},
 	})

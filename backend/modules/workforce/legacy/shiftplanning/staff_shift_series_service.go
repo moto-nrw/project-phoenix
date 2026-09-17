@@ -13,8 +13,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/uptrace/bun"
 )
 
@@ -330,7 +330,7 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		if excepted[d] || ownedDates[d] {
 			continue
 		}
-		if !schedule.ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
+		if !timetableplanning.ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
 			continue
 		}
 		seriesID := series.ID
@@ -396,7 +396,7 @@ func hasFutureSeriesOccurrence(series *scheduleModels.StaffShiftSeries, period *
 		}
 	}
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		if series.ContainsWeekday(isoWeekday(timezone.Date(d))) && schedule.ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
+		if series.ContainsWeekday(isoWeekday(timezone.Date(d))) && timetableplanning.ShouldMaterializeWeekPattern(series.WeekPattern, timezone.Date(d), period) {
 			return true
 		}
 	}

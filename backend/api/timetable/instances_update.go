@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 type updateInstanceRequest struct {
@@ -89,7 +89,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inst, err := rs.InstanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
+	inst, err := rs.InstanceService.UpdatePlanned(r.Context(), id, timetableplanning.UpdateInstanceInput{
 		Date:            date,
 		StartTime:       startTime,
 		EndTime:         endTime,

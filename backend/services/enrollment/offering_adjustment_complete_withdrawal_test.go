@@ -15,8 +15,8 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -292,7 +292,7 @@ func newWithdrawalRaceFixture(t *testing.T) *withdrawalRaceFixture {
 
 func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 	f.recurrenceGate = func(ctx context.Context) error {
-		return scheduleService.LockTenantRecurrenceWrites(ctx, f.env.db)
+		return timetableplanning.LockTenantRecurrenceWrites(ctx, f.env.db)
 	}
 	repos := f.env.repos
 	f.lifecycle = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{

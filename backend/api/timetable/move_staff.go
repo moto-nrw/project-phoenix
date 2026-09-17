@@ -9,7 +9,7 @@
 // logged as a single staff_moved Änderungsprotokoll entry.
 //
 // The plan-then-write atomicity, the day lock, and every business rule live in
-// InstanceService.MoveStaffBetweenBlocks (services/schedule/
+// InstanceService.MoveStaffBetweenBlocks (modules/timetable/legacy/timetableplanning/
 // instance_move_staff.go). The handler parses, calls the service once, maps
 // DeviationError onto the wire contract, attaches advisory shift-coverage
 // warnings (#1873, never blocking), and fires the post-save SSE signals.
@@ -30,7 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // moveStaffRequest is the POST body.
@@ -48,8 +48,8 @@ type MoveStaffResponse struct {
 	// target window; CoverageWarnings the Dienstplan gaps for it (#1873).
 	// Both advisory — the writes have already landed in the request's tenant
 	// tx and are never rolled back because of a warning.
-	TimeConflicts    []scheduleSvc.SubstituteTimeConflict `json:"time_conflicts"`
-	CoverageWarnings []scheduleSvc.ShiftCoverageWarning   `json:"coverage_warnings"`
+	TimeConflicts    []timetableplanning.SubstituteTimeConflict `json:"time_conflicts"`
+	CoverageWarnings []timetableplanning.ShiftCoverageWarning   `json:"coverage_warnings"`
 }
 
 // moveStaff handles POST /api/timetable/instances/{id}/move-staff.
@@ -71,7 +71,7 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.InstanceService.MoveStaffBetweenBlocks(ctx, id, scheduleSvc.MoveStaffInput{
+	result, err := rs.InstanceService.MoveStaffBetweenBlocks(ctx, id, timetableplanning.MoveStaffInput{
 		StaffID:          req.StaffID,
 		SourceInstanceID: req.SourceInstanceID,
 		ActorAccountID:   jwt.ActorAccountIDFromCtx(ctx),
@@ -82,7 +82,7 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 	}
 
 	appliedWrites := 1
-	if result.Action == scheduleSvc.MoveStaffActionAlreadyApplied {
+	if result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
 		appliedWrites = 0
 	}
 	rs.broadcastDeviationSaveEvents(ctx, result.ActiveTouched, appliedWrites, false, 0)
@@ -106,20 +106,20 @@ func (rs *Resource) moveStaff(w http.ResponseWriter, r *http.Request) {
 // tx, and a PostgreSQL error aborts that tx, so the eventual commit would fail
 // after the client already saw a 200 — the request must 5xx (and roll back)
 // instead of reporting a move that never lands.
-func moveStaffResponseOf(rs *Resource, ctx context.Context, result *scheduleSvc.MoveStaffResult, staffID int64) (MoveStaffResponse, error) {
+func moveStaffResponseOf(rs *Resource, ctx context.Context, result *timetableplanning.MoveStaffResult, staffID int64) (MoveStaffResponse, error) {
 	resp := MoveStaffResponse{
 		TargetInstanceID: result.Target.ID,
 		Action:           result.Action,
 		TimeConflicts:    result.Warnings,
-		CoverageWarnings: []scheduleSvc.ShiftCoverageWarning{},
+		CoverageWarnings: []timetableplanning.ShiftCoverageWarning{},
 	}
 	if result.Source != nil {
 		resp.SourceInstanceID = &result.Source.ID
 	}
-	if rs.TimetableData == nil || result.Action == scheduleSvc.MoveStaffActionAlreadyApplied {
+	if rs.TimetableData == nil || result.Action == timetableplanning.MoveStaffActionAlreadyApplied {
 		return resp, nil
 	}
-	coverage, err := rs.TimetableData.DetectShiftCoverageWarnings(ctx, scheduleSvc.ShiftCoverageQuery{
+	coverage, err := rs.TimetableData.DetectShiftCoverageWarnings(ctx, timetableplanning.ShiftCoverageQuery{
 		Dates:     []timezone.Date{timezone.Date(result.Target.Date)},
 		StartTime: result.Target.StartTime,
 		EndTime:   result.Target.EndTime,

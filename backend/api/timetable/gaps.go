@@ -16,7 +16,7 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // GapInstance is one row in the gaps response.
@@ -107,7 +107,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 // AssignedStaffCount is the total instance_staff count (present + absent), per
 // the PR #1303 contract: an instance with two staff both absent reports
 // assigned=2,absent=2 so admins see "staff were planned, nobody's covering".
-func mapGapInstance(u scheduleSvc.UnderstaffedInstance) GapInstance {
+func mapGapInstance(u timetableplanning.UnderstaffedInstance) GapInstance {
 	inst := u.Instance
 	return GapInstance{
 		InstanceID:         inst.ID,

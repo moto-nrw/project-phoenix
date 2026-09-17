@@ -17,11 +17,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // ErrStaffNoticeNotFound meldet einen unbekannten oder fremden Hinweis.
@@ -204,7 +203,7 @@ func (s *staffNoticeService) filterByWeekPattern(
 
 	kept := make([]*usersModels.StaffNotice, 0, len(notices))
 	for _, notice := range notices {
-		if schedule.ShouldMaterializeWeekPattern(notice.WeekPattern, date, period) {
+		if timetableplanning.ShouldMaterializeWeekPattern(notice.WeekPattern, date, period) {
 			kept = append(kept, notice)
 		}
 	}

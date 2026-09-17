@@ -7,8 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
 	"github.com/uptrace/bun"
@@ -51,8 +51,8 @@ func NewGradeTransitionTestModule(db *bun.DB, resync OfferingResync, clocks ...f
 	clock := optionalClock(clocks)
 	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
 		DB: db, Directory: people, Membership: membership,
-		Rosters:               schedule.NewRosterReconciler(tt.ActivityInstance, tt.InstanceStudent, tt.StudentEnrollment, slog.Default(), clock),
-		LockRecurrenceWrites:  func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		Rosters:               timetableplanning.NewRosterReconciler(tt.ActivityInstance, tt.InstanceStudent, tt.StudentEnrollment, slog.Default(), clock),
+		LockRecurrenceWrites:  func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		ResyncOfferingRosters: resync,
 		Audit:                 command, Clock: clock,
 	})

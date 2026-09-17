@@ -5,7 +5,7 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,10 +50,10 @@ func TestInstanceMetadataResolvesPlanningTrackThroughTemplate(t *testing.T) {
 	require.NoError(t, err)
 
 	resource := NewResource(Dependencies{
-		TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{
+		TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 			ActivityGroupRepo: repos.ActivityGroup,
 		}),
-		PlanningTrackService: scheduleSvc.NewPlanningTrackService(repos.PlanningTrack, db),
+		PlanningTrackService: timetableplanning.NewPlanningTrackService(repos.PlanningTrack, db),
 	})
 	meta := resource.lookupTemplateMeta(
 		scope.Context(),
