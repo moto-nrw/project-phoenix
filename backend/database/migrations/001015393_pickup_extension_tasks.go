@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	pickupExtensionTasksVersion     = "1.15.392"
+	pickupExtensionTasksVersion     = "1.15.393"
 	pickupExtensionTasksDescription = "Open tasks for later pickup times that still need a Betreuungsblock (#3261)"
 )
 
@@ -20,7 +20,7 @@ func init() {
 		Description: pickupExtensionTasksDescription,
 		// 1.15.299 is the latest change to schedule.student_pickup_exceptions,
 		// which the day tasks reference.
-		DependsOn: []string{absenceAllowanceCarryoverVersion, autoPartialAbsenceVersion},
+		DependsOn: []string{roomsRetireAtSchoolColorVersion, absenceAllowanceCarryoverVersion, autoPartialAbsenceVersion},
 	})
 
 	Migrations.MustRegister(pickupExtensionTasksUp, pickupExtensionTasksDown)
