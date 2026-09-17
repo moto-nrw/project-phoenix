@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/parent"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -90,7 +90,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings configService
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
-	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 
@@ -235,7 +235,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		DB:            db,
 		Logger:        slog.Default(),
 	})
-	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(nil, svc, nil, nil, nil, db).Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db}).Router())
 }
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {
