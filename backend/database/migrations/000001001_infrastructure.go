@@ -24,7 +24,7 @@ func init() {
 	// Migration 1.0.0: Initial infrastructure setup
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.0.0: Setting up migration infrastructure...")
+			fmt.Printf("Migration %s: Setting up migration infrastructure...\n", InfrastructureVersion)
 
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})

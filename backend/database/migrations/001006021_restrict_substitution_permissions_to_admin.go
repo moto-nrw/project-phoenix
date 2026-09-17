@@ -34,7 +34,7 @@ func init() {
 }
 
 func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.21: Restricting substitution write permissions to admin role...")
+	fmt.Printf("Migration %s: Restricting substitution write permissions to admin role...\n", RestrictSubstitutionPermissionsVersion)
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

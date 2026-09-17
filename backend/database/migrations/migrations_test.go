@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"testing"
 
@@ -93,6 +94,70 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 			"%d migration(s) were silently overwritten due to version collisions.",
 			migrationFileCount, registryCount, migrationFileCount-registryCount)
 	}
+}
+
+// TestMigrationLogOutputMatchesRegisteredVersion catches migrations that print a
+// version different from the one they register (#3299). Six migrations did, so
+// "Migration 1.6.17" appeared twice in the log while 1.6.17.1 never showed up.
+// Interpolating the version constant instead of hardcoding the number keeps the
+// two in sync; this test fails if a hardcoded number reappears.
+func TestMigrationLogOutputMatchesRegisteredVersion(t *testing.T) {
+	t.Parallel()
+
+	versionPattern := regexp.MustCompile(`Version\s*=\s*"([^"]+)"`)
+	// Interpreted Go string literals only. Raw literals hold SQL, not log lines.
+	stringLiteralPattern := regexp.MustCompile(`"(?:[^"\\\n]|\\.)*"`)
+	loggedVersionPattern := regexp.MustCompile(`Migration (\d+(?:\.\d+)+)\b`)
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("failed to read migrations directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
+			continue
+		}
+
+		content, err := os.ReadFile(filepath.Join(".", name))
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", name, err)
+		}
+		src := string(content)
+
+		registered := make(map[string]bool)
+		for _, match := range versionPattern.FindAllStringSubmatch(src, -1) {
+			registered[match[1]] = true
+		}
+		if len(registered) == 0 {
+			continue
+		}
+
+		for _, literal := range stringLiteralPattern.FindAllString(src, -1) {
+			for _, match := range loggedVersionPattern.FindAllStringSubmatch(literal, -1) {
+				logged := match[1]
+				if registered[logged] {
+					continue
+				}
+				t.Errorf("VERSION OUTPUT MISMATCH: %s logs %q but registers %s.\n"+
+					"Print the version constant instead of a hardcoded number so the log cannot drift.",
+					name, logged, strings.Join(sortedKeys(registered), ", "))
+			}
+		}
+	}
+}
+
+func sortedKeys(m map[string]bool) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {

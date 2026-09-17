@@ -32,7 +32,7 @@ func init() {
 }
 
 func addPickupStatusToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.18: Adding pickup_status column to users.students...")
+	fmt.Printf("Migration %s: Adding pickup_status column to users.students...\n", addPickupStatusToStudentsVersion)
 
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students

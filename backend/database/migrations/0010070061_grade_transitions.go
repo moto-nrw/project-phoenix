@@ -33,7 +33,7 @@ func init() {
 
 // createGradeTransitionsTables creates the grade transitions tables for bulk class changes
 func createGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.6: Creating grade transitions tables...")
+	fmt.Printf("Migration %s: Creating grade transitions tables...\n", GradeTransitionsVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
