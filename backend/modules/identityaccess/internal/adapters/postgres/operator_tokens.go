@@ -266,6 +266,12 @@ func (s *Store) InsertOperatorEmailChange(ctx context.Context, change domain.Ope
 	result, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
+		// idx_email_change_tokens_one_active_per_operator is the second half
+		// of the rate limit: it catches two requests that both passed the
+		// counted one. The SQLSTATE stays in the adapter that produced it.
+		if isUniqueViolation(err) {
+			return domain.OperatorEmailChange{}, stats, domain.ErrOperatorEmailChangeActive
+		}
 		return domain.OperatorEmailChange{}, stats, fmt.Errorf("identity access postgres: insert operator email change: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()

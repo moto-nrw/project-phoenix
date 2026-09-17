@@ -53,6 +53,10 @@ type accountAuthenticationWiring struct {
 	// invitations configures the school invitation flows (#2722); nil
 	// composes the module with the invitation maintenance only.
 	invitations *invitationWiring
+	// operatorLinks configures the operator invitation and e-mail change
+	// flows (#3332); nil composes the module without them and every
+	// operator link reports it as unavailable.
+	operatorLinks *operatorLinkWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -119,12 +123,14 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
 	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
-		Lifecycle:   lifecycle,
-		Resets:      resets,
-		Invitations: invitations,
-		DB:          db,
-		Observe:     observe,
+		Lifecycle:            lifecycle,
+		Resets:               resets,
+		Invitations:          invitations,
+		OperatorProvisioning: operatorLinks,
+		DB:                   db,
+		Observe:              observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},

@@ -1605,6 +1605,38 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
+	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
+	// because both serve the same purpose (one-time verification links with the same
+	// delivery constraints and security profile). If the two ever need to diverge,
+	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
+	// The 15-minute floor accounts for email delivery latency + user interaction time.
+	emailChangeExpiry := passwordResetTokenExpiry
+	if emailChangeExpiry < 15*time.Minute {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
+			slog.Int("effective_minutes", 15),
+		)
+		emailChangeExpiry = 15 * time.Minute
+	}
+
+	// Operator frontend URL for invitation emails. The operator subdomain is separate
+	// from FRONTEND_URL, so we link directly to the operator host to avoid a
+	// cross-origin redirect hop that email content scanners treat as a phishing
+	// signal. Constructed conditionally - only required when actually sending
+	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
+	// operatorFrontendURL.
+	var operatorFrontendURL string
+	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
+		protocol := "http"
+		if strings.HasPrefix(frontendURL, "https://") {
+			protocol = "https"
+		}
+		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
+	}
+	if operatorFrontendURL == "" {
+		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
+	}
+
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
@@ -1620,6 +1652,12 @@ func newFactory(
 		},
 		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
 		operators: operatorDependencies,
+		operatorLinks: &operatorLinkWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: invitationTokenExpiry, emailChangeExpiry: emailChangeExpiry,
+			logger: platformLogger,
+		},
 		resets: &passwordResetWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
@@ -1633,7 +1671,6 @@ func newFactory(
 		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
-			admin: func() *auth.Service { return authService },
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
@@ -1896,54 +1933,25 @@ func newFactory(
 		},
 	})
 
-	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
-	// because both serve the same purpose (one-time verification links with the same
-	// delivery constraints and security profile). If the two ever need to diverge,
-	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
-	// The 15-minute floor accounts for email delivery latency + user interaction time.
-	emailChangeExpiry := passwordResetTokenExpiry
-	if emailChangeExpiry < 15*time.Minute {
-		logger.Warn("email change token expiry bumped to minimum 15 minutes",
-			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
-			slog.Int("effective_minutes", 15),
-		)
-		emailChangeExpiry = 15 * time.Minute
-	}
-
-	// Operator frontend URL for invitation emails. The operator subdomain is separate
-	// from FRONTEND_URL, so we link directly to the operator host to avoid a
-	// cross-origin redirect hop that email content scanners treat as a phishing
-	// signal. Constructed conditionally - only required when actually sending
-	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
-	// operatorFrontendURL.
-	var operatorFrontendURL string
-	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
-		protocol := "http"
-		if strings.HasPrefix(frontendURL, "https://") {
-			protocol = "https"
-		}
-		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
-	}
-	if operatorFrontendURL == "" {
-		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
-	}
-
 	// Initialize platform services (operator dashboard)
 	operatorDirectory := newOperatorDirectory(identityAccess)
+	// The invitation and e-mail change flows are the owner's since #3332;
+	// the retained endpoints reach them through their consumer-owned ports,
+	// and the root translates the outcomes into the envelope they render.
+	operatorProvisioningFlows := newOperatorProvisioningFlows(identityAccess)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:         operatorDirectory,
-		Sessions:             newOperatorSessions(identityAccess),
-		AuditLogRepo:         repos.OperatorAuditLog,
-		EmailChangeTokenRepo: newOperatorEmailChangeTokens(identityAccess),
-		InvitationTokenRepo:  newOperatorInvitationTokens(identityAccess),
-		DB:                   db,
-		Logger:               platformLogger,
-		Dispatcher:           dispatcher,
-		DefaultFrom:          defaultFrom,
-		FrontendURL:          frontendURL,
-		OperatorFrontendURL:  operatorFrontendURL,
-		EmailChangeExpiry:    emailChangeExpiry,
-		InvitationExpiry:     invitationTokenExpiry,
+		OperatorRepo:        operatorDirectory,
+		Sessions:            newOperatorSessions(identityAccess),
+		Invitations:         operatorProvisioningFlows,
+		EmailChanges:        operatorProvisioningFlows,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		InvitationTokenRepo: newOperatorInvitationTokens(identityAccess),
+		DB:                  db,
+		Logger:              platformLogger,
+		Dispatcher:          dispatcher,
+		DefaultFrom:         defaultFrom,
+		FrontendURL:         frontendURL,
+		OperatorFrontendURL: operatorFrontendURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)

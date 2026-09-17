@@ -14,6 +14,11 @@ var (
 	// ErrOperatorEmailChangeNotFound reports a redemption that found no
 	// unused, unexpired e-mail change link.
 	ErrOperatorEmailChangeNotFound = errors.New("operator email change not found")
+	// ErrOperatorEmailChangeActive reports a create that met the
+	// one-active-link-per-operator index. The initiation answers its caller
+	// with the rate limit, which is what "there is already a live link"
+	// means to them.
+	ErrOperatorEmailChangeActive = errors.New("an active email change link already exists")
 )
 
 // maxDeliveryErrorRunes bounds the stored delivery error so a verbose SMTP

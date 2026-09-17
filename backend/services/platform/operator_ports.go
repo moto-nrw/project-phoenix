@@ -132,3 +132,32 @@ type OperatorPasskeyRecords interface {
 type OperatorSessions interface {
 	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 }
+
+// OperatorInvitationFlows is the operator invitation capability Identity &
+// Access owns since #3332: the link that lets an invitee become an
+// operator, its public validation and acceptance, resend and revoke. The
+// rate limit, the transaction ordering, the audit entry and the mail belong
+// to the owner; what remains here is the envelope the operator routes
+// classify on, which the composition root translates into. clientIP is
+// recorded in the operator ledger.
+type OperatorInvitationFlows interface {
+	Invite(ctx context.Context, email string, displayName *string, createdByID int64, clientIP string) error
+	ValidateInvitation(ctx context.Context, token string) (*platform.OperatorInvitationToken, error)
+	AcceptInvitation(ctx context.Context, token, displayName, password, clientIP string) (*platform.Operator, error)
+	// ListPendingInvitations returns the links that can still be spent.
+	ListPendingInvitations(ctx context.Context) ([]*platform.OperatorInvitationToken, error)
+	RevokeInvitation(ctx context.Context, invitationID, actorID int64, clientIP string) error
+	ResendInvitation(ctx context.Context, invitationID, actorID int64, clientIP string) error
+}
+
+// OperatorEmailChangeFlows is the verified operator e-mail change Identity
+// & Access owns since #3332, with the same division: the owner runs the
+// flow, this package carries the envelope. ConfirmEmailChange answers with
+// the address that is now the operator's.
+type OperatorEmailChangeFlows interface {
+	InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword, clientIP string) error
+	ConfirmEmailChange(ctx context.Context, token, clientIP string) (string, error)
+	// CleanupEmailChangeTokens spends the expired links so their operator
+	// can request a new one, then deletes the rows nobody counts any more.
+	CleanupEmailChangeTokens(ctx context.Context) (int, error)
+}

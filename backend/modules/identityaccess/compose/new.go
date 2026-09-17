@@ -46,6 +46,10 @@ type Dependencies struct {
 	// Sessions and Lifecycle; compositions without it report
 	// ErrSchoolInvitationUnavailable.
 	Invitations *SchoolInvitationDependencies
+	// OperatorProvisioning composes the operator invitation and e-mail
+	// change flows (#3332). They require Sessions and Operators;
+	// compositions without it report ErrOperatorProvisioningUnavailable.
+	OperatorProvisioning *OperatorProvisioningDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -115,11 +119,16 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	operatorProvisioning, err := newOperatorProvisioning(service, tokens, dependencies.Sessions, dependencies.Operators, dependencies.OperatorProvisioning)
+	if err != nil {
+		return nil, err
+	}
 	e := engine{
 		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens,
 		passkeys: application.NewOperatorPasskey(service, store), accountPasskeys: application.NewAccountPasskey(service, store),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
+		operatorProvisioning:  operatorProvisioning,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	if dependencies.Sessions != nil {
@@ -187,6 +196,9 @@ type engine struct {
 	// administration is nil when the module was composed without lifecycle
 	// dependencies.
 	administration *application.AccountAdministration
+	// operatorProvisioning is nil when the module was composed without the
+	// operator provisioning dependencies.
+	operatorProvisioning *application.OperatorProvisioning
 	// invitationMaintenance is always composed: spending a deleted school's
 	// invitations and deleting expired ones need no flow dependencies.
 	invitationMaintenance *application.SchoolInvitationMaintenance
@@ -454,6 +466,8 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorInvitationNotFound
 	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
 		return identityaccess.ErrOperatorEmailChangeNotFound
+	case errors.Is(err, domain.ErrOperatorEmailChangeActive):
+		return identityaccess.ErrOperatorEmailChangeActive
 	case errors.Is(err, domain.ErrOperatorPasskeyNotFound):
 		return identityaccess.ErrOperatorPasskeyNotFound
 	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):

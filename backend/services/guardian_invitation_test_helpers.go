@@ -76,7 +76,6 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		lifecycle: &lifecycleWiring{
 			audit: audit,
-			admin: func() *auth.Service { return service },
 			guardianMail: &guardianInvitationWiring{
 				schools:     repos.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outbox },

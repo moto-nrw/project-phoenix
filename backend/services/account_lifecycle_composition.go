@@ -27,13 +27,11 @@ import (
 // service's consumer-owned port over the public module.
 
 // lifecycleWiring is the retained material the lifecycle seams are bound to.
-// The module composition fills repos from the session repositories. admin is
-// read at call time because the auth service is composed after the module.
+// The module composition fills repos from the session repositories.
 type lifecycleWiring struct {
 	repos    lifecycleRepositories
 	settings config.SettingsService
 	audit    auditModels.Command
-	admin    func() *auth.Service
 	// guardianMail carries the invitation delivery and the enrollment claim
 	// the guardian invitation flows leave to the root.
 	guardianMail *guardianInvitationWiring
@@ -59,7 +57,7 @@ func (w lifecycleWiring) complete() bool {
 	r := w.repos
 	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
 		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil &&
-		r.roles != nil && w.audit != nil && w.admin != nil
+		r.roles != nil && w.audit != nil
 }
 
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
@@ -70,7 +68,7 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		return nil, fmt.Errorf("identity access composition: %w", wiring.repos.rolesErr)
 	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle and role repository, the audit command and the retained auth service are required")
+		return nil, errors.New("identity access composition: every lifecycle and role repository and the audit command are required")
 	}
 	delivery, enrollments, err := guardianInvitationDependencies(wiring.guardianMail)
 	if err != nil {

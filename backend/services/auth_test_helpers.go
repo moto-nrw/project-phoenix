@@ -159,7 +159,6 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{
 			settings: settings.Settings, audit: command,
-			admin: func() *auth.Service { return service },
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: r.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
@@ -232,7 +231,6 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{
 			settings: cfg.Settings, audit: cfg.Audit,
-			admin: func() *auth.Service { return service },
 		},
 		resets: &passwordResetWiring{
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,

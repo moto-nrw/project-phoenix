@@ -249,8 +249,8 @@ func TestOperatorEmailChangeIsRedeemableOnce(t *testing.T) {
 	assert.False(t, change.Used)
 
 	_, err = tokens.CreateOperatorEmailChange(ctx, newEmailChange(operator.ID))
-	require.Error(t, err)
-	assertUniqueViolation(t, err, "one active link per operator stays a unique violation the flow maps")
+	require.ErrorIs(t, err, identityaccess.ErrOperatorEmailChangeActive,
+		"one active link per operator is refused, and the SQLSTATE stays inside the adapter")
 
 	foreign, err := tokens.CreateOperatorEmailChange(ctx, newEmailChange(other.ID))
 	require.NoError(t, err)
