@@ -463,6 +463,19 @@ base SHA; the package itself goes when the Presence half (#3214) deletes
 `services/active` and its keys, and finally when the retained services
 dissolve into the Workforce application and domain layers.
 
+`users.care_withdrawal_completions` is persisted by its `care-plan` owner
+alone since #3221: the statements moved from `database/repositories/users`
+into `modules/careplan/internal/adapters/postgres` (`withdrawal_completions.go`)
+and reach consumers through the public `WithdrawalQuery`/`WithdrawalCommand`
+capability. `database/repositories.careWithdrawalCompletionRepository` serves
+the retained `models/users` contract over it without persistence of its own,
+and supplies the children's names and classes, which the queue queries used to
+join from `users.students` and `users.persons`, as a People Directory
+recordset. The care-exit cleanup's booking-expiry query no longer reads the
+table either: it filters its grouped rows against the owner's completion keys,
+which the former `NOT EXISTS` clause tested on the same grouping key. Both
+#2727 baseline entries for the table are gone.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to

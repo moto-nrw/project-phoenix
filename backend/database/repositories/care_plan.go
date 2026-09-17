@@ -453,6 +453,20 @@ func (d careExitCarePlanDirectory) LockOpenCareRequests(ctx context.Context, stu
 	return d.capability.LockOpenCareRequests(ctx, studentIDs)
 }
 
+func (d careExitCarePlanDirectory) ListCareWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]usersRepo.CareWithdrawalCompletionKey, error) {
+	values, err := d.capability.ListWithdrawalCompletionKeys(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]usersRepo.CareWithdrawalCompletionKey, 0, len(values))
+	for _, value := range values {
+		result = append(result, usersRepo.CareWithdrawalCompletionKey{
+			StudentID: value.StudentID, FirstBookinglessDay: carePlanLegacy.ScheduleDate(value.FirstBookinglessDay),
+		})
+	}
+	return result, nil
+}
+
 func (d careExitCarePlanDirectory) CloseOpenCareRequests(ctx context.Context, studentIDs []int64, reason string, reviewedBy *int64, at time.Time) (int64, error) {
 	return d.capability.CloseOpenCareRequests(ctx, studentIDs, reason, reviewedBy, at)
 }

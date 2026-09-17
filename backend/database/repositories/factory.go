@@ -565,7 +565,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
-		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
@@ -726,6 +725,9 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		ParentAnnouncement:         parentAnnouncement,
 		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
 	}
+	// Care withdrawal completions belong to Care Plan (#3221); the adapter
+	// follows the factory's current Care Plan and People Directory bindings.
+	factory.CareWithdrawal = newBoundCareWithdrawalCompletionRepository(factory)
 	factory.appointments = appointmentsModule
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))

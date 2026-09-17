@@ -176,6 +176,7 @@ type DecideOfferingChange struct {
 type Query interface {
 	OfferingBookingQueries
 	CareRecordsQuery
+	WithdrawalQuery
 	StudentSchedulesQuery
 	CareRequestsQuery
 	StudentStatusDaysQuery
@@ -190,6 +191,7 @@ type Query interface {
 type Command interface {
 	OfferingBookingCommands
 	CareRecordsCommand
+	WithdrawalCommand
 	StudentDeletionCommand
 	StudentSchedulesCommand
 	CareRequestsCommand
