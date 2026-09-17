@@ -60,6 +60,13 @@ type PendingOfferingChange struct {
 	StudentID int64
 }
 
+// CareWithdrawalCompletionKey is the (child, first bookingless day) key of one
+// stored withdrawal task in any state. Care Plan owns the tasks (#3221).
+type CareWithdrawalCompletionKey struct {
+	StudentID           int64
+	FirstBookinglessDay timezone.Date
+}
+
 type ActivityBooking struct {
 	ID                       int64
 	TenantID                 int64
@@ -169,6 +176,7 @@ type CarePlanDirectory interface {
 	CountOpenCareRequests(context.Context, []int64) (map[int64]int, error)
 	LockOpenCareRequests(context.Context, []int64) error
 	CloseOpenCareRequests(context.Context, []int64, string, *int64, time.Time) (int64, error)
+	ListCareWithdrawalCompletionKeys(context.Context, []int64) ([]CareWithdrawalCompletionKey, error)
 }
 
 // CalendarPeriodDirectory is the School Calendar query the restore re-validates
@@ -888,21 +896,57 @@ func (r *CareExitCleanupRepository) FindCareWithdrawalBookingExpiries(
 			  AND COALESCE(later.valid_from, '-infinity'::date) <= rco.valid_until
 			  AND (later.valid_until IS NULL OR later.valid_until > rco.valid_until)
 		  )
-		  AND NOT EXISTS (
-			SELECT 1 FROM users.care_withdrawal_completions AS completion
-			WHERE completion.tenant_id = rco.tenant_id
-			  AND completion.student_id = rc.created_student_id
-			  AND completion.first_bookingless_day = rco.valid_until
-		  )
 		GROUP BY rc.created_student_id, rco.valid_until, rco.request_child_id
 	`, links, offerings, offeringLinks, tenant.FromContext(ctx)).Scan(ctx, &rows)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find expired final care bookings", Err: base.TranslateNotFound(err)}
 	}
+	rows, err = r.withoutRecordedWithdrawals(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
 	for index := range rows {
 		rows[index].WasCompleteWithdrawal = true
 	}
 	return rows, nil
+}
+
+// withoutRecordedWithdrawals drops the expiries whose (child, first
+// bookingless day) already has a withdrawal task in any state. The former
+// NOT EXISTS subquery tested only that grouping key, so filtering the grouped
+// rows through the Care Plan owner keeps the result unchanged (#3221).
+func (r *CareExitCleanupRepository) withoutRecordedWithdrawals(
+	ctx context.Context, rows []userModels.CareWithdrawalBookingChange,
+) ([]userModels.CareWithdrawalBookingChange, error) {
+	if len(rows) == 0 {
+		return rows, nil
+	}
+	if err := r.requireCarePlan(); err != nil {
+		return nil, err
+	}
+	studentIDs := make([]int64, 0, len(rows))
+	seen := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		if !seen[row.StudentID] {
+			seen[row.StudentID] = true
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	keys, err := r.carePlan.ListCareWithdrawalCompletionKeys(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("find expired final care bookings: list recorded withdrawals: %w", err)
+	}
+	recorded := make(map[CareWithdrawalCompletionKey]bool, len(keys))
+	for _, key := range keys {
+		recorded[key] = true
+	}
+	kept := rows[:0]
+	for _, row := range rows {
+		if !recorded[CareWithdrawalCompletionKey{StudentID: row.StudentID, FirstBookinglessDay: row.FirstBookinglessDay}] {
+			kept = append(kept, row)
+		}
+	}
+	return kept, nil
 }
 
 type careBookingPeriodRow struct {

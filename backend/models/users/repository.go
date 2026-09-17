@@ -385,17 +385,6 @@ type GuestRepository interface {
 	FindActive(ctx context.Context) ([]*Guest, error)
 }
 
-// ProfileRepository defines operations for managing profiles
-type ProfileRepository interface {
-	base.CRUDRepository[*Profile]
-
-	// FindByAccountID retrieves a profile by account ID
-	FindByAccountID(ctx context.Context, accountID int64) (*Profile, error)
-
-	// UpdateAvatar updates a profile's avatar
-	UpdateAvatar(ctx context.Context, id int64, avatar string) error
-}
-
 // StudentGuardianRepository defines operations for managing student-guardian relationships
 // GuardianEmergencyContactRow is one (guardian, phone number) projection row
 // for the emergency contact list; the consumer aggregates rows per student.

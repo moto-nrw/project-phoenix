@@ -1,10 +1,9 @@
-package users
+package auth
 
 import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -81,7 +80,7 @@ func TestProfile_SetAccount(t *testing.T) {
 	t.Run("set with account", func(t *testing.T) {
 		profile := &Profile{}
 
-		account := &auth.Account{
+		account := &Account{
 			Model: base.Model{ID: 42},
 		}
 
