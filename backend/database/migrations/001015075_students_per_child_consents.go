@@ -27,7 +27,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.75: Adding per-student consent columns to users.students...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE users.students
 				ADD COLUMN IF NOT EXISTS agb_accepted_at TIMESTAMPTZ,
@@ -39,7 +38,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.75...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE users.students
 				DROP COLUMN IF EXISTS agb_accepted_at,

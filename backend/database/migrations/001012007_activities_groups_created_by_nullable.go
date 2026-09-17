@@ -30,8 +30,6 @@ func init() {
 }
 
 func makeActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.12.7: Making activities.groups.created_by nullable...")
-
 	// Idempotency: skip if already nullable
 	var isNullable string
 	err := db.QueryRowContext(ctx, `
@@ -44,7 +42,7 @@ func makeActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) erro
 		return fmt.Errorf("error checking created_by nullable status: %w", err)
 	}
 	if isNullable == "YES" {
-		fmt.Println("  created_by is already nullable - skipping migration")
+		migrationLog().DebugContext(ctx, "activities.groups.created_by is already nullable, nothing to do")
 		return nil
 	}
 
@@ -57,13 +55,10 @@ func makeActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) erro
 		return fmt.Errorf("error dropping NOT NULL from created_by: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.7 completed: activities.groups.created_by is now nullable")
 	return nil
 }
 
 func rollbackActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.12.7: Restoring NOT NULL on activities.groups.created_by...")
-
 	// Backfill any NULL values before re-adding NOT NULL constraint
 	result, err := db.ExecContext(ctx, `
 		UPDATE activities.groups g
@@ -81,7 +76,9 @@ func rollbackActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) 
 	}
 	rowsUpdated, _ := result.RowsAffected()
 	if rowsUpdated > 0 {
-		fmt.Printf("  Backfilled %d rows from supervisors\n", rowsUpdated)
+		migrationLog().InfoContext(ctx, "activity groups created_by backfilled from supervisors",
+			"rows", rowsUpdated,
+		)
 	}
 
 	// Fallback: any still-NULL rows get the first available staff member
@@ -116,6 +113,5 @@ func rollbackActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) 
 		return fmt.Errorf("error restoring NOT NULL on created_by: %w", err)
 	}
 
-	fmt.Println("Rollback 1.12.7 completed: activities.groups.created_by is NOT NULL again")
 	return nil
 }

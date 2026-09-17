@@ -36,8 +36,6 @@ func init() {
 // itself stay as they are; the Schulhof remains selectable in staff lists
 // without a release (ADR 0019, point 6).
 func schulhofReleaseBlockPlanningUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.390: Revoking the open-room release of Schulhof rooms with planned blocks...")
-
 	// The room name is spelled out rather than read from a constant, like in
 	// 1.15.372: a migration records the database at this version. The Berlin
 	// calendar day decides "upcoming", independent of the server timezone.
@@ -65,7 +63,9 @@ func schulhofReleaseBlockPlanningUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed revoking the release of block-planning Schulhof rooms: %w", err)
 	}
 	if affected, affErr := res.RowsAffected(); affErr == nil {
-		fmt.Printf("Migration 1.15.390: revoked the release of %d Schulhof room(s)\n", affected)
+		migrationLog().InfoContext(ctx, "Schulhof open-room release revoked",
+			"rows", affected,
+		)
 	}
 
 	return nil
@@ -75,6 +75,5 @@ func schulhofReleaseBlockPlanningUp(ctx context.Context, db *bun.DB) error {
 // does not record which rooms it changed, and re-releasing every Schulhof
 // would override decisions administrators made after the correction.
 func schulhofReleaseBlockPlanningDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.390: no-op, release decisions stay with the schools")
 	return nil
 }

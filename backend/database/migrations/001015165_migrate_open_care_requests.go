@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -63,15 +62,13 @@ func init() {
 // Runs as the superuser CLI connection, so RLS is bypassed and one statement
 // covers all tenants.
 func migrateOpenCareRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.165: Moving open care_schedule chat requests to schedule.care_schedule_change_requests...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -196,15 +193,13 @@ func migrateOpenCareRequestsUp(ctx context.Context, db *bun.DB) error {
 // after the cutover revert to chat requests as well — acceptable for a dev
 // rollback.
 func migrateOpenCareRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.165: Restoring open care requests into users.parent_messages...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

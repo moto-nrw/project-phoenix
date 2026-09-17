@@ -102,6 +102,12 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 // "Migration 1.6.17" appeared twice in the log while 1.6.17.1 never showed up.
 // Interpolating the version constant instead of hardcoding the number keeps the
 // two in sync; this test fails if a hardcoded number reappears.
+//
+// #3300 removed every log line this was written for, and the contract tests in
+// migration_output_contract_test.go now forbid them outright. It stays because
+// it reads every string literal, not just log calls: a hardcoded version inside
+// an error message ("migration 1.15.57 would clear %d rows") can still drift
+// from the registered one, and nothing else looks there.
 func TestMigrationLogOutputMatchesRegisteredVersion(t *testing.T) {
 	t.Parallel()
 

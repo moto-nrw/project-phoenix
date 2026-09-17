@@ -67,8 +67,6 @@ func init() {
 // test does not take that on trust — it enumerates every table in the audit
 // schema from pg_class, so both are asserted append-only there like all others.
 func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.225: Making the audit schema append-only for phoenix_tenant...")
-
 	// Append-only: insert and read, never change or remove.
 	//
 	//   auth_events          — written by the login/MFA flows, read by the
@@ -202,13 +200,10 @@ func auditAppendOnlyGrantsUp(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	fmt.Println("  ✓ audit schema is append-only for phoenix_tenant (DELETE kept on deviation_events + unregistered_tag_scans for retention)")
 	return nil
 }
 
 func auditAppendOnlyGrantsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.225: Restoring tenant UPDATE/DELETE on the audit schema...")
-
 	// TRUNCATE is deliberately NOT restored anywhere below: the 1.14.1 default
 	// ACL never granted it, so re-granting would leave the database in a state
 	// it was never in before this migration.

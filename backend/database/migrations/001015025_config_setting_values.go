@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createSettingValuesTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.25: Creating config.setting_values and config.setting_audit tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -76,7 +73,6 @@ func createSettingValuesTables(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error creating config.setting_values: %w", err)
 	}
-	fmt.Println("  ✓ config.setting_values — table, index, trigger, RLS created")
 
 	// ---------- config.setting_audit ----------
 	_, err = tx.ExecContext(ctx, `
@@ -105,21 +101,18 @@ func createSettingValuesTables(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error creating config.setting_audit: %w", err)
 	}
-	fmt.Println("  ✓ config.setting_audit — table, indexes, RLS created")
 
 	return tx.Commit()
 }
 
 func dropSettingValuesTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.25: Dropping config.setting_values and config.setting_audit...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

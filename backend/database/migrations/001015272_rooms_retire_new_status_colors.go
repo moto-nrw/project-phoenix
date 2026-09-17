@@ -67,8 +67,6 @@ func init() {
 // tenant that notices a room went colorless can have its original hex put
 // back from audit.room_color_migration_backup and simply pick a fresh color.
 func roomsRetireNewStatusColorsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.272: Backing up + clearing room colors that became status badge colors...")
-
 	// 1.15.45 creates this table, and DependsOn pins that ordering. Recreating
 	// it defensively costs nothing and keeps this migration runnable against a
 	// database where the audit schema was rebuilt by hand.
@@ -103,7 +101,10 @@ func roomsRetireNewStatusColorsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
 	if backed, raErr := backupRes.RowsAffected(); raErr == nil && backed > 0 {
-		fmt.Printf("Migration 1.15.272: backed up %d room(s) into audit.room_color_migration_backup before clearing\n", backed)
+		migrationLog().InfoContext(ctx, "room colors backed up before clearing",
+			"rows", backed,
+			"backup_table", "audit.room_color_migration_backup",
+		)
 	}
 
 	res, err := db.NewRaw(`
@@ -116,7 +117,10 @@ func roomsRetireNewStatusColorsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed clearing newly reserved room colors: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.272: cleared %d room(s) carrying a newly reserved status color (audit.room_color_migration_backup retains the original values)\n", affected)
+		migrationLog().InfoContext(ctx, "room colors cleared: newly reserved status color",
+			"rows", affected,
+			"backup_table", "audit.room_color_migration_backup",
+		)
 	}
 
 	return nil
@@ -138,7 +142,6 @@ func roomsRetireNewStatusColorsUp(ctx context.Context, db *bun.DB) error {
 // and should pair that with reverting the reservedRoomColors change, or the
 // restored rooms are unsaveable again.
 func roomsRetireNewStatusColorsDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.272: cleared colors are NOT auto-restored — see audit.room_color_migration_backup")
 	return nil
 }
 

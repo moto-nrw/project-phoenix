@@ -36,8 +36,6 @@ func init() {
 }
 
 func templateExtensionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.34: Adding template extension columns to activities tables...")
-
 	// 1. activities.groups — add type, education_group_id, is_template
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
@@ -160,8 +158,6 @@ func templateExtensionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func templateExtensionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.34: Removing template extension columns...")
-
 	// Reverse supervisors changes
 	_, _ = db.NewRaw(`DROP INDEX IF EXISTS activities.idx_supervisors_active;`).Exec(ctx)
 	_, _ = db.NewRaw(`

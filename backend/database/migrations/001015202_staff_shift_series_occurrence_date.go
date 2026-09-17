@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.202: Tracking original staff-shift series occurrence dates...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shifts
 					ADD COLUMN IF NOT EXISTS series_occurrence_date DATE;
@@ -41,7 +40,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.202: Dropping staff-shift series occurrence dates...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shifts
 					DROP CONSTRAINT IF EXISTS ck_staff_shifts_series_occurrence_date,

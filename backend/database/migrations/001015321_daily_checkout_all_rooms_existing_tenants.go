@@ -24,8 +24,6 @@ func init() {
 }
 
 func dailyCheckoutAllRoomsExistingTenantsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.321: Preserving the daily-checkout room policy for existing tenants...")
-
 	if _, err := db.NewRaw(`
 		WITH inserted AS (
 			INSERT INTO config.setting_values (tenant_id, setting_key, value)
@@ -49,6 +47,5 @@ func dailyCheckoutAllRoomsExistingTenantsUp(ctx context.Context, db *bun.DB) err
 // Stored values may have been changed after rollout and carry no migration
 // provenance. Old binaries safely ignore the unknown key, so rollback is a no-op.
 func dailyCheckoutAllRoomsExistingTenantsDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.321: keeping daily-checkout room policy values...")
 	return nil
 }

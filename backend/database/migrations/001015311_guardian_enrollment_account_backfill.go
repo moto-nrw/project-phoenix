@@ -22,8 +22,6 @@ func init() {
 }
 
 func guardianEnrollmentAccountBackfillUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.311: Linking guardian-less enrollment requests to parent accounts...")
-
 	result, err := db.ExecContext(ctx, `
 		WITH unique_accounts AS (
 			SELECT LOWER(TRIM(email)) AS normalized_email,
@@ -52,7 +50,9 @@ func guardianEnrollmentAccountBackfillUp(ctx context.Context, db *bun.DB) error 
 	if err != nil {
 		return fmt.Errorf("count backfilled enrollment guardian account ids: %w", err)
 	}
-	fmt.Printf("Migration 1.15.311: Linked %d enrollment request(s) to parent accounts.\n", rows)
+	migrationLog().InfoContext(ctx, "enrollment requests linked to parent accounts",
+		"rows", rows,
+	)
 	return nil
 }
 
@@ -60,6 +60,5 @@ func guardianEnrollmentAccountBackfillUp(ctx context.Context, db *bun.DB) error 
 // invitation-accept flow, so clearing them on rollback would destroy valid
 // ownership data.
 func guardianEnrollmentAccountBackfillDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back 1.15.311: no-op — enrollment ownership links are not safely reversible.")
 	return nil
 }

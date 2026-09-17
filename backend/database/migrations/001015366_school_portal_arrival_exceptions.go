@@ -37,8 +37,6 @@ func init() {
 //     der Schule". created_by alone cannot tell the two apart: a Lehrkraft
 //     has a users.staff row like everybody else.
 func schoolPortalArrivalExceptionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.366: School portal writes class arrival exceptions...")
-
 	if err := grantPermissionToRoles(ctx, db, permissionSpec{
 		Name:        "class_day:arrival_exception_write",
 		Description: "Andere Ankunftszeit für eine zugewiesene Klasse an einem Tag eintragen (moto schule)",
@@ -67,8 +65,6 @@ func schoolPortalArrivalExceptionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func schoolPortalArrivalExceptionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.366: Removing class_day:arrival_exception_write and class_arrival_exceptions.origin...")
-
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE education.class_arrival_exceptions
 			DROP CONSTRAINT IF EXISTS chk_class_arrival_exceptions_origin;

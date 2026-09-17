@@ -33,8 +33,6 @@ func init() {
 }
 
 func studentsDepartureDaysUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.124: Adding departure_days to users.students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			ADD COLUMN IF NOT EXISTS departure_days JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -95,8 +93,6 @@ func studentsDepartureDaysUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsDepartureDaysDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.124: Removing departure_days from users.students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			DROP CONSTRAINT IF EXISTS check_students_departure_days,

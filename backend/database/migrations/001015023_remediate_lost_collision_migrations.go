@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,21 +31,18 @@ func init() {
 }
 
 func remediateLostCollisionMigrationsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.23: Remediating schema changes lost to version collisions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
 	// 1. Add deleted_at column to users.persons for soft-delete support
 	// (from lost migration 1.15.20 — persons soft-delete)
-	fmt.Println("Migration 1.15.23: Adding deleted_at column to users.persons (IF NOT EXISTS)...")
 	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE users.persons ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 	`)
@@ -55,7 +51,6 @@ func remediateLostCollisionMigrationsUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	// 2. Replace unique indexes on persons to be partial (exclude soft-deleted rows)
-	fmt.Println("Migration 1.15.23: Replacing persons unique indexes with partial indexes...")
 	_, err = tx.ExecContext(ctx, `
 		DROP INDEX IF EXISTS users.idx_persons_tenant_tag;
 		DROP INDEX IF EXISTS users.idx_persons_tenant_account;
@@ -74,7 +69,6 @@ func remediateLostCollisionMigrationsUp(ctx context.Context, db *bun.DB) error {
 	// (from lost migration 1.15.22 — announcement org/tenant targeting)
 	// Using IF NOT EXISTS since migration 1.15.22 also adds these columns,
 	// and we don't know which runs first on a given environment.
-	fmt.Println("Migration 1.15.23: Adding announcement targeting columns (IF NOT EXISTS)...")
 	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE platform.announcements ADD COLUMN IF NOT EXISTS target_org_ids BIGINT[] NOT NULL DEFAULT '{}';
 		ALTER TABLE platform.announcements ADD COLUMN IF NOT EXISTS target_tenant_ids BIGINT[] NOT NULL DEFAULT '{}';
@@ -89,11 +83,9 @@ func remediateLostCollisionMigrationsUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding announcement targeting columns: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.23: Remediation complete")
 	return tx.Commit()
 }
 
 func remediateLostCollisionMigrationsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.23: no-op to avoid removing schema owned by 1.15.20/1.15.22")
 	return nil
 }

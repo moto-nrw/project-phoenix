@@ -183,8 +183,6 @@ var activityInstanceCompositeFKs = []activityInstanceCompositeFK{
 }
 
 func activityInstancesCompositeFKsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.51: Upgrading timetable instance FKs to tenant-composite constraints...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
 		ADD CONSTRAINT unique_activity_instance_tenant_id UNIQUE (tenant_id, id);
@@ -205,8 +203,6 @@ func activityInstancesCompositeFKsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func activityInstancesCompositeFKsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.51: Restoring timetable instance single-column FKs...")
-
 	for i := len(activityInstanceCompositeFKs) - 1; i >= 0; i-- {
 		fk := activityInstanceCompositeFKs[i]
 		if _, err := db.NewRaw(fmt.Sprintf(`ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s`, fk.table, fk.name)).Exec(ctx); err != nil {

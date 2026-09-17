@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func makeInvitationCreatorNullable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.8: Allowing nullable invitation creators for operator-created invites...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("failed to rollback transaction in 1.15.8: %v", rbErr)
+			logRollbackFailure(ctx, rbErr)
 		}
 	}()
 
@@ -66,20 +63,17 @@ func makeInvitationCreatorNullable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to recreate invitation creator foreign key: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.8: Invitation creators can now be NULL")
 	return tx.Commit()
 }
 
 func rollbackMakeInvitationCreatorNullable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.8: Restoring required invitation creators...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("failed to rollback transaction in 1.15.8 rollback: %v", rbErr)
+			logRollbackFailure(ctx, rbErr)
 		}
 	}()
 
@@ -117,6 +111,5 @@ func rollbackMakeInvitationCreatorNullable(ctx context.Context, db *bun.DB) erro
 		return fmt.Errorf("failed to restore NOT NULL on auth.invitation_tokens.created_by: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.8: Invitation creators are required again")
 	return tx.Commit()
 }

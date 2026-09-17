@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -66,15 +65,13 @@ func init() {
 // composite form makes the tenant boundary a database invariant instead of a
 // convention (#405 review).
 func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.236: Creating schedule.grade_transition_roster_removals...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -139,15 +136,13 @@ func gradeTransitionRosterRemovalsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func gradeTransitionRosterRemovalsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.236: Dropping schedule.grade_transition_roster_removals...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

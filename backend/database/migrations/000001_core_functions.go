@@ -24,8 +24,6 @@ func init() {
 	// Migration 0.1: Core database functions
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 0.1.0: Setting up core database functions...")
-
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 			if err != nil {
@@ -54,8 +52,6 @@ func init() {
 			return tx.Commit()
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 0.1.0: Removing core database functions...")
-
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 			if err != nil {

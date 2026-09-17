@@ -33,8 +33,6 @@ func init() {
 }
 
 func createEnrollmentRequestGuardiansUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.131: Creating enrollment.request_guardians table...")
-
 	// One row per ADDITIONAL guardian on a submission. The primary
 	// guardian stays flattened on enrollment.requests (status link,
 	// dedup, NOT NULL email all hang off it); this table is purely
@@ -94,7 +92,6 @@ func createEnrollmentRequestGuardiansUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createEnrollmentRequestGuardiansDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.131: Dropping enrollment.request_guardians...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS enrollment.request_guardians CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping enrollment.request_guardians: %w", err)
 	}

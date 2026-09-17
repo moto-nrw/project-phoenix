@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.9: Granting operator auth permissions to phoenix_auth...")
-
 			_, err := db.ExecContext(ctx, `
 				GRANT SELECT, UPDATE ON platform.operators TO phoenix_auth;
 			`)
@@ -33,8 +31,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.9: Revoking operator auth permissions from phoenix_auth...")
-
 			_, err := db.ExecContext(ctx, `
 				REVOKE SELECT, UPDATE ON platform.operators FROM phoenix_auth;
 			`)

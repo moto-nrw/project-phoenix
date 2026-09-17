@@ -22,7 +22,6 @@ func init() {
 }
 
 func spontaneousActivityInstanceUniquenessUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.367: Excluding spontaneous sessions from planned timetable uniqueness...")
 	_, err := db.ExecContext(ctx, `
 		DROP INDEX IF EXISTS schedule.idx_activity_instances_template_unique;
 		CREATE UNIQUE INDEX idx_activity_instances_template_unique
@@ -36,8 +35,6 @@ func spontaneousActivityInstanceUniquenessUp(ctx context.Context, db *bun.DB) er
 }
 
 func spontaneousActivityInstanceUniquenessDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.367: Restoring activity-linked instance uniqueness...")
-
 	// The newer index permits a spontaneous and a planned session to share a
 	// template/date/start-time. That state cannot be represented by the old
 	// index, so refuse the rollback before changing the active guard.

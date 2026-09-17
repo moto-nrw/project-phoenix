@@ -22,8 +22,6 @@ func init() {
 }
 
 func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.299: Adding excused_auto to pickup exceptions (#2360)...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.student_pickup_exceptions
 			ADD COLUMN IF NOT EXISTS excused_auto BOOLEAN NOT NULL DEFAULT FALSE;
@@ -98,14 +96,14 @@ func autoPartialAbsenceUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed backfilling auto partial absences from pickup exceptions: %w", err)
 	}
 	if rows, rowsErr := res.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.299: backfilled %d attendance blocks from existing pulled-forward pickup exceptions\n", rows)
+		migrationLog().InfoContext(ctx, "attendance blocks backfilled from pulled-forward pickup exceptions",
+			"rows", rows,
+		)
 	}
 	return nil
 }
 
 func autoPartialAbsenceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.299: Removing excused_auto from pickup exceptions...")
-
 	// Restore linked blocks with the same ownership rules as
 	// ReleasePartialAbsence: a still-active full-day status takes over the
 	// row, and only actionable blocks return to expected — an unconditional

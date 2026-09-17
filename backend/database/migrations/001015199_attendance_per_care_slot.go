@@ -23,8 +23,6 @@ func init() {
 }
 
 func attendancePerCareSlotUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.199: Adding care-slot attendance provenance (#1913)...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE schedule.instance_students
 			ADD COLUMN IF NOT EXISTS checked_out_at TIMESTAMPTZ,
@@ -121,7 +119,6 @@ func attendancePerCareSlotUp(ctx context.Context, db *bun.DB) error {
 }
 
 func attendancePerCareSlotDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.199...")
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS schedule.idx_instance_students_status_day;
 		ALTER TABLE schedule.instance_students

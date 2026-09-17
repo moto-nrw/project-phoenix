@@ -30,8 +30,6 @@ func init() {
 }
 
 func normalizeRoomCapacityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.286: Normalizing optional room capacities...")
-
 	result, err := db.NewRaw(`
 		UPDATE facilities.rooms
 		SET capacity = NULL
@@ -42,7 +40,9 @@ func normalizeRoomCapacityUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, rowsErr := result.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.286: Converted %d non-positive room capacities to NULL\n", affected)
+		migrationLog().InfoContext(ctx, "non-positive room capacities normalized to NULL",
+			"rows", affected,
+		)
 	}
 
 	if _, err := db.NewRaw(`
@@ -59,8 +59,6 @@ func normalizeRoomCapacityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func normalizeRoomCapacityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.286: Removing the positive room capacity constraint...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE facilities.rooms
 			DROP CONSTRAINT IF EXISTS rooms_capacity_positive_check;

@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.89: Dropping auth.mfa_recovery_codes + platform.operator_mfa_recovery_codes...")
 			_, err := db.ExecContext(ctx, `
 				DROP TRIGGER IF EXISTS update_mfa_recovery_codes_updated_at ON auth.mfa_recovery_codes;
 				DROP TABLE IF EXISTS auth.mfa_recovery_codes CASCADE;
@@ -38,7 +37,6 @@ func init() {
 		// so `migrate reset` (and any test harness that walks down then up)
 		// can replay cleanly. Mirrors the original schema bit-for-bit.
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.89: Recreating recovery code tables...")
 			_, err := db.ExecContext(ctx, `
 				CREATE TABLE IF NOT EXISTS auth.mfa_recovery_codes (
 					id         BIGSERIAL PRIMARY KEY,

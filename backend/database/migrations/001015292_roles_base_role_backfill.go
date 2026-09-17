@@ -79,8 +79,6 @@ const grantsUsersManage = `(
 // System roles are left alone: they carry their tier in their name and
 // EffectiveBaseRole reads it there.
 func rolesBaseRoleBackfillUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.292: Backfilling auth.roles.base_role for school roles...")
-
 	res, err := db.ExecContext(ctx, `
 		UPDATE auth.roles r
 		SET base_role = CASE
@@ -103,7 +101,9 @@ func rolesBaseRoleBackfillUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, affErr := res.RowsAffected(); affErr == nil {
-		fmt.Printf("  Classified %d school role(s) by tier\n", affected)
+		migrationLog().InfoContext(ctx, "school roles classified by tier",
+			"rows", affected,
+		)
 	}
 
 	return nil
@@ -114,6 +114,5 @@ func rolesBaseRoleBackfillUp(ctx context.Context, db *bun.DB) error {
 // Resetting every school role to NULL would destroy the tiers CreateRole has
 // been requiring since 1.15.31.
 func rolesBaseRoleBackfillDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.292: nothing to undo (backfill only, see doc comment)")
 	return nil
 }

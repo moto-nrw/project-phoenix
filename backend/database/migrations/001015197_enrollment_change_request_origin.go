@@ -26,7 +26,6 @@ func init() {
 }
 
 func enrollmentChangeRequestOriginUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.197: Adding enrollment change request origin...")
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.change_requests
 			ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'parent';
@@ -43,7 +42,6 @@ func enrollmentChangeRequestOriginUp(ctx context.Context, db *bun.DB) error {
 }
 
 func enrollmentChangeRequestOriginDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.197: Removing enrollment change request origin...")
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.change_requests
 			DROP CONSTRAINT IF EXISTS chk_enrollment_change_requests_origin,

@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.90: Adding auth.accounts.mfa_admin_override...")
 			_, err := db.ExecContext(ctx, `
 				ALTER TABLE auth.accounts
 				ADD COLUMN IF NOT EXISTS mfa_admin_override TEXT NOT NULL DEFAULT 'none';
@@ -38,7 +37,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.90: Dropping mfa_admin_override column...")
 			_, err := db.ExecContext(ctx, `
 				ALTER TABLE auth.accounts DROP CONSTRAINT IF EXISTS chk_accounts_mfa_admin_override;
 				ALTER TABLE auth.accounts DROP COLUMN IF EXISTS mfa_admin_override;

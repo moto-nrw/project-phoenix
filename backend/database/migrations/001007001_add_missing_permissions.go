@@ -34,8 +34,6 @@ func init() {
 
 // addMissingPermissions adds substitutions permissions and users:manage
 func addMissingPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.1: Adding missing permissions (substitutions, users:manage)...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -118,14 +116,11 @@ func addMissingPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.1: Successfully added missing permissions")
 	return nil
 }
 
 // removeMissingPermissions removes the permissions added by this migration
 func removeMissingPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.1: Removing added permissions...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -171,6 +166,5 @@ func removeMissingPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.1: Successfully removed added permissions")
 	return nil
 }

@@ -23,7 +23,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.121: Adding legal blocks to enrollment.form_schemas...")
 			_, err := db.NewRaw(`
 				ALTER TABLE enrollment.form_schemas
 					ADD COLUMN IF NOT EXISTS legal_blocks JSONB NOT NULL DEFAULT '[]'::jsonb;
@@ -34,7 +33,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.121: Dropping form_schemas.legal_blocks...")
 			_, err := db.NewRaw(`
 				ALTER TABLE enrollment.form_schemas
 					DROP COLUMN IF EXISTS legal_blocks;

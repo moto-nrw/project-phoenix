@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createWorkSessionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.10.1: Creating active.work_sessions table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -75,20 +72,17 @@ func createWorkSessionsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating active.work_sessions table: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.1: Successfully created active.work_sessions table")
 	return tx.Commit()
 }
 
 func dropWorkSessionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.1: Dropping active.work_sessions table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -97,6 +91,5 @@ func dropWorkSessionsTable(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping active.work_sessions table: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.1: Successfully dropped active.work_sessions table")
 	return tx.Commit()
 }

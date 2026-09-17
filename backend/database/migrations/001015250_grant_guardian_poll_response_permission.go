@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -21,7 +20,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.250: Granting parent_portal.poll.response to full guardians...")
 			_, err := db.NewRaw(`
 				UPDATE users.students_guardians
 				SET permissions = COALESCE(permissions, '{}'::jsonb)
@@ -31,7 +29,6 @@ func init() {
 			return err
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.250: removing parent_portal.poll.response key...")
 			_, err := db.NewRaw(`
 				UPDATE users.students_guardians
 				SET permissions = permissions - 'parent_portal.poll.response'

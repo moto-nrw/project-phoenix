@@ -27,7 +27,6 @@ func init() {
 }
 
 func dropLegacyConfigSettings(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.44: Dropping legacy config.settings table...")
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)
