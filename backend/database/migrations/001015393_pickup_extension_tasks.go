@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -40,22 +39,12 @@ func init() {
 // Whether a task is still open is decided when it is read, against the
 // current blocks, so no row has to be rewritten when a plan changes.
 func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting",
-		slog.String("migration", pickupExtensionTasksVersion),
-		slog.String("detail", "creating schedule.pickup_extension_tasks"),
-	)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			slog.Warn("migration rollback failed",
-				"migration", pickupExtensionTasksVersion,
-				"error", rollbackErr,
-			)
-		}
+		_ = tx.Rollback()
 	}()
 
 	_, err = tx.ExecContext(ctx, `
@@ -122,10 +111,6 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 }
 
 func pickupExtensionTasksDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rolling back",
-		slog.String("migration", pickupExtensionTasksVersion),
-		slog.String("detail", "dropping schedule.pickup_extension_tasks"),
-	)
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS schedule.pickup_extension_tasks;`)
 	if err != nil {
 		return fmt.Errorf("error dropping schedule.pickup_extension_tasks: %w", err)
