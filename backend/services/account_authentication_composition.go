@@ -70,13 +70,11 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
 	}
-	if roles, err := repositories.NewIdentityRoleDirectory(repositories.IdentityRoleRepositories{
+	lifecycle.roles, lifecycle.rolesErr = repositories.NewIdentityRoleDirectory(repositories.IdentityRoleRepositories{
 		Roles: repos.Role, Permissions: repos.Permission, RolePermissions: repos.RolePermission,
 		AccountRoles: repos.AccountRole, AccountPermissions: repos.AccountPermission,
 		Accounts: repos.Account, AccountTenants: repos.AccountTenant,
-	}); err == nil {
-		lifecycle.roles = roles
-	}
+	})
 	if repos.GuardianInvitation != nil {
 		lifecycle.guardianInvitations = auth.NewGuardianInvitationStore(repos.GuardianInvitation)
 	}

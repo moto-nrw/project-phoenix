@@ -17,14 +17,14 @@ import (
 // the school identity chain and the session revocation are the module's own
 // flows, reached through ports so the rules can be exercised in isolation.
 type RoleAdministration struct {
-	store    ports.RoleStore
-	profiles ports.CaregiverProfiles
-	policy   ports.RoleAssignmentPolicy
-	roles    ports.RolePolicy
-	identity ports.SchoolIdentity
-	sessions ports.SessionRevocation
-	runtime  ports.Runtime
-	logger   *slog.Logger
+	store         ports.RoleStore
+	profiles      ports.CaregiverProfiles
+	policy        ports.RoleAssignmentPolicy
+	identityRoles ports.RolePolicy
+	identity      ports.SchoolIdentity
+	sessions      ports.SessionRevocation
+	runtime       ports.Runtime
+	logger        *slog.Logger
 }
 
 // RoleAdministrationDependencies are the ports the administration consumes.
@@ -32,11 +32,12 @@ type RoleAdministrationDependencies struct {
 	Store    ports.RoleStore
 	Profiles ports.CaregiverProfiles
 	Policy   ports.RoleAssignmentPolicy
-	Roles    ports.RolePolicy
-	Identity ports.SchoolIdentity
-	Sessions ports.SessionRevocation
-	Runtime  ports.Runtime
-	Logger   *slog.Logger
+	// IdentityRoles decides which roles owe a caregiver profile.
+	IdentityRoles ports.RolePolicy
+	Identity      ports.SchoolIdentity
+	Sessions      ports.SessionRevocation
+	Runtime       ports.Runtime
+	Logger        *slog.Logger
 }
 
 // NewRoleAdministration composes the administration over its ports.
@@ -44,7 +45,7 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 	switch {
 	case deps.Store == nil, deps.Profiles == nil:
 		return nil, fmt.Errorf("identity access role administration: role store and caregiver profiles are required")
-	case deps.Policy == nil, deps.Roles == nil:
+	case deps.Policy == nil, deps.IdentityRoles == nil:
 		return nil, fmt.Errorf("identity access role administration: role policies are required")
 	case deps.Identity == nil, deps.Sessions == nil:
 		return nil, fmt.Errorf("identity access role administration: school identity and session revocation are required")
@@ -56,7 +57,7 @@ func NewRoleAdministration(deps RoleAdministrationDependencies) (*RoleAdministra
 		logger = slog.Default()
 	}
 	return &RoleAdministration{
-		store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, roles: deps.Roles,
+		store: deps.Store, profiles: deps.Profiles, policy: deps.Policy, identityRoles: deps.IdentityRoles,
 		identity: deps.Identity, sessions: deps.Sessions, runtime: deps.Runtime, logger: logger,
 	}, nil
 }
@@ -230,7 +231,7 @@ func (r *RoleAdministration) AssignRoleToAccount(ctx context.Context, accountID,
 		// fields, so the switch belongs to offboarding plus a fresh account.
 		// Roles that legitimately run without a profile (admin) are
 		// unaffected.
-		if r.roles.RoleNeedsCaregiverProfile(facts) {
+		if r.identityRoles.RoleNeedsCaregiverProfile(facts) {
 			isLehrkraft, roleErr := r.accountHoldsLehrkraftRole(txCtx, accountID)
 			if roleErr != nil {
 				return failed("assign role", roleErr)

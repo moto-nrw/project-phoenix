@@ -16,8 +16,9 @@ import (
 // need facts other owners hold and seams the composition root binds: persons,
 // staff and caregiver profiles, guardian profiles and relationships, the
 // audit evidence, the PIN and password hashers, the retained role storage and
-// account management and the retained guardian invitation delivery. The seams below are expressed in public values; this package
-// adapts them to the consumer-owned ports.
+// account management and the retained guardian invitation delivery. The
+// seams below are expressed in public values; this package adapts them to the
+// consumer-owned ports.
 
 // StaffMember is the users.staff fact of a school.
 type StaffMember struct {

@@ -358,7 +358,7 @@ func newRAFixture(t *testing.T) *raFixture {
 	}
 	var err error
 	f.admin, err = NewRoleAdministration(RoleAdministrationDependencies{
-		Store: f.store, Profiles: f.profiles, Policy: raPolicy{}, Roles: lifecycleRoles{},
+		Store: f.store, Profiles: f.profiles, Policy: raPolicy{}, IdentityRoles: lifecycleRoles{},
 		Identity: f.identity, Sessions: f.sessions, Runtime: &fakeRuntime{},
 	})
 	require.NoError(t, err)
@@ -775,7 +775,7 @@ func TestRoleAdministration_CaregiverRoleNeedsProfileOnLehrkraftAccount(t *testi
 
 	f, account, _ := newEnv(t, false)
 	admin := &RoleAdministration{
-		store: f.store, profiles: f.profiles, policy: raPolicy{}, roles: caregiverLehrkraftRoles{},
+		store: f.store, profiles: f.profiles, policy: raPolicy{}, identityRoles: caregiverLehrkraftRoles{},
 		identity: f.identity, sessions: f.sessions, runtime: &fakeRuntime{}, logger: f.admin.logger,
 	}
 	role := f.store.addRole(domain.ManagedRole{Name: "lehrkraft", IsSystem: true})

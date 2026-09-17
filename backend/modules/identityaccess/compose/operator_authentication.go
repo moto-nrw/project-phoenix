@@ -288,6 +288,9 @@ func (schoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
 	return identityaccess.IsLehrkraftSystemRole(operatorRoleFacts(role))
 }
 
+// RoleNeedsStaffRecord classifies the fact as given, ID zero included, as the
+// operator flows always did; only the lookup-shaped decisions treat ID zero
+// as no role.
 func (schoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
 	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
 		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,

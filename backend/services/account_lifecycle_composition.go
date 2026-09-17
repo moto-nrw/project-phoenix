@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -49,6 +50,9 @@ type lifecycleRepositories struct {
 	guardianInvitations auth.GuardianInvitationStore
 	authEvents          auditModels.AuthEventRepository
 	roles               identityaccessCompose.RoleDirectory
+	// rolesErr is why the role directory could not be bound; the lifecycle
+	// composition reports it instead of the generic incompleteness.
+	rolesErr error
 }
 
 func (w lifecycleWiring) complete() bool {
@@ -61,6 +65,9 @@ func (w lifecycleWiring) complete() bool {
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
 	if wiring == nil {
 		return nil, nil
+	}
+	if wiring.repos.rolesErr != nil {
+		return nil, fmt.Errorf("identity access composition: %w", wiring.repos.rolesErr)
 	}
 	if !wiring.complete() {
 		return nil, errors.New("identity access composition: every lifecycle and role repository, the audit command, the retained auth service and the guardian invitation delivery are required")

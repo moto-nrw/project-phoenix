@@ -646,7 +646,8 @@ service, the operator audit ledger, the pending e-mail change links, the
 password policy, schools and organisations, the People Directory and School
 Membership identity chain a school access provisions) are bound at the
 serving root through public-typed seams (`compose.OperatorDependencies`);
-the role assignment rules are the module's own since #3314. The login, refresh, profile, password and
+the role assignment rules are the module's own since #3314. The login,
+refresh, profile, password and
 school-access handlers live in `modules/identityaccess/inbound/operator`,
 the owner's HTTP adapter, and call the public contract there. `api/operator`
 keeps the operator router with its middleware chain and rate limiters,

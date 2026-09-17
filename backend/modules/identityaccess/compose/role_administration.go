@@ -67,14 +67,14 @@ func newRoleAdministration(auth *application.AccountAuthentication, runtime port
 		return nil, errors.New("identity access compose: the role directory is required")
 	}
 	return application.NewRoleAdministration(application.RoleAdministrationDependencies{
-		Store:    roleStore{deps.Roles},
-		Profiles: staffDirectory{deps.Staff},
-		Policy:   roleAssignmentPolicy{},
-		Roles:    rolePolicy{},
-		Identity: lateSchoolIdentity{current: identity},
-		Sessions: auth,
-		Runtime:  runtime,
-		Logger:   deps.Logger,
+		Store:         roleStore{deps.Roles},
+		Profiles:      staffDirectory{deps.Staff},
+		Policy:        roleAssignmentPolicy{},
+		IdentityRoles: rolePolicy{},
+		Identity:      lateSchoolIdentity{current: identity},
+		Sessions:      auth,
+		Runtime:       runtime,
+		Logger:        deps.Logger,
 	})
 }
 
