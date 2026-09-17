@@ -39,7 +39,6 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),
 		MFACredential:           authRepo.NewMFACredentialRepository(db), MFAEmailChallenge: authRepo.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice: authRepo.NewMFATrustedDeviceRepository(db), MFAOverride: authRepo.NewMFAOverrideRepository(db),
-		PasskeyCredential: authRepo.NewPasskeyCredentialRepository(db), PasskeySession: authRepo.NewPasskeySessionRepository(db),
 		PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 		AuthEvent:        authEventCommand{auditRepo.NewAuthEventRepository(newTestAuditRuntime(db)), command},
 	}
