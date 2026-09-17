@@ -5766,7 +5766,7 @@
       "declaration": "buildServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        40
       ],
       "tables": []
     },
@@ -23315,7 +23315,7 @@
         },
         {
           "file": "services/operator_authentication_composition.go",
-          "line": 56,
+          "line": 55,
           "declaration": "operatorRepositoriesOf"
         },
         {
