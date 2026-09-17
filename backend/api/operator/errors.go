@@ -48,14 +48,33 @@ func ErrServiceUnavailable(message string) render.Renderer {
 }
 
 // UnregisteredTagScanResolveError renders a failed resolution of an
-// unregistered RFID scan: a database failure stays internal, every other
-// outcome (unknown or already handled scan, missing operator) is reported to
-// the operator verbatim.
+// unregistered RFID scan. Unknown or already handled scans, a missing
+// operator, and invalid IDs stay 400 with their text. Persistence failures
+// stay internal and never echo adapter or Postgres text: Device Fleet wraps
+// driver errors and does not return *models/base.DatabaseError.
 func UnregisteredTagScanResolveError(err error) render.Renderer {
 	if _, ok := errors.AsType[*modelBase.DatabaseError](err); ok {
 		return ErrInternal("Failed to resolve unregistered RFID scan")
 	}
-	return ErrInvalidRequest(err)
+	if unregisteredTagScanResolveIsClientError(err) {
+		return ErrInvalidRequest(err)
+	}
+	return ErrInternal("Failed to resolve unregistered RFID scan")
+}
+
+func unregisteredTagScanResolveIsClientError(err error) bool {
+	for err != nil {
+		switch err.Error() {
+		case "operator ID is required",
+			"scan ID is required",
+			"unregistered tag scan not found",
+			"unregistered tag scan already resolved",
+			"invalid unregistered tag scan":
+			return true
+		}
+		err = errors.Unwrap(err)
+	}
+	return false
 }
 
 // AuthErrorRenderer maps auth service errors to HTTP responses

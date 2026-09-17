@@ -3,6 +3,7 @@ package operator_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,12 +44,35 @@ func TestResolveUnregisteredTagScanMapsDatabaseErrorToInternal(t *testing.T) {
 	require.NotContains(t, raw, rawErr.Error())
 }
 
+func TestResolveUnregisteredTagScanMapsWrappedAdapterErrorToInternal(t *testing.T) {
+	t.Parallel()
+
+	rawErr := errors.New("pq: permission denied for audit.unregistered_tag_scans")
+	err := fmt.Errorf("devicefleet postgres: resolve unregistered tag scan: %w", rawErr)
+
+	code, status, message, raw := renderResolveError(t, err)
+
+	require.Equal(t, http.StatusInternalServerError, code)
+	require.Equal(t, "error", status)
+	require.Equal(t, "Failed to resolve unregistered RFID scan", message)
+	require.NotContains(t, raw, rawErr.Error())
+	require.NotContains(t, raw, "devicefleet postgres:")
+}
+
 func TestResolveUnregisteredTagScanKeepsValidationErrorsAsBadRequest(t *testing.T) {
 	t.Parallel()
 
-	code, status, message, _ := renderResolveError(t, errors.New("operator ID is required"))
+	for _, message := range []string{
+		"operator ID is required",
+		"scan ID is required",
+		"unregistered tag scan not found",
+		"unregistered tag scan already resolved",
+		"invalid unregistered tag scan",
+	} {
+		code, status, got, _ := renderResolveError(t, errors.New(message))
 
-	require.Equal(t, http.StatusBadRequest, code)
-	require.Equal(t, "error", status)
-	require.Contains(t, message, "operator ID is required")
+		require.Equal(t, http.StatusBadRequest, code, message)
+		require.Equal(t, "error", status, message)
+		require.Equal(t, message, got)
+	}
 }
