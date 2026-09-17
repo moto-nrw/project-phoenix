@@ -11,6 +11,28 @@ formatting() {
     exit 1
   fi
 }
+# Advisories whose vuln.go.dev record is demonstrably wrong. Entries are data
+# defects, not accepted risk, so each one needs an upstream correction request
+# and goes away once the database is fixed. govulncheck has no ignore flag.
+#   GO-2026-6452: published without a fixed version although the fix from
+#   qax-os/excelize#2331 shipped in excelize v2.11.0, the version backend/go.mod
+#   requires. Correction requested in golang/vulndb#6501.
+misreported_advisories='["GO-2026-6452"]'
+vulnerabilities() {
+  local findings
+  # JSON output always exits 0, so the verdict is built here. Findings without a
+  # symbol in the trace are module-level notices that plain govulncheck does not
+  # fail on either.
+  findings=$(govulncheck -format json ./... | jq -rs --argjson allowed "$misreported_advisories" '
+    [.[] | select(has("finding")).finding | select(.trace[0].function != null).osv]
+      | (unique - $allowed)
+      | .[]')
+  if [[ -n "$findings" ]]; then
+    printf 'Vulnerabilities found:\n%s\n' "$findings" >&2
+    govulncheck ./... >&2 || true
+    exit 1
+  fi
+}
 case "${1:-quality}" in
   quality)
     quality_step go-format formatting
@@ -42,6 +64,6 @@ case "${1:-quality}" in
     [[ ${#packages[@]} -gt 0 ]] || packages=(./...)
     golangci-lint run --allow-serial-runners --timeout 20m "${packages[@]}"
     ;;
-  vulnerabilities) govulncheck ./... ;;
+  vulnerabilities) vulnerabilities ;;
   *) echo 'Unknown backend quality mode' >&2; exit 2 ;;
 esac

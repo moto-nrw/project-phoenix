@@ -111,7 +111,7 @@ When unsure: if a school admin or supervisor would *do something differently* af
 
 ## Scope Boundary
 
-This rule covers the **in-app, school-facing help guide only**. It does NOT govern: developer docs (`CLAUDE.md`, `.claude/rules/*`), cross-repo docs (PyrePortal/balenaOS), or generated API route docs (`./main gendoc`). Those are separate concerns; don't bundle them here unless explicitly asked.
+This rule covers the **in-app, school-facing help guide only**. It does NOT govern: developer docs (`CLAUDE.md`, `.claude/rules/*`), cross-repo docs (PyrePortal), or generated API route docs (`./main gendoc`). Those are separate concerns; don't bundle them here unless explicitly asked.
 
 ## Paired Skill
 
