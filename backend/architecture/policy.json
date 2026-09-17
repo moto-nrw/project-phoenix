@@ -4220,6 +4220,18 @@
       "write_owner": "identity-access"
     },
     {
+      "name": "users.student_profiles",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.student_care_profiles",
+      "write_owner": "care-plan"
+    },
+    {
       "name": "users.teachers",
       "write_owner": "school-membership"
     },
