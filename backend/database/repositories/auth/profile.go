@@ -1,23 +1,23 @@
-package users
+package auth
 
 import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
 
-// ProfileRepository implements users.ProfileRepository interface
+// ProfileRepository implements auth.ProfileRepository interface
 type ProfileRepository struct {
-	*base.Repository[*users.Profile]
+	*base.Repository[*auth.Profile]
 	db *bun.DB
 }
 
 // NewProfileRepository creates a new ProfileRepository
-func NewProfileRepository(db *bun.DB) users.ProfileRepository {
-	repo := base.NewRepository[*users.Profile](db, "users.profiles", "Profile")
+func NewProfileRepository(db *bun.DB) auth.ProfileRepository {
+	repo := base.NewRepository[*auth.Profile](db, "users.profiles", "Profile")
 	repo.TenantScoped = true
 	return &ProfileRepository{
 		Repository: repo,
@@ -26,8 +26,8 @@ func NewProfileRepository(db *bun.DB) users.ProfileRepository {
 }
 
 // FindByAccountID retrieves a profile by account ID
-func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.Profile, error) {
-	profile := new(users.Profile)
+func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*auth.Profile, error) {
+	profile := new(auth.Profile)
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(profile).
 		ModelTableExpr(`users.profiles AS "profile"`).
@@ -49,7 +49,7 @@ func (r *ProfileRepository) FindByAccountID(ctx context.Context, accountID int64
 
 // UpdateAvatar updates a profile's avatar
 func (r *ProfileRepository) UpdateAvatar(ctx context.Context, id int64, avatar string) error {
-	profile := &users.Profile{Model: modelBase.Model{ID: id}, Avatar: avatar}
+	profile := &auth.Profile{Model: modelBase.Model{ID: id}, Avatar: avatar}
 	updated, err := r.UpdateColumns(ctx, profile, "avatar")
 	if err != nil {
 		return base.UpdateOperationError(err, "update avatar")
@@ -63,8 +63,8 @@ func (r *ProfileRepository) Delete(ctx context.Context, id interface{}) error {
 }
 
 // List retrieves profiles matching the provided filters
-func (r *ProfileRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Profile, error) {
-	var profiles []*users.Profile
+func (r *ProfileRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.Profile, error) {
+	var profiles []*auth.Profile
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.profiles AS "profile"`)

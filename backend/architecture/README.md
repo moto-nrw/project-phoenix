@@ -71,7 +71,26 @@ dynamically, so the baseline records no `tables.unclassified` finding to adopt
 it from, and the File Storage composition binds its intent operations to that
 repository as a compatibility permission until the table can be adopted.
 #2710 adopts `users.persons_guardians` under `people-directory` the same way
-(policy epoch 7 to 8); the remaining #2727 tables stay unclassified debt.
+(policy epoch 7 to 8). #3221 adopts `users.guardian_financial_data` under
+`people-directory` and moves the staff messaging persistence out of
+`database/repositories/users`, adopting `users.staff_message_threads`,
+`users.staff_message_participants`, `users.staff_messages` and
+`users.staff_message_reads` under `communication` (policy epoch 12 to 13).
+With that the baseline records no `tables.unclassified` debt.
+The same ticket moves the two foreign accesses the package kept on owned
+tables: `users.profiles` belongs to the account, not the person, so its model,
+contract and repository move to `models/auth` and
+`database/repositories/auth` under `identity-access`.
+
+The staff messaging writes live in the Communication Postgres adapter
+`modules/communication/internal/adapters/staffpostgres`. The inbox and unread
+badge join People Directory's person rows, so they read through the tenant-safe
+projection `modules/communication/internal/adapters/staffinbox` (owner
+`staff-message-inbox`). `modules/communication/staffstore` is the
+Communication composition seam that keeps the `models/users` staff message
+repository contracts for the legacy factory. The colleague picker, its
+authorization predicate and the role kinds stay in People Directory as
+`MessageableStaffRepository` and reach the seam as a colleague directory.
 `target.svg` shows File Storage as domain and Document Rendering as platform;
 do not commit the generated diagram.
 
@@ -462,6 +481,19 @@ Convert them to exact debt with the rule above once the package exists at a
 base SHA; the package itself goes when the Presence half (#3214) deletes
 `services/active` and its keys, and finally when the retained services
 dissolve into the Workforce application and domain layers.
+
+`users.care_withdrawal_completions` is persisted by its `care-plan` owner
+alone since #3221: the statements moved from `database/repositories/users`
+into `modules/careplan/internal/adapters/postgres` (`withdrawal_completions.go`)
+and reach consumers through the public `WithdrawalQuery`/`WithdrawalCommand`
+capability. `database/repositories.careWithdrawalCompletionRepository` serves
+the retained `models/users` contract over it without persistence of its own,
+and supplies the children's names and classes, which the queue queries used to
+join from `users.students` and `users.persons`, as a People Directory
+recordset. The care-exit cleanup's booking-expiry query no longer reads the
+table either: it filters its grouped rows against the owner's completion keys,
+which the former `NOT EXISTS` clause tested on the same grouping key. Both
+#2727 baseline entries for the table are gone.
 
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
@@ -1482,7 +1514,11 @@ A reviewed epoch may also let a target owner adopt an existing table
 `data_objects` entry is accepted when the table has no owner in the base
 policy, the base `legacy.jsonl` records at least one production
 `tables.unclassified` finding for it, and every package those findings name is
-classified under the adopting owner in the candidate or no longer exists. The
+classified under the adopting owner in the candidate, no longer exists, or no
+longer reads or writes the table in the candidate's current findings. The last
+case covers a shared legacy package whose access to the table moved to the
+adopting owner while the package itself stays for other tables
+([#3221](https://github.com/moto-nrw/project-phoenix/issues/3221)). The
 candidate must remove those findings from the baseline as usual. Transferring
 an owned table, adopting a table with no recorded debt, and adopting while a
 package of another owner still accesses it remain loosenings; after the

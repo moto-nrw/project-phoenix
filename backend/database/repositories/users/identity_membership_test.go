@@ -145,7 +145,7 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	require.ErrorContains(t, err, "school access queries are required")
 
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
-	reads := usersRepo.NewStaffMessageReadRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{ActiveAccounts: activeAccounts})
+	reads := usersRepo.NewMessageableStaffRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{ActiveAccounts: activeAccounts})
 	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
 	require.ErrorContains(t, err, "membership queries are required")
 	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
@@ -165,7 +165,7 @@ func TestIdentityMembership_RoleClassFailureIsNotSwallowed(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "role-class-failure")
 	ownerFailure := errors.New("identity access unavailable")
 
-	reads := usersRepo.NewStaffMessageReadRepository(db, nil, usersRepo.StaffMessageIdentity{
+	reads := usersRepo.NewMessageableStaffRepository(db, nil, usersRepo.StaffMessageIdentity{
 		RoleClasses: func(context.Context, int64, []int64) ([]usersRepo.SchoolRoleClass, error) {
 			return nil, ownerFailure
 		},
