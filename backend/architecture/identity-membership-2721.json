@@ -1,0 +1,74 @@
+{
+  "schema_version": 2,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#2645",
+    "#2659",
+    "#2660",
+    "#2667",
+    "#2669",
+    "#2720"
+  ],
+  "owner_and_capability": "Identity & Access — school mappings, role assignments and roles; owner membership, guardian-role and role-class queries for People Directory, Organisation & Tenancy and parent portal reads",
+  "affected_packages": [
+    "database/repositories",
+    "database/repositories/auth",
+    "database/repositories/parent",
+    "database/repositories/platform",
+    "database/repositories/users",
+    "modules/communication"
+  ],
+  "affected_tables": [
+    "auth.account_permissions",
+    "auth.account_roles",
+    "auth.account_tenants",
+    "auth.permissions",
+    "auth.role_permissions",
+    "auth.roles"
+  ],
+  "exact_ratchet_keys": [
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/filestore|auth.account_roles",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/filestore|auth.account_tenants",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/filestore|auth.roles",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.account_permissions",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.account_roles",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.account_tenants",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.permissions",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.role_permissions",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/iot|auth.roles",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/parent|auth.account_tenants",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/platform|auth.account_tenants",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.account_permissions",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.account_roles",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.account_tenants",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.permissions",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.role_permissions",
+    "production|tables.foreign-read|github.com/moto-nrw/project-phoenix/database/repositories/users|auth.roles"
+  ],
+  "atomic_cutover": "The People Directory, Organisation & Tenancy and parent portal repositories stop naming auth.account_tenants, auth.account_roles and auth.roles; they filter through the Identity & Access owner queries (active memberships, guardian role holders, school role classes) bound once at construction, paired with their own tenant column. The inline joins are removed in the same change; an unbound owner query fails closed. No dual provider, fallback read chain or write path change.",
+  "tests": [
+    "Two-tenant owner query test for auth.account_tenants, auth.account_roles and auth.roles (role assignments and role classes scoped by RLS, inactive mappings excluded, administrative visibility); consumer test proving a mapping or guardian role at another school never authorizes the relationship's school, with a mutation check; fail-closed tests for every migrated method in the users, platform and parent packages (each with only the #2721 query missing) and a failure-propagation test for the role classification; existing guardian permission, parent messaging, staff messaging isolation and role-kind, parent portal, operator dashboard and school listing suites; architecture, composition and query-budget ratchets. auth.account_permissions, auth.permissions and auth.role_permissions are not read by the migrated code."
+  ],
+  "runtime_evidence": {
+    "source": "docs/runtime-checkpoints/identity-membership-2721.md, identity-membership-2721.raw.json and identity-membership-2721.baseline.raw.json",
+    "workload": "2026-09-17 local isolated PostgreSQL 17.11 clone, Go 1.27.0 darwin/arm64; five warmups plus 30 sequential calls of each of the 13 migrated read operations, each in its own school or administrative transaction, run back to back on the merge base and the candidate with the same harness.",
+    "thresholds": "No task-specific latency SLO or query budget is defined. Existing architecture, composition, query-budget and behavior gates apply; measured values are observations, not fitted thresholds or a production performance claim.",
+    "query_count": "Unchanged for every operation (4 to 9 statements including transaction scope), identical across all samples on both sides; every migrated read stays one statement.",
+    "errors": "0/30 errors per operation on both sides; 455 commits, zero rollbacks and zero retries including warmups.",
+    "lock_wait": "No lock acquisition event on either side; the operations take no locks and the workload is sequential, so this is not contention evidence.",
+    "failure": "Unbound owner queries fail closed with an error for every migrated method, and a failing role classification surfaces as an error instead of degrading accounts to plain staff.",
+    "rollback": "Not applicable to writes: the migrated operations only read. A failing owner read returns its error and the caller's transaction rolls back unchanged.",
+    "smoke": "Guardian permission, parent messaging, staff messaging, parent portal, operator dashboard, auth, operator and enrollment suites pass; golangci-lint reports no issue.",
+    "latency_p50": "Candidate 0.899 to 1.924 ms, baseline 1.049 to 2.251 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document.",
+    "latency_p95": "Candidate 1.269 to 2.338 ms, baseline 1.560 to 3.573 ms per operation (nearest rank over 30 samples); per-operation values are in the evidence document.",
+    "affected_rows": "Zero written rows for every sample; returned rows are identical on both sides (1 or 2 per operation).",
+    "pool_wait": "Zero pool waits in every measured sample on both sides; 490 zero-wait acquisition events including warmups.",
+    "deadlocks": "The database deadlock counter did not move on either side and no transaction retried.",
+    "job_duration": "Not applicable: this capability has no Worker path.",
+    "job_retries": "Not applicable: this capability has no Worker path.",
+    "job_backlog": "Not applicable: this capability has no Worker path."
+  },
+  "rollback_and_cleanup": "Revert the owner query bindings and consumer statements against unchanged table shapes; no schema change and no irreversible cleanup. The owner queries move with database/repositories/auth into modules/identityaccess under #3226.",
+  "exit_criterion": "Every listed key is absent: five were still in the baseline at the base commit and are removed here, twelve were resolved by earlier waves. scripts/backend-architecture.sh check introduces no key and leaves policy ownership unchanged."
+}
