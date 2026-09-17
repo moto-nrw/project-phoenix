@@ -21,6 +21,10 @@ import {
   staffScheduleService,
 } from "~/lib/staff-api";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
+import { AbsenceBookingModal } from "~/components/staff/absence-booking-modal";
+import type { SickReportStaff } from "~/components/staff/sick-report-modal";
+import { isStaleAfterSessionSave } from "~/components/staff/staff-session-table";
+import { absenceTypeService } from "~/lib/absence-type-api";
 import { useSWRConfig } from "swr";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
@@ -83,10 +87,22 @@ export function resolveInitialTimeTrackingDate(initialDate?: string): Date {
 export function ZeiterfassungTab({
   staffId,
   initialDate,
+  staff,
+  canBookAbsences = false,
 }: {
   readonly staffId: string;
   readonly initialDate?: string;
+  // Für „Abwesenheit nachtragen" an Tagen ohne Eintrag (#3258); braucht
+  // time_tracking:manage, wie das Eintragen im Reiter Abwesenheiten.
+  readonly staff?: SickReportStaff;
+  readonly canBookAbsences?: boolean;
 }) {
+  const [backfillDate, setBackfillDate] = useState<string | null>(null);
+  const canBackfill = canBookAbsences && staff !== undefined;
+  const { data: absenceTypes } = useSWRAuth(
+    canBackfill ? "staff-absence-types" : null,
+    () => absenceTypeService.getAbsenceTypes(),
+  );
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // tab stays mounted for hours, and `new Date()` frozen at mount would keep
   // pointing "Dieser Monat" and the open-month poll at yesterday's month after
@@ -430,10 +446,31 @@ export function ZeiterfassungTab({
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}
+              onBackfillAbsence={
+                canBackfill
+                  ? (day) => setBackfillDate(toDateKey(day))
+                  : undefined
+              }
             />
           </div>
         )}
       </SectionCard>
+      {backfillDate && staff ? (
+        <AbsenceBookingModal
+          staff={staff}
+          types={absenceTypes ?? []}
+          initialDate={backfillDate}
+          onClose={() => setBackfillDate(null)}
+          onSaved={async () => {
+            setBackfillDate(null);
+            await globalMutate(
+              (key) =>
+                isStaleAfterSessionSave(key, staffId) ||
+                isStaleAfterMonthReopen(key, staffId),
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }

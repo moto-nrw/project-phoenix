@@ -47,20 +47,20 @@ import { staffAbsenceService } from "~/lib/staff-api";
 const logger = createLogger({ component: "AbsenceBookingModal" });
 
 /** Everything one calendar year holds for the booking decision. */
-interface YearAccount {
+export interface YearAccount {
   readonly vacationRemaining: number;
   readonly allowances: ReadonlyMap<string, AbsenceTypeAllowanceSummary>;
 }
 
-type OptionKind = "quota" | "comp_time" | "plain";
+export type OptionKind = "quota" | "comp_time" | "plain";
 
-interface BookingOption {
+export interface BookingOption {
   readonly value: string;
   readonly label: string;
   readonly kind: OptionKind;
 }
 
-function bookingOptions(types: readonly AbsenceType[]): BookingOption[] {
+export function bookingOptions(types: readonly AbsenceType[]): BookingOption[] {
   const active = types.filter((type) => type.isActive);
   return [
     { value: "vacation", label: "Urlaub", kind: "quota" },
@@ -249,7 +249,7 @@ function yearsBetween(dateStart: string, dateEnd: string): number[] {
   return Array.from({ length: last - first + 1 }, (_, index) => first + index);
 }
 
-function useYearAccounts(
+export function useYearAccounts(
   staffId: string,
   types: readonly AbsenceType[],
   years: readonly number[],
@@ -295,7 +295,7 @@ function useYearAccounts(
   return { accounts, loading: missing.length > 0 && !failed, failed };
 }
 
-interface Projection {
+export interface Projection {
   readonly year: number;
   readonly remaining: number;
   readonly needed: number;
@@ -339,23 +339,27 @@ function OptionHint({
   );
 }
 
-function TypeChoice({
+export function TypeChoice({
   options,
   value,
   account,
   firstDay,
   onChange,
+  legend = "Von welchem Kontingent?",
+  name = "absence-booking-type",
 }: {
   options: readonly BookingOption[];
   value: string;
   account: YearAccount | undefined;
   firstDay: string;
   onChange: (value: string) => void;
+  legend?: string;
+  name?: string;
 }) {
   return (
     <fieldset>
       <legend className="mb-2 text-sm font-medium text-gray-700">
-        Von welchem Kontingent?
+        {legend}
       </legend>
       <div className="grid grid-cols-1 gap-2">
         {options.map((option) => (
@@ -366,7 +370,7 @@ function TypeChoice({
           >
             <span className="flex min-w-0 items-center gap-3">
               <Radio
-                name="absence-booking-type"
+                name={name}
                 value={option.value}
                 checked={value === option.value}
                 onChange={() => onChange(option.value)}
@@ -381,12 +385,14 @@ function TypeChoice({
   );
 }
 
-function QuotaSummary({
+export function QuotaSummary({
   label,
   projections,
+  neededLabel = "Diese Eintragung",
 }: {
   label: string;
   projections: readonly Projection[];
+  neededLabel?: string;
 }) {
   const multiYear = projections.length > 1;
   return (
@@ -403,7 +409,7 @@ function QuotaSummary({
               {formatDayCount(item.remaining)}
             </span>
           </DataField>
-          <DataField inline label="Diese Eintragung">
+          <DataField inline label={neededLabel}>
             <span className="tabular-nums">{formatDayCount(item.needed)}</span>
           </DataField>
           <DataField inline label="Danach übrig">
@@ -441,17 +447,20 @@ export function AbsenceBookingModal({
   types,
   onClose,
   onSaved,
+  initialDate,
 }: {
   readonly staff: SickReportStaff;
   readonly types: readonly AbsenceType[];
   readonly onClose: () => void;
   readonly onSaved: () => Promise<void>;
+  /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
+  readonly initialDate?: string;
 }) {
   const toast = useToast();
   const options = useMemo(() => bookingOptions(types), [types]);
   const [value, setValue] = useState("");
-  const [dateStart, setDateStart] = useState(todayISO());
-  const [dateEnd, setDateEnd] = useState(todayISO());
+  const [dateStart, setDateStart] = useState(initialDate ?? todayISO());
+  const [dateEnd, setDateEnd] = useState(initialDate ?? todayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [overdraftConfirmed, setOverdraftConfirmed] = useState(false);

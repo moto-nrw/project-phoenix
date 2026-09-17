@@ -30,6 +30,7 @@ vi.mock("./session-cache", () => {
 // Import after mocks are set up
 import { getCachedSession } from "./session-cache";
 import {
+  AbsenceRebookingBlockedError,
   staffAbsenceService,
   staffBalanceAdjustmentService,
   staffHistoryService,
@@ -2263,6 +2264,104 @@ describe("staff-api", () => {
         ).rejects.toThrow(message);
       },
     );
+
+    it("rebooks absences and maps the effects (#3258)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              absences: null,
+              days: 2,
+              balance_delta_minutes: 960,
+              allowances: [{ year: 2026, remaining_days: 8, booking_days: 2 }],
+              allowance_exceeded: false,
+              vacation_exceeded: false,
+              applied: false,
+            },
+          }),
+      } as Response);
+
+      const result = await staffAbsenceService.rebookAbsences("4", {
+        absenceIds: [71, 72],
+        absenceType: "other",
+        absenceTypeId: "12",
+        reason: "",
+        dryRun: true,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/4/absences/rebook",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({
+            absence_ids: ["71", "72"],
+            absence_type: "other",
+            absence_type_id: "12",
+            reason: "",
+            dry_run: true,
+          }),
+        }),
+      );
+      expect(result).toEqual({
+        absences: [],
+        days: 2,
+        balanceDeltaMinutes: 960,
+        allowances: [{ year: 2026, remainingDays: 8, bookingDays: 2 }],
+        allowanceExceeded: false,
+        vacation: [],
+        vacationExceeded: false,
+        applied: false,
+      });
+    });
+
+    it("keeps a blocked rebooking apart from other failures (#3258)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "absence_rebooking_blocked",
+              error: "Der August 2026 ist abgeschlossen.",
+            }),
+          ),
+      } as Response);
+      const args = {
+        absenceIds: [71],
+        absenceType: "other",
+        absenceTypeId: "12",
+        reason: "x",
+        dryRun: false,
+      };
+
+      const blocked = staffAbsenceService.rebookAbsences("4", args);
+      await expect(blocked).rejects.toBeInstanceOf(
+        AbsenceRebookingBlockedError,
+      );
+      await expect(blocked).rejects.toThrow(
+        "Der August 2026 ist abgeschlossen.",
+      );
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              code: "absence_allowance_exceeded",
+              error: "staff absence type allowance exceeded",
+            }),
+          ),
+      } as Response);
+      const exceeded = staffAbsenceService.rebookAbsences("4", args);
+      await expect(exceeded).rejects.not.toBeInstanceOf(
+        AbsenceRebookingBlockedError,
+      );
+      await expect(exceeded).rejects.toThrow(
+        "Für diese Art sind nicht mehr genug Tage übrig.",
+      );
+    });
 
     it("loads the comp_time Saldo-Vorschau (#2873)", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
