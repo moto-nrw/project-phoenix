@@ -35,20 +35,18 @@ func TestOperatorAuditLogRepositoryAdapter(t *testing.T) {
 	assert.NotZero(t, entry.ID)
 	assert.NotZero(t, entry.CreatedAt)
 
-	entries, err := repo.FindByOperatorID(ctx, operator.ID, 10)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-	assert.Equal(t, entry.ID, entries[0].ID)
-	changes, err := entries[0].GetChanges()
-	require.NoError(t, err)
-	assert.Equal(t, "New Announcement", changes["title"])
-	assert.Equal(t, "192.168.1.1", entries[0].RequestIP.String())
-
 	ranged, err := repo.FindByDateRange(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour), 0)
 	require.NoError(t, err)
-	var seen bool
+	var stored *platformModels.OperatorAuditLog
 	for _, candidate := range ranged {
-		seen = seen || candidate.ID == entry.ID
+		if candidate.ID == entry.ID {
+			stored = candidate
+		}
 	}
-	assert.True(t, seen)
+	require.NotNil(t, stored)
+	assert.Equal(t, operator.ID, stored.OperatorID)
+	changes, err := stored.GetChanges()
+	require.NoError(t, err)
+	assert.Equal(t, "New Announcement", changes["title"])
+	assert.Equal(t, "192.168.1.1", stored.RequestIP.String())
 }

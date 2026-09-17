@@ -55,6 +55,7 @@ func TestOperatorMFAService_RecordAudit_PanicInGoroutineRecovers(t *testing.T) {
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
 		Operators: newTestOperatorDirectory(db),
+		Records:   newTestOperatorMFARecords(db),
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,
