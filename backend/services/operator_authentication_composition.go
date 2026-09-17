@@ -30,14 +30,12 @@ import (
 // retained platform services' consumer-owned ports over the public module.
 
 // operatorAuthenticationWiring is the retained material the operator seams
-// are bound to. mfa is read at call time because the operator MFA service
-// is constructed after the module.
+// are bound to.
 type operatorAuthenticationWiring struct {
 	repos         operatorRepositories
 	organizations organizationtenancy.Query
 	persons       peopledirectory.Query
 	membership    schoolmembership.Query
-	mfa           func() platform.OperatorMFAService
 	logger        *slog.Logger
 }
 
@@ -67,12 +65,7 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 		wiring.organizations == nil || wiring.persons == nil || wiring.membership == nil {
 		return nil, errors.New("operator authentication composition: repositories and owner capabilities are required")
 	}
-	mfa := wiring.mfa
-	if mfa == nil {
-		mfa = func() platform.OperatorMFAService { return nil }
-	}
 	return &identityaccessCompose.OperatorDependencies{
-		MFA:           operatorMFAGate{current: mfa},
 		Audit:         operatorAuditLedger{ledger: wiring.repos.auditLog},
 		Passwords:     passwordHasher{},
 		Organizations: tenancyDirectory{query: wiring.organizations},
@@ -85,42 +78,6 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 }
 
 // --- retained owner seams -------------------------------------------------
-
-type operatorMFAGate struct {
-	current func() platform.OperatorMFAService
-}
-
-func (g operatorMFAGate) Configured() bool { return g.current() != nil }
-
-func (g operatorMFAGate) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.HasEnrollment(ctx, operatorID)
-}
-
-func (g operatorMFAGate) VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.VerifyTrustedDevice(ctx, operatorID, cookie)
-}
-
-func (g operatorMFAGate) StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error) {
-	svc := g.current()
-	if svc == nil {
-		return "", errors.New("operator mfa service is not configured")
-	}
-	return svc.StartChallenge(ctx, operatorID, auth.ParseClientIP(ipAddress))
-}
-
-// TrustedDeviceDays derives from the hardcoded operator trusted-device
-// duration; operators do not expose this as a configurable setting.
-func (operatorMFAGate) TrustedDeviceDays() int {
-	return int(platform.OperatorMFATrustedDeviceDuration.Hours() / 24)
-}
 
 type operatorAuditLedger struct {
 	ledger platformModels.OperatorAuditLogRepository

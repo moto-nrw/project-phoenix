@@ -212,6 +212,8 @@ type AuthEvent struct {
 	RevokedSessions *RevokedSessionsEvidence
 	PendingWipe     *PendingWipeEvidence
 	CompletedWipe   *CompletedWipeEvidence
+	// MFA is set on the mfa_* events (#3331).
+	MFA *MFAEvidence
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

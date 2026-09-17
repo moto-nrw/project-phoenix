@@ -54,20 +54,6 @@ type TokenCodec interface {
 	AccessExpiry() time.Duration
 }
 
-// MFAGate is the retained MFA service as login consults it. Configured
-// false means "not required / not enrolled".
-type MFAGate interface {
-	Configured() bool
-	IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error)
-	ResolvePolicy(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
-	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
-	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error)
-	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
-	TrustedDeviceDays(ctx context.Context, tenantID int64) int
-}
-
 // MFAPolicyLock pins a school's MFA mode for the caller's transaction.
 type MFAPolicyLock interface {
 	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
@@ -99,7 +85,6 @@ type SessionDependencies struct {
 	Persons       PersonDirectory
 	Passwords     PasswordVerifier
 	Codec         TokenCodec
-	MFA           MFAGate
 	MFALock       MFAPolicyLock
 	Audit         AuthAudit
 	Push          PushSubscriptionCleanup
@@ -107,12 +92,12 @@ type SessionDependencies struct {
 	Logger        *slog.Logger
 }
 
-func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, deps *SessionDependencies) (*application.AccountAuthentication, error) {
+func newAccountAuthentication(service *application.Service, store ports.AccountLoginStore, deps *SessionDependencies, mfa ports.MFAGate) (*application.AccountAuthentication, error) {
 	if deps == nil {
 		return nil, nil
 	}
 	switch {
-	case deps.Schools == nil, deps.Persons == nil, deps.Passwords == nil, deps.Codec == nil, deps.MFA == nil,
+	case deps.Schools == nil, deps.Persons == nil, deps.Passwords == nil, deps.Codec == nil,
 		deps.MFALock == nil, deps.Audit == nil, deps.Push == nil:
 		return nil, errors.New("identity access compose: every session dependency is required")
 	}
@@ -126,7 +111,7 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 		Persons:   deps.Persons,
 		Passwords: deps.Passwords,
 		Codec:     tokenCodec{deps.Codec},
-		MFA:       mfaGate{deps.MFA},
+		MFA:       mfa,
 		MFALock:   deps.MFALock,
 		Audit:     authAudit{deps.Audit},
 		Push:      deps.Push,
@@ -187,44 +172,6 @@ func (c tokenCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error
 
 func (c tokenCodec) RefreshExpiry() time.Duration { return c.source.RefreshExpiry() }
 
-type mfaGate struct{ source MFAGate }
-
-func (g mfaGate) Configured() bool { return g.source.Configured() }
-
-func (g mfaGate) IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error) {
-	return g.source.IsRequired(ctx, accountID, email, roleNames, tenantID)
-}
-
-func (g mfaGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {
-	policy, err := g.source.ResolvePolicy(ctx, accountID, tenantID)
-	return policy, err
-}
-
-func (g mfaGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {
-	policy, err := g.source.ResolvePolicyInTx(ctx, accountID, tenantID)
-	return policy, err
-}
-
-func (g mfaGate) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
-	return g.source.HasEnrollment(ctx, accountID)
-}
-
-func (g mfaGate) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error) {
-	return g.source.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
-}
-
-func (g mfaGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {
-	return g.source.StartChallenge(ctx, accountID, tenantID, scope, ipAddress)
-}
-
-func (g mfaGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
-	return g.source.IsTrustedDeviceEnabled(ctx, tenantID)
-}
-
-func (g mfaGate) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	return g.source.TrustedDeviceDays(ctx, tenantID)
-}
-
 type authAudit struct{ source AuthAudit }
 
 func (a authAudit) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
@@ -243,6 +190,16 @@ func (a authAudit) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) 
 	if event.PendingWipe != nil {
 		evidence := identityaccess.PendingWipeEvidence(*event.PendingWipe)
 		public.PendingWipe = &evidence
+	}
+	if event.MFA != nil {
+		evidence := identityaccess.MFAEvidence{
+			ChallengeID: event.MFA.ChallengeID, DeviceID: event.MFA.DeviceID, LockedUntil: event.MFA.LockedUntil,
+		}
+		if event.MFA.Admin != nil {
+			admin := identityaccess.MFAAdminEvidence(*event.MFA.Admin)
+			evidence.Admin = &admin
+		}
+		public.MFA = &evidence
 	}
 	if event.CompletedWipe != nil {
 		evidence := identityaccess.CompletedWipeEvidence(*event.CompletedWipe)
@@ -621,6 +578,18 @@ var authenticationSentinels = []struct {
 	{domain.ErrTenantRequired, identityaccess.ErrTenantRequired},
 	{domain.ErrAccountSessionNotFound, identityaccess.ErrAccountSessionNotFound},
 	{domain.ErrAccountSessionRotated, identityaccess.ErrAccountSessionRotated},
+	{domain.ErrMFAChallengeTokenInvalid, identityaccess.ErrMFAChallengeTokenInvalid},
+	{domain.ErrMFACodeInvalid, identityaccess.ErrMFACodeInvalid},
+	{domain.ErrMFALocked, identityaccess.ErrMFALocked},
+	{domain.ErrMFARateLimited, identityaccess.ErrMFARateLimited},
+	{domain.ErrMFANotEnrolled, identityaccess.ErrMFANotEnrolled},
+	{domain.ErrMFAAlreadyEnrolled, identityaccess.ErrMFAAlreadyEnrolled},
+	{domain.ErrMFAPermissionDenied, identityaccess.ErrMFAPermissionDenied},
+	{domain.ErrMFAInvalidOverride, identityaccess.ErrMFAInvalidOverride},
+	{domain.ErrMFAUnsupportedScope, identityaccess.ErrMFAUnsupportedScope},
+	{domain.ErrPasskeyOriginInvalid, identityaccess.ErrPasskeyOriginInvalid},
+	{domain.ErrPasskeySessionInvalid, identityaccess.ErrPasskeySessionInvalid},
+	{domain.ErrPasskeyNotFound, identityaccess.ErrPasskeyNotFound},
 }
 
 // authenticationError translates a flow error to the public contract: the
@@ -643,7 +612,7 @@ func authenticationError(err error) error {
 		}
 		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
 	}
-	return err
+	return mapError(err)
 }
 
 // translatedError keeps a wrapped cause's text while exposing the public

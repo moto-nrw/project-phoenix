@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -88,7 +87,7 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	verified, err := rs.MFAService.VerifyChallenge(r.Context(), req.ChallengeToken, req.Code)
+	verified, err := rs.MFAService.VerifyMFAChallenge(r.Context(), req.ChallengeToken, req.Code)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -123,7 +122,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendChallengeForScope(r.Context(), req.ChallengeToken, parseClientIP(r), jwt.MFAChallengeScopeTenant)
+	renewed, err := rs.MFAService.ResendMFAChallengeForScope(r.Context(), req.ChallengeToken, parseClientIP(r), authService.MFAChallengeScopeTenant)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -154,7 +153,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	_, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, jwt.MFAChallengeScopeTenant, parseClientIP(r))
+	_, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, authService.MFAChallengeScopeTenant, parseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -204,11 +203,11 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// id to verify against, so without the scope the account's newest active
 	// code answers — and since #2207 that can be a school-portal login
 	// challenge, which would mint a tenant session off a school code.
-	if err := rs.MFAService.VerifyCodeForAccount(ctx, accountID, claims.TenantID, req.Code, jwt.MFAChallengeScopeTenant); err != nil {
+	if err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, authService.MFAChallengeScopeTenant); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
-	if err := rs.MFAService.Enroll(ctx, accountID); err != nil {
+	if err := rs.MFAService.EnrollMFA(ctx, accountID); err != nil {
 		// Already enrolled is fine — a retried request must still produce a
 		// valid session. The pre-enrollment check at login means we should
 		// rarely hit this branch in practice.
@@ -251,7 +250,7 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 		mapMFAError(w, r, err)
 		return
 	}
-	render.JSON(w, r, common.MapTrustedDevices(devices, func(d *authModels.MFATrustedDevice) common.TrustedDeviceRow {
+	render.JSON(w, r, common.MapTrustedDevices(devices, func(d authService.AccountTrustedDevice) common.TrustedDeviceRow {
 		return common.TrustedDeviceRow{
 			ID:         d.ID,
 			UserAgent:  d.UserAgent,

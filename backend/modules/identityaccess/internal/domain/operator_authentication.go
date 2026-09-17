@@ -49,6 +49,17 @@ const (
 	OperatorAuditActionDelete       = "delete"
 	OperatorAuditResourceOperator   = "operator"
 	OperatorAuditResourceMapping    = "account_tenant"
+
+	OperatorAuditActionMFAEmailSent          = "mfa_email_sent"
+	OperatorAuditActionMFAVerified           = "mfa_verified"
+	OperatorAuditActionMFAFailed             = "mfa_failed"
+	OperatorAuditActionMFALocked             = "mfa_locked"
+	OperatorAuditActionMFAEnrolled           = "mfa_enrolled"
+	OperatorAuditActionMFADisabled           = "mfa_disabled"
+	OperatorAuditActionMFATrustedDeviceAdded = "mfa_trusted_device_added"
+	OperatorAuditActionMFAAdminOverride      = "mfa_admin_override"
+	OperatorAuditResourceOperatorMFA         = "operator_mfa"
+	OperatorAuditResourceAccount             = "account"
 )
 
 // OperatorAuditEntry is one platform-scoped ledger entry: who did what to
@@ -65,6 +76,9 @@ type OperatorAuditEntry struct {
 	// AccessChange is set on the create, update and delete entries of an
 	// account's school access.
 	AccessChange *OperatorAccessChange
+	// MFA is set on the operator's own mfa_* entries and on the operator's
+	// account-wide MFA override (#3331).
+	MFA *OperatorMFAEvidence
 }
 
 // OperatorAccessChange summarizes one operator change of an account's

@@ -5,9 +5,10 @@ import (
 	"net/http"
 	"testing"
 
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -140,7 +141,7 @@ func TestAuthErrorRenderer_GenericError(t *testing.T) {
 func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
 	t.Parallel()
 
-	renderer := operator.AuthErrorRenderer(authService.ErrMFAStatusUnavailable)
+	renderer := operator.AuthErrorRenderer(authSvc.ErrMFAStatusUnavailable)
 
 	status, _, errorText := extractErrResponse(t, renderer)
 	assert.Equal(t, http.StatusServiceUnavailable, status)

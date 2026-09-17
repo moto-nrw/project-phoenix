@@ -49,10 +49,10 @@ type Resource struct {
 	// flags retain defensive fallbacks, but resolveTenant requires this service
 	// for the grade-level validation contract and returns 500 when it is absent.
 	SettingsService configSvc.SettingsService
-	// MFAService is optional during the rollout window — handlers gate on
-	// nil and return 503 so deployments without the service wired in don't
-	// crash. Once Phase 7 lands the login-flow integration this will become
-	// effectively mandatory.
+	// MFAService and PasskeyService are the Identity & Access second factor
+	// and the school-portal WebAuthn ceremonies (#3331). Both stay optional:
+	// handlers gate on nil and answer 503, so a deployment composed without
+	// them does not crash.
 	MFAService      authService.MFAService
 	PasskeyService  authService.PasskeyService
 	db              *bun.DB

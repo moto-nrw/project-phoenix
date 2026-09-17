@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -90,14 +90,14 @@ func AuthErrorRenderer(err error) render.Renderer {
 		return ErrForbidden("Operator account is inactive")
 	case errors.As(err, &operatorNotFound):
 		return ErrInvalidCredentials()
-	case errors.Is(err, authService.ErrMFARateLimited):
+	case errors.Is(err, authSvc.ErrMFARateLimited):
 		return ErrTooManyRequests("Too many code requests, please wait")
-	case errors.Is(err, authService.ErrMFALocked):
+	case errors.Is(err, authSvc.ErrMFALocked):
 		return ErrTooManyRequests("MFA account temporarily locked")
-	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid),
-		errors.Is(err, authService.ErrMFACodeInvalid):
+	case errors.Is(err, authSvc.ErrMFAChallengeTokenInvalid),
+		errors.Is(err, authSvc.ErrMFACodeInvalid):
 		return ErrInvalidCredentials()
-	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+	case errors.Is(err, authSvc.ErrMFAStatusUnavailable):
 		return ErrServiceUnavailable("MFA status temporarily unavailable, please retry")
 	default:
 		return ErrInternal("Authentication failed")

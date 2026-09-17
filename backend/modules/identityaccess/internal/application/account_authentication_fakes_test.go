@@ -379,11 +379,35 @@ func (s *fakeStore) InsertOperator(context.Context, domain.Operator) (domain.Ope
 func (s *fakeStore) DeleteOperator(context.Context, int64) (domain.OperationStats, error) {
 	panic("not used")
 }
-func (s *fakeStore) IncrementOperatorMFAAttempts(context.Context, int64, int, time.Time) (domain.OperatorMFAAttempts, bool, domain.OperationStats, error) {
-	panic("not used")
+
+// IncrementOperatorMFAAttempts models the single UPDATE: the counter grows
+// and, exactly when this increment reaches the threshold, the cooldown
+// stamp is written.
+func (s *fakeStore) IncrementOperatorMFAAttempts(_ context.Context, id int64, threshold int, lockedUntil time.Time) (domain.OperatorMFAAttempts, bool, domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	operator, ok := s.operators[id]
+	if !ok {
+		return domain.OperatorMFAAttempts{}, false, domain.OperationStats{}, nil
+	}
+	operator.MFAAttempts++
+	if operator.MFAAttempts >= threshold {
+		stamp := lockedUntil
+		operator.MFALockedUntil = &stamp
+	}
+	s.operators[id] = operator
+	return domain.OperatorMFAAttempts{Attempts: operator.MFAAttempts, LockedUntil: operator.MFALockedUntil}, true, domain.OperationStats{}, nil
 }
-func (s *fakeStore) ResetOperatorMFAAttempts(context.Context, int64) (domain.OperationStats, error) {
-	panic("not used")
+
+func (s *fakeStore) ResetOperatorMFAAttempts(_ context.Context, id int64) (domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if operator, ok := s.operators[id]; ok {
+		operator.MFAAttempts = 0
+		operator.MFALockedUntil = nil
+		s.operators[id] = operator
+	}
+	return domain.OperationStats{}, nil
 }
 func (s *fakeStore) DeleteOperatorSession(context.Context, int64) (domain.OperationStats, error) {
 	panic("not used")

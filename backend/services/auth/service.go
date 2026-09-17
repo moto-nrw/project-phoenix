@@ -101,12 +101,6 @@ type Service struct {
 	sessions      AccountSessions
 	lifecycle     AccountLifecycle
 	resets        PasswordResets
-	// mfaService is optional. The Identity & Access login flows read it
-	// through CurrentMFAService at call time, so SetMFAService keeps its
-	// meaning: nil disables the gate and login behaves as a plain
-	// password login. Wired post-construction to break the
-	// AuthService <-> MFAService construction-order dependency.
-	mfaService MFAService
 }
 
 func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
@@ -171,18 +165,6 @@ func NewService(
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
 func (s *Service) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
-}
-
-// SetMFAService wires the optional MFA service post-construction. Idempotent
-// — calling with nil clears the gate.
-func (s *Service) SetMFAService(svc MFAService) {
-	s.mfaService = svc
-}
-
-// CurrentMFAService returns the MFA gate the login flows consult; nil means
-// the gate is disabled.
-func (s *Service) CurrentMFAService() MFAService {
-	return s.mfaService
 }
 
 // AccountSessions returns the Identity & Access port the service delegates
@@ -250,19 +232,11 @@ func (e *AuthError) Unwrap() error {
 	return e.Err
 }
 
-// MFAGateConfiguration wires the optional MFA gate into the login flows.
-type MFAGateConfiguration interface {
-	// SetMFAService wires the optional MFA gate. Pass nil to disable the
-	// gate (login then behaves exactly as LoginWithAudit).
-	SetMFAService(svc MFAService)
-}
-
 // AuthService defines the operations for authentication and user
 // management. Each subject declares its operations next to its
 // implementation.
 type AuthService interface {
 	SessionOperations
-	MFAGateConfiguration
 	RegistrationOperations
 	CredentialOperations
 	AccountAdministrationOperations

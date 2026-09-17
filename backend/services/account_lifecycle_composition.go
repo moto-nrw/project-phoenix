@@ -257,15 +257,18 @@ func (pinHasher) VerifyPIN(pin, hash string) bool {
 }
 
 // lockoutPolicy resolves the security.account_lockout_* settings for the
-// tenant in context; the MFA lockout constants are the shared fallback.
+// tenant in context. The PIN lockout and the MFA lockout share one
+// threshold and one window, so the identity module's constants are the
+// fallback here too (#586: one source of truth for the 5-attempt /
+// 15-minute policy).
 type lockoutPolicy struct {
 	settings config.SettingsService
 	logger   *slog.Logger
 }
 
 func (p lockoutPolicy) PINLockout(ctx context.Context) (int, time.Duration) {
-	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, auth.MFALockoutThreshold, p.logger)
-	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(auth.MFALockoutDuration/time.Minute), p.logger)
+	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, identityaccess.MFALockoutThreshold, p.logger)
+	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(identityaccess.MFALockoutDuration/time.Minute), p.logger)
 	return threshold, time.Duration(minutes) * time.Minute
 }
 

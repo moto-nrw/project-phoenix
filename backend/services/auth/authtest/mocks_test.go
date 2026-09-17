@@ -5,10 +5,10 @@ import (
 	"net"
 	"testing"
 
-	svcauth "github.com/moto-nrw/project-phoenix/services/auth"
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
-func TestMFAServiceMockVerifyChallengeForScope(t *testing.T) {
+func TestMFAServiceMockVerifyMFAChallengeForScope(t *testing.T) {
 	t.Parallel()
 
 	t.Run("delegates to configured function", func(t *testing.T) {
@@ -19,10 +19,10 @@ func TestMFAServiceMockVerifyChallengeForScope(t *testing.T) {
 			code  = "123456"
 			scope = "school"
 		)
-		expected := &svcauth.VerifiedChallenge{AccountID: 7, Scope: scope, TenantID: 3}
+		expected := auth.VerifiedMFAChallenge{AccountID: 7, Scope: scope, TenantID: 3}
 
 		mock := &MFAServiceMock{
-			VerifyChallengeForScopeFn: func(_ context.Context, actualToken, actualCode, actualScope string) (*svcauth.VerifiedChallenge, error) {
+			VerifyMFAChallengeForScopeFn: func(_ context.Context, actualToken, actualCode, actualScope string) (auth.VerifiedMFAChallenge, error) {
 				if actualToken != token || actualCode != code || actualScope != scope {
 					t.Errorf("got (%q, %q, %q), want (%q, %q, %q)", actualToken, actualCode, actualScope, token, code, scope)
 				}
@@ -30,12 +30,12 @@ func TestMFAServiceMockVerifyChallengeForScope(t *testing.T) {
 			},
 		}
 
-		got, err := mock.VerifyChallengeForScope(context.Background(), token, code, scope)
+		got, err := mock.VerifyMFAChallengeForScope(context.Background(), token, code, scope)
 		if err != nil {
-			t.Fatalf("VerifyChallengeForScope() error = %v", err)
+			t.Fatalf("VerifyMFAChallengeForScope() error = %v", err)
 		}
 		if got != expected {
-			t.Fatalf("VerifyChallengeForScope() = %v, want %v", got, expected)
+			t.Fatalf("VerifyMFAChallengeForScope() = %v, want %v", got, expected)
 		}
 	})
 
@@ -44,14 +44,14 @@ func TestMFAServiceMockVerifyChallengeForScope(t *testing.T) {
 
 		mock := &MFAServiceMock{}
 
-		got, err := mock.VerifyChallengeForScope(context.Background(), "token", "123456", "school")
-		if got != nil || err != nil {
-			t.Fatalf("VerifyChallengeForScope() = (%v, %v), want (nil, nil)", got, err)
+		got, err := mock.VerifyMFAChallengeForScope(context.Background(), "token", "123456", "school")
+		if got != (auth.VerifiedMFAChallenge{}) || err != nil {
+			t.Fatalf("VerifyMFAChallengeForScope() = (%v, %v), want (zero, nil)", got, err)
 		}
 	})
 }
 
-func TestMFAServiceMockResendChallengeForScope(t *testing.T) {
+func TestMFAServiceMockResendMFAChallengeForScope(t *testing.T) {
 	t.Parallel()
 
 	t.Run("delegates to configured function", func(t *testing.T) {
@@ -65,7 +65,7 @@ func TestMFAServiceMockResendChallengeForScope(t *testing.T) {
 		ip := net.ParseIP("203.0.113.7")
 
 		mock := &MFAServiceMock{
-			ResendChallengeForScopeFn: func(_ context.Context, actualToken string, actualIP net.IP, actualScope string) (string, error) {
+			ResendMFAChallengeForScopeFn: func(_ context.Context, actualToken string, actualIP net.IP, actualScope string) (string, error) {
 				if actualToken != token || actualScope != scope || !actualIP.Equal(ip) {
 					t.Errorf("got (%q, %v, %q), want (%q, %v, %q)", actualToken, actualIP, actualScope, token, ip, scope)
 				}
@@ -73,12 +73,12 @@ func TestMFAServiceMockResendChallengeForScope(t *testing.T) {
 			},
 		}
 
-		got, err := mock.ResendChallengeForScope(context.Background(), token, ip, scope)
+		got, err := mock.ResendMFAChallengeForScope(context.Background(), token, ip, scope)
 		if err != nil {
-			t.Fatalf("ResendChallengeForScope() error = %v", err)
+			t.Fatalf("ResendMFAChallengeForScope() error = %v", err)
 		}
 		if got != renewed {
-			t.Fatalf("ResendChallengeForScope() = %q, want %q", got, renewed)
+			t.Fatalf("ResendMFAChallengeForScope() = %q, want %q", got, renewed)
 		}
 	})
 
@@ -87,9 +87,9 @@ func TestMFAServiceMockResendChallengeForScope(t *testing.T) {
 
 		mock := &MFAServiceMock{}
 
-		got, err := mock.ResendChallengeForScope(context.Background(), "token", net.ParseIP("203.0.113.7"), "school")
+		got, err := mock.ResendMFAChallengeForScope(context.Background(), "token", net.ParseIP("203.0.113.7"), "school")
 		if got != "" || err != nil {
-			t.Fatalf("ResendChallengeForScope() = (%q, %v), want (\"\", nil)", got, err)
+			t.Fatalf("ResendMFAChallengeForScope() = (%q, %v), want (\"\", nil)", got, err)
 		}
 	})
 }

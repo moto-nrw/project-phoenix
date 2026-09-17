@@ -12,14 +12,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -38,7 +39,7 @@ func TestMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
 	// Fresh account has zero devices.
 	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
@@ -77,7 +78,7 @@ func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.Enroll(ctx, owner.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, owner.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, owner.ID, tenantID, "UA", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
@@ -170,7 +171,7 @@ func TestMFAService_SetMFAOverride_ForceOff_RevokesTrustedDevices(t *testing.T) 
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-revoke")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	// Issue the trusted-device row in the same tenant the admin acts from.
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, actorTenantID, "UA", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
@@ -198,19 +199,19 @@ func TestMFAService_IsRequired_HonorsOverride(t *testing.T) {
 	// so no in-memory reload is needed between writes.
 
 	// no override + no tenant policy => false
-	required, err := svc.IsRequired(ctx, acc, actorTenantID)
+	required, err := svc.IsRequired(ctx, acc.ID, nil, actorTenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "no override + settings off => not required")
 
 	// force_on on the actor's tenant => true when logging into that tenant
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, auth.MFAAdminOverrideForceOn, "always 2FA", []string{"users:manage"}))
-	required, err = svc.IsRequired(ctx, acc, actorTenantID)
+	required, err = svc.IsRequired(ctx, acc.ID, nil, actorTenantID)
 	require.NoError(t, err)
 	assert.True(t, required, "force_on must force MFA required for the tenant where it was set")
 
 	// force_off on the actor's tenant => false when logging into that tenant
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, actorTenantID, acc.ID, auth.MFAAdminOverrideForceOff, "lost mailbox", []string{"users:manage"}))
-	required, err = svc.IsRequired(ctx, acc, actorTenantID)
+	required, err = svc.IsRequired(ctx, acc.ID, nil, actorTenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "force_off must skip MFA in the tenant where it was set")
 }
@@ -234,13 +235,13 @@ func TestMFAService_IsRequired_TenantOverride_StaysInTenant(t *testing.T) {
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, tenantA, acc.ID, auth.MFAAdminOverrideForceOff, "lost mailbox in school A", []string{"users:manage"}))
 
 	// Login to tenant A honors the override.
-	requiredA, err := svc.IsRequired(ctx, acc, tenantA)
+	requiredA, err := svc.IsRequired(ctx, acc.ID, nil, tenantA)
 	require.NoError(t, err)
 	assert.False(t, requiredA, "force_off in tenant A must apply to logins into tenant A")
 
 	// Login to tenant B must NOT see the tenant-A override — the whole
 	// reason we tenant-scoped the table.
-	requiredB, err := svc.IsRequired(ctx, acc, tenantB)
+	requiredB, err := svc.IsRequired(ctx, acc.ID, nil, tenantB)
 	require.NoError(t, err)
 	assert.False(t, requiredB,
 		"tenant B has no override and no policy → still not required, but the important assertion is below")
@@ -249,12 +250,12 @@ func TestMFAService_IsRequired_TenantOverride_StaysInTenant(t *testing.T) {
 	// override — proves the resolver actually reads the *tenant-B* row,
 	// not the tenant-A one.
 	require.NoError(t, svc.SetMFAOverride(ctx, 0, tenantB, acc.ID, auth.MFAAdminOverrideForceOn, "tenant B keeps 2FA", []string{"users:manage"}))
-	requiredB, err = svc.IsRequired(ctx, acc, tenantB)
+	requiredB, err = svc.IsRequired(ctx, acc.ID, nil, tenantB)
 	require.NoError(t, err)
 	assert.True(t, requiredB, "force_on in tenant B must apply to logins into tenant B even with force_off in tenant A")
 
 	// And tenant A still sees its own override.
-	requiredA, err = svc.IsRequired(ctx, acc, tenantA)
+	requiredA, err = svc.IsRequired(ctx, acc.ID, nil, tenantA)
 	require.NoError(t, err)
 	assert.False(t, requiredA, "tenant A's force_off must survive the tenant-B write — the rows live independently")
 }
@@ -275,11 +276,11 @@ func TestMFAService_IsRequired_GlobalOverride_AppliesEverywhere(t *testing.T) {
 
 	require.NoError(t, svc.OperatorSetGlobalMFAOverride(ctx, op.ID, acc.ID, auth.MFAAdminOverrideForceOff, "mailbox lockout account-wide"))
 
-	requiredA, err := svc.IsRequired(ctx, acc, tenantA)
+	requiredA, err := svc.IsRequired(ctx, acc.ID, nil, tenantA)
 	require.NoError(t, err)
 	assert.False(t, requiredA, "global force_off must bypass MFA in tenant A")
 
-	requiredB, err := svc.IsRequired(ctx, acc, tenantB)
+	requiredB, err := svc.IsRequired(ctx, acc.ID, nil, tenantB)
 	require.NoError(t, err)
 	assert.False(t, requiredB, "global force_off must bypass MFA in tenant B too")
 
@@ -305,7 +306,7 @@ func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-noPartial")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, actorTenantID, "UA", net.ParseIP("203.0.113.55"))
 	require.NoError(t, err)
 
@@ -343,16 +344,16 @@ func TestMFAService_AdminDisable_RejectsCrossTenant(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, target.ID, tenantA)
 
-	require.NoError(t, svc.Enroll(ctx, target.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, target.ID))
 
 	// Actor lives in tenant B and tries to disable target's MFA. Even with
 	// users:manage, the membership check must refuse the call.
 	tenantB := testpkg.UniqueTestTenantID(t)
-	err := svc.AdminDisable(ctx, 7777, tenantB, target.ID, "lost mailbox", []string{"users:manage"})
+	err := svc.AdminDisableMFA(ctx, 7777, tenantB, target.ID, "lost mailbox", []string{"users:manage"})
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 
 	// Enrollment must survive the rejected disable attempt.
-	enrolled, err := svc.HasEnrollment(ctx, target.ID)
+	enrolled, err := svc.HasMFAEnrollment(ctx, target.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled, "rejected cross-tenant disable must not wipe the target's credential")
 }
@@ -368,7 +369,7 @@ func TestMFAService_AdminDisable_RejectsZeroActorTenant(t *testing.T) {
 	// service must refuse to act, just like the operator path refuses
 	// schoolID=0. Without this guard a leaked or malformed token with
 	// no tenant claim could disable MFA on any account.
-	err := svc.AdminDisable(ctx, 7777, 0, target.ID, "no tenant", []string{"users:manage"})
+	err := svc.AdminDisableMFA(ctx, 7777, 0, target.ID, "no tenant", []string{"users:manage"})
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 }
 
@@ -457,13 +458,13 @@ func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-disable-cross")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
-	err := svc.OperatorAdminDisable(ctx, 1, 999, acc.ID, "test")
+	err := svc.OperatorDisableMFA(ctx, 1, 999, acc.ID, "test")
 	assert.ErrorIs(t, err, auth.ErrMFAPermissionDenied)
 
 	// Enrollment must survive the rejected disable attempt.
-	enrolled, err := svc.HasEnrollment(ctx, acc.ID)
+	enrolled, err := svc.HasMFAEnrollment(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled, "enrollment must persist when operator disable is rejected")
 }
@@ -478,17 +479,17 @@ func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-rate-limit")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 	ip := net.ParseIP("203.0.113.30")
 
 	// 3 codes within the 15-minute window are allowed.
 	for i := 0; i < 3; i++ {
-		_, err := svc.StartChallenge(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant, ip)
+		_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, auth.MFAChallengeScopeTenant, ip)
 		require.NoErrorf(t, err, "code %d should still be permitted", i+1)
 	}
 
 	// 4th must trip the rate-limit guard.
-	_, err := svc.StartChallenge(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant, ip)
+	_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, auth.MFAChallengeScopeTenant, ip)
 	assert.ErrorIs(t, err, auth.ErrMFARateLimited)
 }
 
@@ -500,18 +501,18 @@ func TestMFAService_VerifyChallenge_LocksAccountAfter5Failures(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-lockout")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
-	challenge, err := svc.StartChallenge(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, auth.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"))
 	require.NoError(t, err)
 
 	// Five wrong codes — none should lock until the 5th hits the threshold.
-	for i := 0; i < auth.MFALockoutThreshold; i++ {
-		_, err := svc.VerifyChallenge(ctx, challenge, "000000")
+	for i := 0; i < identityaccess.MFALockoutThreshold; i++ {
+		_, err := svc.VerifyMFAChallenge(ctx, challenge, "000000")
 		assert.ErrorIs(t, err, auth.ErrMFACodeInvalid)
 	}
 
 	// 6th attempt must surface the lockout error instead of "code invalid".
-	_, err = svc.VerifyChallenge(ctx, challenge, "000000")
+	_, err = svc.VerifyMFAChallenge(ctx, challenge, "000000")
 	assert.ErrorIs(t, err, auth.ErrMFALocked)
 }
 
@@ -523,20 +524,20 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-expired")
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
-	challenge, err := svc.StartChallenge(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, auth.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"))
 	require.NoError(t, err)
 
 	// Consume the active challenge so the next VerifyChallenge has no row
 	// to match — same observable outcome as an expired challenge (the
 	// service can't distinguish "expired" from "already redeemed" at the
 	// row level; both surface as ErrMFACodeInvalid).
-	row, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, acc.ID, 0, authjwt.MFAChallengeScopeTenant)
+	row, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, acc.ID, 0, auth.MFAChallengeScopeTenant)
 	require.NoError(t, err)
 	require.NotNil(t, row)
 	require.NoError(t, repos.MFAEmailChallenge.MarkConsumed(ctx, row.ID, time.Now()))
 
-	_, err = svc.VerifyChallenge(ctx, challenge, "000000")
+	_, err = svc.VerifyMFAChallenge(ctx, challenge, "000000")
 	assert.Error(t, err, "consumed/expired challenge must not verify")
 }
 

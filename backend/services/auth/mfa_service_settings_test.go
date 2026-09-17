@@ -17,15 +17,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/services"
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -135,16 +134,13 @@ func (m *mfaTestAuditRepo) Create(_ context.Context, _ *configModel.SettingAudit
 
 // --- shared helpers for this file ---
 
-const settingsJWTSecret = "test-secret-must-be-at-least-32-chars-long-for-real"
-
 type wiredMFAFixture struct {
-	svc        auth.MFAService
-	repos      *repositories.Factory
-	tenantID   int64
-	valueRepo  *mfaTestValueRepo
-	mailer     *testpkg.CapturingMailer
-	dispatcher *email.Dispatcher
-	settings   configSvc.SettingsService
+	svc       auth.MFAService
+	repos     *repositories.Factory
+	tenantID  int64
+	valueRepo *mfaTestValueRepo
+	mailer    *testpkg.CapturingMailer
+	settings  configSvc.SettingsService
 }
 
 // newWiredMFAFixture wires a real MFA service against the test DB with a
@@ -157,39 +153,26 @@ func newWiredMFAFixture(t *testing.T) *wiredMFAFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	valueRepo := newMFATestValueRepo()
 	settings := configSvc.NewSettingsService(valueRepo, &mfaTestAuditRepo{}, nil, testpkg.SettingsRuntime(t, db), slog.Default())
-
-	mailer := testpkg.NewCapturingMailer()
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
-	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond}) // no retries, instant
-
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(settingsJWTSecret)
-	require.NoError(t, err)
-
-	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:       repos,
-		TokenAuth:   tokenAuth,
-		Settings:    settings,
-		Dispatcher:  dispatcher,
-		DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
-		FrontendURL: "https://moto.test/",
-		JWTSecret:   settingsJWTSecret,
-		DB:          db,
-	})
-	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, svc, db)
 	testpkg.SetTenantRuntime(t, settings, db)
 
+	mailer := testpkg.NewCapturingMailer()
+	module := newMFATestModule(t, db,
+		services.WithAuthTestMailer(mailer),
+		services.WithAuthTestMFASettings(settings),
+		// No retries: a refused send must fail in milliseconds, not in the
+		// production twenty seconds.
+		services.WithAuthTestMFABackoff(time.Millisecond),
+	)
+
 	return &wiredMFAFixture{
-		svc:        svc,
-		repos:      repos,
-		tenantID:   tenantID,
-		valueRepo:  valueRepo,
-		mailer:     mailer,
-		dispatcher: dispatcher,
-		settings:   settings,
+		svc:       module.MFA,
+		repos:     module.Repos,
+		tenantID:  tenantID,
+		valueRepo: valueRepo,
+		mailer:    mailer,
+		settings:  settings,
 	}
 }
 
@@ -201,9 +184,7 @@ func TestMFAService_IsRequired_ModeOff_ReturnsFalse(t *testing.T) {
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeOff)
 
-	acc := &authModel.Account{}
-	acc.ID = 4242
-	required, err := fix.svc.IsRequired(context.Background(), acc, fix.tenantID)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, fix.tenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "mfa_mode=off must short-circuit to not-required")
 }
@@ -214,9 +195,7 @@ func TestMFAService_IsRequired_ModeRequiredAll_ReturnsTrue(t *testing.T) {
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeRequiredAll)
 
-	acc := &authModel.Account{}
-	acc.ID = 4242
-	required, err := fix.svc.IsRequired(context.Background(), acc, fix.tenantID)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, fix.tenantID)
 	require.NoError(t, err)
 	assert.True(t, required, "mfa_mode=required_all must require for any role")
 }
@@ -227,20 +206,11 @@ func TestMFAService_IsRequired_ModeRequiredAdmins_RequiresAdminsOnly(t *testing.
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, configModel.MFAModeRequiredAdmins)
 
-	adminAcc := &authModel.Account{
-		Roles: []*authModel.Role{{Name: "admin"}},
-	}
-	adminAcc.ID = 4242
-	teacherAcc := &authModel.Account{
-		Roles: []*authModel.Role{{Name: "teacher"}},
-	}
-	teacherAcc.ID = 4243
-
-	required, err := fix.svc.IsRequired(context.Background(), adminAcc, fix.tenantID)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, []string{"admin"}, fix.tenantID)
 	require.NoError(t, err)
 	assert.True(t, required, "admins must require MFA when mode=required_admins")
 
-	required, err = fix.svc.IsRequired(context.Background(), teacherAcc, fix.tenantID)
+	required, err = fix.svc.IsRequired(context.Background(), 4243, []string{"teacher"}, fix.tenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "non-admins must skip MFA when mode=required_admins")
 }
@@ -251,9 +221,7 @@ func TestMFAService_IsRequired_UnknownModeFallsBackToOff(t *testing.T) {
 	fix := newWiredMFAFixture(t)
 	fix.valueRepo.setOverride(t, fix.tenantID, configModel.KeyMFAMode, "garbage_mode_value")
 
-	acc := &authModel.Account{}
-	acc.ID = 4242
-	required, err := fix.svc.IsRequired(context.Background(), acc, fix.tenantID)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, fix.tenantID)
 	require.NoError(t, err)
 	assert.False(t, required, "unknown mode must be treated as off, not panic")
 }
@@ -263,9 +231,7 @@ func TestMFAService_IsRequired_NoTenantID_UsesRegistryDefault(t *testing.T) {
 
 	fix := newWiredMFAFixture(t)
 	// No override — should hit the ResolveString path (registry default = off).
-	acc := &authModel.Account{}
-	acc.ID = 4242
-	required, err := fix.svc.IsRequired(context.Background(), acc, 0)
+	required, err := fix.svc.IsRequired(context.Background(), 4242, nil, 0)
 	require.NoError(t, err)
 	assert.False(t, required, "registry default for mfa_mode is 'off'")
 }
@@ -357,9 +323,9 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-challenge")
-	require.NoError(t, fix.svc.Enroll(ctx, acc.ID))
+	require.NoError(t, fix.svc.EnrollMFA(ctx, acc.ID))
 
-	_, err := fix.svc.StartChallenge(ctx, acc.ID, fix.tenantID, authjwt.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
+	_, err := fix.svc.StartMFAChallenge(ctx, acc.ID, fix.tenantID, auth.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
 	require.NoError(t, err)
 
 	templates := fix.mailer.Templates()
@@ -377,7 +343,7 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-trusted-added")
-	require.NoError(t, fix.svc.Enroll(ctx, acc.ID))
+	require.NoError(t, fix.svc.EnrollMFA(ctx, acc.ID))
 
 	cookie, _, err := fix.svc.IssueTrustedDevice(ctx, acc.ID, fix.tenantID,
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/120.0",

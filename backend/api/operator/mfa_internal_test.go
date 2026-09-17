@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // TestOperatorMFAVerifyRequest_BindRejectsBadInputs covers the request-binding
@@ -116,12 +116,12 @@ func TestMapOperatorMFAError_StatusCodes(t *testing.T) {
 		err    error
 		status int
 	}{
-		{authService.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
-		{authService.ErrMFACodeInvalid, http.StatusUnauthorized},
-		{authService.ErrMFALocked, http.StatusTooManyRequests},
-		{authService.ErrMFARateLimited, http.StatusTooManyRequests},
-		{authService.ErrMFANotEnrolled, http.StatusForbidden},
-		{authService.ErrMFAAlreadyEnrolled, http.StatusConflict},
+		{authSvc.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
+		{authSvc.ErrMFACodeInvalid, http.StatusUnauthorized},
+		{authSvc.ErrMFALocked, http.StatusTooManyRequests},
+		{authSvc.ErrMFARateLimited, http.StatusTooManyRequests},
+		{authSvc.ErrMFANotEnrolled, http.StatusForbidden},
+		{authSvc.ErrMFAAlreadyEnrolled, http.StatusConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {
