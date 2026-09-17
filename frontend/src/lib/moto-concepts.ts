@@ -1,6 +1,7 @@
 import {
   AddressBookIcon,
   ArrowsLeftRightIcon,
+  BackpackIcon,
   BellIcon,
   BookOpenIcon,
   BriefcaseIcon,
@@ -168,6 +169,9 @@ export const MOTO_CONCEPTS = {
     "presence",
   ),
   home: concept("Zuhause", HouseIcon, "neutral", "status", "presence"),
+  // Petrol like LOCATION_COLORS.AT_SCHOOL: an expected child before the first
+  // check-in is still in class, not at home (#3260).
+  atSchool: concept("Schule", BackpackIcon, "petrol", "status", "presence"),
   classTrip: concept("Klassenfahrt", BusIcon, "cyan", "status", "presence"),
   freeRooms: concept("Freie Räume", DoorOpenIcon, "mint", "status", "presence"),
   // Gold, not orange: orange belongs to the Schulhof status above, and the
