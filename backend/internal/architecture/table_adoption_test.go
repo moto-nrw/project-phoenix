@@ -66,6 +66,28 @@ func Purge(ctx context.Context, db *sql.DB) error {
 }
 `
 
+// ghostRecordsDynamicAccessor replaces the fixture source package with one
+// whose table expression the analyser cannot resolve, so no finding can say
+// which table it touches.
+const ghostRecordsDynamicAccessor = `package source
+
+import (
+	"context"
+	"database/sql"
+
+	"example.test/architecture-fixture/target"
+)
+
+func Use() string {
+	return target.Value
+}
+
+func Purge(ctx context.Context, db *sql.DB, table string) error {
+	_, err := db.ExecContext(ctx, "DELETE FROM "+table)
+	return err
+}
+`
+
 // sourceClassifiedAs moves the fixture source package to a second owner with
 // the postgres role, so direct SQL is permitted and only ownership decides.
 func sourceClassifiedAs(document map[string]any, owner string) {
@@ -122,6 +144,17 @@ func TestCheckReviewedTableAdoptionPreservesGuards(t *testing.T) {
 			name:     "foreign accessor",
 			baseline: legacyRecord(2583) + unclassifiedTableRecord(2707, "ghost.records"),
 			source:   ghostRecordsAccessor,
+			mutate: func(document map[string]any) {
+				sourceClassifiedAs(document, "other")
+			},
+			want: "data object ghost.records was newly assigned to owner module",
+		},
+		{
+			// An accessor whose SQL the analyser cannot resolve proves
+			// nothing: it may still be reaching the adopted table.
+			name:     "unresolved accessor",
+			baseline: legacyRecord(2583) + unclassifiedTableRecord(2707, "ghost.records"),
+			source:   ghostRecordsDynamicAccessor,
 			mutate: func(document map[string]any) {
 				sourceClassifiedAs(document, "other")
 			},

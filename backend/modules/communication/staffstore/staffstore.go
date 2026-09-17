@@ -15,6 +15,7 @@ package staffstore
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffinbox"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/staffpostgres"
@@ -52,7 +53,13 @@ func resolve(ctx context.Context, db *bun.DB) (bun.IDB, int64, error) {
 			return tx, tenantID, nil
 		}
 	}
-	return db, tenantID, nil
+	// A transaction is in the context but is not one this adapter can run in.
+	// Falling back to the plain pool would silently take the conversation
+	// statements out of the caller's transaction — the append lock would be
+	// released immediately and message order would stop matching commit order.
+	// The legacy repositories panicked here; failing the call is the same
+	// decision without taking the process down.
+	return nil, 0, fmt.Errorf("communication staff store: unsupported transaction type %T", transaction)
 }
 
 func postgresDatabase(db *bun.DB) staffpostgres.Database {
