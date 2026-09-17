@@ -638,6 +638,43 @@ func TestModuleMatchesPickupTargetsAtEffectiveDate(t *testing.T) {
 	assert.Equal(t, []int64{group.ID}, pickupExtensionBlockIDs(task.Blocks))
 }
 
+func TestModuleUsesCurrentPickupDateForTargets(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	suffix := time.Now().UnixNano()
+	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Current target-%d", suffix), "1a")
+	today := time.Now()
+	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
+		return []TargetStudent{{
+			ID: child.ID, SchoolClass: child.SchoolClass, EnrolledUntil: today.AddDate(0, 0, -1).Format(time.DateOnly),
+		}}, nil
+	})
+	module, ctx := buildPickupExtensionModuleWithStudents(t, db, students), testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, fmt.Sprintf("Current pickup target %d", suffix))
+	class := "1a"
+	group, err := module.CreateGroup(ctx, timetable.GroupInput{
+		Name: fmt.Sprintf("Klassenangebot %d", suffix), CategoryID: category.ID,
+		Type: timetable.GroupTypeCare, IsTemplate: true,
+		TargetGroupType: timetable.TargetGroupTypeSchoolClass, TargetSchoolClass: &class,
+	})
+	require.NoError(t, err)
+	require.NoError(t, module.ReplaceGroupTargets(ctx, group.ID, []timetable.GroupTargetInput{{
+		TargetGroupType: timetable.TargetGroupTypeSchoolClass, TargetSchoolClass: &class,
+	}}))
+	frame := createOwnedTimeframe(t, module, ctx, "14:45:00", "16:00:00", true, "Klassenangebot")
+	_, err = module.CreateSchedule(ctx, timetable.ScheduleInput{
+		ActivityGroupID: group.ID, Weekday: timetable.WeekdayTuesday, TimeframeID: &frame.ID,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: today.AddDate(0, 0, -7).Format(time.DateOnly),
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	assert.Equal(t, []int64{group.ID}, pickupExtensionBlockIDs(task.Blocks))
+}
+
 func TestModuleRejectsInvalidPickupExtensions(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
