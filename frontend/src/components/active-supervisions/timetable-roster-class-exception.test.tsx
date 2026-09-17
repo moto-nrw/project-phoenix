@@ -162,7 +162,7 @@ describe("TimetableRosterContent class arrival exception", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("tells the reader that single check-in stays possible under Kommt später", () => {
+  it("lists later arrivals with their single check-in and no explanatory text", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-09-02T12:50:00+02:00"));
     renderRoster(
@@ -184,10 +184,13 @@ describe("TimetableRosterContent class arrival exception", () => {
       ]),
     );
 
+    expect(screen.getByText("Kommt später (1)")).toBeInTheDocument();
+    expect(screen.getByText("Später Kind")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei. Kommt ein Kind früher, checken Sie es hier einzeln ein.",
-      ),
+      screen.getByRole("button", { name: /einchecken/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Diese Kinder kommen laut Plan später/),
+    ).not.toBeInTheDocument();
   });
 });
