@@ -40,7 +40,10 @@ func init() {
 // Whether a task is still open is decided when it is read, against the
 // current blocks, so no row has to be rewritten when a plan changes.
 func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.392: Creating schedule.pickup_extension_tasks...")
+	slog.Info("migration starting",
+		slog.String("migration", pickupExtensionTasksVersion),
+		slog.String("detail", "creating schedule.pickup_extension_tasks"),
+	)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -113,7 +116,10 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 }
 
 func pickupExtensionTasksDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.392: Dropping schedule.pickup_extension_tasks...")
+	slog.Info("migration rolling back",
+		slog.String("migration", pickupExtensionTasksVersion),
+		slog.String("detail", "dropping schedule.pickup_extension_tasks"),
+	)
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS schedule.pickup_extension_tasks;`)
 	if err != nil {
 		return fmt.Errorf("error dropping schedule.pickup_extension_tasks: %w", err)

@@ -220,6 +220,25 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it("fragt nach dem Freigeben einer Wochenplan-Anfrage nicht nach", async () => {
+    const onDecided = vi.fn();
+    render(
+      <PickupExtensionAccessProvider value>
+        <CareRequestReviewItem
+          row={{ ...laterPickupRow(), request_kind: "weekly_schedule" }}
+          onDecided={onDecided}
+        />
+      </PickupExtensionAccessProvider>,
+    );
+
+    approve();
+
+    await waitFor(() =>
+      expect(onDecided).toHaveBeenCalledWith("Betreuungszeiten übernommen"),
+    );
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
   it("fragt nach einer Ablehnung nicht nach", async () => {
     const onDecided = vi.fn();
     render(

@@ -2,6 +2,7 @@ package schedule_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -42,6 +43,26 @@ type fixtureStudent struct {
 func wallClockAt(h, m int) *time.Time {
 	t := time.Date(2000, 1, 1, h, m, 0, 0, time.UTC)
 	return &t
+}
+
+type failingPickupBaseline struct{}
+
+func (failingPickupBaseline) Project(
+	context.Context, []int64, timezone.Date, timezone.Date,
+) (*scheduleService.PickupBaselineProjection, error) {
+	return nil, errors.New("weekly pickup projection unavailable")
+}
+
+func (failingPickupBaseline) OfferingPickupForDate(
+	context.Context, int64, timezone.Date,
+) (*scheduleModel.StudentPickupSchedule, error) {
+	return nil, errors.New("weekly pickup projection unavailable")
+}
+
+func (failingPickupBaseline) HasBookedOfferingPickupForWeekday(
+	context.Context, int64, int,
+) (bool, error) {
+	return false, errors.New("weekly pickup projection unavailable")
 }
 
 // autoExcusalRepositories is the one repository graph the pickup trigger
@@ -272,6 +293,38 @@ func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
 	// Blocks follow the manual 13:30 cutoff, not the 15:30 pickup time.
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.afterRow).Status)
+}
+
+func TestAutoExcusal_ManualPartialAbsenceSkipsFailedBaseline(t *testing.T) {
+	t.Parallel()
+
+	h := setupAutoExcusalHarness(t, true)
+	manual, err := h.partial.Create(h.ctx, scheduleService.PartialAbsenceInput{
+		StudentID: h.student.ID,
+		Date:      h.date,
+		FromTime:  *wallClockAt(13, 30),
+		Reason:    "Arzttermin",
+		StaffID:   h.staffID,
+	})
+	require.NoError(t, err)
+
+	repos := autoExcusalRepositories(h.db)
+	syncer := scheduleService.NewPickupAutoExcusalSyncer(
+		repos.StudentPickupException,
+		failingPickupBaseline{},
+		repos.InstanceStudent,
+		h.db,
+	)
+	changed, err := syncer.Sync(h.ctx, manual.ID)
+	require.NoError(t, err)
+	assert.False(t, changed)
+
+	unchanged, err := repos.StudentPickupException.FindByID(h.ctx, manual.ID)
+	require.NoError(t, err)
+	require.NotNil(t, unchanged)
+	require.NotNil(t, unchanged.ExcusedFrom)
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*unchanged.ExcusedFrom).Format("15:04"))
+	assert.False(t, unchanged.ExcusedAuto)
 }
 
 func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {

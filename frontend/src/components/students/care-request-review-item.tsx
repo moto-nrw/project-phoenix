@@ -162,7 +162,7 @@ async function openExtensionsAfterApproval(
   row: StaffCareRequest,
   canPlanBlocks: boolean,
 ): Promise<PickupExtension[]> {
-  if (!canPlanBlocks) return [];
+  if (!canPlanBlocks || row.request_kind !== "pickup_change") return [];
   try {
     return await fetchPickupExtensions(row.student_id);
   } catch (err) {

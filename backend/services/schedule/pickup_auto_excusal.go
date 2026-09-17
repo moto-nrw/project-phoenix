@@ -98,17 +98,17 @@ func (s *PickupAutoExcusalSyncer) Sync(ctx context.Context, exceptionID int64) (
 	if row == nil {
 		return false, nil
 	}
+	// A staff-set partial absence is an explicit decision; the sync never
+	// overrides it, even when the pickup time changes underneath.
+	if row.HasManualPartialAbsence() {
+		return false, nil
+	}
 	baseline, err := s.baselineClock(ctx, row)
 	if err != nil {
 		return false, err
 	}
 	if err := s.syncDayExtension(ctx, row, baseline); err != nil {
 		return false, err
-	}
-	// A staff-set partial absence is an explicit decision; the sync never
-	// overrides it, even when the pickup time changes underneath.
-	if row.HasManualPartialAbsence() {
-		return false, nil
 	}
 
 	desired, cutoff := desiredCutoff(row, baseline)
