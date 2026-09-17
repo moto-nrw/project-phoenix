@@ -329,6 +329,47 @@ func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
 	assert.Equal(t, "2099-03-05", enrollments[0].ValidFrom)
 }
 
+func TestModulePreservesBoundedPickupWeekdayEnrollment(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+	category := createCategory(t, ctx, module, fmt.Sprintf("Bounded pickup enrollment %d", suffix))
+	child := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("Bounded pickup-%d", suffix), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Ida", fmt.Sprintf("Bounded pickup-%d", suffix), "1a")
+	freePlay := pickupExtensionTemplate(t, module, ctx, category.ID, "Freies Spiel", "14:45:00", "16:00:00", timetable.WeekdayTuesday)
+
+	_, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: other.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2020-01-01",
+	})
+	require.NoError(t, err)
+	wednesday := timetable.WeekdayWednesday
+	tuesday := timetable.WeekdayTuesday
+	validUntil := "2099-04-01"
+	existing, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: child.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2099-03-01", ValidUntil: &validUntil,
+		SelectedWeekdays: []int{wednesday}, Weekday: &tuesday,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: "2099-03-05",
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	_, err = module.ResolvePickupExtension(ctx, task.ID, []int64{freePlay.ID})
+	require.NoError(t, err)
+
+	enrollments, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{
+		StudentIDs: []int64{child.ID}, ActivityGroupIDs: []int64{freePlay.ID},
+	})
+	require.NoError(t, err)
+	require.Len(t, enrollments, 1)
+	assert.Equal(t, existing.ID, enrollments[0].ID)
+	assert.Equal(t, &validUntil, enrollments[0].ValidUntil)
+	assert.ElementsMatch(t, []int{timetable.WeekdayTuesday, timetable.WeekdayWednesday}, enrollments[0].SelectedWeekdays)
+}
+
 func TestModuleIgnoresPickupWeekdayEnrollmentsOutsideWeekday(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

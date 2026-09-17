@@ -5,4 +5,4 @@
 // time (#3261). Forwards to the backend and strips the Go envelope.
 import { proxyGet } from "~/lib/route-proxy.server";
 
-export const GET = proxyGet("/api/timetable/pickup-extensions");
+export const GET = proxyGet("/api/timetable/pickup-extensions/");

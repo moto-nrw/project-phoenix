@@ -2168,6 +2168,12 @@ func newFactory(
 				return nil
 			})
 		},
+		SnapshotPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
+			return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
+		},
+		RecordPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
+			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+		},
 		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
 		// The reconciler takes these BEFORE writing weekly rows — the same
 		// student → schedule-row → care-day lock order the staff weekly

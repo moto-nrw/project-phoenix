@@ -78,8 +78,7 @@ async function readData<T>(response: Response): Promise<T> {
     }
     throw new PickupExtensionApiError(message, response.status, code);
   }
-  const envelope = (await response.json()) as { data?: T };
-  return envelope.data as T;
+  return (await response.json()) as T;
 }
 
 function mapPickupExtension(raw: BackendPickupExtension): PickupExtension {

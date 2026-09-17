@@ -13,21 +13,19 @@ describe("fetchPickupExtensions", () => {
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            data: {
-              tasks: [
-                {
-                  id: 7,
-                  student_id: 42,
-                  student_name: "Mia Beispiel",
-                  kind: "weekday",
-                  weekday: 2,
-                  effective_from: "2026-09-15",
-                  previous_pickup_time: "14:45",
-                  pickup_time: "16:00",
-                  blocks: [],
-                },
-              ],
-            },
+            tasks: [
+              {
+                id: 7,
+                student_id: 42,
+                student_name: "Mia Beispiel",
+                kind: "weekday",
+                weekday: 2,
+                effective_from: "2026-09-15",
+                previous_pickup_time: "14:45",
+                pickup_time: "16:00",
+                blocks: [],
+              },
+            ],
           }),
         ),
       ),
