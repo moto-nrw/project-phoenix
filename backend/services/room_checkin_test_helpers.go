@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -27,9 +28,11 @@ func NewRoomsTestModule(db *bun.DB, unit tenant.UnitOfWork) (RoomsTestModule, er
 // CheckinTestModule composes the device-scan workflow (#2698) over the
 // active test graph, the way the production root does. Daily-checkout gates
 // depend on tenant settings alone, never on the developer's environment.
+// Rosters is the block roster lookup the workflow reads.
 type CheckinTestModule struct {
 	ActiveTestModule
 	DeviceScan devicescanCompose.DeviceScan
+	Rosters    devicescanCompose.Rosters
 }
 
 func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (CheckinTestModule, error) {
@@ -42,6 +45,7 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 		return CheckinTestModule{}, err
 	}
 	logger := slog.Default()
+	rosters := timetable.SessionRosters{Query: repositories.NewUnobservedTimetableDependencies(db).Capability}
 	scan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      module.IoT.Fleet(),
 		Presence:   newStudentPresence(db, logger),
@@ -49,11 +53,12 @@ func NewCheckinTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() t
 		Active:     module.Active,
 		Users:      module.Users,
 		Activities: module.Activities,
+		Rosters:    rosters,
 		Education:  module.Education,
 		Pickups:    module.PickupSchedule,
 		Settings:   module.Settings,
 		Now:        optionalClock(clocks),
 		Logger:     logger,
 	})
-	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan}, nil
+	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan, Rosters: rosters}, nil
 }

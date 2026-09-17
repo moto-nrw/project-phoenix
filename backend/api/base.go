@@ -1481,9 +1481,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		return err
 	}
 	// The device-scan workflow runs every kiosk scan through one
-	// orchestrator over the public Device Fleet, Student Presence and
-	// Facilities capabilities; the retained services behind its ports are
-	// compatibility bindings (#2698).
+	// orchestrator over the public Device Fleet, Student Presence,
+	// Facilities and Timetable & Activities capabilities; the retained
+	// services behind its ports are compatibility bindings (#2698).
 	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      api.Services.IoT.Fleet(),
 		Presence:   presence,
@@ -1491,6 +1491,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Active:     api.Services.Active,
 		Users:      api.Services.Users,
 		Activities: api.Services.Activities,
+		Rosters:    timetableModule.SessionRosters{Query: modules.timetable},
 		Education:  api.Services.Education,
 		Pickups:    api.Services.PickupSchedule,
 		Settings:   api.Services.Settings,
