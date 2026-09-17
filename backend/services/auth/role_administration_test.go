@@ -1,22 +1,28 @@
-package auth
+package auth_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
+// The role administration moved to Identity & Access (#3314). These tests
+// drive its public contract composed the way the serving root composes it:
+// the Lehrkraft guards in both directions (#1772), the persisted role
+// changes and the account batch lookups.
+
 func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	// Live caregiver profile (person → staff → teacher) linked to the
@@ -36,12 +42,12 @@ func TestAssignRoleToAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 
 	// The tenant RBAC endpoint (POST /auth/accounts/{id}/roles/{roleId}) is
 	// the last path that could put the Lehrkraft role on a caregiver
-	// account — the service must reject it like the operator and
+	// account — the role administration must reject it like the operator and
 	// invitation flows do (#1772).
-	err := service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftRoleID))
-	require.ErrorIs(t, err, ErrRoleLehrkraftCaregiverProfile)
+	err := admin.AssignRoleToAccount(ctx, account.ID, lehrkraftRoleID)
+	require.ErrorIs(t, err, identityaccess.ErrRoleLehrkraftCaregiverProfile)
 
-	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	roles, err := admin.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	assert.Empty(t, roles)
 }
@@ -51,7 +57,7 @@ func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	// No person/staff/teacher chain: a plain account may become Lehrkraft.
@@ -68,9 +74,9 @@ func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T
 		Scan(context.Background(), &lehrkraftRoleID),
 		"lehrkraft system role must exist in the test schema")
 
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftRoleID)))
+	require.NoError(t, admin.AssignRoleToAccount(ctx, account.ID, lehrkraftRoleID))
 
-	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	roles, err := admin.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
 	assert.Equal(t, lehrkraftRoleID, roles[0].ID)
@@ -78,7 +84,7 @@ func TestAssignRoleToAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T
 
 // lehrkraftSystemRoleID resolves the platform Lehrkraft role the migrations
 // seed. Shared by the guard tests in both directions.
-func lehrkraftSystemRoleID(t *testing.T, db *bun.DB) int64 {
+func lehrkraftRoleID(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 	var roleID int64
 	require.NoError(t, db.NewSelect().
@@ -94,7 +100,7 @@ func lehrkraftSystemRoleID(t *testing.T, db *bun.DB) int64 {
 
 // caregiverSystemRoleID resolves the "user" system role — the caregiver tier
 // that reads through users.teachers.
-func caregiverSystemRoleID(t *testing.T, db *bun.DB) int64 {
+func caregiverRoleID(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 	var roleID int64
 	require.NoError(t, db.NewSelect().
@@ -108,7 +114,7 @@ func caregiverSystemRoleID(t *testing.T, db *bun.DB) int64 {
 	return roleID
 }
 
-func adminSystemRoleForRoleManagement(t *testing.T, db *bun.DB) int64 {
+func adminRoleID(t *testing.T, db *bun.DB) int64 {
 	t.Helper()
 	var roleID int64
 	require.NoError(t, db.NewSelect().
@@ -126,40 +132,40 @@ func TestAssignRoleToAccount_RejectsNonLehrkraftRoleForLehrkraftAccount(t *testi
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "lehrkraft-to-admin")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftSystemRoleID(t, db))))
+	require.NoError(t, admin.AssignRoleToAccount(ctx, account.ID, lehrkraftRoleID(t, db)))
 
-	err := service.AssignRoleToAccount(ctx, int(account.ID), int(adminSystemRoleForRoleManagement(t, db)))
-	require.ErrorIs(t, err, ErrLehrkraftRoleImmutable)
+	err := admin.AssignRoleToAccount(ctx, account.ID, adminRoleID(t, db))
+	require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 
-	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	roles, err := admin.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
-	assert.Equal(t, lehrkraftSystemRoleID(t, db), roles[0].ID)
+	assert.Equal(t, lehrkraftRoleID(t, db), roles[0].ID)
 }
 
 func TestReplaceAccountRole_RejectsReplacingLehrkraftAccount(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "replace-lehrkraft")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftSystemRoleID(t, db))))
+	require.NoError(t, admin.AssignRoleToAccount(ctx, account.ID, lehrkraftRoleID(t, db)))
 
-	err := service.ReplaceAccountRole(ctx, int(account.ID), int(adminSystemRoleForRoleManagement(t, db)))
-	require.ErrorIs(t, err, ErrLehrkraftRoleImmutable)
+	err := admin.ReplaceAccountRole(ctx, account.ID, adminRoleID(t, db))
+	require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 
-	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	roles, err := admin.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
-	assert.Equal(t, lehrkraftSystemRoleID(t, db), roles[0].ID)
+	assert.Equal(t, lehrkraftRoleID(t, db), roles[0].ID)
 }
 
 func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *testing.T) {
@@ -167,23 +173,23 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithoutProfile(t *t
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	// A Lehrkraft account by construction: no person → staff → teacher chain.
 	account := testpkg.CreateTestAccount(t, db, "lehrkraft-to-caregiver")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(lehrkraftSystemRoleID(t, db))))
+	require.NoError(t, admin.AssignRoleToAccount(ctx, account.ID, lehrkraftRoleID(t, db)))
 
 	// Lehrkraft accounts cannot be changed through the tenant RBAC endpoint,
 	// even when the target role would otherwise require no identity change.
-	err := service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db)))
-	require.ErrorIs(t, err, ErrLehrkraftRoleImmutable)
+	err := admin.AssignRoleToAccount(ctx, account.ID, caregiverRoleID(t, db))
+	require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 
-	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	roles, err := admin.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, roles, 1, "the refused assignment must not have been written")
-	assert.Equal(t, lehrkraftSystemRoleID(t, db), roles[0].ID)
+	assert.Equal(t, lehrkraftRoleID(t, db), roles[0].ID)
 }
 
 func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithProfile(t *testing.T) {
@@ -191,7 +197,7 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithProfile(t *test
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	// A profile does not make a Lehrkraft role exchange safe. The Lehrkraft
@@ -205,15 +211,15 @@ func TestAssignRoleToAccount_RejectsCaregiverRoleForLehrkraftWithProfile(t *test
 	_, err := db.NewInsert().
 		Model(&map[string]interface{}{
 			"account_id": account.ID,
-			"role_id":    lehrkraftSystemRoleID(t, db),
+			"role_id":    lehrkraftRoleID(t, db),
 			"tenant_id":  testpkg.Tenant(t),
 		}).
 		TableExpr("auth.account_roles").
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	err = service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db)))
-	require.ErrorIs(t, err, ErrLehrkraftRoleImmutable)
+	err = admin.AssignRoleToAccount(ctx, account.ID, caregiverRoleID(t, db))
+	require.ErrorIs(t, err, identityaccess.ErrLehrkraftRoleImmutable)
 }
 
 func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
@@ -221,7 +227,7 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	admin := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := testpkg.Ctx(t)
 
 	// Negative control for the guard's scope: account provisioning assigns
@@ -230,7 +236,7 @@ func TestAssignRoleToAccount_AllowsCaregiverRoleForPlainAccount(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "plain-caregiver")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(caregiverSystemRoleID(t, db))))
+	require.NoError(t, admin.AssignRoleToAccount(ctx, account.ID, caregiverRoleID(t, db)))
 }
 
 func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) {
@@ -241,86 +247,74 @@ func TestRoleManagement_PersistsRoleChangesWithoutTokenRevocation(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 
 	t.Run("AssignRoleToAccount persists created mapping", func(t *testing.T) {
-		service := setupInternalAuthService(t, db)
+		admin := setupAuthFactory(t, db).AccountAuthentication()
 
 		account := testpkg.CreateTestAccount(t, db, "assign-rollback")
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		role := testpkg.CreateTestRole(t, db, "assign-rollback-role-"+time.Now().Format("150405.000000000"))
 
-		err := service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		err := admin.AssignRoleToAccount(ctx, account.ID, role.ID)
 		require.NoError(t, err)
 
-		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		roles, err := admin.GetAccountRoles(ctx, account.ID)
 		require.NoError(t, err)
 		require.Len(t, roles, 1)
 		assert.Equal(t, role.ID, roles[0].ID)
 	})
 
 	t.Run("RemoveRoleFromAccount persists deleted mapping", func(t *testing.T) {
-		service := setupInternalAuthService(t, db)
+		admin := setupAuthFactory(t, db).AccountAuthentication()
 
 		account := testpkg.CreateTestAccount(t, db, "remove-rollback")
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		role := testpkg.CreateTestRole(t, db, "remove-rollback-role-"+time.Now().Format("150405.000000000"))
 
-		require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID)))
+		require.NoError(t, admin.AssignRoleToAccount(ctx, account.ID, role.ID))
 
-		err := service.RemoveRoleFromAccount(ctx, int(account.ID), int(role.ID))
+		err := admin.RemoveRoleFromAccount(ctx, account.ID, role.ID)
 		require.NoError(t, err)
 
-		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		roles, err := admin.GetAccountRoles(ctx, account.ID)
 		require.NoError(t, err)
 		assert.Empty(t, roles)
 	})
 }
 
-// POST /auth/link-to-tenant is the fourth path that can put the Lehrkraft role
-// on an account, and the one that was still open (#1772/#2222). Unlike
-// /auth/register the account already exists and may already carry an identity at
-// this school — a revoke deliberately leaves person → staff → teacher behind —
-// so linking it as Lehrkraft would revive a live caregiver profile and its group
-// supervisions under a JWT that only holds class_day permissions.
-func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
+func TestRoleAdministration_GetAccountEmails(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	svc := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, svc)
+	ctx := testpkg.Ctx(t)
 
-	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Link", "Betreuung")
+	t.Run("returns emails for valid account IDs", func(t *testing.T) {
+		account1 := testpkg.CreateTestAccount(t, db, "svc-emails1")
+		account2 := testpkg.CreateTestAccount(t, db, "svc-emails2")
 
-	roleID := lehrkraftSystemRoleID(t, db)
-	_, _, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, testpkg.Tenant(t),
-		&SchoolAccountIdentity{FirstName: "Link", LastName: "Betreuung"})
-	require.ErrorIs(t, err, ErrRoleLehrkraftCaregiverProfile)
+		result, err := rbac.GetAccountEmails(ctx, []int64{account1.ID, account2.ID})
+		require.NoError(t, err)
+		assert.Len(t, result, 2)
+		assert.Equal(t, account1.Email, result[account1.ID])
+		assert.Equal(t, account2.Email, result[account2.ID])
+	})
 
-	// The guard runs inside the link transaction, so the role is not assigned.
-	roles, err := service.GetAccountRoles(testpkg.Ctx(t), int(account.ID))
-	require.NoError(t, err)
-	assert.Empty(t, roles, "a refused link must not assign the role")
-}
+	t.Run("returns empty map for empty slice", func(t *testing.T) {
+		result, err := rbac.GetAccountEmails(ctx, []int64{})
+		require.NoError(t, err)
+		assert.NotNil(t, result)
+		assert.Empty(t, result)
+	})
 
-// The same path with no caregiver profile in the way is the ordinary case and
-// must keep working — the guard is about the profile, not about the role.
-func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) {
-	t.Parallel()
+	t.Run("returns partial results for mixed valid and invalid IDs", func(t *testing.T) {
+		account := testpkg.CreateTestAccount(t, db, "svc-emailspartial")
 
-	db := testpkg.SetupTestDB(t)
-
-	service := setupInternalAuthService(t, db)
-
-	account := testpkg.CreateTestAccount(t, db, "link-lehrkraft-plain")
-
-	roleID := lehrkraftSystemRoleID(t, db)
-	_, identity, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, testpkg.Tenant(t),
-		&SchoolAccountIdentity{FirstName: "Link", LastName: "Lehrkraft"})
-	require.NoError(t, err)
-
-	// Staff, because Lehrkraft is personnel; no caregiver profile, because it is
-	// class_day-read-only by design.
-	require.NotNil(t, identity)
-	require.NotZero(t, identity.StaffID)
-	assert.Zero(t, identity.TeacherID, "the Lehrkraft role never earns a caregiver profile")
+		result, err := rbac.GetAccountEmails(ctx, []int64{account.ID, int64(999999)})
+		require.NoError(t, err)
+		assert.Len(t, result, 1)
+		assert.Equal(t, account.Email, result[account.ID])
+	})
 }

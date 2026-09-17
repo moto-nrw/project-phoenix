@@ -4080,7 +4080,7 @@
       "declaration": "setupAuthFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        62
+        63
       ],
       "tables": []
     },
@@ -4277,29 +4277,17 @@
       "declaration": "setupAuthServiceWithDB",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        24
       ],
       "tables": []
     },
     {
       "scope": "test",
-      "file": "services/auth/role_assignment_policy_test.go",
-      "declaration": "TestValidateAssignableSchoolRole",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": [
-        "auth.roles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/role_assignment_policy_test.go",
+      "file": "services/auth/role_assignment_resolve_test.go",
       "declaration": "createPlatformRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        139
+        140
       ],
       "tables": [
         "auth.roles"
@@ -23297,7 +23285,7 @@
         },
         {
           "file": "services/account_authentication_composition.go",
-          "line": 149,
+          "line": 160,
           "declaration": "newSchoolDirectory"
         },
         {
@@ -23307,12 +23295,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 454,
+          "line": 455,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 504,
+          "line": 505,
           "declaration": "newFactory"
         },
         {
@@ -23332,12 +23320,12 @@
         },
         {
           "file": "services/operator_provisioning_composition.go",
-          "line": 22,
+          "line": 23,
           "declaration": "type operatorProvisioningSources"
         },
         {
           "file": "services/operator_provisioning_composition.go",
-          "line": 53,
+          "line": 57,
           "declaration": "type provisioningIdentity"
         }
       ]

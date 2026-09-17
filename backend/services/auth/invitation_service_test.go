@@ -649,15 +649,18 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 
 // The caregiver upgrade (#1772) is refused for the lehrkraft SYSTEM role in
 // both acceptance branches; a school's custom role sharing the label is a
-// different role and stays eligible.
-func TestIsLehrkraftSystemRole(t *testing.T) {
+// different role and stays eligible. The classification is the Identity &
+// Access policy the port serves; without a port no role is Lehrkraft.
+func TestIsLehrkraftRole(t *testing.T) {
 	t.Parallel()
 
-	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
-	require.True(t, IsLehrkraftSystemRole(&authModel.Role{Name: " Lehrkraft ", IsSystem: true}))
-	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "lehrkraft", IsSystem: false}))
-	require.False(t, IsLehrkraftSystemRole(&authModel.Role{Name: "user", IsSystem: true}))
-	require.False(t, IsLehrkraftSystemRole(nil))
+	policy := newStubAccountSessions()
+	require.True(t, isLehrkraftRole(policy, &authModel.Role{Name: "lehrkraft", IsSystem: true}))
+	require.True(t, isLehrkraftRole(policy, &authModel.Role{Name: " Lehrkraft ", IsSystem: true}))
+	require.False(t, isLehrkraftRole(policy, &authModel.Role{Name: "lehrkraft", IsSystem: false}))
+	require.False(t, isLehrkraftRole(policy, &authModel.Role{Name: "user", IsSystem: true}))
+	require.False(t, isLehrkraftRole(policy, nil))
+	require.False(t, isLehrkraftRole(nil, &authModel.Role{Name: "lehrkraft", IsSystem: true}))
 }
 
 func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(t *testing.T) {

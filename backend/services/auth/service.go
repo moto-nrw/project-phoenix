@@ -26,7 +26,6 @@ const (
 	opGetAccount                    = "get account"
 	opUpdateAccount                 = "update account"
 	opValidateToken                 = "validate token"
-	opAssignPermissionToRole        = "assign permission to role"
 	opCreateParentAccount           = "create parent account"
 )
 
@@ -51,14 +50,15 @@ type ServiceConfig struct {
 	// Sessions is the consumer-owned port over the Identity & Access
 	// account-authentication capability (#3251): login, refresh, switching,
 	// session validation, cleanup and revocation moved there. The retained
-	// flows (staff preview, password reset, role and account management,
-	// offboarding) and the AuthService session methods delegate to it.
+	// flows (staff preview, password reset, account management, offboarding)
+	// and the AuthService session methods delegate to it.
 	Sessions AccountSessions
 	// Lifecycle is the consumer-owned port over the Identity & Access
 	// account-lifecycle capability (#3225): staff preview, staff offboarding
 	// access, the school identity chain, parent accounts and guardian
-	// relative access moved there. The retained registration, linking, role
-	// and invitation flows provision identities through it.
+	// relative access moved there. The retained registration, linking and
+	// invitation flows provision identities and apply the school-role policy
+	// through it (#3314).
 	Lifecycle AccountLifecycle
 }
 
@@ -88,10 +88,10 @@ func NewServiceConfig(
 
 // Service provides the retained authentication and user management
 // functionality: registration and school linking, password change and
-// reset, role and permission management, account lifecycle, staff preview
-// and offboarding. Tenant, parent and school login, refresh, switching,
-// logout, session validation, cleanup and revocation are served by Identity
-// & Access through the Sessions port (#3251).
+// reset, account lifecycle, staff preview and offboarding. Tenant, parent and
+// school login, refresh, switching, logout, session validation, cleanup and
+// revocation are served by Identity & Access through the Sessions port
+// (#3251); role and permission management moved there with #3314.
 type Service struct {
 	repos               *repositories.Factory
 	tokenAuth           *jwt.TokenAuth
@@ -288,8 +288,6 @@ type AuthService interface {
 	MFAGateConfiguration
 	RegistrationOperations
 	CredentialOperations
-	RoleOperations
-	PermissionOperations
 	AccountAdministrationOperations
 	PasswordResetOperations
 	StaffPreviewOperations
