@@ -581,6 +581,49 @@ func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *tes
 	assert.Equal(t, email, preview.Email)
 }
 
+// A request whose window ran out is no longer a decision staff can take:
+// approving it would link a child from an expired request, so the queue
+// stops listing it and the approval is refused.
+func TestPendingApprovalQueue_LeavesOutExpiredRequests(t *testing.T) {
+	t.Parallel()
+
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Stale", "Request", "4h")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("stale-request-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.Ctx(t)
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+
+	_, err = env.db.NewUpdate().
+		TableExpr("auth.guardian_invitations").
+		Set("expires_at = ?", time.Now().Add(-time.Hour)).
+		Where("id = ?", *result.InvitationID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	pending, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+	for _, view := range pending {
+		assert.NotEqual(t, *result.InvitationID, view.InvitationID, "an expired request must leave the queue")
+	}
+
+	require.Error(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID))
+}
+
 func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	t.Parallel()
 
