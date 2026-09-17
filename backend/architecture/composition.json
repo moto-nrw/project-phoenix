@@ -1197,6 +1197,76 @@
     },
     {
       "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_Create",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_Delete",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        171
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_FindByAccountID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        118
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_FindByID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        95
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_List",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        221
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_Update",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        141
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_UpdateAvatar",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        196
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "database/repositories/auth/rfid_card_repository_test.go",
       "declaration": "TestRFIDCardRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -2922,76 +2992,6 @@
       "tables": [
         "users.parent_request_share_events"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        171
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_FindByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        118
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        95
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        221
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        141
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_UpdateAvatar",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        196
-      ],
-      "tables": []
     },
     {
       "scope": "test",

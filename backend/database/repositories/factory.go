@@ -118,7 +118,7 @@ type Factory struct {
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
-	Profile             userModels.ProfileRepository
+	Profile             authModels.ProfileRepository
 	StudentGuardian     userModels.StudentGuardianRepository
 	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
@@ -566,7 +566,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
-		Profile:             users.NewProfileRepository(db),
+		Profile:             auth.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
