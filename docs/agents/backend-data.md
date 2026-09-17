@@ -61,4 +61,6 @@ Use [migration registration](../../backend/database/migrations/00_migrations.go)
 and an existing migration in `backend/database/migrations/` as the pattern.
 Choose an unused version and explicit dependencies; do not copy example versions.
 
+The runner logs one `slog` line per applied migration — version, description and `duration_ms`, resolved from `MigrationRegistry` (#3300). A migration does not print its own progress; the `Description` it registers is what the log shows, and output that carries content (row counts, repairs) goes through `slog` with fields, never `fmt` or `log.Printf`.
+
 `MigrationRegistry` is a `SafeMigrationMap` — duplicate versions **panic at init**, so the binary won't start on a collision. `go run main.go migrate validate` checks the dependency graph in-memory. Migrations use a superuser connection, which bypasses RLS even with `FORCE ROW LEVEL SECURITY`. Do not add `ALTER TABLE ... DISABLE/ENABLE ROW LEVEL SECURITY`; HTTP requests stay on the least-privilege role.
