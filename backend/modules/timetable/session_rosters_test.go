@@ -34,8 +34,8 @@ func TestSessionRostersMapsRosterRowsBackToSessions(t *testing.T) {
 	const studentID, sessionA, sessionB, instanceA, instanceB = int64(700), int64(21), int64(22), int64(31), int64(32)
 	query := &rosterQuery{
 		instances: []timetable.ActivityInstance{
-			{ID: instanceA, ActiveGroupID: new(sessionA)},
-			{ID: instanceB, ActiveGroupID: new(sessionB)},
+			{ID: instanceA, ActiveGroupID: ptr(sessionA)},
+			{ID: instanceB, ActiveGroupID: ptr(sessionB)},
 			{ID: 33},
 		},
 		rows: []timetable.InstanceStudent{{InstanceID: instanceB, StudentID: studentID}},
