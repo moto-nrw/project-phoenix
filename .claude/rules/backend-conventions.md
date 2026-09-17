@@ -136,7 +136,7 @@ type Model struct {
 func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
 // base.StringIDModel provides the same three getters for string-ID entities
 // base.StringIDModelWithoutNullZero preserves explicit zero timestamp writes
-// for the two passkey-session tables whose existing Bun mappings require it
+// for the operator passkey-session table whose existing Bun mapping requires it
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }

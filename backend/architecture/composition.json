@@ -4261,17 +4261,13 @@
     },
     {
       "scope": "test",
-      "file": "services/auth/passkey_service_test.go",
-      "declaration": "TestPasskeyRepositories",
+      "file": "services/auth/passkey_records_test.go",
+      "declaration": "TestPasskeyService_LoginCompletionTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        145
       ],
-      "tables": [
-        "auth.accounts",
-        "auth.passkey_credentials",
-        "auth.passkey_sessions"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -5801,19 +5797,6 @@
         40
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/platform/operator_passkey_service_test.go",
-      "declaration": "TestOperatorPasskeyRepositories",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        779
-      ],
-      "tables": [
-        "platform.operator_passkey_credentials",
-        "platform.operator_passkey_sessions"
-      ]
     },
     {
       "scope": "test",
@@ -23232,12 +23215,12 @@
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 49,
+          "line": 48,
           "declaration": "type PasskeyServiceConfig"
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 116,
+          "line": 118,
           "declaration": "type passkeyService"
         },
         {
@@ -23264,16 +23247,6 @@
           "file": "services/platform/operator_mfa_service.go",
           "line": 91,
           "declaration": "type OperatorMFAServiceConfig"
-        },
-        {
-          "file": "services/platform/operator_passkey_service.go",
-          "line": 35,
-          "declaration": "type OperatorPasskeyServiceConfig"
-        },
-        {
-          "file": "services/platform/operator_passkey_service.go",
-          "line": 75,
-          "declaration": "type operatorPasskeyService"
         }
       ]
     },
