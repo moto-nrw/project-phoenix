@@ -306,17 +306,30 @@ describe("RolePermissionsTab", () => {
     // die Liste einsetzt, also vor den passiven Effekten desselben Commits.
     // Genau in diesem Fenster landete der Klick, den der Reset-Effekt auf CI
     // verworfen hat (#3346).
+    let signalClicked: () => void = () => undefined;
     const clicked = new Promise<void>((resolve) => {
-      const observer = new MutationObserver(() => {
-        const groupToggle = screen.queryByLabelText<HTMLInputElement>(
-          "Alle Berechtigungen für students auswählen",
-        );
-        if (!groupToggle) return;
-        observer.disconnect();
-        groupToggle.click();
-        resolve();
-      });
-      observer.observe(document.body, { childList: true, subtree: true });
+      signalClicked = resolve;
+    });
+    const observer = new MutationObserver(() => {
+      const groupToggle = screen.queryByLabelText<HTMLInputElement>(
+        "Alle Berechtigungen für students auswählen",
+      );
+      if (!groupToggle) return;
+      observer.disconnect();
+      groupToggle.click();
+      signalClicked();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Erscheint die Liste nicht, muss das Warten von selbst enden: sonst
+    // bliebe das zurückgesetzte IS_REACT_ACT_ENVIRONMENT für den restlichen
+    // Lauf stehen und liesse spätere Tests scheitern.
+    let expired: ReturnType<typeof setTimeout> | undefined;
+    const givesUp = new Promise<never>((_, reject) => {
+      expired = setTimeout(
+        () => reject(new Error("Die Berechtigungsliste ist nicht erschienen.")),
+        2000,
+      );
     });
 
     // Nur ausserhalb von act behält React diese Reihenfolge: act zieht Commit
@@ -325,8 +338,10 @@ describe("RolePermissionsTab", () => {
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
     try {
       resolveAssigned([allPermissions[0]!]);
-      await clicked;
+      await Promise.race([clicked, givesUp]);
     } finally {
+      clearTimeout(expired);
+      observer.disconnect();
       actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     }
     // Zieht die passiven Effekte des Commits nach, die den Klick verworfen
