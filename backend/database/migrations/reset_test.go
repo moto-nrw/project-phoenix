@@ -24,12 +24,17 @@ func TestDroppablePublicTypesSkipsUndroppableTypes(t *testing.T) {
 	// real databases, but create it here so the test does not depend on that.
 	mustExec(t, db, `CREATE EXTENSION IF NOT EXISTS btree_gist`)
 	mustExec(t, db, `DROP TYPE IF EXISTS public.reset_filter_enum CASCADE`)
+	mustExec(t, db, `DROP TYPE IF EXISTS public.reset_filter_composite CASCADE`)
 	mustExec(t, db, `DROP TABLE IF EXISTS public.reset_filter_table CASCADE`)
 	mustExec(t, db, `CREATE TYPE public.reset_filter_enum AS ENUM ('a', 'b')`)
+	// A standalone composite has relkind 'c'. Only DROP TYPE removes it, so it
+	// must survive the filter even though it owns a pg_class row.
+	mustExec(t, db, `CREATE TYPE public.reset_filter_composite AS (a INT, b TEXT)`)
 	mustExec(t, db, `CREATE TABLE public.reset_filter_table (id INT PRIMARY KEY)`)
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
 		_, _ = db.ExecContext(cleanupCtx, `DROP TABLE IF EXISTS public.reset_filter_table CASCADE`)
+		_, _ = db.ExecContext(cleanupCtx, `DROP TYPE IF EXISTS public.reset_filter_composite CASCADE`)
 		_, _ = db.ExecContext(cleanupCtx, `DROP TYPE IF EXISTS public.reset_filter_enum CASCADE`)
 	})
 
@@ -45,6 +50,9 @@ func TestDroppablePublicTypesSkipsUndroppableTypes(t *testing.T) {
 
 	if !listed["reset_filter_enum"] {
 		t.Errorf("standalone type reset_filter_enum must stay droppable, got %v", typeNames)
+	}
+	if !listed["reset_filter_composite"] {
+		t.Errorf("standalone composite reset_filter_composite must stay droppable, got %v", typeNames)
 	}
 	if listed["_reset_filter_enum"] {
 		t.Error("array type _reset_filter_enum must not be listed; it is dropped with its element type")
@@ -72,8 +80,16 @@ func TestResetDropsEveryListedPublicType(t *testing.T) {
 	mustExec(t, db, `CREATE EXTENSION IF NOT EXISTS btree_gist`)
 	mustExec(t, db, `DROP TYPE IF EXISTS public.reset_drop_enum CASCADE`)
 	mustExec(t, db, `CREATE TYPE public.reset_drop_enum AS ENUM ('a', 'b')`)
+	// The query is public-only while an unqualified DROP TYPE follows
+	// search_path. Take public off the path so an unqualified drop would
+	// silently no-op and leave the type behind.
+	mustExec(t, db, `CREATE SCHEMA IF NOT EXISTS reset_drop_elsewhere`)
+	mustExec(t, db, `SET search_path TO reset_drop_elsewhere`)
 	t.Cleanup(func() {
-		_, _ = db.ExecContext(context.Background(), `DROP TYPE IF EXISTS public.reset_drop_enum CASCADE`)
+		cleanupCtx := context.Background()
+		_, _ = db.ExecContext(cleanupCtx, `SET search_path TO "$user", public`)
+		_, _ = db.ExecContext(cleanupCtx, `DROP SCHEMA IF EXISTS reset_drop_elsewhere CASCADE`)
+		_, _ = db.ExecContext(cleanupCtx, `DROP TYPE IF EXISTS public.reset_drop_enum CASCADE`)
 	})
 
 	typeNames, err := droppablePublicTypes(ctx, db)
@@ -81,7 +97,8 @@ func TestResetDropsEveryListedPublicType(t *testing.T) {
 		t.Fatalf("list droppable public types: %v", err)
 	}
 	for _, typeName := range typeNames {
-		if _, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ? CASCADE", bun.Ident(typeName)); err != nil {
+		if _, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
+			bun.Ident(publicSchema), bun.Ident(typeName)); err != nil {
 			t.Errorf("drop type %s: %v", typeName, err)
 		}
 	}

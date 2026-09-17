@@ -7,6 +7,10 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// publicSchema is the one schema a reset sweeps for leftover types. Everything
+// else is dropped wholesale in step 1, so only public survives to be swept.
+const publicSchema = "public"
+
 // droppablePublicTypesQuery lists the types in the public schema that a reset may
 // drop. It excludes the groups that PostgreSQL either refuses to drop or drops
 // on its own:
@@ -107,16 +111,21 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 	}
 	for _, typeName := range typeNames {
 		fmt.Printf("Dropping custom type %s...\n", typeName)
-		_, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ? CASCADE", bun.Ident(typeName))
+		// Qualify the name. The query only ever returns types in public, while
+		// an unqualified DROP TYPE resolves through search_path, so under a
+		// non-default search_path the two could disagree: the drop would target
+		// another schema's type or, with IF EXISTS, quietly do nothing and
+		// leave the public type behind for the next CREATE TYPE to collide with.
+		_, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
+			bun.Ident(publicSchema), bun.Ident(typeName))
 		if err != nil {
-			return fmt.Errorf("failed to drop type %s: %w", typeName, err)
+			return fmt.Errorf("failed to drop type %s.%s: %w", publicSchema, typeName, err)
 		}
 	}
 
 	// 3. Drop the extensions. The named types this step used to drop as well
-	// (occupancy_status, device_status) live in public and are already gone:
-	// unqualified DROP TYPE only ever resolved them through the search path,
-	// which is exactly what step 2 now covers.
+	// (occupancy_status, device_status) are created unqualified, so they land
+	// in public and step 2 has already removed them.
 	_, err = db.ExecContext(ctx, `DROP EXTENSION IF EXISTS "uuid-ossp"`)
 	if err != nil {
 		fmt.Printf("Warning: Failed to drop extensions: %v\n", err)
