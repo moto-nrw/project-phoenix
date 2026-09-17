@@ -42,7 +42,7 @@ func NewClassDayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 		CareOfferingRepo: r.CareOffering, Schemas: r.Enrollment(),
 		Phases: r.Enrollment(), DataAccessLogRepo: r.DataAccessLog, StudentRepo: r.Student, StudentGuardianRepo: r.StudentGuardian,
 		StudentCompanionRepo: r.StudentCompanion, PersonRepo: r.Person, EducationGroupRepo: r.Group, StudentStatusDayRepo: r.StudentStatusDay,
-		ClassListEntryRepo: r.ClassListEntry, PickupScheduleSvc: active.PickupSchedule, ArrivalScheduleSvc: active.ArrivalSchedule,
+		ClassListEntries: NewClassListEntryRosterReader(r.Membership), PickupScheduleSvc: active.PickupSchedule, ArrivalScheduleSvc: active.ArrivalSchedule,
 		ClassArrivalExceptions: active.ArrivalSchedule, CareDaySvc: active.CareDay, Settings: active.Settings, CareParticipation: care.CareLifecycle,
 	})
 	exceptions := enrollment.NewClassDayArrivalExceptionService(enrollment.ClassDayArrivalExceptionConfig{

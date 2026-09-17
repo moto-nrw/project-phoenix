@@ -8,6 +8,7 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
 )
 
@@ -22,7 +23,7 @@ type EnrollmentTestRepositories struct {
 	GuardianProfile     usersModels.GuardianProfileRepository
 	GuardianPhoneNumber usersModels.GuardianPhoneNumberRepository
 	StudentCompanion    usersModels.StudentCompanionRepository
-	ClassListEntry      usersModels.ClassListEntryRepository
+	Membership          schoolmembership.Capability
 	DataAccessLog       auditModels.DataAccessLogRepository
 }
 
@@ -57,6 +58,6 @@ func NewEnrollmentTestRepositories(db *bun.DB, command auditModels.Command) (Enr
 		School: r.School, Account: r.Account, AccountTenant: r.AccountTenant,
 		AccountRole: authRepo.NewAccountRoleRepository(db), Role: authRepo.NewRoleRepository(db),
 		StudentGuardian: NewStudentGuardianRepository(db), GuardianProfile: NewGuardianProfileRepository(db), GuardianPhoneNumber: usersRepo.NewGuardianPhoneNumberRepository(db),
-		StudentCompanion: r.StudentCompanion, ClassListEntry: members.ClassListEntry,
+		StudentCompanion: r.StudentCompanion, Membership: members.Membership,
 		DataAccessLog: dataAccessLogCommand{auditRepo.NewDataAccessLogRepository(newTestAuditRuntime(db)), command}}, nil
 }

@@ -141,11 +141,6 @@ type StudentRepository interface {
 	// instant is converted to the current Berlin date inside the repository.
 	FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*StudentWithGroupInfo, error)
 
-	// FindByNameAndClass retrieves students by first name, last name, and school class (for import duplicate detection).
-	// Alumni are excluded: a graduate is soft-deleted and must not block the
-	// import of a new child sharing their name and class.
-	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*Student, error)
-
 	// UpdateStatus changes a student's lifecycle status. Tenant-scoped via context.
 	// Unconditional: it overwrites whatever status the row currently carries, so
 	// it must NOT be used by background lifecycle work that decided on a status
@@ -244,18 +239,6 @@ type StudentRepository interface {
 	// enrolled_from moves to `from`, enrolled_until is cleared and the
 	// lifecycle status is recomputed against `today` (#2487).
 	SetEnrollmentWindowByID(ctx context.Context, id int64, from timezone.Date, status StudentStatus) error
-}
-
-// ClassListEntryRepository defines operations for the class-list-only entries
-// (#2382). School classes are free-text strings; every class comparison uses
-// LOWER(BTRIM(...)) — see models/users.ClassListEntry.
-type ClassListEntryRepository interface {
-	base.CRUDRepository[*ClassListEntry]
-	// FindBySchoolClass returns the entries of one class, name-sorted.
-	FindBySchoolClass(ctx context.Context, schoolClass string) ([]*ClassListEntry, error)
-	// FindByNameAndClass returns entries matching first name, last name and
-	// class case-insensitively (duplicate guard for create and import).
-	FindByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]*ClassListEntry, error)
 }
 
 // CaregiverBindingLocker serializes the caregiver blocker re-check with all

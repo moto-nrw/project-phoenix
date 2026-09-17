@@ -3,7 +3,14 @@ package classlist
 
 import "time"
 
-const ClassListEntryActionCreated = "created"
+// The class-list entry actions (#2382). Part of the audit wire format: the
+// producer records which of the four administration commands ran.
+const (
+	ClassListEntryActionCreated  = "created"
+	ClassListEntryActionUpdated  = "updated"
+	ClassListEntryActionDeleted  = "deleted"
+	ClassListEntryActionAssigned = "assigned"
+)
 
 // ClassListEntryChange is appended in the same transaction as the entry change.
 type ClassListEntryChange struct {

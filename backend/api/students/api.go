@@ -39,6 +39,22 @@ type Resource struct {
 	ResourceConfig
 }
 
+// ClassListEntry is one class-list-only child (#2382) as this resource reads
+// it: a name and a free-text class, nothing else exists.
+type ClassListEntry struct {
+	ID          int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+// ClassListEntryReader hands over the entries in the class-then-name display
+// order the "Klassenliste" export and the class dropdown both rely on. The
+// root binds it to the School Membership capability that owns them.
+type ClassListEntryReader interface {
+	ListClassListEntriesInDisplayOrder(context.Context) ([]ClassListEntry, error)
+}
+
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
@@ -61,10 +77,11 @@ type ResourceConfig struct {
 	SchoolService   SchoolDirectory
 	SettingsService configService.SettingsService
 	StudentService  userService.StudentService
-	// ClassListEntryService supplies the class-list-only entries (#2382) the
-	// "Klassenliste" export merges into the Klassenverband. Optional: nil
-	// exports without entries (bare test Resources).
-	ClassListEntryService userService.ClassListEntryService
+	// ClassListEntries supplies the class-list-only entries (#2382) the
+	// "Klassenliste" export merges into the Klassenverband, read through
+	// their School Membership owner in the display order the export needs.
+	// Optional: nil exports without entries (bare test Resources).
+	ClassListEntries ClassListEntryReader
 	// StudentDeletion is the owner workflow behind the permanent deletion
 	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
 	// withdrawal deletion. Optional so bare test Resources still compile; the
