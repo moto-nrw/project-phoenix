@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -117,7 +118,8 @@ func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
 			conflicts["replayed_ceremony"]++
 		}
 		// A second registration of the same authenticator is refused.
-		if _, err := records.CreateOperatorPasskey(ctx, credential); err != nil {
+		if _, err := records.CreateOperatorPasskey(ctx, credential); err != nil &&
+			strings.Contains(err.Error(), "uniq_operator_passkey_credentials_credential_id") {
 			conflicts["duplicate_credential"]++
 		}
 		var login identityaccess.OperatorPasskeySession
@@ -127,20 +129,23 @@ func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
 				newOperatorPasskeySession(t, db, nil, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now().Add(5*time.Minute)))
 			return err
 		})
-		// Login: consume the ceremony, resolve the credential and the
-		// operator's other credentials, store the new signature state.
+		// Login, in the administrative transaction the service opens: consume
+		// the ceremony, resolve the credential and the operator's other
+		// credentials, store the new signature state.
 		measure("finish_login", iteration, func() error {
-			if _, err := records.ConsumeOperatorPasskeySession(ctx, login.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now()); err != nil {
-				return err
-			}
-			found, err := records.FindActiveOperatorPasskey(ctx, credential.CredentialID, handle)
-			if err != nil {
-				return err
-			}
-			if _, err := records.ListActiveOperatorPasskeys(ctx, operator.ID); err != nil {
-				return err
-			}
-			return records.RecordOperatorPasskeyUse(ctx, found.ID, json.RawMessage(`{"id":"used"}`), time.Now())
+			return testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
+				if _, err := records.ConsumeOperatorPasskeySession(txCtx, login.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now()); err != nil {
+					return err
+				}
+				found, err := records.FindActiveOperatorPasskey(txCtx, credential.CredentialID, handle)
+				if err != nil {
+					return err
+				}
+				if _, err := records.ListActiveOperatorPasskeys(txCtx, operator.ID); err != nil {
+					return err
+				}
+				return records.RecordOperatorPasskeyUse(txCtx, found.ID, json.RawMessage(`{"id":"used"}`), time.Now())
+			})
 		})
 		measure("list_passkeys", iteration, func() error {
 			_, err := records.ListActiveOperatorPasskeys(ctx, operator.ID)

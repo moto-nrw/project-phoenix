@@ -732,9 +732,12 @@ passkey records (#2724), `platform.operator_passkey_credentials` and
 public `OperatorPasskeyRecords` capability. The retained `services/platform`
 operator passkey service keeps the WebAuthn ceremonies, the origin check and
 the token exchange and reaches the rows through the `OperatorPasskeyRecords`
-port the root binds to the public module. A ceremony completes at most once;
-only the owner's not-found outcomes become an invalid session or a missing
-passkey, so store failures reach the caller as errors. The `models/platform`
+port the root binds to the public module. A ceremony completes at most once,
+in one administrative transaction with the credential insert or use record
+the module operations join: a refused ceremony commits and stays spent, a
+failed read or write rolls back and leaves the ceremony open. Only the
+owner's not-found outcomes become an invalid session or a missing passkey,
+so store failures reach the caller as errors. The `models/platform`
 passkey repository contracts and their adapter are deleted; the passkey
 models remain as the retained port's value types. The tenant portal
 passkeys (`auth.passkey_*`) stay with `services/auth` under #2725. The foreign

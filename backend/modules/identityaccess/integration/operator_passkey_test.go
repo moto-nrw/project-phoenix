@@ -201,11 +201,17 @@ func TestOperatorPasskeyRecordsAreVisibleFromEveryTenantContext(t *testing.T) {
 			found, err := records.FindActiveOperatorPasskey(tenantCtx, credential.CredentialID, handle)
 			require.NoError(t, err)
 			assert.Equal(t, credential.ID, found.ID)
-			session, err := records.CreateOperatorPasskeySession(tenantCtx,
+			started, err := records.CreateOperatorPasskeySession(ctx,
 				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
 			require.NoError(t, err)
-			_, err = records.ConsumeOperatorPasskeySession(ctx, session.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
-			require.NoError(t, err, "a ceremony started in one context completes in another")
+			_, err = records.ConsumeOperatorPasskeySession(tenantCtx, started.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+			require.NoError(t, err, "a ceremony started without this tenant completes within it")
+			created, err := records.CreateOperatorPasskeySession(tenantCtx,
+				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
+			require.NoError(t, err)
+			_, err = records.ConsumeOperatorPasskeySession(testpkg.TenantContext(second+first-tenantID), created.ID,
+				identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+			require.NoError(t, err, "a ceremony started in one tenant completes in the other")
 		})
 	}
 }
