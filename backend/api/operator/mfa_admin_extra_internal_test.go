@@ -64,7 +64,7 @@ func reqWithSchoolAccount(t *testing.T, method, schoolID, accountID string, body
 	return r.WithContext(ctx)
 }
 
-func provisioningResourceFor(mfa authSvc.MFAService) *SchoolAccountMFAResource {
+func mfaAdminResourceFor(mfa authSvc.MFAService) *SchoolAccountMFAResource {
 	return &SchoolAccountMFAResource{
 		TenantMFAService: mfa,
 	}
@@ -79,7 +79,7 @@ func TestGetSchoolAccountMFAState_HappyPath(t *testing.T) {
 	mfa.HasEnrollmentFn = func(context.Context, int64) (bool, error) { return true, nil }
 	mfa.GetTenantMFAOverrideFn = func(context.Context, int64, int64) (string, error) { return authSvc.MFAAdminOverrideForceOn, nil }
 	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return true, nil }
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
 	rr := httptest.NewRecorder()
@@ -93,7 +93,7 @@ func TestGetSchoolAccountMFAState_AccountNotInSchool_Returns404(t *testing.T) {
 
 	mfa := newStubTenantMFAService()
 	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return false, nil }
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
 	rr := httptest.NewRecorder()
@@ -108,7 +108,7 @@ func TestGetSchoolAccountMFAState_MembershipLookupErrorMapsTo500(t *testing.T) {
 
 	mfa := newStubTenantMFAService()
 	mfa.AccountBelongsToTenantFn = func(context.Context, int64, int64) (bool, error) { return false, errors.New("db down") }
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodGet, "10", "200", nil, 7)
 	rr := httptest.NewRecorder()
@@ -126,7 +126,7 @@ func TestResetSchoolAccountMFA_HappyPath(t *testing.T) {
 		capturedReason = reason
 		return nil
 	}
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
 		MFAAdminResetRequest{Reason: "User left organization"}, 7)
@@ -141,7 +141,7 @@ func TestResetSchoolAccountMFA_RequiresOperatorClaim(t *testing.T) {
 	t.Parallel()
 
 	mfa := newStubTenantMFAService()
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
 		MFAAdminResetRequest{Reason: "ok ok ok"}, 0) // no claim
@@ -155,7 +155,7 @@ func TestResetSchoolAccountMFA_BadJSONRequest(t *testing.T) {
 	t.Parallel()
 
 	mfa := newStubTenantMFAService()
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	// Empty reason fails Bind validation
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
@@ -173,7 +173,7 @@ func TestResetSchoolAccountMFA_PermissionDenied_Returns403(t *testing.T) {
 	mfa.OperatorAdminDisableFn = func(context.Context, int64, int64, int64, string) error {
 		return authSvc.ErrMFAPermissionDenied
 	}
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodDelete, "10", "200",
 		MFAAdminResetRequest{Reason: "User left"}, 7)
@@ -192,7 +192,7 @@ func TestSetSchoolAccountMFAOverride_HappyPath(t *testing.T) {
 		capturedOverride = override
 		return nil
 	}
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{
@@ -210,7 +210,7 @@ func TestSetSchoolAccountMFAOverride_RejectsBadOverride(t *testing.T) {
 	t.Parallel()
 
 	mfa := newStubTenantMFAService()
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{Override: "bogus", Reason: "ok ok"}, 7)
@@ -227,7 +227,7 @@ func TestSetSchoolAccountMFAOverride_InvalidOverrideFromService(t *testing.T) {
 	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
 		return authSvc.ErrMFAInvalidOverride
 	}
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{Override: authSvc.MFAAdminOverrideForceOff, Reason: "ok ok"}, 7)
@@ -244,7 +244,7 @@ func TestSetSchoolAccountMFAOverride_PermissionDenied(t *testing.T) {
 	mfa.OperatorSetMFAOverrideFn = func(context.Context, int64, int64, int64, string, string) error {
 		return authSvc.ErrMFAPermissionDenied
 	}
-	rs := provisioningResourceFor(mfa)
+	rs := mfaAdminResourceFor(mfa)
 
 	r := reqWithSchoolAccount(t, http.MethodPut, "10", "200",
 		MFAAdminOverrideSetRequest{Override: authSvc.MFAAdminOverrideForceOn, Reason: "ok ok"}, 7)

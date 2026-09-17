@@ -171,6 +171,12 @@ func (rs *Resource) ResolveUnregisteredTagScan(w http.ResponseWriter, r *http.Re
 	rs.surface.Respond(w, r, http.StatusOK, scan, "Unregistered RFID scan resolved successfully")
 }
 
+// listForOperator and resolve keep the review's administrative transaction,
+// school narrowing and labelling here, where the retired services/audit
+// review had them: that orchestration spans Device Fleet and Organisation &
+// Tenancy, and the Device Fleet public capability serves no operator review
+// yet. The handlers call exactly this one composition per request; it moves
+// behind the owner's capability when one exists (#2736).
 func (rs *Resource) listForOperator(ctx context.Context, query scanQuery) ([]scanResponse, error) {
 	var result []scanResponse
 	err := rs.withinAdmin(ctx, func(adminCtx context.Context) error {
