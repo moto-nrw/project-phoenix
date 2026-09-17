@@ -8,6 +8,13 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 )
 
+// The school invitation flows are served by Identity & Access (#2722):
+// creating the link with its role-grant check, the public preview, the
+// acceptance that provisions the account and its identity, resend, revoke
+// and the cleanup. InvitationService is the consumer-owned port the
+// composition root binds to the public module, so the retained invitation
+// routes and the staff import keep their contract.
+
 // InvitationRequest describes the data required to create a new invitation.
 type InvitationRequest struct {
 	Email            string
@@ -88,4 +95,184 @@ var (
 	ErrInvitationTenantDeleted       = errors.New("the school for this invitation has been deleted")
 	ErrInvitationNameRequired        = errors.New("first name and last name are required")
 	ErrAccountAlreadyHasTenantAccess = errors.New("account already has access to tenant")
+)
+
+// InvitationRecord is one invitation as the owner reports it; the retained
+// service maps it onto the model the invitation routes render.
+type InvitationRecord struct {
+	ID               int64
+	TenantID         int64
+	Email            string
+	Token            string
+	RoleID           int64
+	RoleName         string
+	ExpiresAt        time.Time
+	UsedAt           *time.Time
+	CreatedBy        *int64
+	FirstName        *string
+	LastName         *string
+	Position         *string
+	CaregiverEnabled bool
+	PersonID         *int64
+	EmailSentAt      *time.Time
+	EmailError       *string
+	EmailRetryCount  int
+	CreatedAt        time.Time
+}
+
+// InvitationAccount is the account an acceptance hands back.
+type InvitationAccount struct {
+	ID    int64
+	Email string
+}
+
+// ErrInvitationsUnavailable reports a service composed without the Identity
+// & Access invitation port.
+var ErrInvitationsUnavailable = errors.New("school invitations are not composed")
+
+// SchoolInvitations is the consumer-owned port over the Identity & Access
+// invitation capability. Errors arrive in the AuthError envelope with this
+// package's sentinels.
+type SchoolInvitations interface {
+	CreateInvitation(ctx context.Context, req InvitationRequest) (InvitationRecord, error)
+	ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error)
+	AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (InvitationAccount, error)
+	ResendInvitation(ctx context.Context, invitationID, actorAccountID int64) error
+	ListPendingInvitations(ctx context.Context) ([]InvitationRecord, error)
+	RevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) error
+	InvalidatePendingInvitationsByTenantID(ctx context.Context, tenantID int64) (int, error)
+	CleanupExpiredInvitations(ctx context.Context) (int, error)
+	GetTenantSubdomainForToken(ctx context.Context, token string) string
+}
+
+// NewInvitationService serves the retained invitation contract over the
+// owner's port: the flows live in Identity & Access, the models the routes
+// render are built here.
+func NewInvitationService(invitations SchoolInvitations) InvitationService {
+	return invitationService{invitations: invitations}
+}
+
+type invitationService struct{ invitations SchoolInvitations }
+
+func (s invitationService) port(op string) (SchoolInvitations, error) {
+	if s.invitations == nil {
+		return nil, &AuthError{Op: op, Err: ErrInvitationsUnavailable}
+	}
+	return s.invitations, nil
+}
+
+func invitationTokenModel(record InvitationRecord) *authModels.InvitationToken {
+	token := &authModels.InvitationToken{
+		Email: record.Email, Token: record.Token, RoleID: record.RoleID, ExpiresAt: record.ExpiresAt,
+		UsedAt: record.UsedAt, CreatedBy: record.CreatedBy, FirstName: record.FirstName, LastName: record.LastName,
+		Position: record.Position, CaregiverEnabled: record.CaregiverEnabled, PersonID: record.PersonID,
+		EmailSentAt: record.EmailSentAt, EmailError: record.EmailError, EmailRetryCount: record.EmailRetryCount,
+	}
+	token.ID, token.CreatedAt = record.ID, record.CreatedAt
+	token.SetTenantID(record.TenantID)
+	if record.RoleName != "" {
+		role := &authModels.Role{Name: record.RoleName}
+		role.ID = record.RoleID
+		token.Role = role
+	}
+	return token
+}
+
+func (s invitationService) CreateInvitation(ctx context.Context, req InvitationRequest) (*authModels.InvitationToken, error) {
+	invitations, err := s.port(opCreateInvitation)
+	if err != nil {
+		return nil, err
+	}
+	record, err := invitations.CreateInvitation(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return invitationTokenModel(record), nil
+}
+
+func (s invitationService) ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error) {
+	invitations, err := s.port(opFetchInvitation)
+	if err != nil {
+		return nil, err
+	}
+	return invitations.ValidateInvitation(ctx, token)
+}
+
+func (s invitationService) AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error) {
+	invitations, err := s.port(opAcceptInvitation)
+	if err != nil {
+		return nil, err
+	}
+	account, err := invitations.AcceptInvitation(ctx, token, userData)
+	if err != nil {
+		return nil, err
+	}
+	model := &authModels.Account{Email: account.Email, Active: true}
+	model.ID = account.ID
+	return model, nil
+}
+
+func (s invitationService) ResendInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
+	invitations, err := s.port(opResendInvitation)
+	if err != nil {
+		return err
+	}
+	return invitations.ResendInvitation(ctx, invitationID, actorAccountID)
+}
+
+func (s invitationService) ListPendingInvitations(ctx context.Context) ([]*authModels.InvitationToken, error) {
+	invitations, err := s.port("list invitations")
+	if err != nil {
+		return nil, err
+	}
+	records, err := invitations.ListPendingInvitations(ctx)
+	if err != nil {
+		return nil, err
+	}
+	tokens := make([]*authModels.InvitationToken, 0, len(records))
+	for _, record := range records {
+		tokens = append(tokens, invitationTokenModel(record))
+	}
+	return tokens, nil
+}
+
+func (s invitationService) RevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
+	invitations, err := s.port(opRevokeInvitation)
+	if err != nil {
+		return err
+	}
+	return invitations.RevokeInvitation(ctx, invitationID, actorAccountID)
+}
+
+func (s invitationService) InvalidatePendingInvitationsByTenantID(ctx context.Context, tenantID int64) (int, error) {
+	invitations, err := s.port("invalidate invitations by tenant")
+	if err != nil {
+		return 0, err
+	}
+	return invitations.InvalidatePendingInvitationsByTenantID(ctx, tenantID)
+}
+
+func (s invitationService) CleanupExpiredInvitations(ctx context.Context) (int, error) {
+	invitations, err := s.port("cleanup invitations")
+	if err != nil {
+		return 0, err
+	}
+	return invitations.CleanupExpiredInvitations(ctx)
+}
+
+func (s invitationService) GetTenantSubdomainForToken(ctx context.Context, token string) string {
+	invitations, err := s.port(opFetchInvitation)
+	if err != nil {
+		return ""
+	}
+	return invitations.GetTenantSubdomainForToken(ctx, token)
+}
+
+// Operation names the invitation flows report.
+const (
+	opCreateInvitation = "create invitation"
+	opAcceptInvitation = "accept invitation"
+	opResendInvitation = "resend invitation"
+	opRevokeInvitation = "revoke invitation"
+	opFetchInvitation  = "fetch invitation"
 )

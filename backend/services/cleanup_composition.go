@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -97,10 +98,17 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	return service, nil
 }
 
-func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.InvitationService {
-	return auth.NewInvitationService(auth.InvitationServiceConfig{
-		InvitationRepo: repositories.NewInvitationCleanupRepository(db), DB: db, Logger: logger,
+// NewInvitationCleanupService composes the invitation maintenance the
+// cleanup CLI runs. The invitation flows themselves stay unavailable: the
+// CLI only deletes expired links (#2722).
+func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (auth.InvitationService, error) {
+	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
+		DB: db, Observe: func(identityaccessCompose.Observation) {},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("invitation cleanup service: %w", err)
+	}
+	return NewInvitationService(module), nil
 }
 
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {

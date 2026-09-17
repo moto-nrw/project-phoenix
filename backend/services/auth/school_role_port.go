@@ -3,7 +3,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 )
 
@@ -85,4 +87,46 @@ func validateAssignableSchoolRole(
 // that must refuse it validate the role through the policy first.
 func isLehrkraftRole(policy SchoolIdentityProvisioning, role *authModels.Role) bool {
 	return policy != nil && role != nil && policy.IsLehrkraftSystemRole(RoleFactsOf(role))
+}
+
+// ResolveSystemRoleByName looks up the platform system role with that name,
+// matching case-insensitively; a school's own role never matches. Returns
+// (nil, nil) when no system role has the name. Shared by the caregiver
+// capability and the operator provisioning, which resolve the tier they
+// grant by name.
+func ResolveSystemRoleByName(ctx context.Context, repo authModels.RoleRepository, name string) (*authModels.Role, error) {
+	roles, err := repo.List(ctx, map[string]interface{}{
+		"name":      strings.TrimSpace(strings.ToLower(name)),
+		"is_system": true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, role := range roles {
+		if role == nil {
+			continue
+		}
+		if role.TenantID == nil && role.IsSystem && strings.EqualFold(role.Name, name) {
+			return role, nil
+		}
+	}
+	return nil, nil
+}
+
+// CanGrantRole answers whether an account holding actorPermissions may hand
+// the role out to someone else. Security Runtime owns the rule; the school
+// invitation asks it through the composition (#2722).
+func CanGrantRole(role RoleFacts, actorPermissions, rolePermissions []string) bool {
+	return authorize.CanGrantRole(grantedRole{facts: role, permissions: rolePermissions}, actorPermissions)
+}
+
+// grantedRole presents the role facts and the role's effective permissions
+// to the decision without a persistence model.
+type grantedRole struct {
+	facts       RoleFacts
+	permissions []string
+}
+
+func (r grantedRole) AuthorizationGrantData() (bool, string, *string, bool, bool, []string) {
+	return true, r.facts.Name, r.facts.BaseRole, r.facts.IsSystem, r.facts.TenantID != nil, r.permissions
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -530,22 +531,10 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
-	schoolIdentity, identityErr := services.NewSchoolIdentityForTests(sc.db, testpkg.TenantRuntime(t, sc.db))
-	require.NoError(t, identityErr)
-	invSvc := authSvcPkg.NewInvitationService(authSvcPkg.InvitationServiceConfig{
-		SchoolIdentity:    schoolIdentity,
-		InvitationRepo:    sc.repos.InvitationToken,
-		AccountRepo:       sc.repos.Account,
-		AccountTenantRepo: sc.repos.AccountTenant,
-		RoleRepo:          sc.repos.Role,
-		AccountRoleRepo:   sc.repos.AccountRole,
-		SchoolRepo:        services.InvitationSchoolsForTests(sc.repos.School, testpkg.TenantRuntime(t, sc.db)),
-		Mailer:            email.NewMockMailer(),
-		FrontendURL:       "http://localhost:3000",
-		InvitationExpiry:  time.Hour,
-		DB:                sc.db,
-	})
-	testpkg.SetTenantRuntime(t, invSvc, sc.db)
+	factory, factoryErr := services.NewFactoryForTests(sc.repos, sc.db, slog.Default())
+	require.NoError(t, factoryErr)
+	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
+	invSvc := factory.Invitation
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")

@@ -238,7 +238,14 @@ func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {
 }
 
 func buildInvitationCleanupService(ctx *cleanupContext) invitationCleanupService {
-	return services.NewInvitationCleanupService(ctx.DB, slog.Default().With("service", "invitation-cleanup-cli"))
+	service, err := services.NewInvitationCleanupService(ctx.DB, slog.Default().With("service", "invitation-cleanup-cli"))
+	if err != nil {
+		// buildCleanupDependency reports the nil as the missing capability,
+		// the same way a builder that cannot compose its service does.
+		slog.Default().Error("invitation cleanup service unavailable", slog.Any("error", err))
+		return nil
+	}
+	return service
 }
 
 func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {

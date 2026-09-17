@@ -167,8 +167,11 @@ type School struct {
 	OrganizationID int64
 	Name           string
 	Slug           string
-	Active         bool
-	Deleted        bool
+	// Subdomain is the host label tenant routing resolves by (#1977); the
+	// invitation answers carry it so the client lands on the right host.
+	Subdomain string
+	Active    bool
+	Deleted   bool
 }
 
 // MFAPolicy is a resolved MFA verdict waiting for the role set it applies to.

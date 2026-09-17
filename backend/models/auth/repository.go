@@ -26,7 +26,6 @@ type AccountRepository interface {
 	// callers therefore all receive the same stored value instead of a URL a
 	// later write overwrote.
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
-	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
@@ -91,7 +90,6 @@ type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
 	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
-	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 }
 
 // RolePermissionRepository defines operations for managing role-permission mappings
@@ -135,7 +133,6 @@ type InvitationTokenRepository interface {
 	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
 	MarkAsUsed(ctx context.Context, id int64) error
 	InvalidateByEmail(ctx context.Context, email string) (int, error)
-	InvalidateByTenantID(ctx context.Context, tenantID int64) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }

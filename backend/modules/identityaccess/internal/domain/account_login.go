@@ -90,8 +90,10 @@ type School struct {
 	OrganizationID int64
 	Name           string
 	Slug           string
-	Active         bool
-	Deleted        bool
+	// Subdomain is the host label tenant routing resolves by (#1977).
+	Subdomain string
+	Active    bool
+	Deleted   bool
 }
 
 // Live reports whether the school can be logged into on any portal.

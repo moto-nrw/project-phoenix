@@ -1623,6 +1623,10 @@ func newFactory(
 			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
 			expiry: passwordResetTokenExpiry, rateLimitEnabled: cfg.RateLimitEnabled,
 		},
+		invitations: &invitationWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
+			mailIdentity: tenantMailIdentity, tokenAuth: authConfig.TokenAuth, expiry: invitationTokenExpiry,
+		},
 		// The lifecycle flows (#3225) read the retained role management and
 		// the guardian invitation delivery back at call time; both are
 		// composed below.
@@ -1689,26 +1693,7 @@ func newFactory(
 		return nil, fmt.Errorf("init passkey service: %w", err)
 	}
 
-	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
-		TokenAuth:         authConfig.TokenAuth,
-		InvitationRepo:    repos.InvitationToken,
-		AccountRepo:       repos.Account,
-		AccountTenantRepo: repos.AccountTenant,
-		RoleRepo:          repos.Role,
-		PermissionRepo:    repos.Permission,
-		AccountRoleRepo:   repos.AccountRole,
-		SchoolRepo:        invitationSchoolDirectory{schools: organizations},
-		Mailer:            mailer,
-		Dispatcher:        dispatcher,
-		FrontendURL:       frontendURL,
-		SchoolURL:         schoolURL,
-		DefaultFrom:       defaultFrom,
-		InvitationExpiry:  invitationTokenExpiry,
-		MailIdentity:      tenantMailIdentity,
-		SchoolIdentity:    accountSessionsPort,
-		DB:                db,
-		Logger:            authLogger,
-	})
+	invitationService := NewInvitationService(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.

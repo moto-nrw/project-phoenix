@@ -50,6 +50,9 @@ type accountAuthenticationWiring struct {
 	// resets configures the password reset flows (#2722); nil composes the
 	// module without them and every reset reports it as unavailable.
 	resets *passwordResetWiring
+	// invitations configures the school invitation flows (#2722); nil
+	// composes the module with the invitation maintenance only.
+	invitations *invitationWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -118,11 +121,13 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	// composed into, so it reads the module back at call time.
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
+	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
-		Lifecycle: lifecycle,
-		Resets:    resets,
-		DB:        db,
-		Observe:   observe,
+		Lifecycle:   lifecycle,
+		Resets:      resets,
+		Invitations: invitations,
+		DB:          db,
+		Observe:     observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
@@ -199,7 +204,7 @@ type schoolDirectory struct {
 func schoolFact(school organizationtenancy.School) identityaccess.School {
 	return identityaccess.School{
 		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
-		Active: school.Active, Deleted: school.IsDeleted(),
+		Subdomain: school.Subdomain, Active: school.Active, Deleted: school.IsDeleted(),
 	}
 }
 

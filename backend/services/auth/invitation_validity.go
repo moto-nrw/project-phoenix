@@ -1,9 +1,13 @@
 package auth
 
 import (
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Token validity decisions (issue #586 — Rule 12: models hold data, not
@@ -28,4 +32,20 @@ func GuardianInvitationExpired(i *auth.GuardianInvitation, now time.Time) bool {
 // consumed: not expired and not already accepted.
 func GuardianInvitationValid(i *auth.GuardianInvitation, now time.Time) bool {
 	return i != nil && !GuardianInvitationExpired(i, now) && !i.IsAccepted()
+}
+
+// isNotFoundError reports the "no row" outcomes of the retained
+// repositories the invitation and guardian flows still read through.
+func isNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, sql.ErrNoRows) || errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+		return true
+	}
+	var dbErr *modelBase.DatabaseError
+	if errors.As(err, &dbErr) {
+		return errors.Is(dbErr.Err, sql.ErrNoRows)
+	}
+	return false
 }

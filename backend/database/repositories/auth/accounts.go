@@ -368,14 +368,6 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	return account, nil
 }
 
-// UpdatePassword updates the password hash for an account and resets the
-// OTP flag (a permanent password replaces any one-time password).
-func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	account := &auth.Account{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash, IsPasswordOTP: false}
-	_, err := r.UpdateColumns(ctx, account, "password_hash", "is_password_otp")
-	return err
-}
-
 // IncrementMFAAttempts atomically bumps mfa_attempts by one and sets the
 // lock deadline from the application clock when the post-increment count is
 // >= threshold. The service evaluates that deadline against the same clock,

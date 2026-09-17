@@ -42,6 +42,10 @@ type Dependencies struct {
 	// Resets composes the password reset flows (#2722). It requires Sessions;
 	// compositions without it report ErrPasswordResetUnavailable.
 	Resets *PasswordResetDependencies
+	// Invitations composes the school invitation flows (#2722). They require
+	// Sessions and Lifecycle; compositions without it report
+	// ErrSchoolInvitationUnavailable.
+	Invitations *SchoolInvitationDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -94,6 +98,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	if err != nil {
+		return nil, err
+	}
 	tokens := application.NewOperatorTokens(service, store)
 	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
 	if err != nil {
@@ -101,7 +109,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	e := engine{
 		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens, auth: auth,
-		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles, resets: resets,
+		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles, resets: resets, invitations: invitations,
+		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
@@ -157,6 +166,12 @@ type engine struct {
 	// resets is nil when the module was composed without password reset
 	// dependencies.
 	resets *application.PasswordReset
+	// invitations is nil when the module was composed without the school
+	// invitation dependencies.
+	invitations *application.SchoolInvitation
+	// invitationMaintenance is always composed: spending a deleted school's
+	// invitations and deleting expired ones need no flow dependencies.
+	invitationMaintenance *application.SchoolInvitationMaintenance
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
 }
