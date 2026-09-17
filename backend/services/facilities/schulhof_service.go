@@ -220,11 +220,12 @@ func (s *schulhofService) ensureRoom(ctx context.Context) (*facilitiesModule.Roo
 	if !errors.Is(err, ErrRoomNotFound) {
 		return nil, err
 	}
-	// Released at creation so a newly provisioned school starts with the same
-	// usable arrangement the migration gives existing ones (#3064). The release
-	// is set ONLY on this create path: an already-provisioned room is returned
-	// untouched above, which is what makes an administrator's explicit
-	// deactivation survive restarts, deployments and later provisioning runs.
+	// Released at creation: this path runs only when a school switches on the
+	// kiosk Schulhof button, which is its decision that children pick the yard
+	// at the device (ADR 0019, point 2). The release is set ONLY on this create
+	// path: an already-provisioned room is returned untouched above, which is
+	// what makes an administrator's explicit deactivation survive restarts,
+	// deployments and later provisioning runs.
 	room = &facilitiesModule.Room{
 		Name: facilitiesModule.SchulhofRoomName, Capacity: pointer(facilitiesModule.SchulhofRoomCapacity),
 		Category: pointer(facilitiesModule.SchulhofCategoryName), IsSystem: true, IsOpenRoom: true,

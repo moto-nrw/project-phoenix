@@ -35,7 +35,8 @@ type systemSpace struct {
 	roomColorless bool
 
 	// releaseRoomOnCreate marks the provisioned room as a permanently
-	// released open room. Set for the Schulhof only (#3064); the toilets are
+	// released open room. Set for the Schulhof only: a yard the kiosk creates
+	// is one children pick at the device (ADR 0019, point 2); the toilets are
 	// short-stay infrastructure, not a destination a child chooses. Applied
 	// on creation alone, so an administrator's deactivation survives.
 	releaseRoomOnCreate bool
