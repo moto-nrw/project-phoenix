@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -30,7 +31,6 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // Sources are the retained owner services the projection's ports adapt.
@@ -44,8 +44,8 @@ type Sources struct {
 	Schulhof     facilitiesService.SchulhofService
 	Operations   timetableplanning.TimetableOperationsService
 	Settings     configService.SettingsService
-	Pickups      scheduleService.PickupScheduleService
-	Arrivals     scheduleService.ArrivalScheduleService
+	Pickups      careschedule.PickupScheduleService
+	Arrivals     careschedule.ArrivalScheduleService
 	Now          func() time.Time
 }
 
@@ -568,8 +568,8 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 }
 
 type planning struct {
-	pickups  scheduleService.PickupScheduleService
-	arrivals scheduleService.ArrivalScheduleService
+	pickups  careschedule.PickupScheduleService
+	arrivals careschedule.ArrivalScheduleService
 }
 
 func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervisiondashboard.Date) (map[int64]supervisiondashboard.Pickup, error) {
@@ -592,7 +592,7 @@ func (p planning) Pickups(ctx context.Context, studentIDs []int64, date supervis
 			PickupTime:  wallClock(pickup.PickupTime),
 			IsException: pickup.IsException,
 			Notes:       pickup.Notes,
-			DayNotes: mapSlice(pickup.DayNotes, func(note scheduleService.NoteData) supervisiondashboard.DayNote {
+			DayNotes: mapSlice(pickup.DayNotes, func(note careschedule.NoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}
@@ -620,7 +620,7 @@ func (p planning) Arrivals(ctx context.Context, studentIDs []int64, date supervi
 			ArrivalTime: wallClock(arrival.ArrivalTime),
 			IsException: arrival.IsException,
 			Notes:       arrival.Notes,
-			DayNotes: mapSlice(arrival.DayNotes, func(note scheduleService.ArrivalNoteData) supervisiondashboard.DayNote {
+			DayNotes: mapSlice(arrival.DayNotes, func(note careschedule.ArrivalNoteData) supervisiondashboard.DayNote {
 				return supervisiondashboard.DayNote{ID: note.ID, Content: note.Content}
 			}),
 		}

@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 func TestApplyPickupTimesFromMap(t *testing.T) {
@@ -18,12 +18,12 @@ func TestApplyPickupTimesFromMap(t *testing.T) {
 		{ID: 200, HasFullAccess: false},
 		{ID: 300, HasFullAccess: true},
 	}
-	pickupTimes := map[int64]*scheduleService.EffectivePickupTime{
+	pickupTimes := map[int64]*careschedule.EffectivePickupTime{
 		100: {
 			PickupTime:  &pickupAt,
 			IsException: true,
 			Notes:       "Arzttermin",
-			DayNotes: []scheduleService.NoteData{
+			DayNotes: []careschedule.NoteData{
 				{ID: 1, Content: "Früher abholen"},
 				{ID: 2, Content: ""},
 			},
@@ -52,12 +52,12 @@ func TestApplyArrivalTimesFromMap(t *testing.T) {
 		{ID: 200, HasFullAccess: false},
 		{ID: 300, HasFullAccess: true},
 	}
-	arrivalTimes := map[int64]*scheduleService.EffectiveArrivalTime{
+	arrivalTimes := map[int64]*careschedule.EffectiveArrivalTime{
 		100: {
 			ArrivalTime: &arrivalAt,
 			IsException: true,
 			Notes:       "Später",
-			DayNotes: []scheduleService.ArrivalNoteData{
+			DayNotes: []careschedule.ArrivalNoteData{
 				{ID: 11, Content: "Bitte anrufen"},
 				{ID: 12, Content: ""},
 			},

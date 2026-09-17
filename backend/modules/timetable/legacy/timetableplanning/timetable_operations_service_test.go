@@ -15,11 +15,11 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -306,7 +306,7 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	deps.students.byID[527] = &usersModel.Student{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &usersModel.Person{FirstName: "Lina", LastName: "Lang"}
 	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
-	deps.pickupService.byStudent[527] = &scheduleSvc.EffectivePickupTime{Date: timezone.Date(deps.instanceRepo.byDate[0].Date), PickupTime: &pickup}
+	deps.pickupService.byStudent[527] = &careschedule.EffectivePickupTime{Date: timezone.Date(deps.instanceRepo.byDate[0].Date), PickupTime: &pickup}
 
 	result, err := deps.service.PlannedNow(context.Background(), 628, false, timezone.DateFromTime(now), now, PlannedNowOptions{
 		HorizonMinutes: 120,
@@ -604,9 +604,9 @@ func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testi
 	deps.personService.people[492] = &usersModel.Person{FirstName: "Ohne", LastName: "Gehzeit"}
 	weekly := time.Date(1, time.January, 1, 15, 0, 0, 0, time.UTC)
 	override := time.Date(1, time.January, 1, 13, 30, 0, 0, time.UTC)
-	deps.pickupService.byStudent[548] = &scheduleSvc.EffectivePickupTime{Date: blockDate, PickupTime: &weekly}
-	deps.pickupService.byStudent[549] = &scheduleSvc.EffectivePickupTime{Date: blockDate, PickupTime: &override, IsException: true}
-	deps.pickupService.byStudent[550] = &scheduleSvc.EffectivePickupTime{Date: blockDate}
+	deps.pickupService.byStudent[548] = &careschedule.EffectivePickupTime{Date: blockDate, PickupTime: &weekly}
+	deps.pickupService.byStudent[549] = &careschedule.EffectivePickupTime{Date: blockDate, PickupTime: &override, IsException: true}
+	deps.pickupService.byStudent[550] = &careschedule.EffectivePickupTime{Date: blockDate}
 
 	roster, err := deps.service.Roster(context.Background(), 664, false, instanceID)
 
@@ -751,13 +751,13 @@ func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *te
 	deps.students.byID[536] = &usersModel.Student{PersonID: 466, SchoolClass: "3a"}
 	deps.personService.people[466] = &usersModel.Person{FirstName: "Nora", LastName: "Neu"}
 	// The plan says "booked" today — a later edit. It must not win over the marker.
-	deps.careDayService.byStudent[536] = scheduleSvc.CareDayScheduled
+	deps.careDayService.byStudent[536] = careschedule.CareDayScheduled
 
 	roster, err := deps.service.Roster(context.Background(), 656, false, instanceID)
 
 	require.NoError(t, err)
 	require.Len(t, roster.Rows, 1)
-	assert.Equal(t, scheduleSvc.CareDayNotScheduled, roster.Rows[0].CareDayStatus)
+	assert.Equal(t, careschedule.CareDayNotScheduled, roster.Rows[0].CareDayStatus)
 	assert.False(t, roster.Rows[0].CareDayStatus.Expected())
 }
 
@@ -780,13 +780,13 @@ func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testin
 	}
 	deps.students.byID[537] = &usersModel.Student{PersonID: 467, SchoolClass: "3a"}
 	deps.personService.people[467] = &usersModel.Person{FirstName: "Ole", LastName: "Ohm"}
-	deps.careDayService.byStudent[537] = scheduleSvc.CareDayNotScheduled
+	deps.careDayService.byStudent[537] = careschedule.CareDayNotScheduled
 
 	roster, err := deps.service.Roster(context.Background(), 657, false, instanceID)
 
 	require.NoError(t, err)
 	require.Len(t, roster.Rows, 1)
-	assert.Equal(t, scheduleSvc.CareDayUnknown, roster.Rows[0].CareDayStatus)
+	assert.Equal(t, careschedule.CareDayUnknown, roster.Rows[0].CareDayStatus)
 }
 
 // A broad day status (sick / excused / class trip) stamps every expected row of
@@ -812,19 +812,19 @@ func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testin
 	deps.students.byID[539] = &usersModel.Student{PersonID: 469, SchoolClass: "3a"}
 	deps.personService.people[468] = &usersModel.Person{FirstName: "Pia", LastName: "Plan"}
 	deps.personService.people[469] = &usersModel.Person{FirstName: "Rudi", LastName: "Rot"}
-	deps.careDayService.byStudent[538] = scheduleSvc.CareDayNotScheduled
-	deps.careDayService.byStudent[539] = scheduleSvc.CareDayNotScheduled
+	deps.careDayService.byStudent[538] = careschedule.CareDayNotScheduled
+	deps.careDayService.byStudent[539] = careschedule.CareDayNotScheduled
 
 	roster, err := deps.service.Roster(context.Background(), 658, false, instanceID)
 
 	require.NoError(t, err)
 	require.Len(t, roster.Rows, 2)
-	byStudent := map[int64]scheduleSvc.CareDayStatus{}
+	byStudent := map[int64]careschedule.CareDayStatus{}
 	for _, row := range roster.Rows {
 		byStudent[row.StudentID] = row.CareDayStatus
 	}
-	assert.Equal(t, scheduleSvc.CareDayNotScheduled, byStudent[538])
-	assert.Equal(t, scheduleSvc.CareDayUnknown, byStudent[539])
+	assert.Equal(t, careschedule.CareDayNotScheduled, byStudent[538])
+	assert.Equal(t, careschedule.CareDayUnknown, byStudent[539])
 }
 
 // The planned-now card counts the same rows the roster groups: a status-day
@@ -842,11 +842,11 @@ func TestTimetableOperationsPlannedCardCountsStatusDayNonBookings(t *testing.T) 
 		{StudentID: 542, Status: scheduleModel.AttendanceStatusExpected},
 		{StudentID: 543, Status: scheduleModel.AttendanceStatusExpected},
 	}
-	careDay := map[int64]scheduleSvc.CareDayStatus{
-		540: scheduleSvc.CareDayNotScheduled,
-		541: scheduleSvc.CareDayNotScheduled,
-		542: scheduleSvc.CareDayNotScheduled,
-		543: scheduleSvc.CareDayScheduled,
+	careDay := map[int64]careschedule.CareDayStatus{
+		540: careschedule.CareDayNotScheduled,
+		541: careschedule.CareDayNotScheduled,
+		542: careschedule.CareDayNotScheduled,
+		543: careschedule.CareDayScheduled,
 	}
 
 	result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 249}}, rows, now, 249, nil, careDay)
@@ -878,7 +878,7 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	deps.groups.byID[expectedGroupID] = &educationModel.Group{Name: "Klasse 2a"}
 	deps.groups.byID[actualGroupID] = &educationModel.Group{Name: "Klasse 3b"}
 	lateArrival := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
-	deps.arrivalService.byStudent[studentID] = &scheduleSvc.EffectiveArrivalTime{ArrivalTime: &lateArrival}
+	deps.arrivalService.byStudent[studentID] = &careschedule.EffectiveArrivalTime{ArrivalTime: &lateArrival}
 
 	roster, err := deps.service.Roster(context.Background(), 651, false, instanceID)
 
@@ -964,7 +964,7 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 		}
 		deps.students.byID[studentID] = &usersModel.Student{PersonID: 463, SchoolClass: "3c"}
 		deps.personService.people[463] = &usersModel.Person{FirstName: "Kai", LastName: "Kurz"}
-		deps.arrivalService.byStudent[studentID] = &scheduleSvc.EffectiveArrivalTime{IsException: true}
+		deps.arrivalService.byStudent[studentID] = &careschedule.EffectiveArrivalTime{IsException: true}
 
 		roster, err := deps.service.Roster(context.Background(), 652, false, instanceID)
 
@@ -2034,11 +2034,11 @@ func (r *fakeOpsPlanningTrackRepo) FindByIDs(_ context.Context, ids []int64) ([]
 // fakeOpsCareDayService reports the care-plan verdict per student. Empty by
 // default, which reads as "unknown" everywhere — the pre-#1747 behaviour.
 type fakeOpsCareDayService struct {
-	byStudent map[int64]scheduleSvc.CareDayStatus
+	byStudent map[int64]careschedule.CareDayStatus
 }
 
-func (f *fakeOpsCareDayService) ResolveForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]scheduleSvc.CareDayStatus, error) {
-	out := make(map[int64]scheduleSvc.CareDayStatus, len(studentIDs))
+func (f *fakeOpsCareDayService) ResolveForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
+	out := make(map[int64]careschedule.CareDayStatus, len(studentIDs))
 	for _, id := range studentIDs {
 		if status, ok := f.byStudent[id]; ok {
 			out[id] = status
@@ -2047,14 +2047,14 @@ func (f *fakeOpsCareDayService) ResolveForDate(_ context.Context, studentIDs []i
 	return out, nil
 }
 
-func (f *fakeOpsCareDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+func (f *fakeOpsCareDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
 	byDate, err := f.ResolveForDate(ctx, studentIDs, from)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, len(byDate))
+	out := make(map[int64]map[timezone.Date]careschedule.CareDayStatus, len(byDate))
 	for studentID, status := range byDate {
-		out[studentID] = map[timezone.Date]scheduleSvc.CareDayStatus{}
+		out[studentID] = map[timezone.Date]careschedule.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			out[studentID][date] = status
 		}
@@ -2071,9 +2071,9 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		activeGroups:    &fakeOpsActiveGroupRepo{lastActivity: map[int64]time.Time{}},
 		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}, targetsByGroup: map[int64][]*activitiesModel.GroupTarget{}},
 		activeService:   &fakeOpsActiveService{},
-		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*scheduleSvc.EffectiveArrivalTime{}},
-		pickupService:   &fakeOpsPickupService{byStudent: map[int64]*scheduleSvc.EffectivePickupTime{}},
-		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]scheduleSvc.CareDayStatus{}},
+		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*careschedule.EffectiveArrivalTime{}},
+		pickupService:   &fakeOpsPickupService{byStudent: map[int64]*careschedule.EffectivePickupTime{}},
+		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]careschedule.CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
 		visitRepo: &fakeOpsVisitRepo{
 			byActiveGroup:            map[int64][]*studentpresence.Visit{},
@@ -2357,47 +2357,47 @@ func (s *fakeOpsActiveService) EndVisit(_ context.Context, id int64) error {
 }
 
 type fakeOpsArrivalService struct {
-	byStudent map[int64]*scheduleSvc.EffectiveArrivalTime
+	byStudent map[int64]*careschedule.EffectiveArrivalTime
 	err       error
 }
 
 type fakeOpsPickupService struct {
-	byStudent  map[int64]*scheduleSvc.EffectivePickupTime
+	byStudent  map[int64]*careschedule.EffectivePickupTime
 	err        error
 	calls      int
 	studentIDs []int64
 	date       timezone.Date
 }
 
-func (s *fakeOpsPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleSvc.EffectivePickupTime, error) {
+func (s *fakeOpsPickupService) GetBulkEffectivePickupTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
 	s.calls++
 	s.studentIDs = append([]int64(nil), studentIDs...)
 	s.date = date
 	if s.err != nil {
 		return nil, s.err
 	}
-	out := make(map[int64]*scheduleSvc.EffectivePickupTime, len(studentIDs))
+	out := make(map[int64]*careschedule.EffectivePickupTime, len(studentIDs))
 	for _, studentID := range studentIDs {
 		if pickup := s.byStudent[studentID]; pickup != nil {
 			out[studentID] = pickup
 			continue
 		}
-		out[studentID] = &scheduleSvc.EffectivePickupTime{Date: date}
+		out[studentID] = &careschedule.EffectivePickupTime{Date: date}
 	}
 	return out, nil
 }
 
-func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleSvc.EffectiveArrivalTime, error) {
+func (s *fakeOpsArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	out := make(map[int64]*scheduleSvc.EffectiveArrivalTime, len(studentIDs))
+	out := make(map[int64]*careschedule.EffectiveArrivalTime, len(studentIDs))
 	for _, studentID := range studentIDs {
 		if arrival := s.byStudent[studentID]; arrival != nil {
 			out[studentID] = arrival
 			continue
 		}
-		out[studentID] = &scheduleSvc.EffectiveArrivalTime{Date: date}
+		out[studentID] = &careschedule.EffectiveArrivalTime{Date: date}
 	}
 	return out, nil
 }

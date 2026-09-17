@@ -16,6 +16,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -29,7 +30,6 @@ import (
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -43,9 +43,9 @@ type StudentTestModule struct {
 	Schools            organizationtenancy.Capability
 	CareLifecycle      users.CareLifecycleService
 	StudentAudit       users.StudentAuditService
-	PartialAbsence     schedule.PartialAbsenceService
+	PartialAbsence     careschedule.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
-	CareRequests       schedule.CareScheduleRequestService
+	CareRequests       careschedule.CareScheduleRequestService
 	OfferingChanges    enrollment.OfferingChangeRequestService
 	PickupAdjustments  enrollment.PickupAdjustmentService
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
@@ -133,10 +133,10 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentsURL := currentFactoryConfig().ParentsURL
 	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 	users.WirePersonCareParticipation(usersService, careLifecycleService)
-	schedule.WireCareParticipation(careDayService, careLifecycleService)
+	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
-	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)
-	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(repos.StudentPickupException, pickupBaselines, repos.InstanceStudent, db)
+	pickupBaselines := careschedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)
+	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(repos.StudentPickupException, pickupBaselines, repos.InstanceStudent, db)
 	rosterReconciler := timetableplanning.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		DB:          db,
@@ -147,7 +147,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService := schedule.NewPartialAbsenceService(
+	partialAbsenceService := careschedule.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
 		repos.ExcusedAbsenceRequest,
@@ -218,7 +218,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		},
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
-				if err := schedule.LockCareStudent(ctx, db, studentID); err != nil {
+				if err := careschedule.LockCareStudent(ctx, db, studentID); err != nil {
 					if errors.Is(err, sql.ErrNoRows) {
 						continue
 					}
@@ -240,7 +240,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		configModels.KeyParentAbsenceReviewScope,
 	)
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
-	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequestService := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -256,6 +256,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
+		careschedule.WithCareRequestToday(today),
 	)
 	offeringChangeRequestService := enrollment.NewOfferingChangeRequestServiceWithPolicy(enrollment.OfferingChangeRequestServiceConfig{
 		ChangeRepo:             repos.OfferingChangeRequest,

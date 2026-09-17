@@ -7,13 +7,13 @@ import (
 
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -130,8 +130,8 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 		t.Run("export-"+fixture.title, func(t *testing.T) {
 			renderer := &captureRenderer{}
 			service := New(Sources{
-				Instances:     scheduleRepo.NewActivityInstanceRepository(db),
-				InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),
+				Instances:     timetablesqltest.NewActivityInstanceRepository(db),
+				InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
 				Rooms:         facadeRooms{facade: rooms},
 				Staff:         fakeStaff{members: map[int64]*usersModel.Staff{fixtures[0].staff.ID: fixtures[0].staff, fixtures[1].staff.ID: fixtures[1].staff}},
 				Renderer:      renderer,
@@ -168,8 +168,8 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 				service := New(Sources{
 					Overview: shiftplanning.NewStaffScheduleOverviewService(shiftplanning.StaffScheduleOverviewDependencies{
 						Shifts:        reads,
-						Instances:     scheduleRepo.NewActivityInstanceRepository(db),
-						InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),
+						Instances:     timetablesqltest.NewActivityInstanceRepository(db),
+						InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
 						Rooms:         facadeRooms{facade: rooms},
 						Staff:         reads,
 					}),
@@ -260,8 +260,8 @@ func TestInstanceSourceHonoursTheRequestedWindow(t *testing.T) {
 
 	renderer := &captureRenderer{}
 	service := New(Sources{
-		Instances:     scheduleRepo.NewActivityInstanceRepository(db),
-		InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),
+		Instances:     timetablesqltest.NewActivityInstanceRepository(db),
+		InstanceStaff: timetablesqltest.NewInstanceStaffRepository(db),
 		Renderer:      renderer,
 	})
 	params, err := planexport.ParseParams(monday.String(), monday.String(), string(planexport.TemplateByOffering), "", "")

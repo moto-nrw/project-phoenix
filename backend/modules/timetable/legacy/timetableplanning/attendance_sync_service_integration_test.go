@@ -25,13 +25,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -94,11 +94,11 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 
 	return &attendanceSyncSetup{
 		syncer: timetableplanning.NewAttendanceSyncService(
-			scheduleRepo.NewActivityInstanceRepository(db),
+			timetablesqltest.NewActivityInstanceRepository(db),
 			instanceStudentRepo,
 			slog.Default(),
 		),
-		instRepo:    scheduleRepo.NewActivityInstanceRepository(db),
+		instRepo:    timetablesqltest.NewActivityInstanceRepository(db),
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
 		groupRepo:   presenceCompose.NewLegacyGroupRepository(nil, repositories.NewPresenceGroupRecords(db), nil),

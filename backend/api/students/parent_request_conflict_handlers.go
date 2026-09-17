@@ -12,8 +12,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -145,6 +145,6 @@ func isConflictStaffValueInvalid(err error) bool {
 	return errors.Is(err, userService.ErrReviewInvalidValue) ||
 		errors.Is(err, userService.ErrReviewInvalidTarget) ||
 		errors.Is(err, excusedrequests.ErrAbsenceRequestInvalidStatus) ||
-		errors.Is(err, scheduleService.ErrInvalidCareRequestPayload) ||
+		errors.Is(err, careschedule.ErrInvalidCareRequestPayload) ||
 		errors.Is(err, enrollmentService.ErrOfferingChangeInvalid)
 }

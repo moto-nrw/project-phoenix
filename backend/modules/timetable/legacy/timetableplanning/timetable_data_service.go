@@ -20,10 +20,10 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -45,10 +45,10 @@ type TimetableDataDependencies struct {
 	// and with enrollment.bookings_authoritative on the approved bookings
 	// supply the care days. Optional — nil keeps the stored rows as the plan,
 	// which is the behaviour of every school before #2414.
-	ArrivalBaselines       scheduleSvc.ArrivalBaselineReader
+	ArrivalBaselines       careschedule.ArrivalBaselineReader
 	ArrivalExceptionRepo   scheduleModel.StudentArrivalExceptionRepository
 	PickupScheduleRepo     scheduleModel.StudentPickupScheduleRepository
-	PickupBaselines        scheduleSvc.PickupBaselineReader
+	PickupBaselines        careschedule.PickupBaselineReader
 	PickupExceptionRepo    scheduleModel.StudentPickupExceptionRepository
 	Presence               StudentVisitReader
 	RoomRepo               facilitiesModel.RoomRepository

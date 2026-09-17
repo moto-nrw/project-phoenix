@@ -19,7 +19,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -105,7 +105,7 @@ type PickupAdjustmentResult struct {
 
 type PickupAdjustmentBulkInput struct {
 	StudentIDs         []int64
-	Schedules          []scheduleService.PickupScheduleInput
+	Schedules          []careschedule.PickupScheduleInput
 	ConfirmedException bool
 	CreatedByStaffID   int64
 	ActorAccountID     int64
@@ -115,15 +115,15 @@ type PickupAdjustmentBulkInput struct {
 type PickupAdjustmentService interface {
 	Preview(ctx context.Context, input PickupAdjustmentPreviewInput) (*PickupAdjustmentPreview, error)
 	Apply(ctx context.Context, input PickupAdjustmentApplyInput) (*PickupAdjustmentResult, error)
-	ApplyBulkExceptions(ctx context.Context, input PickupAdjustmentBulkInput) (*scheduleService.BulkUpsertResult, error)
+	ApplyBulkExceptions(ctx context.Context, input PickupAdjustmentBulkInput) (*careschedule.BulkUpsertResult, error)
 }
 
 type PickupAdjustmentServiceConfig struct {
-	PickupSchedules     scheduleService.PickupScheduleService
-	ArrivalSchedules    scheduleService.ArrivalScheduleService
+	PickupSchedules     careschedule.PickupScheduleService
+	ArrivalSchedules    careschedule.ArrivalScheduleService
 	PickupScheduleRepo  scheduleModels.StudentPickupScheduleRepository
 	ArrivalScheduleRepo scheduleModels.StudentArrivalScheduleRepository
-	PickupBaselines     scheduleService.PickupBaselineReader
+	PickupBaselines     careschedule.PickupBaselineReader
 	Offerings           DirectOfferingAdjustmentCoordinator
 	Settings            DecisionSettingsResolver
 	Audit               usersService.StudentPickupPlanRecorder
@@ -182,7 +182,7 @@ func (s *pickupAdjustmentService) preview(
 func (s *pickupAdjustmentService) completePickupAdjustmentPreview(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
-	current, offering scheduleService.PickupWeek,
+	current, offering careschedule.PickupWeek,
 	proposed map[int]PickupAdjustmentSchedule,
 	preview *PickupAdjustmentPreview,
 ) (*PickupAdjustmentPreview, error) {
@@ -276,7 +276,7 @@ func (s *pickupAdjustmentService) projectPickupAdjustment(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
 	explicit map[int]PickupAdjustmentSchedule,
-) (scheduleService.PickupWeek, scheduleService.PickupWeek, map[int]PickupAdjustmentSchedule, error) {
+) (careschedule.PickupWeek, careschedule.PickupWeek, map[int]PickupAdjustmentSchedule, error) {
 	weekStart := input.EffectiveFrom.AddDays(scheduleModels.WeekdayMonday - isoWeekday(input.EffectiveFrom))
 	projection, err := s.PickupBaselines.Project(
 		ctx, []int64{input.StudentID}, weekStart, weekStart.AddDays(4),
@@ -292,7 +292,7 @@ func (s *pickupAdjustmentService) projectPickupAdjustment(
 func (s *pickupAdjustmentService) basePickupAdjustmentPreview(
 	ctx context.Context,
 	input PickupAdjustmentPreviewInput,
-	current, offering scheduleService.PickupWeek,
+	current, offering careschedule.PickupWeek,
 	proposed map[int]PickupAdjustmentSchedule,
 ) (*PickupAdjustmentPreview, error) {
 	reviewEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyRequirePickupOfferingReview)
@@ -528,7 +528,7 @@ func (s *pickupAdjustmentService) preflightPickupOffering(
 func (s *pickupAdjustmentService) ApplyBulkExceptions(
 	ctx context.Context,
 	input PickupAdjustmentBulkInput,
-) (*scheduleService.BulkUpsertResult, error) {
+) (*careschedule.BulkUpsertResult, error) {
 	if s.PickupSchedules == nil || s.Settings == nil {
 		return nil, fmt.Errorf("pickup adjustment: bulk dependencies are not configured")
 	}
@@ -537,7 +537,7 @@ func (s *pickupAdjustmentService) ApplyBulkExceptions(
 	if err != nil {
 		return nil, fmt.Errorf("pickup adjustment: resolve offering review setting: %w", err)
 	}
-	filter := scheduleService.ArrivalScheduleBulkFilter{StudentIDs: input.StudentIDs, Authorize: input.Authorize}
+	filter := careschedule.ArrivalScheduleBulkFilter{StudentIDs: input.StudentIDs, Authorize: input.Authorize}
 	if !reviewEnabled {
 		result, applyErr := s.PickupSchedules.BulkUpsertPickupSchedules(
 			ctx, filter, input.Schedules, input.CreatedByStaffID,
@@ -559,10 +559,10 @@ func (s *pickupAdjustmentService) ApplyBulkExceptions(
 func (s *pickupAdjustmentService) applyReviewedBulkExceptions(
 	ctx context.Context,
 	input PickupAdjustmentBulkInput,
-	filter scheduleService.ArrivalScheduleBulkFilter,
+	filter careschedule.ArrivalScheduleBulkFilter,
 	today timezone.Date,
-) (*scheduleService.BulkUpsertResult, error) {
-	var result *scheduleService.BulkUpsertResult
+) (*careschedule.BulkUpsertResult, error) {
+	var result *careschedule.BulkUpsertResult
 	err := tenant.WithTenantTx(ctx, s.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
 		before, err := s.lockAndSnapshotBulkStudents(txCtx, input, today)
 		if err != nil {
@@ -596,12 +596,12 @@ func (s *pickupAdjustmentService) lockAndSnapshotBulkStudents(
 	for _, studentID := range studentIDs {
 		student := students[studentID]
 		if student == nil {
-			return nil, fmt.Errorf("%w: student %d", scheduleService.ErrBulkStudentNotFound, studentID)
+			return nil, fmt.Errorf("%w: student %d", careschedule.ErrBulkStudentNotFound, studentID)
 		}
 		if input.Authorize != nil {
 			allowed, authorizeErr := input.Authorize(ctx, student)
 			if authorizeErr != nil || !allowed {
-				return nil, fmt.Errorf("%w: student %d", scheduleService.ErrBulkStudentUnauthorized, studentID)
+				return nil, fmt.Errorf("%w: student %d", careschedule.ErrBulkStudentUnauthorized, studentID)
 			}
 		}
 	}
@@ -998,7 +998,7 @@ func cloneOfferingSelections(input []OfferingChangeSelection) []OfferingChangeSe
 func pickupPlanDeviates(
 	careDays []int,
 	proposed map[int]PickupAdjustmentSchedule,
-	offering scheduleService.PickupWeek,
+	offering careschedule.PickupWeek,
 ) bool {
 	if !pickupPlanHasExactlyDays(proposed, careDays) {
 		return true
@@ -1036,7 +1036,7 @@ func pickupPlanHasExactlyDays(plan map[int]PickupAdjustmentSchedule, careDays []
 func effectiveProposedPickupPlan(
 	careDays []int,
 	explicit map[int]PickupAdjustmentSchedule,
-	offering scheduleService.PickupWeek,
+	offering careschedule.PickupWeek,
 ) map[int]PickupAdjustmentSchedule {
 	result := make(map[int]PickupAdjustmentSchedule, len(explicit)+len(careDays))
 	for weekday, row := range explicit {
@@ -1064,7 +1064,7 @@ func hasManualPickupRows(rows []*scheduleModels.StudentPickupSchedule) bool {
 	return false
 }
 
-func pickupPlanLabel(week scheduleService.PickupWeek) string {
+func pickupPlanLabel(week careschedule.PickupWeek) string {
 	rows := make([]PickupAdjustmentSchedule, 0, len(week))
 	for weekday, row := range week {
 		if row != nil {
@@ -1138,7 +1138,7 @@ func isoWeekday(date timezone.Date) int {
 func pickupAdjustmentToken(
 	input PickupAdjustmentPreviewInput,
 	preview *PickupAdjustmentPreview,
-	current, offering scheduleService.PickupWeek,
+	current, offering careschedule.PickupWeek,
 	currentArrival []PickupAdjustmentArrivalSchedule,
 	tenantID int64,
 ) (string, error) {
@@ -1146,8 +1146,8 @@ func pickupAdjustmentToken(
 		TenantID       int64
 		Input          PickupAdjustmentPreviewInput
 		Preview        *PickupAdjustmentPreview
-		Current        scheduleService.PickupWeek
-		Offering       scheduleService.PickupWeek
+		Current        careschedule.PickupWeek
+		Offering       careschedule.PickupWeek
 		CurrentArrival []PickupAdjustmentArrivalSchedule
 	}{tenantID, input, preview, current, offering, currentArrival}
 	encoded, err := json.Marshal(payload)

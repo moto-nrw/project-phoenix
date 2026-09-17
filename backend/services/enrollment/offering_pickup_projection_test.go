@@ -18,10 +18,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -53,15 +53,15 @@ func createPickupTimeOffering(
 	return offering
 }
 
-func projectedPickupReader(env *decisionTestEnv) scheduleService.PickupScheduleService {
-	return scheduleService.NewPickupScheduleServiceWithBulk(
+func projectedPickupReader(env *decisionTestEnv) careschedule.PickupScheduleService {
+	return careschedule.NewPickupScheduleServiceWithBulk(
 		env.repos.StudentPickupSchedule,
 		env.repos.StudentPickupException,
 		env.repos.StudentPickupNote,
 		env.repos.Student,
 		env.repos.Person,
 		nil,
-		scheduletest.NewPickupBaselineService(
+		carescheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,

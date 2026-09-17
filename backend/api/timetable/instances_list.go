@@ -28,9 +28,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // maxInstanceListRangeDays caps the /instances list window. 56 days = 8 weeks
@@ -64,7 +64,7 @@ type instanceStudentSummary struct {
 	// | "unknown" (#1747). The counts below exclude the non-expected ones, so
 	// the row has to say so too — otherwise the planner lists a child under
 	// "Erwartet" that its own header count leaves out.
-	CareDayStatus scheduleSvc.CareDayStatus `json:"care_day_status"`
+	CareDayStatus careschedule.CareDayStatus `json:"care_day_status"`
 	// EarlyPickupTime (HH:MM) is set when the child's day pickup cutoff falls
 	// INSIDE this block (block 14:00-15:00, Abholung 14:45): the row stays
 	// expected — the child attends the beginning — but leaves early, and must
@@ -278,8 +278,8 @@ func (rs *Resource) resolveCareDays(
 	ctx context.Context,
 	instances []*scheduleModel.ActivityInstance,
 	from, to timezone.Date,
-) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
-	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
+	empty := map[int64]map[timezone.Date]careschedule.CareDayStatus{}
 	if rs.CareDayService == nil || rs.TimetableData == nil || len(instances) == 0 {
 		return empty, nil
 	}
@@ -323,9 +323,9 @@ func (rs *Resource) resolveCareDays(
 // enrichment did not" and route this into it.
 func (rs *Resource) careDaysForInstance(
 	ctx context.Context, inst *scheduleModel.ActivityInstance,
-) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
 	if inst == nil {
-		return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
+		return map[int64]map[timezone.Date]careschedule.CareDayStatus{}, nil
 	}
 	date := timezone.Date(inst.Date)
 	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, date, date)
@@ -346,9 +346,9 @@ func (rs *Resource) careDaysForInstance(
 func instanceStudentCareDay(
 	inst *scheduleModel.ActivityInstance,
 	row *scheduleModel.InstanceStudent,
-	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
-) scheduleSvc.CareDayStatus {
-	return scheduleSvc.AttendanceRowCareDay(
+	careDays map[int64]map[timezone.Date]careschedule.CareDayStatus,
+) careschedule.CareDayStatus {
+	return careschedule.AttendanceRowCareDay(
 		inst.Status == scheduleModel.InstanceStatusCompleted,
 		row,
 		careDays[row.StudentID][timezone.Date(inst.Date)],
@@ -371,7 +371,7 @@ type instanceAttendanceSummary struct {
 func summarizeInstanceStudents(
 	inst *scheduleModel.ActivityInstance,
 	studentRows []*scheduleModel.InstanceStudent,
-	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+	careDays map[int64]map[timezone.Date]careschedule.CareDayStatus,
 	pickupCutoffs map[int64]time.Time,
 ) instanceAttendanceSummary {
 	out := instanceAttendanceSummary{
@@ -426,7 +426,7 @@ func summarizeInstanceStudents(
 			// a school an absence from care that was never owed (#1747).
 			// instanceStudentCareDay hands out this verdict for no other absent
 			// row, so a manual absence is untouched.
-			if careDayStatus == scheduleSvc.CareDayNotScheduled {
+			if careDayStatus == careschedule.CareDayNotScheduled {
 				out.notScheduled++
 			}
 		}
@@ -448,7 +448,7 @@ func (rs *Resource) enrichInstances(
 	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
-	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+	careDays map[int64]map[timezone.Date]careschedule.CareDayStatus,
 ) ([]enrichedInstance, []timetableplanning.WindowConflictInput, error) {
 	rows, err := rs.TimetableData.GetInstanceRows(ctx, instances)
 	if err != nil {
@@ -506,7 +506,7 @@ func (rs *Resource) enrichInstance(
 	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
-	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+	careDays map[int64]map[timezone.Date]careschedule.CareDayStatus,
 ) (enrichedInstance, []*scheduleModel.InstanceStaff, []*scheduleModel.InstanceStudent, error) {
 	if inst == nil {
 		return enrichedInstance{}, nil, nil, errors.New("nil instance")

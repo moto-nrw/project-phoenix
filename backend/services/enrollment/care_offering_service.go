@@ -127,7 +127,7 @@ type CareOfferingSeriesValidator interface {
 	// onto a successor pinned to a different Planungszeitraum — create/update
 	// run the same check via the roster resync, and a split must not be able
 	// to persist a state those paths reject. Failures wrap
-	// services/schedule.ErrOfferingSourceInvalid.
+	// timetableplanning.ErrOfferingSourceInvalid.
 	//
 	// storedOfferingIDs are the ids ALREADY persisted on the template being
 	// validated (nil on create). An id that does not resolve is rejected
