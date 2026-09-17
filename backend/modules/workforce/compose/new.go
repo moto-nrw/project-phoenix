@@ -68,8 +68,7 @@ func newApplication(dependencies Dependencies) (*application.Service, error) {
 		assignments{ids: dependencies.AssignedStaffIDs, rebase: dependencies.RebaseStaffAnchor},
 		dependencies.LockStaffAssignment,
 		clock{now: now},
-		absenceDaysInYear,
-		additionalAbsenceDaysInYear,
+		allowanceUses,
 		observe,
 	)
 	return service, nil

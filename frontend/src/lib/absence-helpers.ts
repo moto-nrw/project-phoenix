@@ -97,6 +97,44 @@ export function countWorkdaysInclusive(
   return n;
 }
 
+const MONTH_ENDS = [
+  "01-31",
+  "02-28",
+  "03-31",
+  "04-30",
+  "05-31",
+  "06-30",
+  "07-31",
+  "08-31",
+  "09-30",
+  "10-31",
+  "11-30",
+  "12-31",
+] as const;
+
+function formatDayMonth(monthDay: string): string {
+  const [month, day] = monthDay.split("-");
+  return `${day}.${month}.`;
+}
+
+/**
+ * Wie lange ein Rest einer eigenen Abwesenheitsart nutzbar ist (#3257): ""
+ * heißt „verfällt am 31.12.", sonst ein Monatsende im Folgejahr.
+ */
+export const CARRYOVER_OPTIONS: readonly { value: string; label: string }[] = [
+  { value: "", label: "Am Jahresende (31.12.)" },
+  ...MONTH_ENDS.map((monthDay) => ({
+    value: monthDay,
+    label: `Bis ${formatDayMonth(monthDay)} des Folgejahres`,
+  })),
+];
+
+export function carryoverRuleLabel(carryoverUntil: string | null): string {
+  return carryoverUntil
+    ? `Rest bis ${formatDayMonth(carryoverUntil)} im Folgejahr`
+    : "Rest verfällt am 31.12.";
+}
+
 export function formatDayCount(days: number): string {
   // German decimal comma, drop trailing ",0" so "5" prints as "5 Tage".
   const rounded = Math.round(days * 10) / 10;

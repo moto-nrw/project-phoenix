@@ -24,6 +24,7 @@ import (
 // renders the message it always rendered.
 var (
 	ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
+	ErrAllowanceBookingOverlap  = errors.New("allowance booking overlaps")
 	ErrVacationQuotaInvalid     = errors.New("vacation quota is invalid")
 	ErrVacationQuotaExceeded    = errors.New("vacation quota exceeded")
 
