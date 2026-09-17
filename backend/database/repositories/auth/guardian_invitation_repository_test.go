@@ -91,40 +91,6 @@ func TestGuardianInvitationRepository_FindByID(t *testing.T) {
 	})
 }
 
-func TestGuardianInvitationRepository_FindByToken(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds invitation by token", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindByToken")
-
-		token := uuid.Must(uuid.NewV4()).String()
-		invitation := &auth.GuardianInvitation{
-			GuardianProfileID: guardian.ID,
-			Token:             token,
-			ExpiresAt:         time.Now().Add(48 * time.Hour),
-			CreatedBy:         1,
-		}
-		err := repo.Create(ctx, invitation)
-		require.NoError(t, err)
-
-		found, err := repo.FindByToken(ctx, token)
-		require.NoError(t, err)
-		assert.Equal(t, invitation.ID, found.ID)
-		assert.Equal(t, token, found.Token)
-	})
-
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		_, err := repo.FindByToken(ctx, "invalid-token")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
 func TestGuardianInvitationRepository_Update(t *testing.T) {
 	t.Parallel()
 
@@ -231,42 +197,6 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 		pending, err := repo.FindPending(ctx)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(pending), 1)
-	})
-}
-
-func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianInvitation
-	ctx := testpkg.Ctx(t)
-
-	t.Run("marks invitation as accepted", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "MarkAccepted")
-
-		invitation := &auth.GuardianInvitation{
-			GuardianProfileID: guardian.ID,
-			Token:             uuid.Must(uuid.NewV4()).String(),
-			ExpiresAt:         time.Now().Add(48 * time.Hour),
-			CreatedBy:         1,
-		}
-		err := repo.Create(ctx, invitation)
-		require.NoError(t, err)
-
-		err = repo.MarkAsAccepted(ctx, invitation.ID)
-		require.NoError(t, err)
-
-		// Verify it's accepted
-		found, err := repo.FindByID(ctx, invitation.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found.AcceptedAt)
-	})
-
-	t.Run("returns error for non-existent invitation", func(t *testing.T) {
-		err := repo.MarkAsAccepted(ctx, 999999)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
 	})
 }
 

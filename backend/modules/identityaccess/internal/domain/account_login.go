@@ -94,6 +94,9 @@ type School struct {
 	Subdomain string
 	Active    bool
 	Deleted   bool
+	// LogoURL is the school's branding image, as the public invitation
+	// pages show it. Empty when the school configured none.
+	LogoURL string
 }
 
 // Live reports whether the school can be logged into on any portal.

@@ -1,4 +1,4 @@
-package auth
+package services
 
 import (
 	"testing"
@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// schoolLogoURLFromSettings extracts the school logo URL from the
-// JSON settings blob on platform.schools.settings. Used by the
-// guardian invitation email renderer so the parent sees the school's
-// branding. Two keys are checked in order: logoUrl, then loginImageUrl
-// — the second is a legacy compatibility key for schools that only
-// have the login screen image set up.
+// schoolLogoURLFromSettings extracts the school logo URL from the JSON
+// settings blob on platform.schools.settings. The school fact carries it
+// into the module, so the public invitation pages show the school's
+// branding. Two keys are checked in order: logoUrl, then loginImageUrl —
+// the second is a legacy compatibility key for schools that only have the
+// login screen image set up.
 
 func TestSchoolLogoURLFromSettings_EmptyReturnsEmpty(t *testing.T) {
 	t.Parallel()

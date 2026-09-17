@@ -101,28 +101,6 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 	return invitation, nil
 }
 
-// FindByToken retrieves a guardian invitation by token
-func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token string) (*auth.GuardianInvitation, error) {
-	invitation := new(auth.GuardianInvitation)
-
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(invitation).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Where(`"guardian_invitation".token = ?`, token).
-		Scan(ctx)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// Wrap sql.ErrNoRows so service-layer not-found checks
-			// (errors.Is / isNotFoundError) can map this to a 404.
-			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
-		}
-		return nil, fmt.Errorf("failed to find guardian invitation by token: %w", err)
-	}
-
-	return invitation, nil
-}
-
 // FindByGuardianProfileID retrieves invitations for a guardian profile
 func (r *GuardianInvitationRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*auth.GuardianInvitation, error) {
 	var invitations []*auth.GuardianInvitation
@@ -169,30 +147,6 @@ func (r *GuardianInvitationRepository) FindPending(ctx context.Context) ([]*auth
 	return invitations, nil
 }
 
-// FindPendingApproval retrieves parent-initiated invitations awaiting staff
-// approval (approval_status = 'pending'), newest first. Backs the staff
-// approval queue. Expired requests are excluded so stale rows that cleanup has
-// not yet removed cannot be approved into a live child link. Tenant isolation
-// is enforced by RLS on the ambient tenant transaction.
-func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) ([]*auth.GuardianInvitation, error) {
-	var invitations []*auth.GuardianInvitation
-
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&invitations).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Where(`"guardian_invitation".approval_status = ?`, auth.GuardianInvitationApprovalPending).
-		Where(`"guardian_invitation".accepted_at IS NULL`).
-		Where(`"guardian_invitation".expires_at > ?`, time.Now()).
-		OrderExpr(`"guardian_invitation".created_at DESC`).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to find invitations pending approval: %w", err)
-	}
-
-	return invitations, nil
-}
-
 // FindOpenByGuardianProfileIDs retrieves every consumable or approval-pending
 // invitation for the requested profiles in one tenant-scoped read.
 func (r *GuardianInvitationRepository) FindOpenByGuardianProfileIDs(ctx context.Context, profileIDs []int64) ([]*auth.GuardianInvitation, error) {
@@ -216,33 +170,6 @@ func (r *GuardianInvitationRepository) FindOpenByGuardianProfileIDs(ctx context.
 		return nil, fmt.Errorf("failed to find open invitations by guardian profiles: %w", err)
 	}
 	return invitations, nil
-}
-
-// MarkAsAccepted marks an invitation as accepted
-func (r *GuardianInvitationRepository) MarkAsAccepted(ctx context.Context, id int64) error {
-	now := time.Now()
-
-	result, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.GuardianInvitation)(nil)).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Set("accepted_at = ?", now).
-		Where(`"guardian_invitation".id = ?`, id).
-		Exec(ctx)
-
-	if err != nil {
-		return fmt.Errorf("failed to mark invitation as accepted: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf(errMsgRowsAffected, err)
-	}
-
-	if rowsAffected == 0 {
-		return errors.New(errMsgInvitationNotFound)
-	}
-
-	return nil
 }
 
 // UpdateEmailStatus updates the email delivery status

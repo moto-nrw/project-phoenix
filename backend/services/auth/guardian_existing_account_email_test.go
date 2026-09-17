@@ -20,14 +20,12 @@ import (
 func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 	t.Parallel()
 	outbox := &stubOutboxEnqueuer{}
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
-		OutboxEnqueuer: outbox,
-		FrontendURL:    "https://eltern.example.test/",
+	mailer := authService.NewGuardianInvitationMailer(authService.GuardianInvitationMailerConfig{
+		Outbox:      outbox,
+		FrontendURL: "https://eltern.example.test/",
 	})
-	delivery, ok := service.(authService.GuardianInvitationDelivery)
-	require.True(t, ok)
 
-	delivery.EnqueueExistingAccountEmail(context.Background(), authService.GuardianInvitationRecipient{
+	mailer.EnqueueExistingAccount(context.Background(), authService.GuardianMailRecipient{
 		FirstName: " Olga ", LastName: "Muster", Email: " admin@example.test ",
 	}, "OGS Musterschule")
 
@@ -56,11 +54,9 @@ func TestEnqueueExistingAccountEmail_RendersPortalLoginHint(t *testing.T) {
 func TestEnqueueExistingAccountEmail_SkipsWithoutAddress(t *testing.T) {
 	t.Parallel()
 	outbox := &stubOutboxEnqueuer{}
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{OutboxEnqueuer: outbox})
-	delivery, ok := service.(authService.GuardianInvitationDelivery)
-	require.True(t, ok)
+	mailer := authService.NewGuardianInvitationMailer(authService.GuardianInvitationMailerConfig{Outbox: outbox})
 
-	delivery.EnqueueExistingAccountEmail(context.Background(), authService.GuardianInvitationRecipient{Email: "  "}, "")
+	mailer.EnqueueExistingAccount(context.Background(), authService.GuardianMailRecipient{Email: "  "}, "")
 	assert.Empty(t, outbox.requests)
 }
 

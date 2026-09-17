@@ -42,52 +42,6 @@ func createTestInvitationToken(t *testing.T, db *bun.DB, email string, roleID, c
 	return token
 }
 
-// ============================================================================
-// FindByToken Tests
-// ============================================================================
-
-func TestInvitationTokenRepository_FindByToken_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "invite-test-role")
-	creator := testpkg.CreateTestAccount(t, db, "invite-creator")
-
-	// Create invitation token
-	expiry := time.Now().Add(48 * time.Hour)
-	invitation := createTestInvitationToken(t, db, "test@example.com", role.ID, creator.ID, expiry)
-
-	// ACT
-	found, err := repo.FindByToken(ctx, invitation.Token)
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.Equal(t, invitation.ID, found.ID)
-	assert.Equal(t, invitation.Email, found.Email)
-	assert.Equal(t, invitation.Token, found.Token)
-}
-
-func TestInvitationTokenRepository_FindByToken_NotFound(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// ACT
-	_, err := repo.FindByToken(ctx, "nonexistent-token")
-
-	// ASSERT
-	require.Error(t, err)
-}
-
-// ============================================================================
 // FindByID Tests
 // ============================================================================
 

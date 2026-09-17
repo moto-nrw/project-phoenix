@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -33,27 +34,6 @@ type AuthTestModule struct {
 	Schools               organizationtenancy.Capability
 	Settings              config.SettingsService
 	MFA                   auth.MFAService
-}
-
-// InvitationSchoolsForTests binds the invitation school seam to the
-// Organisation & Tenancy capability the way the factory does. Every read runs
-// under runtime, as the serving root's request middleware provides it; the
-// behaviour tests call the services without that middleware.
-func InvitationSchoolsForTests(schools organizationtenancy.Query, runtime tenant.UnitOfWork) auth.SchoolDirectory {
-	return runtimeInvitationSchools{directory: invitationSchoolDirectory{schools: schools}, runtime: runtime}
-}
-
-type runtimeInvitationSchools struct {
-	directory invitationSchoolDirectory
-	runtime   tenant.UnitOfWork
-}
-
-func (d runtimeInvitationSchools) FindSchool(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
-	return d.directory.FindSchool(tenant.WithUnitOfWork(ctx, d.runtime), id)
-}
-
-func (d runtimeInvitationSchools) FindSchoolForShare(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
-	return d.directory.FindSchoolForShare(tenant.WithUnitOfWork(ctx, d.runtime), id)
 }
 
 type InvitationTestModule struct {
@@ -163,7 +143,9 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	var service *auth.Service
-	var guardian auth.GuardianInvitationService
+	// The delivery module is composed after the identity module, so the
+	// guardian mail reads its outbox at call time, as the factory does.
+	var deliveryModule DeliveryTestModule
 	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
@@ -178,9 +160,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		lifecycle: &lifecycleWiring{
 			settings: settings.Settings, audit: command,
 			admin: func() *auth.Service { return service },
-			delivery: func() auth.GuardianInvitationDelivery {
-				delivery, _ := guardian.(auth.GuardianInvitationDelivery)
-				return delivery
+			guardianMail: &guardianInvitationWiring{
+				settings: settings.Settings, schools: r.School,
+				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
+				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
+				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},
 		},
 		resets: &passwordResetWiring{
@@ -217,18 +201,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	mfa.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	service.SetMFAService(mfa)
 	invitation := NewInvitationService(identityAccess)
-	delivery, err := NewDeliveryTestModule(db, unit)
+	deliveryModule, err = NewDeliveryTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	guardian = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo: r.GuardianInvitation, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
-		AccountRoleRepo: r.AccountRole, RoleRepo: r.Role, PersonRepo: r.Person, GuardianProfileRepo: r.GuardianProfile,
-		StudentGuardianRepo: r.StudentGuardian, Audit: command, StudentRepo: r.Student, SchoolRepo: invitationSchoolDirectory{schools: r.School},
-		EnrollmentBackfiller: r.ParentEnrollmentRequest, RelativeAccess: accountSessionsPort, SettingsResolver: settings.Settings, OutboxEnqueuer: outboxEnqueuer{outbox: delivery.EmailOutbox},
-		FrontendURL: parentsURL, FallbackExpiry: time.Duration(inviteHours) * time.Hour, DB: db, Logger: logger,
-	})
-	guardian.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	guardian := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
 	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: NewStaffPINAuthenticator(identityAccess), MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
 		Schools: r.School, Settings: settings.Settings}, nil
 }
@@ -256,8 +233,7 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{
 			settings: cfg.Settings, audit: cfg.Audit,
-			admin:    func() *auth.Service { return service },
-			delivery: func() auth.GuardianInvitationDelivery { return nil },
+			admin: func() *auth.Service { return service },
 		},
 		resets: &passwordResetWiring{
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,

@@ -590,7 +590,7 @@
       "declaration": "TestGuardianInvitationRepository_DeleteExpired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        358
+        288
       ],
       "tables": [
         "auth.guardian_invitations"
@@ -602,7 +602,7 @@
       "declaration": "TestGuardianInvitationRepository_FindByGuardianProfileID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        182
+        148
       ],
       "tables": []
     },
@@ -619,30 +619,10 @@
     {
       "scope": "test",
       "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindByToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        99
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
       "declaration": "TestGuardianInvitationRepository_FindPending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        214
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_MarkAsAccepted",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        242
+        180
       ],
       "tables": []
     },
@@ -652,7 +632,7 @@
       "declaration": "TestGuardianInvitationRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        133
+        99
       ],
       "tables": []
     },
@@ -662,7 +642,7 @@
       "declaration": "TestGuardianInvitationRepository_UpdateEmailStatus",
       "target": "database/repositories.NewFactory",
       "lines": [
-        278
+        208
       ],
       "tables": []
     },
@@ -672,7 +652,7 @@
       "declaration": "TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        342
+        272
       ],
       "tables": []
     },
@@ -682,7 +662,7 @@
       "declaration": "TestInvitationTokenRepository_DeleteExpired_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        355
+        309
       ],
       "tables": [
         "auth.invitation_tokens"
@@ -694,7 +674,7 @@
       "declaration": "TestInvitationTokenRepository_FindByEmail_CaseInsensitive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        259
+        213
       ],
       "tables": []
     },
@@ -704,7 +684,7 @@
       "declaration": "TestInvitationTokenRepository_FindByEmail_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        233
+        187
       ],
       "tables": []
     },
@@ -714,7 +694,7 @@
       "declaration": "TestInvitationTokenRepository_FindByID_NotFound",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        78
       ],
       "tables": []
     },
@@ -724,27 +704,7 @@
       "declaration": "TestInvitationTokenRepository_FindByID_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        99
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/invitation_token_test.go",
-      "declaration": "TestInvitationTokenRepository_FindByToken_NotFound",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        80
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/invitation_token_test.go",
-      "declaration": "TestInvitationTokenRepository_FindByToken_Success",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        54
+        53
       ],
       "tables": []
     },
@@ -754,7 +714,7 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Expired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        168
+        122
       ],
       "tables": [
         "auth.invitation_tokens"
@@ -766,7 +726,7 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Used",
       "target": "database/repositories.NewFactory",
       "lines": [
-        198
+        152
       ],
       "tables": [
         "auth.invitation_tokens"
@@ -778,7 +738,7 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Valid",
       "target": "database/repositories.NewFactory",
       "lines": [
-        143
+        97
       ],
       "tables": []
     },
@@ -788,7 +748,7 @@
       "declaration": "TestInvitationTokenRepository_InvalidateByEmail_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        319
+        273
       ],
       "tables": []
     },
@@ -798,7 +758,7 @@
       "declaration": "TestInvitationTokenRepository_List_NoFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        418
+        372
       ],
       "tables": []
     },
@@ -808,7 +768,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithEmailFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        442
+        396
       ],
       "tables": []
     },
@@ -818,7 +778,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithPendingFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        472
+        426
       ],
       "tables": []
     },
@@ -828,7 +788,7 @@
       "declaration": "TestInvitationTokenRepository_MarkAsUsed_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        287
+        241
       ],
       "tables": []
     },
@@ -838,7 +798,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        505
+        459
       ],
       "tables": []
     },
@@ -848,7 +808,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_WithError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        536
+        490
       ],
       "tables": []
     },
@@ -858,7 +818,7 @@
       "declaration": "TestInvitationTokenRepository_Update_NilReturnsError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        604
+        558
       ],
       "tables": []
     },
@@ -868,7 +828,7 @@
       "declaration": "TestInvitationTokenRepository_Update_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        571
+        525
       ],
       "tables": []
     },
@@ -3923,7 +3883,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        752
+        715
       ],
       "tables": []
     },
@@ -3933,17 +3893,7 @@
       "declaration": "setupGuardianInvitationTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        58
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/guardian_invitation_service_test.go",
-      "declaration": "setupGuardianInviteWithBackfiller",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        638
+        62
       ],
       "tables": []
     },
@@ -3953,7 +3903,7 @@
       "declaration": "TestRevokeAccess_PayerStaysWithoutFinancialPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301
+        303
       ],
       "tables": [
         "users.guardian_profiles"
@@ -23076,12 +23026,12 @@
         },
         {
           "file": "services/account_authentication_composition.go",
-          "line": 177,
+          "line": 174,
           "declaration": "newSchoolDirectory"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 227,
+          "line": 217,
           "declaration": "NewAuthServiceForTests"
         },
         {

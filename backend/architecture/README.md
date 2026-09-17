@@ -729,7 +729,24 @@ change revokes pending e-mail change links inside the module, so the former
 root-supplied credential cleanup seam is gone. The `models/platform` token
 repository contracts, their `database/repositories/platform` adapters and the
 `repositories.Factory` fields are deleted; the token models remain as the
-retained ports' value types. The operator MFA
+retained ports' value types. The school invitations, the password reset
+and the guardian invitations (#2722) follow the same shape:
+`auth.invitation_tokens`, `auth.password_reset_tokens` with its rate-limit
+window, and `auth.guardian_invitations` are read and written only through the
+public `SchoolInvitations`, `PasswordResets` and `GuardianInvitations`
+capabilities, and the account an acceptance provisions is written there too.
+Expiry is decided with one clock: a link is never stored already expired or
+spent, a resend never revives one, and redemption spends it exactly once. The
+retained `services/auth` invitation, password reset and guardian invitation
+services keep their contracts and reach the rows through the consumer-owned
+ports the root binds to the public module; the acceptance holds one
+administrative transaction, so the account, its school mapping, the role, the
+identity chain and the spent link commit together. The mail stays in the
+composition root, which knows the portal hosts, the tenant reply-to identity
+and the e-mail outbox, and the enrollment requests a guardian acceptance
+claims arrive through their own port. The `models/auth` token lookup,
+approval-queue and acceptance repository methods are deleted with their
+adapters. The operator MFA
 records (#2723): `platform.operator_mfa_credentials`,
 `platform.operator_mfa_email_challenges` and
 `platform.operator_mfa_trusted_devices` are read and written only through the

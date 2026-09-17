@@ -81,9 +81,6 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		AccountRoles: repos.AccountRole, AccountPermissions: repos.AccountPermission,
 		Accounts: repos.Account, AccountTenants: repos.AccountTenant,
 	})
-	if repos.GuardianInvitation != nil {
-		lifecycle.guardianInvitations = auth.NewGuardianInvitationStore(repos.GuardianInvitation)
-	}
 	return sessionRepositories{
 		schools: newSchoolDirectory(organizations, repos),
 		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
@@ -205,6 +202,7 @@ func schoolFact(school organizationtenancy.School) identityaccess.School {
 	return identityaccess.School{
 		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
 		Subdomain: school.Subdomain, Active: school.Active, Deleted: school.IsDeleted(),
+		LogoURL: schoolLogoURLFromSettings(school.Settings),
 	}
 }
 

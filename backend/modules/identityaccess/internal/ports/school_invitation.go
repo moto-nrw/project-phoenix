@@ -29,13 +29,20 @@ type SchoolInvitationStore interface {
 	RecordSchoolInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	DeleteExpiredSchoolInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
-	// InsertAccount creates the invited account with its credential and
-	// returns it.
-	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
+	AccountProvisioning
+
 	// EnsureAccountTenant activates the account's mapping to the school,
 	// reactivating a deactivated one so a re-invitation after offboarding
 	// works.
 	EnsureAccountTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
+}
+
+// AccountProvisioning creates the account an accepted invitation gives
+// access to. Both invitation flows write the same auth.accounts row.
+type AccountProvisioning interface {
+	// InsertAccount creates the invited account with its credential and
+	// returns it.
+	InsertAccount(ctx context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error)
 }
 
 // InvitationGrantPolicy answers whether the inviting account may hand out

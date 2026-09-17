@@ -51,32 +51,24 @@ func (s *stubOutboxEnqueuer) EnqueueOutbox(_ context.Context, req platformModels
 	return nil
 }
 
-func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.GuardianInvitationServiceConfig)) *guardianTestEnv {
+// setupGuardianInvitationTest composes the guardian invitation service over
+// the owner module and the test database, the way the factory does it. Each
+// mutate hook may steer what the test observes (the outbox, the audit
+// command, the enrollment claims).
+func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services.GuardianInvitationTestConfig)) *guardianTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	mailer := email.NewMockMailer()
 
-	cfg := authService.GuardianInvitationServiceConfig{
-		InvitationRepo:      repoFactory.GuardianInvitation,
-		AccountRepo:         repoFactory.Account,
-		AccountTenantRepo:   repoFactory.AccountTenant,
-		AccountRoleRepo:     repoFactory.AccountRole,
-		RoleRepo:            repoFactory.Role,
-		PersonRepo:          repoFactory.Person,
-		GuardianProfileRepo: repoFactory.GuardianProfile,
-		StudentGuardianRepo: repoFactory.StudentGuardian,
-		StudentRepo:         repoFactory.Student,
-		SchoolRepo:          services.InvitationSchoolsForTests(repoFactory.School, testpkg.TenantRuntime(t, db)),
-		OutboxEnqueuer:      &stubOutboxEnqueuer{},
-		FrontendURL:         "http://localhost:3000",
-		FallbackExpiry:      48 * time.Hour,
-		DB:                  db,
-		Logger:              slog.Default(),
+	cfg := services.GuardianInvitationTestConfig{
+		Outbox: &stubOutboxEnqueuer{},
+		Expiry: 48 * time.Hour,
+		Logger: slog.Default(),
 	}
 	for _, m := range mutate {
-		m(&cfg)
+		m(db, &cfg)
 	}
 	service, err := services.NewGuardianInvitationServiceForTests(db, testpkg.TenantRuntime(t, db), cfg)
 	require.NoError(t, err)
@@ -556,8 +548,8 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	// dispatcher path would asynchronously re-populate email_sent_at after
 	// delivery, racing the nil assertions below.
 	outbox := &stubOutboxEnqueuer{}
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.OutboxEnqueuer = outbox
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
 
@@ -629,42 +621,13 @@ func (s *stubEnrollmentBackfiller) BackfillGuardianAccountID(_ context.Context, 
 }
 
 // setupGuardianInviteWithBackfiller wires the service exactly as
-// setupGuardianInvitationTest but plugs in a custom EnrollmentBackfiller
-// so the accept flow's backfill call can be observed.
-func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.EnrollmentBackfiller) *guardianTestEnv {
+// setupGuardianInvitationTest but plugs in a custom enrollment claim so the
+// accept flow's backfill call can be observed.
+func setupGuardianInviteWithBackfiller(t *testing.T, backfiller services.GuardianEnrollmentClaims) *guardianTestEnv {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
-
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	mailer := email.NewMockMailer()
-
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
-		InvitationRepo:       repoFactory.GuardianInvitation,
-		AccountRepo:          repoFactory.Account,
-		AccountTenantRepo:    repoFactory.AccountTenant,
-		AccountRoleRepo:      repoFactory.AccountRole,
-		RoleRepo:             repoFactory.Role,
-		PersonRepo:           repoFactory.Person,
-		GuardianProfileRepo:  repoFactory.GuardianProfile,
-		SchoolRepo:           services.InvitationSchoolsForTests(repoFactory.School, testpkg.TenantRuntime(t, db)),
-		EnrollmentBackfiller: backfiller,
-		OutboxEnqueuer:       &stubOutboxEnqueuer{},
-		FrontendURL:          "http://localhost:3000",
-		FallbackExpiry:       48 * time.Hour,
-		DB:                   db,
-		Logger:               slog.Default(),
+	return setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Enrollments = backfiller
 	})
-	testpkg.SetTenantRuntime(t, service, db)
-
-	cleanup := func() {}
-
-	return &guardianTestEnv{
-		db:      db,
-		repos:   repoFactory,
-		service: service,
-		mailer:  mailer,
-		cleanup: cleanup,
-	}
 }
 
 // cleanupAcceptedAccount wipes the account + its derived rows created

@@ -1605,7 +1605,9 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
-	var guardianInvitationService auth.GuardianInvitationService
+	// The delivery module is composed after the identity module, so the
+	// guardian mail reads its outbox at call time.
+	var emailOutboxService *emailoutbox.Service
 	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos, organizations),
 		tokenAuth: authConfig.TokenAuth,
@@ -1627,15 +1629,19 @@ func newFactory(
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
 			mailIdentity: tenantMailIdentity, tokenAuth: authConfig.TokenAuth, expiry: invitationTokenExpiry,
 		},
-		// The lifecycle flows (#3225) read the retained role management and
-		// the guardian invitation delivery back at call time; both are
-		// composed below.
+		// The lifecycle flows (#3225) read the retained role management back
+		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
 			admin: func() *auth.Service { return authService },
-			delivery: func() auth.GuardianInvitationDelivery {
-				delivery, _ := guardianInvitationService.(auth.GuardianInvitationDelivery)
-				return delivery
+			guardianMail: &guardianInvitationWiring{
+				settings: settingsService, schools: organizations,
+				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
+				enrollments: repos.ParentEnrollmentRequest,
+				// The accept and login links go to the parents portal, never
+				// to the staff frontend.
+				parentsURL: parentsURL, fallbackExpiry: invitationTokenExpiry,
+				logger: authLogger.With("flow", "guardian_invitation"),
 			},
 		},
 	})
@@ -1761,29 +1767,9 @@ func newFactory(
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
 	emailOutboxWorker := deliveryRuntime.Worker
-	emailOutboxService := emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
+	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:       repos.GuardianInvitation,
-		AccountRepo:          repos.Account,
-		AccountTenantRepo:    repos.AccountTenant,
-		AccountRoleRepo:      repos.AccountRole,
-		RoleRepo:             repos.Role,
-		PersonRepo:           repos.Person,
-		GuardianProfileRepo:  repos.GuardianProfile,
-		StudentGuardianRepo:  repos.StudentGuardian,
-		Audit:                auditCommand,
-		StudentRepo:          repos.Student,
-		SchoolRepo:           invitationSchoolDirectory{schools: organizations},
-		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
-		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
-		RelativeAccess:       accountSessionsPort,
-		SettingsResolver:     settingsService,
-		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:       invitationTokenExpiry,
-		DB:                   db,
-		Logger:               authLogger.With("flow", "guardian_invitation"),
-	})
+	guardianInvitationService := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,

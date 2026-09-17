@@ -13,10 +13,12 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type guardianFinancialAuditCommand struct {
@@ -121,8 +123,8 @@ func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T
 	t.Parallel()
 
 	outbox := &stubOutboxEnqueuer{}
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.OutboxEnqueuer = outbox
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
 
@@ -297,8 +299,8 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.Audit = guardianFinancialAuditCommand{repo: repositories.NewFactory(cfg.DB, repositories.NewUnobservedTimetableDependencies(cfg.DB)).GuardianFinancialChange}
+	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Audit = guardianFinancialAuditCommand{repo: repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianFinancialChange}
 	})
 	defer env.cleanup()
 
@@ -1254,8 +1256,8 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	t.Parallel()
 
 	outbox := &stubOutboxEnqueuer{}
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.OutboxEnqueuer = outbox
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
 
