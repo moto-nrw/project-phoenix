@@ -77,6 +77,10 @@ repository as a compatibility permission until the table can be adopted.
 `users.staff_message_participants`, `users.staff_messages` and
 `users.staff_message_reads` under `communication` (policy epoch 12 to 13).
 With that the baseline records no `tables.unclassified` debt.
+The same ticket moves the two foreign accesses the package kept on owned
+tables: `users.profiles` belongs to the account, not the person, so its model,
+contract and repository move to `models/auth` and
+`database/repositories/auth` under `identity-access`.
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
