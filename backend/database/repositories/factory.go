@@ -247,7 +247,6 @@ type Factory struct {
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
-	OperatorSummaries        platformModels.OperatorSummariesRepository
 	// School is the Organisation & Tenancy capability that owns
 	// platform.schools (#3253); BindOrganizationTenancy replaces the
 	// unobserved default with the serving root's module.
@@ -699,7 +698,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
-		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
 		School:                   mustNewOrganizationTenancy(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
@@ -734,12 +732,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffNotice:                schedule.NewStaffNoticeRepository(db),
 	}
 	factory.appointments = appointmentsModule
-	// iot.devices belongs to the Device Fleet owner (#2676): the operator
-	// dashboard reads its counts and device rows through that capability
-	// instead of joining the table from platform SQL.
-	factory.OperatorSummaries = deviceOperatorSummariesRepository{
-		OperatorSummariesRepository: factory.OperatorSummaries, devices: deviceFleet,
-	}
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {

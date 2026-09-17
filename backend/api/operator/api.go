@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -49,7 +50,7 @@ type ResourceConfig struct {
 	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
-	ProvisioningService        platformSvc.OperatorProvisioningService
+	ProvisioningService        organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	AnnouncementsService       communication.Capability
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService

@@ -1302,12 +1302,10 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}, nil
 }
 
-func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
-	workforce := modules.workforce
-	// One device authentication composition serves every kiosk route group,
-	// so the IoT and students resources share its last-seen debouncer.
+// activeSchoolMemberships lists the schools an account is actively mapped to.
+func activeSchoolMemberships(repoFactory *repositories.Factory) accountSchoolMemberships {
 	accountTenants := repoFactory.AccountTenant
-	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: func(ctx context.Context, accountID int64) ([]int64, error) {
+	return func(ctx context.Context, accountID int64) ([]int64, error) {
 		memberships, err := accountTenants.FindActiveByAccountID(ctx, accountID)
 		if err != nil {
 			return nil, err
@@ -1317,7 +1315,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 			ids = append(ids, membership.TenantID)
 		}
 		return ids, nil
-	}}
+	}
+}
+
+func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
+	workforce := modules.workforce
+	// One device authentication composition serves every kiosk route group,
+	// so the IoT and students resources share its last-seen debouncer.
+	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: activeSchoolMemberships(repoFactory)}
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
 		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},

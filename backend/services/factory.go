@@ -221,7 +221,7 @@ type Factory struct {
 	// Platform domain (operator dashboard)
 	OperatorAuth         platform.OperatorAuthService
 	OperatorInvitation   platform.OperatorInvitationService
-	OperatorProvisioning platform.OperatorProvisioningService
+	OperatorProvisioning organizationtenancy.Provisioning
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
 	Students             users.StudentService
@@ -2692,29 +2692,37 @@ func newFactory(
 		parentAnnouncementService.SetAttachmentPurger(fileStoreService)
 	}
 
-	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
-		Organizations:       organizations,
-		SchoolRepo:          repositories.NewSchoolCapabilityAdapter(organizations, repos.AccountTenant),
-		SummariesRepo:       repos.OperatorSummaries,
-		CategoryRepo:        repos.ActivityCategory,
-		DeviceRepo:          repos.Device,
-		RoleRepo:            repos.Role,
-		AccountTenantRepo:   repos.AccountTenant,
-		PersonRepo:          repos.Person,
-		StaffRepo:           repos.Staff,
-		AccountRepo:         repos.Account,
-		TeacherRepo:         repos.Teacher,
-		StudentRepo:         repos.Student,
-		GroupSupervisorRepo: repos.GroupSupervisor,
-		ActiveGroupRepo:     repos.ActiveGroup,
-		Settings:            settingsService,
-		InvitationService:   invitationService,
-		AuthService:         authService,
-		SchoolIdentity:      accountSessionsPort,
-		AuditLogRepo:        repos.OperatorAuditLog,
-		DB:                  db,
-		Logger:              platformLogger,
+	// Operator provisioning belongs to Organisation & Tenancy (#3253); the
+	// retained owners it touches are bound through its provisioning seams.
+	provisioningAdapters, err := repositories.NewOperatorProvisioningAdapters(repositories.OperatorProvisioningDependencies{
+		DB:           db,
+		Devices:      deviceFleet,
+		Persons:      persons,
+		Membership:   membership,
+		PersonRepo:   repos.Person,
+		StaffRepo:    repos.Staff,
+		Accounts:     repos.Account,
+		ActiveGroups: repos.ActiveGroup,
+		Supervisors:  repos.GroupSupervisor,
+		Categories:   repos.ActivityCategory,
+		AuditLog:     repos.OperatorAuditLog,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
+	}
+	operatorProvisioningService, err := newOperatorProvisioning(operatorProvisioningSources{
+		repos:          repos,
+		organizations:  organizations,
+		adapters:       provisioningAdapters,
+		authService:    authService,
+		invitations:    invitationService,
+		schoolIdentity: accountSessionsPort,
+		settings:       settingsService,
+		logger:         platformLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose operator provisioning: %w", err)
+	}
 
 	listExportService := listexport.NewService()
 	// The Notfallliste is the emergency snapshot read projection (#2704): the
@@ -2787,7 +2795,7 @@ func newFactory(
 	pwaUsageService := pwa.NewUsageService(
 		db,
 		repos.PWAStandaloneUsage,
-		repos.OperatorSummaries,
+		pwaUsageCounts{provisioning: operatorProvisioningService},
 		repos.AccountTenant,
 		settingsService,
 		logger.With("service", "pwa_usage"),

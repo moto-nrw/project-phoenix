@@ -14,6 +14,7 @@ import (
 // testSchoolDirectory binds the auth routes to the Organisation & Tenancy
 // capability the way the serving root does; the account memberships come
 // straight from the seeded auth.account_tenants rows.
+// Callers pass the pool from testpkg.SetupTestDB.
 type testSchoolDirectory struct {
 	schools organizationtenancy.Query
 	db      *bun.DB

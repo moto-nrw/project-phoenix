@@ -8,6 +8,7 @@ import (
 
 // dbTenantDirectory lists the seeded schools straight from platform.schools
 // so the wired scheduler tests run against the real tenant fixtures.
+// Callers pass the pool from testpkg.SetupTestDB.
 type dbTenantDirectory struct{ db *bun.DB }
 
 func (d dbTenantDirectory) ListActiveTenantIDs(ctx context.Context) ([]int64, error) {

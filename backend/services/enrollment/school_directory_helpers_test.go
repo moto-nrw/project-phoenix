@@ -9,6 +9,7 @@ import (
 
 // factorySchools reads the seeded schools through the repository factory's
 // Organisation & Tenancy capability, the owner the serving root binds.
+// Callers pass a factory built on the pool from testpkg.SetupTestDB.
 type factorySchools struct{ repos *repositories.Factory }
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentService.School, error) {

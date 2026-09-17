@@ -12,16 +12,12 @@ import (
 // slugRegex validates URL-safe slugs: lowercase alphanumeric with hyphens, no leading/trailing hyphens.
 var slugRegex = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
-// Field-length bounds shared by platform tenant entities (organizations + schools).
+// Field-length bounds of an organization.
 const (
-	// maxNameLen caps the display name of an organization or school.
+	// maxNameLen caps the display name of an organization.
 	maxNameLen = 200
 	// maxSlugLen caps the URL slug.
 	maxSlugLen = 100
-	// maxDNSLabelLen caps a subdomain to the DNS label limit (RFC 1035).
-	maxDNSLabelLen = 63
-	// maxEmailLen caps a contact email address.
-	maxEmailLen = 255
 )
 
 // reservedSlugs are infrastructure subdomains that must never be used as tenant slugs or subdomains.

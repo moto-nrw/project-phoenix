@@ -2,35 +2,34 @@ package testutil
 
 import (
 	"context"
-	"database/sql"
-	"errors"
-	"time"
+	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-nrw/project-phoenix/services"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 
-// DeviceSchools answers the device school guard straight from the seeded
-// platform.schools rows, so handler tests exercise the deleted-school check
-// against real fixtures.
-func DeviceSchools(db *bun.DB) deviceauth.SchoolDirectory {
-	return deviceSchools{db: db}
+// DeviceSchools answers the device school guard through the Organisation &
+// Tenancy capability over db, the owner the serving root binds, so handler
+// tests exercise the deleted-school check against real fixtures.
+func DeviceSchools(t testing.TB, db *bun.DB) deviceauth.SchoolDirectory {
+	t.Helper()
+	lookup, err := services.SchoolDeletionLookupForTests(db, testpkg.TenantRuntime(t, db))
+	if err != nil {
+		t.Fatalf("compose device school lookup: %v", err)
+	}
+	return deviceSchools{lookup: lookup}
 }
 
-type deviceSchools struct{ db *bun.DB }
+type deviceSchools struct {
+	lookup func(context.Context, int64) (found, deleted bool, err error)
+}
 
 func (d deviceSchools) FindSchool(ctx context.Context, id int64) (*deviceauth.School, error) {
-	var deletedAt *time.Time
-	err := d.db.NewSelect().
-		TableExpr(`platform.schools AS "school"`).
-		Column("school.deleted_at").
-		Where(`"school".id = ?`, id).
-		Scan(ctx, &deletedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
-	}
-	if err != nil {
+	found, deleted, err := d.lookup(ctx, id)
+	if err != nil || !found {
 		return nil, err
 	}
-	return &deviceauth.School{Deleted: deletedAt != nil}, nil
+	return &deviceauth.School{Deleted: deleted}, nil
 }

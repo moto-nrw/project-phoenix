@@ -36,14 +36,16 @@ func tenantContext(t *testing.T, id int64) context.Context {
 // the stored intent's identity.
 func TestServiceEnqueueHandsTheTenantIntentToDelivery(t *testing.T) {
 	t.Parallel()
+
+	const schoolID, invitationID int64 = 7, 3
 	delivery := &recordingDurableEmail{result: DurableEmailResult{ID: 91}}
 	service := NewService(delivery)
 
-	enqueued, err := service.Enqueue(tenantContext(t, 7), EnqueueRequest{
+	enqueued, err := service.Enqueue(tenantContext(t, schoolID), EnqueueRequest{
 		Kind:              "guardian_invitation",
 		Payload:           map[string]any{"recipient_email": "eltern@example.test", "first_name": "Ada"},
 		RelatedEntityType: "guardian_invitation",
-		RelatedEntityID:   3,
+		RelatedEntityID:   invitationID,
 		IdempotencyKey:    "invite-3",
 	})
 
@@ -51,11 +53,11 @@ func TestServiceEnqueueHandsTheTenantIntentToDelivery(t *testing.T) {
 	assert.Equal(t, int64(91), enqueued.ID)
 	require.Len(t, delivery.enqueued, 1)
 	intent := delivery.enqueued[0]
-	assert.Equal(t, int64(7), intent.TenantID)
+	assert.Equal(t, schoolID, intent.TenantID)
 	assert.Equal(t, "guardian_invitation", intent.Template)
 	assert.Equal(t, "eltern@example.test", intent.Recipient)
 	assert.Equal(t, "guardian_invitation", intent.RelatedType)
-	assert.Equal(t, int64(3), intent.RelatedID)
+	assert.Equal(t, invitationID, intent.RelatedID)
 	assert.Equal(t, "invite-3", intent.IdempotencyKey)
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(intent.Payload, &payload))

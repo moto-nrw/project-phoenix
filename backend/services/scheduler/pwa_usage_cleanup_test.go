@@ -47,7 +47,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	cleanup := pwaSvc.NewUsageService(
 		db,
 		repos.PWAStandaloneUsage,
-		repos.OperatorSummaries,
+		nil,
 		repos.AccountTenant,
 		&configtest.Mock{
 			ResolveIntFn: func(_ context.Context, key string) (int, error) {

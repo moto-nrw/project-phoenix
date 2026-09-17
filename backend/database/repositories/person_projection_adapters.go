@@ -4,11 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 // bindPersonProjections wraps every legacy repository that used to read or
@@ -36,15 +33,6 @@ func (f *Factory) bindPersonProjections(persons peopledirectory.Capability) {
 	}
 	if f.ParentEnrollablePhase != nil {
 		f.ParentEnrollablePhase = personEnrollablePhaseRepository{EnrollablePhaseRepository: f.ParentEnrollablePhase, persons: persons}
-	}
-	if f.OperatorSummaries != nil {
-		f.OperatorSummaries = personOperatorSummariesRepository{
-			OperatorSummariesRepository: f.OperatorSummaries, persons: persons,
-			schools:    func() organizationtenancy.Query { return f.School },
-			accounts:   func() authModels.AccountRepository { return f.Account },
-			membership: func() schoolmembership.Capability { return f.schoolMembership },
-			db:         f.db,
-		}
 	}
 	if f.AccountTenant != nil {
 		f.AccountTenant = newPersonAccountTenantRepository(f.AccountTenant, persons)
