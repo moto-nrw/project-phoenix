@@ -230,3 +230,10 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	service, err = auth.NewService(repos, &cfg, db, logger)
 	return service, err
 }
+
+// IdentityAccessForTests returns the Identity & Access module a retained
+// auth service composed by NewAuthServiceForTests delegates to, so behaviour
+// tests reach the role administration (#3314) through the public contract.
+func IdentityAccessForTests(service auth.AuthService) *identityaccess.Module {
+	return identityAccessOf(service)
+}

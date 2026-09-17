@@ -51,6 +51,17 @@ var (
 	ErrAccountLifecycleUnavailable = errors.New("account lifecycle is not composed")
 )
 
+// IsSchoolIdentityRequestError reports whether the error is the caller's
+// fault rather than the server's: a missing name, a child's record, an
+// unknown or conflicting transponder. Handlers render these as 400.
+func IsSchoolIdentityRequestError(err error) bool {
+	return errors.Is(err, ErrSchoolIdentityNamesRequired) ||
+		errors.Is(err, ErrSchoolIdentityPersonIsStudent) ||
+		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
+		errors.Is(err, ErrSchoolIdentityTagConflict) ||
+		errors.Is(err, ErrSchoolIdentityTagTaken)
+}
+
 // AuthenticatedStaff is the staff member a verified PIN binds a kiosk action to.
 type AuthenticatedStaff struct {
 	ID       int64
@@ -268,6 +279,11 @@ type SchoolIdentity struct {
 // an account without a person when CreatePerson is false.
 type SchoolIdentityProvisioning interface {
 	EnsureSchoolIdentity(ctx context.Context, input SchoolIdentityInput) (*SchoolIdentity, error)
+	// HasLiveCaregiverProfile reports whether the account's identity at the
+	// tenant in context carries a live caregiver profile, the fact every path
+	// that guards the Lehrkraft role reads (#1772). Offboarded records do not
+	// count.
+	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
 // ParentAccount is one parent authentication account of the school in
@@ -436,6 +452,10 @@ func (m *Module) ExecuteStaffOffboarding(ctx context.Context, accountID int64, r
 
 func (m *Module) EnsureSchoolIdentity(ctx context.Context, input SchoolIdentityInput) (*SchoolIdentity, error) {
 	return m.engine.EnsureSchoolIdentity(ctx, input)
+}
+
+func (m *Module) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return m.engine.HasLiveCaregiverProfile(ctx, accountID)
 }
 
 func (m *Module) CreateParentAccount(ctx context.Context, email, username, password string) (ParentAccount, error) {

@@ -70,6 +70,11 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
 	}
+	lifecycle.roles, lifecycle.rolesErr = repositories.NewIdentityRoleDirectory(repositories.IdentityRoleRepositories{
+		Roles: repos.Role, Permissions: repos.Permission, RolePermissions: repos.RolePermission,
+		AccountRoles: repos.AccountRole, AccountPermissions: repos.AccountPermission,
+		Accounts: repos.Account, AccountTenants: repos.AccountTenant,
+	})
 	if repos.GuardianInvitation != nil {
 		lifecycle.guardianInvitations = auth.NewGuardianInvitationStore(repos.GuardianInvitation)
 	}
@@ -131,7 +136,13 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 // hand it to the routes that call the public contract directly. It is nil
 // when the auth service was composed without the port.
 func (f *Factory) AccountAuthentication() *identityaccess.Module {
-	provider, ok := f.Auth.(interface{ AccountSessions() auth.AccountSessions })
+	return identityAccessOf(f.Auth)
+}
+
+// identityAccessOf returns the module behind the retained auth service's
+// session port, or nil when the service was composed without it.
+func identityAccessOf(service auth.AuthService) *identityaccess.Module {
+	provider, ok := service.(interface{ AccountSessions() auth.AccountSessions })
 	if !ok {
 		return nil
 	}
@@ -789,7 +800,7 @@ func authServiceError(err error) error {
 	if errors.As(err, &operation) && operation == err {
 		return &auth.AuthError{Op: operation.Op, Err: authServiceError(operation.Err)}
 	}
-	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels} {
+	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels} {
 		for _, sentinel := range sentinels {
 			if !errors.Is(err, sentinel.public) {
 				continue

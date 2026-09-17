@@ -40,6 +40,57 @@ func (s *stubAccountSessions) IsPlatformCaregiverRole(role *RoleFacts) bool {
 	return identityaccess.IsPlatformCaregiverRole(stubRoleFacts(role))
 }
 
+func (s *stubAccountSessions) IsLehrkraftSystemRole(role *RoleFacts) bool {
+	return identityaccess.IsLehrkraftSystemRole(stubRoleFacts(role))
+}
+
+// stubRolePolicySentinels translates the owner's school-role policy
+// sentinels the way the composition root does.
+var stubRolePolicySentinels = map[error]error{
+	identityaccess.ErrRoleNotAssignable:              ErrRoleNotAssignable,
+	identityaccess.ErrRoleForeignTenant:              ErrRoleForeignTenant,
+	identityaccess.ErrRoleGuardianNotAssignable:      ErrRoleGuardianNotAssignable,
+	identityaccess.ErrRoleLegacyTeacherNotAssignable: ErrRoleLegacyTeacherNotAssignable,
+}
+
+func (s *stubAccountSessions) ValidateAssignableSchoolRole(role *RoleFacts, tenantID int64) error {
+	err := identityaccess.ValidateAssignableSchoolRole(stubRoleFacts(role), tenantID)
+	if retained, ok := stubRolePolicySentinels[err]; ok {
+		return retained
+	}
+	return err
+}
+
+// HasLiveCaregiverProfile walks the person -> staff -> teacher chain over the
+// stub's repositories the way the owner's staff seam does.
+func (s *stubAccountSessions) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	if s.repos == nil {
+		return false, errStubLifecycleNotSupported
+	}
+	person, err := s.repos.Person.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return false, err
+	}
+	if person == nil || person.DeletedAt != nil {
+		return false, nil
+	}
+	staff, err := s.repos.Staff.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	if staff == nil || staff.DeletedAt != nil {
+		return false, nil
+	}
+	teacher, err := s.repos.Teacher.FindByStaffID(ctx, staff.ID)
+	if err != nil {
+		return false, err
+	}
+	return teacher != nil && teacher.DeletedAt == nil, nil
+}
+
 // EnsureSchoolIdentity is the idempotent person -> staff -> teacher chain
 // over the stub's repositories, without the transponder and import-hint
 // handling the owner module covers.

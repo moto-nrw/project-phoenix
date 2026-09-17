@@ -39,7 +39,7 @@ var queryBudgets = map[string]queryBudget{
 	// organization summaries, and one device read through the Device Fleet
 	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
-	// api/parent — GET /me/children/{studentId}/courses resolves the catalog,
+	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
 	// api/students — #2059: schema capabilities are fixed at startup.

@@ -56,6 +56,14 @@ func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, in domain.S
 	return identity, nil
 }
 
+// HasLiveCaregiverProfile reports whether the account's identity at the
+// tenant in ctx includes a live caregiver profile (users.teachers) — the
+// person → staff → teacher chain the staff flows maintain. Soft-deleted
+// (offboarded) records do not count.
+func (l *AccountLifecycle) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return l.profiles.HasLiveCaregiverProfile(ctx, accountID)
+}
+
 // resolveIdentityPerson returns the account's live person at this school,
 // creating it when the caller allows it. Returns (nil, nil) when there is none
 // and the caller refused to create one.
