@@ -12,9 +12,9 @@ import (
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -47,8 +47,8 @@ type WorkerDependencies struct {
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
-	Materializer              scheduleSvc.MaterializationService
-	TimetableCleanup          scheduleSvc.TimetableCleanupService
+	Materializer              timetableplanning.MaterializationService
+	TimetableCleanup          timetableplanning.TimetableCleanupService
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
@@ -56,8 +56,8 @@ type WorkerDependencies struct {
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
 	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
-	AutoStart                 scheduleSvc.AutoStartService
-	AutoEnd                   scheduleSvc.AutoEndService
+	AutoStart                 timetableplanning.AutoStartService
+	AutoEnd                   timetableplanning.AutoEndService
 	InstanceRepo              scheduleModel.ActivityInstanceRepository
 	InstanceRoomRepo          facilitiesModel.RoomRepository
 	InstanceStudentRepo       scheduleModel.InstanceStudentRepository

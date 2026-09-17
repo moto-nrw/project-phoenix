@@ -7,8 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	model "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +28,7 @@ func TestPlanningTrackRepositoryTenantCRUDAndOrdering(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	repo := planningTrackRepository(t, db)
-	service := scheduleSvc.NewPlanningTrackService(repo, db)
+	service := timetableplanning.NewPlanningTrackService(repo, db)
 	ctx := scope.Context()
 
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
@@ -122,14 +122,14 @@ func TestPlanningTrackRepositoryRejectsPartialOrder(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	repo := planningTrackRepository(t, db)
-	service := scheduleSvc.NewPlanningTrackService(repo, db)
+	service := timetableplanning.NewPlanningTrackService(repo, db)
 	first := &model.PlanningTrack{Name: "Früh", Color: "#5080D8", SortOrder: 0}
 	second := &model.PlanningTrack{Name: "Mittag", Color: "#F78C10", SortOrder: 1}
 	require.NoError(t, repo.Create(scope.Context(), first))
 	require.NoError(t, repo.Create(scope.Context(), second))
 
 	err := service.ReorderPlanningTracks(scope.Context(), []int64{first.ID})
-	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNotFound)
+	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNotFound)
 
 	err = testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		require.NoError(t, repo.UpdateSortOrders(txCtx, nil))
@@ -153,28 +153,28 @@ func TestPlanningTrackServiceNameConflictAndArchiveLifecycle(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
-	service := scheduleSvc.NewPlanningTrackService(planningTrackRepository(t, db), db)
-	input := scheduleSvc.PlanningTrackInput{Name: "Nord", Color: "#5080D8", SortOrder: 0}
+	service := timetableplanning.NewPlanningTrackService(planningTrackRepository(t, db), db)
+	input := timetableplanning.PlanningTrackInput{Name: "Nord", Color: "#5080D8", SortOrder: 0}
 
 	first, err := service.CreatePlanningTrack(scope.Context(), input)
 	require.NoError(t, err)
-	_, err = service.CreatePlanningTrack(scope.Context(), scheduleSvc.PlanningTrackInput{
+	_, err = service.CreatePlanningTrack(scope.Context(), timetableplanning.PlanningTrackInput{
 		Name: " nord ", Color: "#83CD2D", SortOrder: 1,
 	})
-	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNameTaken)
+	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNameTaken)
 	_, err = service.ArchivePlanningTrack(scope.Context(), first.ID)
 	require.NoError(t, err)
 	second, err := service.CreatePlanningTrack(scope.Context(), input)
 	require.NoError(t, err)
-	third, err := service.CreatePlanningTrack(scope.Context(), scheduleSvc.PlanningTrackInput{
+	third, err := service.CreatePlanningTrack(scope.Context(), timetableplanning.PlanningTrackInput{
 		Name: "Süd", Color: "#F78C10", SortOrder: 1,
 	})
 	require.NoError(t, err)
-	_, err = service.UpdatePlanningTrack(scope.Context(), third.ID, scheduleSvc.PlanningTrackInput{
+	_, err = service.UpdatePlanningTrack(scope.Context(), third.ID, timetableplanning.PlanningTrackInput{
 		Name: "NORD", Color: "#83CD2D", SortOrder: 1,
 	})
-	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNameTaken)
+	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNameTaken)
 	_, err = service.RestorePlanningTrack(scope.Context(), first.ID)
-	require.ErrorIs(t, err, scheduleSvc.ErrPlanningTrackNameTaken)
+	require.ErrorIs(t, err, timetableplanning.ErrPlanningTrackNameTaken)
 	assert.NotEqual(t, first.ID, second.ID)
 }

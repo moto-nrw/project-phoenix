@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 const (
@@ -34,8 +34,8 @@ type ShiftCoverageRequest struct {
 // ShiftCoverageResponse deliberately contains no shift rows; callers receive
 // only advisory uncovered intervals after passing both permissions.
 type ShiftCoverageResponse struct {
-	CoverageWarnings     []scheduleSvc.ShiftCoverageWarning `json:"coverage_warnings"`
-	CoverageWarningCount int                                `json:"coverage_warning_count"`
+	CoverageWarnings     []timetableplanning.ShiftCoverageWarning `json:"coverage_warnings"`
+	CoverageWarningCount int                                      `json:"coverage_warning_count"`
 }
 
 func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		concreteInstanceDate = &date
 	}
 
-	result, err := rs.TimetableData.DetectShiftCoverageWarnings(r.Context(), scheduleSvc.ShiftCoverageQuery{
+	result, err := rs.TimetableData.DetectShiftCoverageWarnings(r.Context(), timetableplanning.ShiftCoverageQuery{
 		Dates:                 dates,
 		StartTime:             start,
 		EndTime:               end,
@@ -91,7 +91,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		WeekPattern:           request.WeekPattern,
 	})
 	if err != nil {
-		if errors.Is(err, scheduleSvc.ErrInvalidShiftCoverageQuery) {
+		if errors.Is(err, timetableplanning.ErrInvalidShiftCoverageQuery) {
 			renderShiftCoverageBadRequest(w, r)
 			return
 		}
@@ -99,7 +99,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if result.Warnings == nil {
-		result.Warnings = make([]scheduleSvc.ShiftCoverageWarning, 0)
+		result.Warnings = make([]timetableplanning.ShiftCoverageWarning, 0)
 	}
 	common.Respond(w, r, http.StatusOK, ShiftCoverageResponse{
 		CoverageWarnings:     result.Warnings,

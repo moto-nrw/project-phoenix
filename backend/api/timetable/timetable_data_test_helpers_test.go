@@ -18,13 +18,14 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 )
 
 // testTimetableData builds the full TimetableDataService against the test
 // database — the test-side equivalent of the factory wiring.
-func testTimetableData(db *bun.DB, clocks ...func() time.Time) *scheduleSvc.TimetableDataService {
+func testTimetableData(db *bun.DB, clocks ...func() time.Time) *timetableplanning.TimetableDataService {
 	return testTimetableDataWithCareValidator(db, nil, clocks...)
 }
 
@@ -32,7 +33,7 @@ func testTimetableDataWithCareValidator(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	clocks ...func() time.Time,
-) *scheduleSvc.TimetableDataService {
+) *timetableplanning.TimetableDataService {
 	return testTimetableDataWithOfferingCallbacks(db, validateCareOfferingSeries, nil, nil, clocks...)
 }
 
@@ -40,9 +41,9 @@ func testTimetableDataWithOfferingCallbacks(
 	db *bun.DB,
 	validateCareOfferingSeries func(context.Context, int64) error,
 	validateOfferingSource func(context.Context, []int64, []int64, *int64) error,
-	resyncOfferingRoster func(context.Context, scheduleSvc.OfferingRosterResyncInput) error,
+	resyncOfferingRoster func(context.Context, timetableplanning.OfferingRosterResyncInput) error,
 	clocks ...func() time.Time,
-) *scheduleSvc.TimetableDataService {
+) *timetableplanning.TimetableDataService {
 	boundRepos := mustTimetableTestRepositories(db, clocks...)
 	approvedOfferings, err := testutil.NewApprovedOfferingProjection(db, boundRepos.Enrollment())
 	if err != nil {
@@ -61,7 +62,7 @@ func testTimetableDataWithOfferingCallbacks(
 	if err != nil {
 		panic(err)
 	}
-	deps := scheduleSvc.TimetableDataDependencies{
+	deps := timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo:   boundRepos.InstanceStudent,
 		ActivityInstanceRepo:  activityInstanceRepo,
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(db),
@@ -109,7 +110,7 @@ func testTimetableDataWithOfferingCallbacks(
 		DB:                         db,
 		Today:                      today,
 	}
-	return scheduleSvc.NewTimetableDataService(deps)
+	return timetableplanning.NewTimetableDataService(deps)
 }
 
 type panicTestTB struct{}

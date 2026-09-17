@@ -28,7 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // PatchAttendanceRequest is the wire shape. Status uses *string (nullable-ish
@@ -284,7 +284,7 @@ func decodeNullableString(raw json.RawMessage) (nullableString, error) {
 // did not clear it, OR patch sets a non-null value. Cleared substatus (with
 // SubstatusClear) is treated as nil regardless of context.
 func validateAttendancePatch(patch scheduleModel.AttendanceFieldPatch, current *scheduleModel.InstanceStudent) []fieldError {
-	return attendancePatchFieldErrors(scheduleSvc.ValidateAttendancePatch(patch, current))
+	return attendancePatchFieldErrors(timetableplanning.ValidateAttendancePatch(patch, current))
 }
 
 // renderValidationErrors emits the 400 body with the full errors slice.

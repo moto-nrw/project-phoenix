@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 func setupEditedInWindowRouter(rs *Resource) chi.Router {
@@ -29,22 +29,22 @@ func TestEditedInWindow_Success(t *testing.T) {
 	var gotFrom, gotTo timezone.Date
 	var gotInclude bool
 	mat := &mockMaterializationService{
-		detectFn: func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]timetableplanning.EditedOccurrence, error) {
 			gotGroup, gotFrom, gotTo, gotInclude = activityGroupID, from, to, includeDeletions
-			return []scheduleSvc.EditedOccurrence{
+			return []timetableplanning.EditedOccurrence{
 				{
 					InstanceID: 101,
 					Date:       timezone.NewDate(2026, 4, 20),
 					StartTime:  "15:00:00",
 					Title:      "Fußball AG",
-					Changes:    []string{scheduleSvc.EditedChangeRoom, scheduleSvc.EditedChangeTitle},
+					Changes:    []string{timetableplanning.EditedChangeRoom, timetableplanning.EditedChangeTitle},
 				},
 				{
 					InstanceID: 102,
 					Date:       timezone.NewDate(2026, 4, 27),
 					StartTime:  "15:00:00",
 					Title:      "Fußball AG",
-					Changes:    []string{scheduleSvc.EditedChangeStaff},
+					Changes:    []string{timetableplanning.EditedChangeStaff},
 				},
 			}, nil
 		},
@@ -86,7 +86,7 @@ func TestEditedInWindow_IncludeDeletionsForwarded(t *testing.T) {
 
 	var gotInclude bool
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, includeDeletions bool) ([]timetableplanning.EditedOccurrence, error) {
 			gotInclude = includeDeletions
 			return nil, nil
 		},
@@ -103,7 +103,7 @@ func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
 			return nil, nil
 		},
 	}
@@ -176,7 +176,7 @@ func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
 			return nil, nil
 		},
 	}
@@ -192,7 +192,7 @@ func TestEditedInWindow_ServiceError(t *testing.T) {
 	t.Parallel()
 
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]timetableplanning.EditedOccurrence, error) {
 			return nil, errors.New("boom")
 		},
 	}

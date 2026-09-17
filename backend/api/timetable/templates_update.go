@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -292,7 +293,7 @@ func (rs *Resource) resolveTemplateForRead(
 ) ([]templateResponse, bool) {
 	resolvedID, changed, err := rs.TimetableData.ResolveLivingTemplateSegment(r.Context(), requestedID)
 	if err != nil {
-		if errors.Is(err, scheduleSvc.ErrTemplateSeriesFullyEnded) {
+		if errors.Is(err, timetableplanning.ErrTemplateSeriesFullyEnded) {
 			renderTemplateNotFound(w, r)
 			return nil, false
 		}
@@ -522,9 +523,9 @@ func buildUpdateTemplateInput(
 	timeframeID int64,
 	gradeLevelMax int,
 	rosterValidFrom timezone.Date,
-) scheduleSvc.TemplateUpdateInput {
+) timetableplanning.TemplateUpdateInput {
 	req := parsed.req
-	return scheduleSvc.TemplateUpdateInput{
+	return timetableplanning.TemplateUpdateInput{
 		TemplateID: id,
 		Fields: activitiesModel.TemplateFieldsUpdate{
 			Name:                    req.Name,
@@ -574,15 +575,15 @@ func buildUpdateTemplateInput(
 // conflicts each carry their own status and code; everything else is a 500.
 func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
+	case errors.Is(err, timetableplanning.ErrTemplateSegmentNotEditable):
 		renderTemplateNotFound(w, r)
 	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
-	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))
-	case errors.Is(err, scheduleSvc.ErrTemplateWeekendWeekday):
-		common.RenderError(w, r, common.ErrorInvalidRequest(scheduleSvc.ErrTemplateWeekendWeekday))
-	case errors.Is(err, scheduleSvc.ErrOfferingSourceInvalid):
+	case errors.Is(err, timetableplanning.ErrTemplateWeekendWeekday):
+		common.RenderError(w, r, common.ErrorInvalidRequest(timetableplanning.ErrTemplateWeekendWeekday))
+	case errors.Is(err, timetableplanning.ErrOfferingSourceInvalid):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case renderTemplateStartPullError(w, r, err):
 	case renderTemplateEducationGroupError(w, r, err):
@@ -607,19 +608,19 @@ const (
 // itself is user-facing German — the planner shows it verbatim.
 func renderTemplateStartPullError(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
-	case errors.Is(err, scheduleSvc.ErrTemplateStartNotEarlier):
+	case errors.Is(err, timetableplanning.ErrTemplateStartNotEarlier):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der Serienbeginn kann nur auf ein früheres Datum vorgezogen werden."),
 			ErrCodeTemplateStartNotEarlier,
 		))
-	case errors.Is(err, scheduleSvc.ErrTemplateStartInPast):
+	case errors.Is(err, timetableplanning.ErrTemplateStartInPast):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn darf nicht in der Vergangenheit liegen."),
 			ErrCodeTemplateStartInPast,
 		))
-	case errors.Is(err, scheduleSvc.ErrTemplateStartPredecessorOverlap):
+	case errors.Is(err, timetableplanning.ErrTemplateStartPredecessorOverlap):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 			//nolint:staticcheck // ST1005: user-facing German message
 			errors.New("Der neue Serienbeginn überschneidet sich mit dem vorherigen Serienteil. Bitte wählen Sie ein Datum ab dessen Ende."),

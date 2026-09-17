@@ -15,8 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -42,7 +42,7 @@ type cleanupContext struct {
 	AuthCleanupService         authCleanupService
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
-	TimetableCleanupService    schedule.TimetableCleanupService
+	TimetableCleanupService    timetableplanning.TimetableCleanupService
 	TimeTrackingCleanupService services.TimeTrackingCleanupService
 	TenantRuntime              tenant.UnitOfWork
 	Output                     io.Writer
@@ -68,7 +68,7 @@ type sessionCleanupService interface {
 }
 
 type retentionCleanupService = active.CleanupService
-type timetableCleanupService = schedule.TimetableCleanupService
+type timetableCleanupService = timetableplanning.TimetableCleanupService
 type timeTrackingCleanupService = services.TimeTrackingCleanupService
 
 type cleanupRoot struct {
@@ -77,7 +77,7 @@ type cleanupRoot struct {
 	invitationCleanup   func(*cleanupContext) invitationCleanupService
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
 	retentionCleanup    func(*cleanupContext) active.CleanupService
-	timetableCleanup    func(*cleanupContext) schedule.TimetableCleanupService
+	timetableCleanup    func(*cleanupContext) timetableplanning.TimetableCleanupService
 	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
 }
 
@@ -305,7 +305,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimetableCleanupService(ctx *cleanupContext) schedule.TimetableCleanupService {
+func buildTimetableCleanupService(ctx *cleanupContext) timetableplanning.TimetableCleanupService {
 	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
 }
 

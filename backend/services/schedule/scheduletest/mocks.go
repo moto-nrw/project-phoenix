@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // ClosingDayServiceMock is a func-field test double for
@@ -21,7 +21,7 @@ type ClosingDayServiceMock struct {
 	ClosingDayDatesFn    func(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
 }
 
-var _ scheduleService.ClosingDayService = (*ClosingDayServiceMock)(nil)
+var _ timetableplanning.ClosingDayService = (*ClosingDayServiceMock)(nil)
 
 func (m *ClosingDayServiceMock) GetAll(ctx context.Context) ([]*scheduleModel.ClosingDay, error) {
 	if m.GetAllFn != nil {

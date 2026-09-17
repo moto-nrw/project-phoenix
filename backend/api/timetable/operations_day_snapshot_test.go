@@ -17,7 +17,7 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -49,11 +49,11 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayAfterRequestValidatio
 	roomChecked := false
 	activityGroupRepo := &fakeOperationActivityGroupRepo{}
 	activityCategoryRepo := &fakeOperationActivityCategoryRepo{}
-	service := &fakeOperationsService{start: &scheduleSvc.StartInstanceResult{
+	service := &fakeOperationsService{start: &timetableplanning.StartInstanceResult{
 		Instance: &schedule.ActivityInstance{Status: schedule.InstanceStatusActive},
 	}}
 	res := NewResource(Dependencies{
-		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
+		TimetableData: operationTimetableData(timetableplanning.TimetableDataDependencies{
 			ActiveGroupRepo:      &fakeOperationActiveGroupRepo{},
 			ActivityGroupRepo:    activityGroupRepo,
 			ActivityCategoryRepo: activityCategoryRepo,
@@ -105,11 +105,11 @@ func TestOperationsCreateAndStartSpontaneousRechecksWorkdayBeforeInstanceCreatio
 	activityGroup := &activityModels.Group{}
 	activityGroup.ID = 71
 	activityGroupRepo := &fakeOperationActivityGroupRepo{findByNameResult: activityGroup}
-	service := &fakeOperationsService{start: &scheduleSvc.StartInstanceResult{
+	service := &fakeOperationsService{start: &timetableplanning.StartInstanceResult{
 		Instance: &schedule.ActivityInstance{Status: schedule.InstanceStatusActive},
 	}}
 	res := NewResource(Dependencies{
-		TimetableData: operationTimetableData(scheduleSvc.TimetableDataDependencies{
+		TimetableData: operationTimetableData(timetableplanning.TimetableDataDependencies{
 			ActiveGroupRepo: &fakeOperationActiveGroupRepo{},
 			ActivityGroupRepo: dayTransitionActivityGroupRepo{
 				fakeOperationActivityGroupRepo: activityGroupRepo,
