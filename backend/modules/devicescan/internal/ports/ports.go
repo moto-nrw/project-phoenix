@@ -2,9 +2,10 @@
 // workflow that no public owner facade serves yet: the request principals,
 // the people lookups, the room stay and session transitions of the retained
 // presence service, the activity catalog, the education groups, the pickup
-// plan, the tenant settings, the request unit of work, and the clock.
-// modules/devicescan/compose binds them; the workflow never sees the legacy
-// types behind them.
+// plan, the tenant settings, the request unit of work, and the clock. The
+// block rosters are the one seam bound to a public owner, Timetable &
+// Activities. modules/devicescan/compose binds them; the workflow never sees
+// the legacy types behind them.
 package ports
 
 import (
@@ -184,6 +185,10 @@ type Sessions interface {
 	// Current is the device's running session with its names; nil, nil when none.
 	Current(ctx context.Context, deviceID int64) (*Session, error)
 	Start(ctx context.Context, session NewSession) (Session, error)
+	// EnsureRoomSession returns the room's open session of a system
+	// activity, creating a device-less one next to running activity
+	// sessions (ADR 0018). It does not report whether it created the row.
+	EnsureRoomSession(ctx context.Context, session NewSession) (Session, error)
 	Delete(ctx context.Context, sessionID int64) error
 	// End closes a session; an already ended session is not an error.
 	End(ctx context.Context, sessionID int64) error
@@ -244,6 +249,13 @@ type Activities interface {
 	ListCategories(ctx context.Context) ([]Category, error)
 	CreateCategory(ctx context.Context, category NewCategory) (Category, error)
 	CreateActivity(ctx context.Context, activity NewActivity) (Activity, error)
+}
+
+// Rosters reads the day rosters of running timetable blocks.
+type Rosters interface {
+	// SessionsRosteringStudent returns those of sessionIDs whose running
+	// block lists the student in its day roster.
+	SessionsRosteringStudent(ctx context.Context, studentID int64, sessionIDs []int64) ([]int64, error)
 }
 
 // Group is one education group.

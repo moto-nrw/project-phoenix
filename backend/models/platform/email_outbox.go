@@ -1,13 +1,5 @@
 package platform
 
-import (
-	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
-)
-
-const EmailOutboxStatusPending = "pending"
-
 // Pre-defined kinds. The column is text and the worker looks up renderers
 // by kind, so new kinds can be added by registering a renderer at startup
 // without a schema change. These constants exist so the in-tree call sites
@@ -49,20 +41,3 @@ const (
 	EmailRelatedTypeAppointment        = "calendar_appointment"
 	EmailRelatedTypeParentMessage      = "parent_message"
 )
-
-// EmailOutbox is the legacy renderer input DTO. Durable persistence belongs to
-// the Delivery capability; renderers receive this compatibility projection.
-type EmailOutbox struct {
-	base.Model `bun:"schema:platform,table:email_outbox"`
-	base.TenantModel
-	Kind              string         `bun:"kind,notnull" json:"kind"`
-	IdempotencyKey    *string        `bun:"idempotency_key" json:"idempotency_key,omitempty"`
-	RelatedEntityType *string        `bun:"related_entity_type" json:"related_entity_type,omitempty"`
-	RelatedEntityID   *int64         `bun:"related_entity_id" json:"related_entity_id,omitempty"`
-	Payload           map[string]any `bun:"payload,type:jsonb,notnull,default:'{}'" json:"payload"`
-	Status            string         `bun:"status,notnull,default:'pending'" json:"status"`
-	Attempts          int            `bun:"attempts,notnull,default:0" json:"attempts"`
-	LastError         *string        `bun:"last_error" json:"last_error,omitempty"`
-	NextRetryAt       time.Time      `bun:"next_retry_at,notnull" json:"next_retry_at"`
-	SentAt            *time.Time     `bun:"sent_at" json:"sent_at,omitempty"`
-}

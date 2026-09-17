@@ -130,7 +130,7 @@ type ChangeRequestServiceConfig struct {
 	LateInviteRepo      DecisionLateInvites
 	CareOfferingRepo    enrollmentModels.CareOfferingRepository
 	Catalog             IntakeCatalog
-	SchoolRepo          platformModels.SchoolRepository
+	SchoolRepo          SchoolDirectory
 	GuardianProfileRepo userModels.GuardianProfileRepository
 	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
 	// PersonRepo resolves the deciding staffer's display name for the review

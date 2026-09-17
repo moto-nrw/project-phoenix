@@ -7,7 +7,7 @@ import "fmt"
 // model because it has more than one holder and they must agree on the exact
 // string:
 //
-//   - services/schedule (lockTenantRecurrenceWrites) — template edits, splits,
+//   - modules/timetable/legacy/timetableplanning (lockTenantRecurrenceWrites) — template edits, splits,
 //     re-plans, and materialization passes.
 //   - services/education Apply/Revert, via
 //     GradeTransitionRepository.LockTenantRecurrenceWrites — a grade transition

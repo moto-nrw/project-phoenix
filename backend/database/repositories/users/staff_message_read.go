@@ -3,10 +3,10 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,16 +21,26 @@ type StaffMessageReadRepository struct {
 	// School Membership owns those rows, so the relation that used to be a
 	// join is injected as a lookup; without one the repository fails closed.
 	staffAccounts StaffAccountsFunc
-	// activeAccounts is the Identity & Access owner query "every active
-	// platform account"; the global account switch is joined through it
-	// instead of reading auth.accounts here (#2720).
-	activeAccounts ActiveAccountQuery
+	// identity holds the Identity & Access owner queries: the global account
+	// switch (#2720), the school mapping and the role classification (#2721).
+	identity StaffMessageIdentity
 }
 
 // StaffAccountsFunc returns the login accounts of the live staff members of
 // the tenant in ctx. It is a plain function type so this package does not have
 // to depend on the School Membership owner to state what it needs.
 type StaffAccountsFunc func(ctx context.Context) ([]int64, error)
+
+// StaffMessageIdentity are the Identity & Access owner queries the staff
+// messaging reads filter through instead of naming auth tables.
+type StaffMessageIdentity struct {
+	// ActiveAccounts selects the ids of globally active platform accounts.
+	ActiveAccounts ActiveAccountQuery
+	// ActiveMemberships selects (account_id, tenant_id) of ACTIVE mappings.
+	ActiveMemberships ActiveMembershipQuery
+	// RoleClasses classifies the roles accounts hold at a school.
+	RoleClasses SchoolRoleClassQuery
+}
 
 // NewStaffMessageReadRepository wires a fresh repository.
 //
@@ -39,10 +49,10 @@ type StaffAccountsFunc func(ctx context.Context) ([]int64, error)
 // explicit queries, mirroring ParentMessageReadRepository.
 //
 // The "is a colleague at this school" relation needs the staff rows School
-// Membership owns and the account switch Identity & Access owns, so the
-// caller injects both lookups.
-func NewStaffMessageReadRepository(db *bun.DB, staffAccounts StaffAccountsFunc, activeAccounts ActiveAccountQuery) users.StaffMessageReadRepository {
-	return &StaffMessageReadRepository{db: db, staffAccounts: staffAccounts, activeAccounts: activeAccounts}
+// Membership owns and the account facts Identity & Access owns, so the
+// caller injects both.
+func NewStaffMessageReadRepository(db *bun.DB, staffAccounts StaffAccountsFunc, identity StaffMessageIdentity) users.StaffMessageReadRepository {
+	return &StaffMessageReadRepository{db: db, staffAccounts: staffAccounts, identity: identity}
 }
 
 // resolveStaffAccounts fails closed: without a resolver nobody is a colleague,
@@ -54,25 +64,18 @@ func (r *StaffMessageReadRepository) resolveStaffAccounts(ctx context.Context) (
 	return r.staffAccounts(ctx)
 }
 
-// activeAccountFilter narrows a query on auth.account_tenants to accounts
-// whose global switch is on. It fails closed like resolveStaffAccounts: a
-// graph without the owner query addresses nobody.
-func (r *StaffMessageReadRepository) activeAccountFilter(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
-	if r.activeAccounts == nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve active accounts", Err: errors.New("active account query is required")}
-	}
-	return query.Where(`at.account_id IN (?)`, r.activeAccounts(ctx)), nil
-}
-
-// staffJoin is the "this account belongs to a colleague at this school"
-// relation, shared verbatim by ListMessageableStaff and IsMessageableStaff.
+// colleagueQuery applies the "this account belongs to a colleague at this
+// school" relation, shared verbatim by ListMessageableStaff and
+// IsMessageableStaff.
 //
 // It lives in ONE place because the two MUST agree: the picker decides what a
 // user is offered, the predicate decides what the API accepts, and any drift
 // between them is an authorization hole reachable by hand-crafting a request.
 //
-// Three relations, because each answers a different question and the account
+// Four facts, because each answers a different question and the account
 // lifecycle has two independent switches:
+//   - the ACTIVE school mapping says "may act at this school". Identity &
+//     Access owns it, so the owner's membership query is joined as "at";
 //   - users.persons is NOT enough: it also holds children and guests, who can
 //     carry an account and an active tenant mapping;
 //   - staff membership says "colleague at this school" — the caller passes the
@@ -80,18 +83,30 @@ func (r *StaffMessageReadRepository) activeAccountFilter(ctx context.Context, qu
 //     Membership owner, and staffAccountFilter turns that into the predicate
 //     the users.staff join used to be;
 //   - auth.accounts.active is the GLOBAL switch. Account management
-//     (services/auth/account_management.go) deactivates an account there
-//     WITHOUT touching account_tenants, so a per-tenant check alone still lets
-//     a globally disabled account be addressed and keep writing. Identity &
-//     Access owns that table, so activeAccountFilter joins the owner's
-//     active-account query instead of the table.
-const staffJoin = `JOIN users.persons AS "person"
-		ON person.account_id = at.account_id
-		AND person.tenant_id = at.tenant_id
-		AND person.deleted_at IS NULL`
+//     deactivates an account there WITHOUT touching the school mapping, so a
+//     per-tenant check alone still lets a globally disabled account be
+//     addressed and keep writing; the owner's active-account query covers it.
+//
+// It fails closed like resolveStaffAccounts: a graph without the owner
+// queries addresses nobody.
+func (r *StaffMessageReadRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
+	if r.identity.ActiveAccounts == nil || r.identity.ActiveMemberships == nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active account and membership queries are required")}
+	}
+	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
+	if err != nil {
+		return nil, err
+	}
+	query = query.
+		Join(`JOIN (?) AS "at" ON at.account_id = person.account_id AND at.tenant_id = person.tenant_id`, r.identity.ActiveMemberships(ctx)).
+		Where(`person.deleted_at IS NULL`).
+		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
+		Where(`at.account_id IN (?)`, r.identity.ActiveAccounts(ctx))
+	return staffAccountFilter(query, staffAccountIDs), nil
+}
 
-// staffAccountFilter narrows a query on auth.account_tenants to the accounts of
-// the school's live staff. An empty set matches nothing, which is what the
+// staffAccountFilter narrows the colleague relation to the accounts of the
+// school's live staff. An empty set matches nothing, which is what the
 // dropped INNER JOIN did.
 func staffAccountFilter(query *bun.SelectQuery, staffAccountIDs []int64) *bun.SelectQuery {
 	if len(staffAccountIDs) == 0 {
@@ -243,22 +258,14 @@ func (r *StaffMessageReadRepository) ListInbox(ctx context.Context, accountID in
 // inactive (left the school) disappears from the picker and can no longer be
 // addressed, while the existing conversation history stays readable.
 func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, viewerAccountID int64) ([]*users.MessageableStaff, error) {
-	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var rows []*users.MessageableStaff
-	query := base.GetDB(ctx, r.db).NewSelect().
+	query, err := r.colleagueQuery(ctx, base.GetDB(ctx, r.db).NewSelect().
 		Model(&rows).
-		ModelTableExpr(`auth.account_tenants AS "at"`).
+		ModelTableExpr(`users.persons AS "person"`).
 		ColumnExpr(`at.account_id AS account_id`).
 		ColumnExpr(`COALESCE(NULLIF(btrim(COALESCE(person.first_name, '') || ' ' || COALESCE(person.last_name, '')), ''), 'Unbekannt') AS name`).
-		Join(staffJoin).
-		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
 		Where(`at.account_id <> ?`, viewerAccountID).
-		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
-		OrderExpr(`name ASC`)
-	query, err = r.activeAccountFilter(ctx, staffAccountFilter(query, staffAccountIDs))
+		OrderExpr(`name ASC`))
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +280,7 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 // conversation at the current school. Authorization predicate for opening one.
 //
 // It MUST stay the exact predicate ListMessageableStaff filters the picker by,
-// which is why both use staffJoin. Two things an active auth.account_tenants row
+// which is why both use colleagueQuery. Two things an active school mapping
 // does NOT prove:
 //   - a guardian who accepts an invitation gets exactly that row
 //     (services/auth/guardian_invitation_service.go) and no persons row;
@@ -285,19 +292,11 @@ func (r *StaffMessageReadRepository) ListMessageableStaff(ctx context.Context, v
 // The method is deliberately not called IsActiveTenantMember any more: that name
 // described the query, not the question, and invited exactly this gap.
 func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, accountID int64) (bool, error) {
-	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
-	if err != nil {
-		return false, err
-	}
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`auth.account_tenants AS "at"`).
+	query, err := r.colleagueQuery(ctx, base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.persons AS "person"`).
 		ColumnExpr(`1`).
-		Join(staffJoin).
 		Where(`at.account_id = ?`, accountID).
-		Where(`at.tenant_id = ?`, tenant.FromContext(ctx)).
-		Where(`at.status = ?`, authModels.AccountTenantStatusActive).
-		Limit(1)
-	query, err = r.activeAccountFilter(ctx, staffAccountFilter(query, staffAccountIDs))
+		Limit(1))
 	if err != nil {
 		return false, err
 	}
@@ -309,21 +308,13 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 	return exists, nil
 }
 
-// roleKindRow is the projection StaffRoleKinds scans into.
-type roleKindRow struct {
-	AccountID   int64 `bun:"account_id"`
-	IsAdmin     bool  `bun:"is_admin"`
-	IsLehrkraft bool  `bun:"is_lehrkraft"`
-}
-
 // StaffRoleKinds classifies accounts by their roles at the current tenant.
 //
-// "admin" is the system admin role itself (seeded without a base_role) or any
-// custom role whose base_role is admin, "lehrkraft" the platform system role of that
-// name (name-matched and narrowed to system roles exactly like
-// services/auth.IsLehrkraftSystemRole, so a school's own custom role that
-// happens to share the label does not count). Precedence admin > lehrkraft >
-// staff, see the StaffRoleKind constants.
+// The Identity & Access owner decides which roles count: "admin" is the
+// system admin role itself or any custom role whose base_role is admin,
+// "lehrkraft" the platform system role of that name (narrowed to system roles
+// exactly like services/auth.IsLehrkraftSystemRole). Precedence admin >
+// lehrkraft > staff, see the StaffRoleKind constants.
 func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	out := make(map[int64]string, len(accountIDs))
 	for _, id := range accountIDs {
@@ -332,20 +323,13 @@ func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, account
 	if len(accountIDs) == 0 {
 		return out, nil
 	}
+	if r.identity.RoleClasses == nil {
+		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: errors.New("role class query is required")}
+	}
 
-	var rows []roleKindRow
-	err := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`auth.account_roles AS "ar"`).
-		ColumnExpr(`"ar".account_id AS account_id`).
-		ColumnExpr(`COALESCE(bool_or("role".base_role = ? OR ("role".is_system AND lower(btrim("role".name)) = ?)), false) AS is_admin`, authModels.BaseRoleAdmin, authModels.BaseRoleAdmin).
-		ColumnExpr(`COALESCE(bool_or("role".is_system AND lower(btrim("role".name)) = 'lehrkraft'), false) AS is_lehrkraft`).
-		Join(`JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
-		Where(`"ar".tenant_id = ?`, tenant.FromContext(ctx)).
-		Where(`"ar".account_id IN (?)`, bun.List(accountIDs)).
-		GroupExpr(`"ar".account_id`).
-		Scan(ctx, &rows)
+	rows, err := r.identity.RoleClasses(ctx, tenant.FromContext(ctx), accountIDs)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: base.TranslateNotFound(err)}
+		return nil, fmt.Errorf("resolve staff role kinds: %w", err)
 	}
 	for _, row := range rows {
 		switch {

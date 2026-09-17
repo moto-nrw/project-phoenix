@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -49,7 +50,7 @@ type ResourceConfig struct {
 	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
-	ProvisioningService        platformSvc.OperatorProvisioningService
+	ProvisioningService        organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	AnnouncementsService       communication.Capability
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
@@ -61,7 +62,7 @@ type ResourceConfig struct {
 	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
-	SchoolService platformSvc.SchoolService
+	SchoolService SchoolLookup
 	ActiveService activeSvc.Service
 	CareLifecycle usersSvc.CareLifecycleService
 	// TenantMFAService is the tenant-side MFA service (auth package).

@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -379,7 +379,7 @@ func TestActivityInstanceRepository_CompleteActiveByActiveGroupIDsOmitsRecoveryS
 	require.NotNil(t, found.CompletedAt)
 	assert.Nil(t, found.CompletedBy)
 	assert.Nil(t, found.ReopenUntil)
-	assert.False(t, scheduleSvc.CanReopenInstance(found, 42, true, completedAt.Add(time.Minute)))
+	assert.False(t, timetableplanning.CanReopenInstance(found, 42, true, completedAt.Add(time.Minute)))
 }
 
 func TestActivityInstanceRepository_FindByTenantAndDate(t *testing.T) {
@@ -792,58 +792,6 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 	_, err = repo.FindByID(ctx, dev.ID)
 	assert.True(t, modelBase.IsNoRows(err),
 		"deviated instance must be deleted by the destructive series operation")
-}
-
-func TestActivityInstanceRepository_DeletePlannedMaterializedWeekendInstances(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	ctx := testpkg.Ctx(t)
-	repo := scheduleRepo.NewActivityInstanceRepository(db, func() time.Time {
-		return scheduleModels.NewDate(2026, 8, 24).BerlinMidnight()
-	})
-	legacyWeekendRepo, ok := any(repo).(interface {
-		DeletePlannedMaterializedWeekendInstances(context.Context, int64, []int) (int64, error)
-	})
-	require.True(t, ok, "activity-instance repository must support legacy weekend cleanup")
-	fx := newActivityInstanceFixtures(t, db, "legacy-weekend-delete")
-	defer fx.cleanup()
-
-	saturday := scheduleModels.NewDate(2026, 8, 24).AddDays(1)
-	for saturday.Weekday() != time.Saturday {
-		saturday = saturday.AddDays(1)
-	}
-	period := testpkg.CreateTestCalendarPeriod(t, db, fmt.Sprintf("Legacy weekend %d", time.Now().UnixNano()), saturday, saturday.AddDays(1))
-
-	materialized := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, saturday,
-		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "legacy saturday")
-	materialized.CalendarPeriodID = &period.ID
-	require.NoError(t, repo.Create(ctx, materialized))
-
-	manual := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, saturday,
-		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), "manual saturday")
-	require.NoError(t, repo.Create(ctx, manual))
-
-	sunday := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, saturday.AddDays(1),
-		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), time.Date(2024, 1, 1, 17, 0, 0, 0, time.UTC), "legacy sunday")
-	sunday.CalendarPeriodID = &period.ID
-	require.NoError(t, repo.Create(ctx, sunday))
-
-	deleted, err := legacyWeekendRepo.DeletePlannedMaterializedWeekendInstances(ctx, fx.activityID, []int{6})
-	require.NoError(t, err)
-	assert.EqualValues(t, 1, deleted)
-
-	_, err = repo.FindByID(ctx, materialized.ID)
-	assert.True(t, modelBase.IsNoRows(err), "the removed Saturday slot must be deleted")
-	_, err = repo.FindByID(ctx, manual.ID)
-	require.NoError(t, err, "manual weekend instances must remain")
-	_, err = repo.FindByID(ctx, sunday.ID)
-	require.NoError(t, err, "weekend days retained by the template must remain")
-
-	deleted, err = legacyWeekendRepo.DeletePlannedMaterializedWeekendInstances(ctx, fx.activityID, nil)
-	require.NoError(t, err)
-	assert.Zero(t, deleted, "an empty weekday set must be a no-op")
 }
 
 // #1565 review: editing a series' Listenart must carry onto its already

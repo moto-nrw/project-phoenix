@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 func renderChangeRequestMessage(
 	cfg EmailRendererConfig,
-	row *platformModels.EmailOutbox,
+	row *emailoutbox.Intent,
 	subject string,
 	templateName string,
 ) (*email.Message, error) {
@@ -43,32 +43,32 @@ func renderChangeRequestMessage(
 	}, nil
 }
 
-func NewEnrollmentChangeRequestSubmittedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentChangeRequestSubmittedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderChangeRequestMessage(cfg, row, "Neue Änderungsanfrage", "enrollment-change-request-submitted.html")
 	}
 }
 
-func NewEnrollmentChangeRequestQuestionRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentChangeRequestQuestionRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderChangeRequestMessage(cfg, row, "Rückfrage zu Ihrer Änderungsanfrage", "enrollment-change-request-question.html")
 	}
 }
 
-func NewEnrollmentChangeRequestParentReplyRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentChangeRequestParentReplyRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderChangeRequestMessage(cfg, row, "Antwort auf Änderungsanfrage", "enrollment-change-request-parent-reply.html")
 	}
 }
 
-func NewEnrollmentChangeRequestApprovedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentChangeRequestApprovedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderChangeRequestMessage(cfg, row, "Änderungsanfrage übernommen", "enrollment-change-request-approved.html")
 	}
 }
 
-func NewEnrollmentChangeRequestRejectedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentChangeRequestRejectedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		return renderChangeRequestMessage(cfg, row, "Änderungsanfrage abgelehnt", "enrollment-change-request-rejected.html")
 	}
 }

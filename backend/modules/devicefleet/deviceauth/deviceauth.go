@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -33,10 +32,15 @@ type Fleet interface {
 	UpdateDeviceLastSeen(context.Context, int64, time.Time) error
 }
 
-// SchoolDirectory answers the school row behind a device tenant. The
-// retained school service satisfies it.
+// School is the part of a school device authentication reads.
+type School struct {
+	Deleted bool
+}
+
+// SchoolDirectory answers the school behind a device tenant. A school that
+// does not exist is (nil, nil). The root binds it to Organisation & Tenancy.
 type SchoolDirectory interface {
-	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
+	FindSchool(ctx context.Context, id int64) (*School, error)
 }
 
 // Settings resolves tenant settings outside a tenant transaction. The
@@ -162,7 +166,7 @@ func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seen
 type schoolLookup struct{ schools SchoolDirectory }
 
 func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error) {
-	school, err := l.schools.GetSchoolByID(ctx, schoolID)
+	school, err := l.schools.FindSchool(ctx, schoolID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return false, fmt.Errorf("%w: %w", device.ErrSchoolNotFound, err)
@@ -175,7 +179,7 @@ func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool
 	if school == nil {
 		return false, device.ErrSchoolNotFound
 	}
-	return school.IsDeleted(), nil
+	return school.Deleted, nil
 }
 
 // isTransientDBErr returns true for errors that indicate a temporary

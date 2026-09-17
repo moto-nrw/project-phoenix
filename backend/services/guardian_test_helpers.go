@@ -8,10 +8,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -60,7 +60,7 @@ func NewGuardianTestModule(db *bun.DB, unit tenant.UnitOfWork) (GuardianTestModu
 		from = email.NewEmail("moto", "no-reply@moto.local")
 	}
 	mailer := email.NewMockMailer()
-	mailIdentity := platform.NewTenantMailIdentityService(r.School, func(ctx context.Context, tenantID int64) (string, error) {
+	mailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
 		return auth.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, slog.Default())
 	guardian := users.NewGuardianService(users.GuardianServiceDependencies{

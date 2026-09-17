@@ -12,15 +12,15 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type deliveryProvider struct {
-	registry       *platform.TemplateRegistry
+	registry       *emailoutbox.TemplateRegistry
 	mailer         email.Mailer
 	mailIdentity   email.ReplyToResolver
 	push           delivery.PushSender
@@ -178,7 +178,7 @@ func (a enrollmentDeliveryAdapter) CancelRelatedEmails(ctx context.Context, rela
 	return a.module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }
 
-func (a durableEmailAdapter) EnqueueEmail(ctx context.Context, input platform.DurableEmail) (platform.DurableEmailResult, error) {
+func (a durableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox.DurableEmail) (emailoutbox.DurableEmailResult, error) {
 	stored, err := a.module.EnqueueEmail(ctx, delivery.EmailIntent{
 		TenantID: input.TenantID, Template: input.Template,
 		Recipient: delivery.EmailRecipient{Address: input.Recipient}, Payload: input.Payload,
@@ -186,9 +186,29 @@ func (a durableEmailAdapter) EnqueueEmail(ctx context.Context, input platform.Du
 		Related:        delivery.RelatedEntity{Type: input.RelatedType, ID: input.RelatedID},
 	})
 	if err != nil {
-		return platform.DurableEmailResult{}, err
+		return emailoutbox.DurableEmailResult{}, err
 	}
-	return platform.DurableEmailResult{ID: stored.ID, Duplicate: stored.Duplicate}, nil
+	return emailoutbox.DurableEmailResult{ID: stored.ID, Duplicate: stored.Duplicate}, nil
+}
+
+// guardianInvitationRenderer binds the Identity & Access invitation renderer,
+// which reads the queued payload only, to the Delivery renderer registry.
+func guardianInvitationRenderer(render func(context.Context, map[string]any) (*email.Message, error)) emailoutbox.RendererFunc {
+	return func(ctx context.Context, intent *emailoutbox.Intent) (*email.Message, error) {
+		return render(ctx, intent.Payload)
+	}
+}
+
+// outboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
+// enrollment producers over the Delivery enqueue facade.
+type outboxEnqueuer struct{ outbox *emailoutbox.Service }
+
+func (o outboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+	_, err := o.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
+		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
+		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey,
+	})
+	return err
 }
 
 func (a durableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
@@ -240,9 +260,7 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 	if err := json.Unmarshal(intent.EmailPayload, &payload); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: decode email payload: %w", err)
 	}
-	row := &platformModels.EmailOutbox{Kind: intent.Template, Payload: payload, Attempts: intent.Attempts}
-	row.ID = intent.ID
-	row.SetTenantID(intent.TenantID)
+	row := &emailoutbox.Intent{ID: intent.ID, TenantID: intent.TenantID, Kind: intent.Template, Payload: payload, Attempts: intent.Attempts}
 	renderer, err := p.registry.Lookup(intent.Template)
 	if err != nil {
 		return delivery.ProviderResult{}, err
@@ -257,7 +275,7 @@ func (p *deliveryProvider) SendEmail(ctx context.Context, intent delivery.Claime
 		return renderErr
 	})
 	if err != nil {
-		if errors.Is(err, platform.ErrRenderCancelled) {
+		if errors.Is(err, emailoutbox.ErrRenderCancelled) {
 			return delivery.ProviderResult{}, fmt.Errorf("%w: %v", delivery.ErrCancelled, err)
 		}
 		return delivery.ProviderResult{}, err

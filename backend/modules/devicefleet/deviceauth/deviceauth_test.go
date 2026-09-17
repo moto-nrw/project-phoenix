@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -76,11 +75,11 @@ func (f *fakeFleet) writes() int {
 }
 
 type fakeSchools struct {
-	school *platform.School
+	school *School
 	err    error
 }
 
-func (s fakeSchools) GetSchoolByID(_ context.Context, _ int64) (*platform.School, error) {
+func (s fakeSchools) FindSchool(_ context.Context, _ int64) (*School, error) {
 	return s.school, s.err
 }
 
@@ -435,7 +434,6 @@ func TestDevice_LegacyStaffIDWithoutCredentialIsIgnored(t *testing.T) {
 func TestSchoolLookup_Classification(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
 	tests := []struct {
 		name        string
 		schools     fakeSchools
@@ -443,8 +441,8 @@ func TestSchoolLookup_Classification(t *testing.T) {
 		wantErr     error
 		wantOther   bool
 	}{
-		{"active school", fakeSchools{school: &platform.School{Active: true}}, false, nil, false},
-		{"soft-deleted school", fakeSchools{school: &platform.School{DeletedAt: &now}}, true, nil, false},
+		{"active school", fakeSchools{school: &School{}}, false, nil, false},
+		{"soft-deleted school", fakeSchools{school: &School{Deleted: true}}, true, nil, false},
 		{"nil school", fakeSchools{}, false, device.ErrSchoolNotFound, false},
 		{"sql.ErrNoRows", fakeSchools{err: sql.ErrNoRows}, false, device.ErrSchoolNotFound, false},
 		{"wrapped sql.ErrNoRows", fakeSchools{err: fmt.Errorf("find: %w", sql.ErrNoRows)}, false, device.ErrSchoolNotFound, false},
@@ -492,14 +490,13 @@ func TestIsTransientDBErr(t *testing.T) {
 func TestDeviceOnly_SchoolGuard(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now()
 	tests := []struct {
 		name     string
 		schools  SchoolDirectory
 		wantCode int
 	}{
-		{"active school", fakeSchools{school: &platform.School{Active: true}}, http.StatusOK},
-		{"deleted school", fakeSchools{school: &platform.School{DeletedAt: &now}}, http.StatusForbidden},
+		{"active school", fakeSchools{school: &School{}}, http.StatusOK},
+		{"deleted school", fakeSchools{school: &School{Deleted: true}}, http.StatusForbidden},
 		{"missing school", fakeSchools{err: sql.ErrNoRows}, http.StatusForbidden},
 		{"transient failure fails open", fakeSchools{err: context.DeadlineExceeded}, http.StatusOK},
 		{"other failure fails closed", fakeSchools{err: errors.New("permission denied")}, http.StatusForbidden},

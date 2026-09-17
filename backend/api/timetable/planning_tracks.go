@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 type planningTrackRequest struct {
@@ -63,7 +63,7 @@ func (rs *Resource) createPlanningTrack(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	track, err := service.CreatePlanningTrack(r.Context(), scheduleSvc.PlanningTrackInput{
+	track, err := service.CreatePlanningTrack(r.Context(), timetableplanning.PlanningTrackInput{
 		Name: req.Name, Color: req.Color, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -87,7 +87,7 @@ func (rs *Resource) updatePlanningTrack(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	track, err := service.UpdatePlanningTrack(r.Context(), id, scheduleSvc.PlanningTrackInput{
+	track, err := service.UpdatePlanningTrack(r.Context(), id, timetableplanning.PlanningTrackInput{
 		Name: req.Name, Color: req.Color, SortOrder: req.SortOrder,
 	})
 	if err != nil {
@@ -153,7 +153,7 @@ func (rs *Resource) restorePlanningTrack(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, track, "Planning track restored")
 }
 
-func (rs *Resource) planningTrackService(w http.ResponseWriter, r *http.Request) (scheduleSvc.PlanningTrackService, bool) {
+func (rs *Resource) planningTrackService(w http.ResponseWriter, r *http.Request) (timetableplanning.PlanningTrackService, bool) {
 	if rs.PlanningTrackService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("planning track service is not configured")))
 		return nil, false
@@ -172,11 +172,11 @@ func planningTrackID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 
 func renderPlanningTrackError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, scheduleSvc.ErrPlanningTrackNotFound):
+	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrPlanningTrackInvalid), errors.Is(err, scheduleSvc.ErrPlanningTrackArchived):
+	case errors.Is(err, timetableplanning.ErrPlanningTrackInvalid), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrPlanningTrackNameTaken):
+	case errors.Is(err, timetableplanning.ErrPlanningTrackNameTaken):
 		common.RenderError(w, r, common.ErrorConflict(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("planning track operation failed", err))

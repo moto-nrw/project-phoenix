@@ -1,7 +1,7 @@
 // Tests for WP-B9 instance lifecycle handlers (startInstance, completeInstance,
 // cancelInstance) and re-plan-week handler. Pure HTTP unit tests using mock
 // services — behavioural coverage of the state machine lives in
-// services/schedule/instance_service_integration_test.go.
+// modules/timetable/legacy/timetableplanning/instance_service_integration_test.go.
 package timetable
 
 import (
@@ -22,7 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -34,14 +34,14 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockInstanceService struct {
-	startResult         *scheduleSvc.StartInstanceResult
+	startResult         *timetableplanning.StartInstanceResult
 	startErr            error
 	completeRes         *scheduleModel.ActivityInstance
 	completeErr         error
 	cancelRes           *scheduleModel.ActivityInstance
 	cancelErr           error
 	deleteErr           error
-	replanRes           *scheduleSvc.ReplanWeekResult
+	replanRes           *timetableplanning.ReplanWeekResult
 	replanErr           error
 	createRes           *scheduleModel.ActivityInstance
 	createErr           error
@@ -61,18 +61,18 @@ type mockInstanceService struct {
 	lastFrom            timezone.Date
 	lastTo              timezone.Date
 	lastReplanGID       *int64
-	lastCreate          *scheduleSvc.CreateInstanceInput
-	lastUpdate          *scheduleSvc.UpdateInstanceInput
+	lastCreate          *timetableplanning.CreateInstanceInput
+	lastUpdate          *timetableplanning.UpdateInstanceInput
 	// real, when set, receives the deviation writes (#1886) so DB-backed
 	// handler tests keep asserting real row effects.
-	real scheduleSvc.InstanceService
+	real timetableplanning.InstanceService
 }
 
 func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
 	return nil, nil
 }
 
-func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*scheduleSvc.StartInstanceResult, error) {
+func (m *mockInstanceService) Start(_ context.Context, id, startedBy int64) (*timetableplanning.StartInstanceResult, error) {
 	m.lastStartID = id
 	m.lastStartedBy = startedBy
 	if m.startErr != nil {
@@ -88,7 +88,7 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 	return m.completeRes, nil
 }
 
-func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*scheduleSvc.StartInstanceResult, error) {
+func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID int64, isAdmin bool) (*timetableplanning.StartInstanceResult, error) {
 	m.lastReopenAccountID = accountID
 	m.lastReopenIsAdmin = isAdmin
 	if m.real != nil {
@@ -97,16 +97,16 @@ func (m *mockInstanceService) Reopen(ctx context.Context, instanceID, accountID 
 	return m.startResult, m.startErr
 }
 
-func (m *mockInstanceService) CancelWithNotice(ctx context.Context, in scheduleSvc.CancelInstanceInput) (*scheduleSvc.CancelInstanceResult, error) {
+func (m *mockInstanceService) CancelWithNotice(ctx context.Context, in timetableplanning.CancelInstanceInput) (*timetableplanning.CancelInstanceResult, error) {
 	instance, err := m.Cancel(ctx, in.InstanceID, in.Reason, in.ActorAccountID)
 	if err != nil {
 		return nil, err
 	}
-	return &scheduleSvc.CancelInstanceResult{Instance: instance}, nil
+	return &timetableplanning.CancelInstanceResult{Instance: instance}, nil
 }
 
-func (m *mockInstanceService) GuardianNoticeReachFor(context.Context, int64) (*scheduleSvc.GuardianNoticeReach, error) {
-	return &scheduleSvc.GuardianNoticeReach{}, nil
+func (m *mockInstanceService) GuardianNoticeReachFor(context.Context, int64) (*timetableplanning.GuardianNoticeReach, error) {
+	return &timetableplanning.GuardianNoticeReach{}, nil
 }
 
 func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
@@ -135,7 +135,7 @@ func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, _
 	return m.clearAckErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64, _ *int64) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64, _ *int64) (*timetableplanning.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
 	m.lastReplanGID = activityGroupID
@@ -145,7 +145,7 @@ func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Da
 	return m.replanRes, nil
 }
 
-func (m *mockInstanceService) Create(_ context.Context, req scheduleSvc.CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) Create(_ context.Context, req timetableplanning.CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
 	reqCopy := req
 	m.lastCreate = &reqCopy
 	if m.createErr != nil {
@@ -154,7 +154,7 @@ func (m *mockInstanceService) Create(_ context.Context, req scheduleSvc.CreateIn
 	return m.createRes, nil
 }
 
-func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput, _ *int64) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req timetableplanning.UpdateInstanceInput, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	reqCopy := req
 	m.lastUpdate = &reqCopy
 	if m.updateErr != nil {
@@ -210,7 +210,7 @@ func TestStartInstance_Success(t *testing.T) {
 
 	startedAt := time.Date(2026, 4, 20, 10, 0, 0, 0, time.UTC)
 	mock := &mockInstanceService{
-		startResult: &scheduleSvc.StartInstanceResult{
+		startResult: &timetableplanning.StartInstanceResult{
 			Instance: &scheduleModel.ActivityInstance{
 				Status:    scheduleModel.InstanceStatusActive,
 				StartedAt: &startedAt,
@@ -247,11 +247,11 @@ func TestStartInstance_WithWarnings(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockInstanceService{
-		startResult: &scheduleSvc.StartInstanceResult{
+		startResult: &timetableplanning.StartInstanceResult{
 			Instance:      &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive},
 			ActiveGroupID: 1,
-			Warnings: []scheduleSvc.InstanceConflictWarning{
-				{Kind: scheduleSvc.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
+			Warnings: []timetableplanning.InstanceConflictWarning{
+				{Kind: timetableplanning.ConflictKindStaff, ResourceID: 5, Message: "Mitarbeiter doppelt eingeplant", CanOverride: true},
 			},
 		},
 	}
@@ -295,7 +295,7 @@ func TestStartInstance_NilService(t *testing.T) {
 func TestStartInstance_NotFound(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{startErr: scheduleSvc.ErrInstanceNotFound}
+	mock := &mockInstanceService{startErr: timetableplanning.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
@@ -307,9 +307,9 @@ func TestStartInstance_NotFound(t *testing.T) {
 func TestStartInstance_InvalidTransition(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{startErr: errors.New("wrap: " + scheduleSvc.ErrInvalidInstanceTransition.Error())}
+	mock := &mockInstanceService{startErr: errors.New("wrap: " + timetableplanning.ErrInvalidInstanceTransition.Error())}
 	// Use an error that errors.Is matches via wrapping.
-	mock.startErr = &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}
+	mock.startErr = &wrappedErr{inner: timetableplanning.ErrInvalidInstanceTransition}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/start", rs.startInstance)
 
@@ -424,7 +424,7 @@ func TestReopenInstance_EffectiveAdminScope(t *testing.T) {
 	started := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
 	started.ID = 7
 	mock := &mockInstanceService{
-		startResult: &scheduleSvc.StartInstanceResult{
+		startResult: &timetableplanning.StartInstanceResult{
 			Instance:      started,
 			ActiveGroupID: 42,
 		},
@@ -475,7 +475,7 @@ func TestCompleteInstance_NilService(t *testing.T) {
 func TestCompleteInstance_NotFound(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{completeErr: scheduleSvc.ErrInstanceNotFound}
+	mock := &mockInstanceService{completeErr: timetableplanning.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
@@ -487,7 +487,7 @@ func TestCompleteInstance_NotFound(t *testing.T) {
 func TestCompleteInstance_StaleConfirmation(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{completeErr: scheduleSvc.ErrCompletionConfirmationStale}
+	mock := &mockInstanceService{completeErr: timetableplanning.ErrCompletionConfirmationStale}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
@@ -500,7 +500,7 @@ func TestCompleteInstance_StaleConfirmation(t *testing.T) {
 func TestCompleteInstance_InvalidTransition(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{completeErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
+	mock := &mockInstanceService{completeErr: &wrappedErr{inner: timetableplanning.ErrInvalidInstanceTransition}}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/complete", rs.completeInstance)
 
@@ -603,7 +603,7 @@ func TestCancelInstance_NilService(t *testing.T) {
 func TestCancelInstance_NotFound(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{cancelErr: scheduleSvc.ErrInstanceNotFound}
+	mock := &mockInstanceService{cancelErr: timetableplanning.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
@@ -614,7 +614,7 @@ func TestCancelInstance_NotFound(t *testing.T) {
 func TestCancelInstance_InvalidTransition(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{cancelErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
+	mock := &mockInstanceService{cancelErr: &wrappedErr{inner: timetableplanning.ErrInvalidInstanceTransition}}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
 
@@ -678,7 +678,7 @@ func TestDeleteInstance_NilService(t *testing.T) {
 func TestDeleteInstance_NotFound(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{deleteErr: scheduleSvc.ErrInstanceNotFound}
+	mock := &mockInstanceService{deleteErr: timetableplanning.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := chi.NewRouter()
 	router.Delete("/instances/{id}", rs.deleteInstance)
@@ -691,7 +691,7 @@ func TestDeleteInstance_NotFound(t *testing.T) {
 func TestDeleteInstance_InvalidTransition(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}}
+	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: timetableplanning.ErrInvalidInstanceTransition}}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := chi.NewRouter()
 	router.Delete("/instances/{id}", rs.deleteInstance)
@@ -705,7 +705,7 @@ func TestDeleteInstance_InvalidTransition(t *testing.T) {
 func TestDeleteInstance_AmbiguousTemplateInstanceDelete(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: scheduleSvc.ErrAmbiguousTemplateInstanceDelete}}
+	mock := &mockInstanceService{deleteErr: &wrappedErr{inner: timetableplanning.ErrAmbiguousTemplateInstanceDelete}}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := chi.NewRouter()
 	router.Delete("/instances/{id}", rs.deleteInstance)
@@ -902,7 +902,7 @@ func TestStartInstance_PassesStartedByFromJWT(t *testing.T) {
 	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusActive}
 	instance.ID = int64(1)
 	mock := &mockInstanceService{
-		startResult: &scheduleSvc.StartInstanceResult{
+		startResult: &timetableplanning.StartInstanceResult{
 			Instance:      instance,
 			ActiveGroupID: 1,
 		},
@@ -972,11 +972,11 @@ func TestReplanWeek_NoBody_DefaultsToNextWeek(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockInstanceService{
-		replanRes: &scheduleSvc.ReplanWeekResult{
+		replanRes: &timetableplanning.ReplanWeekResult{
 			From:             timezone.NewDate(2026, 4, 27),
 			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 5,
-			Materialization: &scheduleSvc.MaterializationResult{
+			Materialization: &timetableplanning.MaterializationResult{
 				InstancesCreated:          8,
 				CandidatesSkippedExisting: 0,
 				InstanceStaffCreated:      4,
@@ -1007,11 +1007,11 @@ func TestReplanWeek_ValidBody(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockInstanceService{
-		replanRes: &scheduleSvc.ReplanWeekResult{
+		replanRes: &timetableplanning.ReplanWeekResult{
 			From:             timezone.NewDate(2026, 4, 27),
 			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 2,
-			Materialization:  &scheduleSvc.MaterializationResult{InstancesCreated: 3},
+			Materialization:  &timetableplanning.MaterializationResult{InstancesCreated: 3},
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: mock})
@@ -1034,7 +1034,7 @@ func TestReplanWeek_NilMaterialization(t *testing.T) {
 	// Result with nil Materialization should still render a 200 with zero-valued
 	// counts — defensive branch in the handler.
 	mock := &mockInstanceService{
-		replanRes: &scheduleSvc.ReplanWeekResult{
+		replanRes: &timetableplanning.ReplanWeekResult{
 			From:             timezone.NewDate(2026, 4, 27),
 			To:               timezone.NewDate(2026, 5, 3),
 			DeletedInstances: 1,
@@ -1107,14 +1107,14 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 	t.Run("not-found", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInstanceNotFound)
+		renderInstanceLifecycleError(w, r, timetableplanning.ErrInstanceNotFound)
 		assert.Equal(t, http.StatusNotFound, w.Code)
 	})
 
 	t.Run("invalid-transition", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInvalidInstanceTransition)
+		renderInstanceLifecycleError(w, r, timetableplanning.ErrInvalidInstanceTransition)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "invalid_transition")
 	})
@@ -1122,7 +1122,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 	t.Run("ambiguous-template-instance-delete", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		renderInstanceLifecycleError(w, r, scheduleSvc.ErrAmbiguousTemplateInstanceDelete)
+		renderInstanceLifecycleError(w, r, timetableplanning.ErrAmbiguousTemplateInstanceDelete)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
 	})
@@ -1130,7 +1130,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 	t.Run("instance-moved", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInstanceMoved)
+		renderInstanceLifecycleError(w, r, timetableplanning.ErrInstanceMoved)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "instance_moved")
 	})
@@ -1138,7 +1138,7 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 	t.Run("stale-completion-confirmation", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)
-		renderInstanceLifecycleError(w, r, scheduleSvc.ErrCompletionConfirmationStale)
+		renderInstanceLifecycleError(w, r, timetableplanning.ErrCompletionConfirmationStale)
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "completion_confirmation_stale")
 	})
@@ -1156,7 +1156,7 @@ func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
 	t.Parallel()
 
 	mock := &mockInstanceService{
-		replanRes: &scheduleSvc.ReplanWeekResult{
+		replanRes: &timetableplanning.ReplanWeekResult{
 			From: timezone.NewDate(2026, 4, 27),
 			To:   timezone.NewDate(2026, 5, 3),
 		},
@@ -1222,7 +1222,7 @@ func (m *mockInstanceService) ApplyPresence(ctx context.Context, row *scheduleMo
 	return nil
 }
 
-func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op scheduleSvc.SubstituteWriteOp, subID int64, reason *string, now time.Time, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op timetableplanning.SubstituteWriteOp, subID int64, reason *string, now time.Time, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
 	if m.real != nil {
 		return m.real.ApplySubstitute(ctx, op, subID, reason, now, actor, touched)
 	}
@@ -1231,29 +1231,29 @@ func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op scheduleSv
 
 // ApplyDeviations delegates the atomic save to a real InstanceService when
 // wired (buildDevModule, DB-backed); the pure mock path is unused today.
-func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in scheduleSvc.ApplyDeviationsInput) (*scheduleSvc.ApplyDeviationsResult, error) {
+func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in timetableplanning.ApplyDeviationsInput) (*timetableplanning.ApplyDeviationsResult, error) {
 	if m.real != nil {
 		return m.real.ApplyDeviations(ctx, id, in)
 	}
-	return &scheduleSvc.ApplyDeviationsResult{}, nil
+	return &timetableplanning.ApplyDeviationsResult{}, nil
 }
 
 // ApplyBulkSubstitution delegates to a real InstanceService when wired
 // (interface completeness for #2284; the mock-only path is unused today).
-func (m *mockInstanceService) ApplyBulkSubstitution(ctx context.Context, in scheduleSvc.BulkSubstitutionInput) (*scheduleSvc.BulkSubstitutionResult, error) {
+func (m *mockInstanceService) ApplyBulkSubstitution(ctx context.Context, in timetableplanning.BulkSubstitutionInput) (*timetableplanning.BulkSubstitutionResult, error) {
 	if m.real != nil {
 		return m.real.ApplyBulkSubstitution(ctx, in)
 	}
-	return &scheduleSvc.BulkSubstitutionResult{}, nil
+	return &timetableplanning.BulkSubstitutionResult{}, nil
 }
 
 // MoveStaffBetweenBlocks delegates to a real InstanceService when wired
 // (interface completeness for #1884; the mock-only path is unused today).
-func (m *mockInstanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in scheduleSvc.MoveStaffInput) (*scheduleSvc.MoveStaffResult, error) {
+func (m *mockInstanceService) MoveStaffBetweenBlocks(ctx context.Context, targetID int64, in timetableplanning.MoveStaffInput) (*timetableplanning.MoveStaffResult, error) {
 	if m.real != nil {
 		return m.real.MoveStaffBetweenBlocks(ctx, targetID, in)
 	}
-	return &scheduleSvc.MoveStaffResult{}, nil
+	return &timetableplanning.MoveStaffResult{}, nil
 }
 
 // AcknowledgeUnderstaffed records the forwarded args for the mock-only handler

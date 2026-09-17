@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -96,15 +97,15 @@ type Resource struct {
 // subset — readable and lets us add future deps without churning every call
 // site.
 type Dependencies struct {
-	CalendarPeriodService   scheduleSvc.CalendarPeriodService
-	ClosingDayService       scheduleSvc.ClosingDayService
-	MaterializationService  scheduleSvc.MaterializationService
-	InstanceService         scheduleSvc.InstanceService
-	InstanceSeriesConverter scheduleSvc.InstanceSeriesConverter
-	OperationsService       scheduleSvc.TimetableOperationsService
-	TemplateSplitService    *scheduleSvc.TemplateSplitService
+	CalendarPeriodService   timetableplanning.CalendarPeriodService
+	ClosingDayService       timetableplanning.ClosingDayService
+	MaterializationService  timetableplanning.MaterializationService
+	InstanceService         timetableplanning.InstanceService
+	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
+	OperationsService       timetableplanning.TimetableOperationsService
+	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
-	TimetableData           *scheduleSvc.TimetableDataService
+	TimetableData           *timetableplanning.TimetableDataService
 	CareDayService          scheduleSvc.CareDayService
 	UserContextService      usercontextSvc.UserContextService
 	SettingsService         configSvc.SettingsService
@@ -117,7 +118,7 @@ type Dependencies struct {
 	ReportService enrollmentSvc.ReportService
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService    planexport.Service
-	PlanningTrackService scheduleSvc.PlanningTrackService
+	PlanningTrackService timetableplanning.PlanningTrackService
 	Broadcaster          realtime.Broadcaster
 	Logger               *slog.Logger
 	DB                   *bun.DB
@@ -882,7 +883,7 @@ func (rs *Resource) enforcePlannedEnd(ctx context.Context) (bool, error) {
 	}
 	enforce, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyTimetableEnforcePlannedEnd)
 	if err != nil {
-		return false, fmt.Errorf("%w: resolve planned end policy: %v", scheduleSvc.ErrLifecycleSettings, err)
+		return false, fmt.Errorf("%w: resolve planned end policy: %v", timetableplanning.ErrLifecycleSettings, err)
 	}
 	return enforce, nil
 }

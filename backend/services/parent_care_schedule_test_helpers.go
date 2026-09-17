@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 	"github.com/uptrace/bun"
 )
 

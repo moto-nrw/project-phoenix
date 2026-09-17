@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 type endTemplateRequest struct {
@@ -52,7 +52,7 @@ func (rs *Resource) endTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.TemplateSplitService.EndFromDate(r.Context(), scheduleSvc.TemplateEndInput{
+	result, err := rs.TemplateSplitService.EndFromDate(r.Context(), timetableplanning.TemplateEndInput{
 		TemplateID:    id,
 		EffectiveDate: effectiveDate,
 	})
@@ -73,9 +73,9 @@ func renderTemplateEndError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	switch {
-	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
+	case errors.Is(err, timetableplanning.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
-	case errors.Is(err, scheduleSvc.ErrSplitInvalidInput):
+	case errors.Is(err, timetableplanning.ErrSplitInvalidInput):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("end template failed", err))

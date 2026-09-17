@@ -187,6 +187,25 @@ func (s sessions) Start(ctx context.Context, input ports.NewSession) (ports.Sess
 	return sessionFromGroup(group), nil
 }
 
+// openRoomSessions is the room session lookup-or-create of the retained
+// presence service that the open-room move uses too (ADR 0018). It is not
+// part of activeSvc.Service, so the binding asserts it like the root does.
+type openRoomSessions interface {
+	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error)
+}
+
+func (s sessions) EnsureRoomSession(ctx context.Context, input ports.NewSession) (ports.Session, error) {
+	ensurer, ok := s.active.(openRoomSessions)
+	if !ok {
+		return ports.Session{}, errors.New("device scan: presence service cannot provide room sessions")
+	}
+	group, err := ensurer.EnsureOpenRoomSession(ctx, input.RoomID, input.ActivityID)
+	if err != nil {
+		return ports.Session{}, err
+	}
+	return sessionFromGroup(group), nil
+}
+
 func (s sessions) Delete(ctx context.Context, sessionID int64) error {
 	return s.active.DeleteActiveGroup(ctx, sessionID)
 }

@@ -995,13 +995,19 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Offene Räume` aufklappen. Die Räume stehen direkt unter Ihren eigenen Aufsichten.",
           "Einen Raum wählen. Oben steht `Offener Raum`. Haben Sie dort die Aufsicht, steht daneben `Eigene Aufsicht`.",
           "Den Raum zu sehen heißt nicht, dass Sie dort die Aufsicht haben.",
-          "Sie sehen alle Kinder, die dort gerade erfasst sind. Jedes Kind steht einmal in der Liste, mit seinem Angebot. Laufen dort mehrere Angebote, stehen alle in derselben Liste. Kinder, die nur den Raum nutzen, stehen dort mit `Ohne Angebot`.",
+          "Laufen im Raum Blöcke, hat jeder Block einen eigenen Abschnitt mit seiner Liste. Ihre eigenen Blöcke stehen oben und sind aufgeklappt. Dort checken Sie Kinder wie gewohnt ein und aus.",
+          "Blöcke anderer Betreuungskräfte sind eingeklappt. Im Kopf stehen die Uhrzeit, die Zahl der Kinder und `Sie sind hier nicht eingeplant.` Mit dem Pfeil klappen Sie die Liste auf.",
+          "Eintragen können dort die Betreuungskräfte des Blocks und Admins. Alle anderen sehen die Liste nur.",
+          "Mit `Betreuer hinzufügen` tragen Sie eine weitere Betreuungskraft ein. Der Knopf steht im Kopf eines Abschnitts, wenn Sie dort die Aufsicht haben.",
+          "Kinder, die nur den Raum nutzen, stehen unten unter `Ohne Angebot`. Jedes Kind steht einmal auf der Seite. Die Zahl oben zählt alle Kinder im Raum.",
+          "Läuft im Raum kein Block, sehen Sie alle Kinder in einer Liste. Das ist zum Beispiel auf dem Schulhof mit Tablet so. Bei jedem Kind steht sein Angebot oder `Ohne Angebot`.",
           "Ein Kind in einen offenen Raum setzen: Auf der Raumseite, in der das Kind gerade ist, Kinder auswählen. Als `Zielraum` den Raum mit dem Zusatz `(offener Raum)` wählen und `In Raum setzen` tippen. Sie brauchen dort keine Aufsicht. Das Kind nimmt dadurch an keinem Angebot teil.",
           "Endet ein Angebot, sind seine Kinder `Unterwegs`. Kinder ohne Angebot bleiben im Raum. Am Ende des Tages endet jeder Aufenthalt. Die Kinder sind dann `Unterwegs`, aber nicht abgemeldet.",
-          "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
+          "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Hofaufsicht, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
+          "Laufen im Schulhof Blöcke, stehen `Beaufsichtigen` und `Aufsicht abgeben` nicht oben. Jeder Block hat seine eigenen Knöpfe.",
         ],
         screenshot:
-          "Offener Raum `Sporthalle` mit dem Abzeichen `Offener Raum` oben. Kinder beim Angebot `Fußball` und Kinder `Ohne Angebot` stehen in derselben Liste.",
+          "Offener Raum `Schulhof`: oben der eigene Block `Tanzen` mit seiner Liste, darunter die eingeklappten Blöcke der anderen und `Ohne Angebot`.",
         image: "/help/screens/offene-raeume.webp",
       },
       {
@@ -3177,7 +3183,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Das Kind scannt sein Armband erneut - es erscheint `Wohin geht ...?`.",
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
-          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
+          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz. Läuft dort ein Block, in dem das Kind eingeplant ist, kommt es in diesen Block. Sonst steht es auf dem Schulhof unter `Ohne Angebot`.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
         ],
         screenshot:

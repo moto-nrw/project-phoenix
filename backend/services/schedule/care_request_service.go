@@ -86,6 +86,10 @@ func pickupTermsFromPayload(payload map[string]any) (timezone.Date, time.Time, b
 	return date, pickup, true
 }
 
+// germanDateLayout renders calendar dates as dd.mm.yyyy in user-facing copy.
+// The moved timetable services keep their own copy (#3218).
+const germanDateLayout = "02.01.2006"
+
 // pickupPillDetail names the requested day and time of a pickup change the
 // way the staff thread shows it ("15.09.2026, 14:30 Uhr"), or "" when the
 // payload does not carry both. The pill names the pickup appointment; the

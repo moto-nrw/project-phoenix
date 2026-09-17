@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -338,7 +337,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags(t *testing.T) {
 	// resolver that pins the clock + both modes to what the task expects.
 	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
-		schoolRepo:           platformRepo.NewSchoolRepository(db),
+		schoolRepo:           dbTenantDirectory{db: db},
 		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
@@ -397,7 +396,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_RespectsModeSetting(t *testing.T) {
 
 	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
-		schoolRepo:           platformRepo.NewSchoolRepository(db),
+		schoolRepo:           dbTenantDirectory{db: db},
 		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{
@@ -444,7 +443,7 @@ func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *
 	// Configure a clearly past time so timeMatchesNow always returns false.
 	s := isolatedUnitScheduler(t, db, &Scheduler{
 		db:                   db,
-		schoolRepo:           platformRepo.NewSchoolRepository(db),
+		schoolRepo:           dbTenantDirectory{db: db},
 		studentStatusDayRepo: statusDayRepository(t, db),
 		settings: &fakeStatusFlagSettings{
 			overrides: map[string]string{

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -16,8 +15,8 @@ import (
 // addressee) plus the URL the email's CTA links to (status_url for
 // the parent emails, admin_url for the admin notification).
 
-func validSubmittedRow() *platformModels.EmailOutbox {
-	return &platformModels.EmailOutbox{
+func validSubmittedRow() *outboxIntent {
+	return &outboxIntent{
 		Kind: "enrollment_submitted",
 		Payload: map[string]any{
 			EnrollmentPayloadRecipientEmail:    "guardian@example.test",
@@ -32,8 +31,8 @@ func validSubmittedRow() *platformModels.EmailOutbox {
 	}
 }
 
-func validAdminRow() *platformModels.EmailOutbox {
-	return &platformModels.EmailOutbox{
+func validAdminRow() *outboxIntent {
+	return &outboxIntent{
 		Kind: "enrollment_admin_notification",
 		Payload: map[string]any{
 			EnrollmentPayloadRecipientEmail:    "admin@example.test",
@@ -50,8 +49,8 @@ func validAdminRow() *platformModels.EmailOutbox {
 	}
 }
 
-func validRolloverRow() *platformModels.EmailOutbox {
-	return &platformModels.EmailOutbox{
+func validRolloverRow() *outboxIntent {
+	return &outboxIntent{
 		Kind: "enrollment_rollover",
 		Payload: map[string]any{
 			EnrollmentPayloadRecipientEmail:    "guardian@example.test",

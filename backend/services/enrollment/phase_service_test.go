@@ -13,13 +13,13 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/uptrace/bun"
 )
 
@@ -312,7 +312,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 
 	resyncer := &recordingSourcedTemplateResyncer{
-		err: fmt.Errorf("offering roster resync: template 7: %w", scheduleService.ErrOfferingSourceInvalid),
+		err: fmt.Errorf("offering roster resync: template 7: %w", timetableplanning.ErrOfferingSourceInvalid),
 	}
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:                  repoFactory.Enrollment(),
@@ -329,7 +329,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	err = svc.Update(ctx, created)
 	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict,
 		"an incompatible sourced template must reject the window change, not be skipped")
-	require.ErrorIs(t, err, scheduleService.ErrOfferingSourceInvalid)
+	require.ErrorIs(t, err, timetableplanning.ErrOfferingSourceInvalid)
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs)
 	assert.True(t, tenant.RollbackRequested(ctx),
 		"the rejected update must discard the already-written phase row via the ambient-transaction rollback marker")
@@ -655,7 +655,7 @@ func phaseServiceWithCalendarPeriods(t *testing.T) (enrollmentService.PhaseServi
 	svc := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 		Owner:            repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
-		CalendarPeriods: scheduleService.NewCalendarPeriodServiceWithConfig(scheduleService.CalendarPeriodServiceConfig{
+		CalendarPeriods: timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
 			Repo: repoFactory.CalendarPeriod, Logger: slog.Default(),
 		}),
 		DB:     db,

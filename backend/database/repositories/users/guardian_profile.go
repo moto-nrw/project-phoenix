@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -28,6 +27,11 @@ type GuardianProfileRepository struct {
 	// platform account". auth.accounts is not read by this repository; the
 	// portal reachability check joins the owner's query instead (#2720).
 	activeAccounts ActiveAccountQuery
+	// activeMemberships and guardianRoles are the Identity & Access owner
+	// queries for the school mapping and the guardian role assignment the
+	// portal reachability check filters through (#2721).
+	activeMemberships ActiveMembershipQuery
+	guardianRoles     GuardianRoleQuery
 }
 
 // ActiveAccountQuery returns the owner-built statement selecting the ids of
@@ -42,6 +46,15 @@ type GuardianProfileOption func(*GuardianProfileRepository)
 // FindActivePortalProfilesByIDs filters through (#2720).
 func WithActiveAccounts(query ActiveAccountQuery) GuardianProfileOption {
 	return func(r *GuardianProfileRepository) { r.activeAccounts = query }
+}
+
+// WithSchoolAccess installs the Identity & Access active-membership and
+// guardian-role queries FindActivePortalProfilesByIDs filters through (#2721).
+func WithSchoolAccess(memberships ActiveMembershipQuery, guardianRoles GuardianRoleQuery) GuardianProfileOption {
+	return func(r *GuardianProfileRepository) {
+		r.activeMemberships = memberships
+		r.guardianRoles = guardianRoles
+	}
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
@@ -139,10 +152,11 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // Runtime-role note: this runs under phoenix_tenant (the staff calendar routes
 // use TenantTxMiddleware). That role has SELECT on every auth table via the
 // "GRANT SELECT ON ALL TABLES IN SCHEMA auth TO phoenix_tenant" in migration
-// 1.14.1 (no later revoke), and RLS permits the reads with app.current_tenant_id
-// set: auth.roles allows tenant_id IS NULL (the guardian base role), and
-// auth.account_roles / auth.account_tenants rows match the current tenant.
-// It is NOT limited to phoenix_auth — these joins do not need an admin tx.
+// 1.14.1 (no later revoke). RLS scopes auth.account_roles to the current
+// tenant and lets auth.roles show tenant_id IS NULL (the guardian base role).
+// auth.account_tenants has NO RLS: the membership subquery lists every
+// school, so the row-value predicates below MUST keep pairing it with
+// "guardian_profile".tenant_id. No admin tx is needed.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
@@ -150,23 +164,24 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 	if r.activeAccounts == nil {
 		return nil, errors.New("find active portal guardian profiles: active account query is required")
 	}
+	if r.activeMemberships == nil || r.guardianRoles == nil {
+		return nil, errors.New("find active portal guardian profiles: school access queries are required")
+	}
 
 	var profiles []*users.GuardianProfile
 	query := repoBase.GetDB(ctx, r.db).NewSelect().
 		Model(&profiles).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
-		Join(`INNER JOIN auth.account_tenants AS "account_tenant" ON "account_tenant".account_id = "guardian_profile".account_id AND "account_tenant".tenant_id = "guardian_profile".tenant_id`).
-		Join(`INNER JOIN auth.account_roles AS "account_role" ON "account_role".account_id = "guardian_profile".account_id AND "account_role".tenant_id = "guardian_profile".tenant_id`).
-		Join(`INNER JOIN auth.roles AS "role" ON "role".id = "account_role".role_id`).
 		Where(`"guardian_profile".id IN (?)`, bun.List(ids)).
 		Where(`"guardian_profile".account_id IS NOT NULL`).
-		Where(`"account_tenant".status = ?`, authModels.AccountTenantStatusActive).
-		// auth.accounts.active is the global switch Identity & Access owns; the
-		// owner's query keeps this a single statement.
-		Where(`"guardian_profile".account_id IN (?)`, r.activeAccounts(ctx)).
-		// Match the parent login guardian-role check (case-insensitive, mirrors
-		// strings.EqualFold in services/auth). Deduped by the result map below.
-		Where(`LOWER("role".name) = ?`, strings.ToLower(authModels.BaseRoleGuardian))
+		// The school mapping, the guardian role assignment and the global
+		// account switch belong to Identity & Access; the owner's queries keep
+		// this a single statement.
+		Where(`("guardian_profile".account_id, "guardian_profile".tenant_id) IN (?)`, r.activeMemberships(ctx)).
+		// The owner matches the role like the parent login guardian-role check
+		// (case-insensitive, mirrors strings.EqualFold in services/auth).
+		Where(`("guardian_profile".account_id, "guardian_profile".tenant_id) IN (?)`, r.guardianRoles(ctx)).
+		Where(`"guardian_profile".account_id IN (?)`, r.activeAccounts(ctx))
 
 	query = repoBase.WithTenantFilter(ctx, query, "guardian_profile")
 

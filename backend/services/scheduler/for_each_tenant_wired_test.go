@@ -9,22 +9,20 @@ import (
 	"testing"
 	"time"
 
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// erroringSchoolRepo embeds the real repo and overrides only ListActive so the
-// administrative tenant-listing transaction returns an error.
+// erroringSchoolRepo embeds the real directory and overrides only the active
+// listing so the administrative tenant-listing transaction returns an error.
 type erroringSchoolRepo struct {
-	platform.SchoolRepository
+	TenantDirectory
 	err error
 }
 
-func (e *erroringSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) {
+func (e *erroringSchoolRepo) ListActiveTenantIDs(_ context.Context) ([]int64, error) {
 	return nil, e.err
 }
 
@@ -34,7 +32,7 @@ func TestForEachTenant_Wired_InvokesFnPerTenant(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		db:                      db,
-		schoolRepo:              platformRepo.NewSchoolRepository(db),
+		schoolRepo:              dbTenantDirectory{db: db},
 		logger:                  slog.Default(),
 		tenantRuntime:           testpkg.TenantRuntime(t, db),
 		tenantRuntimeConfigured: true})
@@ -55,7 +53,7 @@ func TestForEachTenantSettings_Wired_InvokesFnWithTenantID(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		db:                      db,
-		schoolRepo:              platformRepo.NewSchoolRepository(db),
+		schoolRepo:              dbTenantDirectory{db: db},
 		logger:                  slog.Default(),
 		tenantRuntime:           testpkg.TenantRuntime(t, db),
 		tenantRuntimeConfigured: true})
@@ -76,13 +74,13 @@ func TestForEachTenantSettings_Wired_ListerError_IsLogged(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	// Real repo provides the embedded type plus transaction-context wiring; the
+	// The real directory provides the embedded type plus transaction-context wiring; the
 	// lister error comes from our override.
 	s := unitScheduler(&Scheduler{
 		db: db,
 		schoolRepo: &erroringSchoolRepo{
-			SchoolRepository: platformRepo.NewSchoolRepository(db),
-			err:              errors.New("listing exploded"),
+			TenantDirectory: dbTenantDirectory{db: db},
+			err:             errors.New("listing exploded"),
 		},
 		logger:                  slog.Default(),
 		tenantRuntime:           testpkg.TenantRuntime(t, db),

@@ -13,10 +13,11 @@ import (
 
 // EnrollablePhaseRepository implements parentModels.EnrollablePhaseRepository.
 type EnrollablePhaseRepository struct {
-	runtime   Runtime
-	phases    PhaseQueries
-	students  StudentDirectory
-	guardians GuardianDirectory
+	runtime     Runtime
+	phases      PhaseQueries
+	memberships ActiveMembershipQuery
+	students    StudentDirectory
+	guardians   GuardianDirectory
 }
 
 // BindStudentDirectory installs the People Directory the enrolled-student
@@ -60,11 +61,11 @@ type PhaseQueries interface {
 	OpenPhaseCandidates(context.Context) ([]*enrollment.Phase, error)
 }
 
-func NewEnrollablePhaseRepository(runtime Runtime, phases PhaseQueries) parentModels.EnrollablePhaseRepository {
+func NewEnrollablePhaseRepository(runtime Runtime, phases PhaseQueries, memberships ActiveMembershipQuery) parentModels.EnrollablePhaseRepository {
 	if phases == nil {
 		panic("parent: enrollment phase queries are required")
 	}
-	return &EnrollablePhaseRepository{runtime: requireRuntime(runtime), phases: phases}
+	return &EnrollablePhaseRepository{runtime: requireRuntime(runtime), phases: phases, memberships: memberships}
 }
 
 // guardianGuard is the per-school guardian evidence the picker and the
@@ -181,7 +182,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	if err != nil {
 		return nil, err
 	}
-	activeTenants, err := activeMappingTenants(ctx, r.runtime, accountID)
+	activeTenants, err := activeMappingTenants(ctx, r.runtime, r.memberships, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
@@ -259,7 +260,7 @@ func (r *EnrollablePhaseRepository) GuardianSubmitStatus(ctx context.Context, ac
 		return nil, fmt.Errorf("parent: account_id and tenant_id must be positive")
 	}
 
-	tenants, err := activeMappingTenants(ctx, r.runtime, accountID)
+	tenants, err := activeMappingTenants(ctx, r.runtime, r.memberships, accountID)
 	if err != nil {
 		return nil, fmt.Errorf("parent: guardian submit status: %w", err)
 	}

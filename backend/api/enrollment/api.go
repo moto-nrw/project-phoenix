@@ -18,7 +18,6 @@ import (
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -37,7 +36,7 @@ type Resource struct {
 	DeletionService           enrollmentService.EnrollmentDeletionService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     *usersService.GuardianProfileLoader
-	SchoolService             platformSvc.SchoolService
+	SchoolService             SchoolDirectory
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
@@ -66,7 +65,7 @@ func NewResource(
 	deletionSvc enrollmentService.EnrollmentDeletionService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader *usersService.GuardianProfileLoader,
-	schoolService platformSvc.SchoolService,
+	schoolService SchoolDirectory,
 	db *bun.DB,
 	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {

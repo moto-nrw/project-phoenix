@@ -17,7 +17,6 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -66,7 +65,7 @@ type SettingsResource struct {
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` Next.js cache after tenant-resolve-affecting
 	// toggles (currently only operations.student_photos_enabled).
-	schoolService platformSvc.SchoolService
+	schoolService SchoolLookup
 	// onValueSet runs inside the write transaction and returns an optional
 	// post-commit closure. Mirrors the tenant SettingsResource.OnValueSet
 	// contract so side effects apply uniformly regardless of who flipped the
@@ -114,7 +113,7 @@ func NewSettingsResource(
 	svc configSvc.SettingsService,
 	db *bun.DB,
 	broadcaster realtime.Broadcaster,
-	schoolService platformSvc.SchoolService,
+	schoolService SchoolLookup,
 	activeService activeSvc.Service,
 	lifecycle usersSvc.CareLifecycleService,
 ) *SettingsResource {
@@ -181,8 +180,8 @@ func (rs *SettingsResource) resolveSchoolSlug(ctx context.Context, schoolID int6
 	if rs.schoolService == nil {
 		return ""
 	}
-	school, err := rs.schoolService.GetSchoolByID(ctx, schoolID)
-	if err != nil || school == nil {
+	school, err := rs.schoolService.FindSchool(ctx, schoolID)
+	if err != nil {
 		slog.Warn("operator settings: school slug lookup failed",
 			slog.Int64("school_id", schoolID),
 			slog.Any("error", err),

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -44,7 +43,7 @@ type Resource struct {
 	InvitationService          authService.InvitationService
 	GuardianInvitationService  authService.GuardianInvitationService
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
-	SchoolService              platformSvc.SchoolService
+	SchoolService              SchoolDirectory
 	// SettingsService enriches tenant-shell metadata. Some optional feature
 	// flags retain defensive fallbacks, but resolveTenant requires this service
 	// for the grade-level validation contract and returns 500 when it is absent.
@@ -85,7 +84,7 @@ func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitat
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // account-authentication capability the session routes call (#3251).
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService platformSvc.SchoolService, sessions AccountSessions, db *bun.DB) *Resource {
+func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
 	return &Resource{
 		AuthService:       authService,
 		Sessions:          sessions,

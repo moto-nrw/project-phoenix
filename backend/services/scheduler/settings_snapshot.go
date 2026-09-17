@@ -123,14 +123,11 @@ func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSna
 	ctx = s.withUnitOfWork(ctx)
 	result := &schedulerMinuteSnapshot{}
 	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		schools, listErr := s.schoolRepo.ListActive(txCtx)
+		tenantIDs, listErr := s.schoolRepo.ListActiveTenantIDs(txCtx)
 		if listErr != nil {
 			return listErr
 		}
-		result.tenantIDs = make([]int64, 0, len(schools))
-		for _, school := range schools {
-			result.tenantIDs = append(result.tenantIDs, school.ID)
-		}
+		result.tenantIDs = tenantIDs
 		return nil
 	})
 	if err != nil {

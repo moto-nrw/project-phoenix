@@ -52,7 +52,7 @@ func TestAcceptInvitation_CustomSchoolRoleCreatesStaff(t *testing.T) {
 		RoleRepo:          roles,
 		AccountRoleRepo:   newStubAccountRoleRepository(),
 		SchoolIdentity:    identityStub(persons, staff, teachers),
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,

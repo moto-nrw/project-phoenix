@@ -34,8 +34,8 @@ func TestDecisionSubject_WithSchoolAppendsName(t *testing.T) {
 // must error out (loud broken payload = visible bug), every other
 // field falls back to empty string in the template.
 
-func validDecisionRow(kind string) *platformModels.EmailOutbox {
-	return &platformModels.EmailOutbox{
+func validDecisionRow(kind string) *outboxIntent {
+	return &outboxIntent{
 		Kind: kind,
 		Payload: map[string]any{
 			EnrollmentPayloadRecipientEmail:    "guardian@example.test",
@@ -114,7 +114,7 @@ func TestRenderDecisionMessage_TolerantOfMissingOptionalFields(t *testing.T) {
 	// Only recipient + status_url are mandatory; everything else
 	// defaults to "" in the template. School-less tenants and
 	// status_reason-suppressed phases still need to render.
-	row := &platformModels.EmailOutbox{
+	row := &outboxIntent{
 		Kind: "enrollment_approved",
 		Payload: map[string]any{
 			EnrollmentPayloadRecipientEmail: "guardian@example.test",

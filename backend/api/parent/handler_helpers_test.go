@@ -16,12 +16,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,13 +35,12 @@ func (s *parentSubmitAuthStub) VerifyAccountTenantMembership(context.Context, in
 }
 
 type parentSubmitSchoolStub struct {
-	platformSvc.SchoolService
-	school *platformModels.School
+	school *EnrollmentSchool
 }
 
 // The parent enrollment routes resolve {tenantSlug} by subdomain — the same
 // identifier /auth/tenant/resolve accepts (#1663).
-func (s *parentSubmitSchoolStub) GetSchoolBySubdomain(context.Context, string) (*platformModels.School, error) {
+func (s *parentSubmitSchoolStub) GetSchoolBySubdomain(context.Context, string) (*EnrollmentSchool, error) {
 	return s.school, nil
 }
 
@@ -66,7 +63,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := testpkg.Tenant(t)
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = tenantID
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -122,7 +119,7 @@ func TestSubmitParentEnrollment_NoSubmitPermissionStillReachesServiceForNewChild
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -171,7 +168,7 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -331,7 +328,7 @@ func TestSubmitParentEnrollment_HiddenSchoolRejectsCallerWithoutFamilyLink(t *te
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -355,7 +352,7 @@ func TestSubmitParentEnrollment_InactiveSchoolIsRejected(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
+	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
@@ -380,7 +377,7 @@ func TestSubmitParentEnrollment_HiddenSchoolAcceptsLinkedFamily(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{

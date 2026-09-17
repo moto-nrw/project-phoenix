@@ -30,7 +30,10 @@ const (
 )
 
 var (
-	slugPattern   = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	slugPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+	// reservedSlugs are infrastructure subdomains that never name a tenant.
+	// Frontend equivalent: frontend/src/lib/reserved-slugs.ts; both lists
+	// must stay in sync.
 	reservedSlugs = map[string]bool{
 		"www": true, "api": true, "operator": true, "parents": true,
 		"eltern": true, "schule": true, "school": true, "grafana": true,

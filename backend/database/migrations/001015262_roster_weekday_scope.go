@@ -41,7 +41,7 @@ func init() {
 // Deliberately NOT reusing student_enrollments.selected_weekdays: that column
 // is owned by the enrollment/care-offering decision path, and the template
 // editor treats rows carrying it as foreign and preserves them untouched
-// (services/schedule/template_update_service.go). Overloading it would make
+// (modules/timetable/legacy/timetableplanning/template_update_service.go). Overloading it would make
 // editor-owned and offer-owned rows indistinguishable.
 func rosterWeekdayScopeUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.262: Adding weekday scope to activity roster rows...")

@@ -247,8 +247,10 @@ type Factory struct {
 	OperatorAuditLog         platformModels.OperatorAuditLogRepository
 	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
-	OperatorSummaries        platformModels.OperatorSummariesRepository
-	School                   platformModels.SchoolRepository
+	// School is the Organisation & Tenancy capability that owns
+	// platform.schools (#3253); BindOrganizationTenancy replaces the
+	// unobserved default with the serving root's module.
+	School organizationtenancy.Capability
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
@@ -358,7 +360,6 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 		return
 	}
 	f.organizationTenancyBound = true
-	memberships := f.AccountTenant
 	rawAccountTenant, ok := f.AccountTenant.(interface {
 		ListAccountsBySchoolIDs(context.Context, []int64) ([]authModels.OrgAccountInfo, error)
 	})
@@ -368,7 +369,7 @@ func (f *Factory) BindOrganizationTenancy(capability organizationtenancy.Capabil
 	if f.Account != nil {
 		f.Account = schoolAccountRepository{AccountRepository: f.Account, schools: capability}
 	}
-	f.School = NewSchoolCapabilityAdapter(capability, memberships)
+	f.School = capability
 	if f.ParentChild != nil {
 		f.ParentChild = schoolChildRepository{ChildRepository: f.ParentChild, schools: capability}
 	}
@@ -394,6 +395,14 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 		DB:      db,
 		Observe: func(organizationCompose.Observation) {},
 	})
+}
+
+func mustNewOrganizationTenancy(db *bun.DB) organizationtenancy.Capability {
+	capability, err := NewOrganizationTenancy(db)
+	if err != nil {
+		panic(fmt.Sprintf("repository factory: organization tenancy: %v", err))
+	}
+	return capability
 }
 
 // BindPeopleDirectory replaces the legacy adapters that used to join
@@ -560,7 +569,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
-		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
@@ -689,8 +698,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
-		OperatorSummaries:        platformRepo.NewOperatorSummariesRepository(db),
-		School:                   platformRepo.NewSchoolRepository(db),
+		School:                   mustNewOrganizationTenancy(db),
 
 		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
 		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
@@ -702,15 +710,15 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		SubmissionRateLimit: enrollmentModule,
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
-		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule),
+		ParentChild:             parentRepo.NewChildRepository(parentRuntime, activeMembershipQuery(db)),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule, activeMembershipQuery(db)),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime, enrollmentModule, identityAccountDirectory{accounts: identity}),
 
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(db)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
@@ -724,12 +732,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		StaffNotice:                schedule.NewStaffNoticeRepository(db),
 	}
 	factory.appointments = appointmentsModule
-	// iot.devices belongs to the Device Fleet owner (#2676): the operator
-	// dashboard reads its counts and device rows through that capability
-	// instead of joining the table from platform SQL.
-	factory.OperatorSummaries = deviceOperatorSummariesRepository{
-		OperatorSummariesRepository: factory.OperatorSummaries, devices: deviceFleet,
-	}
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
 	}).BindTeacherGroupIDs(func(ctx context.Context, teacherID int64) ([]int64, error) {

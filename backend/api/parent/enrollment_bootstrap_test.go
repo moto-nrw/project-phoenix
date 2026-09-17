@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -61,7 +60,7 @@ func TestGetEnrollmentBootstrap_EligibleGuardianUsesEnrolleeGate(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -91,7 +90,7 @@ func TestGetEnrollmentBootstrap_EnrolledChildUnlocksExistingStudents(t *testing.
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -122,7 +121,7 @@ func TestGetEnrollmentBootstrap_IneligibleAccountUsesPublicGate(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -147,7 +146,7 @@ func TestGetEnrollmentBootstrap_RevokedPermissionUsesPublicGate(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true}
+	school := &EnrollmentSchool{Active: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -178,7 +177,7 @@ func TestGetEnrollmentBootstrap_HiddenSchoolIsUnreachableWithoutFamilyLink(t *te
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -206,7 +205,7 @@ func TestGetEnrollmentBootstrap_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{
@@ -233,7 +232,7 @@ func TestGetEnrollmentBootstrap_InactiveSchoolIsUnreachable(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
+	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
 	requestSvc := &parentBootstrapRequestStub{}
 	rs := &Resource{

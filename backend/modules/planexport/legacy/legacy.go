@@ -17,8 +17,8 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // ShiftTypeSource is the slice of the retained shift-type repository the
@@ -52,14 +52,14 @@ type Sources struct {
 	Overview       shiftplanning.StaffScheduleOverviewGetter
 	ShiftTypes     ShiftTypeSource
 	Instances      shiftplanning.ActivityInstanceRangeReader
-	InstanceStaff  scheduleSvc.InstanceStaffBatchReader
+	InstanceStaff  timetableplanning.InstanceStaffBatchReader
 	Students       InstanceStudentCountSource
 	Rooms          shiftplanning.RoomBatchReader
 	Staff          shiftplanning.StaffOverviewReader
 	ActivityGroups ActivityGroupSource
 	PlanningTracks PlanningTrackSource
-	ClosingDays    scheduleSvc.ClosingDayService
-	Holidays       scheduleSvc.HolidayService
+	ClosingDays    timetableplanning.ClosingDayService
+	Holidays       timetableplanning.HolidayService
 	Renderer       planexport.Renderer
 	Logger         *slog.Logger
 }
@@ -255,7 +255,7 @@ func (a studentCountAdapter) CountNonAbsentByInstanceIDs(ctx context.Context, in
 }
 
 type instanceStaffAdapter struct {
-	source scheduleSvc.InstanceStaffBatchReader
+	source timetableplanning.InstanceStaffBatchReader
 }
 
 func (a instanceStaffAdapter) InstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*planexport.InstanceStaff, error) {
@@ -363,7 +363,7 @@ func (a planningTrackAdapter) ListPlanningTracks(ctx context.Context) ([]*planex
 }
 
 type closingDayAdapter struct {
-	source scheduleSvc.ClosingDayService
+	source timetableplanning.ClosingDayService
 }
 
 func (a closingDayAdapter) ClosingDaysInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.ClosingPeriod, error) {
@@ -390,7 +390,7 @@ func (a closingDayAdapter) ClosingDaysInRange(ctx context.Context, from, to plan
 }
 
 type holidayAdapter struct {
-	source scheduleSvc.HolidayService
+	source timetableplanning.HolidayService
 }
 
 func (a holidayAdapter) HolidaysInRange(ctx context.Context, from, to planexport.Date) ([]planexport.Holiday, error) {

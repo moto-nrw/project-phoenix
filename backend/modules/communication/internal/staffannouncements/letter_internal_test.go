@@ -7,9 +7,8 @@ import (
 	"testing"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // --- doubles -----------------------------------------------------------------
@@ -63,15 +62,15 @@ func (r *letterRepo) ResolveDeliveryRecipients(_ context.Context, _, _ int64) ([
 // letterOutbox hands out increasing ids so a delivery row can point at a real
 // outbox entry.
 type letterOutbox struct {
-	requests []platformService.EnqueueRequest
+	requests []emailoutbox.EnqueueRequest
 	nextID   int64
 	cancels  int
 }
 
-func (o *letterOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+func (o *letterOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 	o.requests = append(o.requests, req)
 	o.nextID++
-	row := &platformModels.EmailOutbox{}
+	row := &emailoutbox.Enqueued{}
 	row.ID = o.nextID
 	return row, nil
 }

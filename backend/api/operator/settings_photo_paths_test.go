@@ -26,9 +26,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,12 +36,11 @@ import (
 
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // setupOperatorSettingsWithSchoolRepoRoute mirrors
-// setupOperatorSettingsRoute but injects a real SchoolRepository so the
+// setupOperatorSettingsRoute but injects the real school owner so the
 // slug-resolution branch in SetSchoolSettingValue / ResetSchoolSettingValue
 // is exercised end to end. Without a real repo the response carries
 // `school_slug: ""` (empty omitted) and resolveSchoolSlug returns
@@ -51,9 +49,10 @@ func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTes
 	t.Helper()
 
 	db, svc := testutil.SetupOperatorSettingsModule(t)
-	schoolRepo := platformRepo.NewSchoolRepository(db)
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
 	resource := operatorAPI.NewSettingsResource(
-		svc.Settings, db, nil, platformSvc.NewSchoolService(schoolRepo), svc.Active, svc.CareLifecycle,
+		svc.Settings, db, nil, organizations, svc.Active, svc.CareLifecycle,
 	)
 
 	router := chi.NewRouter()

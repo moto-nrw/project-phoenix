@@ -45,7 +45,7 @@ func TestExistingInvitationOwnerMembershipRollsBack(t *testing.T) {
 		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role,
 		AccountRoleRepo: repos.AccountRole,
 		SchoolIdentity:  identityStub(repos.Person, failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr}, repos.Teacher),
-		SchoolRepo:      repos.School, DB: db,
+		SchoolRepo:      persistenceSchools{repos: repos, runtime: testpkg.TenantRuntime(t, db)}, DB: db,
 	})
 	invitation := &authModel.InvitationToken{
 		Email: owner.Email, RoleID: role.ID, Token: fmt.Sprintf("rollback-owner-%d", schoolA),
@@ -100,7 +100,7 @@ func TestAcceptInvitationRollsBackAccountMappingAndRole(t *testing.T) {
 		RoleRepo:          repos.Role,
 		AccountRoleRepo:   repos.AccountRole,
 		SchoolIdentity:    identityStub(repos.Person, failingStaffRepo{StaffRepository: repos.Staff, err: provisioningErr}, repos.Teacher),
-		SchoolRepo:        repos.School,
+		SchoolRepo:        persistenceSchools{repos: repos, runtime: testpkg.TenantRuntime(t, db)},
 		Mailer:            email.NewMockMailer(),
 		FrontendURL:       "http://localhost:3000",
 		InvitationExpiry:  time.Hour,

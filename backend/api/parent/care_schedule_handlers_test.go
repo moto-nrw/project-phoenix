@@ -6,8 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 	"github.com/stretchr/testify/assert"
 )
 
