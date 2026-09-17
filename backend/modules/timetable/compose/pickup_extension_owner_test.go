@@ -501,6 +501,46 @@ func TestModuleUsesCurrentPickupWeekdaySchedules(t *testing.T) {
 	assert.Equal(t, currentTemplate.ID, task.Blocks[0].ID)
 }
 
+func TestModuleUsesCurrentPickupWeekdayEnrollments(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+	category := createCategory(t, ctx, module, fmt.Sprintf("Current pickup enrollment %d", suffix))
+	child := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("Current enrollment-%d", suffix), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("Current enrollment-%d", suffix), "1a")
+	group, err := module.CreateGroup(ctx, timetable.GroupInput{
+		Name: fmt.Sprintf("Freies Spiel %d", suffix), CategoryID: category.ID,
+		Type: timetable.GroupTypeCare, IsTemplate: true,
+	})
+	require.NoError(t, err)
+	frame := createOwnedTimeframe(t, module, ctx, "14:45:00", "16:30:00", true, "Freies Spiel")
+	_, err = module.CreateSchedule(ctx, timetable.ScheduleInput{
+		ActivityGroupID: group.ID, Weekday: timetable.WeekdayTuesday, TimeframeID: &frame.ID,
+	})
+	require.NoError(t, err)
+
+	today := time.Now()
+	effectiveFrom := today.AddDate(0, 0, -7).Format(time.DateOnly)
+	validUntil := today.Format(time.DateOnly)
+	tuesday := timetable.WeekdayTuesday
+	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: child.ID, ActivityGroupID: group.ID, ValidFrom: "2020-01-01", ValidUntil: &validUntil, Weekday: &tuesday,
+	})
+	require.NoError(t, err)
+	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: other.ID, ActivityGroupID: group.ID, ValidFrom: validUntil, Weekday: &tuesday,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: effectiveFrom,
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	assert.Equal(t, []int64{group.ID}, pickupExtensionBlockIDs(task.Blocks))
+}
+
 func TestModuleLimitsPickupWeekdayResolutionToCalendarPeriod(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

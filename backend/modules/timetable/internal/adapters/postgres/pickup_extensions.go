@@ -245,7 +245,8 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 	// are evaluated at the later of the task's effective date and today.
 	err = db.NewRaw(`
 		WITH task AS (
-			SELECT * FROM unnest(?::BIGINT[], ?::BIGINT[], ?::INT[], ?::DATE[], ?::TIME[], ?::TIME[])
+			SELECT *, GREATEST(effective_from, ?::date) AS operational_from
+			FROM unnest(?::BIGINT[], ?::BIGINT[], ?::INT[], ?::DATE[], ?::TIME[], ?::TIME[])
 				AS task(task_id, student_id, weekday, effective_from, from_time, to_time)
 		)
 		SELECT DISTINCT ON (task.task_id, "template".id)
@@ -259,8 +260,8 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 				SELECT 1 FROM activities.student_enrollments AS "own"
 				WHERE "own".tenant_id = "template".tenant_id AND "own".activity_group_id = "template".id
 					AND "own".student_id = task.student_id
-					AND "own".valid_from <= task.effective_from
-					AND ("own".valid_until IS NULL OR "own".valid_until > task.effective_from)
+					AND "own".valid_from <= task.operational_from
+					AND ("own".valid_until IS NULL OR "own".valid_until > task.operational_from)
 					AND ("own".weekday IS NULL OR "own".weekday = task.weekday)
 					AND (COALESCE(jsonb_array_length("own".selected_weekdays), 0) = 0
 						OR "own".selected_weekdays @> to_jsonb(ARRAY[task.weekday]))
@@ -268,8 +269,8 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 		FROM task
 		JOIN activities.schedules AS "schedule"
 			ON "schedule".tenant_id = ? AND "schedule".weekday = task.weekday
-			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= GREATEST(task.effective_from, ?::date))
-			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > GREATEST(task.effective_from, ?::date))
+			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= task.operational_from)
+			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > task.operational_from)
 		JOIN activities.groups AS "template"
 			ON "template".id = "schedule".activity_group_id AND "template".tenant_id = "schedule".tenant_id
 			AND "template".is_template AND "template".archived_at IS NULL
@@ -279,14 +280,14 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 			AND ("template".target_group_type <> 'none' OR EXISTS (
 				SELECT 1 FROM activities.student_enrollments AS "attendee"
 				WHERE "attendee".tenant_id = "template".tenant_id AND "attendee".activity_group_id = "template".id
-					AND "attendee".valid_from <= task.effective_from
-					AND ("attendee".valid_until IS NULL OR "attendee".valid_until > task.effective_from)
+					AND "attendee".valid_from <= task.operational_from
+					AND ("attendee".valid_until IS NULL OR "attendee".valid_until > task.operational_from)
 					AND ("attendee".weekday IS NULL OR "attendee".weekday = task.weekday)
 					AND (COALESCE(jsonb_array_length("attendee".selected_weekdays), 0) = 0
 						OR "attendee".selected_weekdays @> to_jsonb(ARRAY[task.weekday]))))
 		ORDER BY task.task_id, "template".id, "schedule".valid_from DESC NULLS LAST`,
-		pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
-		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID, today, today,
+		today, pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
+		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
 	).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
