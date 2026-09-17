@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	pickupExtensionTasksVersion     = "1.15.391"
+	pickupExtensionTasksVersion     = "1.15.392"
 	pickupExtensionTasksDescription = "Open tasks for later pickup times that still need a Betreuungsblock (#3261)"
 )
 
@@ -20,7 +20,7 @@ func init() {
 		Description: pickupExtensionTasksDescription,
 		// 1.15.299 is the latest change to schedule.student_pickup_exceptions,
 		// which the day tasks reference.
-		DependsOn: []string{schulhofReleaseBlockPlanningVersion, autoPartialAbsenceVersion},
+		DependsOn: []string{absenceAllowanceCarryoverVersion, autoPartialAbsenceVersion},
 	})
 
 	Migrations.MustRegister(pickupExtensionTasksUp, pickupExtensionTasksDown)
@@ -40,7 +40,7 @@ func init() {
 // Whether a task is still open is decided when it is read, against the
 // current blocks, so no row has to be rewritten when a plan changes.
 func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.391: Creating schedule.pickup_extension_tasks...")
+	fmt.Println("Migration 1.15.392: Creating schedule.pickup_extension_tasks...")
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -110,7 +110,7 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 }
 
 func pickupExtensionTasksDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.391: Dropping schedule.pickup_extension_tasks...")
+	fmt.Println("Rolling back migration 1.15.392: Dropping schedule.pickup_extension_tasks...")
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS schedule.pickup_extension_tasks;`)
 	if err != nil {
 		return fmt.Errorf("error dropping schedule.pickup_extension_tasks: %w", err)
