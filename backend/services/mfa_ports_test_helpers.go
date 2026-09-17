@@ -3,7 +3,6 @@ package services
 import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // The retained MFA and passkey ports are what the HTTP surfaces classify on
@@ -20,18 +19,6 @@ func NewAccountMFAPortForTests(module identityaccess.AccountMFA) auth.MFAService
 // over module.
 func NewAccountPasskeyPortForTests(module identityaccess.AccountPasskeyFlows) auth.PasskeyService {
 	return newAccountPasskeyPort(module)
-}
-
-// NewOperatorMFAPortForTests serves the retained operator second factor over
-// module.
-func NewOperatorMFAPortForTests(module identityaccess.OperatorMFAFlows) platform.OperatorMFAService {
-	return newOperatorMFAPort(module)
-}
-
-// NewOperatorPasskeyPortForTests serves the retained operator ceremonies over
-// module.
-func NewOperatorPasskeyPortForTests(module identityaccess.OperatorPasskeyFlows) platform.OperatorPasskeyService {
-	return newOperatorPasskeyPort(module)
 }
 
 // NewModuleAccountMFAForTests adapts a retained second factor back to the

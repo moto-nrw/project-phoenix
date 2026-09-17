@@ -317,17 +317,6 @@ func (m *Module) GetGlobalMFAOverride(ctx context.Context, accountID int64) (str
 	return m.engine.GetGlobalMFAOverride(ctx, accountID)
 }
 
-// IsValidMFAAdminOverride is the allow list every override write passes
-// before the database CHECK constraint sees it. The HTTP surfaces validate
-// against it so a rejected value never reaches the flow.
-func IsValidMFAAdminOverride(value string) bool {
-	switch value {
-	case MFAAdminOverrideNone, MFAAdminOverrideForceOff, MFAAdminOverrideForceOn:
-		return true
-	}
-	return false
-}
-
 // MFAPolicyForMode is the verdict a school's security.mfa_mode produces,
 // applied to a role set by RequiredFor. A composition that supplies its own
 // capability answers with it.
