@@ -72,7 +72,7 @@ func init() {
 			return tx.Commit()
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.0.0: Removing infrastructure setup...")
+			fmt.Printf("Rolling back migration %s: Removing infrastructure setup...\n", InfrastructureVersion)
 
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})

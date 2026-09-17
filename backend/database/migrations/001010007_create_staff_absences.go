@@ -76,7 +76,7 @@ func createStaffAbsences(ctx context.Context, db *bun.DB) error {
 }
 
 func dropStaffAbsences(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.6: Dropping active.staff_absences table...")
+	fmt.Printf("Rolling back migration %s: Dropping active.staff_absences table...\n", staffAbsencesVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

@@ -58,7 +58,7 @@ func addPositionToInvitationTokens(ctx context.Context, db *bun.DB) error {
 }
 
 func removePositionFromInvitationTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.17: Removing position column from auth.invitation_tokens...")
+	fmt.Printf("Rolling back migration %s: Removing position column from auth.invitation_tokens...\n", AddPositionToInvitationTokensVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

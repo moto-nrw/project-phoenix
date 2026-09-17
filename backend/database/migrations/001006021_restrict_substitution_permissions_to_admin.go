@@ -101,7 +101,7 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.21: Restoring substitution permissions to teacher role...")
+	fmt.Printf("Rolling back migration %s: Restoring substitution permissions to teacher role...\n", RestrictSubstitutionPermissionsVersion)
 
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})

@@ -80,7 +80,7 @@ func addGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
 
 // removeGradeTransitionPermissions removes grade transition permissions
 func removeGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.7: Removing grade transition permissions...")
+	fmt.Printf("Rolling back migration %s: Removing grade transition permissions...\n", GradeTransitionPermissionsVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

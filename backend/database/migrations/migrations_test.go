@@ -2,10 +2,11 @@ package migrations
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 	"testing"
 
@@ -104,10 +105,17 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 func TestMigrationLogOutputMatchesRegisteredVersion(t *testing.T) {
 	t.Parallel()
 
-	versionPattern := regexp.MustCompile(`Version\s*=\s*"([^"]+)"`)
+	// Both registration shapes: a `someVersion = "1.2.3"` const and an inline
+	// `Version: "1.2.3"` struct field.
+	versionPattern := regexp.MustCompile(`Version\s*[=:]\s*"([^"]+)"`)
 	// Interpreted Go string literals only. Raw literals hold SQL, not log lines.
 	stringLiteralPattern := regexp.MustCompile(`"(?:[^"\\\n]|\\.)*"`)
-	loggedVersionPattern := regexp.MustCompile(`Migration (\d+(?:\.\d+)+)\b`)
+	// Anchored at the literal's start, so it matches only the line a migration
+	// logs ABOUT ITSELF ("Migration 1.2.3: ...", "Rolling back migration
+	// 1.2.3: ..."). A version named later in the sentence is a deliberate
+	// cross-reference to another migration (1.15.132 points at 1.15.126) and
+	// must not be flagged.
+	loggedVersionPattern := regexp.MustCompile(`^"(?:Rolling back migration|Migration) (\d+(?:\.\d+)+)\b`)
 
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -133,31 +141,29 @@ func TestMigrationLogOutputMatchesRegisteredVersion(t *testing.T) {
 		for _, match := range versionPattern.FindAllStringSubmatch(src, -1) {
 			registered[match[1]] = true
 		}
-		if len(registered) == 0 {
-			continue
-		}
 
 		for _, literal := range stringLiteralPattern.FindAllString(src, -1) {
-			for _, match := range loggedVersionPattern.FindAllStringSubmatch(literal, -1) {
-				logged := match[1]
-				if registered[logged] {
-					continue
-				}
-				t.Errorf("VERSION OUTPUT MISMATCH: %s logs %q but registers %s.\n"+
-					"Print the version constant instead of a hardcoded number so the log cannot drift.",
-					name, logged, strings.Join(sortedKeys(registered), ", "))
+			match := loggedVersionPattern.FindStringSubmatch(literal)
+			if match == nil {
+				continue
 			}
+			logged := match[1]
+			if registered[logged] {
+				continue
+			}
+			// No version found in the file at all: the log line is the only
+			// version claim, so there is nothing keeping it honest.
+			if len(registered) == 0 {
+				t.Errorf("UNVERIFIABLE VERSION OUTPUT: %s logs %q but registers no version this test can find.\n"+
+					"Register the version in a constant or a Version: field and print that.",
+					name, logged)
+				continue
+			}
+			t.Errorf("VERSION OUTPUT MISMATCH: %s logs %q but registers %s.\n"+
+				"Print the version constant instead of a hardcoded number so the log cannot drift.",
+				name, logged, strings.Join(slices.Sorted(maps.Keys(registered)), ", "))
 		}
 	}
-}
-
-func sortedKeys(m map[string]bool) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	return keys
 }
 
 func TestScheduleTimeframesAreMigratedToTimezoneFreeClockTimes(t *testing.T) {

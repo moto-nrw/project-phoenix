@@ -54,7 +54,7 @@ func addPickupStatusToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addPickupStatusToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.18: Removing pickup_status column from users.students...")
+	fmt.Printf("Rolling back migration %s: Removing pickup_status column from users.students...\n", addPickupStatusToStudentsVersion)
 
 	// Drop index first
 	_, err := db.NewRaw(`

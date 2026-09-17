@@ -8,7 +8,7 @@ import (
 )
 
 // droppablePublicTypesQuery lists the types in the public schema that a reset may
-// drop. It excludes three groups that PostgreSQL either refuses to drop or drops
+// drop. It excludes the groups that PostgreSQL either refuses to drop or drops
 // on its own:
 //
 //   - types owned by an extension (pg_depend.deptype = 'e'), such as the
@@ -113,16 +113,13 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	// 3. Drop specific known types that might be in any schema
-	_, err = db.ExecContext(ctx, `
-		DROP TYPE IF EXISTS occupancy_status CASCADE;
-		DROP TYPE IF EXISTS device_status CASCADE;
-
-		-- Drop extensions
-		DROP EXTENSION IF EXISTS "uuid-ossp";
-	`)
+	// 3. Drop the extensions. The named types this step used to drop as well
+	// (occupancy_status, device_status) live in public and are already gone:
+	// unqualified DROP TYPE only ever resolved them through the search path,
+	// which is exactly what step 2 now covers.
+	_, err = db.ExecContext(ctx, `DROP EXTENSION IF EXISTS "uuid-ossp"`)
 	if err != nil {
-		fmt.Printf("Warning: Failed to drop specific types and extensions: %v\n", err)
+		fmt.Printf("Warning: Failed to drop extensions: %v\n", err)
 		// Continue anyway, this is not critical
 	}
 

@@ -172,7 +172,7 @@ func createGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
 
 // dropGradeTransitionsTables drops all grade transitions tables
 func dropGradeTransitionsTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.6: Removing grade transitions tables...")
+	fmt.Printf("Rolling back migration %s: Removing grade transitions tables...\n", GradeTransitionsVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
