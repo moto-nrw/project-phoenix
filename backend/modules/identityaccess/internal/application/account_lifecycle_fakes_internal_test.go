@@ -848,6 +848,28 @@ func (s *lifecycleInvitations) FindGuardianInvitationByToken(_ context.Context, 
 	return domain.GuardianInvitation{}, false, nil
 }
 
+func (s *lifecycleInvitations) ListOpenGuardianInvitations(_ context.Context, profileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	wanted := map[int64]bool{}
+	for _, id := range profileIDs {
+		wanted[id] = true
+	}
+	return s.sorted(func(invitation domain.GuardianInvitation) bool {
+		return wanted[invitation.GuardianProfileID] && guardianInvitationNonFinal(invitation, now)
+	}), nil
+}
+
+func (s *lifecycleInvitations) ListRedeemableGuardianInvitations(_ context.Context, now time.Time) ([]domain.GuardianInvitation, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.sorted(func(invitation domain.GuardianInvitation) bool {
+		return guardianInvitationNonFinal(invitation, now) && !invitation.IsPendingApproval()
+	}), nil
+}
+
 func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id int64, acceptedAt time.Time) (bool, error) {
 	if s.updateErr != nil {
 		return false, s.updateErr

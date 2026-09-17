@@ -78,6 +78,14 @@ type GuardianInvitations interface {
 	// AcceptGuardianInvitation returns the account the guardian signs in with.
 	AcceptGuardianInvitation(ctx context.Context, token string, registration GuardianRegistration) (Account, error)
 	ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error
+	// ListGuardianInvitations returns every invitation of the contact.
+	ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error)
+	// ListOpenGuardianInvitations returns the invitations of those contacts
+	// that are redeemable or awaiting a staff decision.
+	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error)
+	// ListRedeemableGuardianInvitations returns the invitations of the school
+	// in context whose link can still be spent.
+	ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error)
 	// GuardianInvitationSchoolSlug resolves the school of an invitation; it
 	// is best-effort and answers "" when it cannot.
 	GuardianInvitationSchoolSlug(ctx context.Context, token string) string
@@ -97,6 +105,18 @@ func (m *Module) AcceptGuardianInvitation(ctx context.Context, token string, reg
 
 func (m *Module) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
 	return m.engine.ResendGuardianInvitation(ctx, invitationID, actorAccountID)
+}
+
+func (m *Module) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error) {
+	return m.engine.ListGuardianInvitations(ctx, guardianProfileID)
+}
+
+func (m *Module) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitation, error) {
+	return m.engine.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
+}
+
+func (m *Module) ListRedeemableGuardianInvitations(ctx context.Context) ([]GuardianInvitation, error) {
+	return m.engine.ListRedeemableGuardianInvitations(ctx)
 }
 
 func (m *Module) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {

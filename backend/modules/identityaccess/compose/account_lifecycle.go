@@ -803,6 +803,41 @@ func (e engine) ResendGuardianInvitation(ctx context.Context, invitationID, acto
 	return invitationError(e.lifecycle.ResendGuardianInvitation(e.attach(ctx), invitationID, actorAccountID))
 }
 
+func (e engine) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	invitations, err := e.lifecycle.ListGuardianInvitations(e.attach(ctx), guardianProfileID)
+	return publicGuardianInvitations(invitations), invitationError(err)
+}
+
+func (e engine) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	invitations, err := e.lifecycle.ListOpenGuardianInvitations(e.attach(ctx), guardianProfileIDs)
+	return publicGuardianInvitations(invitations), invitationError(err)
+}
+
+func (e engine) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	invitations, err := e.lifecycle.ListRedeemableGuardianInvitations(e.attach(ctx))
+	return publicGuardianInvitations(invitations), invitationError(err)
+}
+
+func publicGuardianInvitations(invitations []domain.GuardianInvitation) []identityaccess.GuardianInvitation {
+	if invitations == nil {
+		return nil
+	}
+	result := make([]identityaccess.GuardianInvitation, 0, len(invitations))
+	for _, invitation := range invitations {
+		result = append(result, identityaccess.GuardianInvitation(invitation))
+	}
+	return result
+}
+
 func (e engine) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
 	if e.lifecycle == nil {
 		return ""

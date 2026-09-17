@@ -16,7 +16,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 // Identity & Access owns the guardian invitation lifecycle (#2722). This
@@ -214,6 +216,90 @@ func (g guardianInvitations) ResendGuardianInvitation(ctx context.Context, invit
 
 func (g guardianInvitations) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
 	return g.module.GuardianInvitationSchoolSlug(ctx, token)
+}
+
+// --- the invitation reads other owners' flows need ---------------------------
+
+// guardianInvitationReads serves the People Directory guardian list and the
+// parents portal over the owner capability. Both read the invitations as the
+// retained model, which stays their ports' value type. The capability is
+// read at call time: the guardian service is composed before the module.
+type guardianInvitationReads struct {
+	current func() identityaccess.GuardianInvitations
+}
+
+func newGuardianInvitationReads(current func() identityaccess.GuardianInvitations) guardianInvitationReads {
+	return guardianInvitationReads{current: current}
+}
+
+func (r guardianInvitationReads) owner() (identityaccess.GuardianInvitations, error) {
+	if r.current == nil {
+		return nil, errors.New("identity access composition: the guardian invitations are not composed")
+	}
+	module := r.current()
+	if module == nil {
+		return nil, errors.New("identity access composition: the guardian invitations are not composed")
+	}
+	return module, nil
+}
+
+func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]usersSvc.GuardianInvitationRecord, error) {
+	module, err := r.owner()
+	if err != nil {
+		return nil, err
+	}
+	invitations, err := module.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
+	if err != nil {
+		return nil, invitationServiceError(err)
+	}
+	return guardianListRecords(invitations), nil
+}
+
+func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]usersSvc.GuardianInvitationRecord, error) {
+	module, err := r.owner()
+	if err != nil {
+		return nil, err
+	}
+	invitations, err := module.ListRedeemableGuardianInvitations(ctx)
+	if err != nil {
+		return nil, invitationServiceError(err)
+	}
+	return guardianListRecords(invitations), nil
+}
+
+// ListByProfile serves the parents portal, which reads the same rows with a
+// narrower record.
+func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentportal.GuardianInvitationRecord, error) {
+	module, err := r.owner()
+	if err != nil {
+		return nil, err
+	}
+	invitations, err := module.ListGuardianInvitations(ctx, guardianProfileID)
+	if err != nil {
+		return nil, invitationServiceError(err)
+	}
+	result := make([]parentportal.GuardianInvitationRecord, 0, len(invitations))
+	for _, invitation := range invitations {
+		result = append(result, parentportal.GuardianInvitationRecord{
+			ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, StudentID: invitation.StudentID,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, ApprovalStatus: invitation.ApprovalStatus,
+		})
+	}
+	return result, nil
+}
+
+func guardianListRecords(invitations []identityaccess.GuardianInvitation) []usersSvc.GuardianInvitationRecord {
+	result := make([]usersSvc.GuardianInvitationRecord, 0, len(invitations))
+	for _, invitation := range invitations {
+		result = append(result, usersSvc.GuardianInvitationRecord{
+			ID: invitation.ID, TenantID: invitation.TenantID, Token: invitation.Token,
+			GuardianProfileID: invitation.GuardianProfileID, CreatedBy: invitation.CreatedBy,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, EmailSentAt: invitation.EmailSentAt,
+			EmailError: invitation.EmailError, StudentID: invitation.StudentID,
+			ApprovalStatus: invitation.ApprovalStatus, CreatedAt: invitation.CreatedAt,
+		})
+	}
+	return result
 }
 
 // --- school branding --------------------------------------------------------

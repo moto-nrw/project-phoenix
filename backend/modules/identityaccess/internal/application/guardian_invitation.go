@@ -284,6 +284,37 @@ func (l *AccountLifecycle) ResendGuardianInvitation(ctx context.Context, invitat
 	return nil
 }
 
+// ListGuardianInvitations returns every invitation ever issued for the
+// guardian contact, newest first.
+func (l *AccountLifecycle) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error) {
+	invitations, err := l.invitations.ListGuardianInvitationsByProfile(ctx, guardianProfileID)
+	if err != nil {
+		return nil, failed(opGuardianInviteFetch, err)
+	}
+	return invitations, nil
+}
+
+// ListOpenGuardianInvitations returns the invitations of those contacts that
+// are still going somewhere: redeemable, or waiting for a staff decision.
+// One read serves the whole guardian list.
+func (l *AccountLifecycle) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]domain.GuardianInvitation, error) {
+	invitations, err := l.invitations.ListOpenGuardianInvitations(ctx, guardianProfileIDs, time.Now())
+	if err != nil {
+		return nil, failed(opGuardianInviteFetch, err)
+	}
+	return invitations, nil
+}
+
+// ListRedeemableGuardianInvitations returns the invitations of the school in
+// context whose link can still be spent.
+func (l *AccountLifecycle) ListRedeemableGuardianInvitations(ctx context.Context) ([]domain.GuardianInvitation, error) {
+	invitations, err := l.invitations.ListRedeemableGuardianInvitations(ctx, time.Now())
+	if err != nil {
+		return nil, failed(opGuardianInviteFetch, err)
+	}
+	return invitations, nil
+}
+
 // GuardianInvitationSchoolSlug resolves the school an invitation belongs to,
 // so the accepted guardian lands on their school's host. Best-effort: an
 // error or a deleted school yields "".

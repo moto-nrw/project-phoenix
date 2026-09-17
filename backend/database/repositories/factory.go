@@ -97,7 +97,6 @@ type Factory struct {
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
 	InvitationToken        authModels.InvitationTokenRepository
-	GuardianInvitation     authModels.GuardianInvitationRepository
 	MFACredential          authModels.MFACredentialRepository
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
@@ -547,7 +546,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		AccountRole:            auth.NewAccountRoleRepository(db),
 		AccountPermission:      auth.NewAccountPermissionRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
-		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 		MFACredential:          auth.NewMFACredentialRepository(db),
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),

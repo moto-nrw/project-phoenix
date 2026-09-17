@@ -744,9 +744,13 @@ administrative transaction, so the account, its school mapping, the role, the
 identity chain and the spent link commit together. The mail stays in the
 composition root, which knows the portal hosts, the tenant reply-to identity
 and the e-mail outbox, and the enrollment requests a guardian acceptance
-claims arrive through their own port. The `models/auth` token lookup,
-approval-queue and acceptance repository methods are deleted with their
-adapters. The operator MFA
+claims arrive through their own port. Every reader of `auth.guardian_invitations` goes
+through the owner: the People Directory guardian list and the parents portal
+related-accounts view consume their own record types over the public
+capability, so the `models/auth` guardian invitation contract, its
+`database/repositories/auth` adapter, the `repositories.Factory` field and
+the People Directory's deprecated invitation twin are deleted with the
+retained token lookup, approval-queue and acceptance methods. The operator MFA
 records (#2723): `platform.operator_mfa_credentials`,
 `platform.operator_mfa_email_challenges` and
 `platform.operator_mfa_trusted_devices` are read and written only through the

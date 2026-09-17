@@ -164,6 +164,12 @@ type GuardianInvitationStore interface {
 	FindGuardianInvitationByToken(ctx context.Context, token string) (domain.GuardianInvitation, bool, error)
 	ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error)
 	ListPendingGuardianApprovals(ctx context.Context) ([]domain.GuardianInvitation, error)
+	// ListOpenGuardianInvitations returns the invitations of the profiles
+	// that are still going somewhere: redeemable or awaiting a decision.
+	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error)
+	// ListRedeemableGuardianInvitations returns the invitations of the
+	// school in context whose link can still be spent.
+	ListRedeemableGuardianInvitations(ctx context.Context, now time.Time) ([]domain.GuardianInvitation, error)
 	InsertGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianInvitation, error)
 	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error
 	// AcceptGuardianInvitation stamps the acceptance and reports whether the

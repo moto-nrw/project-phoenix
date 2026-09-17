@@ -336,30 +336,3 @@ type StaffCalendarFeedTokenRepository interface {
 	// domain operation is intentionally narrower than a generic per-field update.
 	RotateToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
 }
-
-// GuardianInvitationRepository defines operations for managing guardian invitations.
-type GuardianInvitationRepository interface {
-	// Create inserts a new guardian invitation
-	Create(ctx context.Context, invitation *GuardianInvitation) error
-
-	// Update updates an existing guardian invitation
-	Update(ctx context.Context, invitation *GuardianInvitation) error
-
-	// FindByID retrieves a guardian invitation by ID
-	FindByID(ctx context.Context, id int64) (*GuardianInvitation, error)
-
-	// FindByGuardianProfileID retrieves invitations for a guardian profile
-	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianInvitation, error)
-
-	// FindPending retrieves all pending (not accepted, not expired) invitations
-	FindPending(ctx context.Context) ([]*GuardianInvitation, error)
-
-	// FindOpenByGuardianProfileIDs retrieves every open invitation for the requested profiles.
-	FindOpenByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianInvitation, error)
-
-	// UpdateEmailStatus updates the email delivery status
-	UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
-
-	// DeleteExpired deletes expired invitations
-	DeleteExpired(ctx context.Context) (int, error)
-}

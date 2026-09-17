@@ -576,88 +576,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_DeleteExpired",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        288
-      ],
-      "tables": [
-        "auth.guardian_invitations"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindByGuardianProfileID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        148
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        66
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindPending",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        180
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        99
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_UpdateEmailStatus",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        208
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        272
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/auth/invitation_token_test.go",
       "declaration": "TestInvitationTokenRepository_DeleteExpired_Success",
       "target": "database/repositories.NewFactory",
@@ -3883,7 +3801,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        715
+        755
       ],
       "tables": []
     },
@@ -3916,6 +3834,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         22
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/link_runtime_evidence_test.go",
+      "declaration": "TestLinkRuntimeEvidence",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        28
       ],
       "tables": []
     },
@@ -5996,7 +5924,7 @@
       "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2692
+        2361
       ],
       "tables": [
         "auth.guardian_invitations",
@@ -6008,24 +5936,10 @@
     {
       "scope": "test",
       "file": "services/users/guardian_service_test.go",
-      "declaration": "TestGetStudentGuardians_NonOpenInvitationsNotPending",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2543
-      ],
-      "tables": [
-        "users.guardian_profiles",
-        "users.students",
-        "users.students_guardians"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
       "declaration": "TestGuardianService_ContactWritersShareProfileLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2651
+        2320
       ],
       "tables": [
         "users.guardian_phone_numbers",
@@ -6035,30 +5949,10 @@
     {
       "scope": "test",
       "file": "services/users/guardian_service_test.go",
-      "declaration": "TestGuardianService_GetStudentGuardians",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        752
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
       "declaration": "setupGuardianService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
-      "declaration": "setupGuardianServiceWithMailer",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1638
+        42
       ],
       "tables": []
     },
