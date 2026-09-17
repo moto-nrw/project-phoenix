@@ -1,3 +1,9 @@
+// Package operator serves the operator school settings routes of Settings
+// Platform (#3232): the school's settings schema, the booking authority
+// review, and setting, resetting and revealing a school's values. The
+// operator router in api/operator mounts these handlers behind its
+// middleware chain, so the operator wire format and authorization stay
+// unchanged.
 package operator
 
 import (
@@ -39,10 +45,10 @@ func (rs *SettingsResource) guardOperatorWrite(w http.ResponseWriter, r *http.Re
 	}
 	var notFound *configSvc.DefinitionNotFoundError
 	if errors.As(err, &notFound) {
-		render.Render(w, r, ErrNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
+		render.Render(w, r, common.OperatorNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
 		return true
 	}
-	render.Render(w, r, ErrForbidden(errAdminOnlyForOperator)) //nolint:errcheck
+	render.Render(w, r, common.OperatorForbidden(errAdminOnlyForOperator)) //nolint:errcheck
 	return true
 }
 
@@ -50,7 +56,7 @@ func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Reque
 	if key != configModel.KeyEnrollmentLegalAGBDocumentURL {
 		return false
 	}
-	render.Render(w, r, ErrForbidden(errLegalAGBDocumentManagedByUpload)) //nolint:errcheck
+	render.Render(w, r, common.OperatorForbidden(errLegalAGBDocumentManagedByUpload)) //nolint:errcheck
 	return true
 }
 
@@ -101,34 +107,44 @@ func (a openAttendanceAdapter) HasOpenAttendanceOn(ctx context.Context, day conf
 	return a.service.HasOpenAttendanceOn(ctx, timezone.NewDate(value.Year(), value.Month(), value.Day()))
 }
 
-// NewSettingsResource creates a new operator settings resource. broadcaster
-// emits the cross-origin tenant_settings_changed SSE event so open tenant
-// tabs invalidate their settings caches when an operator flips a value.
-// schoolService enriches the response with the school's slug so the frontend
-// operator proxy can additionally bust the `tenant-${slug}` Next.js cache
-// for tenant-resolve-affecting settings (e.g. student_photos_enabled).
-// broadcaster and activeService are optional — nil disables the corresponding
-// mechanism (broadcast fan-out / presence-mode guard).
-func NewSettingsResource(
-	svc configSvc.SettingsService,
-	db *bun.DB,
-	broadcaster realtime.Broadcaster,
-	schoolService SchoolLookup,
-	activeService activeSvc.Service,
-	lifecycle usersSvc.CareLifecycleService,
-) *SettingsResource {
+// SettingsConfig holds the operator settings routes' dependencies.
+type SettingsConfig struct {
+	Settings configSvc.SettingsService
+	DB       *bun.DB
+	// Broadcaster emits the cross-origin tenant_settings_changed SSE event so
+	// open tenant tabs invalidate their settings caches when an operator
+	// flips a value. Optional: nil disables the broadcast fan-out.
+	Broadcaster realtime.Broadcaster
+	// Schools enriches the response with the school's slug so the frontend
+	// operator proxy can additionally bust the `tenant-${slug}` Next.js cache
+	// for tenant-resolve-affecting settings (e.g. student_photos_enabled).
+	Schools SchoolLookup
+	// Active feeds the presence-mode guard. Optional: nil disables it.
+	Active        activeSvc.Service
+	CareLifecycle usersSvc.CareLifecycleService
+	// OnValueSet runs after a setting value change is validated and
+	// persisted, inside the tenant transaction; the optional postCommit
+	// closure it returns runs only after a successful commit. It mirrors the
+	// tenant settings hook, so side effects apply uniformly regardless of
+	// who flipped the value.
+	OnValueSet configSvc.OperatorValueSetHook
+}
+
+// NewSettingsResource creates a new operator settings resource.
+func NewSettingsResource(cfg SettingsConfig) *SettingsResource {
 	return &SettingsResource{
-		settingsService: svc,
-		db:              db,
+		settingsService: cfg.Settings,
+		db:              cfg.DB,
 		operatorSettings: configSvc.NewOperatorSettingsService(
-			svc,
-			operatorSettingsRuntime{db: db},
-			settingsChangedNotifier(broadcaster),
-			openAttendanceAdapter{service: activeService},
+			cfg.Settings,
+			operatorSettingsRuntime{db: cfg.DB},
+			settingsChangedNotifier(cfg.Broadcaster),
+			openAttendanceAdapter{service: cfg.Active},
 			slog.Default(),
 		),
-		schoolService: schoolService,
-		careLifecycle: lifecycle,
+		schoolService: cfg.Schools,
+		onValueSet:    cfg.OnValueSet,
+		careLifecycle: cfg.CareLifecycle,
 	}
 }
 
@@ -140,15 +156,6 @@ func settingsChangedNotifier(broadcaster realtime.Broadcaster) configSvc.Setting
 		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
 		_ = broadcaster.BroadcastToTenant(tenantID, event)
 	}
-}
-
-// OnValueSet registers a callback that runs after a setting value change is
-// validated and persisted. The callback runs inside the tenant transaction;
-// the optional postCommit closure it returns runs only after a successful
-// commit. Mirrors the tenant SettingsResource.OnValueSet contract so side
-// effects apply uniformly regardless of who flipped the value.
-func (rs *SettingsResource) OnValueSet(fn configSvc.OperatorValueSetHook) {
-	rs.onValueSet = fn
 }
 
 type setSchoolSettingRequest struct {
@@ -206,7 +213,7 @@ func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *ht
 		return schemaErr
 	})
 	if err != nil {
-		render.Render(w, r, ErrInternal("Failed to retrieve settings schema")) //nolint:errcheck
+		render.Render(w, r, common.OperatorInternal("Failed to retrieve settings schema")) //nolint:errcheck
 		return
 	}
 
@@ -222,7 +229,7 @@ func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *
 		return
 	}
 	if rs.careLifecycle == nil {
-		render.Render(w, r, ErrInternal("Booking authority impact service is not configured")) //nolint:errcheck
+		render.Render(w, r, common.OperatorInternal("Booking authority impact service is not configured")) //nolint:errcheck
 		return
 	}
 	var impact *usersSvc.BookingAuthorityImpact
@@ -232,7 +239,7 @@ func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *
 		return impactErr
 	})
 	if err != nil {
-		render.Render(w, r, ErrInternal("Failed to review booking authority impact")) //nolint:errcheck
+		render.Render(w, r, common.OperatorInternal("Failed to review booking authority impact")) //nolint:errcheck
 		return
 	}
 	common.Respond(w, r, http.StatusOK, impact, "Booking authority impact retrieved successfully")
@@ -254,7 +261,7 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 
 	var req setSchoolSettingRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		render.Render(w, r, ErrInvalidRequest(err)) //nolint:errcheck
+		render.Render(w, r, common.OperatorInvalidRequest(err)) //nolint:errcheck
 		return
 	}
 
@@ -271,11 +278,11 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		// surface the "daily end required" copy without heuristics. errors.Is
 		// keeps the branch resilient to wrapping, unlike string equality.
 		if errors.Is(err, configSvc.ErrPresenceModeSwitchBlocked) {
-			render.Render(w, r, ErrConflict(configSvc.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
+			render.Render(w, r, common.OperatorConflict(configSvc.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
 			return
 		}
 		if errors.Is(err, usersSvc.ErrBookingAuthorityBlocked) {
-			render.Render(w, r, ErrConflict(usersSvc.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
+			render.Render(w, r, common.OperatorConflict(usersSvc.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
 			return
 		}
 		renderOperatorSettingsError(w, r, err)
@@ -353,7 +360,7 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err error) {
 	var settingsErr *configSvc.SettingsError
 	if !errors.As(err, &settingsErr) {
-		render.Render(w, r, ErrInternal(err.Error())) //nolint:errcheck
+		render.Render(w, r, common.OperatorInternal(err.Error())) //nolint:errcheck
 		return
 	}
 
@@ -365,12 +372,12 @@ func renderOperatorSettingsError(w http.ResponseWriter, r *http.Request, err err
 
 	switch {
 	case errors.As(inner, &defNotFound):
-		render.Render(w, r, ErrNotFound(err.Error())) //nolint:errcheck
+		render.Render(w, r, common.OperatorNotFound(err.Error())) //nolint:errcheck
 	case errors.As(inner, &invalidValue):
-		render.Render(w, r, ErrInvalidRequest(err)) //nolint:errcheck
+		render.Render(w, r, common.OperatorInvalidRequest(err)) //nolint:errcheck
 	case errors.As(inner, &permDenied):
-		render.Render(w, r, ErrForbidden(err.Error())) //nolint:errcheck
+		render.Render(w, r, common.OperatorForbidden(err.Error())) //nolint:errcheck
 	default:
-		render.Render(w, r, ErrInternal(err.Error())) //nolint:errcheck
+		render.Render(w, r, common.OperatorInternal(err.Error())) //nolint:errcheck
 	}
 }

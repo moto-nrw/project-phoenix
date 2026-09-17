@@ -34,9 +34,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 )
 
 // setupOperatorSettingsWithSchoolRepoRoute mirrors
@@ -51,9 +51,15 @@ func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTes
 	db, svc := testutil.SetupOperatorSettingsModule(t)
 	organizations, err := repositories.NewOrganizationTenancy(db)
 	require.NoError(t, err)
-	resource := operatorAPI.NewSettingsResource(
-		svc.Settings, db, nil, organizations, svc.Active, svc.CareLifecycle,
-	)
+	tc := &operatorSettingsTestContext{db: db}
+	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
+		Settings:      svc.Settings,
+		DB:            db,
+		Schools:       organizations,
+		Active:        svc.Active,
+		CareLifecycle: svc.CareLifecycle,
+		OnValueSet:    tc.runValueSetHook,
+	})
 
 	router := chi.NewRouter()
 	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
@@ -61,11 +67,9 @@ func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTes
 	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
 	router.Delete("/schools/{id}/settings/values/{key}", resource.ResetSchoolSettingValue)
 
-	return &operatorSettingsTestContext{
-		db:       db,
-		resource: resource,
-		router:   router,
-	}
+	tc.resource = resource
+	tc.router = router
+	return tc
 }
 
 // TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_ReturnsSlug
@@ -169,13 +173,13 @@ func TestOperatorSetSchoolSettingValue_StudentPhotosEnabled_HookFires(t *testing
 	var capturedValue any
 	var capturedTenantID int64
 	var postCommitFired bool
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
+	ctx.onValueSet = func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		hookCalled = true
 		capturedTenantID = tenantID
 		capturedKey = key
 		capturedValue = value
 		return func() { postCommitFired = true }, nil
-	})
+	}
 
 	body := map[string]interface{}{"value": true}
 	req := newOperatorRequest(t, http.MethodPut,
@@ -214,11 +218,11 @@ func TestOperatorResetSchoolSettingValue_StudentPhotosEnabled_HookFiresWithDefau
 
 	var hookCalled bool
 	var capturedValue any
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, value any) (func(), error) {
+	ctx.onValueSet = func(_ context.Context, _ int64, _ string, value any) (func(), error) {
 		hookCalled = true
 		capturedValue = value
 		return nil, nil
-	})
+	}
 
 	resetReq := newOperatorRequest(t, http.MethodDelete,
 		fmt.Sprintf("/schools/%d/settings/values/", testpkg.Tenant(t))+configModel.KeyStudentPhotosEnabled, nil)

@@ -65,7 +65,7 @@ func TestOperatorMFAAdminOverrideSetRequest_Bind(t *testing.T) {
 func TestOperatorMFAAdmin_FailsClosedWithoutDependencies(t *testing.T) {
 	t.Parallel()
 
-	rs := &ProvisioningResource{} // both deps nil
+	rs := &SchoolAccountMFAResource{} // both deps nil
 
 	cases := []struct {
 		name   string

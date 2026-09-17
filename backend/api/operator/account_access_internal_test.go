@@ -3,6 +3,7 @@ package operator
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
@@ -57,6 +59,18 @@ func (m *mockAccountAccess) RevokeAccountTenantAccess(ctx context.Context, accou
 		return m.revokeFn(ctx, accountID, schoolID, operatorID, clientIP)
 	}
 	return nil, nil
+}
+
+func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
+	claims := jwt.AppClaims{ID: operatorID, Scope: "platform"}
+	return req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+}
+
+func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
+	t.Helper()
+	var body map[string]any
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body), rr.Body.String())
+	return body
 }
 
 func newAccountAccessResource(access *mockAccountAccess) *identityoperator.Resource {

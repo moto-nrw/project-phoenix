@@ -12,13 +12,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -45,19 +45,41 @@ func operatorTestClaims() jwt.AppClaims {
 type operatorSettingsTestContext struct {
 	db       *bun.DB
 	settings configSvc.SettingsService
-	resource *operatorAPI.SettingsResource
+	resource *settingsoperator.SettingsResource
 	router   chi.Router
+	// onValueSet is the side-effect hook the resource runs on each write.
+	// A test replaces it before the request whose hook call it observes.
+	onValueSet configSvc.OperatorValueSetHook
+}
+
+// runValueSetHook is the hook the resource is built with; it runs the
+// context's current hook.
+func (c *operatorSettingsTestContext) runValueSetHook(ctx context.Context, tenantID int64, key string, value any) (func(), error) {
+	if c.onValueSet == nil {
+		return nil, nil
+	}
+	return c.onValueSet(ctx, tenantID, key, value)
 }
 
 func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupOperatorSettingsModule(t)
+	tc := &operatorSettingsTestContext{
+		db:         db,
+		settings:   svc.Settings,
+		onValueSet: svc.SettingsSideEffects.Dispatch,
+	}
 	// Pass nil schoolRepo: the integration tests cover the mutation contract
 	// (set/reset/permissions/hooks). Slug-resolution wiring is exercised end
 	// to end via the platform-level integration suite.
-	resource := operatorAPI.NewSettingsResource(svc.Settings, db, nil, nil, svc.Active, svc.CareLifecycle)
-	resource.OnValueSet(svc.SettingsSideEffects.Dispatch)
+	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
+		Settings:      svc.Settings,
+		DB:            db,
+		Active:        svc.Active,
+		CareLifecycle: svc.CareLifecycle,
+		OnValueSet:    tc.runValueSetHook,
+	})
 
 	// Operator routes do not use TenantTxMiddleware — handlers call
 	// tenant.WithTenantTx internally using the school ID from the URL path.
@@ -68,12 +90,9 @@ func setupOperatorSettingsRoute(t *testing.T) *operatorSettingsTestContext {
 	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
 	router.Delete("/schools/{id}/settings/values/{key}", resource.ResetSchoolSettingValue)
 
-	return &operatorSettingsTestContext{
-		db:       db,
-		settings: svc.Settings,
-		resource: resource,
-		router:   router,
-	}
+	tc.resource = resource
+	tc.router = router
+	return tc
 }
 
 // newOperatorRequest builds a request with platform-scope operator claims.
@@ -415,13 +434,13 @@ func TestOperatorSetSchoolSettingValue_InvokesOnValueSetHook(t *testing.T) {
 	var capturedTenantID int64
 	var capturedKey string
 	var capturedValue any
-	ctx.resource.OnValueSet(func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
+	ctx.onValueSet = func(_ context.Context, tenantID int64, key string, value any) (func(), error) {
 		called = true
 		capturedTenantID = tenantID
 		capturedKey = key
 		capturedValue = value
 		return nil, nil
-	})
+	}
 
 	body := map[string]interface{}{"value": true}
 	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/checkout.schulhof_enabled"), body)
@@ -449,9 +468,9 @@ func TestOperatorSetSchoolSettingValue_OnValueSetErrorRollsBackWrite(t *testing.
 		Count(context.Background())
 	require.NoError(t, err)
 
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	ctx.onValueSet = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		return nil, errors.New("hook rejected the change")
-	})
+	}
 
 	body := map[string]interface{}{"value": true}
 	req := newOperatorRequest(t, http.MethodPut, schoolPath(t, "/settings/values/")+testKey, body)
@@ -477,10 +496,10 @@ func TestOperatorResetSchoolSettingValue_NonPhotoKeyDoesNotInvokeOnValueSet(t *t
 	testutil.AssertSuccessResponse(t, testutil.ExecuteRequest(ctx.router, seed), http.StatusOK)
 
 	var called bool
-	ctx.resource.OnValueSet(func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
+	ctx.onValueSet = func(_ context.Context, _ int64, _ string, _ any) (func(), error) {
 		called = true
 		return nil, nil
-	})
+	}
 
 	req := newOperatorRequest(t, http.MethodDelete, schoolPath(t, "/settings/values/checkout.schulhof_enabled"), nil)
 	rr := testutil.ExecuteRequest(ctx.router, req)
