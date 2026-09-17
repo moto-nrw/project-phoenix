@@ -26,6 +26,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -41,7 +42,7 @@ type Sources struct {
 	UserContext  userContextService.UserContextService
 	Education    educationService.Service
 	Schulhof     facilitiesService.SchulhofService
-	Operations   scheduleService.TimetableOperationsService
+	Operations   timetableplanning.TimetableOperationsService
 	Settings     configService.SettingsService
 	Pickups      scheduleService.PickupScheduleService
 	Arrivals     scheduleService.ArrivalScheduleService
@@ -338,7 +339,7 @@ func (g groups) MyGroups(ctx context.Context) ([]supervisiondashboard.Educationa
 }
 
 type schedule struct {
-	operations scheduleService.TimetableOperationsService
+	operations timetableplanning.TimetableOperationsService
 }
 
 func (s schedule) PlannedNow(ctx context.Context, query supervisiondashboard.PlannedNowQuery) ([]supervisiondashboard.PlannedInstance, error) {
@@ -346,7 +347,7 @@ func (s schedule) PlannedNow(ctx context.Context, query supervisiondashboard.Pla
 	if err != nil {
 		return nil, err
 	}
-	planned, err := s.operations.PlannedNow(ctx, query.AccountID, query.TokenAdmin, day, query.Now, scheduleService.PlannedNowOptions{
+	planned, err := s.operations.PlannedNow(ctx, query.AccountID, query.TokenAdmin, day, query.Now, timetableplanning.PlannedNowOptions{
 		HorizonMinutes: query.HorizonMinutes,
 		Limit:          query.Limit,
 		IncludeRoster:  query.IncludeRoster,
@@ -366,7 +367,7 @@ func (s schedule) ActiveSessions(ctx context.Context, date supervisiondashboard.
 	if err != nil {
 		return nil, err
 	}
-	return mapSlice(sessions, func(session scheduleService.OperationActiveSession) supervisiondashboard.ActiveSession {
+	return mapSlice(sessions, func(session timetableplanning.OperationActiveSession) supervisiondashboard.ActiveSession {
 		return supervisiondashboard.ActiveSession{
 			ActiveGroupID: session.ActiveGroupID,
 			InstanceID:    session.InstanceID,
@@ -386,7 +387,7 @@ func (s schedule) SessionBlocks(ctx context.Context, query supervisiondashboard.
 	if err != nil {
 		return nil, err
 	}
-	return mapSlice(blocks, func(block scheduleService.OperationSessionBlock) supervisiondashboard.SessionBlock {
+	return mapSlice(blocks, func(block timetableplanning.OperationSessionBlock) supervisiondashboard.SessionBlock {
 		return supervisiondashboard.SessionBlock{
 			ActiveGroupID: block.ActiveGroupID,
 			InstanceID:    block.InstanceID,
@@ -399,7 +400,7 @@ func (s schedule) SessionBlocks(ctx context.Context, query supervisiondashboard.
 	}), nil
 }
 
-func plannedInstance(instance scheduleService.OperationPlannedInstance) supervisiondashboard.PlannedInstance {
+func plannedInstance(instance timetableplanning.OperationPlannedInstance) supervisiondashboard.PlannedInstance {
 	return supervisiondashboard.PlannedInstance{
 		ID:                    instance.ID,
 		Title:                 instance.Title,
@@ -431,13 +432,13 @@ func plannedInstance(instance scheduleService.OperationPlannedInstance) supervis
 		PlanningTrackName:     instance.PlanningTrackName,
 		PlanningTrackColor:    instance.PlanningTrackColor,
 		GroupName:             instance.GroupName,
-		StaffNames: mapSlice(instance.StaffNames, func(name scheduleService.OperationStaffName) supervisiondashboard.StaffName {
+		StaffNames: mapSlice(instance.StaffNames, func(name timetableplanning.OperationStaffName) supervisiondashboard.StaffName {
 			return supervisiondashboard.StaffName{StaffID: name.StaffID, DisplayName: name.DisplayName, IsSubstitute: name.IsSubstitute}
 		}),
 	}
 }
 
-func rosterRow(row scheduleService.OperationRosterRow) supervisiondashboard.RosterRow {
+func rosterRow(row timetableplanning.OperationRosterRow) supervisiondashboard.RosterRow {
 	var parallel *supervisiondashboard.ParallelPresence
 	if row.ParallelPresentIn != nil {
 		parallel = &supervisiondashboard.ParallelPresence{
@@ -463,7 +464,7 @@ func rosterRow(row scheduleService.OperationRosterRow) supervisiondashboard.Rost
 		CheckedOutAt:     row.CheckedOutAt,
 		VisitEntryTime:   row.VisitEntryTime,
 		PickupTime:       row.PickupTime,
-		Warnings: mapSlice(row.Warnings, func(warning scheduleService.OperationRosterWarning) supervisiondashboard.RosterWarning {
+		Warnings: mapSlice(row.Warnings, func(warning timetableplanning.OperationRosterWarning) supervisiondashboard.RosterWarning {
 			return supervisiondashboard.RosterWarning{
 				Kind:                  warning.Kind,
 				Message:               warning.Message,
@@ -479,7 +480,7 @@ func rosterRow(row scheduleService.OperationRosterRow) supervisiondashboard.Rost
 	}
 }
 
-func conflictWarning(warning scheduleService.InstanceConflictWarning) supervisiondashboard.ConflictWarning {
+func conflictWarning(warning timetableplanning.InstanceConflictWarning) supervisiondashboard.ConflictWarning {
 	return supervisiondashboard.ConflictWarning{
 		Kind:                  warning.Kind,
 		ResourceID:            warning.ResourceID,

@@ -19,6 +19,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -51,7 +52,7 @@ type ResourceConfig struct {
 	PickupScheduleService  scheduleService.PickupScheduleService
 	PartialAbsenceService  scheduleService.PartialAbsenceService
 	ArrivalScheduleService scheduleService.ArrivalScheduleService
-	InstanceService        scheduleService.InstanceService
+	InstanceService        timetableplanning.InstanceService
 	// CareDayService gates the day-planning timetable signal on the child's
 	// care plan (#1747) — without it a child assigned to a block counts as
 	// "kommt heute" on every weekday, including the ones they are not booked

@@ -5,15 +5,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/activities"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
 
 type ActivitiesTestModule struct {
 	Activities  activities.ActivityService
-	Schedule    schedule.Service
+	Schedule    timetableplanning.Service
 	Users       users.PersonService
 	UserContext usercontext.UserContextService
 }
@@ -35,7 +35,7 @@ func NewActivitiesTestModule(db *bun.DB) (ActivitiesTestModule, error) {
 	// Activities consumes schedule reads and staff-directory reads only.
 	return ActivitiesTestModule{
 		Activities: activityService, UserContext: identity,
-		Schedule: schedule.NewServiceWithConfig(schedule.ServiceConfig{DateframeRepo: r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule, RecurrenceEvents: r.Timetable}),
+		Schedule: timetableplanning.NewServiceWithConfig(timetableplanning.ServiceConfig{DateframeRepo: r.Dateframe, TimeframeRepo: r.Timeframe, RecurrenceRuleRepo: r.RecurrenceRule, RecurrenceEvents: r.Timetable}),
 		Users:    users.NewPersonService(users.PersonServiceDependencies{PersonRepo: r.Person, StaffRepo: r.Staff, TeacherRepo: r.Teacher, DB: db, Logger: slog.Default()}),
 	}, nil
 }

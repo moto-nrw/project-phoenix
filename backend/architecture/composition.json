@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        300
+        301
       ],
       "tables": []
     },
@@ -6249,187 +6249,13 @@
     },
     {
       "scope": "test",
-      "file": "services/schedule/attendance_sync_service_integration_test.go",
-      "declaration": "TestAttendanceSync_BulkSessionEndPersistsSlotCheckout",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        250
-      ],
-      "tables": [
-        "active.groups"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/attendance_sync_service_integration_test.go",
-      "declaration": "buildAttendanceSyncSetup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        86
-      ],
-      "tables": [
-        "schedule.activity_instances"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/calendar_period_integration_test.go",
-      "declaration": "TestCalendarPeriodService_SameTypeOverlapConflict",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        360,
-        388
-      ],
-      "tables": [
-        "schedule.calendar_periods"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/calendar_period_integration_test.go",
-      "declaration": "setupCalendarPeriodService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/calendar_period_mutation_test.go",
-      "declaration": "TestCalendarPeriodMutationCareOfferingPreflightLeavesPeriodUnchanged",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": [
-        "platform.organizations",
-        "platform.schools",
-        "schedule.calendar_periods"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "services/schedule/care_request_service_test.go",
       "declaration": "newCareFixtureWithEmitter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        107
+        108
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/edited_instance_detection_integration_test.go",
-      "declaration": "replaceScenarioTarget",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        119
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/instance_move_staff_test.go",
-      "declaration": "makeMoveSetup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        88
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/instance_service_integration_test.go",
-      "declaration": "TestDetectStartConflicts_EmptyInstance_NoWarnings",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2370
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/instance_service_integration_test.go",
-      "declaration": "TestInstance_Cancel_FromActive_DoesNotTouchAttendance",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2345
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/instance_service_integration_test.go",
-      "declaration": "TestInstance_Complete_MarksRemainingExpectedAsAbsent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2214
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/instance_service_integration_test.go",
-      "declaration": "buildLifecycle",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        70
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/materialization_integration_test.go",
-      "declaration": "TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        304
-      ],
-      "tables": [
-        "users.students"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/materialization_integration_test.go",
-      "declaration": "TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        391
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/materialization_integration_test.go",
-      "declaration": "TestMaterializeForTenant_NoTemplates_ReturnsWarning",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        429
-      ],
-      "tables": [
-        "platform.organizations",
-        "platform.schools",
-        "schedule.calendar_periods"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/materialization_integration_test.go",
-      "declaration": "makeScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        68
-      ],
-      "tables": [
-        "activities.groups",
-        "activities.schedules",
-        "activities.student_enrollments",
-        "activities.supervisors"
-      ]
     },
     {
       "scope": "test",
@@ -6518,317 +6344,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         27
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/planned_conflict_test.go",
-      "declaration": "buildPlannedConflictSetup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        46
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/schedule_service_test.go",
-      "declaration": "TestScheduleService_TimeframeCareOfferingGuard",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        557
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/schedule_service_test.go",
-      "declaration": "setupScheduleService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        49
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_pool_test.go",
-      "declaration": "TestGetStaffPoolForInstance_CancelledOnlyWeekMeansDienstplanNotInUse",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        186
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_pool_test.go",
-      "declaration": "TestGetStaffPoolForInstance_CancelledShiftIgnored",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        164
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_pool_test.go",
-      "declaration": "TestGetStaffPoolForInstance_Categories",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        77
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_pool_test.go",
-      "declaration": "TestGetStaffPoolForInstance_NoShiftsMeansDienstplanNotInUse",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        122
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_pool_test.go",
-      "declaration": "TestGetStaffPoolForInstance_TerminalBlockAbsenceRemainsDayWide",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        217
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/staff_pool_test.go",
-      "declaration": "TestGetStaffPoolForInstance_TouchingWindowsDoNotOverlap",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        144
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_CreateStoresTheRuleAndIsFoundByOffering",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        341
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_RejectsInactiveOffering",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        885
-      ],
-      "tables": [
-        "enrollment.care_offerings"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_RejectsOfferingOutsideTheTemplatePeriod",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        818
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_SplitRejectsOfferingOutsideNewPeriod",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        934,
-        955
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "TestTemplateOfferingSource_UpdateRewritesAndClearsTheRule",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        411
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "createSourceCareOfferingOnDays",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        73
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_offering_source_integration_test.go",
-      "declaration": "loadTemplateGroup",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        117
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_split_service_test.go",
-      "declaration": "TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        374,
-        430
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_split_service_test.go",
-      "declaration": "TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2207
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_split_service_test.go",
-      "declaration": "createLinkedCareOffering",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        264
-      ],
-      "tables": [
-        "activities.groups"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        245
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        809
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestTemplateWeekdayRosterRead_ExposesProtectedCoverageForSharedRoster",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        901
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        968
-      ],
-      "tables": [
-        "activities.groups",
-        "activities.schedules"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "TestTemplateWeekdayRosterRead_PreservesEmptyDaysAndProtectedEnrollments",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        749
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "makeWeekdayRosterScenario",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1029
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/template_weekday_roster_integration_test.go",
-      "declaration": "ownedStudentEnrollmentRepository",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        56
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/timetable_cleanup_service_test.go",
-      "declaration": "TestCleanup_RetentionOverride_UsesOverriddenDays",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        289
-      ],
-      "tables": [
-        "schedule.activity_instances"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/timetable_cleanup_service_test.go",
-      "declaration": "newCleanupSvc",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        137
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/timetable_cleanup_service_test.go",
-      "declaration": "testInstanceStudents",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        150
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/schedule/timetable_operations_query_budget_test.go",
-      "declaration": "TestTimetableOperationsPlannedNowQueryBudget",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        85
       ],
       "tables": []
     },
@@ -24129,27 +23644,27 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 178,
+          "line": 179,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 500,
+          "line": 501,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 663,
+          "line": 664,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 901,
+          "line": 902,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1305,
+          "line": 1306,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -24159,7 +23674,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 300,
+          "line": 301,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -24169,22 +23684,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 180,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 372,
+          "line": 373,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 416,
+          "line": 417,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 660,
+          "line": 661,
           "declaration": "type API"
         },
         {
@@ -24304,12 +23819,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 454,
+          "line": 455,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 504,
+          "line": 505,
           "declaration": "newFactory"
         },
         {

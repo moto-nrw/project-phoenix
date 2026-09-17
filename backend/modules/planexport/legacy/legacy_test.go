@@ -15,8 +15,8 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -119,7 +119,7 @@ func (f fakePlanningTracks) ListAll(context.Context) ([]*scheduleModel.PlanningT
 }
 
 type fakeClosingDays struct {
-	scheduleSvc.ClosingDayService
+	timetableplanning.ClosingDayService
 	days []*scheduleModel.ClosingDay
 	err  error
 }
@@ -129,12 +129,12 @@ func (f fakeClosingDays) ClosingDaysInRange(context.Context, timezone.Date, time
 }
 
 type fakeHolidays struct {
-	scheduleSvc.HolidayService
-	days []scheduleSvc.Holiday
+	timetableplanning.HolidayService
+	days []timetableplanning.Holiday
 	err  error
 }
 
-func (f fakeHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]scheduleSvc.Holiday, error) {
+func (f fakeHolidays) HolidaysInRange(context.Context, timezone.Date, timezone.Date) ([]timetableplanning.Holiday, error) {
 	return f.days, f.err
 }
 
@@ -188,7 +188,7 @@ func TestOverviewAdapterMapsEveryPrintedField(t *testing.T) {
 			StaffID: 7, Date: monday, StartTime: clock(12, 0), EndTime: clock(13, 0),
 			ActivityTitle: "Mensa", ActivityGroupID: ptr[int64](21), RoomName: "Speisesaal",
 			IsSubstitute: true, IsAbsent: true,
-			UncoveredIntervals: []scheduleSvc.ShiftCoverageInterval{{StartTime: clock(12, 30), EndTime: clock(13, 0)}},
+			UncoveredIntervals: []timetableplanning.ShiftCoverageInterval{{StartTime: clock(12, 30), EndTime: clock(13, 0)}},
 		}},
 	}}
 
@@ -302,7 +302,7 @@ func TestRowAdaptersMapPlainRecordsAndSkipNilRows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []*planexport.ClosingPeriod{{StartDate: "2026-07-27", EndDate: "2026-07-28", Reason: "Betriebsferien"}}, closing)
 
-	holidays, err := (holidayAdapter{source: fakeHolidays{days: []scheduleSvc.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}}}).HolidaysInRange(ctx, day(monday), day(monday.AddDays(6)))
+	holidays, err := (holidayAdapter{source: fakeHolidays{days: []timetableplanning.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}}}).HolidaysInRange(ctx, day(monday), day(monday.AddDays(6)))
 	require.NoError(t, err)
 	assert.Equal(t, []planexport.Holiday{{Date: "2026-07-29", Name: "Fronleichnam"}}, holidays)
 }
@@ -401,7 +401,7 @@ func TestNewRendersTheBetreuungsplanOverRetainedRows(t *testing.T) {
 		ActivityGroups: fakeActivityGroups{groups: []*activitiesModel.Group{group}},
 		PlanningTracks: fakePlanningTracks{tracks: []*scheduleModel.PlanningTrack{track}},
 		ClosingDays:    fakeClosingDays{days: []*scheduleModel.ClosingDay{{StartDate: scheduleModel.Date(monday.AddDays(1)), EndDate: scheduleModel.Date(monday.AddDays(1)), Reason: "Betriebsferien"}}},
-		Holidays:       fakeHolidays{days: []scheduleSvc.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}},
+		Holidays:       fakeHolidays{days: []timetableplanning.Holiday{{Date: monday.AddDays(2), Name: "Fronleichnam"}}},
 		Renderer:       renderer,
 	})
 	params, err := planexport.ParseParams(monday.String(), monday.AddDays(4).String(), string(planexport.TemplateByOffering), "", "")

@@ -27,7 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // isoWeekday returns 1..7 (Mon..Sun) for the weekday of d.
@@ -241,7 +241,7 @@ func (rs *Resource) buildStudentDays(ctx context.Context, studentID int64, from,
 
 // buildStudentDayFromPreload assembles a single day's response from the
 // already-preloaded data. No DB calls.
-func buildStudentDayFromPreload(pre *scheduleSvc.StudentWeekPreload, studentID int64, date timezone.Date) StudentDayResponse {
+func buildStudentDayFromPreload(pre *timetableplanning.StudentWeekPreload, studentID int64, date timezone.Date) StudentDayResponse {
 	k := dateKey(date)
 
 	enrolledRows := pre.EnrolledByDate[k]
@@ -277,7 +277,7 @@ func buildStudentDayFromPreload(pre *scheduleSvc.StudentWeekPreload, studentID i
 // the map lookup already scopes visits to this date.
 func appendUnplannedInstances(
 	instances []InstanceDayResponse,
-	pre *scheduleSvc.StudentWeekPreload,
+	pre *timetableplanning.StudentWeekPreload,
 	dayInstances []*scheduleModel.ActivityInstance,
 	enrolledInstanceIDs map[int64]bool,
 ) []InstanceDayResponse {
@@ -299,14 +299,14 @@ func appendUnplannedInstances(
 // resolveArrivalSlotFromPreload applies the shared exception-over-schedule rule
 // (ResolveSlotSource) against already-loaded data. An exception on the date
 // wins even when its time is nil (absence signal).
-func resolveArrivalSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date timezone.Date) SlotResponse {
+func resolveArrivalSlotFromPreload(pre *timetableplanning.StudentWeekPreload, date timezone.Date) SlotResponse {
 	exc, hasExc := pre.ArrivalExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
 	sched, hasSched := pre.ArrivalSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
-	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {
+	switch timetableplanning.ResolveSlotSource(hasExc, hasSched, wd) {
 	case SlotSourceException:
 		return mapArrivalExceptionSlot(exc)
 	case SlotSourceSchedule:
@@ -317,14 +317,14 @@ func resolveArrivalSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date tim
 }
 
 // resolvePickupSlotFromPreload mirrors resolveArrivalSlotFromPreload.
-func resolvePickupSlotFromPreload(pre *scheduleSvc.StudentWeekPreload, date timezone.Date) SlotResponse {
+func resolvePickupSlotFromPreload(pre *timetableplanning.StudentWeekPreload, date timezone.Date) SlotResponse {
 	exc, hasExc := pre.PickupExcByDate[dateKey(date)]
 	hasExc = hasExc && exc != nil
 	wd := isoWeekday(date)
 	sched, hasSched := pre.PickupSchedByDate[dateKey(date)]
 	hasSched = hasSched && sched != nil
 
-	switch scheduleSvc.ResolveSlotSource(hasExc, hasSched, wd) {
+	switch timetableplanning.ResolveSlotSource(hasExc, hasSched, wd) {
 	case SlotSourceException:
 		return mapPickupExceptionSlot(exc)
 	case SlotSourceSchedule:

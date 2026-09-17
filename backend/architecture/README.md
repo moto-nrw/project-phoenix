@@ -272,9 +272,10 @@ error string, authorization check, tenant scoping, coverage-conflict or
 substitution semantics changed. The services could not land on the existing
 `workforce`/`adapter` point: they still speak the retained `models/schedule`,
 `models/audit`, `models/config` and `models/facilities` rows, the Delivery
-producer, the plan export capability and the retained timetable services in
-`services/schedule`, and PR mode rejects a new permission on a point that
-exists at the base SHA. Every `inbound-staff-shifts.adapter.*`,
+producer, the plan export capability and the retained timetable services (in
+`services/schedule` then, `modules/timetable/legacy/timetableplanning` since
+#3218), and PR mode rejects a new permission on a point that exists at the
+base SHA. Every `inbound-staff-shifts.adapter.*`,
 `inbound-staff-shifts.module-internal-test.*` and
 `inbound-staff-shifts.module-behavior-test.*` rule and every
 `<consumer>.<role>.inbound-staff-shifts-adapter` rule is a compatibility
@@ -304,6 +305,66 @@ the overview test fakes now exist in both packages, because exporting them
 would widen the retained timetable package that #3218 dissolves. The copies
 are temporary debt that goes with the retained services under #2730 and
 #3218; a fix to the #1844 staffing broadcast must land in both until then.
+#3218 moved the coverage probe, the staff pool, the bulk substitution and the
+shared interval vocabulary on with the timetable services (below); the
+partial-absence service stays in `services/schedule` for #3220.
+
+The retained timetable and instance services that `services/schedule` used to
+hold (templates, splits and updates, materialization, the instance lifecycle
+and deviation pipeline, conflict detection, the timetable data and operations
+reads, calendar periods, holidays and closing days, planning tracks, the
+roster reconciler, cleanup and the attendance mirror) are retained as the
+`inbound-timetable`/`adapter` compatibility package
+`modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
+their behaviour tests. No HTTP path, status code, error string, authorization
+check, tenant scoping, recurrence, exception or materialization semantics
+changed. `services/schedule` keeps the care, arrival and pickup services for
+#3220, together with what only they need or what both sides share: the generic
+effective-time engine (`effective_time_service.go`,
+`effective_time_domains.go`, which the arrival and pickup services
+instantiate), the day-planning resolver the care-day resolver calls, and the
+`ScheduleError` type with its sentinels (the moved package aliases the type,
+so `errors.As` matches either name). The moved package imports
+`services/schedule` for these and for the care-day, care-exception-lock,
+baseline and effective-time contracts; the `services/schedule` package never
+imports it back, so the packages depend in one direction only (only the
+test-support package `services/schedule/scheduletest` binds its mocks to the
+moved services). `germanDateLayout` now
+exists in both packages, and the care-day resolver uses the effective-time
+engine's identical weekday helper instead of the materializer's copy. The
+package could not land on an existing point: it still speaks the retained
+models, repositories, Delivery producer, Presence services, settings and
+identity helpers, and PR mode rejects a new permission on a point that exists
+at the base SHA. Every `inbound-timetable.adapter.*`,
+`inbound-timetable.module-internal-test.*` and
+`inbound-timetable.module-behavior-test.*` rule and every
+`<consumer>.<role>.inbound-timetable-adapter` rule is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+package exists at a base SHA, and dissolve the services into the Timetable
+application and domain layers under #2730. The five
+`timetable-activities`/`application` rules of the Workforce and Presence
+consumers fell with the move because those packages no longer import
+`services/schedule`. The materialization and split services and the instance
+lifecycle take their optional collaborators at construction
+(`WithCareBoundReader`, `WithOfferingRosterResync`,
+`InstanceServiceDependencies.GuardianNotices`) instead of post-construction
+setters, because the composition surface guard records mutable wiring per
+package; the legacy factory binds the later-constructed enrollment decision
+and announcement services behind construction-time closures (the announcement
+side through the delegating `lateCareCancellationPublisher`, which replaces
+the former setter; `GuardianNotices` is therefore never nil in production).
+The moved test helpers the guard flagged for appending cleanups to shared
+fixture structs drop their no-op appends and register their sweeps with
+`t.Cleanup` in the same order; no-op appends inside test bodies are unchanged.
+The typed-root composition inventory only scans `api`, `cmd`, `services`,
+`database/repositories` and `test`, so the moved tests' factory calls left
+`composition.json` with the move (as with #3219); they are not fewer callers.
+The only SQL call site the cluster still reached outside the owner's
+persistence adapter, the legacy weekend-instance cleanup in
+`database/repositories/schedule`, is deleted; production already used the
+Timetable owner's `DeleteRemovedWeekendActivityInstances`, whose owner test now
+also pins the retained-weekday and empty-set cases.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
@@ -632,8 +693,9 @@ event and guardian wake for after the commit. Its `ports` name the four owner
 capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
 `compose` binds the tenant runtime and the realtime broadcaster. The root
 still satisfies `InstanceCompletion` with the retained
-`services/schedule.TimetableBridgeService` (the attendance finalization that
-#1747 requires before an instance may close); that binding is a legacy edge
+`TimetableBridgeService` in `modules/timetable/legacy/timetableplanning`
+(#3218; the attendance finalization that #1747 requires before an instance
+may close); that binding is a legacy edge
 of the root composition tracked by #2762, and the port is rebound to the
 Timetable owner's public capability when that cutover lands. The kiosk
 endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls

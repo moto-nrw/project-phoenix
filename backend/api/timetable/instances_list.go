@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
@@ -127,7 +128,7 @@ type enrichedInstance struct {
 	// frontend derives "understaffed" as assigned < required, the same
 	// pattern already used for every other count on this payload — this is
 	// intentionally not modeled as a ConflictWarning (see
-	// services/schedule/capacity_service.go).
+	// modules/timetable/legacy/timetableplanning/capacity_service.go).
 	RequiredStaffCount int `json:"required_staff_count"`
 	AssignedStaffCount int `json:"assigned_staff_count"`
 	// RequiredStaffOverride is the raw per-occurrence Personalbedarf pin
@@ -135,11 +136,11 @@ type enrichedInstance struct {
 	// back to the template's override, then to the Betreuungsschlüssel. The
 	// edit form needs the raw value to distinguish "inherit" from a pinned
 	// number; RequiredStaffCount above already folds the inheritance in.
-	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
-	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
-	CanReopen             bool                                  `json:"can_reopen,omitempty"`
-	CanComplete           bool                                  `json:"can_complete"`
-	CompleteAvailableAt   string                                `json:"complete_available_at"`
+	RequiredStaffOverride *int                                        `json:"required_staff_override,omitempty"`
+	ConflictWarnings      []timetableplanning.InstanceConflictWarning `json:"conflict_warnings"`
+	CanReopen             bool                                        `json:"can_reopen,omitempty"`
+	CanComplete           bool                                        `json:"can_complete"`
+	CompleteAvailableAt   string                                      `json:"complete_available_at"`
 }
 
 type emptyRosterReason struct {
@@ -234,7 +235,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// "diesen Monat" claim holds because detection covers exactly the
 	// requested window, not just today. The rows were already loaded for
 	// enrichment, so this adds no queries.
-	conflictsByInstance := scheduleSvc.DetectWindowConflicts(conflictInputs)
+	conflictsByInstance := timetableplanning.DetectWindowConflicts(conflictInputs)
 	for i := range enriched {
 		if warnings, ok := conflictsByInstance[enriched[i].ID]; ok {
 			enriched[i].ConflictWarnings = warnings
@@ -448,20 +449,20 @@ func (rs *Resource) enrichInstances(
 	offeringSourceCache map[int64][]enrollmentSvc.OfferingSourceOption,
 	childrenPerStaffRatio int,
 	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
-) ([]enrichedInstance, []scheduleSvc.WindowConflictInput, error) {
+) ([]enrichedInstance, []timetableplanning.WindowConflictInput, error) {
 	rows, err := rs.TimetableData.GetInstanceRows(ctx, instances)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load instance rows: %w", err)
 	}
 	enriched := make([]enrichedInstance, 0, len(instances))
-	conflictInputs := make([]scheduleSvc.WindowConflictInput, 0, len(instances))
+	conflictInputs := make([]timetableplanning.WindowConflictInput, 0, len(instances))
 	for _, inst := range instances {
 		item, staffRows, studentRows, err := rs.enrichInstance(ctx, inst, rows, roomCache, metaCache, planningTrackCache, offeringSourceCache, childrenPerStaffRatio, careDays)
 		if err != nil {
 			return nil, nil, err
 		}
 		enriched = append(enriched, item)
-		conflictInputs = append(conflictInputs, scheduleSvc.WindowConflictInput{
+		conflictInputs = append(conflictInputs, timetableplanning.WindowConflictInput{
 			Instance: inst,
 			Staff:    staffRows,
 			Students: studentRows,
@@ -499,7 +500,7 @@ func earlyPickupWithin(
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
-	rows *scheduleSvc.InstanceRows,
+	rows *timetableplanning.InstanceRows,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
 	planningTrackCache map[int64]*scheduleModel.PlanningTrack,
@@ -541,7 +542,7 @@ func (rs *Resource) enrichInstance(
 	if err != nil {
 		return enrichedInstance{}, nil, nil, err
 	}
-	availability := scheduleSvc.EvaluateLifecycleAvailability(
+	availability := timetableplanning.EvaluateLifecycleAvailability(
 		inst, time.Now(), 0, enforcePlannedEnd,
 	)
 
@@ -579,10 +580,10 @@ func (rs *Resource) enrichInstance(
 		PresentStudentsCount:   attendance.present,
 		EmptyRosterReason:      emptyRosterReason,
 		NotScheduledCount:      attendance.notScheduled,
-		RequiredStaffCount:     scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
+		RequiredStaffCount:     timetableplanning.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:     assignedStaff,
 		RequiredStaffOverride:  inst.RequiredStaff,
-		ConflictWarnings:       []scheduleSvc.InstanceConflictWarning{},
+		ConflictWarnings:       []timetableplanning.InstanceConflictWarning{},
 		CanReopen:              reopenEligibility(ctx, inst, studentRows),
 		CanComplete:            availability.CanComplete,
 		CompleteAvailableAt:    availability.CompleteAvailableAt.Format(time.RFC3339),
@@ -592,8 +593,8 @@ func (rs *Resource) enrichInstance(
 
 func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance, attendance []*scheduleModel.InstanceStudent) bool {
 	claims := jwt.ClaimsFromCtx(ctx)
-	return scheduleSvc.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
-		scheduleSvc.AttendanceUnchangedSinceCompletion(inst, attendance)
+	return timetableplanning.CanReopenInstance(inst, int64(claims.ID), common.HasEffectiveAdminScope(ctx), time.Now()) &&
+		timetableplanning.AttendanceUnchangedSinceCompletion(inst, attendance)
 }
 
 // dayConflictWarningsFor computes the #2139 window conflicts for ONE instance
@@ -604,8 +605,8 @@ func reopenEligibility(ctx context.Context, inst *scheduleModel.ActivityInstance
 func (rs *Resource) dayConflictWarningsFor(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
-) []scheduleSvc.InstanceConflictWarning {
-	empty := []scheduleSvc.InstanceConflictWarning{}
+) []timetableplanning.InstanceConflictWarning {
+	empty := []timetableplanning.InstanceConflictWarning{}
 	if inst == nil || rs.TimetableData == nil {
 		return empty
 	}
@@ -619,7 +620,7 @@ func (rs *Resource) dayConflictWarningsFor(
 		)
 		return empty
 	}
-	inputs := make([]scheduleSvc.WindowConflictInput, 0, len(dayInstances))
+	inputs := make([]timetableplanning.WindowConflictInput, 0, len(dayInstances))
 	for _, dayInst := range dayInstances {
 		staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, dayInst.ID)
 		if err != nil {
@@ -637,13 +638,13 @@ func (rs *Resource) dayConflictWarningsFor(
 			)
 			return empty
 		}
-		inputs = append(inputs, scheduleSvc.WindowConflictInput{
+		inputs = append(inputs, timetableplanning.WindowConflictInput{
 			Instance: dayInst,
 			Staff:    staffRows,
 			Students: studentRows,
 		})
 	}
-	if warnings, ok := scheduleSvc.DetectWindowConflicts(inputs)[inst.ID]; ok {
+	if warnings, ok := timetableplanning.DetectWindowConflicts(inputs)[inst.ID]; ok {
 		return warnings
 	}
 	return empty

@@ -62,6 +62,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -137,8 +138,8 @@ type Factory struct {
 	ActiveCleanup        active.CleanupService
 	WorkSession          timetracking.WorkSessionService
 	WorkTimeMonth        timetracking.WorkTimeMonthService
-	Holidays             schedule.HolidayService
-	ClosingDays          schedule.ClosingDayService
+	Holidays             timetableplanning.HolidayService
+	ClosingDays          timetableplanning.ClosingDayService
 	StaffAbsence         timetracking.StaffAbsenceService
 	StaffBalanceAdjust   timetracking.StaffBalanceAdjustmentService
 	StaffMonthClose      timetracking.StaffMonthCloseService
@@ -161,28 +162,28 @@ type Factory struct {
 	Settings                  config.SettingsService
 	TenantSettings            *config.TenantOperations
 	PayrollStatus             config.PayrollStatusGetter
-	Schedule                  schedule.Service
+	Schedule                  timetableplanning.Service
 	StaffShifts               shiftplanning.StaffShiftService
 	StaffShiftSeries          shiftplanning.StaffShiftSeriesService
 	StaffAssignments          shiftplanning.StaffAssignmentService
 	StaffScheduleOverview     shiftplanning.StaffScheduleOverviewGetter
 	ShiftTypes                shiftplanning.ShiftTypeService
-	PlanningTracks            schedule.PlanningTrackService
+	PlanningTracks            timetableplanning.PlanningTrackService
 	PickupSchedule            schedule.PickupScheduleService
 	PartialAbsence            schedule.PartialAbsenceService
 	ArrivalSchedule           schedule.ArrivalScheduleService
-	CalendarPeriod            schedule.CalendarPeriodService
+	CalendarPeriod            timetableplanning.CalendarPeriodService
 	CareDay                   schedule.CareDayService
-	TimetableBridge           *schedule.TimetableBridgeService
-	Materialization           schedule.MaterializationService
-	TemplateSplit             *schedule.TemplateSplitService
-	TimetableCleanup          schedule.TimetableCleanupService
+	TimetableBridge           *timetableplanning.TimetableBridgeService
+	Materialization           timetableplanning.MaterializationService
+	TemplateSplit             *timetableplanning.TemplateSplitService
+	TimetableCleanup          timetableplanning.TimetableCleanupService
 	TimeTrackingCleanup       timetracking.TimeTrackingCleanupService
 	StudentChangeLogCleanup   users.StudentChangeLogCleanupService
-	Instance                  schedule.InstanceService
-	AutoStart                 schedule.AutoStartService
-	AutoEnd                   schedule.AutoEndService
-	TimetableOperations       schedule.TimetableOperationsService
+	Instance                  timetableplanning.InstanceService
+	AutoStart                 timetableplanning.AutoStartService
+	AutoEnd                   timetableplanning.AutoEndService
+	TimetableOperations       timetableplanning.TimetableOperationsService
 	Users                     users.PersonService
 	Birthdays                 users.BirthdayService
 	StaffDocuments            users.StaffDocumentService
@@ -248,8 +249,8 @@ type Factory struct {
 	Statistics              statistics.Service
 	OGSGroupLive            grouplive.Query
 	SupervisionDashboard    supervisiondashboard.Query
-	TimetableData           *schedule.TimetableDataService
-	InstanceSeriesConverter schedule.InstanceSeriesConverter
+	TimetableData           *timetableplanning.TimetableDataService
+	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
 	OperatorMFA             platform.OperatorMFAService
 	OperatorPasskey         platform.OperatorPasskeyService
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
@@ -712,7 +713,7 @@ func newFactory(
 
 	// Reconciles already-materialized future timetable rosters when a grade
 	// transition graduates or restores students (#405).
-	rosterReconciler := schedule.NewRosterReconciler(
+	rosterReconciler := timetableplanning.NewRosterReconciler(
 		repos.ActivityInstance,
 		repos.InstanceStudent,
 		repos.StudentEnrollment,
@@ -887,13 +888,13 @@ func newFactory(
 
 	// Public holidays per Bundesland (#1418 3a): computed from the
 	// operations.federal_state setting, zero the Soll of their day.
-	holidayService := schedule.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
+	holidayService := timetableplanning.NewHolidayService(settingsService, schoolCalendarHolidayAdapter{query: repos.SchoolCalendar()}, logger.With("service", "holidays"))
 	// Tenant closing days (#1418 3b) share the Soll=0 semantics of public
 	// holidays. The Soll consumers get the UNION of both via the composite
 	// reader; Factory.Holidays stays the plain holiday service so the
 	// /holidays endpoint keeps reporting only real public holidays.
-	closingDayService := schedule.NewClosingDayService(repos.ClosingDay)
-	nonWorkingDayService := schedule.NewNonWorkingDayResolver(holidayService, closingDayService)
+	closingDayService := timetableplanning.NewClosingDayService(repos.ClosingDay)
+	nonWorkingDayService := timetableplanning.NewNonWorkingDayResolver(holidayService, closingDayService)
 	// School-defined Abwesenheitsarten (#2403): the time-tracking services
 	// resolve custom names on both the write path (which base type an art
 	// inherits) and the read paths.
@@ -1045,7 +1046,7 @@ func newFactory(
 	// active.AttendanceSyncer - called from CreateVisit / EndVisit to mirror
 	// into schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on active.Service.
-	attendanceSyncService := schedule.NewAttendanceSyncService(
+	attendanceSyncService := timetableplanning.NewAttendanceSyncService(
 		repos.ActivityInstance,
 		repos.InstanceStudent,
 		logger.With("service", "attendance-sync"),
@@ -1090,7 +1091,7 @@ func newFactory(
 	// keeps genuinely expected rows — readers take those as the "not booked
 	// into care that day" marker (#1747). Repos only, so no cycle with the
 	// active service it is injected into.
-	timetableBridgeService := schedule.NewTimetableBridgeService(schedule.TimetableBridgeDependencies{
+	timetableBridgeService := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
 		Instances:        repos.ActivityInstance,
 		InstanceStudents: repos.InstanceStudent,
 		CareDays:         careDayService,
@@ -1180,7 +1181,7 @@ func newFactory(
 		Settings:              settingsService,
 		Today:                 today,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		Logger: logger.With("service", "enrollment-care-offering"),
 	})
@@ -1240,13 +1241,13 @@ func newFactory(
 	)
 
 	// Initialize schedule service
-	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
+	scheduleService := timetableplanning.NewServiceWithConfig(timetableplanning.ServiceConfig{
 		RecurrenceEvents:   timetableCapability,
 		DateframeRepo:      repos.Dateframe,
 		TimeframeRepo:      repos.Timeframe,
 		RecurrenceRuleRepo: repos.RecurrenceRule,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		ValidateCareOfferingTimeframeChange: careOfferingResourceValidator.ValidateTimeframeChange,
 	})
@@ -1256,7 +1257,7 @@ func newFactory(
 		repos.ShiftType,
 		logger.With("service", "shift_type"),
 	)
-	planningTrackService := schedule.NewPlanningTrackService(repos.PlanningTrack, db)
+	planningTrackService := timetableplanning.NewPlanningTrackService(repos.PlanningTrack, db)
 
 	// Initialize staff shift service (Dienstplan, #1376 core slice)
 	staffShiftService := shiftplanning.NewStaffShiftService(
@@ -1370,7 +1371,7 @@ func newFactory(
 	// advisory lock as template and care-offering mutations. The preflight
 	// callback sees the proposed post-update row (or nil for delete) before any
 	// FK can be cleared by ON DELETE SET NULL.
-	calendarPeriodService := schedule.NewCalendarPeriodServiceWithConfig(schedule.CalendarPeriodServiceConfig{
+	calendarPeriodService := timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
 		Repo:                       repos.CalendarPeriod,
 		DB:                         db,
 		ValidateCareOfferingChange: careOfferingCalendarPeriodValidator.ValidateCalendarPeriodChange,
@@ -1381,7 +1382,7 @@ func newFactory(
 	// concrete schedule.activity_instances + instance_staff/instance_students
 	// for a date window. Consumed by the scheduler task (gated on the
 	// timetable.materialization_enabled setting) and the manual admin endpoint.
-	materializationService := schedule.NewMaterializationService(
+	materializationService := timetableplanning.NewMaterializationService(
 		repos.ActivityGroup,
 		repos.ActivitySchedule,
 		repos.StudentEnrollment,
@@ -1396,17 +1397,22 @@ func newFactory(
 		db,
 		realtimeHub,
 		logger.With("service", "materialization"),
+		// Per-date care filter (#2487): a child stays on the rosters the
+		// materializer builds up to and including their last care day, and
+		// drops out of every day after it.
+		timetableplanning.WithCareBoundReader(repos.Student),
 	)
-	// Per-date care filter (#2487): a child stays on the rosters the
-	// materializer builds up to and including their last care day, and drops
-	// out of every day after it.
-	schedule.WireMaterializationCareBounds(materializationService, repos.Student)
 
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
 	recoveryRepo := repositories.NewActivityRecoveryRepository(db, repos.InstanceStudent)
-	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+	// The cancellation notice (#2601) rides on the announcement service, which
+	// is built after the instance service; the lifecycle reaches it through
+	// this late-bound publisher.
+	var guardianNoticePublisher communication.CareCancellationPublisher
+	instanceService := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
 		Presence:           newStudentPresence(db, logger),
+		GuardianNotices:    lateCareCancellationPublisher{resolve: func() communication.CareCancellationPublisher { return guardianNoticePublisher }},
 		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
 		IdempotencyRepo:    repos.InstanceIdempotency,
@@ -1437,8 +1443,13 @@ func newFactory(
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
 	// caps the old template's schedules + rosters at an effective date,
 	// creates a successor template and re-plans the affected window via the
-	// materialization service.
-	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
+	// materialization service. A split that moves the Zielgruppe away from
+	// 'angebot' drops the successor's source rule; the carried roster must then
+	// shed its source-derived rows (#2147 review). The enrollment decision
+	// service that performs that resync is constructed later, so the split
+	// reaches it through this late-bound hook.
+	var resyncOfferingRoster func(context.Context, timetableplanning.OfferingRosterResyncInput) error
+	templateSplitService := timetableplanning.NewTemplateSplitService(timetableplanning.TemplateSplitDependencies{
 		GroupRepo:                  repos.ActivityGroup,
 		CategoryRepo:               repos.ActivityCategory,
 		PlanningTrackRepo:          repos.PlanningTrack,
@@ -1454,13 +1465,15 @@ func newFactory(
 		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
-	})
+	}, timetableplanning.WithOfferingRosterResync(func(ctx context.Context, in timetableplanning.OfferingRosterResyncInput) error {
+		return resyncOfferingRoster(ctx, in)
+	}))
 
 	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
 	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
 	// and schedule.activity_exceptions older than the tenant's retention window.
 	// Per-student audit rows via DataDeletion; exceptions slog-only.
-	timetableCleanupService := schedule.NewTimetableCleanupService(
+	timetableCleanupService := timetableplanning.NewTimetableCleanupService(
 		repos.ActivityInstance,
 		repos.ActivityException,
 		repos.InstanceStudent,
@@ -1495,7 +1508,7 @@ func newFactory(
 		logger.With("service", "student-change-log-cleanup"),
 	)
 
-	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
+	autoStartService := timetableplanning.NewAutoStartService(timetableplanning.AutoStartDependencies{
 		InstanceRepo:      repos.ActivityInstance,
 		InstanceStaffRepo: repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,
@@ -1505,7 +1518,7 @@ func newFactory(
 		Presence:          newStudentPresence(db, logger),
 		Logger:            logger.With("service", "timetable-auto-start"),
 	})
-	autoEndService := schedule.NewAutoEndService(repos.ActivityInstance, instanceService)
+	autoEndService := timetableplanning.NewAutoEndService(repos.ActivityInstance, instanceService)
 
 	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
@@ -1520,7 +1533,7 @@ func newFactory(
 		schedule.WithClassArrivalExceptions(repos.ClassArrivalException),
 	)
 
-	timetableOperationsService := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
+	timetableOperationsService := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
 		InstanceStudents:   repos.InstanceStudent,
@@ -2069,7 +2082,7 @@ func newFactory(
 		CareOfferingRepo: repos.CareOffering,
 		CalendarPeriods:  calendarPeriodService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
 		Settings:                        settingsService,
@@ -2094,7 +2107,7 @@ func newFactory(
 		TagReleaser:    repositories.NewStudentTagReleaser(persons),
 		AuditService:   studentAuditService,
 		LockCareBookingWrites: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
@@ -2148,7 +2161,7 @@ func newFactory(
 		ParentsURL:                parentsURL,
 		Settings:                  settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		// Sourced-roster resyncs must also refresh already-materialized future
 		// occurrences (#2147 review) — the materializer never revisits them.
@@ -2192,11 +2205,9 @@ func newFactory(
 	if !ok {
 		return nil, fmt.Errorf("enrollment decision service does not implement offering roster resync")
 	}
-	// A split that moves the Zielgruppe away from 'angebot' drops the
-	// successor's source rule; the carried roster must then shed its
-	// source-derived rows (#2147 review). Wired late because the decision
-	// service is constructed after the split service.
-	templateSplitService.SetOfferingRosterResync(offeringRosterResyncer.ResyncTemplateOfferingRoster)
+	// Bind the split service's offering-roster hook now that the decision
+	// service exists.
+	resyncOfferingRoster = offeringRosterResyncer.ResyncTemplateOfferingRoster
 	// Grade transitions rewrite school classes, so they must re-reconcile the
 	// offering-sourced templates' Jahrgang-filtered rosters (#2137). The
 	// workflow is composed here because the decision service that provides
@@ -2210,7 +2221,7 @@ func newFactory(
 	}
 	gradeTransitionWorkflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
 		DB: db, Directory: persons, Membership: membership, Rosters: rosterReconciler,
-		LockRecurrenceWrites:  func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		LockRecurrenceWrites:  func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		ResyncOfferingRosters: gradeTransitionResyncer.ResyncOfferingSourcedTemplates,
 		Logger:                logger.With("workflow", "grade_transition"), Audit: auditCommand, Clock: now,
 	})
@@ -2691,11 +2702,9 @@ func newFactory(
 		Logger:  logger.With("service", "staffnotice"),
 	})
 
-	// The cancellation notice (#2601) rides on the announcement service, which
-	// is built after the instance service; inject it now that both exist.
-	if setter, ok := instanceService.(schedule.GuardianNoticePublisherSetter); ok {
-		setter.SetGuardianNoticePublisher(parentAnnouncementService)
-	}
+	// Bind the instance service's cancellation-notice publisher now that the
+	// announcement service exists.
+	guardianNoticePublisher = parentAnnouncementService
 
 	// School file storage (#2596) and the attachments of Elternmitteilungen
 	// (#2890) through the public File Storage capability (#2707). Die Datei
@@ -2894,7 +2903,7 @@ func newFactory(
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
 
-	timetableDataService := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
+	timetableDataService := timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo:        repos.InstanceStudent,
 		ActivityInstanceRepo:       repos.ActivityInstance,
 		ActivityExceptionRepo:      repos.ActivityException,
@@ -2933,7 +2942,7 @@ func newFactory(
 		DB:                         db,
 		Today:                      today,
 	})
-	instanceSeriesConverter := schedule.NewInstanceSeriesConversionService(schedule.InstanceSeriesConversionDependencies{
+	instanceSeriesConverter := timetableplanning.NewInstanceSeriesConversionService(timetableplanning.InstanceSeriesConversionDependencies{
 		DB:              db,
 		InstanceRepo:    repos.ActivityInstance,
 		InstanceService: instanceService,
@@ -3202,7 +3211,7 @@ func newFactory(
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
 		DB: db, Directory: persons, CarePlan: repos.CarePlan(), Timetable: timetableCapability,
 		Feedback: feedbackCounterOrUnconfigured(feedbackCounter), IsVerifiedStaff: userContextService.HasCurrentStaff,
-		LockCareBookingWrites: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		UnlinkPhoto: func(ctx context.Context, path string) {
 			if factory.StudentPhotos != nil {
 				factory.StudentPhotos.ScheduleUnlinkAfterCommit(ctx, path)

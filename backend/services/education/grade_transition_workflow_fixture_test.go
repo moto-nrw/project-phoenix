@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -55,8 +55,8 @@ func newTransitionFixture(t *testing.T, db *bun.DB) *transitionFixture {
 	f.actorID = actor.ID
 	deps, err := gradetransitioncompose.Assemble(gradetransitioncompose.Dependencies{
 		DB: db, Directory: f.people, Membership: f.membership,
-		Rosters:              scheduleSvc.NewRosterReconciler(timetable.ActivityInstance, timetable.InstanceStudent, timetable.StudentEnrollment, slog.Default(), clock),
-		LockRecurrenceWrites: func(ctx context.Context) error { return scheduleSvc.LockTenantRecurrenceWrites(ctx, db) },
+		Rosters:              timetableplanning.NewRosterReconciler(timetable.ActivityInstance, timetable.InstanceStudent, timetable.StudentEnrollment, slog.Default(), clock),
+		LockRecurrenceWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		ResyncOfferingRosters: func(_ context.Context, effectiveFrom timezone.Date) error {
 			f.resyncCalls = append(f.resyncCalls, effectiveFrom)
 			return nil
