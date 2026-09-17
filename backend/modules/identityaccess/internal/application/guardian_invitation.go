@@ -235,7 +235,7 @@ func (l *AccountLifecycle) claimGuardianEnrollments(ctx context.Context, account
 		}
 		l.logger.Warn("guardian invitation accept: enrollment backfill failed",
 			slog.Int64("account_id", accountID),
-			slog.String("error", err.Error()),
+			slog.Any("error", err),
 		)
 		return nil
 	}

@@ -18,9 +18,10 @@ type SchoolInvitationStore interface {
 	// ListRedeemableSchoolInvitations returns the pending invitations of the
 	// tenant in context.
 	ListRedeemableSchoolInvitations(ctx context.Context, now time.Time) ([]domain.SchoolInvitation, domain.OperationStats, error)
-	// RedeemSchoolInvitation spends the invitation and reports whether it was
-	// still unused.
-	RedeemSchoolInvitation(ctx context.Context, id int64) (bool, domain.OperationStats, error)
+	// SpendSchoolInvitation spends the invitation and reports whether it was
+	// still unused. Both redeeming and revoking spend it; only the reason
+	// differs.
+	SpendSchoolInvitation(ctx context.Context, id int64) (bool, domain.OperationStats, error)
 	// RevokeSchoolInvitationsForEmail spends every unused invitation for the
 	// address in the caller's tenant scope.
 	RevokeSchoolInvitationsForEmail(ctx context.Context, email string) (int, domain.OperationStats, error)

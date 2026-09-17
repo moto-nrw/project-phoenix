@@ -66,6 +66,10 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if outbox == nil {
 		outbox = discardingOutbox{}
 	}
+	claims := guardianEnrollmentClaims(unclaimedEnrollments{})
+	if cfg.Enrollments != nil {
+		claims = cfg.Enrollments
+	}
 	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, audit: audit, logger: logger,
@@ -74,15 +78,10 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 			audit: audit,
 			admin: func() *auth.Service { return service },
 			guardianMail: &guardianInvitationWiring{
-				schools: repos.School,
-				outbox:  func() platformModels.OutboxEnqueuer { return outbox },
-				enrollments: func() guardianEnrollmentClaims {
-					if cfg.Enrollments == nil {
-						return nil
-					}
-					return cfg.Enrollments
-				}(),
-				parentsURL: "http://localhost:3000", fallbackExpiry: expiry, logger: logger,
+				schools:     repos.School,
+				outbox:      func() platformModels.OutboxEnqueuer { return outbox },
+				enrollments: claims,
+				parentsURL:  "http://localhost:3000", fallbackExpiry: expiry, logger: logger,
 			},
 		},
 	})
@@ -104,6 +103,15 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	}
 	service.SetTenantRuntime(unit)
 	return identityAccess, port, nil
+}
+
+// unclaimedEnrollments stands in for the enrollment claim where a test has
+// no pre-account requests to claim; the serving root always binds the real
+// one.
+type unclaimedEnrollments struct{}
+
+func (unclaimedEnrollments) BackfillGuardianAccountID(context.Context, int64, string) (int, error) {
+	return 0, nil
 }
 
 // discardingOutbox stands in for the e-mail outbox where a test does not

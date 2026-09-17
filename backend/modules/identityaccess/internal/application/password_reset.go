@@ -77,7 +77,16 @@ func NewPasswordReset(auth *AccountAuthentication, deps PasswordResetDependencie
 func (r *PasswordReset) InitiatePasswordReset(ctx context.Context, email string, scope domain.PasswordResetScope) (*domain.PasswordResetToken, error) {
 	email = strings.TrimSpace(strings.ToLower(email))
 	account, found, _, err := r.logins.FindLoginAccountByEmail(ctx, email)
-	if err != nil || !found {
+	if err != nil {
+		// The answer stays neutral, but a failing lookup is an incident, not
+		// an unknown address: it must be visible in the logs.
+		r.logger.Error("password reset: account lookup failed, answering neutrally",
+			slog.String("scope", string(scope)),
+			slog.Any("error", err),
+		)
+		return nil, nil
+	}
+	if !found {
 		return nil, nil
 	}
 	eligible, err := r.portalEligible(ctx, account.ID, scope)

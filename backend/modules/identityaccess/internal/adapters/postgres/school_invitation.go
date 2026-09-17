@@ -122,7 +122,7 @@ func (s *Store) ListRedeemableSchoolInvitations(ctx context.Context, now time.Ti
 	return result, stats, nil
 }
 
-func (s *Store) RedeemSchoolInvitation(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
+func (s *Store) SpendSchoolInvitation(ctx context.Context, id int64) (bool, domain.OperationStats, error) {
 	scope := s.scope(ctx)
 	rows, stats, err := s.exec(ctx, "redeem school invitation", func(db bun.IDB) executor {
 		return invitationTenantFilter(scope, db.NewUpdate().Model((*schoolInvitationRow)(nil)).

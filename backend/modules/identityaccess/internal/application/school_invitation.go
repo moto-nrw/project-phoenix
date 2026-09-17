@@ -424,7 +424,7 @@ func (s *SchoolInvitation) grantAccess(
 	}); err != nil {
 		return domain.LoginAccount{}, failed("provision school identity", err)
 	}
-	redeemed, _, err := s.store.RedeemSchoolInvitation(ctx, invitation.ID)
+	redeemed, _, err := s.store.SpendSchoolInvitation(ctx, invitation.ID)
 	if err != nil {
 		return domain.LoginAccount{}, failed("mark invitation used", err)
 	}
@@ -521,7 +521,7 @@ func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, a
 	if invitation.UsedAt != nil {
 		return failed(opRevokeInvitation, domain.ErrInvitationUsed)
 	}
-	revoked, _, err := s.store.RedeemSchoolInvitation(ctx, invitationID)
+	revoked, _, err := s.store.SpendSchoolInvitation(ctx, invitationID)
 	if err != nil {
 		return failed(opRevokeInvitation, err)
 	}

@@ -328,6 +328,36 @@ func TestOperatorInvitationTokens_MarkAsUsed_AlreadyUsed(t *testing.T) {
 // ListPending Tests
 // =====================================================================
 
+// The operator invitation list reads the redeemable links in one statement,
+// however many there are.
+func TestOperatorInvitationTokens_ListPendingQueryBudget(t *testing.T) {
+	t.Parallel()
+
+	db, repo := setupOperatorInvitationTokensTest(t)
+	op := testpkg.CreateTestOperator(t, db)
+	add := func(from, to int) {
+		for i := from; i < to; i++ {
+			token := newTestToken(fmt.Sprintf("budget%d-%d@example.com", i, time.Now().UnixNano()), op.ID)
+			require.NoError(t, repo.Create(context.Background(), token))
+		}
+	}
+	add(0, 3)
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	ctx := counter.Context(context.Background())
+	run := func() []string {
+		counter.Reset()
+		_, err := repo.ListPending(ctx)
+		require.NoError(t, err)
+		return counter.Operation("SELECT")
+	}
+	small := run()
+	add(3, 8)
+	large := run()
+	assert.Equal(t, len(small), len(large), "the listing must not grow a statement per link")
+	testpkg.AssertQueryBudget(t, "services.platform.pending_operator_invitations.reads", large)
+}
+
 func TestOperatorInvitationTokens_ListPending(t *testing.T) {
 	t.Parallel()
 

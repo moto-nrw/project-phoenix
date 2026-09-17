@@ -49,7 +49,7 @@ type guardianEnrollmentClaims interface {
 }
 
 func (w *guardianInvitationWiring) complete() bool {
-	return w != nil && w.schools != nil && w.outbox != nil
+	return w != nil && w.schools != nil && w.outbox != nil && w.enrollments != nil
 }
 
 // guardianInvitationDependencies binds the delivery and the enrollment claim
@@ -60,13 +60,9 @@ func guardianInvitationDependencies(wiring *guardianInvitationWiring) (identitya
 		return unsentGuardianMail{}, nil, nil
 	}
 	if !wiring.complete() {
-		return nil, nil, errors.New("identity access composition: the guardian invitation delivery needs the school directory and the e-mail outbox")
+		return nil, nil, errors.New("identity access composition: the guardian invitation seams need the school directory, the e-mail outbox and the enrollment claim")
 	}
-	delivery := guardianInvitationDelivery{wiring: wiring}
-	if wiring.enrollments == nil {
-		return delivery, nil, nil
-	}
-	return delivery, guardianEnrollments{claims: wiring.enrollments}, nil
+	return guardianInvitationDelivery{wiring: wiring}, guardianEnrollments{claims: wiring.enrollments}, nil
 }
 
 // unsentGuardianMail serves a root composed without the guardian mail — a
