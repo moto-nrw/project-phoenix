@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -22,10 +21,19 @@ import (
 )
 
 // Identity & Access owns the guardian invitation lifecycle (#2722). This
-// file serves the retained guardian invitation service over the public
-// capability and binds the two seams the flows leave to the root: the mail,
-// which knows the parents portal host and the tenant's token lifetime, and
-// the enrollment requests an acceptance claims.
+// file binds the two seams the flows leave to the root — the mail, which
+// knows the parents portal host and the tenant's token lifetime, and the
+// enrollment requests an acceptance claims — and the runtimes the consumers
+// that may not name the owner's contract reach it through (#3332).
+
+// GuardianInvitationCapability is what the guardian invitation routes, the
+// enrollment decisions, the guardian directory and the parents portal
+// consume: the invitation lifecycle and the relative access flows of one
+// owner. Each consumer takes the narrower half it needs.
+type GuardianInvitationCapability interface {
+	identityaccess.GuardianInvitations
+	identityaccess.GuardianRelativeAccess
+}
 
 // guardianInvitationWiring is the retained material the guardian invitation
 // seams are bound to. outbox is read at call time because the delivery
@@ -70,7 +78,7 @@ func guardianInvitationDependencies(wiring *guardianInvitationWiring) (identitya
 type unsentGuardianMail struct{}
 
 func (unsentGuardianMail) InvitationExpiry(context.Context) time.Duration {
-	return auth.GuardianTokenExpiryFallback
+	return GuardianTokenExpiryFallback
 }
 func (unsentGuardianMail) SchoolName(context.Context, int64) string { return "" }
 func (unsentGuardianMail) EnqueueInvitationEmail(context.Context, identityaccess.GuardianInvitation, identityaccessCompose.GuardianProfile, string) {
@@ -99,7 +107,7 @@ func (d guardianInvitationDelivery) InvitationExpiry(ctx context.Context) time.D
 	if d.wiring.fallbackExpiry > 0 {
 		return d.wiring.fallbackExpiry
 	}
-	return auth.GuardianTokenExpiryFallback
+	return GuardianTokenExpiryFallback
 }
 
 // SchoolName resolves the school for the mail subject. Best-effort: an
@@ -115,8 +123,8 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 	return school.Name
 }
 
-func (d guardianInvitationDelivery) mailer() auth.GuardianInvitationMailer {
-	return auth.NewGuardianInvitationMailer(auth.GuardianInvitationMailerConfig{
+func (d guardianInvitationDelivery) mailer() GuardianInvitationMailer {
+	return NewGuardianInvitationMailer(GuardianInvitationMailerConfig{
 		Outbox: d.wiring.outbox(), FrontendURL: d.wiring.parentsURL, Logger: d.logger(),
 	})
 }
@@ -129,8 +137,8 @@ func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Cont
 	d.mailer().EnqueueExistingAccount(ctx, guardianMailRecipient(profile), schoolName)
 }
 
-func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) auth.GuardianMailRecipient {
-	return auth.GuardianMailRecipient{FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email}
+func guardianMailRecipient(profile identityaccessCompose.GuardianProfile) GuardianMailRecipient {
+	return GuardianMailRecipient{FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email}
 }
 
 // --- enrollment claim -------------------------------------------------------
@@ -156,62 +164,6 @@ func (e guardianEnrollments) ClaimGuardianEnrollments(ctx context.Context, accou
 		return 0, err
 	}
 	return claimed, nil
-}
-
-// --- the retained service's port --------------------------------------------
-
-// guardianInvitations serves the retained guardian invitation service over
-// the owner's capability.
-type guardianInvitations struct {
-	module identityaccess.GuardianInvitations
-}
-
-func newGuardianInvitations(module identityaccess.GuardianInvitations) auth.GuardianInvitations {
-	if module == nil {
-		return nil
-	}
-	return guardianInvitations{module: module}
-}
-
-func (g guardianInvitations) CreateGuardianInvitation(ctx context.Context, guardianProfileID, createdBy int64) (auth.GuardianInvitationRecord, error) {
-	invitation, err := g.module.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
-		GuardianProfileID: guardianProfileID, CreatedBy: createdBy,
-	})
-	if err != nil {
-		return auth.GuardianInvitationRecord{}, invitationServiceError(err)
-	}
-	return auth.GuardianInvitationRecord{
-		ID: invitation.ID, TenantID: invitation.TenantID, Token: invitation.Token,
-		GuardianProfileID: invitation.GuardianProfileID, CreatedBy: invitation.CreatedBy,
-		ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, StudentID: invitation.StudentID,
-		ApprovalStatus: invitation.ApprovalStatus, CreatedAt: invitation.CreatedAt,
-	}, nil
-}
-
-func (g guardianInvitations) ValidateGuardianInvitation(ctx context.Context, token string) (auth.GuardianInvitationPreview, error) {
-	preview, err := g.module.ValidateGuardianInvitation(ctx, token)
-	if err != nil {
-		return auth.GuardianInvitationPreview{}, invitationServiceError(err)
-	}
-	return auth.GuardianInvitationPreview(preview), nil
-}
-
-func (g guardianInvitations) AcceptGuardianInvitation(ctx context.Context, token, password, confirmPassword string) (auth.GuardianInvitationAccount, error) {
-	account, err := g.module.AcceptGuardianInvitation(ctx, token, identityaccess.GuardianRegistration{
-		Password: password, ConfirmPassword: confirmPassword,
-	})
-	if err != nil {
-		return auth.GuardianInvitationAccount{}, invitationServiceError(err)
-	}
-	return auth.GuardianInvitationAccount{ID: account.ID, Email: account.Email}, nil
-}
-
-func (g guardianInvitations) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
-	return invitationServiceError(g.module.ResendGuardianInvitation(ctx, invitationID, actorAccountID))
-}
-
-func (g guardianInvitations) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
-	return g.module.GuardianInvitationSchoolSlug(ctx, token)
 }
 
 // --- the invitation reads other owners' flows need ---------------------------
@@ -326,4 +278,105 @@ func schoolLogoURLFromSettings(settingsJSON string) string {
 		}
 	}
 	return ""
+}
+
+// --- the parents portal's guardian access runtime ---------------------------
+
+// The parents portal may not name the owner's contract, so the root serves
+// its consumer-owned GuardianAccess port over the relative access capability
+// and translates the refusals into the portal's own sentinels (#3332).
+type parentGuardianAccess struct {
+	access identityaccess.GuardianRelativeAccess
+}
+
+// NewParentGuardianAccess binds the parents portal's relative access port. A
+// nil capability yields nil, which the portal reports as unavailable.
+func NewParentGuardianAccess(access identityaccess.GuardianRelativeAccess) parentportal.GuardianAccess {
+	if access == nil {
+		return nil
+	}
+	return parentGuardianAccess{access: access}
+}
+
+func (a parentGuardianAccess) InviteToStudent(ctx context.Context, request parentportal.GuardianInviteRequest) (parentportal.GuardianInviteOutcome, error) {
+	requestedBy := request.RequestedByAccountID
+	result, err := a.access.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
+		StudentID: request.StudentID, Email: request.Email,
+		FirstName: request.FirstName, LastName: request.LastName,
+		CreatedBy: request.CreatedBy, RequestedByParentAccountID: &requestedBy,
+		RequireApproval: request.RequireApproval, ConfirmRoleUpgrade: request.ConfirmRoleUpgrade,
+	})
+	if err != nil {
+		return parentportal.GuardianInviteOutcome{}, parentGuardianAccessError(err)
+	}
+	return parentportal.GuardianInviteOutcome{
+		Outcome: string(result.Outcome), GuardianProfileID: result.GuardianProfileID,
+		ExistingRole: result.ExistingRole,
+	}, nil
+}
+
+// RevokeAccess always runs as a parent removal: the parents portal never
+// holds the staff authority, and it never carries guardians:financial, so the
+// payer guard stays closed.
+func (a parentGuardianAccess) RevokeAccess(ctx context.Context, revocation parentportal.GuardianAccessRevocation) error {
+	return parentGuardianAccessError(a.access.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
+		StudentID: revocation.StudentID, GuardianProfileID: revocation.GuardianProfileID,
+		ActorAccountID: revocation.ActorAccountID, ByParent: true,
+	}))
+}
+
+// parentGuardianAccessError maps the owner's refusals onto the portal's
+// sentinels, keeping each message the portal renders.
+func parentGuardianAccessError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var operation *identityaccess.AuthenticationError
+	if errors.As(err, &operation) && operation == err {
+		return parentGuardianAccessError(operation.Err)
+	}
+	for _, sentinel := range parentGuardianSentinels {
+		if !errors.Is(err, sentinel.public) {
+			continue
+		}
+		if err == sentinel.public {
+			return sentinel.retained
+		}
+		return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
+	}
+	return err
+}
+
+var parentGuardianSentinels = []retainedSentinel{
+	{identityaccess.ErrCannotRemovePrimaryGuardian, parentportal.ErrCannotRemovePrimaryGuardian},
+	{identityaccess.ErrCannotRemoveStaffManagedGuardian, parentportal.ErrCannotRemoveStaffManagedGuardian},
+	{identityaccess.ErrCannotRemoveOwnAccess, parentportal.ErrCannotRemoveOwnAccess},
+	{identityaccess.ErrCannotRemovePayerGuardian, parentportal.ErrCannotRemovePayerGuardian},
+	{identityaccess.ErrInviteSocialWorkerManaged, parentportal.ErrInviteSocialWorkerManaged},
+}
+
+// --- the enrollment decisions' guardian invitation runtime ------------------
+
+// GuardianInvitationRuntime is the plain-typed runtime the enrollment
+// decision routes consume: approving the first child of a family fires one
+// invitation, fire-and-forget, so the runtime needs no outcome beyond the
+// error.
+type GuardianInvitationRuntime struct {
+	Create func(ctx context.Context, guardianProfileID, createdBy int64) error
+}
+
+// EnrollmentGuardianInvitationRuntime binds that one call. A nil capability
+// yields the zero runtime, which the routes report as not configured.
+func EnrollmentGuardianInvitationRuntime(invitations identityaccess.GuardianInvitations) GuardianInvitationRuntime {
+	if invitations == nil {
+		return GuardianInvitationRuntime{}
+	}
+	return GuardianInvitationRuntime{
+		Create: func(ctx context.Context, guardianProfileID, createdBy int64) error {
+			_, err := invitations.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
+				GuardianProfileID: guardianProfileID, CreatedBy: createdBy,
+			})
+			return err
+		},
+	}
 }

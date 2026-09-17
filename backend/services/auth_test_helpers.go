@@ -29,8 +29,8 @@ type AuthTestModule struct {
 	// hand it to the routes that call the public contract directly.
 	AccountAuthentication *identityaccess.Module
 	StaffPINAuth          StaffPINAuthenticator
-	Invitation            auth.InvitationService
-	GuardianInvitation    auth.GuardianInvitationService
+	Invitation            InvitationCapability
+	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
 	Settings              config.SettingsService
 	MFA                   auth.MFAService
@@ -38,7 +38,7 @@ type AuthTestModule struct {
 
 type InvitationTestModule struct {
 	Persistence *repositories.InvitationPersistence
-	Invitation  auth.InvitationService
+	Invitation  InvitationCapability
 }
 
 func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
@@ -199,12 +199,12 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	}
 	mfa.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	service.SetMFAService(mfa)
-	invitation := NewInvitationService(identityAccess)
+	invitation := InvitationCapability(identityAccess)
 	deliveryModule, err = NewDeliveryTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	guardian := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
+	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: NewStaffPINAuthenticator(identityAccess), MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
 		Schools: r.School, Settings: settings.Settings}, nil
 }

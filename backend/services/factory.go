@@ -157,8 +157,8 @@ type Factory struct {
 	Facilities                facilities.Service
 	Schulhof                  facilities.SchulhofService
 	WC                        facilities.WCService
-	Invitation                auth.InvitationService
-	GuardianInvitation        auth.GuardianInvitationService
+	Invitation                InvitationCapability
+	GuardianInvitation        GuardianInvitationCapability
 	IoT                       iot.Service
 	StaffClock                *staffclock.Service
 	Settings                  config.SettingsService
@@ -1699,7 +1699,7 @@ func newFactory(
 		return nil, fmt.Errorf("init passkey service: %w", err)
 	}
 
-	invitationService := NewInvitationService(identityAccess)
+	invitationService := InvitationCapability(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.
@@ -1716,7 +1716,7 @@ func newFactory(
 		Guardians:   repos.StudentGuardian,
 	}))
 	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(map[string]emailoutbox.Renderer{
-		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
@@ -1769,7 +1769,7 @@ func newFactory(
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
+	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -2621,7 +2621,7 @@ func newFactory(
 		ExcusedRequests:         excusedRequestService,
 		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
-		GuardianInvites:         guardianInvitationService,
+		GuardianInvites:         NewParentGuardianAccess(guardianInvitationService),
 		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,

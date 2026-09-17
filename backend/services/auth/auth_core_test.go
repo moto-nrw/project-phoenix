@@ -66,10 +66,10 @@ func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *servi
 	return serviceFactory
 }
 
-func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
+func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapability {
 	t.Helper()
 	service := setupAuthFactory(t, db).Invitation
-	return &fixtureOwnedInvitationService{InvitationService: service, t: t, db: db}
+	return &fixtureOwnedInvitationService{InvitationCapability: service, t: t, db: db}
 }
 
 type fixtureOwnedAuthService struct {
@@ -107,18 +107,18 @@ func (s *fixtureOwnedAuthService) RegisterSchoolAccount(
 }
 
 type fixtureOwnedInvitationService struct {
-	auth.InvitationService
+	services.InvitationCapability
 	t  *testing.T
 	db *bun.DB
 }
 
-func (s *fixtureOwnedInvitationService) AcceptInvitation(
+func (s *fixtureOwnedInvitationService) AcceptSchoolInvitation(
 	ctx context.Context,
 	token string,
-	userData auth.UserRegistrationData,
-) (*authModels.Account, error) {
-	account, err := s.InvitationService.AcceptInvitation(ctx, token, userData)
-	if account != nil {
+	registration identityaccess.InvitationRegistration,
+) (identityaccess.Account, error) {
+	account, err := s.InvitationCapability.AcceptSchoolInvitation(ctx, token, registration)
+	if account.ID != 0 {
 		testpkg.OwnTestAccount(s.t, s.db, account.ID)
 	}
 	return account, err
@@ -2123,7 +2123,7 @@ func TestInvitationService_ListPendingInvitations(t *testing.T) {
 
 	t.Run("returns list without error", func(t *testing.T) {
 		// ACT
-		_, err := invitationService.ListPendingInvitations(ctx)
+		_, err := invitationService.ListPendingSchoolInvitations(ctx)
 
 		// ASSERT - no error means success (empty list is valid)
 		require.NoError(t, err)
@@ -2141,7 +2141,7 @@ func TestInvitationService_CleanupExpiredInvitations(t *testing.T) {
 
 	t.Run("cleans up expired invitations without error", func(t *testing.T) {
 		// ACT
-		count, err := invitationService.CleanupExpiredInvitations(ctx)
+		count, err := invitationService.DeleteExpiredSchoolInvitations(ctx)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2170,7 +2170,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		inviteeEmail := fmt.Sprintf("invitee-%d@test.local", time.Now().UnixNano())
 
 		// ACT
-		invitation, err := invitationService.CreateInvitation(ctx, auth.InvitationRequest{
+		invitation, err := invitationService.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 			Email:     inviteeEmail,
 			RoleID:    role.ID,
 			CreatedBy: creator.ID,
@@ -2197,7 +2197,7 @@ func TestInvitationService_CreateInvitation(t *testing.T) {
 		mixedCaseEmail := fmt.Sprintf("MixedCase-%d@Test.Local", time.Now().UnixNano())
 
 		// ACT
-		invitation, err := invitationService.CreateInvitation(ctx, auth.InvitationRequest{
+		invitation, err := invitationService.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 			Email:     mixedCaseEmail,
 			RoleID:    role.ID,
 			CreatedBy: creator.ID,
@@ -2235,7 +2235,7 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		)
 
 		// ACT
-		result, err := invitationService.ValidateInvitation(ctx, invitation.Token)
+		result, err := invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2260,16 +2260,16 @@ func TestInvitationService_ValidateInvitation(t *testing.T) {
 		)
 
 		// ACT
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationExpired))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationExpired))
 	})
 
 	t.Run("returns error for non-existent token", func(t *testing.T) {
 		// ACT
-		_, err := invitationService.ValidateInvitation(ctx, "non-existent-token-12345")
+		_, err := invitationService.ValidateSchoolInvitation(ctx, "non-existent-token-12345")
 
 		// ASSERT
 		require.Error(t, err)
@@ -2299,7 +2299,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		)
 
 		// ACT
-		account, err := invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+		account, err := invitationService.AcceptSchoolInvitation(ctx, invitation.Token, identityaccess.InvitationRegistration{
 			FirstName:       "Katherine",
 			LastName:        "Johnson",
 			Password:        testPassword,
@@ -2308,14 +2308,18 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 		// ASSERT
 		require.NoError(t, err)
-		require.NotNil(t, account)
+		require.NotZero(t, account.ID)
 		assert.Equal(t, invitation.Email, account.Email)
-		assert.True(t, account.Active)
+		// The accepted account can sign in: the owner stores it active, which
+		// the retained contract used to assert on a fabricated field.
+		var active bool
+		require.NoError(t, db.NewRaw(`SELECT active FROM auth.accounts WHERE id = ?`, account.ID).Scan(ctx, &active))
+		assert.True(t, active)
 
 		// Verify the invitation is now marked as used
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationUsed))
 	})
 
 	t.Run("rejects weak password", func(t *testing.T) {
@@ -2332,7 +2336,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		)
 
 		// ACT
-		_, err = invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+		_, err = invitationService.AcceptSchoolInvitation(ctx, invitation.Token, identityaccess.InvitationRegistration{
 			FirstName:       "Test",
 			LastName:        "User",
 			Password:        "weak",
@@ -2341,10 +2345,10 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrPasswordTooWeak))
+		assert.True(t, errors.Is(err, identityaccess.ErrPasswordTooWeak))
 
 		// Verify invitation is NOT marked as used
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 		require.NoError(t, err) // Should still be valid
 	})
 
@@ -2362,7 +2366,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 		)
 
 		// ACT
-		_, err = invitationService.AcceptInvitation(ctx, invitation.Token, auth.UserRegistrationData{
+		_, err = invitationService.AcceptSchoolInvitation(ctx, invitation.Token, identityaccess.InvitationRegistration{
 			FirstName:       "Test",
 			LastName:        "User",
 			Password:        testPassword,
@@ -2371,7 +2375,7 @@ func TestInvitationService_AcceptInvitation(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationExpired))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationExpired))
 	})
 }
 
@@ -2398,15 +2402,15 @@ func TestInvitationService_RevokeInvitation(t *testing.T) {
 		)
 
 		// ACT
-		err = invitationService.RevokeInvitation(ctx, invitation.ID, creator.ID)
+		err = invitationService.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify the invitation is now marked as used
-		_, err = invitationService.ValidateInvitation(ctx, invitation.Token)
+		_, err = invitationService.ValidateSchoolInvitation(ctx, invitation.Token)
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, auth.ErrInvitationUsed))
+		assert.True(t, errors.Is(err, identityaccess.ErrInvitationUsed))
 	})
 }
 
@@ -2727,7 +2731,7 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	ctx := testpkg.TenantContext(tenantID)
 	email := fmt.Sprintf("invite-tenant-%d@test.local", time.Now().UnixNano())
 
-	invitation, err := invService.CreateInvitation(ctx, auth.InvitationRequest{
+	invitation, err := invService.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email:     email,
 		RoleID:    role.ID,
 		CreatedBy: 1,
@@ -2738,7 +2742,7 @@ func TestAcceptInvitation_WithTenantID_CreatesAccountTenant(t *testing.T) {
 	require.NotNil(t, invitation)
 
 	// ACT — accept the invitation (public route, no tenant in ctx)
-	account, err := invService.AcceptInvitation(context.Background(), invitation.Token, auth.UserRegistrationData{
+	account, err := invService.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		FirstName:       "Test",
 		LastName:        "User",
 		Password:        testPassword,
@@ -3002,7 +3006,7 @@ func TestInvitationService_InvalidatePendingInvitationsByTenantID_Success(t *tes
 	testpkg.CreateTestInvitationToken(t, db, "svc-invalidate@example.com", role.ID, creator.ID, time.Now().Add(48*time.Hour))
 
 	// ACT
-	count, err := service.InvalidatePendingInvitationsByTenantID(ctx, testpkg.Tenant(t))
+	count, err := service.RevokeTenantSchoolInvitations(ctx, testpkg.Tenant(t))
 
 	// ASSERT
 	require.NoError(t, err)

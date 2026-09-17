@@ -124,14 +124,14 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 // NewInvitationCleanupService composes the invitation maintenance the
 // cleanup CLI runs. The invitation flows themselves stay unavailable: the
 // CLI only deletes expired links (#2722).
-func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (auth.InvitationService, error) {
+func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) (identityaccess.SchoolInvitations, error) {
 	module, err := identityaccessCompose.New(identityaccessCompose.Dependencies{
 		DB: db, Observe: func(identityaccessCompose.Observation) {},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("invitation cleanup service: %w", err)
 	}
-	return NewInvitationService(module), nil
+	return module, nil
 }
 
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {

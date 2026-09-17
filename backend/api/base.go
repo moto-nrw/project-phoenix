@@ -1337,7 +1337,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetPasskeyService(api.Services.Passkey)
-	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
@@ -1456,7 +1455,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
 		api.Services.EnrollmentDeletion,
-		api.Services.GuardianInvitation,
+		enrollmentGuardianInvitations(api.Services.GuardianInvitation),
 		api.Services.GuardianProfileLoader,
 		enrollmentSchoolDirectory{schools: api.Services.Schools},
 		db,

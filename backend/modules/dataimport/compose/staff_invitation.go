@@ -4,22 +4,24 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// NewStaffInviter binds the narrow import command to the existing invitation
-// owner. A nil owner preserves the disabled-invitation configuration.
-func NewStaffInviter(service authService.InvitationService) dataimport.StaffInviter {
-	if service == nil {
+// NewStaffInviter binds the narrow import command to the invitation owner.
+// A nil owner preserves the disabled-invitation configuration.
+func NewStaffInviter(invitations identityaccess.SchoolInvitations) dataimport.StaffInviter {
+	if invitations == nil {
 		return nil
 	}
-	return staffInviter{service: service}
+	return staffInviter{invitations: invitations}
 }
 
-type staffInviter struct{ service authService.InvitationService }
+type staffInviter struct {
+	invitations identityaccess.SchoolInvitations
+}
 
 func (s staffInviter) InviteStaff(ctx context.Context, invitation dataimport.StaffInvitation) error {
-	_, err := s.service.CreateInvitation(ctx, authService.InvitationRequest{
+	_, err := s.invitations.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: invitation.Email, RoleID: invitation.RoleID, TenantID: invitation.TenantID,
 		FirstName: invitation.FirstName, LastName: invitation.LastName, Position: invitation.Position,
 		PersonID: invitation.PersonID, CreatedBy: invitation.CreatedBy, SchoolName: invitation.SchoolName,

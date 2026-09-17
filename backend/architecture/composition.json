@@ -3845,7 +3845,7 @@
       "declaration": "TestLinkRuntimeEvidence",
       "target": "database/repositories.NewFactory",
       "lines": [
-        29
+        28
       ],
       "tables": []
     },

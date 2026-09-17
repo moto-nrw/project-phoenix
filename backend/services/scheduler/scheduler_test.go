@@ -70,7 +70,7 @@ type fakeInvitationCleaner struct {
 	callErr error
 }
 
-func (f *fakeInvitationCleaner) CleanupExpiredInvitations(_ context.Context) (int, error) {
+func (f *fakeInvitationCleaner) DeleteExpiredSchoolInvitations(_ context.Context) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++

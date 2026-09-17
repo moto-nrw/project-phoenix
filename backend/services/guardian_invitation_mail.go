@@ -1,7 +1,6 @@
-package auth
+package services
 
 import (
-	"cmp"
 	"context"
 	"log/slog"
 	"strings"
@@ -44,7 +43,7 @@ func NewGuardianInvitationMailer(cfg GuardianInvitationMailerConfig) GuardianInv
 	return GuardianInvitationMailer{
 		outbox:      cfg.Outbox,
 		frontendURL: strings.TrimRight(strings.TrimSpace(cfg.FrontendURL), "/"),
-		logger:      cmp.Or(cfg.Logger, slog.Default()),
+		logger:      guardianMailLogger(cfg.Logger),
 	}
 }
 
@@ -101,7 +100,10 @@ func (m GuardianInvitationMailer) EnqueueExistingAccount(ctx context.Context, re
 // payload builds the fields both variants share. linkPath is appended to the
 // parents portal origin.
 func (m GuardianInvitationMailer) payload(recipient GuardianMailRecipient, linkPath, schoolName string) map[string]any {
-	frontend := cmp.Or(m.frontendURL, "http://localhost:3000")
+	frontend := m.frontendURL
+	if frontend == "" {
+		frontend = "http://localhost:3000"
+	}
 	return map[string]any{
 		guardianPayloadRecipientEmail: strings.TrimSpace(recipient.Email),
 		guardianPayloadFirstName:      strings.TrimSpace(recipient.FirstName),
@@ -110,4 +112,18 @@ func (m GuardianInvitationMailer) payload(recipient GuardianMailRecipient, linkP
 		guardianPayloadLogoURL:        frontend + "/images/moto-logo-mit-schriftzug.png",
 		guardianPayloadSchoolName:     schoolName,
 	}
+}
+
+// GuardianTokenExpiryFallback applies when neither the registry setting nor
+// the env var name a guardian token lifetime. 48 hours matches the staff
+// invitation default and the registry default.
+const GuardianTokenExpiryFallback = 48 * time.Hour
+
+// guardianMailLogger keeps the mailer nil-safe for the bare values tests
+// construct.
+func guardianMailLogger(logger *slog.Logger) *slog.Logger {
+	if logger == nil {
+		return slog.Default()
+	}
+	return logger
 }

@@ -39,9 +39,10 @@ type AuthCleanup interface {
 	DeleteStalePasswordResetWindows(ctx context.Context) (int, error)
 }
 
-// InvitationCleaner exposes the cleanup routine required from the invitation service.
+// InvitationCleaner exposes the school invitation maintenance Identity &
+// Access owns (#2722): the links whose expiry has passed.
 type InvitationCleaner interface {
-	CleanupExpiredInvitations(ctx context.Context) (int, error)
+	DeleteExpiredSchoolInvitations(ctx context.Context) (int, error)
 }
 
 // StaffMessageCleanupResult reports the records removed by one tenant's
@@ -1148,7 +1149,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Invitation cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return invitationService.CleanupExpiredInvitations(ctx)
+				return invitationService.DeleteExpiredSchoolInvitations(ctx)
 			},
 		})
 	}

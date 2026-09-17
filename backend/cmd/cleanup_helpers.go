@@ -59,7 +59,7 @@ type authCleanupService interface {
 }
 
 type invitationCleanupService interface {
-	CleanupExpiredInvitations(context.Context) (int, error)
+	DeleteExpiredSchoolInvitations(context.Context) (int, error)
 }
 
 type sessionCleanupService interface {

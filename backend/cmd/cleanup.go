@@ -491,7 +491,7 @@ func runCleanupInvitations(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	count, err := ctx.InvitationCleanupService.CleanupExpiredInvitations(context.Background())
+	count, err := ctx.InvitationCleanupService.DeleteExpiredSchoolInvitations(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
