@@ -111,10 +111,10 @@ export async function fetchPickupExtensions(
     headers: { Accept: "application/json" },
     credentials: "include",
   });
-  const data = await readData<{ tasks: BackendPickupExtension[] | null }>(
-    response,
-  );
-  return (data?.tasks ?? []).map(mapPickupExtension);
+  const responseData = await readData<{
+    data: { tasks: BackendPickupExtension[] | null };
+  }>(response);
+  return (responseData.data.tasks ?? []).map(mapPickupExtension);
 }
 
 /**

@@ -221,7 +221,7 @@ func (s *Service) ensurePickupWeekdayEnrollment(
 		return err
 	}
 	for _, enrollment := range enrollments {
-		if (enrollment.ValidUntil != nil && *enrollment.ValidUntil <= validFrom.String()) || enrollment.Weekday == nil || *enrollment.Weekday != weekday ||
+		if (enrollment.ValidUntil != nil && *enrollment.ValidUntil <= validFrom.String()) || (enrollment.Weekday != nil && *enrollment.Weekday != weekday) ||
 			!samePickupExtensionPeriod(enrollment.CalendarPeriodID, block.CalendarPeriodID) {
 			continue
 		}
