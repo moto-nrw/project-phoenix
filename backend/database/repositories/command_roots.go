@@ -12,11 +12,11 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -45,7 +45,7 @@ func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
 // CLI composes. The expired session sweep runs through Identity & Access,
 // which the composition binds to the school and person lookups here (#3251).
 type AuthCleanupRepositories struct {
-	School                 platformModels.SchoolRepository
+	School                 organizationtenancy.Capability
 	Person                 userModels.PersonRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
@@ -55,7 +55,7 @@ type AuthCleanupRepositories struct {
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		School: NewSchoolRepository(db), Person: NewPersonRepository(db),
+		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
 		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}

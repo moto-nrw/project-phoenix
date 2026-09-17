@@ -8,6 +8,7 @@ package messaging_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -22,7 +23,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -80,6 +83,8 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	organizations, err := repositories.NewOrganizationTenancy(db)
+	require.NoError(t, err)
 	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:       repos.ParentMessageThread,
@@ -93,7 +98,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 		Preferences:      preferences,
 		Outbox:           outbox,
 		GuardianProfiles: repos.GuardianProfile,
-		Schools:          repos.School,
+		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
 	})
 
@@ -113,7 +118,7 @@ func mailContent(t *testing.T, msg *email.Message) map[string]any {
 
 func renderMessageRow(t *testing.T, req platformModels.OutboxEnqueueRequest) *email.Message {
 	t.Helper()
-	row := &platformModels.EmailOutbox{Kind: req.Kind, Payload: req.Payload}
+	row := &emailoutbox.Intent{Kind: req.Kind, Payload: req.Payload}
 	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{
 		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
 	})
@@ -222,4 +227,19 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 
 	assert.Empty(t, f.outbox.Rows(), "kein Versand nach Widerspruch")
 	assert.Equal(t, notifications.TypeParentMessage, preferences.gotType)
+}
+
+// schoolNames reads the sending school's name through the Organisation &
+// Tenancy capability, as the serving root does.
+type schoolNames struct{ schools organizationtenancy.Query }
+
+func (n schoolNames) FindSchoolName(ctx context.Context, id int64) (string, bool, error) {
+	school, err := n.schools.FindSchool(ctx, id)
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return school.Name, true, nil
 }

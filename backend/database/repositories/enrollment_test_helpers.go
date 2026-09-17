@@ -6,14 +6,14 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
 
 type EnrollmentTestRepositories struct {
 	TimetableTestRepositories
-	School              platformModels.SchoolRepository
+	School              organizationtenancy.Capability
 	Account             authModels.AccountRepository
 	AccountTenant       authModels.AccountTenantRepository
 	AccountRole         authModels.AccountRoleRepository

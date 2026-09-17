@@ -335,6 +335,10 @@
       "kind": "domain"
     },
     {
+      "id": "operator-dashboard-view",
+      "kind": "projection"
+    },
+    {
       "id": "people-directory",
       "kind": "domain"
     },
@@ -1175,6 +1179,20 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/organizationtenancy/internal/adapters/secrets",
+      "owner": "organization-tenancy",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "owner": "operator-dashboard-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "database/repositories/parent",
       "owner": "care-plan",
       "role": "postgres",
@@ -1753,6 +1771,13 @@
       "owner": "delivery-platform",
       "role": "application",
       "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/application/emailoutbox",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -4241,6 +4266,20 @@
         "enrollment.request_children",
         "schedule.activity_instances",
         "schedule.instance_students"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "operator-dashboard",
+      "package": "modules/organizationtenancy/internal/adapters/operatordashboard",
+      "data_objects": [
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.roles",
+        "iot.pwa_standalone_usage",
+        "platform.organizations",
+        "platform.schools"
       ],
       "tenant_safe": true
     }
@@ -10307,6 +10346,72 @@
       "source_role": "compose",
       "target_owner": "organization-tenancy",
       "target_role": "postgres"
+    },
+    {
+      "id": "organization-tenancy.adapter.security-runtime-domain",
+      "description": "The provisioning secrets adapter generates device API keys and username suffixes with the shared secure generator.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "organization-tenancy.compose.adapter",
+      "description": "Organization and Tenancy composition constructs its provisioning secrets adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "adapter"
+    },
+    {
+      "id": "operator-dashboard-view.domain",
+      "description": "The operator dashboard projection returns Organization and Tenancy domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "postgres",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "organization-tenancy.compose.operator-dashboard",
+      "description": "Organization and Tenancy composition constructs the tenant-safe operator dashboard projection.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "organization-tenancy",
+      "source_role": "compose",
+      "target_owner": "operator-dashboard-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "operator-dashboard-view.integration-test.postgres",
+      "description": "The operator dashboard projection integration tests exercise the projection itself.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "operator-dashboard-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "operator-dashboard-view.integration-test.domain",
+      "description": "The operator dashboard projection integration tests read the returned domain values.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
     },
     {
       "id": "organization-tenancy.compose.public",

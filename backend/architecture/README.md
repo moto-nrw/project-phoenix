@@ -444,6 +444,22 @@ middleware takes), to the `inbound-school.identity-application` and
 and to the retained-repository and retained-service permissions of the
 projection's integration and adapter tests.
 
+The operator dashboard read projection
+(`modules/organizationtenancy/internal/adapters/operatordashboard`,
+`operator-dashboard-view`/`postgres`, #3253) serves the counts, the
+organisation and school summaries and the PWA standalone-usage buckets that
+Organisation & Tenancy's operator provisioning shows. It replaces the raw
+platform summaries repository with constant, named queries and holds the
+exact `operator-dashboard` grant for `platform.organizations`,
+`platform.schools`, `auth.accounts`, `auth.account_tenants`,
+`auth.account_roles`, `auth.roles` and `iot.pwa_standalone_usage`; it never
+writes, and table write ownership is unchanged. Only
+`modules/organizationtenancy/compose` constructs it, over the caller's
+administrative transaction. Devices and persons are not part of it: the
+provisioning flow reads them through Device Fleet and People Directory.
+Replace each grant with an owner query once Identity & Access and Delivery
+expose the account and usage counts.
+
 The live-group read projection (`modules/grouplive`, `group-live-view`/`public`)
 reads every foreign fact through consumer-owned ports and the Care Plan
 excused-request contract; it persists nothing and never writes. Its

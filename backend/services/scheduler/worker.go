@@ -7,7 +7,6 @@ import (
 
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -27,7 +26,7 @@ type WorkerDependencies struct {
 	Logger                    *slog.Logger
 	Getenv                    func(string) string
 	DB                        *bun.DB
-	SchoolRepo                platform.SchoolRepository
+	SchoolRepo                TenantDirectory
 	TenantRuntime             *tenant.UnitOfWork
 	TenantRuntimeObserver     func(entryPoint, outcome string)
 	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
@@ -99,7 +98,7 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 	}{
 		{name: "logger", value: deps.Logger},
 		{name: "database", value: deps.DB},
-		{name: "school repository", value: deps.SchoolRepo},
+		{name: "tenant directory", value: deps.SchoolRepo},
 		{name: "tenant runtime", value: deps.TenantRuntime},
 		{name: "settings", value: deps.Settings},
 		{name: "auth cleanup", value: deps.AuthCleanup},

@@ -6,10 +6,9 @@ import (
 	"testing"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -213,11 +212,11 @@ func (s stubSettings) GetLoginImageURL(_ context.Context, _ int64) (string, erro
 }
 
 type stubOutbox struct {
-	enqueueFn func(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
+	enqueueFn func(ctx context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
 	cancelFn  func(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
 }
 
-func (o *stubOutbox) Enqueue(ctx context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+func (o *stubOutbox) Enqueue(ctx context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 	return o.enqueueFn(ctx, req)
 }
 func (o *stubOutbox) CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
@@ -611,7 +610,7 @@ func TestService_Publish_WithEmail(t *testing.T) {
 			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
 		},
 	}
-	outbox := &stubOutbox{enqueueFn: func(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	outbox := &stubOutbox{enqueueFn: func(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 		enqueued++
 		if req.Payload[emailPayloadTitle] != "Sommerfest" {
 			t.Fatalf("expected title in payload, got %v", req.Payload[emailPayloadTitle])
@@ -619,7 +618,7 @@ func TestService_Publish_WithEmail(t *testing.T) {
 		if _, ok := req.Payload["body"]; ok {
 			t.Fatal("e-mail payload must not carry the body")
 		}
-		return &platformModels.EmailOutbox{}, nil
+		return &emailoutbox.Enqueued{}, nil
 	}}
 	svc := NewService(ServiceConfig{
 		Repo:       repo,
@@ -922,12 +921,12 @@ func TestService_Publish_LogoLookupError_StillEnqueues(t *testing.T) {
 			return []*usersModels.AnnouncementRecipientStatus{{AccountID: 101}}, nil
 		},
 	}
-	outbox := &stubOutbox{enqueueFn: func(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	outbox := &stubOutbox{enqueueFn: func(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 		enqueued++
 		if req.Payload[emailPayloadLogoURL] != "" {
 			t.Fatalf("expected empty logo URL after lookup error, got %v", req.Payload[emailPayloadLogoURL])
 		}
-		return &platformModels.EmailOutbox{}, nil
+		return &emailoutbox.Enqueued{}, nil
 	}}
 	svc := NewService(ServiceConfig{
 		Repo:     repo,
@@ -959,7 +958,7 @@ func TestService_Publish_EmptyAudience(t *testing.T) {
 			return nil, nil
 		},
 	}
-	outbox := &stubOutbox{enqueueFn: func(_ context.Context, _ platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	outbox := &stubOutbox{enqueueFn: func(_ context.Context, _ emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 		t.Fatal("must not enqueue for empty audience")
 		return nil, nil
 	}}

@@ -140,20 +140,21 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 			}
 			return boolRows(status.Linked), nil
 		})
+		// Since #3253 the schools of an account are the owner's active
+		// mappings resolved through the Organisation & Tenancy capability, and
+		// the operator counts are the operatordashboard projection, measured
+		// by its own tests.
 		measure("schools_of_account", iteration, true, func(txCtx context.Context) (int, error) {
-			schools, err := factory.School.FindActiveByAccountID(txCtx, chain.AccountID)
-			return len(schools), err
-		})
-		measure("operator_stats", iteration, true, func(txCtx context.Context) (int, error) {
-			stats, err := factory.OperatorSummaries.Stats(txCtx)
-			if err != nil || stats == nil {
+			memberships, err := factory.AccountTenant.FindActiveByAccountID(txCtx, chain.AccountID)
+			if err != nil {
 				return 0, err
 			}
-			return 1, nil
-		})
-		measure("operator_school_summaries", iteration, true, func(txCtx context.Context) (int, error) {
-			rows, err := factory.OperatorSummaries.SchoolSummaries(txCtx)
-			return len(rows), err
+			ids := make([]int64, 0, len(memberships))
+			for _, membership := range memberships {
+				ids = append(ids, membership.TenantID)
+			}
+			schools, err := factory.School.ListSchoolsByID(txCtx, ids)
+			return len(schools), err
 		})
 	}
 	raw, err := json.Marshal(map[string]any{"postgres": version, "warmup": 5, "samples_per_operation": 30, "concurrency": 1, "samples": samples, "unit_of_work_events_including_warmup": events(), "deadlocks": deadlocks() - beforeDeadlocks})

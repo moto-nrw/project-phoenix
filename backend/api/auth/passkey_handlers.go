@@ -71,7 +71,7 @@ func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), req.TenantSlug)
-	if err != nil || school == nil || school.IsDeleted() || !school.Active {
+	if err != nil || school == nil || school.Deleted || !school.Active {
 		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		return
 	}
@@ -148,7 +148,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	school, err := rs.SchoolService.GetSchoolByID(r.Context(), claims.TenantID)
-	if err != nil || school == nil || school.IsDeleted() || !school.Active {
+	if err != nil || school == nil || school.Deleted || !school.Active {
 		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		return
 	}

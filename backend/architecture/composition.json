@@ -5904,6 +5904,16 @@
     },
     {
       "scope": "test",
+      "file": "services/operator_provisioning_integration_test.go",
+      "declaration": "buildOperatorProvisioning",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        34
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
       "file": "services/platform/operator_email_change_integration_test.go",
       "declaration": "buildServiceFactory",
       "target": "database/repositories.NewFactory",
@@ -5954,16 +5964,6 @@
         "platform.operator_passkey_credentials",
         "platform.operator_passkey_sessions"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/platform/operator_provisioning_integration_test.go",
-      "declaration": "buildProvisioningService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        32
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -6363,7 +6363,7 @@
       "declaration": "TestPWAUsageCleanup_SweepsStaleRows",
       "target": "database/repositories.NewFactory",
       "lines": [
-        47
+        46
       ],
       "tables": [
         "iot.pwa_standalone_usage"
@@ -6398,7 +6398,7 @@
       "declaration": "TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        42
+        41
       ],
       "tables": [
         "audit.data_deletions",
@@ -6411,7 +6411,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        62
+        61
       ],
       "tables": []
     },
@@ -6421,7 +6421,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        54
+        53
       ],
       "tables": []
     },
@@ -6431,7 +6431,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        85
+        84
       ],
       "tables": []
     },
@@ -6441,8 +6441,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        101,
-        112
+        100,
+        111
       ],
       "tables": []
     },
@@ -23664,7 +23664,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 1306,
+          "line": 1307,
+          "declaration": "activeSchoolMemberships"
+        },
+        {
+          "file": "api/base.go",
+          "line": 1322,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -23809,22 +23814,27 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 66,
+          "line": 65,
           "declaration": "sessionRepositoriesOf"
         },
         {
+          "file": "services/account_authentication_composition.go",
+          "line": 149,
+          "declaration": "newSchoolDirectory"
+        },
+        {
           "file": "services/auth_test_helpers.go",
-          "line": 179,
+          "line": 201,
           "declaration": "NewAuthServiceForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 455,
+          "line": 454,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 505,
+          "line": 504,
           "declaration": "newFactory"
         },
         {
@@ -23841,6 +23851,16 @@
           "file": "services/operator_authentication_composition.go",
           "line": 56,
           "declaration": "operatorRepositoriesOf"
+        },
+        {
+          "file": "services/operator_provisioning_composition.go",
+          "line": 22,
+          "declaration": "type operatorProvisioningSources"
+        },
+        {
+          "file": "services/operator_provisioning_composition.go",
+          "line": 53,
+          "declaration": "type provisioningIdentity"
         }
       ]
     }

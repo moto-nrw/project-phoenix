@@ -200,6 +200,17 @@ func (m *Module) CountSchoolsByID(ctx context.Context, ids []int64) (int, error)
 	return m.engine.CountSchoolsByID(ctx, ids)
 }
 
+// NormalizeCreateSchool trims the input the way CreateSchool does and
+// reports the first school rule it breaks, so a caller can reject bad input
+// before it reads anything.
+func NormalizeCreateSchool(input *CreateSchool) error {
+	if input == nil {
+		return invalidSchool("school is required")
+	}
+	normalizeSchool(&input.Name, &input.Slug, &input.Subdomain)
+	return validateSchool(input.OrganizationID, input.Name, input.Slug, input.Subdomain, input.Email)
+}
+
 func validateSchool(organizationID int64, name, slug, subdomain, email string) error {
 	if organizationID <= 0 {
 		return invalidSchool("organization ID is required")

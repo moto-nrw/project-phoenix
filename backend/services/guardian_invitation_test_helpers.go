@@ -43,7 +43,7 @@ func lifecycleTestPort(db *bun.DB, unit tenant.UnitOfWork, audit auditModels.Com
 	}
 	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos), tokenAuth: signer, audit: audit, logger: logger,
+		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, audit: audit, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		lifecycle: &lifecycleWiring{
 			audit:    audit,

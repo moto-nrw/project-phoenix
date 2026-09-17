@@ -13,7 +13,7 @@ func (rs *Resource) resolvePublicTenantID(ctx context.Context, slug string) (int
 	var schoolID int64
 	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, schoolErr := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
-		if schoolErr != nil || school == nil || school.IsDeleted() {
+		if schoolErr != nil || school == nil || school.Deleted {
 			return errors.New("tenant not found")
 		}
 		schoolID = school.ID

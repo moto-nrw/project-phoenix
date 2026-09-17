@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // Outbox payload keys for the parent_announcement e-mail. The announcement
@@ -59,8 +59,8 @@ type EmailConfig struct {
 // NewAnnouncementRenderer renders a parent_announcement outbox row into an
 // e-mail. Registered in the email template registry (kind
 // platform.EmailKindParentAnnouncement) and drained by the outbox worker.
-func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		recipient, _ := row.Payload[emailPayloadRecipient].(string)
 		if recipient == "" {
 			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)

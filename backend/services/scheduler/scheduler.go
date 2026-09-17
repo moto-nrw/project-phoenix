@@ -16,7 +16,6 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -178,7 +177,7 @@ type Scheduler struct {
 	autoEnd                    timetableplanning.AutoEndService
 	settings                   SettingsResolver
 	db                         *bun.DB
-	schoolRepo                 platform.SchoolRepository
+	schoolRepo                 TenantDirectory
 	tenantRuntime              tenant.UnitOfWork
 	tenantRuntimeConfigured    bool
 	tenantRuntimeObserver      func(entryPoint, outcome string)
@@ -495,19 +494,14 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
 	} else {
-		var schools []platform.School
 		if err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var listErr error
-			schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
+			tenantIDs, listErr = s.schoolRepo.ListNonDeletedTenantIDs(txCtx)
 			return listErr
 		}); err != nil {
 			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
-		}
-		tenantIDs = make([]int64, 0, len(schools))
-		for _, school := range schools {
-			tenantIDs = append(tenantIDs, school.ID)
 		}
 	}
 	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {

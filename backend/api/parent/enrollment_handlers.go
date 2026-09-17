@@ -17,7 +17,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -209,8 +208,8 @@ func (rs *Resource) getEnrollmentBootstrap(w http.ResponseWriter, r *http.Reques
 // identifier /auth/tenant/resolve accepts (the enroll page resolves tenant
 // metadata through it in the same render). platform.schools.slug is only unique
 // per organization, so it is not usable as a global routing key at all.
-func (rs *Resource) resolveEnrollmentSchool(ctx context.Context, slug string) (*platformModels.School, error) {
-	var out *platformModels.School
+func (rs *Resource) resolveEnrollmentSchool(ctx context.Context, slug string) (*EnrollmentSchool, error) {
+	var out *EnrollmentSchool
 	err := tenant.WithAdminTx(ctx, rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, findErr := rs.SchoolService.GetSchoolBySubdomain(adminCtx, slug)
 		if findErr != nil || !enrollmentSchoolActive(school) {
@@ -227,8 +226,8 @@ func (rs *Resource) resolveEnrollmentSchool(ctx context.Context, slug string) (*
 
 // enrollmentSchoolActive is the account-independent half of the reachability
 // gate: the school must exist, not be soft-deleted, and still be active.
-func enrollmentSchoolActive(school *platformModels.School) bool {
-	return school != nil && !school.IsDeleted() && school.Active
+func enrollmentSchoolActive(school *EnrollmentSchool) bool {
+	return school != nil && !school.Deleted && school.Active
 }
 
 // enrollmentSchoolReachable reports whether the authenticated parent enrollment
@@ -247,7 +246,7 @@ func enrollmentSchoolActive(school *platformModels.School) bool {
 // enough — auth.account_tenants also carries staff and other roles — and a
 // guardian row alone is not either, since a deactivated mapping leaves the
 // historical rows behind.
-func enrollmentSchoolReachable(school *platformModels.School, status *parentModels.GuardianSubmitStatus) bool {
+func enrollmentSchoolReachable(school *EnrollmentSchool, status *parentModels.GuardianSubmitStatus) bool {
 	if !enrollmentSchoolActive(school) {
 		return false
 	}

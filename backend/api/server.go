@@ -177,7 +177,7 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDe
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
 		DB:                     api.db,
-		SchoolRepo:             api.repos.School,
+		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools},
 		TenantRuntime:          &api.tenantRuntime,
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,

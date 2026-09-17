@@ -11,9 +11,9 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -155,8 +155,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		"without the scope the renderer has nothing to re-check")
 	require.Contains(t, reminder.Payload, "student_ids")
 
-	row := &platformModels.EmailOutbox{Kind: reminder.Kind, Payload: reminder.Payload}
-	row.SetTenantID(parentChain.TenantID)
+	row := &emailoutbox.Intent{TenantID: parentChain.TenantID, Kind: reminder.Kind, Payload: reminder.Payload}
 	render := calendarRuntime.NewCalendarAppointmentRenderer(calendarRuntime.CalendarEmailDependencies{
 		DefaultFrom: email.NewEmail("moto", "no-reply@example.com"),
 		DB:          db,
@@ -174,6 +173,6 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.NoError(t, err)
 
 	_, err = render(testpkg.WithPackageTenantRuntime(context.Background()), row)
-	require.ErrorIs(t, err, platformService.ErrRenderCancelled,
+	require.ErrorIs(t, err, emailoutbox.ErrRenderCancelled,
 		"a revoked guardian must not be mailed, and retrying cannot change that")
 }

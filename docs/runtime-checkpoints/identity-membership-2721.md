@@ -35,6 +35,14 @@ keys by the leased outbox, and the three `users` permission keys
 the staff membership cutover. Table shapes, RLS policies and policy
 ownership are unchanged.
 
+Later change: #3253 moved the school lookup and the operator dashboard
+counts into Organisation & Tenancy. The harness now measures
+`schools_of_account` over the owner's active mappings and the capability's
+school read; the operator counts join the same `ActiveMemberships` statement
+inside the `operatordashboard` projection, whose tests cover them, so
+`operator_stats` and `operator_school_summaries` are no longer measured here.
+The raw files below remain the #2721 record.
+
 ## Reproduce
 
 From the repository root:

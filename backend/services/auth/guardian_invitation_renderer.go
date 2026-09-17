@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 )
 
 // Payload keys used by the guardian-invitation outbox row. The service
@@ -27,25 +26,25 @@ type GuardianInvitationRendererConfig struct {
 	DefaultFrom email.Email
 }
 
-// NewGuardianInvitationRenderer returns a Renderer-compatible function
-// that turns a guardian_invitation outbox row into an email.Message.
-// Register the result with platform.TemplateRegistry at startup.
-func NewGuardianInvitationRenderer(cfg GuardianInvitationRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
-		recipient, _ := row.Payload[guardianPayloadRecipientEmail].(string)
+// NewGuardianInvitationRenderer returns a function that turns the payload of
+// a queued guardian_invitation e-mail into an email.Message. The root
+// registers it with the Delivery renderer registry at startup.
+func NewGuardianInvitationRenderer(cfg GuardianInvitationRendererConfig) func(context.Context, map[string]any) (*email.Message, error) {
+	return func(_ context.Context, payload map[string]any) (*email.Message, error) {
+		recipient, _ := payload[guardianPayloadRecipientEmail].(string)
 		if recipient == "" {
 			return nil, fmt.Errorf("guardian invitation payload missing recipient_email")
 		}
-		invitationURL, _ := row.Payload[guardianPayloadInvitationURL].(string)
+		invitationURL, _ := payload[guardianPayloadInvitationURL].(string)
 		if invitationURL == "" {
 			return nil, fmt.Errorf("guardian invitation payload missing invitation_url")
 		}
 
-		firstName, _ := row.Payload[guardianPayloadFirstName].(string)
-		lastName, _ := row.Payload[guardianPayloadLastName].(string)
-		logoURL, _ := row.Payload[guardianPayloadLogoURL].(string)
-		schoolName, _ := row.Payload[guardianPayloadSchoolName].(string)
-		expiryHours, _ := payloadIntField(row.Payload, guardianPayloadExpiryHours)
+		firstName, _ := payload[guardianPayloadFirstName].(string)
+		lastName, _ := payload[guardianPayloadLastName].(string)
+		logoURL, _ := payload[guardianPayloadLogoURL].(string)
+		schoolName, _ := payload[guardianPayloadSchoolName].(string)
+		expiryHours, _ := payloadIntField(payload, guardianPayloadExpiryHours)
 		if expiryHours <= 0 {
 			expiryHours = 48
 		}

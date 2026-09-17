@@ -31,7 +31,6 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
@@ -44,7 +43,7 @@ type Resource struct {
 	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
 	GuardianProfileLoader *usersService.GuardianProfileLoader
-	SchoolService         platformSvc.SchoolService
+	SchoolService         SchoolDirectory
 	PushService           notificationsService.PushSubscriptionService
 	PreferenceService     notificationsService.PreferenceService
 	PWAUsageService       pwaService.UsageService
@@ -84,7 +83,7 @@ func NewResource(
 	parent parentService.Service,
 	requestSvc enrollmentService.RequestService,
 	guardianProfileLoader *usersService.GuardianProfileLoader,
-	schoolService platformSvc.SchoolService,
+	schoolService SchoolDirectory,
 	db *bun.DB,
 ) *Resource {
 	var sharing parentService.RequestSharingService

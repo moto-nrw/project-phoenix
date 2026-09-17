@@ -17,8 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // chiWalk traverses all routes in the chi.Router and calls fn for each
@@ -37,15 +37,15 @@ func chiWalk(router chi.Router, fn func(pattern string)) error {
 func stubSettingsService() *configtest.Mock { return &configtest.Mock{} }
 
 type protectedRouteProvisioningService struct {
-	platformSvc.OperatorProvisioningService
-	createSchoolFn func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error)
+	organizationtenancy.Provisioning
+	createSchoolFn func(context.Context, *organizationtenancy.CreateSchool, int64, net.IP) (*organizationtenancy.School, error)
 }
 
-func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
+func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, school *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
 	if s.createSchoolFn != nil {
 		return s.createSchoolFn(ctx, school, operatorID, clientIP)
 	}
-	return school, nil
+	return &organizationtenancy.School{OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain, Email: school.Email}, nil
 }
 
 // TestNewResource verifies that the operator resource can be constructed successfully.
@@ -162,7 +162,7 @@ func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 		},
 	}
 	provisioningService := &protectedRouteProvisioningService{
-		createSchoolFn: func(context.Context, *platformModels.School, int64, net.IP) (*platformModels.School, error) {
+		createSchoolFn: func(context.Context, *organizationtenancy.CreateSchool, int64, net.IP) (*organizationtenancy.School, error) {
 			t.Fatal("inactive operator reached protected provisioning handler")
 			return nil, nil
 		},
@@ -197,13 +197,12 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	}
 	createSchoolCalled := false
 	provisioningService := &protectedRouteProvisioningService{
-		createSchoolFn: func(_ context.Context, school *platformModels.School, operatorID int64, clientIP net.IP) (*platformModels.School, error) {
+		createSchoolFn: func(_ context.Context, school *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
 			createSchoolCalled = true
 			assert.Equal(t, int64(42), operatorID)
 			assert.Equal(t, int64(organizationID), school.OrganizationID)
 			assert.Equal(t, "school@example.com", school.Email)
-			school.ID = 88
-			return school, nil
+			return &organizationtenancy.School{ID: 88, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain, Email: school.Email}, nil
 		},
 	}
 	router := operator.NewResource(operator.ResourceConfig{

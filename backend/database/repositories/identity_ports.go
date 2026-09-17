@@ -7,10 +7,8 @@ import (
 	"time"
 
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
@@ -89,20 +87,6 @@ func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianReposito
 // lookup with the Identity & Access active-membership query (#2721).
 func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
 	return usersRepo.NewMessageableGuardianRepository(db, activeMembershipQuery(db))
-}
-
-// NewSchoolRepository composes the Organisation & Tenancy school repository
-// with the Identity & Access active-membership query FindActiveByAccountID
-// joins (#2721).
-func NewSchoolRepository(db *bun.DB) platformModels.SchoolRepository {
-	return platformRepo.NewSchoolRepository(db, platformRepo.WithSchoolMemberships(activeMembershipQuery(db)))
-}
-
-// NewOperatorSummariesRepository composes the operator dashboard aggregates
-// with the Identity & Access active-membership query the konten counts
-// aggregate over (#2721).
-func NewOperatorSummariesRepository(db *bun.DB) platformModels.OperatorSummariesRepository {
-	return platformRepo.NewOperatorSummariesRepository(db, platformRepo.WithSummaryMemberships(activeMembershipQuery(db)))
 }
 
 // staffMessageIdentity returns the Identity & Access owner queries the staff

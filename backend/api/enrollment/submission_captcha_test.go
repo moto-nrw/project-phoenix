@@ -10,19 +10,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
 type captchaSchoolLookup struct {
-	platformService.SchoolService
-	school *platformModels.School
+	school *PublicSchool
 }
 
-func (s captchaSchoolLookup) GetSchoolBySlug(context.Context, string) (*platformModels.School, error) {
+func (s captchaSchoolLookup) GetSchoolBySlug(context.Context, string) (*PublicSchool, error) {
 	return s.school, nil
 }
 
@@ -53,8 +50,7 @@ func TestPublicSubmissionRejectsProviderCaptchaBeforeIntake(t *testing.T) {
 		_, _ = w.Write([]byte(`{"success":false,"error-codes":["invalid-input-response"]}`))
 	}))
 	defer provider.Close()
-	school := &platformModels.School{}
-	school.ID = testpkg.Tenant(t)
+	school := &PublicSchool{ID: testpkg.Tenant(t)}
 	resource := &Resource{
 		db: db, SchoolService: captchaSchoolLookup{school: school},
 		RequestService: captchaBlockedSubmission{},

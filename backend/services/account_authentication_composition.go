@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,10 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
@@ -56,14 +55,14 @@ type accountAuthenticationWiring struct {
 // the repositories the lifecycle seams bind (#3225), extracted here so the
 // factory is read in one place.
 type sessionRepositories struct {
-	schools           platformModels.SchoolRepository
+	schools           schoolDirectory
 	persons           userModels.PersonRepository
 	authEvents        auditModels.AuthEventRepository
 	pushSubscriptions deliveryModels.PushSubscriptionRepository
 	lifecycle         lifecycleRepositories
 }
 
-func sessionRepositoriesOf(repos *repositories.Factory) sessionRepositories {
+func sessionRepositoriesOf(repos *repositories.Factory, organizations organizationtenancy.Query) sessionRepositories {
 	if repos == nil {
 		return sessionRepositories{}
 	}
@@ -75,7 +74,8 @@ func sessionRepositoriesOf(repos *repositories.Factory) sessionRepositories {
 		lifecycle.guardianInvitations = auth.NewGuardianInvitationStore(repos.GuardianInvitation)
 	}
 	return sessionRepositories{
-		schools: repos.School, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+		schools: newSchoolDirectory(organizations, repos),
+		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		lifecycle: lifecycle,
 	}
 }
@@ -83,7 +83,7 @@ func sessionRepositoriesOf(repos *repositories.Factory) sessionRepositories {
 // newIdentityAccessWithSessions composes the Identity & Access module with
 // the account-authentication flows bound.
 func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWiring) (*identityaccess.Module, error) {
-	if wiring.repos.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.tokenAuth == nil || wiring.audit == nil {
+	if wiring.repos.schools.schools == nil || wiring.repos.persons == nil || wiring.repos.authEvents == nil || wiring.repos.pushSubscriptions == nil || wiring.tokenAuth == nil || wiring.audit == nil {
 		return nil, errors.New("identity access composition: repositories, token auth and audit command are required")
 	}
 	observe := func(identityaccessCompose.Observation) {}
@@ -111,7 +111,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 		DB:        db,
 		Observe:   observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
-			Schools:       schoolDirectory{schools: wiring.repos.schools},
+			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
 			Passwords:     passwordVerifier{},
 			Codec:         sessionTokenCodec{tokenAuth: wiring.tokenAuth},
@@ -144,11 +144,36 @@ func (f *Factory) AccountAuthentication() *identityaccess.Module {
 
 // --- retained owner seams -------------------------------------------------
 
-type schoolDirectory struct {
-	schools platformModels.SchoolRepository
+// newSchoolDirectory binds the session school seam to the Organisation &
+// Tenancy capability and to the retained account-tenant memberships.
+func newSchoolDirectory(organizations organizationtenancy.Query, repos *repositories.Factory) schoolDirectory {
+	directory := schoolDirectory{schools: organizations}
+	if repos == nil || repos.AccountTenant == nil {
+		return directory
+	}
+	memberships := repos.AccountTenant
+	directory.activeTenantIDs = func(ctx context.Context, accountID int64) ([]int64, error) {
+		rows, err := memberships.FindActiveByAccountID(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.TenantID)
+		}
+		return ids, nil
+	}
+	return directory
 }
 
-func schoolFact(school *platformModels.School) identityaccess.School {
+type schoolDirectory struct {
+	schools organizationtenancy.Query
+	// activeTenantIDs lists the schools the account holds an active
+	// membership in.
+	activeTenantIDs func(ctx context.Context, accountID int64) ([]int64, error)
+}
+
+func schoolFact(school organizationtenancy.School) identityaccess.School {
 	return identityaccess.School{
 		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
 		Active: school.Active, Deleted: school.IsDeleted(),
@@ -157,63 +182,60 @@ func schoolFact(school *platformModels.School) identityaccess.School {
 
 func (d schoolDirectory) FindSchool(ctx context.Context, id int64) (identityaccess.School, bool, error) {
 	if d.schools == nil {
-		return identityaccess.School{}, false, errors.New("school repository is not composed")
+		return identityaccess.School{}, false, errors.New("school directory is not composed")
 	}
-	school, err := d.schools.FindByID(ctx, id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return identityaccess.School{}, false, nil
-		}
+	school, found, err := findSchool(ctx, d.schools, id)
+	if err != nil || !found {
 		return identityaccess.School{}, false, err
-	}
-	if school == nil {
-		return identityaccess.School{}, false, nil
 	}
 	return schoolFact(school), true, nil
 }
 
 func (d schoolDirectory) FindSchoolBySubdomain(ctx context.Context, subdomain string) (identityaccess.School, bool, error) {
 	if d.schools == nil {
-		return identityaccess.School{}, false, errors.New("school repository is not composed")
+		return identityaccess.School{}, false, errors.New("school directory is not composed")
 	}
-	school, err := d.schools.FindBySubdomain(ctx, subdomain)
+	school, err := d.schools.FindSchoolBySubdomain(ctx, subdomain)
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
+		return identityaccess.School{}, false, nil
+	}
 	if err != nil {
 		return identityaccess.School{}, false, err
-	}
-	if school == nil {
-		return identityaccess.School{}, false, nil
 	}
 	return schoolFact(school), true, nil
 }
 
 func (d schoolDirectory) LockSchoolShared(ctx context.Context, id int64) (identityaccess.School, bool, error) {
 	if d.schools == nil {
-		return identityaccess.School{}, false, errors.New("school repository is not composed")
+		return identityaccess.School{}, false, errors.New("school directory is not composed")
 	}
-	school, err := d.schools.FindByIDForShare(ctx, id)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return identityaccess.School{}, false, nil
-		}
-		return identityaccess.School{}, false, err
-	}
-	if school == nil {
+	school, err := d.schools.FindSchoolForShare(ctx, id)
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
 		return identityaccess.School{}, false, nil
+	}
+	if err != nil {
+		return identityaccess.School{}, false, err
 	}
 	return schoolFact(school), true, nil
 }
 
 func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]identityaccess.School, error) {
-	if d.schools == nil {
-		return nil, errors.New("school repository is not composed")
+	if d.schools == nil || d.activeTenantIDs == nil {
+		return nil, errors.New("school directory is not composed")
 	}
-	schools, err := d.schools.FindActiveByAccountID(ctx, accountID)
+	ids, err := d.activeTenantIDs(ctx, accountID)
+	if err != nil || len(ids) == 0 {
+		return []identityaccess.School{}, err
+	}
+	schools, err := d.schools.ListSchoolsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]identityaccess.School, 0, len(schools))
-	for i := range schools {
-		result = append(result, schoolFact(&schools[i]))
+	for _, school := range schools {
+		if school.Active && !school.IsDeleted() {
+			result = append(result, schoolFact(school))
+		}
 	}
 	return result, nil
 }

@@ -4,7 +4,7 @@ import "context"
 
 // OutboxEnqueueRequest is the transport-neutral enqueue input shared by the
 // feature services (auth, enrollment) and the platform outbox service. It
-// mirrors services/platform.EnqueueRequest field for field.
+// mirrors the Delivery emailoutbox.EnqueueRequest field for field.
 type OutboxEnqueueRequest struct {
 	Kind              string
 	Payload           map[string]any

@@ -11,9 +11,9 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -32,7 +32,7 @@ func NewNotificationConsentTestStore(db *bun.DB) notifications.ConsentStore {
 
 type DeliveryTestModule struct {
 	Delivery                *deliveryModule.Module
-	EmailOutbox             *platform.OutboxService
+	EmailOutbox             *emailoutbox.Service
 	Notifications           notifications.Notifier
 	PushSubscriptions       notifications.PushSubscriptionService
 	NotificationPreferences notifications.PreferenceService
@@ -58,14 +58,14 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 		return DeliveryTestModule{}, err
 	}
 	pushRepo := deliveryCompose.NewPushSubscriptionRepository(db)
-	identity := platform.NewTenantMailIdentityService(repositories.NewSchoolCapabilityAdapter(organizations, members.AccountTenant),
+	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations},
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)
 	guardians := users.NewGuardianService(users.GuardianServiceDependencies{GuardianProfileRepo: repositories.NewGuardianProfileTestRepository(db), DB: db})
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: db, People: guardianDisplayResolver{query: guardians}, Observe: func(deliveryModule.Observation) {},
-		Provider: &deliveryProvider{registry: platform.NewTemplateRegistry(), mailer: email.NewMockMailer(), mailIdentity: identity,
+		Provider: &deliveryProvider{registry: emailoutbox.NewTemplateRegistry(nil), mailer: email.NewMockMailer(), mailIdentity: identity,
 			push:   deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{Subscriber: vapid.Subscriber, PublicKey: vapid.PublicKey, PrivateKey: vapid.PrivateKey}, newExpiredPushSubscriptionCleaner(db, pushRepo)),
 			logger: logger, db: db, pushAuthorized: newPushAuthorizationChecker(db, pushRepo)},
 	})
@@ -84,6 +84,6 @@ func NewDeliveryTestModule(db *bun.DB, unit tenant.UnitOfWork) (DeliveryTestModu
 	push.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	preferences := notifications.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db, members.AccountTenant)
 	preferences.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: platform.NewOutboxService(durableEmailAdapter{module: delivery.Module}),
+	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: emailoutbox.NewService(durableEmailAdapter{module: delivery.Module}),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
 }
