@@ -104,17 +104,6 @@ type SchoolIdentityProvisioner interface {
 	ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]AccountIdentityFact, error)
 }
 
-// SchoolRolePolicy is the retained role assignment policy every
-// school-access path shares. A role with ID zero is one that does not
-// exist; ValidateAssignableSchoolRole reports why a role may not be handed
-// out at the school with the message the operator sees.
-type SchoolRolePolicy interface {
-	ValidateAssignableSchoolRole(role identityaccess.SchoolRole, tenantID int64) error
-	IsLehrkraftSystemRole(role identityaccess.SchoolRole) bool
-	RoleNeedsStaffRecord(role identityaccess.SchoolRole) bool
-	LehrkraftRoleImmutable() error
-}
-
 // OperatorDependencies are the seams the operator flows need beyond the
 // account-session dependencies they share (the password verifier, the JWT
 // codec, the auth ledger, the schools and the tenant runtime).
@@ -125,7 +114,6 @@ type OperatorDependencies struct {
 	Passwords     PasswordHasher
 	Organizations OrganizationDirectory
 	Identities    SchoolIdentityProvisioner
-	RolePolicy    SchoolRolePolicy
 	Logger        *slog.Logger
 }
 
@@ -138,7 +126,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 	}
 	switch {
 	case deps.MFA == nil, deps.Audit == nil, deps.Credentials == nil, deps.Passwords == nil,
-		deps.Organizations == nil, deps.Identities == nil, deps.RolePolicy == nil:
+		deps.Organizations == nil, deps.Identities == nil:
 		return nil, nil, errors.New("identity access compose: every operator dependency is required")
 	}
 	attach := sessions.TenantRuntime
@@ -168,7 +156,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		Schools:       schoolDirectory{sessions.Schools},
 		Organizations: organizationDirectory{deps.Organizations},
 		Identities:    schoolIdentityProvisioner{source: deps.Identities, lifecycle: lifecycle},
-		Policy:        schoolRolePolicy{deps.RolePolicy},
+		Policy:        schoolRolePolicy{},
 		Audit:         authAudit{sessions.Audit},
 		OperatorAudit: operatorAudit{deps.Audit},
 		Runtime:       runtime,
@@ -286,21 +274,40 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	return result, nil
 }
 
-type schoolRolePolicy struct{ source SchoolRolePolicy }
+// schoolRolePolicy binds the public school-role policy every school-access
+// path shares (#3314). A role with ID zero is one that does not exist; the
+// validation reports why a role may not be handed out at the school with the
+// message the operator sees.
+type schoolRolePolicy struct{}
 
-func (p schoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error {
-	return p.source.ValidateAssignableSchoolRole(schoolRoleFact(role), tenantID)
+func (schoolRolePolicy) ValidateAssignableSchoolRole(role domain.RoleFact, tenantID int64) error {
+	return identityaccess.ValidateAssignableSchoolRole(operatorRoleFacts(role), tenantID)
 }
 
-func (p schoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
-	return p.source.IsLehrkraftSystemRole(schoolRoleFact(role))
+func (schoolRolePolicy) IsLehrkraftSystemRole(role domain.RoleFact) bool {
+	return identityaccess.IsLehrkraftSystemRole(operatorRoleFacts(role))
 }
 
-func (p schoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
-	return p.source.RoleNeedsStaffRecord(schoolRoleFact(role))
+// RoleNeedsStaffRecord classifies the fact as given, ID zero included, as the
+// operator flows always did; only the lookup-shaped decisions treat ID zero
+// as no role.
+func (schoolRolePolicy) RoleNeedsStaffRecord(role domain.RoleFact) bool {
+	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
+		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
+	})
 }
 
-func (p schoolRolePolicy) LehrkraftRoleImmutable() error { return p.source.LehrkraftRoleImmutable() }
+func (schoolRolePolicy) LehrkraftRoleImmutable() error {
+	return identityaccess.ErrLehrkraftRoleImmutable
+}
+
+// operatorRoleFacts projects a resolved role; ID zero is no role at all.
+func operatorRoleFacts(role domain.RoleFact) *identityaccess.RoleFacts {
+	if role.ID <= 0 {
+		return nil
+	}
+	return &identityaccess.RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
+}
 
 func schoolRoleFact(role domain.RoleFact) identityaccess.SchoolRole {
 	return identityaccess.SchoolRole{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}

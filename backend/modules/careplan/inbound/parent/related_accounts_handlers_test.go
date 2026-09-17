@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/parent"
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -84,7 +84,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
-	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 
@@ -189,7 +189,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.G
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
-	rs := parent.NewResource(nil, svc, nil, nil, nil, db)
+	rs := parent.NewResource(parent.ResourceConfig{Parent: svc, DB: db})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
 }
 

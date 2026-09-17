@@ -313,7 +313,7 @@ func (r *StaffMessageReadRepository) IsMessageableStaff(ctx context.Context, acc
 // The Identity & Access owner decides which roles count: "admin" is the
 // system admin role itself or any custom role whose base_role is admin,
 // "lehrkraft" the platform system role of that name (narrowed to system roles
-// exactly like services/auth.IsLehrkraftSystemRole). Precedence admin >
+// exactly like identityaccess.IsLehrkraftSystemRole). Precedence admin >
 // lehrkraft > staff, see the StaffRoleKind constants.
 func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	out := make(map[int64]string, len(accountIDs))

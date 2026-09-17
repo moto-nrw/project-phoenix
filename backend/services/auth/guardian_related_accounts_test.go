@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -111,6 +112,57 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 	assert.Nil(t, result.InvitationID, "existing accounts are linked without a token invite")
 	assert.Equal(t, profile.ID, result.GuardianProfileID)
 	assert.True(t, env.linkExists(t, student.ID, profile.ID))
+}
+
+// #3320: a school admin is also a parent. Staff created the guardian profile
+// with the admin's address and linked the child; "Einladen" must not create a
+// registration token, but must mail a pointer to the parents portal login.
+func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T) {
+	t.Parallel()
+
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
+		cfg.OutboxEnqueuer = outbox
+	})
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Admin", "Kind", "1c")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	_, adminAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Schul", "Admin")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "admin-parent")
+	ctx := testpkg.Ctx(t)
+	_, err := env.db.NewUpdate().TableExpr("users.guardian_profiles").
+		Set("email = ?", adminAccount.Email).
+		Where("id = ?", profile.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	testpkg.CreateTestStudentGuardianLink(t, env.db, student.ID, profile.ID, "legal_guardian")
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     adminAccount.Email,
+		CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, result.Outcome)
+	assert.Nil(t, result.InvitationID, "no registration token for an existing account")
+	stored, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.AccountID)
+	assert.Equal(t, adminAccount.ID, *stored.AccountID, "the profile is attached to the admin account")
+
+	require.Len(t, outbox.requests, 1)
+	payload := outbox.requests[0].Payload
+	assert.Equal(t, platformModels.EmailKindGuardianInvitation, outbox.requests[0].Kind)
+	assert.Equal(t, adminAccount.Email, payload["recipient_email"])
+	assert.Equal(t, "http://localhost:3000/login", payload["invitation_url"])
+	assert.Equal(t, true, payload["existing_account"])
 }
 
 func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testing.T) {

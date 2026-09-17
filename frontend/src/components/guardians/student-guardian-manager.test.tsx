@@ -1288,4 +1288,47 @@ describe("StudentGuardianManager", () => {
       expect(mockToastSuccess).not.toHaveBeenCalled();
     });
   });
+
+  describe("Invite for an existing account (#3320)", () => {
+    it.each(["already_linked", "linked_existing_account"] as const)(
+      "reports the portal mail for outcome %s",
+      async (outcome) => {
+        mockInviteGuardianToStudent.mockResolvedValueOnce({
+          outcome,
+          guardian_profile_id: "guardian-2",
+        });
+
+        render(<StudentGuardianManager studentId="student-123" />);
+        await waitFor(() =>
+          expect(screen.getByTestId("guardian-list")).toBeInTheDocument(),
+        );
+
+        fireEvent.click(screen.getByTestId("invite-guardian-2"));
+        await waitFor(() =>
+          expect(mockToastSuccess).toHaveBeenCalledWith(
+            "Hans Müller hat schon ein Konto. Hinweis zum Elternportal an hans@example.com gesendet",
+          ),
+        );
+      },
+    );
+
+    it("does not claim a sent mail while approval is pending", async () => {
+      mockInviteGuardianToStudent.mockResolvedValueOnce({
+        outcome: "pending_approval",
+        guardian_profile_id: "guardian-2",
+      });
+
+      render(<StudentGuardianManager studentId="student-123" />);
+      await waitFor(() =>
+        expect(screen.getByTestId("guardian-list")).toBeInTheDocument(),
+      );
+
+      fireEvent.click(screen.getByTestId("invite-guardian-2"));
+      await waitFor(() =>
+        expect(mockToastSuccess).toHaveBeenCalledWith(
+          "Anfrage für Hans Müller wartet auf Freigabe",
+        ),
+      );
+    });
+  });
 });

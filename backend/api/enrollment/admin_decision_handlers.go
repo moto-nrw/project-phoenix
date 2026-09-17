@@ -152,7 +152,7 @@ type AdminRequestChild struct {
 // The attribute and validity fields carry the same facts the parent
 // portal renders for this booking (#2185), in the same wire shape:
 // ValidUntil is the INCLUSIVE last covered day, matching
-// api/parent/care_offerings_handlers.go. The stored column is
+// modules/careplan/inbound/parent/care_offerings_handlers.go. The stored column is
 // exclusive; one JSON name must not mean two different days depending
 // on which endpoint answered.
 //
@@ -799,7 +799,7 @@ func optionalDateString(value *timezone.Date) string {
 
 // optionalInclusiveEndDateString renders a stored EXCLUSIVE interval end
 // as the inclusive last covered day, the shape the parent endpoint has
-// always used (api/parent/care_offerings_handlers.go).
+// always used (modules/careplan/inbound/parent/care_offerings_handlers.go).
 func optionalInclusiveEndDateString(value *timezone.Date) string {
 	if value == nil || value.IsZero() {
 		return ""

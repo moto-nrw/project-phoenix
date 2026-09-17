@@ -82,8 +82,7 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 			persons: wiring.repos.persons, staff: wiring.repos.staff, teachers: wiring.repos.teachers, students: wiring.repos.students,
 			directory: wiring.persons, membership: wiring.membership,
 		},
-		RolePolicy: schoolRolePolicy{},
-		Logger:     wiring.logger,
+		Logger: wiring.logger,
 	}, nil
 }
 
@@ -285,7 +284,7 @@ func (p schoolIdentityProvisioner) personIsStudent(ctx context.Context, personID
 }
 
 func (p schoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return auth.HasLiveCaregiverProfile(ctx, p.persons, p.staff, p.teachers, accountID)
+	return hasLiveCaregiverProfile(ctx, p.persons, p.staff, p.teachers, accountID)
 }
 
 func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identityaccessCompose.SchoolIdentityRequest) error {
@@ -336,29 +335,6 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	}
 	return facts, nil
 }
-
-// schoolRolePolicy serves the retained role assignment rules.
-type schoolRolePolicy struct{}
-
-func (schoolRolePolicy) ValidateAssignableSchoolRole(role identityaccess.SchoolRole, tenantID int64) error {
-	if role.ID <= 0 {
-		return auth.ErrRoleNotAssignable
-	}
-	_, err := auth.ValidateResolvedAssignableSchoolRole(auth.ResolvedSchoolRole(role.ID, role.TenantID, role.Name, role.IsSystem, role.BaseRole), tenantID)
-	return err
-}
-
-func (schoolRolePolicy) IsLehrkraftSystemRole(role identityaccess.SchoolRole) bool {
-	return auth.IsLehrkraftSystemRole(auth.ResolvedSchoolRole(role.ID, role.TenantID, role.Name, role.IsSystem, role.BaseRole))
-}
-
-func (schoolRolePolicy) RoleNeedsStaffRecord(role identityaccess.SchoolRole) bool {
-	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
-		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
-	})
-}
-
-func (schoolRolePolicy) LehrkraftRoleImmutable() error { return auth.ErrLehrkraftRoleImmutable }
 
 // --- the retained platform services' consumer-owned ports -----------------
 

@@ -274,7 +274,7 @@ func (s *stubAccountSessions) FindSchoolPortalTenant(ctx context.Context, accoun
 				return roleErr
 			}
 			for _, assignment := range roles {
-				if assignment.Role != nil && IsLehrkraftSystemRole(assignment.Role) {
+				if assignment.Role != nil && identityaccess.IsLehrkraftSystemRole(stubRoleFacts(RoleFactsOf(assignment.Role))) {
 					found, tenantID = true, mapping.TenantID
 					return nil
 				}
