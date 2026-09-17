@@ -37,6 +37,7 @@ const mocks = vi.hoisted(() => ({
   createAbsence: vi.fn(),
   getCompTimePreview: vi.fn(),
   getAllowance: vi.fn(),
+  previewAllowance: vi.fn(),
 }));
 
 vi.mock("~/lib/staff-api", () => ({
@@ -48,7 +49,10 @@ vi.mock("~/lib/staff-api", () => ({
   },
 }));
 vi.mock("~/lib/absence-type-api", () => ({
-  absenceTypeService: { getAllowance: mocks.getAllowance },
+  absenceTypeService: {
+    getAllowance: mocks.getAllowance,
+    previewAllowance: mocks.previewAllowance,
+  },
 }));
 
 import { AbsenceBookingModal } from "./absence-booking-modal";
@@ -62,6 +66,7 @@ const regeneration: AbsenceType = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: true,
+  carryoverUntil: null,
 };
 const conversion: AbsenceType = {
   id: "13",
@@ -69,6 +74,7 @@ const conversion: AbsenceType = {
   baseType: "other",
   isActive: false,
   allowanceEnabled: true,
+  carryoverUntil: null,
 };
 const trip: AbsenceType = {
   id: "14",
@@ -76,6 +82,7 @@ const trip: AbsenceType = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: false,
+  carryoverUntil: null,
 };
 
 function vacationQuota(year: number, remaining: number) {
@@ -91,7 +98,11 @@ function vacationQuota(year: number, remaining: number) {
   };
 }
 
-function allowance(year: number, remaining: number) {
+function allowance(
+  year: number,
+  remaining: number,
+  extra: Record<string, unknown> = {},
+) {
   return {
     staffId: "4",
     absenceTypeId: "12",
@@ -100,6 +111,26 @@ function allowance(year: number, remaining: number) {
     takenDays: 2 - remaining,
     reservedDays: 0,
     remainingDays: remaining,
+    expiresOn: `${year}-12-31`,
+    expiredDays: 0,
+    bookingDays: 0,
+    carriedIn: null,
+    ...extra,
+  };
+}
+
+/** Server-Vorschau: `booked` Tage aus einem Jahr mit `remaining` Tagen. */
+function previewOf(
+  years: { year: number; remaining: number; booked: number }[],
+  blocked = years.some((item) => item.remaining - item.booked < 0),
+) {
+  return {
+    years: years.map((item) =>
+      allowance(item.year, item.remaining - item.booked, {
+        bookingDays: item.booked,
+      }),
+    ),
+    blocked,
   };
 }
 
@@ -135,6 +166,9 @@ describe("AbsenceBookingModal", () => {
     mocks.getAllowance.mockImplementation(
       (_type: string, _id: string, year: number) =>
         Promise.resolve(allowance(year, 1)),
+    );
+    mocks.previewAllowance.mockResolvedValue(
+      previewOf([{ year: 2026, remaining: 1, booked: 1 }]),
     );
     mocks.createAbsence.mockResolvedValue({});
     mocks.getCompTimePreview.mockResolvedValue({
@@ -202,21 +236,36 @@ describe("AbsenceBookingModal", () => {
     renderModal();
     await screen.findByText("noch 1 Tag");
 
+    mocks.previewAllowance.mockImplementation(
+      (_type: string, _staff: string, booking: { halfDay: boolean }) =>
+        Promise.resolve(
+          previewOf([
+            { year: 2026, remaining: 1, booked: booking.halfDay ? 0.5 : 2 },
+          ]),
+        ),
+    );
     choose("Regenerationstag");
     fireEvent.change(screen.getByLabelText("Bis"), {
       target: { value: "2026-09-10" },
     });
 
     expect(
-      screen.getByText(
+      await screen.findByText(
         "Nicht genug Tage: Regenerationstag hat noch 1 Tag, diese Eintragung braucht 2 Tage. Ändern Sie zuerst den Anspruch oder wählen Sie eine andere Art.",
       ),
     ).toBeInTheDocument();
     expect(submit()).toBeDisabled();
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Halber Tag" }));
-    expect(screen.queryByText(/Nicht genug Tage/)).not.toBeInTheDocument();
-    expect(submit()).toBeEnabled();
+    await waitFor(() =>
+      expect(screen.queryByText(/Nicht genug Tage/)).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(submit()).toBeEnabled());
+    expect(mocks.previewAllowance).toHaveBeenLastCalledWith("12", "4", {
+      dateStart: "2026-09-09",
+      dateEnd: "2026-09-09",
+      halfDay: true,
+    });
     fireEvent.click(submit());
     await waitFor(() =>
       expect(mocks.createAbsence).toHaveBeenCalledWith("4", {
@@ -230,20 +279,9 @@ describe("AbsenceBookingModal", () => {
     );
   });
 
-  it("charges only the part of an extension that is not already booked", async () => {
-    mocks.getAbsences.mockResolvedValue([
-      {
-        id: 31,
-        staff_id: 4,
-        absence_type: "other",
-        absence_type_id: "12",
-        date_start: "2026-09-09",
-        date_end: "2026-09-09",
-        half_day: false,
-        note: "",
-        status: "reported",
-      },
-    ]);
+  // Wie viel eine Verlängerung neu braucht, rechnet der Server
+  // (TestCustomAbsenceAllowanceRejectsOverrun); der Dialog zeigt seine Zahlen.
+  it("shows the server's count for an extension of an existing booking", async () => {
     renderModal();
     await screen.findByText("noch 1 Tag");
 
@@ -252,9 +290,107 @@ describe("AbsenceBookingModal", () => {
       target: { value: "2026-09-10" },
     });
 
+    expect(await screen.findByText("0 Tage")).toBeInTheDocument();
     expect(screen.queryByText(/Nicht genug Tage/)).not.toBeInTheDocument();
-    expect(screen.getByText("0 Tage")).toBeInTheDocument();
     expect(submit()).toBeEnabled();
+  });
+
+  describe("Übertrag ins Folgejahr (#3257)", () => {
+    it("shows which year a booking in January uses and until when", async () => {
+      mocks.getAllowance.mockImplementation(
+        (_type: string, _id: string, year: number) =>
+          Promise.resolve(
+            allowance(year, 1, {
+              carriedIn: {
+                year: year - 1,
+                remainingDays: 2,
+                expiredDays: 0,
+                expiresOn: `${year}-03-31`,
+              },
+            }),
+          ),
+      );
+      mocks.previewAllowance.mockResolvedValue({
+        years: [
+          allowance(2026, 0, { bookingDays: 2, expiresOn: "2027-03-31" }),
+          allowance(2027, 0, { bookingDays: 1 }),
+        ],
+        blocked: false,
+      });
+      renderModal();
+      fireEvent.change(screen.getByLabelText("Von"), {
+        target: { value: "2027-01-11" },
+      });
+      fireEvent.change(screen.getByLabelText("Bis"), {
+        target: { value: "2027-01-13" },
+      });
+
+      // 1 Tag aus 2027 plus 2 übertragene Tage aus 2026.
+      expect(await screen.findByText("noch 3 Tage")).toBeInTheDocument();
+      choose("Regenerationstag");
+      expect(
+        await screen.findByText("Regenerationstag 2026: noch übrig"),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Regenerationstag 2027: noch übrig"),
+      ).toBeInTheDocument();
+      expect(screen.getByText("31.03.2027")).toBeInTheDocument();
+      expect(screen.getByText("31.12.2027")).toBeInTheDocument();
+      await waitFor(() => expect(submit()).toBeEnabled());
+    });
+
+    it("does not count a carried rest after it expired", async () => {
+      mocks.getAllowance.mockImplementation(
+        (_type: string, _id: string, year: number) =>
+          Promise.resolve(
+            allowance(year, 1, {
+              carriedIn: {
+                year: year - 1,
+                remainingDays: 2,
+                expiredDays: 0,
+                expiresOn: `${year}-03-31`,
+              },
+            }),
+          ),
+      );
+      renderModal();
+      fireEvent.change(screen.getByLabelText("Von"), {
+        target: { value: "2027-04-01" },
+      });
+      await waitFor(() =>
+        expect(mocks.getAllowance).toHaveBeenCalledWith("12", "4", 2027),
+      );
+      expect(await screen.findByText("noch 1 Tag")).toBeInTheDocument();
+      expect(screen.queryByText("noch 3 Tage")).not.toBeInTheDocument();
+    });
+
+    it("blocks when the server refuses without a short year on screen", async () => {
+      mocks.previewAllowance.mockResolvedValue(
+        previewOf([{ year: 2026, remaining: 1, booked: 1 }], true),
+      );
+      renderModal();
+      await screen.findByText("noch 1 Tag");
+      choose("Regenerationstag");
+
+      expect(
+        await screen.findByText(/spätere Eintragungen von Regenerationstag/),
+      ).toBeInTheDocument();
+      expect(submit()).toBeDisabled();
+    });
+
+    it("keeps booking blocked while the preview cannot be loaded", async () => {
+      mocks.previewAllowance.mockRejectedValue(new Error("preview down"));
+      renderModal();
+      await screen.findByText("noch 1 Tag");
+      choose("Regenerationstag");
+
+      expect(
+        await screen.findByText(
+          "Die Kontingente konnten nicht geladen werden. Bitte schließen und noch einmal öffnen.",
+        ),
+      ).toBeInTheDocument();
+      expect(submit()).toBeDisabled();
+    });
   });
 
   it("checks every calendar year a booking touches", async () => {
@@ -276,7 +412,7 @@ describe("AbsenceBookingModal", () => {
       expect(mocks.getVacationQuota).toHaveBeenCalledWith("4", 2027),
     );
     expect(
-      await screen.findByText(/Nicht genug Tage: Urlaub hat noch 0 Tage/),
+      await screen.findByText(/Nicht genug Tage: Urlaub 2027 hat noch 0 Tage/),
     ).toBeInTheDocument();
     expect(screen.getByText("Urlaub 2026: noch übrig")).toBeInTheDocument();
     expect(screen.getByText("Urlaub 2027: noch übrig")).toBeInTheDocument();
@@ -392,6 +528,19 @@ describe("AbsenceBookingModal", () => {
         }),
       );
       expect(submit()).toBeEnabled();
+    });
+
+    it("points to open Kontingente before they expire", async () => {
+      renderModal();
+      await screen.findByText("noch 12 Tage");
+      choose("Freizeitausgleich");
+
+      expect(
+        await screen.findByText(
+          "Noch offen: 1 Tag Regenerationstag, nutzbar bis 31.12.2026. Diese Tage verfallen danach. Freizeitausgleich geht vom Stundenkonto ab.",
+        ),
+      ).toBeInTheDocument();
+      await waitFor(() => expect(submit()).toBeEnabled());
     });
 
     it("still allows booking when the preview fails to load", async () => {

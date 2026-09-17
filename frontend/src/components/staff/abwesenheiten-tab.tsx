@@ -475,6 +475,7 @@ export function AbwesenheitenTab({
               taken={entry.summary.takenDays}
               reserved={entry.summary.reservedDays}
               remaining={entry.summary.remainingDays}
+              footer={<AllowanceExpiryNote summary={entry.summary} />}
               onEdit={
                 canEditQuota ? () => setEditing(entry.type.id) : undefined
               }
@@ -669,6 +670,53 @@ export function AbwesenheitenTab({
 
 function formatNumber(days: number): string {
   return String(Math.round(days * 10) / 10).replace(".", ",");
+}
+
+// Wann der Rest verfällt (#3257): ein verfallener Rest bleibt sichtbar, und
+// im neuen Jahr steht dabei, was aus dem Vorjahr noch nutzbar ist.
+function AllowanceExpiryNote({
+  summary,
+}: {
+  readonly summary: AbsenceTypeAllowanceSummary;
+}) {
+  const lines: { text: string; expired: boolean }[] = [];
+  const carried = summary.carriedIn;
+  if (carried && carried.remainingDays > 0) {
+    lines.push({
+      text: `Dazu noch ${formatDayCount(carried.remainingDays)} aus ${carried.year}, nutzbar bis ${formatDate(carried.expiresOn)}. Diese gehen zuerst ab.`,
+      expired: false,
+    });
+  }
+  if (carried && carried.expiredDays > 0) {
+    lines.push({
+      text: `${formatDayCount(carried.expiredDays)} aus ${carried.year} am ${formatDate(carried.expiresOn)} verfallen.`,
+      expired: true,
+    });
+  }
+  if (summary.expiredDays > 0) {
+    lines.push({
+      text: `${formatDayCount(summary.expiredDays)} am ${formatDate(summary.expiresOn)} verfallen.`,
+      expired: true,
+    });
+  } else if (summary.remainingDays > 0) {
+    lines.push({
+      text: `Rest verfällt am ${formatDate(summary.expiresOn)}.`,
+      expired: false,
+    });
+  }
+  if (lines.length === 0) return null;
+  return (
+    <ul className="space-y-1 text-xs">
+      {lines.map((line) => (
+        <li
+          key={line.text}
+          className={line.expired ? "text-moto-red-strong" : "text-gray-600"}
+        >
+          {line.text}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 // Eine Kontingent-Karte (#3256): Urlaub und jede eigene Art mit Kontingent

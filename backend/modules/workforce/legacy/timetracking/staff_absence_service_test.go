@@ -897,6 +897,36 @@ func TestAbsCreateAbsence_MergeSameType(t *testing.T) {
 	assert.Equal(t, "2026-02-12", updatedAbsence.DateEnd.Format("2006-01-02"))
 }
 
+func TestAbsCreateAbsenceFor_RejectsAllowanceBookingOverlap(t *testing.T) {
+	t.Parallel()
+
+	svc, absRepo, _ := absSetupService()
+	staffID, typeID := int64(100), int64(42)
+	svc.absenceTypes = &absTypeReaderMock{rows: []*StaffAbsenceType{{
+		Model: Model{ID: typeID}, Name: "Regenerationstag",
+		BaseType: AbsenceTypeOther, IsActive: true, AllowanceEnabled: true,
+	}}}
+	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, Date, Date) ([]*StaffAbsence, error) {
+		return []*StaffAbsence{{
+			Model: Model{ID: 60}, StaffID: staffID,
+			AbsenceType: AbsenceTypeOther, AbsenceTypeID: &typeID,
+			DateStart: NewDate(2027, 1, 11), DateEnd: NewDate(2027, 1, 11),
+			Status: AbsenceStatusReported,
+		}}, nil
+	}
+	absRepo.updateFunc = func(context.Context, *StaffAbsence) error {
+		t.Fatal("an allowance booking must keep its own entry date")
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), staffID, staffID, nil, CreateAbsenceRequest{
+		AbsenceType: AbsenceTypeOther, AbsenceTypeID: &typeID,
+		DateStart: "2027-01-11", DateEnd: "2027-01-12",
+	})
+
+	require.ErrorIs(t, err, ErrAllowanceBookingOverlap)
+}
+
 func TestAbsCreateAbsence_MergeMultipleSameType(t *testing.T) {
 	t.Parallel()
 

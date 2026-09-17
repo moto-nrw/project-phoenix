@@ -25,6 +25,7 @@ func (e *capabilityError) Unwrap() error        { return e.cause }
 type absenceTypeCatalog interface {
 	SetAllowance(context.Context, workforce.SetAbsenceTypeAllowance) (workforce.AbsenceTypeAllowanceSummary, error)
 	AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error)
+	PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error)
 	ListStaffAbsenceTypes(context.Context) ([]workforce.StaffAbsenceType, error)
 	CreateAbsenceType(context.Context, workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error)
 	UpdateAbsenceType(context.Context, workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error)
@@ -83,6 +84,16 @@ func (a absenceTypeAdministration) AllowanceSummary(ctx context.Context, staffID
 		return workforce.AbsenceTypeAllowanceSummary{}, mapNativeAbsenceTypeError(err)
 	}
 	return summary, nil
+}
+
+// PreviewAllowanceBooking keeps the yearly previews next to an exceeded
+// allowance, so the caller can show which account falls short.
+func (a absenceTypeAdministration) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
+	previews, err := a.catalog.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, start, end, halfDay)
+	if err != nil {
+		return previews, mapNativeAbsenceTypeError(err)
+	}
+	return previews, nil
 }
 
 func (a absenceTypeAdministration) SetAllowance(ctx context.Context, input workforce.SetAbsenceTypeAllowance) (workforce.AbsenceTypeAllowanceSummary, error) {

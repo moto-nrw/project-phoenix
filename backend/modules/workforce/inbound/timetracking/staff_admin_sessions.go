@@ -583,6 +583,7 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
 	}},
+	{Target: workforce.ErrAllowanceBookingOverlap, Render: common.ErrorConflict},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},

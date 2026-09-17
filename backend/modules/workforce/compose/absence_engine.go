@@ -129,36 +129,30 @@ func (e engine) SetAllowance(ctx context.Context, input workforce.SetAbsenceType
 		StaffID: input.StaffID, AbsenceTypeID: input.AbsenceTypeID, Year: input.Year,
 		EntitledDays: input.EntitledDays, Reason: input.Reason, ChangedBy: input.ChangedBy,
 	})
-	return workforce.AbsenceTypeAllowanceSummary{
-		StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
-		EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
-	}, mapError(err)
+	return allowanceSummaryToPublic(value), mapError(err)
 }
 
 func (e engine) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {
 	value, err := e.service.AllowanceSummary(ctx, staffID, absenceTypeID, year)
-	return workforce.AbsenceTypeAllowanceSummary{
-		StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
-		EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
-	}, mapError(err)
+	return allowanceSummaryToPublic(value), mapError(err)
 }
 
 func (e engine) CreateAbsenceType(ctx context.Context, input workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error) {
 	value, err := e.service.CreateAbsenceType(ctx, domain.StaffAbsenceTypeFields{
-		Name: input.Name, AllowanceEnabled: input.AllowanceEnabled,
+		Name: input.Name, AllowanceEnabled: input.AllowanceEnabled, CarryoverUntil: input.CarryoverUntil,
 	})
 	return absenceTypeToPublic(value), mapError(err)
 }
 
 func (e engine) UpdateAbsenceType(ctx context.Context, input workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error) {
-	value, err := e.service.UpdateAbsenceType(ctx, input.ID, input.Name, input.IsActive, input.AllowanceEnabled)
+	value, err := e.service.UpdateAbsenceType(ctx, input.ID, input.Name, input.IsActive, input.AllowanceEnabled, input.CarryoverUntil)
 	return absenceTypeToPublic(value), mapError(err)
 }
 
 func (e engine) CreateStaffAbsenceType(ctx context.Context, fields workforce.StaffAbsenceTypeFields) (workforce.StaffAbsenceType, error) {
 	value, err := e.service.CreateStaffAbsenceType(ctx, domain.StaffAbsenceTypeFields{
 		Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,
-		AllowanceEnabled: fields.AllowanceEnabled,
+		AllowanceEnabled: fields.AllowanceEnabled, CarryoverUntil: fields.CarryoverUntil,
 	})
 	return absenceTypeToPublic(value), mapError(err)
 }
@@ -166,7 +160,7 @@ func (e engine) CreateStaffAbsenceType(ctx context.Context, fields workforce.Sta
 func (e engine) UpdateStaffAbsenceType(ctx context.Context, value workforce.StaffAbsenceType) (workforce.StaffAbsenceType, error) {
 	updated, err := e.service.UpdateStaffAbsenceType(ctx, domain.StaffAbsenceType{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled,
+		AllowanceEnabled: value.AllowanceEnabled, CarryoverUntil: value.CarryoverUntil,
 	})
 	return absenceTypeToPublic(updated), mapError(err)
 }
@@ -290,7 +284,8 @@ func absencesToPublic(values []domain.StaffAbsence) []workforce.StaffAbsence {
 func absenceTypeToPublic(value domain.StaffAbsenceType) workforce.StaffAbsenceType {
 	return workforce.StaffAbsenceType{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AllowanceEnabled: value.AllowanceEnabled, CarryoverUntil: value.CarryoverUntil,
+		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
