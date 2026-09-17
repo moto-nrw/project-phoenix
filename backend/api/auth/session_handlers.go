@@ -479,13 +479,13 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	err := rs.AuthService.ChangePassword(r.Context(), claims.ID, req.CurrentPassword, req.NewPassword)
+	err := rs.Sessions.ChangeAccountPassword(r.Context(), int64(claims.ID), req.CurrentPassword, req.NewPassword)
 	if err != nil {
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
+			case errors.Is(authErr.Err, identityaccess.ErrInvalidCredentials):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
 			case errors.Is(authErr.Err, identityaccess.ErrAccountNotFound):
 				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
 			case errors.Is(authErr.Err, identityaccess.ErrPasswordTooWeak):

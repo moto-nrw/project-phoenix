@@ -2719,6 +2719,7 @@ func newFactory(
 		authService:    authService,
 		invitations:    invitationService,
 		provisioning:   identityAccess,
+		administration: identityAccess,
 		schoolIdentity: accountSessionsPort,
 		roles:          identityAccess,
 		settings:       settingsService,

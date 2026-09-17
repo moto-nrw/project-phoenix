@@ -26,6 +26,7 @@ type operatorProvisioningSources struct {
 	authService    *auth.Service
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
+	administration identityaccess.AccountAdministration
 	schoolIdentity auth.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 	settings       config.SettingsService
@@ -38,7 +39,8 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 		Identity: provisioningIdentity{
 			repos: sources.repos, authService: sources.authService,
 			invitations: sources.invitations, provisioning: sources.provisioning,
-			schoolIdentity: sources.schoolIdentity, roles: sources.roles,
+			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
+			roles: sources.roles,
 		},
 		Devices:           sources.adapters.Devices,
 		People:            sources.adapters.People,
@@ -59,6 +61,7 @@ type provisioningIdentity struct {
 	authService    *auth.Service
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
+	administration identityaccess.AccountAdministration
 	schoolIdentity auth.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 }
@@ -226,7 +229,7 @@ func (p provisioningIdentity) InvalidatePendingInvitations(ctx context.Context, 
 }
 
 func (p provisioningIdentity) DeactivateAccount(ctx context.Context, accountID int64) error {
-	return p.authService.DeactivateAccount(ctx, int(accountID))
+	return authServiceError(p.administration.DeactivateAccount(ctx, accountID))
 }
 
 func (p provisioningIdentity) AnonymizeAccount(ctx context.Context, accountID int64, email string) error {

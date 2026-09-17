@@ -266,6 +266,27 @@ func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, account
 	return result, nil
 }
 
+// ListManageableSchoolIDs is the set an organisation-scoped administrator
+// is bounded by: the organisation's live, active schools. An organisation
+// without one leaves them with no account to administer, which is the
+// refusal the account boundary applies.
+func (d schoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	if d.schools == nil {
+		return nil, errors.New("school directory is not composed")
+	}
+	schools, err := d.schools.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		if school.Active && !school.IsDeleted() {
+			ids = append(ids, school.ID)
+		}
+	}
+	return ids, nil
+}
+
 type personDirectory struct{ persons userModels.PersonRepository }
 
 func (d personDirectory) FindPersonName(ctx context.Context, accountID int64) (string, string, bool, error) {

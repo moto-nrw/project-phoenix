@@ -18,16 +18,33 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// accountPasswordHash reads the stored credential of an account so a test
+// can prove a write left it alone. The capability never reports it.
+func accountPasswordHash(t *testing.T, db *bun.DB, accountID int64) string {
+	t.Helper()
+	var hash *string
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("password_hash").
+		TableExpr("auth.accounts").
+		Where("id = ?", accountID).
+		Scan(testpkg.Ctx(t), &hash))
+	if hash == nil {
+		return ""
+	}
+	return *hash
+}
+
 // setupAuthServiceWithDB creates an auth service with real database connection
 func setupAuthServiceWithDB(t *testing.T, db *bun.DB) testAuthService {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
 	return &fixtureOwnedAuthService{
-		AuthService:  serviceFactory.Auth,
-		provisioning: serviceFactory.AccountAuthentication(),
-		t:            t,
-		db:           db,
+		AuthService:    serviceFactory.Auth,
+		provisioning:   serviceFactory.AccountAuthentication(),
+		administration: serviceFactory.AccountAuthentication(),
+		t:              t,
+		db:             db,
 	}
 }
 
@@ -683,21 +700,17 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 	service := setupAuthServiceWithDB(t, db)
 	ctx := testpkg.Ctx(t)
 
-	t.Run("preserves password hash when not provided", func(t *testing.T) {
+	t.Run("preserves the credential", func(t *testing.T) {
 		// ARRANGE
 		email := fmt.Sprintf("preserve-hash-%d@test.local", time.Now().UnixNano())
 		account, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-		// Get the original password hash
-		original, err := service.GetAccountByID(ctx, int(account.ID))
-		require.NoError(t, err)
-		originalHash := original.PasswordHash
+		originalHash := accountPasswordHash(t, db, account.ID)
+		require.NotEmpty(t, originalHash)
 
-		// Update without password
-		account.PasswordHash = nil
-		account.Active = false
+		account.Email = fmt.Sprintf("preserved-hash-%d@test.local", time.Now().UnixNano())
 
 		// ACT
 		err = service.UpdateAccount(ctx, account)
@@ -705,11 +718,14 @@ func TestAuthService_UpdateAccount_Extended(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		// Verify password hash is preserved
+		// The identity update writes the address and the name; the
+		// credential is only ever replaced by a password change (#3332).
+		assert.Equal(t, originalHash, accountPasswordHash(t, db, account.ID))
+
 		updated, err := service.GetAccountByID(ctx, int(account.ID))
 		require.NoError(t, err)
-		assert.Equal(t, originalHash, updated.PasswordHash)
-		assert.False(t, updated.Active)
+		assert.Equal(t, account.Email, updated.Email)
+		assert.True(t, updated.Active, "an identity update never disables an account")
 	})
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {

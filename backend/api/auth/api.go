@@ -31,13 +31,15 @@ const (
 // AccountSessions is the Identity & Access capability the login, refresh,
 // logout, tenant-switch, session-validation, MFA exchange and token routes
 // (#3251), the role and permission routes (#3314) and the public password
-// reset, account registration and link routes (#3332) call directly.
+// reset, account registration, link and account administration routes
+// (#3332) call directly.
 type AccountSessions interface {
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.RoleAdministration
 	identityaccess.PasswordResets
 	identityaccess.AccountProvisioning
+	identityaccess.AccountAdministration
 }
 
 // Resource defines the auth resource
@@ -291,8 +293,11 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
 					r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, accountManagementErrorRenderer))
-					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, accountManagementErrorRenderer))
+					// Bound through the resource rather than as a method value
+					// on rs.Sessions: the router must build before the
+					// capability is wired, as it does for every other route.
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.activateAccount, accountManagementErrorRenderer))
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.deactivateAccount, accountManagementErrorRenderer))
 					r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 					r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 					r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)

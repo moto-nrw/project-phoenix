@@ -59,15 +59,23 @@ type testAuthService interface {
 	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
 	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *identityaccess.SchoolAccountIdentity) (*authModels.Account, *identityaccess.SchoolIdentity, error)
 	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*authModels.Account, error)
+	GetAccountByID(ctx context.Context, id int) (*authModels.Account, error)
+	UpdateAccount(ctx context.Context, account *authModels.Account) error
+	ListAccounts(ctx context.Context, filters map[string]any) ([]*authModels.Account, error)
+	GetAccountsByRole(ctx context.Context, roleName string) ([]*authModels.Account, error)
+	ActivateAccount(ctx context.Context, accountID int) error
+	DeactivateAccount(ctx context.Context, accountID int) error
+	ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error
 }
 
 func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAuthService {
 	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
 	return &fixtureOwnedAuthService{
-		AuthService:  serviceFactory.Auth,
-		provisioning: serviceFactory.AccountAuthentication(),
-		t:            t,
-		db:           db,
+		AuthService:    serviceFactory.Auth,
+		provisioning:   serviceFactory.AccountAuthentication(),
+		administration: serviceFactory.AccountAuthentication(),
+		t:              t,
+		db:             db,
 	}
 }
 
@@ -92,9 +100,84 @@ func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapabil
 
 type fixtureOwnedAuthService struct {
 	auth.AuthService
-	provisioning identityaccess.AccountProvisioning
-	t            *testing.T
-	db           *bun.DB
+	provisioning   identityaccess.AccountProvisioning
+	administration identityaccess.AccountAdministration
+	t              *testing.T
+	db             *bun.DB
+}
+
+// The account administration belongs to Identity & Access since #3332. The
+// fixture keeps the call shape these tests were written against and drives
+// the owner's capability underneath, so every assertion still describes
+// real behavior.
+
+func (s *fixtureOwnedAuthService) GetAccountByID(ctx context.Context, id int) (*authModels.Account, error) {
+	account, err := s.administration.FindManageableAccount(ctx, int64(id))
+	if err != nil {
+		return nil, err
+	}
+	return managedAccountModel(account), nil
+}
+
+func (s *fixtureOwnedAuthService) UpdateAccount(ctx context.Context, account *authModels.Account) error {
+	return s.administration.UpdateManageableAccount(ctx, identityaccess.AccountIdentityUpdate{
+		AccountID: account.ID, Email: account.Email, Username: account.Username,
+	})
+}
+
+func (s *fixtureOwnedAuthService) ListAccounts(ctx context.Context, filters map[string]any) ([]*authModels.Account, error) {
+	var filter identityaccess.AccountListFilter
+	if email, ok := filters["email"].(string); ok {
+		filter.Email = email
+	}
+	if active, ok := filters["active"].(bool); ok {
+		filter.Active = &active
+	}
+	accounts, err := s.administration.ListManageableAccounts(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	return managedAccountModels(accounts), nil
+}
+
+func (s *fixtureOwnedAuthService) GetAccountsByRole(ctx context.Context, roleName string) ([]*authModels.Account, error) {
+	accounts, err := s.administration.ListManageableAccountsByRole(ctx, roleName)
+	if err != nil {
+		return nil, err
+	}
+	return managedAccountModels(accounts), nil
+}
+
+func (s *fixtureOwnedAuthService) ActivateAccount(ctx context.Context, accountID int) error {
+	return s.administration.ActivateAccount(ctx, int64(accountID))
+}
+
+func (s *fixtureOwnedAuthService) DeactivateAccount(ctx context.Context, accountID int) error {
+	return s.administration.DeactivateAccount(ctx, int64(accountID))
+}
+
+func (s *fixtureOwnedAuthService) ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error {
+	return s.administration.ChangeAccountPassword(ctx, int64(accountID), currentPassword, newPassword)
+}
+
+// managedAccountModel is the retained account shape the assertions read.
+func managedAccountModel(account identityaccess.ManagedAccount) *authModels.Account {
+	username := account.Username
+	return &authModels.Account{
+		Model:     modelBase.Model{ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt},
+		Email:     account.Email,
+		Username:  &username,
+		Active:    account.Active,
+		LastLogin: account.LastLogin,
+	}
+}
+
+func managedAccountModels(accounts []identityaccess.ManagedAccount) []*authModels.Account {
+	models := make([]*authModels.Account, 0, len(accounts))
+	for _, account := range accounts {
+		models = append(models, managedAccountModel(account))
+	}
+	return models
 }
 
 func (s *fixtureOwnedAuthService) Register(
@@ -2050,14 +2133,15 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 	service := setupAuthService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	t.Run("updates account successfully", func(t *testing.T) {
+	t.Run("updates the address and leaves the account enabled", func(t *testing.T) {
 		// ARRANGE
 		email, username := uniqueTestCredentials("updateacct")
 		account, err := service.Register(ctx, email, username, testPassword, nil, 0)
 		require.NoError(t, err)
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
-		account.Active = false
+		renamed, _ := uniqueTestCredentials("updateacct-renamed")
+		account.Email = renamed
 
 		// ACT
 		err = service.UpdateAccount(ctx, account)
@@ -2065,10 +2149,12 @@ func TestAuthService_UpdateAccount(t *testing.T) {
 		// ASSERT
 		require.NoError(t, err)
 
-		// Verify update
 		updated, err := service.GetAccountByID(ctx, int(account.ID))
 		require.NoError(t, err)
-		assert.False(t, updated.IsActive())
+		assert.Equal(t, renamed, updated.Email)
+		// An identity update never disables an account: that is the
+		// deactivation command, which revokes the sessions with it (#3332).
+		assert.True(t, updated.IsActive())
 	})
 }
 
@@ -2595,46 +2681,6 @@ func TestAuthService_DeactivateParentAccount(t *testing.T) {
 
 		// ASSERT
 		require.Error(t, err)
-	})
-}
-
-func TestAuthService_GetAccountsWithRolesAndPermissions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns accounts with roles and permissions", func(t *testing.T) {
-		// ARRANGE
-		testpkg.CreateTestAccount(t, db, "roles-perms-test")
-
-		// ACT
-		_, err := service.GetAccountsWithRolesAndPermissions(ctx, nil)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Result can be empty but should not error
-	})
-
-	t.Run("filters accounts by provided filters", func(t *testing.T) {
-		// ARRANGE
-		testpkg.CreateTestAccount(t, db, "filter-test")
-
-		filters := map[string]interface{}{
-			"active": true,
-		}
-
-		// ACT
-		result, err := service.GetAccountsWithRolesAndPermissions(ctx, filters)
-
-		// ASSERT
-		require.NoError(t, err)
-		// All returned accounts should be active
-		for _, acc := range result {
-			assert.True(t, acc.Active)
-		}
 	})
 }
 

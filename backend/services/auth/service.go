@@ -2,7 +2,6 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -162,11 +161,6 @@ func NewService(
 	}, nil
 }
 
-// getLogger returns the service's logger, falling back to slog.Default() if nil.
-func (s *Service) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
-}
-
 // SetMFAService wires the optional MFA service post-construction. Idempotent
 // — calling with nil clears the gate.
 func (s *Service) SetMFAService(svc MFAService) {
@@ -191,31 +185,9 @@ func (s *Service) AccountLifecycle() AccountLifecycle {
 	return s.lifecycle
 }
 
-func (s *Service) runInTx(
-	ctx context.Context,
-	fn func(txCtx context.Context) error,
-) error {
-	ctx = s.withTenantRuntime(ctx)
-	if s.txHandler == nil {
-		return fn(ctx)
-	}
-
-	if tenant.FromContext(ctx) == 0 && tenant.ScopeFromContext(ctx) != "" {
-		return tenant.WithinAdmin(ctx, fn)
-	}
-
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
-		return fn(txCtx)
-	})
-}
-
 func hasAmbientTx(ctx context.Context) bool {
 	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
-}
-
-func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
 }
 
 // VerifyPassword checks a plain-text password against its Argon2id hash. It
@@ -257,8 +229,6 @@ type MFAGateConfiguration interface {
 type AuthService interface {
 	SessionOperations
 	MFAGateConfiguration
-	CredentialOperations
-	AccountAdministrationOperations
 	StaffPreviewOperations
 	ParentAccountOperations
 }

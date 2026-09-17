@@ -26,6 +26,10 @@ type SchoolDirectory interface {
 	FindSchoolBySubdomain(ctx context.Context, subdomain string) (identityaccess.School, bool, error)
 	LockSchoolShared(ctx context.Context, id int64) (identityaccess.School, bool, error)
 	ListActiveSchoolsOfAccount(ctx context.Context, accountID int64) ([]identityaccess.School, error)
+	// ListManageableSchoolIDs returns the live, active schools of the
+	// organisation: the set an organisation-scoped administrator may
+	// administer accounts at.
+	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
 }
 
 // PersonDirectory reads the person name of an account in the tenant the
@@ -163,6 +167,10 @@ func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, account
 		result = append(result, domain.School(school))
 	}
 	return result, nil
+}
+
+func (d schoolDirectory) ManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	return d.source.ListManageableSchoolIDs(ctx, organizationID)
 }
 
 type tokenCodec struct{ source TokenCodec }

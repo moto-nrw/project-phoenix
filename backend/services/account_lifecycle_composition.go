@@ -81,7 +81,6 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		PINs:        pinHasher{},
 		Lockout:     lockoutPolicy{settings: wiring.settings, logger: logger},
 		Audit:       previewAudit{events: wiring.repos.authEvents},
-		Admin:       accountAdministration{current: wiring.admin},
 		Passwords:   passwordPolicy{},
 		Guardians:   guardianDirectory{repos: wiring.repos},
 		Delivery:    delivery,
@@ -314,18 +313,6 @@ func (a previewAudit) LockStaffPreview(ctx context.Context, adminAccountID int64
 
 func (a previewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error) {
 	return a.events.StaffPreviewEnded(ctx, adminAccountID, previewID)
-}
-
-// --- retained account management -------------------------------------------
-
-type accountAdministration struct{ current func() *auth.Service }
-
-func (a accountAdministration) DeactivateAccount(ctx context.Context, accountID int64) error {
-	service := a.current()
-	if service == nil {
-		return errors.New("auth service is not composed")
-	}
-	return service.DeactivateAccount(ctx, int(accountID))
 }
 
 // --- guardian directory ----------------------------------------------------
