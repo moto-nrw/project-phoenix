@@ -87,12 +87,13 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	tokens := application.NewOperatorTokens(service, store)
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
 	if err != nil {
 		return nil, err
 	}
 	e := engine{
-		service: service, mfa: application.NewOperatorMFA(service, store), auth: auth,
+		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens, auth: auth,
 		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 	}
 	if dependencies.Sessions != nil {
@@ -133,6 +134,7 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 type engine struct {
 	service *application.Service
 	mfa     *application.OperatorMFA
+	tokens  *application.OperatorTokens
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed
@@ -405,6 +407,10 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorMFAChallengeStateChanged
 	case errors.Is(err, domain.ErrOperatorTrustedDeviceNotFound):
 		return identityaccess.ErrOperatorTrustedDeviceNotFound
+	case errors.Is(err, domain.ErrOperatorInvitationNotFound):
+		return identityaccess.ErrOperatorInvitationNotFound
+	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
+		return identityaccess.ErrOperatorEmailChangeNotFound
 	default:
 		return err
 	}

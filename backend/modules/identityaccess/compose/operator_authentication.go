@@ -34,12 +34,6 @@ type OperatorAudit interface {
 	RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error
 }
 
-// OperatorCredentialCleanup invalidates the pending e-mail change links a
-// password rotation must not leave alive.
-type OperatorCredentialCleanup interface {
-	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
-}
-
 // PasswordHasher hashes a new password and applies the strength policy.
 type PasswordHasher interface {
 	HashPassword(password string) (string, error)
@@ -110,14 +104,13 @@ type SchoolIdentityProvisioner interface {
 type OperatorDependencies struct {
 	MFA           OperatorMFAGate
 	Audit         OperatorAudit
-	Credentials   OperatorCredentialCleanup
 	Passwords     PasswordHasher
 	Organizations OrganizationDirectory
 	Identities    SchoolIdentityProvisioner
 	Logger        *slog.Logger
 }
 
-func newOperatorFlows(service *application.Service, store *postgres.Store, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
+func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -125,7 +118,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		return nil, nil, errors.New("identity access compose: the operator flows require the session dependencies")
 	}
 	switch {
-	case deps.MFA == nil, deps.Audit == nil, deps.Credentials == nil, deps.Passwords == nil,
+	case deps.MFA == nil, deps.Audit == nil, deps.Passwords == nil,
 		deps.Organizations == nil, deps.Identities == nil:
 		return nil, nil, errors.New("identity access compose: every operator dependency is required")
 	}
@@ -140,7 +133,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, auth 
 		Codec:       tokenCodec{sessions.Codec},
 		MFA:         deps.MFA,
 		Audit:       operatorAudit{deps.Audit},
-		Credentials: deps.Credentials,
+		Credentials: emailChangeRevocation{tokens},
 		Runtime:     runtime,
 		Rotation:    rotationPolicy{},
 		Logger:      deps.Logger,
@@ -481,4 +474,13 @@ func operatorError(err error) error {
 		return &translatedError{text: err.Error(), public: sentinel.public, cause: err}
 	}
 	return authenticationError(err)
+}
+
+// emailChangeRevocation spends the operator's pending e-mail change links
+// when the password changes. The module owns both, so the revocation joins
+// the password change's transaction (#2722).
+type emailChangeRevocation struct{ tokens *application.OperatorTokens }
+
+func (r emailChangeRevocation) InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error {
+	return r.tokens.RevokeEmailChanges(ctx, operatorID)
 }

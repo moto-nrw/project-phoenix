@@ -63,7 +63,7 @@ func newTestServiceWithDispatcher(
 	t *testing.T,
 	operatorRepo platformSvc.OperatorDirectory,
 	auditLogRepo platform.OperatorAuditLogRepository,
-	invitationTokenRepo platform.OperatorInvitationTokenRepository,
+	invitationTokenRepo platformSvc.OperatorInvitationTokens,
 	bunDB *bun.DB,
 	mailer email.Mailer,
 ) platformSvc.OperatorAuthAndInvitationService {

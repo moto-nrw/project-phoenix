@@ -244,9 +244,9 @@ type Factory struct {
 	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
-	OperatorAuditLog         platformModels.OperatorAuditLogRepository
-	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
-	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
+	// The operator invitation and e-mail change links are owned by Identity
+	// & Access (#2722).
+	OperatorAuditLog platformModels.OperatorAuditLogRepository
 	// School is the Organisation & Tenancy capability that owns
 	// platform.schools (#3253); BindOrganizationTenancy replaces the
 	// unobserved default with the serving root's module.
@@ -693,10 +693,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Platform repositories. Operators and their refresh sessions are
 		// served by the public Identity & Access capability the service root
 		// binds (#3252); the operator audit ledger belongs to Audit (#2720).
-		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
-		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
-		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
-		School:                   mustNewOrganizationTenancy(db),
+		OperatorAuditLog: newOperatorAuditLog(auditRepositoryRuntime),
+		School:           mustNewOrganizationTenancy(db),
 
 		OperatorPasskeyCredential: platformRepo.NewOperatorPasskeyCredentialRepository(db),
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),

@@ -11,8 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	repoplatform "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,15 +50,17 @@ func ensureOperatorInvitationTokenTable(tb testing.TB, db *bun.DB) {
 	require.NoError(tb, err, "failed to ensure operator invitation token table exists")
 }
 
-func setupOperatorInvitationTokenRepositoryTest(
+func setupOperatorInvitationTokensTest(
 	t *testing.T,
-) (*bun.DB, platform.OperatorInvitationTokenRepository) {
+) (*bun.DB, platformSvc.OperatorInvitationTokens) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
 	ensureOperatorInvitationTokenTable(t, db)
 
-	return db, repoplatform.NewOperatorInvitationTokenRepository(db)
+	tokens, err := services.NewOperatorInvitationTokensForTests(db)
+	require.NoError(t, err)
+	return db, tokens
 }
 
 func newTestToken(email string, createdBy int64) *platform.OperatorInvitationToken {
@@ -73,10 +76,10 @@ func newTestToken(email string, createdBy int64) *platform.OperatorInvitationTok
 // Create Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
+func TestOperatorInvitationTokens_Create_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("create-test@example.com", op.ID)
@@ -87,20 +90,20 @@ func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
 	assert.NotZero(t, token.CreatedAt)
 }
 
-func TestOperatorInvitationTokenRepository_Create_NilToken(t *testing.T) {
+func TestOperatorInvitationTokens_Create_NilToken(t *testing.T) {
 	t.Parallel()
 
-	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	_, repo := setupOperatorInvitationTokensTest(t)
 
 	err := repo.Create(context.Background(), nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot be nil")
 }
 
-func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) {
+func TestOperatorInvitationTokens_Create_ValidationError(t *testing.T) {
 	t.Parallel()
 
-	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	_, repo := setupOperatorInvitationTokensTest(t)
 
 	// Missing required fields
 	token := &platform.OperatorInvitationToken{}
@@ -108,14 +111,35 @@ func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) 
 	require.Error(t, err)
 }
 
+// An invitation mail must never carry a link that is already dead, so the
+// owner refuses to store one (#2722).
+func TestOperatorInvitationTokens_Create_RefusesExpiredToken(t *testing.T) {
+	t.Parallel()
+
+	db, repo := setupOperatorInvitationTokensTest(t)
+	op := testpkg.CreateTestOperator(t, db)
+	token := newTestToken(fmt.Sprintf("expired-create-%d@example.com", time.Now().UnixNano()), op.ID)
+	token.ExpiresAt = time.Now().Add(-time.Second)
+
+	err := repo.Create(context.Background(), token)
+	require.ErrorContains(t, err, "token has already expired")
+	assert.Zero(t, token.ID, "a refused invitation gets no identity")
+	found, err := repo.FindValidByToken(context.Background(), token.Token)
+	require.NoError(t, err)
+	assert.Nil(t, found)
+	exists, err := db.NewSelect().Table("platform.operator_invitation_tokens").Where("token = ?", token.Token).Exists(context.Background())
+	require.NoError(t, err)
+	assert.False(t, exists, "nothing is stored")
+}
+
 // =====================================================================
 // FindByID Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
+func TestOperatorInvitationTokens_FindByID_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("findbyid@example.com", op.ID)
@@ -128,10 +152,10 @@ func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
 	assert.Equal(t, "findbyid@example.com", found.Email)
 }
 
-func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
+func TestOperatorInvitationTokens_FindByID_NotFound(t *testing.T) {
 	t.Parallel()
 
-	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	_, repo := setupOperatorInvitationTokensTest(t)
 
 	found, err := repo.FindByID(context.Background(), 999999)
 	require.NoError(t, err)
@@ -142,10 +166,10 @@ func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 // FindValidByToken Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T) {
+func TestOperatorInvitationTokens_FindValidByToken_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("findvalid@example.com", op.ID)
@@ -157,10 +181,10 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T
 	assert.Equal(t, token.ID, found.ID)
 }
 
-func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
+func TestOperatorInvitationTokens_FindValidByToken_Expired(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	// Insert directly with past expiry (bypassing model validation)
@@ -178,10 +202,10 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T
 	assert.Nil(t, found, "expired token should not be found as valid")
 }
 
-func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
+func TestOperatorInvitationTokens_FindValidByToken_Used(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("used-valid@example.com", op.ID)
@@ -196,10 +220,10 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	assert.Nil(t, found, "used token should not be found as valid")
 }
 
-func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.T) {
+func TestOperatorInvitationTokens_FindValidByToken_NotFound(t *testing.T) {
 	t.Parallel()
 
-	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	_, repo := setupOperatorInvitationTokensTest(t)
 
 	found, err := repo.FindValidByToken(context.Background(), "nonexistent-token")
 	require.NoError(t, err)
@@ -210,10 +234,10 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.
 // ConsumeByToken Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) {
+func TestOperatorInvitationTokens_ConsumeByToken_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("consume@example.com", op.ID)
@@ -226,10 +250,10 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) 
 	assert.NotNil(t, consumed.UsedAt, "consumed token should have UsedAt set")
 }
 
-func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *testing.T) {
+func TestOperatorInvitationTokens_ConsumeByToken_AlreadyConsumed(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("double-consume@example.com", op.ID)
@@ -246,10 +270,10 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *tes
 	assert.Nil(t, consumed2, "second consume should return nil")
 }
 
-func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T) {
+func TestOperatorInvitationTokens_ConsumeByToken_NotFound(t *testing.T) {
 	t.Parallel()
 
-	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	_, repo := setupOperatorInvitationTokensTest(t)
 
 	consumed, err := repo.ConsumeByToken(context.Background(), "nonexistent")
 	require.NoError(t, err)
@@ -260,10 +284,10 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T)
 // MarkAsUsed Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
+func TestOperatorInvitationTokens_MarkAsUsed_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("markused@example.com", op.ID)
@@ -280,10 +304,10 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 	assert.NotNil(t, found.UsedAt)
 }
 
-func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) {
+func TestOperatorInvitationTokens_MarkAsUsed_AlreadyUsed(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("markused-twice@example.com", op.ID)
@@ -304,10 +328,10 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) 
 // ListPending Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
+func TestOperatorInvitationTokens_ListPending(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	// Create two pending tokens
@@ -345,10 +369,10 @@ func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 // ExtendExpiry Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
+func TestOperatorInvitationTokens_ExtendExpiry_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("extend@example.com", op.ID)
@@ -365,10 +389,10 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 	assert.WithinDuration(t, newExpiry, found.ExpiresAt, 2*time.Second)
 }
 
-func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T) {
+func TestOperatorInvitationTokens_ExtendExpiry_AlreadyUsed(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("extend-used@example.com", op.ID)
@@ -387,10 +411,10 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T
 // InvalidateByEmail Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
+func TestOperatorInvitationTokens_InvalidateByEmail(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	targetEmail := uuid.Must(uuid.NewV4()).String() + "-invalidate@example.com"
@@ -408,10 +432,10 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
 	assert.NotNil(t, found.UsedAt)
 }
 
-func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.T) {
+func TestOperatorInvitationTokens_InvalidateByEmail_NoMatch(t *testing.T) {
 	t.Parallel()
 
-	_, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	_, repo := setupOperatorInvitationTokensTest(t)
 
 	invalidated, err := repo.InvalidateByEmail(context.Background(), "nonexistent-invalidate@example.com")
 	require.NoError(t, err)
@@ -422,10 +446,10 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.
 // UpdateDeliveryResult Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
+func TestOperatorInvitationTokens_UpdateDeliveryResult_Success(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("delivery@example.com", op.ID)
@@ -443,10 +467,10 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testi
 	assert.Equal(t, 1, found.EmailRetryCount)
 }
 
-func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) {
+func TestOperatorInvitationTokens_UpdateDeliveryResult_WithError(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("delivery-err@example.com", op.ID)
@@ -465,10 +489,10 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *tes
 	assert.Equal(t, 3, found.EmailRetryCount)
 }
 
-func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t *testing.T) {
+func TestOperatorInvitationTokens_UpdateDeliveryResult_ClearsOnReset(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	token := newTestToken("delivery-reset@example.com", op.ID)
@@ -495,10 +519,10 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t 
 // DeleteExpired Tests
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
+func TestOperatorInvitationTokens_DeleteExpired(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	op := testpkg.CreateTestOperator(t, db)
 
 	// Insert an expired token directly (bypassing model validation)
@@ -534,10 +558,10 @@ func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
 // CountRecentByCreatedBy Tests (rate limiting)
 // =====================================================================
 
-func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) {
+func TestOperatorInvitationTokens_CountRecentByCreatedBy(t *testing.T) {
 	t.Parallel()
 
-	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
+	db, repo := setupOperatorInvitationTokensTest(t)
 	ctx := context.Background()
 
 	t.Run("NoTokens_ReturnsZero", func(t *testing.T) {

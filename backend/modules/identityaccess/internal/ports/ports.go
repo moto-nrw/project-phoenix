@@ -107,6 +107,42 @@ type OperatorMFAStore interface {
 	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
 }
 
+// OperatorTokenStore is the persistence port over the operator invitation
+// and e-mail change links. Both tables are platform-wide: no row carries a
+// tenant. "Redeemable" means unused and not expired at the now the caller
+// passes. The bool results report whether a row in the expected state
+// existed.
+type OperatorTokenStore interface {
+	InsertOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation) (domain.OperatorInvitation, domain.OperationStats, error)
+	FindOperatorInvitation(ctx context.Context, id int64) (domain.OperatorInvitation, bool, domain.OperationStats, error)
+	FindRedeemableOperatorInvitation(ctx context.Context, token string, now time.Time) (domain.OperatorInvitation, bool, domain.OperationStats, error)
+	// ListRedeemableOperatorInvitations orders by creation, newest first.
+	ListRedeemableOperatorInvitations(ctx context.Context, now time.Time) ([]domain.OperatorInvitation, domain.OperationStats, error)
+	CountOperatorInvitationsCreatedAfter(ctx context.Context, createdBy int64, since time.Time) (int, domain.OperationStats, error)
+	// RedeemOperatorInvitation stamps used_at on the redeemable row and
+	// returns it; concurrent redemptions see exactly one winner.
+	RedeemOperatorInvitation(ctx context.Context, token string, now time.Time) (domain.OperatorInvitation, bool, domain.OperationStats, error)
+	RevokeOperatorInvitation(ctx context.Context, id int64, now time.Time) (bool, domain.OperationStats, error)
+	RevokeOperatorInvitationsForEmail(ctx context.Context, email string, now time.Time) (int, domain.OperationStats, error)
+	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error)
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
+	DeleteExpiredOperatorInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+
+	InsertOperatorEmailChange(ctx context.Context, change domain.OperatorEmailChange) (domain.OperatorEmailChange, domain.OperationStats, error)
+	CountOperatorEmailChangesCreatedAfter(ctx context.Context, operatorID int64, since time.Time) (int, domain.OperationStats, error)
+	// RedeemOperatorEmailChange marks the redeemable row used and returns it;
+	// concurrent redemptions see exactly one winner.
+	RedeemOperatorEmailChange(ctx context.Context, token string, now time.Time) (domain.OperatorEmailChange, bool, domain.OperationStats, error)
+	RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
+	// RevokeExpiredOperatorEmailChanges marks expired, unused rows used so
+	// they stop occupying the one-active-link-per-operator index.
+	RevokeExpiredOperatorEmailChanges(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+	// DeleteStaleOperatorEmailChanges deletes expired or used rows created
+	// before createdBefore, so the rate-limit window keeps its rows.
+	DeleteStaleOperatorEmailChanges(ctx context.Context, createdBefore, now time.Time) (int, domain.OperationStats, error)
+}
+
 // AccountSessionStore is the persistence port over auth.tokens, the
 // tenant-scoped refresh sessions of platform accounts. Reads and deletes that
 // name no explicit tenant apply the scope the composition resolves from the
@@ -399,8 +435,9 @@ type OperatorAudit interface {
 }
 
 // OperatorCredentialCleanup invalidates the bearer-style controls a password
-// rotation must not leave alive besides the refresh sessions the module
-// owns: the pending e-mail change links.
+// rotation must not leave alive besides the refresh sessions: the pending
+// e-mail change links. The composition binds it to the module's own link
+// operations (#2722), so the revocation joins the password change.
 type OperatorCredentialCleanup interface {
 	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
 }

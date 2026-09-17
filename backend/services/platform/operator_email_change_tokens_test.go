@@ -9,18 +9,29 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
-	repoplatform "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/services"
+	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
+// The retained e-mail change link port as the service root binds it to
+// Identity & Access (#2722).
+func newOperatorEmailChangeTokens(t *testing.T, db *bun.DB) platformSvc.OperatorEmailChangeTokens {
+	t.Helper()
+	tokens, err := services.NewOperatorEmailChangeTokensForTests(db)
+	require.NoError(t, err)
+	return tokens
+}
+
+func TestOperatorEmailChangeTokens_Create(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	t.Run("Success", func(t *testing.T) {
@@ -107,12 +118,12 @@ func TestOperatorEmailChangeTokenRepository_Create(t *testing.T) {
 	})
 }
 
-func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
+func TestOperatorEmailChangeTokens_UpdateDeliveryResult(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("delivery-%d@test.local", time.Now().UnixNano())
@@ -230,12 +241,12 @@ func TestOperatorEmailChangeTokenRepository_UpdateDeliveryResult(t *testing.T) {
 	})
 }
 
-func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
+func TestOperatorEmailChangeTokens_ConsumeByToken(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	t.Run("NonexistentToken_ReturnsNilNil", func(t *testing.T) {
@@ -266,12 +277,12 @@ func TestOperatorEmailChangeTokenRepository_ConsumeByToken(t *testing.T) {
 	})
 }
 
-func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T) {
+func TestOperatorEmailChangeTokens_InvalidateByOperatorID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	t.Run("NoTokens_NoError", func(t *testing.T) {
@@ -311,12 +322,12 @@ func TestOperatorEmailChangeTokenRepository_InvalidateByOperatorID(t *testing.T)
 	})
 }
 
-func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T) {
+func TestOperatorEmailChangeTokens_InvalidateExpiredTokens(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	t.Run("NoExpiredTokens", func(t *testing.T) {
@@ -353,12 +364,12 @@ func TestOperatorEmailChangeTokenRepository_InvalidateExpiredTokens(t *testing.T
 	})
 }
 
-func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
+func TestOperatorEmailChangeTokens_DeleteStaleTokens(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	t.Run("NoStaleTokens", func(t *testing.T) {
@@ -420,12 +431,12 @@ func TestOperatorEmailChangeTokenRepository_DeleteStaleTokens(t *testing.T) {
 	})
 }
 
-func TestOperatorEmailChangeTokenRepository_CountRecentByOperatorID(t *testing.T) {
+func TestOperatorEmailChangeTokens_CountRecentByOperatorID(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := repoplatform.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	t.Run("NoTokens_ReturnsZero", func(t *testing.T) {

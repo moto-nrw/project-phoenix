@@ -20,7 +20,7 @@ import (
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// --- Mock for OperatorInvitationTokenRepository ---
+// --- Mock for OperatorInvitationTokens ---
 
 type mockInvitationTokenRepo struct {
 	createFn               func(ctx context.Context, token *platform.OperatorInvitationToken) error
@@ -133,7 +133,7 @@ func newInvitationTestService(
 	t *testing.T,
 	operatorRepo platformSvc.OperatorDirectory,
 	auditLogRepo platform.OperatorAuditLogRepository,
-	invitationTokenRepo platform.OperatorInvitationTokenRepository,
+	invitationTokenRepo platformSvc.OperatorInvitationTokens,
 	bunDB *bun.DB,
 ) platformSvc.OperatorAuthAndInvitationService {
 	t.Helper()
