@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -46,8 +45,6 @@ func init() {
 // uses. failure_reason holds a short, stable reason code (not the transport's
 // error prose), so the entries stay readable and leak no internals.
 func exportTransferAuditUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration 1.15.370: creating audit.export_transfers")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS audit.export_transfers (
 			id BIGSERIAL PRIMARY KEY,
@@ -85,7 +82,6 @@ func exportTransferAuditUp(ctx context.Context, db *bun.DB) error {
 }
 
 func exportTransferAuditDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration 1.15.370: rolling back, dropping audit.export_transfers")
 	if _, err := db.NewRaw(`
 		DROP TABLE IF EXISTS audit.export_transfers CASCADE;
 	`).Exec(ctx); err != nil {

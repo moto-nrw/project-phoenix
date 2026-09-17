@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addSuggestionsPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.9.2: Adding suggestions permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -74,20 +71,17 @@ func addSuggestionsPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting suggestions permissions to roles: %w", err)
 	}
 
-	fmt.Println("Migration 1.9.2: Successfully added suggestions permissions")
 	return tx.Commit()
 }
 
 func removeSuggestionsPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.9.2: Removing suggestions permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -110,6 +104,5 @@ func removeSuggestionsPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing suggestions permissions: %w", err)
 	}
 
-	fmt.Println("Migration 1.9.2: Successfully removed suggestions permissions")
 	return tx.Commit()
 }

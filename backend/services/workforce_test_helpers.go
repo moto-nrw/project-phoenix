@@ -55,7 +55,7 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return WorkforceTestModule{}, err
 	}
 	logger := slog.Default()
-	identityAccess, err := lifecycleTestPort(db, unit, command, logger, nil)
+	_, identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}

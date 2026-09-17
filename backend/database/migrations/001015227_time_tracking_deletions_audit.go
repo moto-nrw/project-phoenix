@@ -49,8 +49,6 @@ func init() {
 // person. Append-only for phoenix_tenant, like the rest of the audit schema
 // (1.15.225).
 func timeTrackingDeletionsAuditUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.227: Creating audit.time_tracking_deletions...")
-
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS audit.time_tracking_deletions (
 			id          BIGSERIAL PRIMARY KEY,
@@ -83,7 +81,6 @@ func timeTrackingDeletionsAuditUp(ctx context.Context, db *bun.DB) error {
 }
 
 func timeTrackingDeletionsAuditDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.227: Dropping audit.time_tracking_deletions...")
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS audit.time_tracking_deletions;`)
 	if err != nil {
 		return fmt.Errorf("error dropping audit.time_tracking_deletions: %w", err)

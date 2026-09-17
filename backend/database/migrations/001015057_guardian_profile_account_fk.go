@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 
 	"github.com/uptrace/bun"
@@ -35,8 +34,6 @@ func init() {
 }
 
 func guardianProfileAccountFKUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.57: Repointing users.guardian_profiles.account_id FK to auth.accounts...")
-
 	// Step 1: NULL out any account_id values that point at auth.accounts_parents.
 	// The orphaned accounts_parents table is being abandoned by the parent-enrollment
 	// flow; only seeder fixtures populated this column. Production tenants have no
@@ -50,7 +47,7 @@ func guardianProfileAccountFKUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed counting guardian profile account_id rows: %w", err)
 	}
 	if existing > 0 {
-		slog.Warn("migration 1.15.57: clearing legacy guardian_profiles.account_id values",
+		migrationLog().WarnContext(ctx, "clearing legacy guardian_profiles.account_id values",
 			"affected_rows", existing,
 			"reason", "FK target moves from auth.accounts_parents to auth.accounts; legacy values cannot be remapped",
 		)
@@ -106,8 +103,6 @@ func guardianProfileAccountFKUp(ctx context.Context, db *bun.DB) error {
 }
 
 func guardianProfileAccountFKDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.57: Restoring guardian_profiles.account_id FK to auth.accounts_parents...")
-
 	// We cannot recover the legacy account_id values that were NULL'd out by
 	// the up migration - those mappings are lost. The down migration only
 	// restores the FK target, leaving cleared rows as NULL.

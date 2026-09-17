@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // usersRFIDCardsUp creates the users.rfid_cards table
 func usersRFIDCardsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.2.0: Creating users.rfid_cards table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func usersRFIDCardsUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -80,8 +77,6 @@ func usersRFIDCardsUp(ctx context.Context, db *bun.DB) error {
 
 // usersRFIDCardsDown removes the users.rfid_cards table
 func usersRFIDCardsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.2.0: Removing users.rfid_cards table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -89,7 +84,7 @@ func usersRFIDCardsDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

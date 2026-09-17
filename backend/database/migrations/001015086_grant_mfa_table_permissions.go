@@ -87,15 +87,12 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.86: Granting phoenix_tenant access to auth.mfa_* tables...")
 			if err := execMFAPermissionStatements(ctx, db, mfaGrantStatements(), "grant failed"); err != nil {
 				return err
 			}
-			fmt.Println("Migration 1.15.86: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.86: Revoking phoenix_auth + phoenix_tenant access to auth.mfa_* tables...")
 			return execMFAPermissionStatements(ctx, db, mfaRevokeStatements(), "revoke failed")
 		},
 	)

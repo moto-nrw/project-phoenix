@@ -16,7 +16,7 @@ type CalendarTestRepositories struct {
 	TimetableTestRepositories
 	Account                    authModels.AccountRepository
 	AccountTenant              authModels.AccountTenantRepository
-	Profile                    userModels.ProfileRepository
+	Profile                    authModels.ProfileRepository
 	GroupSubstitution          educationModels.GroupSubstitutionRepository
 	GuardianProfile            userModels.GuardianProfileRepository
 	StudentGuardian            userModels.StudentGuardianRepository

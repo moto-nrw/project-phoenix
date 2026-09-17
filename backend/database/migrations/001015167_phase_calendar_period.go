@@ -33,8 +33,6 @@ func init() {
 }
 
 func phaseCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.167: Adding calendar_period_id to enrollment.phases...")
-
 	// ON DELETE SET NULL: deleting a calendar period clears references
 	// instead of blocking the delete with a FK violation (same pattern
 	// as activities.schedules.calendar_period_id, migration 1.15.34).
@@ -55,13 +53,10 @@ func phaseCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating enrollment.phases calendar_period_id index: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.167: Completed successfully")
 	return nil
 }
 
 func phaseCalendarPeriodDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.167: Dropping calendar_period_id from enrollment.phases...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS enrollment.idx_enrollment_phases_tenant_calendar_period;
 

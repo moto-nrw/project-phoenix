@@ -11,7 +11,9 @@ import (
 // flows are owned by Identity & Access (#2720, #3252). The retained e-mail
 // change, invitation, MFA and passkey flows in this package reach them
 // through the consumer-owned ports below; the serving root binds the ports
-// to the public module. The same holds for the operator MFA records (#2723).
+// to the public module. The same holds for the operator MFA records (#2723)
+// the operator invitation and e-mail change links (#2722) and the operator
+// passkey records (#2724).
 
 // OperatorDirectory reads and writes operator rows for the retained flows.
 // A missing row is (nil, nil), validation runs on the retained model before
@@ -66,6 +68,61 @@ type OperatorMFARecords interface {
 	TouchTrustedDevice(ctx context.Context, id int64, usedAt time.Time) error
 	RevokeTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) error
 	RevokeAllTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) error
+}
+
+// OperatorInvitationTokens reads and writes the operator invitation links,
+// which Identity & Access owns (#2722). A missing or no longer redeemable
+// row is (nil, nil) for the lookups and redemption and false for the state
+// changes. Create runs the retained model validation, refuses an already
+// expired link and writes the identity and timestamps back into the
+// caller's value. Every call joins the caller's transaction when one is
+// active.
+type OperatorInvitationTokens interface {
+	Create(ctx context.Context, token *platform.OperatorInvitationToken) error
+	FindByID(ctx context.Context, id int64) (*platform.OperatorInvitationToken, error)
+	FindValidByToken(ctx context.Context, tokenStr string) (*platform.OperatorInvitationToken, error)
+	ConsumeByToken(ctx context.Context, tokenStr string) (*platform.OperatorInvitationToken, error)
+	MarkAsUsed(ctx context.Context, id int64) (bool, error)
+	ListPending(ctx context.Context) ([]*platform.OperatorInvitationToken, error)
+	InvalidateByEmail(ctx context.Context, email string) (int, error)
+	// ExtendExpiry never revives an expired or spent invitation.
+	ExtendExpiry(ctx context.Context, id int64, newExpiresAt time.Time) (bool, error)
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
+	DeleteExpired(ctx context.Context) (int, error)
+	CountRecentByCreatedBy(ctx context.Context, createdByID int64, since time.Time) (int, error)
+}
+
+// OperatorEmailChangeTokens reads and writes the operator e-mail change
+// links, which Identity & Access owns (#2722), with the same conventions as
+// OperatorInvitationTokens. A second active link for the same operator
+// fails with the unique violation the initiation maps to its rate limit.
+type OperatorEmailChangeTokens interface {
+	Create(ctx context.Context, token *platform.OperatorEmailChangeToken) error
+	ConsumeByToken(ctx context.Context, tokenStr string) (*platform.OperatorEmailChangeToken, error)
+	InvalidateByOperatorID(ctx context.Context, operatorID int64) error
+	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
+	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
+	InvalidateExpiredTokens(ctx context.Context) (int, error)
+	DeleteStaleTokens(ctx context.Context) (int, error)
+}
+
+// OperatorPasskeyRecords reads and writes the operator passkey credentials
+// and ceremony sessions, which Identity & Access owns (#2724). A missing
+// row is (nil, nil): no active credential for a lookup, no unconsumed and
+// unexpired ceremony with that purpose for a consumption. RevokeCredential
+// reports whether an active credential of that operator was revoked.
+// RecordCredentialUse fails when the credential is no longer active. Every
+// call joins the caller's transaction when one is active.
+type OperatorPasskeyRecords interface {
+	CreateCredential(ctx context.Context, credential *platform.OperatorPasskeyCredential) error
+	// ListActiveCredentials orders by registration, oldest first.
+	ListActiveCredentials(ctx context.Context, operatorID int64) ([]*platform.OperatorPasskeyCredential, error)
+	FindActiveCredential(ctx context.Context, credentialID, userHandle []byte) (*platform.OperatorPasskeyCredential, error)
+	RecordCredentialUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error
+	RevokeCredential(ctx context.Context, operatorID, id int64, revokedAt time.Time) (bool, error)
+
+	CreateSession(ctx context.Context, session *platform.OperatorPasskeySession) error
+	ConsumeSession(ctx context.Context, id, purpose string, consumedAt time.Time) (*platform.OperatorPasskeySession, error)
 }
 
 // OperatorSessions is the operator login capability the retained MFA and

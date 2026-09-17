@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.97: Adding care_offering_selection_mode to enrollment.phases...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.phases
 				ADD COLUMN IF NOT EXISTS care_offering_selection_mode TEXT NOT NULL DEFAULT 'optional';
@@ -56,7 +55,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.97...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.phases
 				DROP CONSTRAINT IF EXISTS chk_enrollment_phases_care_offering_selection_mode;

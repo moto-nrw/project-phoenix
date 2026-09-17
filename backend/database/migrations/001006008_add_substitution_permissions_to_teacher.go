@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -34,8 +33,6 @@ func init() {
 }
 
 func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
-	log.Println("Adding substitution permissions to teacher and staff roles...")
-
 	// Begin a transaction
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -47,7 +44,7 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-				log.Printf("Failed to rollback transaction: %v", rbErr)
+				logRollbackFailure(ctx, rbErr)
 			}
 		}
 	}()
@@ -100,7 +97,9 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	_, err = tx.ExecContext(ctx, staffQuery)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		log.Printf("Note: Could not add permissions to staff role (role might not exist): %v", err)
+		migrationLog().WarnContext(ctx, "could not add permissions to the staff role; it may not exist",
+			"error", err,
+		)
 	}
 
 	// Commit the transaction
@@ -109,13 +108,10 @@ func addSubstitutionPermissionsToRoles(ctx context.Context, db *bun.DB) error {
 	}
 	committed = true
 
-	log.Println("Successfully added substitution permissions to teacher and staff roles")
 	return nil
 }
 
 func removeSubstitutionPermissionsFromRoles(ctx context.Context, db *bun.DB) error {
-	log.Println("Removing substitution permissions from teacher and staff roles...")
-
 	// Remove substitution permissions from teacher role
 	_, err := db.ExecContext(ctx, `
 		DELETE FROM auth.role_permissions
@@ -150,9 +146,10 @@ func removeSubstitutionPermissionsFromRoles(ctx context.Context, db *bun.DB) err
 	`)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		log.Printf("Note: Could not remove permissions from staff role (role might not exist): %v", err)
+		migrationLog().WarnContext(ctx, "could not remove permissions from the staff role; it may not exist",
+			"error", err,
+		)
 	}
 
-	log.Println("Successfully removed substitution permissions from teacher and staff roles")
 	return nil
 }

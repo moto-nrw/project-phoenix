@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
@@ -146,38 +145,4 @@ func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
 	status, _, errorText := extractErrResponse(t, renderer)
 	assert.Equal(t, http.StatusServiceUnavailable, status)
 	assert.Equal(t, "MFA status temporarily unavailable, please retry", errorText)
-}
-
-func TestAnnouncementErrorRenderer_NotFound(t *testing.T) {
-	t.Parallel()
-
-	err := &communication.AnnouncementNotFoundError{AnnouncementID: 999}
-	renderer := operator.AnnouncementErrorRenderer(err)
-
-	status, _, errorText := extractErrResponse(t, renderer)
-	assert.Equal(t, http.StatusNotFound, status)
-	assert.Equal(t, "Announcement not found", errorText)
-}
-
-func TestAnnouncementErrorRenderer_InvalidData(t *testing.T) {
-	t.Parallel()
-
-	innerErr := errors.New("title required")
-	err := &communication.InvalidDataError{Err: innerErr}
-	renderer := operator.AnnouncementErrorRenderer(err)
-
-	status, _, errorText := extractErrResponse(t, renderer)
-	assert.Equal(t, http.StatusBadRequest, status)
-	assert.Contains(t, errorText, "title required")
-}
-
-func TestAnnouncementErrorRenderer_GenericError(t *testing.T) {
-	t.Parallel()
-
-	err := errors.New("database error")
-	renderer := operator.AnnouncementErrorRenderer(err)
-
-	status, _, errorText := extractErrResponse(t, renderer)
-	assert.Equal(t, http.StatusInternalServerError, status)
-	assert.Equal(t, "An error occurred", errorText)
 }

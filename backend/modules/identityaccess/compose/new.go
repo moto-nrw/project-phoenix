@@ -39,6 +39,13 @@ type Dependencies struct {
 	// report ErrAccountLifecycleUnavailable and
 	// ErrRoleAdministrationUnavailable.
 	Lifecycle *LifecycleDependencies
+	// Resets composes the password reset flows (#2722). It requires Sessions;
+	// compositions without it report ErrPasswordResetUnavailable.
+	Resets *PasswordResetDependencies
+	// Invitations composes the school invitation flows (#2722). They require
+	// Sessions and Lifecycle; compositions without it report
+	// ErrSchoolInvitationUnavailable.
+	Invitations *SchoolInvitationDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -87,13 +94,25 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
+	if err != nil {
+		return nil, err
+	}
+	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	if err != nil {
+		return nil, err
+	}
+	tokens := application.NewOperatorTokens(service, store)
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
 	if err != nil {
 		return nil, err
 	}
 	e := engine{
-		service: service, mfa: application.NewOperatorMFA(service, store), auth: auth,
-		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
+		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens,
+		passkeys: application.NewOperatorPasskey(service, store), accountPasskeys: application.NewAccountPasskey(service, store),
+		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
+		resets: resets, invitations: invitations,
+		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
@@ -131,8 +150,11 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	service *application.Service
-	mfa     *application.OperatorMFA
+	service         *application.Service
+	mfa             *application.OperatorMFA
+	tokens          *application.OperatorTokens
+	passkeys        *application.OperatorPasskey
+	accountPasskeys *application.AccountPasskey
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed
@@ -145,6 +167,15 @@ type engine struct {
 	// roles is nil when the module was composed without lifecycle
 	// dependencies.
 	roles *application.RoleAdministration
+	// resets is nil when the module was composed without password reset
+	// dependencies.
+	resets *application.PasswordReset
+	// invitations is nil when the module was composed without the school
+	// invitation dependencies.
+	invitations *application.SchoolInvitation
+	// invitationMaintenance is always composed: spending a deleted school's
+	// invitations and deleting expired ones need no flow dependencies.
+	invitationMaintenance *application.SchoolInvitationMaintenance
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
 }
@@ -405,6 +436,18 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorMFAChallengeStateChanged
 	case errors.Is(err, domain.ErrOperatorTrustedDeviceNotFound):
 		return identityaccess.ErrOperatorTrustedDeviceNotFound
+	case errors.Is(err, domain.ErrOperatorInvitationNotFound):
+		return identityaccess.ErrOperatorInvitationNotFound
+	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
+		return identityaccess.ErrOperatorEmailChangeNotFound
+	case errors.Is(err, domain.ErrOperatorPasskeyNotFound):
+		return identityaccess.ErrOperatorPasskeyNotFound
+	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):
+		return identityaccess.ErrOperatorPasskeySessionNotFound
+	case errors.Is(err, domain.ErrAccountPasskeyNotFound):
+		return identityaccess.ErrAccountPasskeyNotFound
+	case errors.Is(err, domain.ErrAccountPasskeySessionNotFound):
+		return identityaccess.ErrAccountPasskeySessionNotFound
 	default:
 		return err
 	}

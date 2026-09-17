@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addIoTDevicesRoomID(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.28: Adding room_id to iot.devices...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in iot devices room_id migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -61,15 +58,13 @@ func addIoTDevicesRoomID(ctx context.Context, db *bun.DB) error {
 }
 
 func dropIoTDevicesRoomID(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.28: Removing room_id from iot.devices...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in iot devices room_id down migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

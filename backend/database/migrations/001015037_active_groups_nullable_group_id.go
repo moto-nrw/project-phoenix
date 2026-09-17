@@ -32,8 +32,6 @@ func init() {
 }
 
 func activeGroupsNullableGroupIDUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.37: Dropping NOT NULL on active.groups.group_id...")
-
 	// Dropping NOT NULL on a column in Postgres is an O(1) catalog update —
 	// no table rewrite, only an AccessExclusiveLock held briefly. Safe on
 	// production-sized active.groups tables.
@@ -51,8 +49,6 @@ func activeGroupsNullableGroupIDUp(ctx context.Context, db *bun.DB) error {
 }
 
 func activeGroupsNullableGroupIDDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.37: Restoring NOT NULL on active.groups.group_id...")
-
 	// Re-imposing NOT NULL requires every existing row to have a value. If a
 	// future deployment already created spontaneous rows (group_id IS NULL),
 	// the caller must decide how to treat them before rolling back: either

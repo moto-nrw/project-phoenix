@@ -246,7 +246,13 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			require.NotNil(t, storedPerson.AccountID)
 			require.Equal(t, account.ID, *storedPerson.AccountID)
 			if owner != nil {
-				require.Equal(t, owner.PasswordHash, account.PasswordHash)
+				// The acceptance grants membership, never authority over the
+				// account's global credential. The owner's stored hash is the
+				// evidence; the answer itself carries no credential.
+				stored, storedErr := repos.Account.FindByID(context.Background(), owner.ID)
+				require.NoError(t, storedErr)
+				require.Equal(t, owner.PasswordHash, stored.PasswordHash)
+				require.Equal(t, owner.ID, account.ID)
 			}
 			_, err = service.AcceptInvitation(context.Background(), invitation.Token, data)
 			require.ErrorIs(t, err, auth.ErrInvitationUsed)

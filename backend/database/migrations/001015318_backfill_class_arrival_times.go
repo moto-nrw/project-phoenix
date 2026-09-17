@@ -40,8 +40,6 @@ func init() {
 // classes with no children left. Ties are broken by the earlier time so the
 // result is deterministic.
 func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.318: Lifting per-child arrival times into class timetables...")
-
 	res, err := db.ExecContext(ctx, `
 		WITH ranked AS (
 			SELECT
@@ -86,7 +84,9 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("lift class arrival times: %w", err)
 	}
 	if rows, rowsErr := res.RowsAffected(); rowsErr == nil {
-		fmt.Printf("  %d class timetables created\n", rows)
+		migrationLog().InfoContext(ctx, "class arrival timetables created",
+			"rows", rows,
+		)
 	}
 
 	res, err = db.ExecContext(ctx, `
@@ -110,7 +110,9 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("let matching child rows inherit: %w", err)
 	}
 	if rows, rowsErr := res.RowsAffected(); rowsErr == nil {
-		fmt.Printf("  %d child rows now inherit their class time\n", rows)
+		migrationLog().InfoContext(ctx, "child arrival rows now inherit their class time",
+			"rows", rows,
+		)
 	}
 	return nil
 }
@@ -120,8 +122,6 @@ func backfillClassArrivalTimesUp(ctx context.Context, db *bun.DB) error {
 // class timetables: a later school edit is indistinguishable from a backfilled
 // row and must not be deleted by a partial rollback.
 func backfillClassArrivalTimesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.318: writing class times back onto the child rows...")
-
 	_, err := db.ExecContext(ctx, `
 		UPDATE schedule.student_arrival_schedules AS arrival
 		SET expected_arrival = (class_time.arrival_times ->> (

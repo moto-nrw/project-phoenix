@@ -23,8 +23,6 @@ func init() {
 }
 
 func invitationTokensPersonIDUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.334: Adding person_id to auth.invitation_tokens...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE auth.invitation_tokens
 			ADD COLUMN IF NOT EXISTS person_id BIGINT
@@ -42,8 +40,6 @@ func invitationTokensPersonIDUp(ctx context.Context, db *bun.DB) error {
 }
 
 func invitationTokensPersonIDDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.334: Removing person_id from auth.invitation_tokens...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS auth.idx_invitation_tokens_person_id;
 		ALTER TABLE auth.invitation_tokens

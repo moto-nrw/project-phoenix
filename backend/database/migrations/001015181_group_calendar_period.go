@@ -33,8 +33,6 @@ func init() {
 }
 
 func groupCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.181: Adding calendar_period_id to activities.groups...")
-
 	// ON DELETE SET NULL: deleting a calendar period clears references
 	// instead of blocking the delete with a FK violation (same pattern as
 	// enrollment.phases.calendar_period_id, migration 1.15.167). The
@@ -60,13 +58,10 @@ func groupCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating activities.groups calendar_period_id index: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.181: Completed successfully")
 	return nil
 }
 
 func groupCalendarPeriodDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.181: Dropping calendar_period_id from activities.groups...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_activities_groups_tenant_calendar_period;
 

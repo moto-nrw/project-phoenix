@@ -24,8 +24,6 @@ func init() {
 	// Migration 0.0: Create database schemas
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 0.0.0: Creating database schemas...")
-
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 			if err != nil {
@@ -56,8 +54,6 @@ func init() {
 			return tx.Commit()
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 0.0.0: Removing database schemas...")
-
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 			if err != nil {

@@ -11,10 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -70,28 +68,7 @@ func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *servi
 
 func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 	t.Helper()
-	config := authTestFactoryConfig(false)
-	signer, err := jwt.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
-	require.NoError(t, err)
-	repos, compositionErr := repositories.NewInvitationPersistence(db)
-	require.NoError(t, compositionErr)
-	schoolIdentity, compositionErr := services.NewSchoolIdentityForTests(db, testpkg.TenantRuntime(t, db))
-	require.NoError(t, compositionErr)
-	service := auth.NewInvitationService(auth.InvitationServiceConfig{
-		SchoolIdentity:    schoolIdentity,
-		TokenAuth:         signer,
-		InvitationRepo:    repos.InvitationToken,
-		AccountRepo:       repos.Account,
-		AccountTenantRepo: repos.AccountTenant,
-		RoleRepo:          repos.Role,
-		PermissionRepo:    repos.Permission,
-		AccountRoleRepo:   repos.AccountRole,
-		SchoolRepo:        services.InvitationSchoolsForTests(repos.School, testpkg.TenantRuntime(t, db)),
-		Mailer:            email.NewMockMailer(),
-		FrontendURL:       config.FrontendURL, SchoolURL: config.SchoolURL,
-		InvitationExpiry: 48 * time.Hour, DB: db,
-	})
-	testpkg.SetTenantRuntime(t, service, db)
+	service := setupAuthFactory(t, db).Invitation
 	return &fixtureOwnedInvitationService{InvitationService: service, t: t, db: db}
 }
 

@@ -44,6 +44,7 @@ type Store interface {
 	FindPendingWithdrawalStudent(ctx context.Context, completionID int64, lock bool) (int64, domain.OperationStats, error)
 	ResolvePendingWithdrawalAsDeleted(ctx context.Context, completionID, actorAccountID int64, at time.Time) (bool, domain.OperationStats, error)
 	RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, domain.OperationStats, error)
+	WithdrawalStore
 
 	FindCareOffering(context.Context, int64) (domain.CareOffering, bool, domain.OperationStats, error)
 	ListCareOfferings(context.Context, domain.CareOfferingFilter) ([]domain.CareOffering, domain.OperationStats, error)

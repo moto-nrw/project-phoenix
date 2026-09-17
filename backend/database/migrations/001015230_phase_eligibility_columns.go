@@ -32,7 +32,6 @@ func init() {
 }
 
 func phaseEligibilityColumnsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.230: Adding eligibility config columns to enrollment.phases...")
 	return ensurePhaseEligibilityColumns(ctx, db)
 }
 
@@ -60,8 +59,6 @@ func ensurePhaseEligibilityColumns(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseEligibilityColumnsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.230: Removing eligibility config columns from enrollment.phases...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		DROP CONSTRAINT IF EXISTS phases_audience_check;

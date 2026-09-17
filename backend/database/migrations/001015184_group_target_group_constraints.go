@@ -22,7 +22,6 @@ func init() {
 }
 
 func groupTargetGroupConstraintsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.184: Strengthening activities.groups target-group constraints...")
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_target_group_values,
@@ -64,12 +63,10 @@ func groupTargetGroupConstraintsUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed strengthening activities.groups target-group constraints: %w", err)
 	}
-	fmt.Println("Migration 1.15.184: Completed successfully")
 	return nil
 }
 
 func groupTargetGroupConstraintsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.184: Restoring 1.15.182 target-group constraints...")
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_target_group_values,

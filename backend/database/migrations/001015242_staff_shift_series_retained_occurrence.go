@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.242: Tracking retained staff-shift series occurrences...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shift_series
 					ADD COLUMN IF NOT EXISTS retained_occurrence_shift_id BIGINT;
@@ -38,7 +37,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.242: Dropping retained staff-shift series occurrences...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shift_series
 					DROP CONSTRAINT IF EXISTS fk_staff_shift_series_retained_occurrence,

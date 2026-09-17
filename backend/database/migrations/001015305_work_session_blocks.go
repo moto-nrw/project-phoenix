@@ -33,8 +33,6 @@ func init() {
 // partial unique index permits only one open block for a staff member across
 // all days. The latter closes the concurrent-check-in race even at midnight.
 func workSessionBlocksUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.305: Allowing multiple work session blocks per day...")
-
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		var duplicateOpenSessions bool
 		if err := tx.QueryRowContext(ctx, `
@@ -75,8 +73,6 @@ func workSessionBlocksUp(ctx context.Context, db *bun.DB) error {
 // single day; otherwise the transaction rolls back and leaves the open-block
 // guard in place.
 func workSessionBlocksDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.305: Restoring one work session per day...")
-
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `
 			ALTER TABLE active.work_sessions

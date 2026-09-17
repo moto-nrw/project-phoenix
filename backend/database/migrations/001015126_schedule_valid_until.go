@@ -24,8 +24,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.126: Adding valid_until and valid_from to activities.schedules...")
-
 			// valid_until: exclusive end of a schedule's recurrence — the
 			// schedule no longer produces instances ON or AFTER this date
 			// (same convention as activities.student_enrollments.valid_until).
@@ -48,8 +46,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.126: Removing valid_until and valid_from from activities.schedules...")
-
 			if _, err := db.NewRaw(`
 				ALTER TABLE activities.schedules
 					DROP COLUMN IF EXISTS valid_until;

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // makeStudentGuardianFieldsOptionalUp makes guardian_name and guardian_contact nullable
 func makeStudentGuardianFieldsOptionalUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.6.1: Making guardian_name and guardian_contact optional in students table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func makeStudentGuardianFieldsOptionalUp(ctx context.Context, db *bun.DB) error 
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -66,16 +63,12 @@ func makeStudentGuardianFieldsOptionalUp(ctx context.Context, db *bun.DB) error 
 		return fmt.Errorf("error making guardian_contact nullable: %w", err)
 	}
 
-	fmt.Println("Successfully made guardian_name and guardian_contact optional")
-
 	// Commit the transaction
 	return tx.Commit()
 }
 
 // makeStudentGuardianFieldsOptionalDown makes guardian_name and guardian_contact required again
 func makeStudentGuardianFieldsOptionalDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.6.1: Making guardian_name and guardian_contact required again...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -83,7 +76,7 @@ func makeStudentGuardianFieldsOptionalDown(ctx context.Context, db *bun.DB) erro
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -38,8 +37,6 @@ func init() {
 // them. Category Stammdaten are school-wide configuration and must stay with
 // the OGS-Leitung, hence a dedicated admin-only permission.
 func addActivityCategoryManagePermission(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.259: Adding activities:manage_categories permission...")
-
 	if err := grantPermissionToRoles(ctx, db, permissionSpec{
 		Name:        activityCategoryManagePermissionName,
 		Description: "Manage activity categories (school Stammdaten)",
@@ -49,17 +46,13 @@ func addActivityCategoryManagePermission(ctx context.Context, db *bun.DB) error 
 		return err
 	}
 
-	fmt.Println("Migration 1.15.259: Successfully granted activities:manage_categories to admin role")
 	return nil
 }
 
 func removeActivityCategoryManagePermission(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.259: Removing activities:manage_categories...")
-
 	if err := dropPermission(ctx, db, activityCategoryManagePermissionName); err != nil {
 		return err
 	}
 
-	fmt.Println("Migration 1.15.259: Successfully rolled back")
 	return nil
 }

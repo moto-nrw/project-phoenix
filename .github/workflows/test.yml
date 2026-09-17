@@ -12,7 +12,9 @@ on:
       run-seed-smoke:
         type: boolean
         required: true
-      is-pr:
+      # True for pull requests and merge groups: test only what changed against
+      # base_ref, skip coverage. False for protected-branch pushes.
+      changed-scope:
         type: boolean
         default: false
       base_ref:
@@ -35,10 +37,11 @@ env:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
-    # PRs run only affected packages without coverage; four vCPUs avoid paying
-    # the 8-vCPU rate for that smaller workload. Protected-branch pushes keep
-    # eight vCPUs for the full instrumented suite consumed by SonarCloud.
-    runs-on: ${{ inputs.is-pr && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    # Change-scoped runs cover only affected packages without coverage; four
+    # vCPUs avoid paying the 8-vCPU rate for that smaller workload.
+    # Protected-branch pushes keep eight vCPUs for the full instrumented suite
+    # consumed by SonarCloud.
+    runs-on: ${{ inputs.changed-scope && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
       checks: write
@@ -170,10 +173,10 @@ jobs:
           TENANT_DOMAIN: localhost
           BASE_REF: ${{ inputs.base_ref }}
           FULL_SUITE: ${{ inputs.full-backend-suite }}
-          IS_PR: ${{ inputs.is-pr }}
+          CHANGED_SCOPE: ${{ inputs.changed-scope }}
         run: |
           packages=(./...)
-          if [ "$IS_PR" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
+          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
             affected_output=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
             packages=()
             while IFS= read -r package; do
@@ -187,7 +190,7 @@ jobs:
           fi
 
           test_args=(-parallel 8)
-          if [ "$IS_PR" = true ]; then
+          if [ "$CHANGED_SCOPE" = true ]; then
             test_args+=(-p 4)
           else
             # Coverage is consumed only by the post-merge SonarCloud job.
@@ -237,7 +240,7 @@ jobs:
             backend/coverage.out
             backend/junit.xml
           retention-days: 7
-        if: ${{ always() && ! inputs.is-pr && hashFiles('backend/coverage.out', 'backend/junit.xml') != '' }}
+        if: ${{ always() && ! inputs.changed-scope && hashFiles('backend/coverage.out', 'backend/junit.xml') != '' }}
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@a9170d5795813c01ab4901ffb045b52bab4ab09d # v6.5.0
@@ -275,7 +278,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check frontend route invariants
-        if: ${{ inputs.is-pr }}
+        if: ${{ inputs.changed-scope }}
         working-directory: frontend
         run: >-
           pnpm vitest run
@@ -305,17 +308,17 @@ jobs:
         run: pnpm run test:layout
 
       - name: Run changed frontend tests
-        if: ${{ inputs.is-pr && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
+        if: ${{ inputs.changed-scope && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
         working-directory: frontend
         run: pnpm vitest run --changed "origin/${{ inputs.base_ref }}"
 
       - name: Run full frontend tests
-        if: ${{ inputs.is-pr && (inputs.full-frontend-suite || inputs.base_ref == '') }}
+        if: ${{ inputs.changed-scope && (inputs.full-frontend-suite || inputs.base_ref == '') }}
         working-directory: frontend
         run: pnpm run test:run
 
       - name: Run full frontend tests with coverage
-        if: ${{ ! inputs.is-pr }}
+        if: ${{ ! inputs.changed-scope }}
         working-directory: frontend
         run: pnpm run test:run --coverage
 

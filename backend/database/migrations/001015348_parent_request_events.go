@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -27,7 +26,6 @@ func init() {
 // are append-only for the same reason the sharing events are: a history staff
 // can rewrite is not a history.
 func parentRequestEventsUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", slog.String("migration", parentRequestEventsVersion))
 	_, err := db.NewRaw(`
 		CREATE TABLE users.parent_request_events (
 			id BIGSERIAL PRIMARY KEY,
