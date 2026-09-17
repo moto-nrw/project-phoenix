@@ -76,7 +76,7 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		statePath = DefaultSeedStatePath
 	}
 	return &Seeder{
-		client:     NewClientWithAdapter(adapter, verbose),
+		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
 		random:     random,
 		verbose:    verbose,
 		options:    options,
