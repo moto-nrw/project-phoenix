@@ -66,7 +66,8 @@ evaluator decides "no longer reads or writes" from the candidate's own
 ownership findings: under the candidate policy any remaining access by
 another owner's package is a `tables.foreign-read` or `tables.foreign-write`
 finding, so the same evidence that would block the pull request also blocks
-the adoption.
+the adoption. A package that still has a `tables.unresolved` finding proves
+nothing — its table expression names no table — and blocks the adoption too.
 
 This is the third reviewed-epoch path after
 [ADR 0013](0013-staff-offboarding-is-an-application-workflow.md) and
