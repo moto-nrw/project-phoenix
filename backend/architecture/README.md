@@ -71,7 +71,22 @@ dynamically, so the baseline records no `tables.unclassified` finding to adopt
 it from, and the File Storage composition binds its intent operations to that
 repository as a compatibility permission until the table can be adopted.
 #2710 adopts `users.persons_guardians` under `people-directory` the same way
-(policy epoch 7 to 8); the remaining #2727 tables stay unclassified debt.
+(policy epoch 7 to 8). #3221 adopts `users.guardian_financial_data` under
+`people-directory` and moves the staff messaging persistence out of
+`database/repositories/users`, adopting `users.staff_message_threads`,
+`users.staff_message_participants`, `users.staff_messages` and
+`users.staff_message_reads` under `communication` (policy epoch 12 to 13).
+With that the baseline records no `tables.unclassified` debt.
+
+The staff messaging writes live in the Communication Postgres adapter
+`modules/communication/internal/adapters/staffpostgres`. The inbox and unread
+badge join People Directory's person rows, so they read through the tenant-safe
+projection `modules/communication/internal/adapters/staffinbox` (owner
+`staff-message-inbox`). `modules/communication/staffstore` is the
+Communication composition seam that keeps the `models/users` staff message
+repository contracts for the legacy factory. The colleague picker, its
+authorization predicate and the role kinds stay in People Directory as
+`MessageableStaffRepository` and reach the seam as a colleague directory.
 `target.svg` shows File Storage as domain and Document Rendering as platform;
 do not commit the generated diagram.
 

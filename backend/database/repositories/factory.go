@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -718,8 +719,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
 
-		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
-		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageThread: staffStore.NewStaffMessageThreadRepository(db),
+		StaffMessage:       staffStore.NewStaffMessageRepository(db),
 
 		// Calendar repositories
 		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
