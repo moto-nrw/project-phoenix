@@ -4157,7 +4157,7 @@
       "declaration": "TestRevokeAccess_PayerStaysWithoutFinancialPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        249
+        301
       ],
       "tables": [
         "users.guardian_profiles"
