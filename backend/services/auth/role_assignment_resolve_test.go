@@ -12,19 +12,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The shared policy behind every path that attaches an account to a school
-// (issue #1021): operator-led school access and /auth/link-to-tenant.
-func TestValidateAssignableSchoolRole(t *testing.T) {
+// (issue #1021): operator-led school access and /auth/link-to-tenant. The
+// Identity & Access role administration resolves the role and applies it
+// (#3314).
+func TestResolveAssignableSchoolRole(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	roleRepo := repoFactory.Role
+	roles := setupAuthFactory(t, db).AccountAuthentication()
 	ctx := context.Background()
 
 	homeTenantID := testpkg.UniqueTestTenantID(t)
@@ -37,25 +38,25 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 	tenantRole := testpkg.CreateTestRoleForTenant(t, db, "zugriff-policy-rolle", homeTenantID)
 
 	t.Run("accepts a platform system role", func(t *testing.T) {
-		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, adminRole.ID, homeTenantID)
+		role, err := roles.ResolveAssignableSchoolRole(ctx, adminRole.ID, homeTenantID)
 		require.NoError(t, err)
 		assert.Equal(t, adminRole.ID, role.ID)
 	})
 
 	t.Run("accepts a custom role of the same school", func(t *testing.T) {
-		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, tenantRole.ID, homeTenantID)
+		role, err := roles.ResolveAssignableSchoolRole(ctx, tenantRole.ID, homeTenantID)
 		require.NoError(t, err)
 		assert.Equal(t, tenantRole.ID, role.ID)
 	})
 
 	t.Run("rejects a custom role of another school", func(t *testing.T) {
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, tenantRole.ID, foreignTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleForeignTenant)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, tenantRole.ID, foreignTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleForeignTenant)
 	})
 
 	t.Run("rejects the guardian role", func(t *testing.T) {
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, guardianRole.ID, homeTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleGuardianNotAssignable)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, guardianRole.ID, homeTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleGuardianNotAssignable)
 	})
 
 	t.Run("rejects a custom role derived from guardian", func(t *testing.T) {
@@ -65,14 +66,14 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		_, updateErr := db.NewRaw(`UPDATE auth.roles SET base_role = ? WHERE id = ?`, guardianBase, derivedRole.ID).Exec(ctx)
 		require.NoError(t, updateErr)
 
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, derivedRole.ID, homeTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleGuardianNotAssignable)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, derivedRole.ID, homeTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleGuardianNotAssignable)
 	})
 
 	t.Run("accepts a custom role named guardian without guardian base role", func(t *testing.T) {
 		roleID := createTenantRole(t, db, "guardian", homeTenantID, nil)
 
-		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, roleID, homeTenantID)
+		role, err := roles.ResolveAssignableSchoolRole(ctx, roleID, homeTenantID)
 		require.NoError(t, err)
 		assert.Equal(t, roleID, role.ID)
 	})
@@ -82,7 +83,7 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		// platform system role — the name-based block hits only "teacher".
 		lehrkraftRole := testpkg.GetOrCreateTestRole(t, db, "lehrkraft")
 
-		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, lehrkraftRole.ID, homeTenantID)
+		role, err := roles.ResolveAssignableSchoolRole(ctx, lehrkraftRole.ID, homeTenantID)
 		require.NoError(t, err)
 		assert.Equal(t, lehrkraftRole.ID, role.ID)
 	})
@@ -92,14 +93,14 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 		// role has to be inserted under its exact historical name.
 		teacherRoleID := createPlatformRole(t, db, "teacher", true)
 
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, teacherRoleID, homeTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleLegacyTeacherNotAssignable)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, teacherRoleID, homeTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleLegacyTeacherNotAssignable)
 	})
 
 	t.Run("accepts a custom role named teacher", func(t *testing.T) {
 		roleID := createTenantRole(t, db, "teacher", homeTenantID, nil)
 
-		role, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, roleID, homeTenantID)
+		role, err := roles.ResolveAssignableSchoolRole(ctx, roleID, homeTenantID)
 		require.NoError(t, err)
 		assert.Equal(t, roleID, role.ID)
 	})
@@ -107,18 +108,18 @@ func TestValidateAssignableSchoolRole(t *testing.T) {
 	t.Run("rejects a platform-wide role that is not a system role", func(t *testing.T) {
 		strayRole := createPlatformRole(t, db, "zugriff-policy-stray-"+strconv.FormatInt(time.Now().UnixNano(), 10), false)
 
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, strayRole, homeTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleNotAssignable)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, strayRole, homeTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleNotAssignable)
 	})
 
 	t.Run("rejects a missing role", func(t *testing.T) {
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, 0, homeTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleNotAssignable)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, 0, homeTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleNotAssignable)
 	})
 
 	t.Run("rejects an unknown role id", func(t *testing.T) {
-		_, err := authSvc.ValidateAssignableSchoolRole(ctx, roleRepo, 99999999, homeTenantID)
-		assert.ErrorIs(t, err, authSvc.ErrRoleNotAssignable)
+		_, err := roles.ResolveAssignableSchoolRole(ctx, 99999999, homeTenantID)
+		assert.ErrorIs(t, err, identityaccess.ErrRoleNotAssignable)
 	})
 }
 

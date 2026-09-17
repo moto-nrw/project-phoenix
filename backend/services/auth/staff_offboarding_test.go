@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -68,10 +69,10 @@ func TestStaffOffboardingAccessPreservesGuardianAndOtherTenant(t *testing.T) {
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Guardian", "Offboarding")
 	factory := setupAuthFactory(t, db)
 	access := factory.AccountAuthentication()
-	roles, err := factory.Auth.ListRoles(ctx, map[string]interface{}{"name": authModels.BaseRoleGuardian})
+	roles, err := access.ListRoles(ctx, identityaccess.RoleFilter{Name: authModels.BaseRoleGuardian})
 	require.NoError(t, err)
 	require.Len(t, roles, 1)
-	require.NoError(t, factory.Auth.AssignRoleToAccount(ctx, int(account.ID), int(roles[0].ID)))
+	require.NoError(t, access.AssignRoleToAccount(ctx, account.ID, roles[0].ID))
 	preview, err := access.PreviewStaffOffboarding(ctx, account.ID)
 	require.NoError(t, err)
 	require.True(t, preview.PreserveGuardian)
@@ -79,7 +80,7 @@ func TestStaffOffboardingAccessPreservesGuardianAndOtherTenant(t *testing.T) {
 	result, err := access.ExecuteStaffOffboarding(ctx, account.ID, preview.Revision)
 	require.NoError(t, err)
 	require.True(t, result.GuardianAccessPreserved)
-	remaining, err := factory.Auth.GetAccountRoles(ctx, int(account.ID))
+	remaining, err := access.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, remaining, 1)
 	require.Equal(t, authModels.BaseRoleGuardian, remaining[0].Name)
@@ -124,7 +125,7 @@ func TestStaffOffboardingAccessRollsBackWithWorkflow(t *testing.T) {
 	active, err := factory.Auth.VerifyAccountTenantMembership(ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.True(t, active)
-	roles, err := factory.Auth.GetAccountRoles(ctx, int(account.ID))
+	roles, err := access.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	require.Len(t, roles, len(preview.RoleIDs))
 	_, err = access.ExecuteStaffOffboarding(ctx, account.ID, preview.Revision)

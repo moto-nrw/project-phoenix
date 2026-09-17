@@ -423,6 +423,7 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 	email, username := uniqueTestCredentials("role-change-push")
@@ -438,9 +439,9 @@ func TestRoleChangeKeepsStaffPushAtOtherSchools(t *testing.T) {
 	insertStaffPush(t, db, account.ID, tenantID, "https://fcm.googleapis.com/this-school", localFamily)
 	insertStaffPush(t, db, account.ID, secondaryTenantID, "https://fcm.googleapis.com/other-school", "other-family")
 
-	role, err := service.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr(authModels.BaseRoleUser))
+	role, err := rbac.CreateRole(ctx, uniqueTestName("role-change-push"), "limit push wipe", testpkg.StrPtr(authModels.BaseRoleUser))
 	require.NoError(t, err)
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID)))
+	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, role.ID))
 
 	require.Equal(t, 0, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/this-school"))
 	require.Equal(t, 1, countStaffPush(t, db, account.ID, "https://fcm.googleapis.com/other-school"))
@@ -451,6 +452,7 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 	ctx := testpkg.TenantContext(tenantID)
 	email, username := uniqueTestCredentials("admin-role-other-school")
@@ -472,10 +474,10 @@ func TestAssignRoleFromAdminTxKeepsOtherSchoolSessions(t *testing.T) {
 	_, err = db.NewInsert().Model(other).ModelTableExpr("auth.tokens").Exec(context.Background())
 	require.NoError(t, err)
 
-	role, err := service.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
+	role, err := rbac.CreateRole(ctx, uniqueTestName("admin-role-other"), "keep other school", testpkg.StrPtr(authModels.BaseRoleUser))
 	require.NoError(t, err)
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(adminCtx context.Context, _ bun.Tx) error {
-		return service.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), int(account.ID), int(role.ID))
+		return rbac.AssignRoleToAccount(tenant.WithTenantID(adminCtx, tenantID), account.ID, role.ID)
 	}))
 
 	count, err := db.NewSelect().

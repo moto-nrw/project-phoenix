@@ -294,7 +294,7 @@ func (s *Service) LinkSchoolAccount(
 // tenant and the policy validator rejects roles from another school.
 func (s *Service) resolveAssignableSchoolRole(ctx context.Context, roleID, tenantID int64) (*auth.Role, error) {
 	lookup := func(lookupCtx context.Context) (*auth.Role, error) {
-		return ValidateAssignableSchoolRole(lookupCtx, s.repos.Role, roleID, tenantID)
+		return validateAssignableSchoolRole(lookupCtx, s.repos.Role, s.lifecycle, roleID, tenantID)
 	}
 
 	if tx, ok := tenant.TransactionFromContext(ctx); ok && tx != nil {
@@ -334,8 +334,8 @@ func (s *Service) performAccountTenantLink(
 		// only carries class_day permissions (#1772). The same rule the tenant
 		// RBAC endpoint and both operator paths apply, so this endpoint cannot
 		// be the way around them.
-		if IsLehrkraftSystemRole(role) {
-			hasProfile, profErr := HasLiveCaregiverProfile(ctx, s.repos.Person, s.repos.Staff, s.repos.Teacher, account.ID)
+		if isLehrkraftRole(s.lifecycle, role) {
+			hasProfile, profErr := s.lifecycle.HasLiveCaregiverProfile(ctx, account.ID)
 			if profErr != nil {
 				return profErr
 			}

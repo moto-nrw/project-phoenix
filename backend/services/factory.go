@@ -48,6 +48,7 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -803,6 +804,11 @@ func newFactory(
 		})
 	}
 
+	// Identity & Access is composed with the auth service below; the person
+	// service reads its role administration at call time (#3314).
+	var identityAccess *identityaccess.Module
+	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess }}
+
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
 		PersonRepo:           repos.Person,
@@ -811,7 +817,7 @@ func newFactory(
 		StudentRepo:          repos.Student,
 		StaffRepo:            repos.Staff,
 		TeacherRepo:          repos.Teacher,
-		RoleRepo:             repos.Role,
+		LehrkraftRoles:       identityRoles,
 		PersonnelNumberAudit: repos.PersonnelNumberChange,
 
 		// Staff Stammdaten (#1423)
@@ -1600,7 +1606,7 @@ func newFactory(
 		return nil, err
 	}
 	var guardianInvitationService auth.GuardianInvitationService
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos, organizations),
 		tokenAuth: authConfig.TokenAuth,
 		settings:  settingsService,
@@ -1801,7 +1807,7 @@ func newFactory(
 		GroupSubstitutionRepo:  repos.GroupSubstitution,
 		GroupSupervisorRepo:    repos.GroupSupervisor,
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
-		AuthService:            authService,
+		RoleAssignments:        identityRoles,
 		DB:                     db,
 	})
 
@@ -2737,6 +2743,7 @@ func newFactory(
 		authService:    authService,
 		invitations:    invitationService,
 		schoolIdentity: accountSessionsPort,
+		roles:          identityAccess,
 		settings:       settingsService,
 		logger:         platformLogger,
 	})

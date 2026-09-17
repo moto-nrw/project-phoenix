@@ -148,14 +148,23 @@ func IsSchoolIdentityRequestError(err error) bool {
 }
 
 // SchoolIdentityProvisioning is the consumer-owned port over the Identity &
-// Access school identity capability the retained registration, linking,
-// role assignment, invitation and operator provisioning flows call inside
-// their tenant transactions.
+// Access school identity capability and school-role policy the retained
+// registration, linking, invitation and operator provisioning flows call
+// inside their tenant transactions (#3225, #3314).
 type SchoolIdentityProvisioning interface {
 	EnsureSchoolIdentity(ctx context.Context, input SchoolIdentityInput) (*SchoolIdentity, error)
 	RoleNeedsStaffRecord(role *RoleFacts) bool
 	RoleNeedsCaregiverProfile(role *RoleFacts) bool
 	IsPlatformCaregiverRole(role *RoleFacts) bool
+	// IsLehrkraftSystemRole reports whether the role is the platform
+	// Lehrkraft role (#1772).
+	IsLehrkraftSystemRole(role *RoleFacts) bool
+	// ValidateAssignableSchoolRole returns the policy sentinel of this
+	// package that refuses the role for tenantID, or nil.
+	ValidateAssignableSchoolRole(role *RoleFacts, tenantID int64) error
+	// HasLiveCaregiverProfile reports whether the account's identity at the
+	// tenant in context carries a live caregiver profile.
+	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
 // ParentAccountRecord is one parent authentication account as the port

@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -51,10 +50,11 @@ type PersonServiceDependencies struct {
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
 	TeacherRepo userModels.TeacherRepository
-	// RoleRepo answers which roles the staff member's account holds. Required
-	// by the caregiver-profile paths: the Lehrkraft role (#1772) is provisioned
-	// without a profile on purpose and must not be handed one here.
-	RoleRepo auth.RoleRepository
+	// LehrkraftRoles answers whether the staff member's account holds the
+	// Lehrkraft role. Required by the caregiver-profile paths: the Lehrkraft
+	// role (#1772) is provisioned without a profile on purpose and must not be
+	// handed one here.
+	LehrkraftRoles LehrkraftRoleQuery
 	// PersonnelNumberAudit is required for UpdatePersonnelNumber; the write
 	// path refuses to run without it (no change without a trace, #1417).
 	PersonnelNumberAudit auditModels.PersonnelNumberChangeCreator
@@ -785,19 +785,24 @@ func (s *personService) refuseCaregiverProfileForLehrkraft(ctx context.Context, 
 		return nil
 	}
 
-	if s.RoleRepo == nil {
-		return errors.New("role repository is required to decide the caregiver profile")
+	if s.LehrkraftRoles == nil {
+		return errors.New("lehrkraft role query is required to decide the caregiver profile")
 	}
-	roles, err := s.RoleRepo.FindByAccountID(ctx, *person.AccountID)
+	isLehrkraft, err := s.LehrkraftRoles.AccountHoldsLehrkraftRole(ctx, *person.AccountID)
 	if err != nil {
 		return err
 	}
-	for _, role := range roles {
-		if authSvc.IsLehrkraftSystemRole(role) {
-			return ErrStaffLehrkraftCaregiverProfile
-		}
+	if isLehrkraft {
+		return ErrStaffLehrkraftCaregiverProfile
 	}
 	return nil
+}
+
+// LehrkraftRoleQuery is the consumer-owned port over the Identity & Access
+// role administration: whether the account holds the Lehrkraft system role at
+// the tenant in context (#3314).
+type LehrkraftRoleQuery interface {
+	AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error)
 }
 
 // liveTeacherForStaff returns the caregiver profile the staff record already
