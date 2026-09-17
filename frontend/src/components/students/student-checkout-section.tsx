@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { LogIn, MoreVertical } from "lucide-react";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
+import { isAtSchoolLocation } from "~/lib/location-helper";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -308,11 +309,13 @@ export function getStudentActionType(
     return "none";
   }
 
-  // Check if student is at home
-  const isAtHome =
-    !student.current_location || student.current_location.startsWith("Zuhause");
+  // At home or still in class before the first check-in (#3260)
+  const isNotCheckedIn =
+    !student.current_location ||
+    student.current_location.startsWith("Zuhause") ||
+    isAtSchoolLocation(student.current_location);
 
-  if (isAtHome) {
+  if (isNotCheckedIn) {
     // Student is at home - can check in (but only if user is in student's group)
     // Room supervisors can't check in students who aren't in a room
     return isInMyGroup ? "checkin" : "none";

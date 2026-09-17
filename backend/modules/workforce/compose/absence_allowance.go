@@ -9,21 +9,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
-// absenceDaysInYear clips calendar coverage to a year. Half-day flags apply
-// only at the original boundaries; weekends never consume allowance.
-func absenceDaysInYear(absence domain.StaffAbsence, year int) (float64, error) {
-	coverage, err := absenceCoverageInYear(absence, year)
-	if err != nil {
-		return 0, err
-	}
-	days := 0.0
-	for _, value := range coverage {
-		days += value
-	}
-	return days, nil
-}
-
-func absenceCoverageInYear(absence domain.StaffAbsence, year int) (map[timezone.Date]float64, error) {
+// allowanceUses spreads an absence over the weekdays it covers. Half-day
+// flags apply only at the original boundaries; weekends never consume
+// allowance. The booking's entry day decides whether an expired rest may
+// still be drawn on.
+func allowanceUses(absence domain.StaffAbsence) ([]domain.AllowanceUse, error) {
 	start, err := timezone.ParseDate(absence.DateStart)
 	if err != nil {
 		return nil, err
@@ -32,55 +22,40 @@ func absenceCoverageInYear(absence domain.StaffAbsence, year int) (map[timezone.
 	if err != nil {
 		return nil, err
 	}
-	from, to := start, end
-	yearStart := timezone.NewDate(year, time.January, 1)
-	yearEnd := timezone.NewDate(year, time.December, 31)
-	if from.Before(yearStart) {
-		from = yearStart
-	}
-	if to.After(yearEnd) {
-		to = yearEnd
-	}
 	startHalf, endHalf := absence.StartHalfDay, absence.EndHalfDay
 	if absence.HalfDay && !startHalf && !endHalf {
 		startHalf, endHalf = true, true
 	}
-	coverage := make(map[timezone.Date]float64)
-	for day := from; !day.After(to); day = day.AddDays(1) {
+	pending := absence.Status == domain.AbsenceStatusRequested || absence.Status == domain.AbsenceStatusQuestion
+	enteredOn := timezone.DateFromTime(absence.CreatedAt).String()
+	uses := make([]domain.AllowanceUse, 0, max(0, start.DaysUntil(end)+1))
+	for day := start; !day.After(end); day = day.AddDays(1) {
 		if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
 			continue
 		}
+		days := 1.0
 		if day == start && startHalf || day == end && endHalf {
-			coverage[day] = 0.5
-		} else {
-			coverage[day] = 1
+			days = 0.5
 		}
+		uses = append(uses, domain.AllowanceUse{
+			AbsenceID: absence.ID, Day: day.String(), Days: days, Pending: pending, EnteredOn: enteredOn,
+		})
 	}
-	return coverage, nil
+	return uses, nil
 }
 
-// Overlapping bookings are merged by the writer. Only their maximum daily
-// coverage offsets a candidate, never the sum of overlapping rows.
-func additionalAbsenceDaysInYear(candidate domain.StaffAbsence, existing []domain.StaffAbsence, year int) (float64, error) {
-	previous := make(map[timezone.Date]float64)
-	for _, absence := range existing {
-		coverage, err := absenceCoverageInYear(absence, year)
-		if err != nil {
-			return 0, err
-		}
-		for day, value := range coverage {
-			previous[day] = max(previous[day], value)
+func allowanceSummaryToPublic(value domain.AbsenceTypeAllowanceSummary) workforce.AbsenceTypeAllowanceSummary {
+	result := workforce.AbsenceTypeAllowanceSummary{
+		StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
+		EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
+		ExpiresOn: value.ExpiresOn, ExpiredDays: value.ExpiredDays, BookingDays: value.BookingDays,
+	}
+	if carried := value.CarriedIn; carried != nil {
+		result.CarriedIn = &workforce.AbsenceTypeAllowanceCarry{
+			Year: carried.Year, RemainingDays: carried.RemainingDays, ExpiredDays: carried.ExpiredDays, ExpiresOn: carried.ExpiresOn,
 		}
 	}
-	coverage, err := absenceCoverageInYear(candidate, year)
-	if err != nil {
-		return 0, err
-	}
-	additional := 0.0
-	for day, value := range coverage {
-		additional += max(0, value-previous[day])
-	}
-	return additional, nil
+	return result
 }
 
 func (e engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
@@ -100,10 +75,7 @@ func (e engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTyp
 	}
 	result := make([]workforce.AbsenceTypeAllowanceSummary, 0, len(values))
 	for _, value := range values {
-		result = append(result, workforce.AbsenceTypeAllowanceSummary{
-			StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
-			EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
-		})
+		result = append(result, allowanceSummaryToPublic(value))
 	}
 	return result, mapError(err)
 }

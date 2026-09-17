@@ -6,6 +6,7 @@ import Link from "~/components/ui/navigation-link";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { HOME_CARD_BODY, HomeCardIcon } from "~/components/home/home-card";
 import {
   HomeCardLink,
@@ -19,6 +20,7 @@ import {
   type HomeMissingArrival,
   type HomePickup,
 } from "~/lib/hooks/use-home-group";
+import { isAtSchoolLocation, LOCATION_COLORS } from "~/lib/location-helper";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -326,6 +328,12 @@ function AwayBadge({ student }: { readonly student: OgsLiveWireStudent }) {
         tone="gray"
         label={student.day_planning_label ?? "Kommt heute nicht"}
       />
+    );
+  }
+  // Erwartet, aber ohne Ankunftszeit: noch im Unterricht (#3260).
+  if (isAtSchoolLocation(student.current_location)) {
+    return (
+      <StatusColorBadge label="Schule" color={LOCATION_COLORS.AT_SCHOOL} />
     );
   }
   return <StatusBadge tone="gray" label="Zuhause" />;

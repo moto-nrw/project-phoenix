@@ -18,6 +18,7 @@ interface BackendAbsenceType {
   base_type: string;
   is_active: boolean;
   allowance_enabled: boolean;
+  carryover_until?: string | null;
 }
 
 export interface AbsenceType {
@@ -32,6 +33,11 @@ export interface AbsenceType {
    * always refused (#3256).
    */
   readonly allowanceEnabled: boolean;
+  /**
+   * "MM-DD" in the following year until which a rest stays usable, or null
+   * when the rest expires on 31.12. (#3257).
+   */
+  readonly carryoverUntil: string | null;
 }
 
 function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
@@ -41,6 +47,7 @@ function mapAbsenceType(data: BackendAbsenceType): AbsenceType {
     baseType: data.base_type,
     isActive: data.is_active,
     allowanceEnabled: data.allowance_enabled,
+    carryoverUntil: data.carryover_until ?? null,
   };
 }
 
@@ -110,6 +117,7 @@ class AbsenceTypeService {
     name: string,
     config: {
       allowanceEnabled: boolean;
+      carryoverUntil?: string | null;
     },
   ): Promise<AbsenceType> {
     const response = await sessionFetch("/api/staff/absence-types", {
@@ -118,6 +126,9 @@ class AbsenceTypeService {
       body: JSON.stringify({
         name,
         allowance_enabled: config.allowanceEnabled,
+        ...(config.carryoverUntil !== undefined
+          ? { carryover_until: config.carryoverUntil ?? "" }
+          : {}),
       }),
     });
     return readOne(response);
@@ -130,6 +141,7 @@ class AbsenceTypeService {
       name?: string;
       isActive?: boolean;
       allowanceEnabled?: boolean;
+      carryoverUntil?: string | null;
     },
   ): Promise<AbsenceType> {
     const response = await sessionFetch(`/api/staff/absence-types/${id}`, {
@@ -142,6 +154,9 @@ class AbsenceTypeService {
           : {}),
         ...(changes.allowanceEnabled !== undefined
           ? { allowance_enabled: changes.allowanceEnabled }
+          : {}),
+        ...(changes.carryoverUntil !== undefined
+          ? { carryover_until: changes.carryoverUntil ?? "" }
           : {}),
       }),
     });
@@ -157,6 +172,41 @@ class AbsenceTypeService {
       `/api/staff/absence-types/${absenceTypeId}/allowances/${staffId}?year=${year}`,
     );
     return readAllowance(response);
+  }
+
+  /**
+   * Which yearly Kontingent a planned booking uses. `blocked` is true when
+   * one of them would drop below zero; the booking is then refused.
+   */
+  async previewAllowance(
+    absenceTypeId: string,
+    staffId: string,
+    booking: { dateStart: string; dateEnd: string; halfDay: boolean },
+  ): Promise<AbsenceTypeAllowancePreview> {
+    const query = new URLSearchParams({
+      date_start: booking.dateStart,
+      date_end: booking.dateEnd,
+      half_day: String(booking.halfDay),
+    });
+    const response = await sessionFetch(
+      `/api/staff/absence-types/${absenceTypeId}/allowances/${staffId}/preview?${query.toString()}`,
+    );
+    if (!response.ok) {
+      throw await readError(
+        response,
+        "Die Vorschau konnte nicht berechnet werden",
+      );
+    }
+    const json = (await response.json()) as {
+      data: {
+        years: BackendAbsenceTypeAllowanceSummary[] | null;
+        blocked: boolean;
+      };
+    };
+    return {
+      years: (json.data.years ?? []).map(mapAllowance),
+      blocked: json.data.blocked,
+    };
   }
 
   async setAllowance(
@@ -188,6 +238,28 @@ interface BackendAbsenceTypeAllowanceSummary {
   taken_days: number;
   reserved_days: number;
   remaining_days: number;
+  expires_on?: string;
+  expired_days?: number;
+  booking_days?: number;
+  carried_in?: {
+    year: number;
+    remaining_days: number;
+    expired_days: number;
+    expires_on: string;
+  } | null;
+}
+
+/** The previous year's rest as seen from the year it is carried into. */
+interface AbsenceTypeAllowanceCarry {
+  readonly year: number;
+  readonly remainingDays: number;
+  readonly expiredDays: number;
+  readonly expiresOn: string;
+}
+
+export interface AbsenceTypeAllowancePreview {
+  readonly years: readonly AbsenceTypeAllowanceSummary[];
+  readonly blocked: boolean;
 }
 
 export interface AbsenceTypeAllowanceSummary {
@@ -198,6 +270,38 @@ export interface AbsenceTypeAllowanceSummary {
   readonly takenDays: number;
   readonly reservedDays: number;
   readonly remainingDays: number;
+  /** Last day (YYYY-MM-DD) the rest can be booked. */
+  readonly expiresOn: string;
+  /** Rest left when expiresOn passed; shown, never dropped. */
+  readonly expiredDays: number;
+  /** On previews: what the booking takes from this year. */
+  readonly bookingDays: number;
+  readonly carriedIn: AbsenceTypeAllowanceCarry | null;
+}
+
+function mapAllowance(
+  data: BackendAbsenceTypeAllowanceSummary,
+): AbsenceTypeAllowanceSummary {
+  return {
+    staffId: data.staff_id,
+    absenceTypeId: data.absence_type_id,
+    year: data.year,
+    entitledDays: data.entitled_days,
+    takenDays: data.taken_days,
+    reservedDays: data.reserved_days,
+    remainingDays: data.remaining_days,
+    expiresOn: data.expires_on ?? `${data.year}-12-31`,
+    expiredDays: data.expired_days ?? 0,
+    bookingDays: data.booking_days ?? 0,
+    carriedIn: data.carried_in
+      ? {
+          year: data.carried_in.year,
+          remainingDays: data.carried_in.remaining_days,
+          expiredDays: data.carried_in.expired_days,
+          expiresOn: data.carried_in.expires_on,
+        }
+      : null,
+  };
 }
 
 async function readAllowance(
@@ -212,15 +316,7 @@ async function readAllowance(
   const json = (await response.json()) as {
     data: BackendAbsenceTypeAllowanceSummary;
   };
-  return {
-    staffId: json.data.staff_id,
-    absenceTypeId: json.data.absence_type_id,
-    year: json.data.year,
-    entitledDays: json.data.entitled_days,
-    takenDays: json.data.taken_days,
-    reservedDays: json.data.reserved_days,
-    remainingDays: json.data.remaining_days,
-  };
+  return mapAllowance(json.data);
 }
 
 export const absenceTypeService = new AbsenceTypeService();

@@ -8,7 +8,8 @@ const logger = createLogger({ component: "StudentLocationRoute" });
 import type { BackendStudent } from "~/lib/student-helpers";
 import {
   LOCATION_STATUSES,
-  isHomeLocation,
+  isAtSchoolLocation,
+  isNotCheckedInLocation,
   isPresentLocation,
   normalizeLocation,
 } from "~/lib/location-helper";
@@ -60,7 +61,7 @@ type PresentLocation = {
 
 type NotPresentLocation = {
   status: "not_present";
-  location: "Zuhause";
+  location: "Zuhause" | "Schule";
   room: null;
   group: GroupInfo | null;
   checkInTime: null;
@@ -112,8 +113,12 @@ export const GET = createGetHandler(
       );
       const normalizedLocation = normalizeLocation(student.current_location);
 
-      if (isHomeLocation(normalizedLocation)) {
-        return buildNotPresentResponse(student, groupRoomId);
+      if (isNotCheckedInLocation(normalizedLocation)) {
+        return buildNotPresentResponse(
+          student,
+          groupRoomId,
+          isAtSchoolLocation(normalizedLocation),
+        );
       }
 
       if (isPresentLocation(normalizedLocation)) {
@@ -126,7 +131,7 @@ export const GET = createGetHandler(
         );
       }
 
-      return buildNotPresentResponse(student, groupRoomId);
+      return buildNotPresentResponse(student, groupRoomId, false);
     } catch (error) {
       return handleLocationFetchError(error);
     }
@@ -183,10 +188,11 @@ function buildGroupInfo(
 function buildNotPresentResponse(
   student: BackendStudent,
   groupRoomId: number | null,
+  atSchool: boolean,
 ): LocationResponse {
   return {
     status: "not_present",
-    location: LOCATION_STATUSES.HOME,
+    location: atSchool ? LOCATION_STATUSES.AT_SCHOOL : LOCATION_STATUSES.HOME,
     room: null,
     group: buildGroupInfo(student, groupRoomId),
     checkInTime: null,

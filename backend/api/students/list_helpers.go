@@ -527,6 +527,21 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 	return studentLocation == location
 }
 
+// applyLocationFilter runs after day-planning enrichment, because that step
+// resolves an expected child's pre-check-in location to "Schule".
+func applyLocationFilter(responses []StudentResponse, location string) []StudentResponse {
+	if location == "" {
+		return responses
+	}
+	filtered := make([]StudentResponse, 0, len(responses))
+	for _, response := range responses {
+		if matchesLocationFilter(location, response.Location, response.HasFullAccess) {
+			filtered = append(filtered, response)
+		}
+	}
+	return filtered
+}
+
 // matchesGradeLevel reports whether schoolClass's first numeric run equals any
 // of gradeLevels. An empty slice means the filter is off (matches everything).
 // Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check

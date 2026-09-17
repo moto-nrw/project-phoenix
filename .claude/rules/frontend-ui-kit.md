@@ -157,6 +157,7 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 | Brand green (primary)    | `#83CD2D` | `GROUP_ROOM`          |
 | Brand blue               | `#5080D8` | `OTHER_ROOM`          |
 | Neutral gray (Zuhause)   | `#6B7280` | `HOME`                |
+| Petrol (Schule)          | `#217A78` | `AT_SCHOOL`           |
 | Orange (Schulhof)        | `#F78C10` | `SCHOOLYARD`          |
 | Magenta (Unterwegs)      | `#D946EF` | `TRANSIT`             |
 | Red (Krank / Fehler)     | `#DC2626` | `SICK` / `DANGER`     |

@@ -84,6 +84,10 @@ func TestConfigureDemoProfilesOrdersAttendanceScopeChanges(t *testing.T) {
 			require.NotEqual(t, -1, attendance)
 			if definition.Key == DefaultProfileKey {
 				assert.Less(t, visibility, attendance)
+				atSchool, ok := definition.Settings[profileSettingSessionEndTime]
+				require.True(t, ok)
+				assert.Equal(t, json.RawMessage(`"23:59"`), atSchool.Value)
+				assert.Equal(t, SettingManagedByOperator, atSchool.ManagedBy)
 			} else {
 				assert.Less(t, attendance, visibility)
 			}

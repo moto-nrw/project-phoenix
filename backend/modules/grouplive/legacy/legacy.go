@@ -476,6 +476,19 @@ func (p planning) DecideDay(inputs grouplive.DayInputs) grouplive.DayDecision {
 	return grouplive.DayDecision{ComesToday: decision.ComesToday, Reason: decision.Reason, ExceptionNotes: decision.ExceptionNotes}
 }
 
+// AtSchoolBeforeCheckIn delegates to the day-planning owner's "Schule" rule.
+func (p planning) AtSchoolBeforeCheckIn(inputs grouplive.AtSchoolInputs) bool {
+	return scheduleService.IsAtSchoolBeforeCheckIn(scheduleService.AtSchoolInputs{
+		Decision: scheduleService.DayPlanningDecision{
+			ComesToday: inputs.Decision.ComesToday, Reason: inputs.Decision.Reason,
+		},
+		CheckedInToday: inputs.CheckedIn,
+		PickupTime:     inputs.PickupTime,
+		CareDayEnd:     inputs.CareDayEnd,
+		Now:            inputs.Now,
+	})
+}
+
 type transfers struct {
 	substitutions educationService.SubstitutionModule
 }
@@ -521,6 +534,7 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		configModel.KeyOperationalOverviewScope,
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
+		configModel.KeySessionEndTime,
 		configModel.KeyStudentPhotosEnabled,
 		configModel.KeyTrackingIndicatorsEnabled,
 		configModel.KeyTrackingIndicator1,
@@ -531,6 +545,10 @@ func (s settings) Prepare(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 	return configService.WithSettingsSnapshot(ctx, snapshot), nil
+}
+
+func (s settings) CareDayEnd(ctx context.Context) (string, error) {
+	return s.settings.ResolveString(ctx, configModel.KeySessionEndTime)
 }
 
 func (s settings) StudentPhotosEnabled(ctx context.Context) (bool, error) {
@@ -562,3 +580,5 @@ func (c calendar) Today() grouplive.Date {
 }
 
 func (c calendar) Clock(at time.Time) string { return at.In(timezone.Berlin).Format("15:04") }
+
+func (c calendar) Now() time.Time { return c.now() }

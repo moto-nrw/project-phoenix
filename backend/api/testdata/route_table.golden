@@ -116,6 +116,7 @@ GET /
 GET /.well-known/caldav
 GET /api/absence-types/
 GET /api/absence-types/{id}/allowances/{staffId}
+GET /api/absence-types/{id}/allowances/{staffId}/preview
 GET /api/active/analytics/dashboard
 GET /api/active/combined/
 GET /api/active/combined/active
