@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.214: Adding deleted_at to calendar.appointments...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments
 					ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
@@ -48,7 +47,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.214: Dropping calendar.appointments.deleted_at...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS calendar.idx_calendar_appointments_deleted_at;
 			`).Exec(ctx); err != nil {

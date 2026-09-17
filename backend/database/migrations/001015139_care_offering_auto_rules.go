@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.139: Adding care offering auto rules...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.care_offerings
 					ADD COLUMN IF NOT EXISTS counts_as_care boolean NOT NULL DEFAULT true,
@@ -75,7 +74,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.139: Dropping care offering auto rules...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.request_child_offerings
 					DROP COLUMN IF EXISTS automatic_selected_days,

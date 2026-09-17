@@ -29,7 +29,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.187: Adding understaffed_ack + understaffed_note to schedule.activity_instances...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.activity_instances
 				ADD COLUMN IF NOT EXISTS understaffed_ack BOOLEAN NOT NULL DEFAULT FALSE,
@@ -44,7 +43,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.187...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.activity_instances
 				DROP COLUMN IF EXISTS understaffed_note,

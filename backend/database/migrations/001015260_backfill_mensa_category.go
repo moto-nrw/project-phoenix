@@ -45,8 +45,6 @@ func init() {
 // row a school deliberately archived would be worse than leaving it archived,
 // and the admin can restore it from the UI.
 func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.260: Backfilling 'Mensa' activity category per tenant...")
-
 	res, err := db.NewRaw(`
 		INSERT INTO activities.categories (tenant_id, name, description, color, is_system, created_at, updated_at)
 		SELECT s.id, ?, ?, ?, FALSE, NOW(), NOW()
@@ -63,7 +61,9 @@ func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, rowsErr := res.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.260: Added 'Mensa' category to %d tenant(s)\n", affected)
+		migrationLog().InfoContext(ctx, "Mensa activity category provisioned",
+			"tenants", affected,
+		)
 	}
 
 	return nil
@@ -75,6 +75,5 @@ func backfillMensaCategoryUp(ctx context.Context, db *bun.DB) error {
 // Leaving an extra default category after a binary rollback is harmless and is
 // the only lossless option.
 func backfillMensaCategoryDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.260: Keeping 'Mensa' categories to preserve tenant data...")
 	return nil
 }

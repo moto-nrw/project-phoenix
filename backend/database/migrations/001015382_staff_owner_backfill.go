@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -82,9 +81,9 @@ func staffOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 	if !report.Stable() {
 		// Concurrent old-table writes keep a tenant unstable; the migration
 		// leaves its checkpoint for the CLI instead of blocking deployment.
-		slog.Warn("staff owner backfill left unstable tenants; rerun `phoenix backfill staff-owner` before Cutover",
-			"migration", staffOwnerBackfillVersion,
-			"unstable_tenants", report.Unstable())
+		migrationLog().WarnContext(ctx, "staff owner backfill left unstable tenants; rerun `phoenix backfill staff-owner` before Cutover",
+			"unstable_tenants", report.Unstable(),
+		)
 	}
 	return nil
 }

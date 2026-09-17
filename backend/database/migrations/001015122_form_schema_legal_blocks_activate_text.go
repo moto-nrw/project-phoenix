@@ -33,8 +33,6 @@ func init() {
 }
 
 func formSchemaLegalBlocksActivateTextUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.122: Activating contentful enrollment form legal blocks...")
-
 	if _, err := db.NewRaw(`
 		WITH rewritten AS (
 			SELECT

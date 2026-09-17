@@ -50,8 +50,6 @@ func init() {
 // append-only shape as audit.time_tracking_deletions (1.15.227); staff_id and
 // changed_by carry no FK on purpose so the trail survives offboarding.
 func payrollFoundationUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.229: Adding personnel_number + audit.personnel_number_changes...")
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.staff ADD COLUMN IF NOT EXISTS personnel_number TEXT;
 
@@ -89,7 +87,6 @@ func payrollFoundationUp(ctx context.Context, db *bun.DB) error {
 }
 
 func payrollFoundationDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.229: Dropping payroll foundation objects...")
 	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS audit.personnel_number_changes;
 		DROP INDEX IF EXISTS users.uq_staff_tenant_personnel_number;

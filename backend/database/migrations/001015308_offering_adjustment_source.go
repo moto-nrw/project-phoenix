@@ -22,7 +22,6 @@ func init() {
 }
 
 func offeringAdjustmentSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.308: Adding the offering adjustment source column...")
 	// The central history shows admin direct corrections as their own row kind
 	// (#2436). Approved parent requests write an adjustment row through the very
 	// same path, so without this discriminator they would appear twice: once as
@@ -47,7 +46,6 @@ func offeringAdjustmentSourceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func offeringAdjustmentSourceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.308: Removing the offering adjustment source column...")
 	if _, err := db.ExecContext(ctx, `
 		DROP INDEX IF EXISTS audit.idx_enrollment_offering_adjustments_direct_history;
 	`); err != nil {

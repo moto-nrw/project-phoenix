@@ -23,7 +23,6 @@ func init() {
 }
 
 func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.342: Adding staff calendar feed tombstones...")
 	if _, err := db.NewRaw(`
 		CREATE TABLE calendar.staff_feed_tombstones (
 			id           BIGSERIAL PRIMARY KEY,
@@ -181,7 +180,6 @@ func staffCalendarFeedTombstonesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffCalendarFeedTombstonesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.342: Dropping staff calendar feed tombstones...")
 	if _, err := db.NewRaw(`
 		DROP TRIGGER IF EXISTS capture_staff_shift_feed_tombstone ON schedule.staff_shifts;
 		DROP TRIGGER IF EXISTS capture_activity_instance_feed_tombstones ON schedule.activity_instances;

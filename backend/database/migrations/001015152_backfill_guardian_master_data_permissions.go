@@ -40,8 +40,6 @@ func init() {
 // authorize.StudentGuardianPermissionSet; this migration only repairs rows that
 // predate the keys. Superuser connection bypasses RLS, so all tenants update.
 func backfillGuardianMasterDataPermsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.152: Backfilling master-data permissions for existing guardians...")
-
 	if _, err := db.NewRaw(`
 		UPDATE users.students_guardians
 		SET permissions = COALESCE(permissions, '{}'::jsonb)
@@ -55,8 +53,6 @@ func backfillGuardianMasterDataPermsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func backfillGuardianMasterDataPermsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.152: Removing master-data permissions from guardians...")
-
 	if _, err := db.NewRaw(`
 		UPDATE users.students_guardians
 		SET permissions = (permissions - 'parent_portal.master_data.edit') - 'parent_portal.master_data.request'

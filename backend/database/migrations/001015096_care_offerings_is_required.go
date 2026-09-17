@@ -23,7 +23,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.96: Adding is_required to enrollment.care_offerings...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.care_offerings
 				ADD COLUMN IF NOT EXISTS is_required BOOLEAN NOT NULL DEFAULT FALSE;
@@ -33,7 +32,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.96...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.care_offerings
 				DROP COLUMN IF EXISTS is_required;

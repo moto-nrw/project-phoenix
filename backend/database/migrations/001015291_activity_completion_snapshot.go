@@ -19,7 +19,6 @@ func init() {
 }
 
 func activityCompletionSnapshotUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.291: Adding activity completion snapshots (#2266)...")
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
 			ADD COLUMN IF NOT EXISTS completion_snapshot JSONB;

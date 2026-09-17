@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -50,7 +49,6 @@ func init() {
 // Retention: rows with stale last_seen_at are swept by the nightly GDPR
 // cleanup job (gdpr.pwa_usage_retention_days).
 func pwaStandaloneUsageUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.304: Creating iot.pwa_standalone_usage...")
 	return ensurePWAStandaloneUsage(ctx, db)
 }
 
@@ -61,7 +59,7 @@ func ensurePWAStandaloneUsage(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -117,7 +115,6 @@ func ensurePWAStandaloneUsage(ctx context.Context, db *bun.DB) error {
 }
 
 func pwaStandaloneUsageDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.304: Dropping iot.pwa_standalone_usage...")
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS iot.pwa_standalone_usage;`)
 	if err != nil {
 		return fmt.Errorf("error dropping iot.pwa_standalone_usage: %w", err)

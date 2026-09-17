@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.204: Adding persistent refresh-token rotation recovery (#1938)...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE auth.tokens
 					ADD COLUMN IF NOT EXISTS rotated_at TIMESTAMPTZ,
@@ -64,7 +63,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.204...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS auth.idx_tokens_rotated_at;
 				DROP INDEX IF EXISTS platform.idx_operator_refresh_tokens_rotated_at;

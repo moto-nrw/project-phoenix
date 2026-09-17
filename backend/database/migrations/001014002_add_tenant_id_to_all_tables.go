@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -117,15 +116,13 @@ var tablesWithNotNullTenantID = []string{
 }
 
 func addTenantIDToAllTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.14.2: Adding tenant_id to all tenant-scoped tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -156,8 +153,6 @@ func addTenantIDToAllTables(ctx context.Context, db *bun.DB) error {
 
 	// Add NOT NULL tenant_id to 58 tables using the safe 5-step pattern
 	for _, table := range tablesWithNotNullTenantID {
-		fmt.Printf("  Adding tenant_id to %s...\n", table)
-
 		// Step 1: Add column with DEFAULT 1 (instant metadata change in PG 11+)
 		_, err = tx.ExecContext(ctx, fmt.Sprintf(`
 			ALTER TABLE %s
@@ -208,7 +203,6 @@ func addTenantIDToAllTables(ctx context.Context, db *bun.DB) error {
 
 	// Special case: auth.roles gets NULLABLE tenant_id (D13)
 	// System roles (admin, user, guest, guardian) keep NULL = globally visible
-	fmt.Println("  Adding NULLABLE tenant_id to auth.roles...")
 	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE auth.roles
 			ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES platform.schools(id);
@@ -217,7 +211,6 @@ func addTenantIDToAllTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding nullable tenant_id to auth.roles: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.2: Successfully added tenant_id to all 58+1 tables")
 	return tx.Commit()
 }
 
@@ -234,15 +227,13 @@ func constraintNameForTable(schemaTable string) string {
 }
 
 func rollbackTenantIDFromAllTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.14.2: Removing tenant_id from all tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -264,6 +255,5 @@ func rollbackTenantIDFromAllTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping tenant_id from auth.roles: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.2: Successfully removed tenant_id from all tables")
 	return tx.Commit()
 }

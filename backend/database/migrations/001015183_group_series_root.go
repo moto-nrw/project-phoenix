@@ -25,7 +25,6 @@ func init() {
 }
 
 func groupSeriesRootUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.183: Adding split-series lineage to activities.groups...")
 	// The pre-1.15.183 schema stored no predecessor/successor identifier, so an
 	// automatic historical backfill would have to guess from mutable template
 	// fields or coincident validity boundaries. Keep existing rows unmodified;
@@ -48,12 +47,10 @@ func groupSeriesRootUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed adding activities.groups split-series lineage: %w", err)
 	}
-	fmt.Println("Migration 1.15.183: Completed successfully")
 	return nil
 }
 
 func groupSeriesRootDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.183: Dropping activities.groups split-series lineage...")
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_activities_groups_tenant_series_root;
 		ALTER TABLE activities.groups

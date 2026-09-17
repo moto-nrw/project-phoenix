@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createSuggestionsTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.9.1: Creating suggestions schema and tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -114,20 +111,17 @@ func createSuggestionsTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at triggers for suggestions tables: %w", err)
 	}
 
-	fmt.Println("Migration 1.9.1: Successfully created suggestions schema and tables")
 	return tx.Commit()
 }
 
 func dropSuggestionsTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.9.1: Removing suggestions schema...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -155,6 +149,5 @@ func dropSuggestionsTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping suggestions schema: %w", err)
 	}
 
-	fmt.Println("Migration 1.9.1: Successfully removed suggestions schema")
 	return tx.Commit()
 }

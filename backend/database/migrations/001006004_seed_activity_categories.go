@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -36,8 +35,6 @@ func init() {
 
 // seedDefaultActivityCategories inserts default activity categories
 func seedDefaultActivityCategories(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.4: Seeding default activity categories...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -45,7 +42,7 @@ func seedDefaultActivityCategories(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -85,8 +82,6 @@ func seedDefaultActivityCategories(ctx context.Context, db *bun.DB) error {
 
 // removeSeededActivityCategories removes the default seeded categories
 func removeSeededActivityCategories(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.4: Removing seeded activity categories...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -94,7 +89,7 @@ func removeSeededActivityCategories(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -126,7 +121,10 @@ func removeSeededActivityCategories(ctx context.Context, db *bun.DB) error {
 		}
 
 		if count > 0 {
-			log.Printf("WARNING: Category '%s' is in use by %d activity groups. Skipping removal.", name, count)
+			migrationLog().WarnContext(ctx, "activity category still in use, removal skipped",
+				"category", name,
+				"activity_groups", count,
+			)
 			continue
 		}
 

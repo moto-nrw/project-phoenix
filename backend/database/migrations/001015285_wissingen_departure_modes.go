@@ -32,8 +32,6 @@ func init() {
 }
 
 func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.285: Deriving departure modes for approved Wissingen 2026/2027 enrollments...")
-
 	result, err := db.NewRaw(`
 		WITH matching_children AS (
 			SELECT
@@ -218,12 +216,13 @@ func wissingenDepartureModesUp(ctx context.Context, db *bun.DB) error {
 	}
 
 	if affected, rowsErr := result.RowsAffected(); rowsErr == nil {
-		fmt.Printf("Migration 1.15.285: updated %d Wissingen student departure plan(s)\n", affected)
+		migrationLog().InfoContext(ctx, "Wissingen student departure plans derived from legacy form answers",
+			"rows", affected,
+		)
 	}
 	return nil
 }
 
 func wissingenDepartureModesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.285: derived departure plans are not cleared automatically")
 	return nil
 }

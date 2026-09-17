@@ -36,8 +36,6 @@ func init() {
 
 // grantAllPermissionsToAdmin ensures the admin role has all system permissions
 func grantAllPermissionsToAdmin(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.3: Granting all permissions to admin role...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -135,8 +133,9 @@ func grantAllPermissionsToAdmin(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Printf("Admin role now has %d permissions\n", count)
-	fmt.Println("Migration 1.6.3 completed successfully")
+	migrationLog().InfoContext(ctx, "admin role permissions granted",
+		"permissions", count,
+	)
 
 	return nil
 }

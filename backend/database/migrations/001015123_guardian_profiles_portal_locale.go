@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addGuardianProfilesPortalLocale(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.123: Adding portal_locale column to users.guardian_profiles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -59,21 +56,18 @@ func addGuardianProfilesPortalLocale(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error adding users.guardian_profiles.portal_locale: %w", err)
 	}
-	fmt.Println("  ✓ users.guardian_profiles.portal_locale — column added")
 
 	return tx.Commit()
 }
 
 func dropGuardianProfilesPortalLocale(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.123: Dropping users.guardian_profiles.portal_locale...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

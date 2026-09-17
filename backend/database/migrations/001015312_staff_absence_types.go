@@ -31,8 +31,6 @@ func init() {
 }
 
 func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.312: Creating active.staff_absence_types + staff_absences.absence_type_id...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -118,8 +116,6 @@ func staffAbsenceTypesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffAbsenceTypesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.312: Dropping active.staff_absence_types + staff_absences.absence_type_id...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

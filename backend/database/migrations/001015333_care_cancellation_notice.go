@@ -30,8 +30,6 @@ func init() {
 // them, the parent feed labels them, and the feed shows them even when the
 // school keeps the optional news feature off.
 func careCancellationNoticeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.333: Adding system_kind to parent announcements...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.parent_announcements
 			ADD COLUMN system_kind TEXT,
@@ -50,8 +48,6 @@ func careCancellationNoticeUp(ctx context.Context, db *bun.DB) error {
 }
 
 func careCancellationNoticeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.333: Removing system_kind from parent announcements...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_parent_announcements_system_kind;
 		ALTER TABLE users.parent_announcements

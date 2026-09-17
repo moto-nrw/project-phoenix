@@ -30,8 +30,6 @@ func init() {
 }
 
 func workSessionsReopenedAtUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.160: Adding reopened_at to active.work_sessions...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE active.work_sessions
 		ADD COLUMN IF NOT EXISTS reopened_at TIMESTAMPTZ;
@@ -43,8 +41,6 @@ func workSessionsReopenedAtUp(ctx context.Context, db *bun.DB) error {
 }
 
 func workSessionsReopenedAtDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.160: Dropping active.work_sessions.reopened_at...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE active.work_sessions
 		DROP COLUMN IF EXISTS reopened_at;

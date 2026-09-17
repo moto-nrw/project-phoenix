@@ -32,8 +32,6 @@ func init() {
 }
 
 func studentsAllowedDepartureModesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.130: Adding allowed_departure_modes to users.students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			ADD COLUMN IF NOT EXISTS allowed_departure_modes JSONB NOT NULL DEFAULT '{}'::jsonb;
@@ -118,8 +116,6 @@ func studentsAllowedDepartureModesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsAllowedDepartureModesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.130: Removing allowed_departure_modes from users.students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			DROP CONSTRAINT IF EXISTS check_students_allowed_departure_modes,

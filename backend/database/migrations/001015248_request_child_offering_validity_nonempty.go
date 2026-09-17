@@ -23,7 +23,6 @@ func init() {
 }
 
 func requestChildOfferingValidityNonemptyUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.248: Requiring non-empty child care-offering validity intervals...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_child_offerings
 			ADD CONSTRAINT request_child_offerings_nonempty_validity
@@ -35,7 +34,6 @@ func requestChildOfferingValidityNonemptyUp(ctx context.Context, db *bun.DB) err
 }
 
 func requestChildOfferingValidityNonemptyDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.248: Allowing empty child care-offering validity intervals...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_child_offerings
 			DROP CONSTRAINT IF EXISTS request_child_offerings_nonempty_validity;

@@ -32,8 +32,6 @@ func init() {
 }
 
 func addExcusedToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.38: Adding excused and excused_since columns to users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		ADD COLUMN IF NOT EXISTS excused BOOLEAN DEFAULT FALSE;
@@ -61,8 +59,6 @@ func addExcusedToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addExcusedToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.38: Removing excused and excused_since columns from users.students...")
-
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS users.idx_students_excused;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping index on excused: %w", err)

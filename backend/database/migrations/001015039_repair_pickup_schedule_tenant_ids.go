@@ -72,8 +72,6 @@ var pickupTenantRepairSpecs = []pickupTenantRepairSpec{
 }
 
 func repairPickupScheduleTenantIDs(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.39: Repairing pickup schedule tenant IDs...")
-
 	for _, spec := range pickupTenantRepairSpecs {
 		if err := ensurePickupTenantRepairIsSafe(ctx, db, spec); err != nil {
 			return err
@@ -91,10 +89,12 @@ func repairPickupScheduleTenantIDs(ctx context.Context, db *bun.DB) error {
 		}
 
 		rowsAffected, _ := result.RowsAffected()
-		fmt.Printf("Migration 1.15.39: repaired %d row(s) in %s\n", rowsAffected, spec.table)
+		migrationLog().InfoContext(ctx, "pickup schedule tenant ids repaired",
+			"rows", rowsAffected,
+			"table", spec.table,
+		)
 	}
 
-	fmt.Println("Migration 1.15.39: Pickup schedule tenant ID repair complete")
 	return nil
 }
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,8 +31,6 @@ func init() {
 }
 
 func dropTenantDefaults(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.3: Dropping DEFAULT 1 from tenant_id on all tenant-scoped tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -41,7 +38,7 @@ func dropTenantDefaults(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -58,14 +55,13 @@ func dropTenantDefaults(ctx context.Context, db *bun.DB) error {
 
 	// auth.roles has nullable tenant_id with no default — nothing to drop.
 
-	fmt.Printf("Migration 1.15.3: Successfully dropped DEFAULT 1 from tenant_id on %d tables\n",
-		len(tablesWithNotNullTenantID))
+	migrationLog().InfoContext(ctx, "tenant_id DEFAULT 1 dropped",
+		"tables", len(tablesWithNotNullTenantID),
+	)
 	return tx.Commit()
 }
 
 func rollbackTenantDefaults(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.3: Restoring DEFAULT 1 on tenant_id...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -73,7 +69,7 @@ func rollbackTenantDefaults(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -85,6 +81,5 @@ func rollbackTenantDefaults(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	fmt.Println("Migration 1.15.3: Successfully restored DEFAULT 1")
 	return tx.Commit()
 }

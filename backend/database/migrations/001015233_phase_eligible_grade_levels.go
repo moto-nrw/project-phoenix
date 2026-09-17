@@ -32,8 +32,6 @@ func init() {
 }
 
 func phaseEligibleGradeLevelsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.233: Adding eligible_grade_levels to enrollment.phases...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		ADD COLUMN IF NOT EXISTS eligible_grade_levels JSONB NOT NULL DEFAULT '[]'::jsonb;
@@ -48,8 +46,6 @@ func phaseEligibleGradeLevelsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseEligibleGradeLevelsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.233: Removing eligible_grade_levels from enrollment.phases...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		DROP COLUMN IF EXISTS eligible_grade_levels;

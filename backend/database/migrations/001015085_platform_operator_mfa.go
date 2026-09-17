@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func platformOperatorMFAUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.85: Creating platform.operator_mfa_* tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in operator_mfa migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -139,15 +136,13 @@ func platformOperatorMFAUp(ctx context.Context, db *bun.DB) error {
 }
 
 func platformOperatorMFADown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.85: Dropping platform.operator_mfa_* tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback in operator_mfa down migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
