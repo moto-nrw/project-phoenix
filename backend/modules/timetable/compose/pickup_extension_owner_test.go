@@ -641,7 +641,7 @@ func nextPickupExtensionWeekday(from time.Time, weekday time.Weekday) time.Time 
 	return from.AddDate(0, 0, days)
 }
 
-func TestModuleMatchesPickupTargetsAtEffectiveDate(t *testing.T) {
+func TestModuleUsesCurrentPickupTargetsWithFutureSchedule(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	suffix := time.Now().UnixNano()
@@ -673,8 +673,9 @@ func TestModuleMatchesPickupTargetsAtEffectiveDate(t *testing.T) {
 		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: "2099-03-05",
 		PreviousPickup: "14:45", Pickup: "16:00",
 	}))
-	task := pickupExtensionTask(t, module, ctx, child.ID)
-	assert.Equal(t, []int64{group.ID}, pickupExtensionBlockIDs(task.Blocks))
+	tasks, err := module.ListOpenPickupExtensions(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Empty(t, tasks, "a current target-group member is already covered by the future schedule")
 }
 
 func TestModuleUsesCurrentPickupDateForTargets(t *testing.T) {

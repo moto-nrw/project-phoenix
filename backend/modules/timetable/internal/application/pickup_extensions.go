@@ -11,14 +11,6 @@ const expectedAttendanceStatus = "expected"
 
 func (s *Service) pickupExtensionToday() domain.Date { return domain.Date(s.today()) }
 
-func (s *Service) pickupExtensionOperationalDate(task domain.PickupExtensionTask) domain.Date {
-	today := s.pickupExtensionToday()
-	if task.EffectiveFrom > today {
-		return task.EffectiveFrom
-	}
-	return today
-}
-
 // RecordPickupDayExtension stores the later day pickup. Past days never open
 // a task; the call also prunes past day tasks of the school, so stale rows
 // cannot pile up.
@@ -374,19 +366,16 @@ func (s *Service) pickupExtensionTargets(
 	if err != nil {
 		return nil, err
 	}
-	targetsByDate := make(map[domain.Date]map[int64][]int64, len(tasks))
+	// The store already selects the schedule applicable on the task's effective
+	// date. Target groups, like ListTargetStudentIDs, reflect who is eligible
+	// for care today.
+	targets := matchTargetStudents(targetRules, students, s.pickupExtensionToday().String())
 	result := make(map[int64]map[int64]bool, len(tasks))
 	for _, block := range blocks {
 		if block.Member {
 			continue
 		}
 		task := tasks[block.TaskID]
-		operationalDate := s.pickupExtensionOperationalDate(task)
-		targets, found := targetsByDate[operationalDate]
-		if !found {
-			targets = matchTargetStudents(targetRules, students, operationalDate.String())
-			targetsByDate[operationalDate] = targets
-		}
 		if !slices.Contains(targets[block.ID], task.StudentID) {
 			continue
 		}
