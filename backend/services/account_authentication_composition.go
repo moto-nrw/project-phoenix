@@ -47,6 +47,9 @@ type accountAuthenticationWiring struct {
 	// lifecycle binds the account lifecycle seams (#3225); nil composes the
 	// module without them (cleanup roots, repository fixtures).
 	lifecycle *lifecycleWiring
+	// resets configures the password reset flows (#2722); nil composes the
+	// module without them and every reset reports it as unavailable.
+	resets *passwordResetWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -111,8 +114,13 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if err != nil {
 		return nil, err
 	}
-	return identityaccessCompose.New(identityaccessCompose.Dependencies{
+	// The reset delivery records its outcome through the module it is
+	// composed into, so it reads the module back at call time.
+	var module *identityaccess.Module
+	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
+	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
 		Lifecycle: lifecycle,
+		Resets:    resets,
 		DB:        db,
 		Observe:   observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
@@ -129,6 +137,10 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 		},
 		Operators: wiring.operators,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return module, nil
 }
 
 // AccountAuthentication returns the Identity & Access module the retained

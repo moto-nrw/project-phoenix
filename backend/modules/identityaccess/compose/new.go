@@ -39,6 +39,9 @@ type Dependencies struct {
 	// report ErrAccountLifecycleUnavailable and
 	// ErrRoleAdministrationUnavailable.
 	Lifecycle *LifecycleDependencies
+	// Resets composes the password reset flows (#2722). It requires Sessions;
+	// compositions without it report ErrPasswordResetUnavailable.
+	Resets *PasswordResetDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -87,6 +90,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	resets, err := newPasswordReset(auth, store, dependencies.Sessions, dependencies.Resets)
+	if err != nil {
+		return nil, err
+	}
 	tokens := application.NewOperatorTokens(service, store)
 	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
 	if err != nil {
@@ -94,7 +101,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	e := engine{
 		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens, auth: auth,
-		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
+		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles, resets: resets,
 	}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
@@ -147,6 +154,9 @@ type engine struct {
 	// roles is nil when the module was composed without lifecycle
 	// dependencies.
 	roles *application.RoleAdministration
+	// resets is nil when the module was composed without password reset
+	// dependencies.
+	resets *application.PasswordReset
 	// runtime attaches the composed unit of work ahead of every session flow.
 	runtime func(context.Context) context.Context
 }

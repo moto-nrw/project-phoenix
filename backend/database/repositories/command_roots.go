@@ -45,19 +45,17 @@ func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
 // CLI composes. The expired session sweep runs through Identity & Access,
 // which the composition binds to the school and person lookups here (#3251).
 type AuthCleanupRepositories struct {
-	School                 organizationtenancy.Capability
-	Person                 userModels.PersonRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
-	AuthEvent              auditModels.AuthEventRepository
-	PushSubscription       deliveryModels.PushSubscriptionRepository
+	School           organizationtenancy.Capability
+	Person           userModels.PersonRepository
+	AuthEvent        auditModels.AuthEventRepository
+	PushSubscription deliveryModels.PushSubscriptionRepository
 }
 
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
 		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
-		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
-		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
+		AuthEvent: RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
 }
 

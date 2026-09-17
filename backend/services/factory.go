@@ -1618,6 +1618,11 @@ func newFactory(
 		},
 		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
 		operators: operatorDependencies,
+		resets: &passwordResetWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
+			expiry: passwordResetTokenExpiry, rateLimitEnabled: cfg.RateLimitEnabled,
+		},
 		// The lifecycle flows (#3225) read the retained role management and
 		// the guardian invitation delivery back at call time; both are
 		// composed below.
@@ -1636,6 +1641,7 @@ func newFactory(
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
+	authConfig.Resets = accountSessionsPort
 	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err

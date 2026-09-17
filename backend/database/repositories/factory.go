@@ -96,8 +96,6 @@ type Factory struct {
 	RolePermission         authModels.RolePermissionRepository
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
-	PasswordResetToken     authModels.PasswordResetTokenRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
 	GuardianInvitation     authModels.GuardianInvitationRepository
 	MFACredential          authModels.MFACredentialRepository
@@ -548,8 +546,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RolePermission:         auth.NewRolePermissionRepository(db),
 		AccountRole:            auth.NewAccountRoleRepository(db),
 		AccountPermission:      auth.NewAccountPermissionRepository(db),
-		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
-		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
 		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 		MFACredential:          auth.NewMFACredentialRepository(db),

@@ -325,6 +325,7 @@ type Engine interface {
 	OperatorAccess
 	OperatorMFARecords
 	OperatorTokens
+	PasswordResets
 	AccountSessionAccess
 	RFIDQuery
 	SchoolAccountQuery

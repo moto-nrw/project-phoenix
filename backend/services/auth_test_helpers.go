@@ -82,7 +82,35 @@ func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTest
 	return InvitationTestModule{Persistence: repos, Invitation: service}, nil
 }
 
-func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, error) {
+// AuthTestOption overrides a default of the composed test module.
+type AuthTestOption func(*authTestSettings)
+
+type authTestSettings struct {
+	mailer           email.Mailer
+	rateLimitEnabled bool
+	resetBackoff     []time.Duration
+}
+
+// WithAuthTestMailer composes the module on the given mailer, so a test can
+// read the mails the flows send.
+func WithAuthTestMailer(mailer email.Mailer) AuthTestOption {
+	return func(s *authTestSettings) { s.mailer = mailer }
+}
+
+// WithAuthTestPasswordResetRateLimit enables the per-address reset rate
+// limit, which the test configuration leaves off.
+func WithAuthTestPasswordResetRateLimit(enabled bool) AuthTestOption {
+	return func(s *authTestSettings) { s.rateLimitEnabled = enabled }
+}
+
+// WithAuthTestPasswordResetBackoff shortens the retry spacing of the reset
+// mail, so a test that asserts the recorded failure waits milliseconds
+// instead of the production twenty seconds.
+func WithAuthTestPasswordResetBackoff(backoff ...time.Duration) AuthTestOption {
+	return func(s *authTestSettings) { s.resetBackoff = backoff }
+}
+
+func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOption) (AuthTestModule, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -97,7 +125,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 		return AuthTestModule{}, err
 	}
 	cfg := currentFactoryConfig()
-	mailer := email.NewMockMailer()
+	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled}
+	for _, option := range options {
+		option(&settingsOverrides)
+	}
+	mailer := settingsOverrides.mailer
 	dispatcher := email.NewDispatcher(mailer, logger)
 	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
@@ -124,7 +156,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	}
 	authConfig.ParentsURL = parentsURL
 	authConfig.SchoolURL = schoolURL
-	authConfig.RateLimitEnabled = cfg.RateLimitEnabled
+	authConfig.RateLimitEnabled = settingsOverrides.rateLimitEnabled
 	authConfig.Settings = settings.Settings
 	authConfig.Audit = command
 	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
@@ -145,6 +177,12 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 				return delivery
 			},
 		},
+		resets: &passwordResetWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
+			expiry: time.Duration(resetMinutes) * time.Minute, rateLimitEnabled: settingsOverrides.rateLimitEnabled,
+			backoff: settingsOverrides.resetBackoff,
+		},
 	})
 	if err != nil {
 		return AuthTestModule{}, err
@@ -152,6 +190,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
+	authConfig.Resets = accountSessionsPort
 	service, err = auth.NewService(r, authConfig, db, logger)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -220,6 +259,11 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 			admin:    func() *auth.Service { return service },
 			delivery: func() auth.GuardianInvitationDelivery { return nil },
 		},
+		resets: &passwordResetWiring{
+			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,
+			staffURL: cfg.FrontendURL, parentsURL: cfg.ParentsURL, schoolURL: cfg.SchoolURL,
+			expiry: cfg.PasswordResetExpiry, rateLimitEnabled: cfg.RateLimitEnabled,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -227,6 +271,7 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	port := newAccountSessions(identityAccess)
 	cfg.Sessions = port
 	cfg.Lifecycle = port
+	cfg.Resets = port
 	service, err = auth.NewService(repos, &cfg, db, logger)
 	return service, err
 }

@@ -80,15 +80,19 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 		},
 		tokenAuth: tokenAuth, audit: command, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
+		// The cleanup root only removes spent links and stale windows; it
+		// never issues a link, so it composes the flows without a mailer.
+		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
 	})
 	if err != nil {
 		return nil, err
 	}
+	sessions := newAccountSessions(identityAccess)
 	service = auth.NewCleanupService(auth.CleanupDependencies{
-		PasswordResetRateLimit: repos.PasswordResetRateLimit,
-		Sessions:               newAccountSessions(identityAccess),
-		Audit:                  command,
-		DB:                     db, Logger: logger, TenantRuntime: runtime,
+		Sessions: sessions,
+		Resets:   sessions,
+		Audit:    command,
+		DB:       db, Logger: logger, TenantRuntime: runtime,
 	})
 	return service, nil
 }

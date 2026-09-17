@@ -124,25 +124,6 @@ type AccountPermissionRepository interface {
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
-// PasswordResetTokenRepository defines operations for managing password reset tokens
-type PasswordResetTokenRepository interface {
-	base.CRUDRepository[*PasswordResetToken]
-	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
-	FindByToken(ctx context.Context, token string) (*PasswordResetToken, error)
-	FindByAccountID(ctx context.Context, accountID int64) ([]*PasswordResetToken, error)
-	FindValidByToken(ctx context.Context, token string) (*PasswordResetToken, error)
-	MarkAsUsed(ctx context.Context, tokenID int64) error
-	DeleteExpiredTokens(ctx context.Context) (int, error)
-	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
-}
-
-// PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
-type PasswordResetRateLimitRepository interface {
-	CheckRateLimit(ctx context.Context, email string) (*RateLimitState, error)
-	IncrementAttempts(ctx context.Context, email string) (*RateLimitState, error)
-	CleanupExpired(ctx context.Context) (int, error)
-}
-
 // InvitationTokenRepository defines operations for managing invitation tokens.
 type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *InvitationToken) error
