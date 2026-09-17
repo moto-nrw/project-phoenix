@@ -215,6 +215,7 @@ type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
 	EnqueueInvitationEmail(ctx context.Context, invitation GuardianInvitation, profile GuardianProfile, schoolName string)
+	EnqueueExistingAccountEmail(ctx context.Context, profile GuardianProfile, schoolName string)
 }
 
 // FinancialAudit records the removal of a child's payer.
@@ -568,6 +569,10 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 
 func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) {
 	d.source.EnqueueInvitationEmail(ctx, GuardianInvitation(invitation), GuardianProfile(profile), schoolName)
+}
+
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) {
+	d.source.EnqueueExistingAccountEmail(ctx, GuardianProfile(profile), schoolName)
 }
 
 // --- engine methods -------------------------------------------------------
