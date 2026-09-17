@@ -71,7 +71,26 @@ dynamically, so the baseline records no `tables.unclassified` finding to adopt
 it from, and the File Storage composition binds its intent operations to that
 repository as a compatibility permission until the table can be adopted.
 #2710 adopts `users.persons_guardians` under `people-directory` the same way
-(policy epoch 7 to 8); the remaining #2727 tables stay unclassified debt.
+(policy epoch 7 to 8). #3221 adopts `users.guardian_financial_data` under
+`people-directory` and moves the staff messaging persistence out of
+`database/repositories/users`, adopting `users.staff_message_threads`,
+`users.staff_message_participants`, `users.staff_messages` and
+`users.staff_message_reads` under `communication` (policy epoch 12 to 13).
+With that the baseline records no `tables.unclassified` debt.
+The same ticket moves the two foreign accesses the package kept on owned
+tables: `users.profiles` belongs to the account, not the person, so its model,
+contract and repository move to `models/auth` and
+`database/repositories/auth` under `identity-access`.
+
+The staff messaging writes live in the Communication Postgres adapter
+`modules/communication/internal/adapters/staffpostgres`. The inbox and unread
+badge join People Directory's person rows, so they read through the tenant-safe
+projection `modules/communication/internal/adapters/staffinbox` (owner
+`staff-message-inbox`). `modules/communication/staffstore` is the
+Communication composition seam that keeps the `models/users` staff message
+repository contracts for the legacy factory. The colleague picker, its
+authorization predicate and the role kinds stay in People Directory as
+`MessageableStaffRepository` and reach the seam as a colleague directory.
 `target.svg` shows File Storage as domain and Document Rendering as platform;
 do not commit the generated diagram.
 
@@ -463,6 +482,19 @@ base SHA; the package itself goes when the Presence half (#3214) deletes
 `services/active` and its keys, and finally when the retained services
 dissolve into the Workforce application and domain layers.
 
+`users.care_withdrawal_completions` is persisted by its `care-plan` owner
+alone since #3221: the statements moved from `database/repositories/users`
+into `modules/careplan/internal/adapters/postgres` (`withdrawal_completions.go`)
+and reach consumers through the public `WithdrawalQuery`/`WithdrawalCommand`
+capability. `database/repositories.careWithdrawalCompletionRepository` serves
+the retained `models/users` contract over it without persistence of its own,
+and supplies the children's names and classes, which the queue queries used to
+join from `users.students` and `users.persons`, as a People Directory
+recordset. The care-exit cleanup's booking-expiry query no longer reads the
+table either: it filters its grouped rows against the owner's completion keys,
+which the former `NOT EXISTS` clause tested on the same grouping key. Both
+#2727 baseline entries for the table are gone.
+
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
 bound to #2743, the root API caller to #2750, and the test-support caller to
@@ -713,8 +745,8 @@ flows through the `OperatorDirectory` port the root binds to the public
 module. The public audit evidence is typed (`TenantAccessEvidence`,
 `OperatorAccessChange`); the root renders it into the ledger keys. The former
 `models/platform` operator and refresh-session repository contracts and
-their compatibility adapters are deleted; the operator passkey flows stay
-under #2724. The operator invitation and e-mail change links (#2722):
+their compatibility adapters are deleted; the operator passkey records
+followed under #2724. The operator invitation and e-mail change links (#2722):
 `platform.operator_invitation_tokens` and
 `platform.operator_email_change_tokens` are read and written only through the
 public `OperatorTokens` capability, with the same platform-wide transaction
@@ -762,7 +794,28 @@ port the root binds to the public module; its disable cascade (enrollment
 delete, device revocation, lockout reset) stays one administrative
 transaction the module operations join. The `models/platform` MFA repository
 contracts and their `database/repositories/platform` adapters are deleted;
-the MFA models remain as the retained port's value types. The foreign
+the MFA models remain as the retained port's value types. The operator
+passkey records (#2724), `platform.operator_passkey_credentials` and
+`platform.operator_passkey_sessions`, follow the same shape through the
+public `OperatorPasskeyRecords` capability. The retained `services/platform`
+operator passkey service keeps the WebAuthn ceremonies, the origin check and
+the token exchange and reaches the rows through the `OperatorPasskeyRecords`
+port the root binds to the public module. A ceremony completes at most once,
+in one administrative transaction with the credential insert or use record
+the module operations join: a refused ceremony commits and stays spent, a
+failed read or write rolls back and leaves the ceremony open. Only the
+owner's not-found outcomes become an invalid session or a missing passkey,
+so store failures reach the caller as errors. The `models/platform`
+passkey repository contracts and their adapter are deleted; the passkey
+models remain as the retained port's value types. The school-portal passkeys
+(`auth.passkey_credentials`, `auth.passkey_sessions`) follow the same shape
+through `AccountPasskeyRecords`: the retained `services/auth` passkey service
+keeps the ceremonies, the tenant-origin check and the school-membership gate
+and reaches the rows through its own `PasskeyRecords` port. A credential
+belongs to the account and carries no school; the ceremony records the school
+whose portal started it, and login refuses a school the account has no access
+to. Their `models/auth` models and `database/repositories/auth` adapter are
+deleted; the port's value types live in `services/auth`. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
 account lookup and active-account subquery of `database/repositories/auth`
@@ -820,6 +873,56 @@ binds. Classifying and promoting a stored `users.students_guardians` role
 applies the security-runtime guardian presets, which neither the module nor
 the root may import, so it moved to its write owner, the People Directory
 (`services/users`).
+
+The non-identity operator handlers left `api/operator` for their owners
+(#3232), moved file for file with their adapter tests: provisioning and its
+summaries to `modules/organizationtenancy/inbound/operator`
+(`organization-tenancy`/`http`), the school settings routes to
+`modules/settings/inbound/operator` (`settings-platform`/`http`), and the
+announcement routes to `modules/communication/http/operatorannouncements`
+(`communication`/`http`), all with `adapter-test` in both test scopes. No
+route path, status code, error string or authorization check changed.
+`api/operator` keeps the router with its middleware chain, builds these
+resources from its configuration and mounts them
+(`inbound-operator.http.organization-tenancy-http`,
+`inbound-operator.http.settings-platform-http`,
+`inbound-operator.http.communication-http`). The operator error body and
+the operator-audited id action live in `api/common` (`OperatorErrResponse`,
+`OperatorAuditedIDAction`), so every half of the operator surface renders
+one wire format; `api/operator` keeps its `Err*` names as thin delegations.
+The three packages are the only packages of their points, which exist only
+in the candidate. The owner rules `organization-tenancy.http.public`,
+`settings-platform.http.organization-public` and `communication.http.public`
+are the target shape (an inbound adapter calling a public capability).
+Every other `organization-tenancy.http.*`,
+`organization-tenancy.adapter-test.*`, `settings-platform.http.*`,
+`settings-platform.adapter-test.*`, `communication.http.*` and
+`communication.adapter-test.*` rule is a compatibility permission for the
+retained services, rows, token claims, calendar date, tenant runtime and
+ORM the handlers still speak, including the `internal/timezone` edge the
+ticket names: convert them to exact debt with the rule above under #2736
+once the packages exist at a base SHA. The operator settings hook is now
+construction-time configuration (`SettingsConfig.OnValueSet`,
+`ResourceConfig.SettingValueSet`) instead of a setter, because the
+composition surface guard records mutable wiring per package.
+
+The review of unregistered RFID scans could not join a candidate-only
+point: `device-fleet`/`http` already exists (`api/iot/devices`,
+`modules/devicefleet/deviceauth`), so PR mode admits no new permission for
+it, and `inbound-operator` may not import that point. Its handlers in
+`modules/devicefleet/inbound/operator` therefore read and resolve scans
+through the public Device Fleet capability, label them through a
+consumer-owned school directory, and take the operator surface (error
+bodies, response envelope, authenticated operator, resolution fallback) as
+plain functions. The root composition binds the directory to Organisation &
+Tenancy (`api/school_directories.go`) and hands the built router to
+`api/operator`, which mounts it as a plain handler. The wire shape of a scan,
+the school and Träger narrowing and labelling, and the administrative
+transaction are unchanged. The retained `services/audit` review path
+(`ListForOperator`, `Resolve`) and its repository methods are deleted; the
+service keeps recording and expiring scans. The school MFA admin handlers
+stay in `api/operator` with the identity half (#3231), which also removes
+`api.go` and the package.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
@@ -1468,7 +1571,11 @@ A reviewed epoch may also let a target owner adopt an existing table
 `data_objects` entry is accepted when the table has no owner in the base
 policy, the base `legacy.jsonl` records at least one production
 `tables.unclassified` finding for it, and every package those findings name is
-classified under the adopting owner in the candidate or no longer exists. The
+classified under the adopting owner in the candidate, no longer exists, or no
+longer reads or writes the table in the candidate's current findings. The last
+case covers a shared legacy package whose access to the table moved to the
+adopting owner while the package itself stays for other tables
+([#3221](https://github.com/moto-nrw/project-phoenix/issues/3221)). The
 candidate must remove those findings from the baseline as usual. Transferring
 an owned table, adopting a table with no recorded debt, and adopting while a
 package of another owner still accesses it remain loosenings; after the

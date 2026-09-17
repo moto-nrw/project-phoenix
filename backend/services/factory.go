@@ -1687,6 +1687,7 @@ func newFactory(
 	}
 	passkeyService, err := auth.NewPasskeyService(auth.PasskeyServiceConfig{
 		Repos:        repos,
+		Records:      newAccountPasskeyRecords(identityAccess),
 		MFAService:   mfaService,
 		AuthService:  authService,
 		DB:           db,
@@ -1864,13 +1865,7 @@ func newFactory(
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
 		repos.UnregisteredTagScan,
-		organizations,
-		auditService.UnregisteredTagScanRuntime{
-			TenantID: tenant.FromContext,
-			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
-				return tenant.WithinAdmin(ctx, fn)
-			},
-		},
+		auditService.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
 	)
 	if err != nil {
 		return nil, err
@@ -1981,7 +1976,7 @@ func newFactory(
 	// the gate closure above, so /operator/auth/login returns challenge
 	// tokens from here on (MFA is mandatory for the platform scope).
 	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
-		Repos:               repos,
+		Records:             newOperatorPasskeyRecords(identityAccess),
 		Operators:           operatorDirectory,
 		MFAService:          operatorMFAService,
 		AuthService:         operatorAuthService,

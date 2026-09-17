@@ -47,7 +47,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301
+        302
       ],
       "tables": []
     },
@@ -866,6 +866,76 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         112
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_Create",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        26
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_Delete",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        171
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_FindByAccountID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        118
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_FindByID",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        95
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_List",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        221
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_Update",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        141
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/auth/profile_repository_test.go",
+      "declaration": "TestProfileRepository_UpdateAvatar",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        196
       ],
       "tables": []
     },
@@ -2003,7 +2073,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_CancelCreatesNewPendingEvent",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        281
       ],
       "tables": [
         "users.care_withdrawal_completions"
@@ -2015,7 +2085,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_OnePendingTaskPerChild",
       "target": "database/repositories.NewFactory",
       "lines": [
-        21
+        20
       ],
       "tables": []
     },
@@ -2025,9 +2095,11 @@
       "declaration": "TestCareWithdrawalCompletionRepository_ParticipationBoundaryUsesPendingCompletionWhenEnrollmentIsOpen",
       "target": "database/repositories.NewFactory",
       "lines": [
-        173
+        174
       ],
-      "tables": []
+      "tables": [
+        "users.students"
+      ]
     },
     {
       "scope": "test",
@@ -2035,7 +2107,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_RebookingOnlyObsoletesWithoutGap",
       "target": "database/repositories.NewFactory",
       "lines": [
-        57
+        56
       ],
       "tables": []
     },
@@ -2045,7 +2117,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_UpsertUsesIncomingBoundary",
       "target": "database/repositories.NewFactory",
       "lines": [
-        89
+        88
       ],
       "tables": []
     },
@@ -2055,7 +2127,7 @@
       "declaration": "TestCareWithdrawalCompletionRepository_WeeklyPlansObsoletePending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        192
+        248
       ],
       "tables": []
     },
@@ -2596,76 +2668,6 @@
       "tables": [
         "users.parent_request_share_events"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_Delete",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        171
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_FindByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        118
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        95
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_List",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        221
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        141
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/profile_repository_test.go",
-      "declaration": "TestProfileRepository_UpdateAvatar",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        196
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -3933,17 +3935,13 @@
     },
     {
       "scope": "test",
-      "file": "services/auth/passkey_service_test.go",
-      "declaration": "TestPasskeyRepositories",
+      "file": "services/auth/passkey_records_test.go",
+      "declaration": "TestPasskeyService_LoginCompletionTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        145
       ],
-      "tables": [
-        "auth.accounts",
-        "auth.passkey_credentials",
-        "auth.passkey_sessions"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -5473,19 +5471,6 @@
         40
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/platform/operator_passkey_service_test.go",
-      "declaration": "TestOperatorPasskeyRepositories",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        779
-      ],
-      "tables": [
-        "platform.operator_passkey_credentials",
-        "platform.operator_passkey_sessions"
-      ]
     },
     {
       "scope": "test",
@@ -22750,32 +22735,32 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 179,
+          "line": 180,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 501,
+          "line": 502,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 664,
+          "line": 665,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 902,
+          "line": 903,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1307,
+          "line": 1308,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1322,
+          "line": 1323,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -22785,7 +22770,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 301,
+          "line": 302,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -22795,22 +22780,22 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 180,
+          "line": 181,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 373,
+          "line": 374,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 417,
+          "line": 418,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 661,
+          "line": 662,
           "declaration": "type API"
         },
         {
@@ -22870,12 +22855,12 @@
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 49,
+          "line": 48,
           "declaration": "type PasskeyServiceConfig"
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 116,
+          "line": 118,
           "declaration": "type passkeyService"
         },
         {
@@ -22897,16 +22882,6 @@
           "file": "services/platform/operator_mfa_service.go",
           "line": 91,
           "declaration": "type OperatorMFAServiceConfig"
-        },
-        {
-          "file": "services/platform/operator_passkey_service.go",
-          "line": 35,
-          "declaration": "type OperatorPasskeyServiceConfig"
-        },
-        {
-          "file": "services/platform/operator_passkey_service.go",
-          "line": 75,
-          "declaration": "type operatorPasskeyService"
         }
       ]
     },

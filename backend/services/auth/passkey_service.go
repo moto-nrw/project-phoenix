@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,7 +45,10 @@ type PasskeyService interface {
 }
 
 type PasskeyServiceConfig struct {
-	Repos        *repositories.Factory
+	Repos *repositories.Factory
+	// Records is the consumer-owned port over the Identity & Access
+	// school-portal passkey credentials and ceremony sessions.
+	Records      PasskeyRecords
 	MFAService   MFAService
 	AuthService  AuthService
 	DB           *bun.DB
@@ -114,6 +116,7 @@ type PasskeyCredentialSummary struct {
 
 type passkeyService struct {
 	repos        *repositories.Factory
+	records      PasskeyRecords
 	mfaService   MFAService
 	authService  AuthService
 	db           *bun.DB
@@ -128,6 +131,9 @@ var _ PasskeyService = (*passkeyService)(nil)
 func NewPasskeyService(cfg PasskeyServiceConfig) (PasskeyService, error) {
 	if cfg.Repos == nil {
 		return nil, errors.New("PasskeyServiceConfig.Repos is required")
+	}
+	if cfg.Records == nil {
+		return nil, errors.New("PasskeyServiceConfig.Records is required")
 	}
 	if cfg.MFAService == nil {
 		return nil, errors.New("PasskeyServiceConfig.MFAService is required")
@@ -156,6 +162,7 @@ func NewPasskeyService(cfg PasskeyServiceConfig) (PasskeyService, error) {
 	}
 	return &passkeyService{
 		repos:        cfg.Repos,
+		records:      cfg.Records,
 		mfaService:   cfg.MFAService,
 		authService:  cfg.AuthService,
 		db:           cfg.DB,
@@ -234,39 +241,65 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 	}
 	accountID := req.AccountID
 	tenantID := req.TenantID
-	session := &authModel.PasskeySession{
+	session := &PasskeySession{
 		AccountID:      &accountID,
 		TenantID:       &tenantID,
-		Purpose:        authModel.PasskeySessionPurposeRegistration,
+		Purpose:        PasskeySessionPurposeRegistration,
 		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
 	}
 	session.ID = sessionID.String()
-	if err := s.repos.PasskeySession.Create(ctx, session); err != nil {
+	if err := s.records.CreateSession(ctx, session); err != nil {
 		return nil, &AuthError{Op: "store passkey session", Err: err}
 	}
 
 	return &PasskeyCredentialCreation{SessionID: sessionID.String(), Options: creation}, nil
 }
 
+// FinishRegistration consumes the ceremony and stores the credential in one
+// administrative transaction (see auth.CompleteCeremony).
 func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegistrationFinishRequest) (*PasskeyCredentialSummary, error) {
-	sessionRow, err := s.repos.PasskeySession.Consume(ctx, req.SessionID, authModel.PasskeySessionPurposeRegistration, time.Now())
+	var summary *PasskeyCredentialSummary
+	err := CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
+		row, err := s.verifyRegistration(txCtx, req)
+		if err != nil {
+			return err
+		}
+		if err := s.records.CreateCredential(txCtx, row); err != nil {
+			return &AuthError{Op: "store passkey credential", Err: err}
+		}
+		summary = summarizePasskeyCredential(row)
+		return nil
+	})
 	if err != nil {
-		return nil, &AuthError{Op: "consume passkey registration session", Err: ErrPasskeySessionInvalid}
+		return nil, err
 	}
-	if sessionRow.AccountID == nil || *sessionRow.AccountID != req.AccountID {
-		return nil, &AuthError{Op: "finish passkey registration", Err: ErrPasskeySessionInvalid}
+	return summary, nil
+}
+
+// verifyRegistration consumes the ceremony and verifies the attestation. It
+// returns the credential to store; a refused ceremony is a rejection.
+func (s *passkeyService) verifyRegistration(ctx context.Context, req PasskeyRegistrationFinishRequest) (*PasskeyCredential, error) {
+	sessionRow, err := s.records.ConsumeSession(ctx, req.SessionID, PasskeySessionPurposeRegistration, time.Now())
+	if err != nil {
+		return nil, &AuthError{Op: "consume passkey registration session", Err: err}
+	}
+	if sessionRow == nil || sessionRow.AccountID == nil || *sessionRow.AccountID != req.AccountID {
+		return nil, RejectCeremony(&AuthError{Op: "finish passkey registration", Err: ErrPasskeySessionInvalid})
 	}
 
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return nil, &AuthError{Op: "unmarshal passkey session", Err: err}
+		return nil, RejectCeremony(&AuthError{Op: "unmarshal passkey session", Err: err})
 	}
 	account, err := s.repos.Account.FindByID(ctx, req.AccountID)
 	if err != nil {
-		return nil, &AuthError{Op: "finish passkey registration", Err: ErrAccountNotFound}
+		if !accountMissing(err) {
+			return nil, &AuthError{Op: "finish passkey registration", Err: err}
+		}
+		return nil, RejectCeremony(&AuthError{Op: "finish passkey registration", Err: ErrAccountNotFound})
 	}
 	user, err := s.passkeyUserForAccount(ctx, account, sessionData.UserID)
 	if err != nil {
@@ -274,15 +307,15 @@ func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegi
 	}
 	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
 	if err != nil {
-		return nil, &AuthError{Op: "configure passkey registration finish", Err: err}
+		return nil, RejectCeremony(&AuthError{Op: "configure passkey registration finish", Err: err})
 	}
 	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
-		return nil, &AuthError{Op: "parse passkey registration response", Err: err}
+		return nil, RejectCeremony(&AuthError{Op: "parse passkey registration response", Err: err})
 	}
 	credential, err := webAuthn.FinishRegistration(user, sessionData, httpReq)
 	if err != nil {
-		return nil, &AuthError{Op: "finish passkey registration", Err: err}
+		return nil, RejectCeremony(&AuthError{Op: "finish passkey registration", Err: err})
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
@@ -292,17 +325,13 @@ func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegi
 	if name == "" {
 		name = NormalizePasskeyName("Passkey")
 	}
-	row := &authModel.PasskeyCredential{
+	return &PasskeyCredential{
 		AccountID:      req.AccountID,
 		UserHandle:     user.WebAuthnID(),
 		CredentialID:   credential.ID,
 		CredentialJSON: credentialJSON,
 		Name:           name,
-	}
-	if err := s.repos.PasskeyCredential.Create(ctx, row); err != nil {
-		return nil, &AuthError{Op: "store passkey credential", Err: err}
-	}
-	return summarizePasskeyCredential(row), nil
+	}, nil
 }
 
 func (s *passkeyService) BeginLogin(ctx context.Context, req PasskeyLoginStartRequest) (*PasskeyCredentialAssertion, error) {
@@ -330,90 +359,139 @@ func (s *passkeyService) BeginLogin(ctx context.Context, req PasskeyLoginStartRe
 		return nil, &AuthError{Op: "marshal passkey session", Err: err}
 	}
 	tenantID := req.TenantID
-	session := &authModel.PasskeySession{
+	session := &PasskeySession{
 		TenantID:       &tenantID,
-		Purpose:        authModel.PasskeySessionPurposeLogin,
+		Purpose:        PasskeySessionPurposeLogin,
 		RPID:           rpID,
 		ExpectedOrigin: req.ExpectedOrigin,
 		SessionJSON:    sessionJSON,
 		ExpiresAt:      sessionData.Expires,
 	}
 	session.ID = sessionID.String()
-	if err := s.repos.PasskeySession.Create(ctx, session); err != nil {
+	if err := s.records.CreateSession(ctx, session); err != nil {
 		return nil, &AuthError{Op: "store passkey login session", Err: err}
 	}
 	return &PasskeyCredentialAssertion{SessionID: sessionID.String(), Options: assertion}, nil
 }
 
+// FinishLogin consumes the ceremony and records the credential use in one
+// administrative transaction (see auth.CompleteCeremony). The token pair is
+// issued after the commit.
 func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinishRequest) (*PasskeyLoginResult, error) {
-	sessionRow, err := s.repos.PasskeySession.Consume(ctx, req.SessionID, authModel.PasskeySessionPurposeLogin, time.Now())
-	if err != nil {
-		return nil, &AuthError{Op: "consume passkey login session", Err: ErrPasskeySessionInvalid}
-	}
-	if sessionRow.TenantID == nil {
-		return nil, &AuthError{Op: "finish passkey login", Err: ErrPasskeySessionInvalid}
-	}
-	var sessionData webauthn.SessionData
-	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return nil, &AuthError{Op: "unmarshal passkey session", Err: err}
-	}
-	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
-	if err != nil {
-		return nil, &AuthError{Op: "configure passkey login finish", Err: err}
-	}
-	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
-	if err != nil {
-		return nil, &AuthError{Op: "parse passkey login response", Err: err}
-	}
-
-	var matchedCredentialID int64
-	user, credential, err := webAuthn.FinishPasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
-		row, err := s.repos.PasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, rawID, userHandle)
+	var verified verifiedPasskeyLogin
+	err := CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
+		result, err := s.verifyLogin(txCtx, req)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, ErrInvalidCredentials
-			}
-			return nil, err
+			return err
 		}
-		matchedCredentialID = row.ID
-		account, err := s.repos.Account.FindByID(ctx, row.AccountID)
-		if err != nil {
-			return nil, err
+		if err := s.records.RecordCredentialUse(txCtx, result.credentialID, result.credentialJSON, time.Now()); err != nil {
+			return &AuthError{Op: "update passkey after login", Err: err}
 		}
-		return s.passkeyUserForAccount(ctx, account)
-	}, sessionData, httpReq)
+		verified = result
+		return nil
+	})
 	if err != nil {
-		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
+		return nil, err
 	}
-
-	passkeyUser, ok := user.(*WebAuthnUser)
-	if !ok {
-		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
-	}
-	tenantID := *sessionRow.TenantID
-	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.ID, tenantID)
-	if err != nil {
-		return nil, &AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied}
-	}
-	if !hasAccess {
-		return nil, &AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied}
-	}
-	credentialJSON, err := json.Marshal(credential)
-	if err != nil {
-		return nil, &AuthError{Op: "marshal passkey credential", Err: err}
-	}
-	if err := s.repos.PasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
-		return nil, &AuthError{Op: "update passkey after login", Err: err}
-	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.ID, tenantID, req.IPAddress, req.UserAgent)
+	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, verified.accountID, verified.tenantID, req.IPAddress, req.UserAgent)
 	if err != nil {
 		return nil, err
 	}
 	return &PasskeyLoginResult{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
+type verifiedPasskeyLogin struct {
+	accountID      int64
+	tenantID       int64
+	credentialID   int64
+	credentialJSON []byte
+}
+
+// verifyLogin consumes the ceremony, verifies the assertion and checks that
+// the account belongs to the school whose portal started it. A refused
+// assertion or a school the account has no access to is a rejection; a
+// failed read is returned as it is.
+func (s *passkeyService) verifyLogin(ctx context.Context, req PasskeyLoginFinishRequest) (verifiedPasskeyLogin, error) {
+	sessionRow, err := s.records.ConsumeSession(ctx, req.SessionID, PasskeySessionPurposeLogin, time.Now())
+	if err != nil {
+		return verifiedPasskeyLogin{}, &AuthError{Op: "consume passkey login session", Err: err}
+	}
+	if sessionRow == nil || sessionRow.TenantID == nil {
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrPasskeySessionInvalid})
+	}
+	var sessionData webauthn.SessionData
+	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "unmarshal passkey session", Err: err})
+	}
+	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
+	if err != nil {
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "configure passkey login finish", Err: err})
+	}
+	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
+	if err != nil {
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "parse passkey login response", Err: err})
+	}
+
+	var matchedCredentialID int64
+	// The WebAuthn library reports every handler error as a failed
+	// assertion; a failed read is kept apart so a store outage does not read
+	// as wrong credentials.
+	var readErr error
+	user, credential, err := webAuthn.FinishPasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
+		row, err := s.records.FindActiveCredential(ctx, rawID, userHandle)
+		if err != nil {
+			readErr = &AuthError{Op: "find passkey credential", Err: err}
+			return nil, err
+		}
+		if row == nil {
+			return nil, ErrInvalidCredentials
+		}
+		matchedCredentialID = row.ID
+		account, err := s.repos.Account.FindByID(ctx, row.AccountID)
+		if err != nil {
+			if !accountMissing(err) {
+				readErr = &AuthError{Op: "find passkey account", Err: err}
+			}
+			return nil, err
+		}
+		user, err := s.passkeyUserForAccount(ctx, account)
+		if err != nil {
+			readErr = &AuthError{Op: "load passkey user", Err: err}
+			return nil, err
+		}
+		return user, nil
+	}, sessionData, httpReq)
+	if readErr != nil {
+		return verifiedPasskeyLogin{}, readErr
+	}
+	if err != nil {
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials})
+	}
+	passkeyUser, ok := user.(*WebAuthnUser)
+	if !ok {
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials})
+	}
+	tenantID := *sessionRow.TenantID
+	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.ID, tenantID)
+	if err != nil {
+		return verifiedPasskeyLogin{}, &AuthError{Op: "verify passkey tenant access", Err: err}
+	}
+	if !hasAccess {
+		// The school binding is decided per ceremony: a passkey of another
+		// school never mints a session here, and the ceremony is spent.
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied})
+	}
+	credentialJSON, err := json.Marshal(credential)
+	if err != nil {
+		return verifiedPasskeyLogin{}, &AuthError{Op: "marshal passkey credential", Err: err}
+	}
+	return verifiedPasskeyLogin{
+		accountID: passkeyUser.ID, tenantID: tenantID, credentialID: matchedCredentialID, credentialJSON: credentialJSON,
+	}, nil
+}
+
 func (s *passkeyService) ListCredentials(ctx context.Context, accountID int64) ([]PasskeyCredentialSummary, error) {
-	rows, err := s.repos.PasskeyCredential.FindActiveByAccountID(ctx, accountID)
+	rows, err := s.records.ListActiveCredentials(ctx, accountID)
 	if err != nil {
 		return nil, &AuthError{Op: "list passkeys", Err: err}
 	}
@@ -425,14 +503,18 @@ func (s *passkeyService) ListCredentials(ctx context.Context, accountID int64) (
 }
 
 func (s *passkeyService) RevokeCredential(ctx context.Context, accountID, credentialID int64) error {
-	if err := s.repos.PasskeyCredential.Revoke(ctx, accountID, credentialID, time.Now()); err != nil {
+	revoked, err := s.records.RevokeCredential(ctx, accountID, credentialID, time.Now())
+	if err != nil {
+		return &AuthError{Op: "revoke passkey", Err: err}
+	}
+	if !revoked {
 		return &AuthError{Op: "revoke passkey", Err: ErrPasskeyNotFound}
 	}
 	return nil
 }
 
 func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account, sessionUserHandle ...[]byte) (*WebAuthnUser, error) {
-	rows, err := s.repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
+	rows, err := s.records.ListActiveCredentials(ctx, account.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -551,7 +633,7 @@ func PasskeyResponseRequest(ctx context.Context, raw json.RawMessage) (*http.Req
 	return req, nil
 }
 
-func summarizePasskeyCredential(row *authModel.PasskeyCredential) *PasskeyCredentialSummary {
+func summarizePasskeyCredential(row *PasskeyCredential) *PasskeyCredentialSummary {
 	return &PasskeyCredentialSummary{
 		ID:         strconv.FormatInt(row.ID, 10),
 		Name:       row.Name,

@@ -143,6 +143,49 @@ type OperatorTokenStore interface {
 	DeleteStaleOperatorEmailChanges(ctx context.Context, createdBefore, now time.Time) (int, domain.OperationStats, error)
 }
 
+// OperatorPasskeyStore is the persistence port over the operator passkey
+// credential and ceremony-session tables. Both are platform-wide: no row
+// carries a tenant. "Active" means unrevoked.
+type OperatorPasskeyStore interface {
+	InsertOperatorPasskey(ctx context.Context, credential domain.OperatorPasskeyCredential) (domain.OperatorPasskeyCredential, domain.OperationStats, error)
+	// ListActiveOperatorPasskeys orders by creation, oldest first.
+	ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]domain.OperatorPasskeyCredential, domain.OperationStats, error)
+	FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (domain.OperatorPasskeyCredential, bool, domain.OperationStats, error)
+	// UpdateOperatorPasskeyAfterUse stores the credential state on an active
+	// row and reports whether such a row existed.
+	UpdateOperatorPasskeyAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) (bool, domain.OperationStats, error)
+	// RevokeOperatorPasskey stamps revoked_at on an active row of that
+	// operator and reports whether such a row existed.
+	RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertOperatorPasskeySession(ctx context.Context, session domain.OperatorPasskeySession) (domain.OperatorPasskeySession, domain.OperationStats, error)
+	// ConsumeOperatorPasskeySession stamps consumed_at on an unconsumed row
+	// with that purpose that expires after consumedAt and returns it.
+	ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (domain.OperatorPasskeySession, bool, domain.OperationStats, error)
+}
+
+// AccountPasskeyStore is the persistence port over the school-portal
+// passkey credential and ceremony-session tables. Credentials belong to the
+// account and carry no tenant; a ceremony records the school whose portal
+// started it. "Active" means unrevoked.
+type AccountPasskeyStore interface {
+	InsertAccountPasskey(ctx context.Context, credential domain.AccountPasskeyCredential) (domain.AccountPasskeyCredential, domain.OperationStats, error)
+	// ListActiveAccountPasskeys orders by creation, oldest first.
+	ListActiveAccountPasskeys(ctx context.Context, accountID int64) ([]domain.AccountPasskeyCredential, domain.OperationStats, error)
+	FindActiveAccountPasskey(ctx context.Context, credentialID, userHandle []byte) (domain.AccountPasskeyCredential, bool, domain.OperationStats, error)
+	// UpdateAccountPasskeyAfterUse stores the credential state on an active
+	// row and reports whether such a row existed.
+	UpdateAccountPasskeyAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) (bool, domain.OperationStats, error)
+	// RevokeAccountPasskey stamps revoked_at on an active row of that account
+	// and reports whether such a row existed.
+	RevokeAccountPasskey(ctx context.Context, accountID, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertAccountPasskeySession(ctx context.Context, session domain.AccountPasskeySession) (domain.AccountPasskeySession, domain.OperationStats, error)
+	// ConsumeAccountPasskeySession stamps consumed_at on an unconsumed row
+	// with that purpose that expires after consumedAt and returns it.
+	ConsumeAccountPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (domain.AccountPasskeySession, bool, domain.OperationStats, error)
+}
+
 // AccountSessionStore is the persistence port over auth.tokens, the
 // tenant-scoped refresh sessions of platform accounts. Reads and deletes that
 // name no explicit tenant apply the scope the composition resolves from the

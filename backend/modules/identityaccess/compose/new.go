@@ -108,8 +108,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	e := engine{
-		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens, auth: auth,
-		operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles, resets: resets, invitations: invitations,
+		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens,
+		passkeys: application.NewOperatorPasskey(service, store), accountPasskeys: application.NewAccountPasskey(service, store),
+		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
+		resets: resets, invitations: invitations,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	if dependencies.Sessions != nil {
@@ -148,9 +150,11 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	service *application.Service
-	mfa     *application.OperatorMFA
-	tokens  *application.OperatorTokens
+	service         *application.Service
+	mfa             *application.OperatorMFA
+	tokens          *application.OperatorTokens
+	passkeys        *application.OperatorPasskey
+	accountPasskeys *application.AccountPasskey
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed
@@ -436,6 +440,14 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorInvitationNotFound
 	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
 		return identityaccess.ErrOperatorEmailChangeNotFound
+	case errors.Is(err, domain.ErrOperatorPasskeyNotFound):
+		return identityaccess.ErrOperatorPasskeyNotFound
+	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):
+		return identityaccess.ErrOperatorPasskeySessionNotFound
+	case errors.Is(err, domain.ErrAccountPasskeyNotFound):
+		return identityaccess.ErrAccountPasskeyNotFound
+	case errors.Is(err, domain.ErrAccountPasskeySessionNotFound):
+		return identityaccess.ErrAccountPasskeySessionNotFound
 	default:
 		return err
 	}

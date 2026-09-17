@@ -136,7 +136,7 @@ type Model struct {
 func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
 // base.StringIDModel provides the same three getters for string-ID entities
 // base.StringIDModelWithoutNullZero preserves explicit zero timestamp writes
-// for the two passkey-session tables whose existing Bun mappings require it
+// for the operator passkey-session table whose existing Bun mapping requires it
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
@@ -201,7 +201,7 @@ import "github.com/moto-nrw/project-phoenix/api/common"
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```
 
-Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). `api/operator` stays deliberately divergent (`json:"message"`). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
+Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). The operator surface stays deliberately divergent (`json:"message"`); its one constructor set is `api/common/operator_errors.go` (`Operator*`), shared by `api/operator` and the operator handlers in the owner modules (#3232). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
 
 ---
 
