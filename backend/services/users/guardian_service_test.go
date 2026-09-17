@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
@@ -749,7 +748,6 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 
 		// An open invitation: not accepted, not expired, not rejected.
 		inviter := testpkg.CreateTestAccount(t, db, "pending-inviter")
-		repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 		invitation := &authModels.GuardianInvitation{
 			Token:             fmt.Sprintf("pending-token-%d", time.Now().UnixNano()),
 			GuardianProfileID: guardian.ID,
@@ -758,7 +756,7 @@ func TestGuardianService_GetStudentGuardians(t *testing.T) {
 			ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 		}
 		invitation.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, invitation))
+		testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 		// ACT
 		result, err := service.GetStudentGuardians(ctx, student.ID)
@@ -1566,363 +1564,35 @@ func TestGuardianService_GetPendingInvitations(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns pending invitations after creating one", func(t *testing.T) {
-		// ARRANGE - create a pending invitation
-		guardianEmail := fmt.Sprintf("pending-test-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Pending",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Pending", "Teacher")
-
-		_, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-
-		// ACT - get pending invitations
-		result, err := service.GetPendingInvitations(ctx)
-
-		// ASSERT
-		require.NoError(t, err, "GetPendingInvitations should not return error")
-		assert.NotNil(t, result)
-		assert.GreaterOrEqual(t, len(result), 1, "should have at least one pending invitation")
-	})
-
-	t.Run("returns empty or nil when no pending invitations", func(t *testing.T) {
-		// This test just verifies no error is returned
-		// Result can be nil or empty slice - both are valid
-		result, err := service.GetPendingInvitations(ctx)
-
-		require.NoError(t, err, "GetPendingInvitations should not return error")
-		// nil or empty slice are both acceptable when no invitations exist
-		if result != nil {
-			t.Logf("Found %d pending invitations", len(result))
-		}
-	})
-}
-
-// =============================================================================
-// CleanupExpiredInvitations Tests
-// =============================================================================
-
-func TestGuardianService_CleanupExpiredInvitations(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	t.Run("cleans up expired invitations", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredInvitations(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
+	guardian := testpkg.CreateTestGuardianProfile(t, db, "pending-list")
+	inviter := testpkg.CreateTestAccount(t, db, "pending-list-inviter")
+	redeemable := testpkg.InsertTestGuardianInvitation(t, db, &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("pending-list-%d", time.Now().UnixNano()),
+		GuardianProfileID: guardian.ID,
+		CreatedBy:         inviter.ID,
+		ExpiresAt:         time.Now().Add(48 * time.Hour),
 	})
-}
+	spent := time.Now().Add(-time.Hour)
+	testpkg.InsertTestGuardianInvitation(t, db, &authModels.GuardianInvitation{
+		Token:             fmt.Sprintf("pending-list-accepted-%d", time.Now().UnixNano()),
+		GuardianProfileID: guardian.ID,
+		CreatedBy:         inviter.ID,
+		ExpiresAt:         time.Now().Add(48 * time.Hour),
+		AcceptedAt:        &spent,
+	})
 
-// =============================================================================
-// Invitation Email Tests (with capturing mailer)
-// =============================================================================
+	result, err := service.GetPendingInvitations(ctx)
+	require.NoError(t, err)
 
-// setupGuardianServiceWithMailer creates a GuardianService with injected mailer for testing email flows
-func setupGuardianServiceWithMailer(db *bun.DB, mailer *testpkg.CapturingMailer) *users.GuardianService {
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-
-	// Create dispatcher from the capturing mailer
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
-	// Use fast retry settings for tests
-	dispatcher.SetDefaults(1, []time.Duration{10 * time.Millisecond})
-
-	deps := users.GuardianServiceDependencies{
-		GuardianProfileRepo:     repoFactory.GuardianProfile,
-		GuardianPhoneNumberRepo: repoFactory.GuardianPhoneNumber,
-		StudentGuardianRepo:     repoFactory.StudentGuardian,
-		GuardianInvitationRepo:  repoFactory.GuardianInvitation,
-		AccountRepo:             repoFactory.Account,
-		AccountTenantRepo:       repoFactory.AccountTenant,
-		AccountRoleRepo:         repoFactory.AccountRole,
-		RoleRepo:                repoFactory.Role,
-		StudentRepo:             repoFactory.Student,
-		PersonRepo:              repoFactory.Person,
-		Mailer:                  mailer,
-		Dispatcher:              dispatcher,
-		FrontendURL:             "http://localhost:3000",
-		DefaultFrom:             email.NewEmail("Test", "test@example.com"),
-		InvitationExpiry:        48 * time.Hour,
-		DB:                      db,
+	ids := make([]int64, 0, len(result))
+	for _, invitation := range result {
+		ids = append(ids, invitation.ID)
 	}
-
-	return users.NewGuardianService(deps)
-}
-
-func TestGuardianService_SendInvitation_SendsEmail(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("sends invitation email to guardian", func(t *testing.T) {
-		// ARRANGE - create guardian with email
-		guardianEmail := fmt.Sprintf("invite-test-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Invite",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-			LanguagePreference:     "de",
-		}
-		guardian, err := service.CreateGuardian(ctx, req)
-		require.NoError(t, err)
-
-		// Create a teacher to be the inviter
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Inviter", "Teacher")
-
-		// ACT - send invitation
-		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
-			GuardianProfileID: guardian.ID,
-			CreatedBy:         *teacher.Staff.Person.AccountID,
-		})
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, invitation)
-		assert.NotEmpty(t, invitation.Token)
-
-		// Wait for async email dispatch
-		emailSent := mailer.WaitForMessages(1, 500*time.Millisecond)
-		assert.True(t, emailSent, "Expected invitation email to be sent")
-
-		if emailSent {
-			msgs := mailer.Messages()
-			assert.Equal(t, "Einladung zum Eltern-Portal", msgs[0].Subject)
-			assert.Equal(t, guardianEmail, msgs[0].To.Address)
-		}
-	})
-}
-
-func TestGuardianService_SendInvitation_GuardianNotFound(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error for nonexistent guardian", func(t *testing.T) {
-		// ACT
-		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
-			GuardianProfileID: 99999999,
-			CreatedBy:         1,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, invitation)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
-func TestGuardianService_SendInvitation_NoEmail(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when guardian has no email", func(t *testing.T) {
-		// ARRANGE - create guardian without email (phone numbers are added separately)
-		req := users.GuardianCreateRequest{
-			FirstName:              "NoEmail",
-			LastName:               "Guardian",
-			PreferredContactMethod: "phone",
-		}
-		guardian, err := service.CreateGuardian(ctx, req)
-		require.NoError(t, err)
-
-		// ACT
-		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
-			GuardianProfileID: guardian.ID,
-			CreatedBy:         1,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, invitation)
-		assert.Contains(t, err.Error(), "cannot be invited")
-	})
-}
-
-func TestGuardianService_SendInvitation_DuplicatePending(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when guardian has pending invitation", func(t *testing.T) {
-		// ARRANGE - create guardian
-		guardianEmail := fmt.Sprintf("duplicate-test-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Duplicate",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-		guardian, err := service.CreateGuardian(ctx, req)
-		require.NoError(t, err)
-
-		// Create first invitation
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "First", "Inviter")
-
-		_, err = service.SendInvitation(ctx, users.GuardianInvitationRequest{
-			GuardianProfileID: guardian.ID,
-			CreatedBy:         *teacher.Staff.Person.AccountID,
-		})
-		require.NoError(t, err)
-
-		// ACT - try to send another invitation
-		invitation, err := service.SendInvitation(ctx, users.GuardianInvitationRequest{
-			GuardianProfileID: guardian.ID,
-			CreatedBy:         *teacher.Staff.Person.AccountID,
-		})
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, invitation)
-		assert.Contains(t, err.Error(), "pending invitation")
-	})
-}
-
-// =============================================================================
-// CreateGuardianWithInvitation Tests
-// =============================================================================
-
-func TestGuardianService_CreateGuardianWithInvitation_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("creates guardian and sends invitation in one transaction", func(t *testing.T) {
-		// ARRANGE
-		guardianEmail := fmt.Sprintf("combined-test-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Combined",
-			LastName:               "Test",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-			LanguagePreference:     "de",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Creator", "Teacher")
-
-		// ACT
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		defer func() {
-		}()
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, profile)
-		require.NotNil(t, invitation)
-		assert.Equal(t, "Combined", profile.FirstName)
-		assert.Equal(t, guardianEmail, *profile.Email)
-		assert.NotEmpty(t, invitation.Token)
-		assert.Equal(t, profile.ID, invitation.GuardianProfileID)
-
-		// Verify email was sent
-		emailSent := mailer.WaitForMessages(1, 500*time.Millisecond)
-		assert.True(t, emailSent, "Expected invitation email to be sent")
-	})
-}
-
-func TestGuardianService_CreateGuardianWithInvitation_NoEmail(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupGuardianService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when email not provided", func(t *testing.T) {
-		// ARRANGE - no email
-		req := users.GuardianCreateRequest{
-			FirstName: "NoEmail",
-			LastName:  "Guardian",
-		}
-
-		// ACT
-		profile, invitation, err := service.CreateGuardianWithInvitation(ctx, req, 1)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Nil(t, profile)
-		assert.Nil(t, invitation)
-		assert.Contains(t, err.Error(), "email is required")
-	})
-}
-
-func TestGuardianService_CreateGuardianWithInvitation_ExistingAccount(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	mailer := testpkg.NewCapturingMailer()
-	service := setupGuardianServiceWithMailer(db, mailer)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error when guardian already has account", func(t *testing.T) {
-		// ARRANGE - create guardian, send invitation, accept it first
-		guardianEmail := fmt.Sprintf("existing-account-%d@example.com", time.Now().UnixNano())
-		req := users.GuardianCreateRequest{
-			FirstName:              "Existing",
-			LastName:               "Account",
-			Email:                  &guardianEmail,
-			PreferredContactMethod: "email",
-		}
-
-		teacher, _ := testpkg.CreateTestTeacherWithAccount(t, db, "Teacher", "One")
-
-		// Create first guardian with invitation
-		profile, _, err := service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-		require.NoError(t, err)
-
-		// Mark the profile as having an account (what accepting the live
-		// guardian invitation flow does)
-		account := testpkg.CreateTestAccount(t, db, guardianEmail)
-		_, err = db.NewUpdate().
-			ModelTableExpr(`users.guardian_profiles`).
-			Set("account_id = ?", account.ID).
-			Set("has_account = TRUE").
-			Where("id = ?", profile.ID).
-			Exec(ctx)
-		require.NoError(t, err)
-
-		// ACT - try to create another guardian with same email
-		_, _, err = service.CreateGuardianWithInvitation(ctx, req, *teacher.Staff.Person.AccountID)
-
-		// ASSERT
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "already has an account")
-	})
+	assert.Contains(t, ids, redeemable.ID, "a redeemable invitation is listed")
+	assert.Len(t, ids, 1, "an accepted invitation is not pending any more")
 }
 
 // =============================================================================
@@ -2540,7 +2210,6 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	inviter := testpkg.CreateTestAccount(t, db, "inv-states")
 
 	cases := []struct {
@@ -2576,7 +2245,7 @@ func TestGetStudentGuardians_NonOpenInvitationsNotPending(t *testing.T) {
 			}
 			c.mutate(inv)
 			inv.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
+			testpkg.InsertTestGuardianInvitation(t, db, inv)
 
 			res, err := service.GetStudentGuardians(ctx, student.ID)
 			require.NoError(t, err)
@@ -2724,7 +2393,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 		RoleUpgrade:       true,
 	}
 	inv.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repoFactory.GuardianInvitation.Create(ctx, inv))
+	testpkg.InsertTestGuardianInvitation(t, db, inv)
 
 	res, err := service.GetStudentGuardians(ctx, student.ID)
 	require.NoError(t, err)
@@ -2735,7 +2404,12 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 	// Re-anchored to THIS child → pending.
 	studentID := student.ID
 	inv.StudentID = &studentID
-	require.NoError(t, repoFactory.GuardianInvitation.Update(ctx, inv))
+	_, err = db.NewUpdate().
+		TableExpr("auth.guardian_invitations").
+		Set("student_id = ?", studentID).
+		Where("id = ?", inv.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 
 	res, err = service.GetStudentGuardians(ctx, student.ID)
 	require.NoError(t, err)

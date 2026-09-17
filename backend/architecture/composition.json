@@ -178,7 +178,7 @@
       "declaration": "TestAccountParentRepository_FieldUpdatesRespectOptionalTenantScope",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        193
       ],
       "tables": [
         "auth.accounts",
@@ -211,7 +211,7 @@
       "declaration": "TestAccountParentRepository_List",
       "target": "database/repositories.NewFactory",
       "lines": [
-        244
+        222
       ],
       "tables": []
     },
@@ -222,16 +222,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         152
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_parent_repository_test.go",
-      "declaration": "TestAccountParentRepository_UpdatePassword",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        194
       ],
       "tables": []
     },
@@ -321,7 +311,7 @@
       "declaration": "TestAccountRepository_CalendarFeedToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        564
+        542
       ],
       "tables": []
     },
@@ -341,7 +331,7 @@
       "declaration": "TestAccountRepository_CreateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        534
+        512
       ],
       "tables": []
     },
@@ -361,7 +351,7 @@
       "declaration": "TestAccountRepository_EnsureCalendarFeedToken",
       "target": "database/repositories.NewFactory",
       "lines": [
-        602
+        580
       ],
       "tables": []
     },
@@ -371,7 +361,7 @@
       "declaration": "TestAccountRepository_FindAccountsWithRolesAndPermissions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        324
+        302
       ],
       "tables": [
         "auth.account_roles"
@@ -425,7 +415,7 @@
       "declaration": "TestAccountRepository_FindEmailsByAccountIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        494
+        472
       ],
       "tables": []
     },
@@ -445,7 +435,7 @@
       "declaration": "TestAccountRepository_ListWithFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        354
+        332
       ],
       "tables": [
         "auth.account_roles"
@@ -467,16 +457,6 @@
       "declaration": "TestAccountRepository_UpdateAvatar",
       "target": "database/repositories.NewFactory",
       "lines": [
-        299
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/account_repository_test.go",
-      "declaration": "TestAccountRepository_UpdatePassword",
-      "target": "database/repositories.NewFactory",
-      "lines": [
         277
       ],
       "tables": []
@@ -487,7 +467,7 @@
       "declaration": "TestAccountRepository_UpdateValidation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        549
+        527
       ],
       "tables": []
     },
@@ -596,113 +576,11 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        29
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_DeleteExpired",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        358
-      ],
-      "tables": [
-        "auth.guardian_invitations"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindByGuardianProfileID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        182
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        66
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindByToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        99
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_FindPending",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        214
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_MarkAsAccepted",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        242
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_Update",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        133
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_UpdateEmailStatus",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        278
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/guardian_invitation_repository_test.go",
-      "declaration": "TestGuardianInvitationRepository_UpdateEmailStatusPreservesRowsAffectedError",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        342
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/auth/invitation_token_test.go",
       "declaration": "TestInvitationTokenRepository_DeleteExpired_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        355
+        309
       ],
       "tables": [
         "auth.invitation_tokens"
@@ -714,7 +592,7 @@
       "declaration": "TestInvitationTokenRepository_FindByEmail_CaseInsensitive",
       "target": "database/repositories.NewFactory",
       "lines": [
-        259
+        213
       ],
       "tables": []
     },
@@ -724,7 +602,7 @@
       "declaration": "TestInvitationTokenRepository_FindByEmail_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        233
+        187
       ],
       "tables": []
     },
@@ -734,7 +612,7 @@
       "declaration": "TestInvitationTokenRepository_FindByID_NotFound",
       "target": "database/repositories.NewFactory",
       "lines": [
-        124
+        78
       ],
       "tables": []
     },
@@ -744,27 +622,7 @@
       "declaration": "TestInvitationTokenRepository_FindByID_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        99
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/invitation_token_test.go",
-      "declaration": "TestInvitationTokenRepository_FindByToken_NotFound",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        80
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/invitation_token_test.go",
-      "declaration": "TestInvitationTokenRepository_FindByToken_Success",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        54
+        53
       ],
       "tables": []
     },
@@ -774,7 +632,7 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Expired",
       "target": "database/repositories.NewFactory",
       "lines": [
-        168
+        122
       ],
       "tables": [
         "auth.invitation_tokens"
@@ -786,7 +644,7 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Used",
       "target": "database/repositories.NewFactory",
       "lines": [
-        198
+        152
       ],
       "tables": [
         "auth.invitation_tokens"
@@ -798,7 +656,7 @@
       "declaration": "TestInvitationTokenRepository_FindValidByToken_Valid",
       "target": "database/repositories.NewFactory",
       "lines": [
-        143
+        97
       ],
       "tables": []
     },
@@ -808,17 +666,7 @@
       "declaration": "TestInvitationTokenRepository_InvalidateByEmail_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        319
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/invitation_token_test.go",
-      "declaration": "TestInvitationTokenRepository_InvalidateByTenantID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        624
+        273
       ],
       "tables": []
     },
@@ -828,7 +676,7 @@
       "declaration": "TestInvitationTokenRepository_List_NoFilters",
       "target": "database/repositories.NewFactory",
       "lines": [
-        418
+        372
       ],
       "tables": []
     },
@@ -838,7 +686,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithEmailFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        442
+        396
       ],
       "tables": []
     },
@@ -848,7 +696,7 @@
       "declaration": "TestInvitationTokenRepository_List_WithPendingFilter",
       "target": "database/repositories.NewFactory",
       "lines": [
-        472
+        426
       ],
       "tables": []
     },
@@ -858,7 +706,7 @@
       "declaration": "TestInvitationTokenRepository_MarkAsUsed_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        287
+        241
       ],
       "tables": []
     },
@@ -868,7 +716,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        505
+        459
       ],
       "tables": []
     },
@@ -878,7 +726,7 @@
       "declaration": "TestInvitationTokenRepository_UpdateDeliveryResult_WithError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        536
+        490
       ],
       "tables": []
     },
@@ -888,7 +736,7 @@
       "declaration": "TestInvitationTokenRepository_Update_NilReturnsError",
       "target": "database/repositories.NewFactory",
       "lines": [
-        604
+        558
       ],
       "tables": []
     },
@@ -898,181 +746,7 @@
       "declaration": "TestInvitationTokenRepository_Update_Success",
       "target": "database/repositories.NewFactory",
       "lines": [
-        571
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_CheckRateLimit_ExistingRecord",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        66
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_CheckRateLimit_NoRecord",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        45
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_CleanupExpired_NoExpiredRecords",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        223
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_CleanupExpired_Success",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        180
-      ],
-      "tables": [
-        "auth.password_reset_rate_limits"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_IncrementAttempts_FirstAttempt",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        96
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_IncrementAttempts_MultipleAttempts",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        117
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_IncrementAttempts_WindowReset",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        147
-      ],
-      "tables": [
-        "auth.password_reset_rate_limits"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_rate_limit_test.go",
-      "declaration": "TestPasswordResetRateLimitRepository_RateLimitFlow",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        255
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_Create",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        24
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_DeleteExpiredTokens",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        270
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_FindByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        119
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_FindByID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        55
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_FindByToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        87
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_FindValidByToken",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        156
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_InvalidateTokensByAccountID",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        234
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_MarkAsUsed",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        205
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/auth/password_reset_token_repository_test.go",
-      "declaration": "TestPasswordResetTokenRepository_UpdateDeliveryResult",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        321
+        525
       ],
       "tables": []
     },
@@ -4082,7 +3756,7 @@
       "declaration": "setupAuthFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        63
+        61
       ],
       "tables": []
     },
@@ -4129,7 +3803,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        752
+        762
       ],
       "tables": []
     },
@@ -4139,17 +3813,7 @@
       "declaration": "setupGuardianInvitationTest",
       "target": "database/repositories.NewFactory",
       "lines": [
-        58
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/guardian_invitation_service_test.go",
-      "declaration": "setupGuardianInviteWithBackfiller",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        638
+        62
       ],
       "tables": []
     },
@@ -4159,7 +3823,7 @@
       "declaration": "TestRevokeAccess_PayerStaysWithoutFinancialPermission",
       "target": "database/repositories.NewFactory",
       "lines": [
-        301
+        303
       ],
       "tables": [
         "users.guardian_profiles"
@@ -4172,6 +3836,16 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         22
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "services/auth/link_runtime_evidence_test.go",
+      "declaration": "TestLinkRuntimeEvidence",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        28
       ],
       "tables": []
     },
@@ -5764,7 +5438,7 @@
       "declaration": "buildServiceFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        41
+        40
       ],
       "tables": []
     },
@@ -6235,7 +5909,7 @@
       "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2692
+        2361
       ],
       "tables": [
         "auth.guardian_invitations",
@@ -6247,24 +5921,10 @@
     {
       "scope": "test",
       "file": "services/users/guardian_service_test.go",
-      "declaration": "TestGetStudentGuardians_NonOpenInvitationsNotPending",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        2543
-      ],
-      "tables": [
-        "users.guardian_profiles",
-        "users.students",
-        "users.students_guardians"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
       "declaration": "TestGuardianService_ContactWritersShareProfileLock",
       "target": "database/repositories.NewFactory",
       "lines": [
-        2651
+        2320
       ],
       "tables": [
         "users.guardian_phone_numbers",
@@ -6274,30 +5934,10 @@
     {
       "scope": "test",
       "file": "services/users/guardian_service_test.go",
-      "declaration": "TestGuardianService_GetStudentGuardians",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        752
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
       "declaration": "setupGuardianService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        43
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/users/guardian_service_test.go",
-      "declaration": "setupGuardianServiceWithMailer",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        1638
+        42
       ],
       "tables": []
     },
@@ -6619,7 +6259,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        55
+        56
       ],
       "tables": []
     },
@@ -23210,7 +22850,7 @@
       "locations": [
         {
           "file": "services/auth/mfa_service.go",
-          "line": 287,
+          "line": 294,
           "declaration": "type MFAServiceConfig"
         },
         {
@@ -23224,18 +22864,13 @@
           "declaration": "type passkeyService"
         },
         {
-          "file": "services/auth/password_reset_cleanup.go",
-          "line": 55,
-          "declaration": "NewCleanupService"
-        },
-        {
           "file": "services/auth/service.go",
-          "line": 96,
+          "line": 93,
           "declaration": "type Service"
         },
         {
           "file": "services/auth/service.go",
-          "line": 150,
+          "line": 133,
           "declaration": "NewService"
         }
       ]
@@ -23255,17 +22890,17 @@
       "locations": [
         {
           "file": "services/account_authentication_composition.go",
-          "line": 65,
+          "line": 71,
           "declaration": "sessionRepositoriesOf"
         },
         {
           "file": "services/account_authentication_composition.go",
-          "line": 160,
+          "line": 174,
           "declaration": "newSchoolDirectory"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 201,
+          "line": 217,
           "declaration": "NewAuthServiceForTests"
         },
         {
@@ -23290,7 +22925,7 @@
         },
         {
           "file": "services/operator_authentication_composition.go",
-          "line": 56,
+          "line": 55,
           "declaration": "operatorRepositoriesOf"
         },
         {

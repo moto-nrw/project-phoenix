@@ -102,6 +102,16 @@ func (s *raStore) FindRoleIgnoringTenant(ctx context.Context, id int64) (domain.
 	return s.FindRole(ctx, id)
 }
 
+func (s *raStore) FindSystemRoleByName(_ context.Context, name string) (domain.ManagedRole, bool, error) {
+	s.record("find system role by name")
+	for _, role := range s.roles {
+		if role.IsSystem && role.TenantID == nil && strings.EqualFold(role.Name, name) {
+			return role, true, nil
+		}
+	}
+	return domain.ManagedRole{}, false, nil
+}
+
 func (s *raStore) FindRoleForUpdate(ctx context.Context, id int64) (domain.ManagedRole, bool, error) {
 	s.record("lock role")
 	return s.FindRole(ctx, id)
@@ -298,6 +308,10 @@ func (raPolicy) IsLehrkraftSystemRole(role *domain.RoleFacts) bool {
 
 func (raPolicy) IsGuardianTierRole(role *domain.RoleFacts) bool {
 	return role != nil && roleTier(role) == "guardian"
+}
+
+func (raPolicy) IsPlatformCaregiverRole(role *domain.RoleFacts) bool {
+	return role != nil && strings.EqualFold(role.Name, "user")
 }
 
 func (p raPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID int64) error {

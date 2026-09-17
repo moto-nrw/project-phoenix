@@ -124,6 +124,26 @@ func (d identityRoleDirectory) FindRole(ctx context.Context, id int64) (identity
 	return foundRole(d.repos.Roles.FindByID(ctx, id))
 }
 
+// FindSystemRoleByName resolves the platform system role with that name,
+// matched case-insensitively. A school's own role never matches: only a role
+// without a tenant that is flagged as a system role qualifies.
+func (d identityRoleDirectory) FindSystemRoleByName(ctx context.Context, name string) (identityaccess.Role, bool, error) {
+	roles, err := d.repos.Roles.List(ctx, map[string]interface{}{
+		"name":      strings.TrimSpace(strings.ToLower(name)),
+		"is_system": true,
+	})
+	if err != nil {
+		return identityaccess.Role{}, false, err
+	}
+	for _, role := range roles {
+		if role == nil || role.TenantID != nil || !role.IsSystem || !strings.EqualFold(role.Name, name) {
+			continue
+		}
+		return publicRole(role), true, nil
+	}
+	return identityaccess.Role{}, false, nil
+}
+
 func (d identityRoleDirectory) FindRoleForUpdate(ctx context.Context, id int64) (identityaccess.Role, bool, error) {
 	return foundRole(d.repos.Roles.FindByIDForUpdate(ctx, id))
 }

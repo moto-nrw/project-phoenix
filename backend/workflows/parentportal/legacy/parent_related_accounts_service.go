@@ -125,6 +125,30 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
+// GuardianInvitationRecord is one invitation as the related-accounts view
+// reads it from the owner module (#2722).
+type GuardianInvitationRecord struct {
+	ID                int64
+	GuardianProfileID int64
+	StudentID         *int64
+	ExpiresAt         time.Time
+	AcceptedAt        *time.Time
+	ApprovalStatus    string
+}
+
+// Open reports whether the invitation still gives the contact a way in: not
+// spent, not expired, and not refused by staff.
+func (r GuardianInvitationRecord) Open(now time.Time) bool {
+	return r.AcceptedAt == nil && r.ExpiresAt.After(now) &&
+		r.ApprovalStatus != authModels.GuardianInvitationApprovalRejected
+}
+
+// GuardianInvitationReads is the consumer-owned port over the Identity &
+// Access guardian invitations the related-accounts view reads.
+type GuardianInvitationReads interface {
+	ListByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitationRecord, error)
+}
+
 func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
 	hasAccess := authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess)
 	if profile.HasAccount && hasAccess {
@@ -132,15 +156,15 @@ func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.
 	}
 	// An open invitation (e.g. a confirmed upgrade awaiting staff approval)
 	// wins over the stale account states below.
-	if s.GuardianInviteRepo != nil {
-		invitations, err := s.GuardianInviteRepo.FindByGuardianProfileID(ctx, profile.ID)
+	if s.GuardianInvitations != nil {
+		invitations, err := s.GuardianInvitations.ListByProfile(ctx, profile.ID)
 		if err == nil {
 			now := time.Now()
 			for _, inv := range invitations {
 				if inv.StudentID == nil || *inv.StudentID != studentID {
 					continue
 				}
-				if authService.GuardianInvitationValid(inv, now) && inv.ApprovalStatus != authModels.GuardianInvitationApprovalRejected {
+				if inv.Open(now) {
 					return RelatedAccountPending
 				}
 			}

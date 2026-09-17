@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -553,8 +552,11 @@ type ServiceConfig struct {
 
 	// Related-accounts management (invite/remove further guardians from the
 	// parents portal). The invitation service runs the shared resolve logic.
-	GuardianInvites     authService.GuardianInvitationService
-	GuardianInviteRepo  authModels.GuardianInvitationRepository
+	GuardianInvites authService.GuardianInvitationService
+	// GuardianInvitations is the consumer-owned port over the Identity &
+	// Access guardian invitations (#2722): a contact with an open invitation
+	// shows as pending instead of "no account".
+	GuardianInvitations GuardianInvitationReads
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).

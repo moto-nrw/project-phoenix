@@ -81,16 +81,6 @@ func (r *AccountParentRepository) FindByUsername(ctx context.Context, username s
 	return account, nil
 }
 
-// UpdatePassword updates the password hash for a parent account
-func (r *AccountParentRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
-	account := &auth.AccountParent{Model: modelBase.Model{ID: id}, PasswordHash: &passwordHash}
-	updated, err := r.UpdateColumns(ctx, account, "password_hash")
-	if err != nil {
-		return base.UpdateOperationError(err, "update password")
-	}
-	return base.AssertRowsAffectedCount(updated, 1, "update password")
-}
-
 // List retrieves parent accounts matching the provided filters
 func (r *AccountParentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error) {
 	var accounts []*auth.AccountParent

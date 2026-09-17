@@ -42,15 +42,14 @@ type operatorAuthenticationWiring struct {
 }
 
 // operatorRepositories are the retained repositories the operator seams
-// read: the audit ledger, the e-mail change tokens and the identity chain
-// rows a school access provisions.
+// read: the audit ledger and the identity chain rows a school access
+// provisions.
 type operatorRepositories struct {
-	auditLog          platformModels.OperatorAuditLogRepository
-	emailChangeTokens platformModels.OperatorEmailChangeTokenRepository
-	persons           userModels.PersonRepository
-	staff             userModels.StaffRepository
-	teachers          userModels.TeacherRepository
-	students          userModels.StudentRepository
+	auditLog platformModels.OperatorAuditLogRepository
+	persons  userModels.PersonRepository
+	staff    userModels.StaffRepository
+	teachers userModels.TeacherRepository
+	students userModels.StudentRepository
 }
 
 func operatorRepositoriesOf(repos *repositories.Factory) operatorRepositories {
@@ -58,8 +57,8 @@ func operatorRepositoriesOf(repos *repositories.Factory) operatorRepositories {
 		return operatorRepositories{}
 	}
 	return operatorRepositories{
-		auditLog: repos.OperatorAuditLog, emailChangeTokens: repos.OperatorEmailChangeToken,
-		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
+		auditLog: repos.OperatorAuditLog,
+		persons:  repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 	}
 }
 
@@ -75,7 +74,6 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 	return &identityaccessCompose.OperatorDependencies{
 		MFA:           operatorMFAGate{current: mfa},
 		Audit:         operatorAuditLedger{ledger: wiring.repos.auditLog},
-		Credentials:   operatorCredentialCleanup{tokens: wiring.repos.emailChangeTokens},
 		Passwords:     passwordHasher{},
 		Organizations: tenancyDirectory{query: wiring.organizations},
 		Identities: schoolIdentityProvisioner{
@@ -169,19 +167,6 @@ func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]an
 		changes["accountDeactivated"] = change.AccountDeactivated
 	}
 	return changes
-}
-
-type operatorCredentialCleanup struct {
-	tokens platformModels.OperatorEmailChangeTokenRepository
-}
-
-// InvalidateEmailChangeTokens is a no-op without the token repository, as
-// the retained password change treated it.
-func (c operatorCredentialCleanup) InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error {
-	if c.tokens == nil {
-		return nil
-	}
-	return c.tokens.InvalidateByOperatorID(ctx, operatorID)
 }
 
 type passwordHasher struct{}

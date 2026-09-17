@@ -10,6 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -34,55 +36,60 @@ type AuthTestModule struct {
 	MFA                   auth.MFAService
 }
 
-// InvitationSchoolsForTests binds the invitation school seam to the
-// Organisation & Tenancy capability the way the factory does. Every read runs
-// under runtime, as the serving root's request middleware provides it; the
-// behaviour tests call the services without that middleware.
-func InvitationSchoolsForTests(schools organizationtenancy.Query, runtime tenant.UnitOfWork) auth.SchoolDirectory {
-	return runtimeInvitationSchools{directory: invitationSchoolDirectory{schools: schools}, runtime: runtime}
-}
-
-type runtimeInvitationSchools struct {
-	directory invitationSchoolDirectory
-	runtime   tenant.UnitOfWork
-}
-
-func (d runtimeInvitationSchools) FindSchool(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
-	return d.directory.FindSchool(tenant.WithUnitOfWork(ctx, d.runtime), id)
-}
-
-func (d runtimeInvitationSchools) FindSchoolForShare(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
-	return d.directory.FindSchoolForShare(tenant.WithUnitOfWork(ctx, d.runtime), id)
-}
-
 type InvitationTestModule struct {
 	Persistence *repositories.InvitationPersistence
 	Invitation  auth.InvitationService
 }
 
 func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
-	signer, err := authjwt.NewTokenAuth()
-	if err != nil {
-		return InvitationTestModule{}, err
-	}
 	repos, err := repositories.NewInvitationPersistence(db)
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
-	schoolIdentity, err := NewSchoolIdentityForTests(db, unit)
+	auth, err := NewAuthTestModule(db, unit)
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
-	service := auth.NewInvitationService(auth.InvitationServiceConfig{
-		TokenAuth: signer, InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
-		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role, PermissionRepo: repos.Permission,
-		AccountRoleRepo: repos.AccountRole, SchoolIdentity: schoolIdentity, SchoolRepo: invitationSchoolDirectory{schools: repos.School}, DB: db,
-	})
-	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	return InvitationTestModule{Persistence: repos, Invitation: service}, nil
+	return InvitationTestModule{Persistence: repos, Invitation: auth.Invitation}, nil
 }
 
-func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, error) {
+// AuthTestOption overrides a default of the composed test module.
+type AuthTestOption func(*authTestSettings)
+
+type authTestSettings struct {
+	mailer           email.Mailer
+	rateLimitEnabled bool
+	resetBackoff     []time.Duration
+	staffCreateErr   error
+}
+
+// WithAuthTestMailer composes the module on the given mailer, so a test can
+// read the mails the flows send.
+func WithAuthTestMailer(mailer email.Mailer) AuthTestOption {
+	return func(s *authTestSettings) { s.mailer = mailer }
+}
+
+// WithAuthTestPasswordResetRateLimit enables the per-address reset rate
+// limit, which the test configuration leaves off.
+func WithAuthTestPasswordResetRateLimit(enabled bool) AuthTestOption {
+	return func(s *authTestSettings) { s.rateLimitEnabled = enabled }
+}
+
+// WithAuthTestStaffCreateFailure composes the module with a staff directory
+// whose insert fails, so a test can prove that a failure inside the identity
+// chain rolls the whole acceptance back.
+func WithAuthTestStaffCreateFailure(err error) AuthTestOption {
+	return func(s *authTestSettings) { s.staffCreateErr = err }
+}
+
+// WithAuthTestPasswordResetBackoff shortens the retry spacing of the reset
+// mail, so a test that asserts the recorded failure waits milliseconds
+// instead of the production twenty seconds.
+func WithAuthTestPasswordResetBackoff(backoff ...time.Duration) AuthTestOption {
+	return func(s *authTestSettings) { s.resetBackoff = backoff }
+}
+
+func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOption) (AuthTestModule, error) {
 	settings, err := NewSettingsTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -97,7 +104,11 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 		return AuthTestModule{}, err
 	}
 	cfg := currentFactoryConfig()
-	mailer := email.NewMockMailer()
+	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled}
+	for _, option := range options {
+		option(&settingsOverrides)
+	}
+	mailer := settingsOverrides.mailer
 	dispatcher := email.NewDispatcher(mailer, logger)
 	defaultFrom := email.NewEmail(cfg.EmailFromName, cfg.EmailFromAddress)
 	if defaultFrom.Address == "" {
@@ -124,7 +135,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	}
 	authConfig.ParentsURL = parentsURL
 	authConfig.SchoolURL = schoolURL
-	authConfig.RateLimitEnabled = cfg.RateLimitEnabled
+	authConfig.RateLimitEnabled = settingsOverrides.rateLimitEnabled
 	authConfig.Settings = settings.Settings
 	authConfig.Audit = command
 	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
@@ -132,18 +143,40 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 		return AuthTestModule{}, err
 	}
 	var service *auth.Service
-	var guardian auth.GuardianInvitationService
+	// The delivery module is composed after the identity module, so the
+	// guardian mail reads its outbox at call time, as the factory does.
+	var deliveryModule DeliveryTestModule
+	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
+		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
+	}, logger)
+	sessionRepos := sessionRepositoriesOf(r, r.School)
+	if settingsOverrides.staffCreateErr != nil {
+		sessionRepos.lifecycle.staff = failingStaffDirectory{StaffRepository: r.Staff, err: settingsOverrides.staffCreateErr}
+	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(r, r.School), tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
+		repos: sessionRepos, tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{
 			settings: settings.Settings, audit: command,
 			admin: func() *auth.Service { return service },
-			delivery: func() auth.GuardianInvitationDelivery {
-				delivery, _ := guardian.(auth.GuardianInvitationDelivery)
-				return delivery
+			guardianMail: &guardianInvitationWiring{
+				settings: settings.Settings, schools: r.School,
+				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
+				enrollments: r.ParentEnrollmentRequest, parentsURL: parentsURL,
+				fallbackExpiry: time.Duration(inviteHours) * time.Hour, logger: logger,
 			},
+		},
+		resets: &passwordResetWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
+			expiry: time.Duration(resetMinutes) * time.Minute, rateLimitEnabled: settingsOverrides.rateLimitEnabled,
+			backoff: settingsOverrides.resetBackoff,
+		},
+		invitations: &invitationWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
+			mailIdentity: identity, tokenAuth: authConfig.TokenAuth, expiry: time.Duration(inviteHours) * time.Hour,
+			backoff: settingsOverrides.resetBackoff,
 		},
 	})
 	if err != nil {
@@ -152,6 +185,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
+	authConfig.Resets = accountSessionsPort
 	service, err = auth.NewService(r, authConfig, db, logger)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -166,30 +200,12 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	}
 	mfa.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	service.SetMFAService(mfa)
-	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
-		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
-	}, logger)
-	invitation := auth.NewInvitationService(auth.InvitationServiceConfig{
-		TokenAuth:      authConfig.TokenAuth,
-		InvitationRepo: r.InvitationToken, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
-		RoleRepo: r.Role, PermissionRepo: r.Permission, AccountRoleRepo: r.AccountRole, SchoolRepo: invitationSchoolDirectory{schools: r.School},
-		Mailer: mailer, Dispatcher: dispatcher, FrontendURL: frontendURL, SchoolURL: schoolURL,
-		DefaultFrom: defaultFrom, InvitationExpiry: time.Duration(inviteHours) * time.Hour, MailIdentity: identity,
-		SchoolIdentity: accountSessionsPort, DB: db, Logger: logger,
-	})
-	invitation.(tenantRuntimeSetter).SetTenantRuntime(unit)
-	delivery, err := NewDeliveryTestModule(db, unit)
+	invitation := NewInvitationService(identityAccess)
+	deliveryModule, err = NewDeliveryTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	guardian = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo: r.GuardianInvitation, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
-		AccountRoleRepo: r.AccountRole, RoleRepo: r.Role, PersonRepo: r.Person, GuardianProfileRepo: r.GuardianProfile,
-		StudentGuardianRepo: r.StudentGuardian, Audit: command, StudentRepo: r.Student, SchoolRepo: invitationSchoolDirectory{schools: r.School},
-		EnrollmentBackfiller: r.ParentEnrollmentRequest, RelativeAccess: accountSessionsPort, SettingsResolver: settings.Settings, OutboxEnqueuer: outboxEnqueuer{outbox: delivery.EmailOutbox},
-		FrontendURL: parentsURL, FallbackExpiry: time.Duration(inviteHours) * time.Hour, DB: db, Logger: logger,
-	})
-	guardian.(tenantRuntimeSetter).SetTenantRuntime(unit)
+	guardian := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
 	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: NewStaffPINAuthenticator(identityAccess), MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
 		Schools: r.School, Settings: settings.Settings}, nil
 }
@@ -217,8 +233,12 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{
 			settings: cfg.Settings, audit: cfg.Audit,
-			admin:    func() *auth.Service { return service },
-			delivery: func() auth.GuardianInvitationDelivery { return nil },
+			admin: func() *auth.Service { return service },
+		},
+		resets: &passwordResetWiring{
+			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,
+			staffURL: cfg.FrontendURL, parentsURL: cfg.ParentsURL, schoolURL: cfg.SchoolURL,
+			expiry: cfg.PasswordResetExpiry, rateLimitEnabled: cfg.RateLimitEnabled,
 		},
 	})
 	if err != nil {
@@ -227,6 +247,7 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	port := newAccountSessions(identityAccess)
 	cfg.Sessions = port
 	cfg.Lifecycle = port
+	cfg.Resets = port
 	service, err = auth.NewService(repos, &cfg, db, logger)
 	return service, err
 }
@@ -237,3 +258,12 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 func IdentityAccessForTests(service auth.AuthService) *identityaccess.Module {
 	return identityAccessOf(service)
 }
+
+// failingStaffDirectory fails every staff insert; every other operation is
+// the real repository.
+type failingStaffDirectory struct {
+	userModels.StaffRepository
+	err error
+}
+
+func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error { return d.err }

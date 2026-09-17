@@ -745,8 +745,44 @@ flows through the `OperatorDirectory` port the root binds to the public
 module. The public audit evidence is typed (`TenantAccessEvidence`,
 `OperatorAccessChange`); the root renders it into the ledger keys. The former
 `models/platform` operator and refresh-session repository contracts and
-their compatibility adapters are deleted; the operator invitation and e-mail
-change flows stay under #2722. The operator MFA
+their compatibility adapters are deleted; the operator passkey records
+followed under #2724. The operator invitation and e-mail change links (#2722):
+`platform.operator_invitation_tokens` and
+`platform.operator_email_change_tokens` are read and written only through the
+public `OperatorTokens` capability, with the same platform-wide transaction
+rule. The capability decides expiry with one clock: it never stores a link
+that is already expired or used, never extends one that expired meanwhile,
+and redeems a link exactly once. The retained `services/platform` invitation
+and e-mail change flows keep their orchestration and reach the rows through
+the `OperatorInvitationTokens` and `OperatorEmailChangeTokens` ports the root
+binds to the public module; invite, accept and confirm stay one
+administrative transaction the module operations join. The operator password
+change revokes pending e-mail change links inside the module, so the former
+root-supplied credential cleanup seam is gone. The `models/platform` token
+repository contracts, their `database/repositories/platform` adapters and the
+`repositories.Factory` fields are deleted; the token models remain as the
+retained ports' value types. The school invitations, the password reset
+and the guardian invitations (#2722) follow the same shape:
+`auth.invitation_tokens`, `auth.password_reset_tokens` with its rate-limit
+window, and `auth.guardian_invitations` are read and written only through the
+public `SchoolInvitations`, `PasswordResets` and `GuardianInvitations`
+capabilities, and the account an acceptance provisions is written there too.
+Expiry is decided with one clock: a link is never stored already expired or
+spent, a resend never revives one, and redemption spends it exactly once. The
+retained `services/auth` invitation, password reset and guardian invitation
+services keep their contracts and reach the rows through the consumer-owned
+ports the root binds to the public module; the acceptance holds one
+administrative transaction, so the account, its school mapping, the role, the
+identity chain and the spent link commit together. The mail stays in the
+composition root, which knows the portal hosts, the tenant reply-to identity
+and the e-mail outbox, and the enrollment requests a guardian acceptance
+claims arrive through their own port. Every reader of `auth.guardian_invitations` goes
+through the owner: the People Directory guardian list and the parents portal
+related-accounts view consume their own record types over the public
+capability, so the `models/auth` guardian invitation contract, its
+`database/repositories/auth` adapter, the `repositories.Factory` field and
+the People Directory's deprecated invitation twin are deleted with the
+retained token lookup, approval-queue and acceptance methods. The operator MFA
 records (#2723): `platform.operator_mfa_credentials`,
 `platform.operator_mfa_email_challenges` and
 `platform.operator_mfa_trusted_devices` are read and written only through the

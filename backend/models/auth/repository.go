@@ -26,7 +26,6 @@ type AccountRepository interface {
 	// callers therefore all receive the same stored value instead of a URL a
 	// later write overwrote.
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
-	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
@@ -91,7 +90,6 @@ type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
 	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
-	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 }
 
 // RolePermissionRepository defines operations for managing role-permission mappings
@@ -124,37 +122,16 @@ type AccountPermissionRepository interface {
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
 }
 
-// PasswordResetTokenRepository defines operations for managing password reset tokens
-type PasswordResetTokenRepository interface {
-	base.CRUDRepository[*PasswordResetToken]
-	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
-	FindByToken(ctx context.Context, token string) (*PasswordResetToken, error)
-	FindByAccountID(ctx context.Context, accountID int64) ([]*PasswordResetToken, error)
-	FindValidByToken(ctx context.Context, token string) (*PasswordResetToken, error)
-	MarkAsUsed(ctx context.Context, tokenID int64) error
-	DeleteExpiredTokens(ctx context.Context) (int, error)
-	InvalidateTokensByAccountID(ctx context.Context, accountID int64) error
-}
-
-// PasswordResetRateLimitRepository defines operations for managing password reset rate limiting.
-type PasswordResetRateLimitRepository interface {
-	CheckRateLimit(ctx context.Context, email string) (*RateLimitState, error)
-	IncrementAttempts(ctx context.Context, email string) (*RateLimitState, error)
-	CleanupExpired(ctx context.Context) (int, error)
-}
-
 // InvitationTokenRepository defines operations for managing invitation tokens.
 type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *InvitationToken) error
 	Update(ctx context.Context, token *InvitationToken) error
 	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
-	FindByToken(ctx context.Context, token string) (*InvitationToken, error)
 	UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
 	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
 	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
 	MarkAsUsed(ctx context.Context, id int64) error
 	InvalidateByEmail(ctx context.Context, email string) (int, error)
-	InvalidateByTenantID(ctx context.Context, tenantID int64) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }
@@ -347,40 +324,4 @@ type StaffCalendarFeedTokenRepository interface {
 	// RotateToken replaces the active mapping's capability token atomically; this
 	// domain operation is intentionally narrower than a generic per-field update.
 	RotateToken(ctx context.Context, accountID, tenantID int64, tokenHash string) (bool, error)
-}
-
-// GuardianInvitationRepository defines operations for managing guardian invitations.
-type GuardianInvitationRepository interface {
-	// Create inserts a new guardian invitation
-	Create(ctx context.Context, invitation *GuardianInvitation) error
-
-	// Update updates an existing guardian invitation
-	Update(ctx context.Context, invitation *GuardianInvitation) error
-
-	// FindByID retrieves a guardian invitation by ID
-	FindByID(ctx context.Context, id int64) (*GuardianInvitation, error)
-
-	// FindByToken retrieves a guardian invitation by token
-	FindByToken(ctx context.Context, token string) (*GuardianInvitation, error)
-
-	// FindByGuardianProfileID retrieves invitations for a guardian profile
-	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianInvitation, error)
-
-	// FindPending retrieves all pending (not accepted, not expired) invitations
-	FindPending(ctx context.Context) ([]*GuardianInvitation, error)
-
-	// FindPendingApproval retrieves parent-initiated invitations awaiting
-	// staff approval (approval_status = 'pending'), newest first.
-	FindPendingApproval(ctx context.Context) ([]*GuardianInvitation, error)
-	// FindOpenByGuardianProfileIDs retrieves every open invitation for the requested profiles.
-	FindOpenByGuardianProfileIDs(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianInvitation, error)
-
-	// MarkAsAccepted marks an invitation as accepted
-	MarkAsAccepted(ctx context.Context, id int64) error
-
-	// UpdateEmailStatus updates the email delivery status
-	UpdateEmailStatus(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
-
-	// DeleteExpired deletes expired invitations
-	DeleteExpired(ctx context.Context) (int, error)
 }
