@@ -126,8 +126,10 @@ func registerLehrkraft(t *testing.T, db *bun.DB, resource *schoolportal.Resource
 
 	unique := time.Now().UnixNano()
 	email = fmt.Sprintf("%s-%d@test.local", prefix, unique)
-	account, err := resource.AuthService.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("%s-%d", prefix, unique), testPassword, nil, 0)
-	require.NoError(t, err)
+	// Account creation belongs to Identity & Access since #3332 and this
+	// portal may not name that contract; the shared fixture writes the same
+	// row the registration would.
+	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	return email, account.ID
@@ -200,8 +202,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 
 	unique := time.Now().UnixNano()
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
-	account, err := resource.AuthService.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("school-login-%d", unique), testPassword, nil, 0)
-	require.NoError(t, err)
+	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, testPassword)

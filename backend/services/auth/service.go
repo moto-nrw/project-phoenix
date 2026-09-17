@@ -49,9 +49,8 @@ type ServiceConfig struct {
 	// Lifecycle is the consumer-owned port over the Identity & Access
 	// account-lifecycle capability (#3225): staff preview, staff offboarding
 	// access, the school identity chain, parent accounts and guardian
-	// relative access moved there. The retained registration, linking and
-	// invitation flows provision identities and apply the school-role policy
-	// through it (#3314).
+	// relative access moved there. The retained account management flows
+	// apply the school-role policy through it (#3314).
 	Lifecycle AccountLifecycle
 }
 
@@ -80,11 +79,12 @@ func NewServiceConfig(
 }
 
 // Service provides the retained authentication and user management
-// functionality: registration and school linking, password change and
-// reset, account lifecycle, staff preview and offboarding. Tenant, parent and
-// school login, refresh, switching, logout, session validation, cleanup and
-// revocation are served by Identity & Access through the Sessions port
-// (#3251); role and permission management moved there with #3314.
+// functionality: password change, account administration, staff preview and
+// offboarding. Tenant, parent and school login, refresh, switching, logout,
+// session validation, cleanup and revocation are served by Identity & Access
+// through the Sessions port (#3251); role and permission management moved
+// there with #3314, the password reset, the invitations and the account
+// registration and school linking with #3332.
 type Service struct {
 	repos         *repositories.Factory
 	tokenAuth     *jwt.TokenAuth
@@ -257,7 +257,6 @@ type MFAGateConfiguration interface {
 type AuthService interface {
 	SessionOperations
 	MFAGateConfiguration
-	RegistrationOperations
 	CredentialOperations
 	AccountAdministrationOperations
 	StaffPreviewOperations

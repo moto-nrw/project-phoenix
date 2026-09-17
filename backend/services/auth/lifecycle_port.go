@@ -360,12 +360,6 @@ func (s *Service) ExecuteStaffOffboarding(ctx context.Context, accountID int64, 
 	return lifecycle.ExecuteStaffOffboarding(ctx, accountID, revision)
 }
 
-// schoolIdentity returns the school identity port the retained flows
-// provision through; ErrAccountLifecycleUnavailable without one.
-func (s *Service) schoolIdentity(op string) (SchoolIdentityProvisioning, error) {
-	return s.accountLifecycle(op)
-}
-
 func (s *Service) CreateParentAccount(ctx context.Context, email, username, password string) (*authModels.AccountParent, error) {
 	lifecycle, err := s.accountLifecycle(opCreateParentAccount)
 	if err != nil {

@@ -49,46 +49,6 @@ var (
 	ErrRoleLehrkraftCaregiverProfile = errors.New("Das Konto hat ein Betreuungsprofil an dieser Schule und kann nicht auf Lehrkraft umgestellt werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
-// validateAssignableSchoolRole resolves a role and refuses it when the school-
-// role policy does not allow it for tenantID. A lookup that failed for any
-// other reason than a missing row (DB unreachable, RLS) is not a verdict on
-// the role and is passed through, so callers log it and answer 500 instead of
-// telling the user the role is gone.
-func validateAssignableSchoolRole(
-	ctx context.Context,
-	repo authModels.RoleRepository,
-	policy SchoolIdentityProvisioning,
-	roleID, tenantID int64,
-) (*authModels.Role, error) {
-	if roleID <= 0 {
-		return nil, ErrRoleNotAssignable
-	}
-	role, err := repo.FindByID(ctx, roleID)
-	if err != nil {
-		if !isNotFoundError(err) {
-			return nil, err
-		}
-		return nil, ErrRoleNotAssignable
-	}
-	if role == nil {
-		return nil, ErrRoleNotAssignable
-	}
-	if policy == nil {
-		return nil, ErrAccountLifecycleUnavailable
-	}
-	if err := policy.ValidateAssignableSchoolRole(RoleFactsOf(role), tenantID); err != nil {
-		return nil, err
-	}
-	return role, nil
-}
-
-// isLehrkraftRole reports whether the role is the platform Lehrkraft role.
-// Without a composed policy no role is classified as Lehrkraft; the flows
-// that must refuse it validate the role through the policy first.
-func isLehrkraftRole(policy SchoolIdentityProvisioning, role *authModels.Role) bool {
-	return policy != nil && role != nil && policy.IsLehrkraftSystemRole(RoleFactsOf(role))
-}
-
 // ResolveSystemRoleByName looks up the platform system role with that name,
 // matching case-insensitively; a school's own role never matches. Returns
 // (nil, nil) when no system role has the name. Shared by the caregiver

@@ -102,6 +102,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, err
+	}
 	tokens := application.NewOperatorTokens(service, store)
 	operatorAuth, accountAccess, err := newOperatorFlows(service, store, tokens, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
 	if err != nil {
@@ -111,7 +115,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		service: service, mfa: application.NewOperatorMFA(service, store), tokens: tokens,
 		passkeys: application.NewOperatorPasskey(service, store), accountPasskeys: application.NewAccountPasskey(service, store),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
-		resets: resets, invitations: invitations,
+		resets: resets, invitations: invitations, provisioning: provisioning,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	if dependencies.Sessions != nil {
@@ -173,6 +177,9 @@ type engine struct {
 	// invitations is nil when the module was composed without the school
 	// invitation dependencies.
 	invitations *application.SchoolInvitation
+	// provisioning is nil when the module was composed without lifecycle
+	// dependencies.
+	provisioning *application.AccountProvisioning
 	// invitationMaintenance is always composed: spending a deleted school's
 	// invitations and deleting expired ones need no flow dependencies.
 	invitationMaintenance *application.SchoolInvitationMaintenance

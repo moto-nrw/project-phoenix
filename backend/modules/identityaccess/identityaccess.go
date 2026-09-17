@@ -346,6 +346,7 @@ type Engine interface {
 	OperatorAccountAccess
 	AccountLifecycle
 	RoleAdministration
+	AccountProvisioning
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

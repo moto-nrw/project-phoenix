@@ -3756,7 +3756,7 @@
       "declaration": "setupAuthFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        61
+        79
       ],
       "tables": []
     },
@@ -3828,16 +3828,6 @@
       "tables": [
         "users.guardian_profiles"
       ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/internal_service_test.go",
-      "declaration": "setupInternalAuthService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        22
-      ],
-      "tables": []
     },
     {
       "scope": "test",
@@ -3949,7 +3939,7 @@
       "declaration": "setupAuthServiceWithDB",
       "target": "database/repositories.NewFactory",
       "lines": [
-        24
+        23
       ],
       "tables": []
     },

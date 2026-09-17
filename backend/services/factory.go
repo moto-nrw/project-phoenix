@@ -2718,6 +2718,7 @@ func newFactory(
 		adapters:       provisioningAdapters,
 		authService:    authService,
 		invitations:    invitationService,
+		provisioning:   identityAccess,
 		schoolIdentity: accountSessionsPort,
 		roles:          identityAccess,
 		settings:       settingsService,

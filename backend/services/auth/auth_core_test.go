@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -48,9 +49,26 @@ func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
 	}
 }
 
-func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) auth.AuthService {
+// testAuthService is the retained auth service the tests drive, plus the
+// account creation the fixtures build their accounts with. Registration and
+// school linking belong to Identity & Access since #3332; the fixture keeps
+// the call shape the tests were written against and drives the owner's
+// capability underneath, so every assertion still describes real behavior.
+type testAuthService interface {
+	auth.AuthService
+	Register(ctx context.Context, email, username, password string, roleID *int64, tenantID int64) (*authModels.Account, error)
+	RegisterSchoolAccount(ctx context.Context, email, username, password string, roleID *int64, tenantID int64, identity *identityaccess.SchoolAccountIdentity) (*authModels.Account, *identityaccess.SchoolIdentity, error)
+	LinkAccountToTenant(ctx context.Context, email string, roleID *int64, tenantID int64) (*authModels.Account, error)
+}
+
+func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAuthService {
 	serviceFactory := setupAuthFactory(t, db, rateLimitEnabled...)
-	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+	return &fixtureOwnedAuthService{
+		AuthService:  serviceFactory.Auth,
+		provisioning: serviceFactory.AccountAuthentication(),
+		t:            t,
+		db:           db,
+	}
 }
 
 // setupAuthFactory composes the service factory the auth service and the
@@ -74,8 +92,9 @@ func setupInvitationService(t *testing.T, db *bun.DB) services.InvitationCapabil
 
 type fixtureOwnedAuthService struct {
 	auth.AuthService
-	t  *testing.T
-	db *bun.DB
+	provisioning identityaccess.AccountProvisioning
+	t            *testing.T
+	db           *bun.DB
 }
 
 func (s *fixtureOwnedAuthService) Register(
@@ -84,10 +103,7 @@ func (s *fixtureOwnedAuthService) Register(
 	roleID *int64,
 	tenantID int64,
 ) (*authModels.Account, error) {
-	account, err := s.AuthService.Register(ctx, email, username, password, roleID, tenantID)
-	if account != nil {
-		testpkg.OwnTestAccount(s.t, s.db, account.ID)
-	}
+	account, _, err := s.RegisterSchoolAccount(ctx, email, username, password, roleID, tenantID, nil)
 	return account, err
 }
 
@@ -96,14 +112,44 @@ func (s *fixtureOwnedAuthService) RegisterSchoolAccount(
 	email, username, password string,
 	roleID *int64,
 	tenantID int64,
-	identity *auth.SchoolAccountIdentity,
-) (*authModels.Account, *auth.SchoolIdentity, error) {
-	account, schoolIdentity, err := s.AuthService.RegisterSchoolAccount(
-		ctx, email, username, password, roleID, tenantID, identity)
-	if account != nil {
-		testpkg.OwnTestAccount(s.t, s.db, account.ID)
+	identity *identityaccess.SchoolAccountIdentity,
+) (*authModels.Account, *identityaccess.SchoolIdentity, error) {
+	provisioned, err := s.provisioning.RegisterSchoolAccount(ctx, identityaccess.SchoolAccountRegistration{
+		TenantID: tenantID, Email: email, Username: username, Password: password,
+		RoleID: roleID, Identity: identity,
+	})
+	if err != nil {
+		return nil, nil, err
 	}
-	return account, schoolIdentity, err
+	testpkg.OwnTestAccount(s.t, s.db, provisioned.Account.ID)
+	return registeredAccountModel(provisioned.Account), provisioned.Identity, nil
+}
+
+func (s *fixtureOwnedAuthService) LinkAccountToTenant(
+	ctx context.Context,
+	email string,
+	roleID *int64,
+	tenantID int64,
+) (*authModels.Account, error) {
+	provisioned, err := s.provisioning.LinkSchoolAccount(ctx, identityaccess.SchoolAccountLink{
+		TenantID: tenantID, Email: email, RoleID: roleID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return registeredAccountModel(provisioned.Account), nil
+}
+
+// registeredAccountModel is the retained account shape the assertions read.
+func registeredAccountModel(account identityaccess.RegisteredAccount) *authModels.Account {
+	username := account.Username
+	return &authModels.Account{
+		Model:     modelBase.Model{ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt},
+		Email:     account.Email,
+		Username:  &username,
+		Active:    account.Active,
+		LastLogin: account.LastLogin,
+	}
 }
 
 type fixtureOwnedInvitationService struct {
@@ -198,7 +244,7 @@ func TestAuthService_Register(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Nil(t, account)
-		assert.True(t, errors.Is(err, auth.ErrTenantRequiredForRoleAssignment))
+		assert.True(t, errors.Is(err, identityaccess.ErrTenantRequiredForRoleAssignment))
 
 		var accountCount int
 		err = db.NewSelect().
@@ -335,7 +381,7 @@ func TestAuthService_Login_ConcurrentIssuanceKeepsFiveActiveSessions(t *testing.
 	}
 
 	const concurrency = 8
-	issuers := make([]auth.AuthService, concurrency)
+	issuers := make([]testAuthService, concurrency)
 	for i := range issuers {
 		issuers[i] = setupAuthService(t, db)
 	}
@@ -2877,9 +2923,9 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 
-		var authErr *auth.AuthError
+		var authErr *identityaccess.AuthenticationError
 		require.True(t, errors.As(err, &authErr))
-		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountNotFound))
+		assert.True(t, errors.Is(authErr.Err, identityaccess.ErrAccountNotFound))
 	})
 
 	t.Run("returns error for inactive account", func(t *testing.T) {
@@ -2903,9 +2949,9 @@ func TestAuthService_LinkAccountToTenant(t *testing.T) {
 		require.Error(t, err)
 		assert.Nil(t, result)
 
-		var authErr *auth.AuthError
+		var authErr *identityaccess.AuthenticationError
 		require.True(t, errors.As(err, &authErr))
-		assert.True(t, errors.Is(authErr.Err, auth.ErrAccountInactive))
+		assert.True(t, errors.Is(authErr.Err, identityaccess.ErrAccountInactive))
 	})
 
 	t.Run("idempotent when already linked", func(t *testing.T) {

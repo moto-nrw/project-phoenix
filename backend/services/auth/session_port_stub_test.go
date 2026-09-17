@@ -37,8 +37,6 @@ type stubAccountSessions struct {
 
 var errStubSessionsNotSupported = errors.New("account sessions stub: operation not supported in this test")
 
-func newStubAccountSessions() *stubAccountSessions { return &stubAccountSessions{} }
-
 func (s *stubAccountSessions) DeletedAccountIDs() []int64 {
 	s.mu.Lock()
 	defer s.mu.Unlock()

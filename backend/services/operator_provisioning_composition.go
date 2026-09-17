@@ -25,6 +25,7 @@ type operatorProvisioningSources struct {
 	adapters       repositories.OperatorProvisioningAdapters
 	authService    *auth.Service
 	invitations    identityaccess.SchoolInvitations
+	provisioning   identityaccess.AccountProvisioning
 	schoolIdentity auth.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 	settings       config.SettingsService
@@ -36,8 +37,8 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 		Organizations: sources.organizations,
 		Identity: provisioningIdentity{
 			repos: sources.repos, authService: sources.authService,
-			invitations: sources.invitations, schoolIdentity: sources.schoolIdentity,
-			roles: sources.roles,
+			invitations: sources.invitations, provisioning: sources.provisioning,
+			schoolIdentity: sources.schoolIdentity, roles: sources.roles,
 		},
 		Devices:           sources.adapters.Devices,
 		People:            sources.adapters.People,
@@ -57,6 +58,7 @@ type provisioningIdentity struct {
 	repos          *repositories.Factory
 	authService    *auth.Service
 	invitations    identityaccess.SchoolInvitations
+	provisioning   identityaccess.AccountProvisioning
 	schoolIdentity auth.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 }
@@ -129,15 +131,23 @@ func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request org
 
 func (p provisioningIdentity) RegisterSchoolAccount(ctx context.Context, registration organizationCompose.SchoolAccountRegistration) (organizationCompose.CreatedAccount, error) {
 	roleID := registration.RoleID
-	account, err := p.authService.Register(tenant.WithTenantID(ctx, registration.TenantID),
-		registration.Email, registration.Username, registration.Password, &roleID, registration.TenantID)
+	// The operator routes classify on the retained envelope and may not name
+	// the owner's contract, so the root translates for them (#3332).
+	provisioned, err := p.provisioning.RegisterSchoolAccount(tenant.WithTenantID(ctx, registration.TenantID),
+		identityaccess.SchoolAccountRegistration{
+			TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
+			Password: registration.Password, RoleID: &roleID,
+		})
 	if err != nil {
-		return organizationCompose.CreatedAccount{}, err
+		return organizationCompose.CreatedAccount{}, authServiceError(err)
 	}
+	account := provisioned.Account
+	username := account.Username
+	// The identity chain is provisioned by the caller's next step, and a
+	// fresh account carries neither an avatar nor a one-time password.
 	return organizationCompose.CreatedAccount{
 		ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt, Email: account.Email,
-		Username: account.Username, Avatar: account.Avatar, Active: account.Active,
-		IsPasswordOTP: account.IsPasswordOTP, LastLogin: account.LastLogin,
+		Username: &username, Active: account.Active, LastLogin: account.LastLogin,
 	}, nil
 }
 

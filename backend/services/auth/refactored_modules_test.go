@@ -12,7 +12,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,11 +19,16 @@ import (
 )
 
 // setupAuthServiceWithDB creates an auth service with real database connection
-func setupAuthServiceWithDB(t *testing.T, db *bun.DB) auth.AuthService {
+func setupAuthServiceWithDB(t *testing.T, db *bun.DB) testAuthService {
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	serviceFactory, err := services.NewFactoryForTests(repoFactory, db, slog.Default())
 	require.NoError(t, err, "Failed to create service factory")
-	return &fixtureOwnedAuthService{AuthService: serviceFactory.Auth, t: t, db: db}
+	return &fixtureOwnedAuthService{
+		AuthService:  serviceFactory.Auth,
+		provisioning: serviceFactory.AccountAuthentication(),
+		t:            t,
+		db:           db,
+	}
 }
 
 // =============================================================================
