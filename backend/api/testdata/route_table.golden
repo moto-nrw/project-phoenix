@@ -753,6 +753,7 @@ POST /api/staff/absences/{absenceId}/question
 POST /api/staff/time-tracking/export/sftp
 POST /api/staff/time-tracking/month-close
 POST /api/staff/{id}/absences
+POST /api/staff/{id}/absences/rebook
 POST /api/staff/{id}/documents
 POST /api/staff/{id}/stammdaten/bank-steuer/reveal
 POST /api/staff/{id}/time-tracking/adjustments
