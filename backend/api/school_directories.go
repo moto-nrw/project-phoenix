@@ -6,8 +6,8 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
+	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )

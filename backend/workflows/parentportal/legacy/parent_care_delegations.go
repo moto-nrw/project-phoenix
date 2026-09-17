@@ -5,12 +5,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
 // The Care Plan side of the guardian portal lives in
 // workflows/parentportal/care (#3227). These aliases keep the
-// parent-service vocabulary that api/parent names unchanged.
+// parent-service vocabulary that the guardian portal HTTP composition
+// (modules/careplan/inbound/parent) names unchanged.
 type (
 	AttendanceReader                = care.AttendanceReader
 	ChildCareOfferings              = care.ChildCareOfferings
@@ -22,6 +24,9 @@ type (
 	CareScheduleRequestCapabilities = care.CareScheduleRequestCapabilities
 	TodayStatus                     = care.TodayStatus
 	DayState                        = care.DayState
+	// CareRequestDiffEntry is one "current → requested" row of a pending
+	// care-schedule request, as PendingCareRequest.Diff carries it.
+	CareRequestDiffEntry = scheduleSvc.RequestDiffEntry
 )
 
 const (

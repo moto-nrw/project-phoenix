@@ -11,7 +11,8 @@ import (
 
 // The communication side of the guardian portal lives in
 // workflows/parentportal/messaging (#3227). These aliases keep the
-// parent-service vocabulary that api/parent names unchanged.
+// parent-service vocabulary that the guardian portal HTTP composition
+// (modules/careplan/inbound/parent) names unchanged.
 type (
 	ConversationCore        = messaging.ConversationCore
 	MessageThreadView       = messaging.MessageThreadView
