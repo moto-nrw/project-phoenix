@@ -33,7 +33,7 @@ func init() {
 
 // addGradeTransitionPermissions adds grade transition permissions and grants them to admin role
 func addGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.7: Adding grade transition permissions...")
+	fmt.Printf("Migration %s: Adding grade transition permissions...\n", GradeTransitionPermissionsVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -74,13 +74,13 @@ func addGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting grade transition permissions to admin role: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.7: Successfully added grade transition permissions")
+	fmt.Printf("Migration %s: Successfully added grade transition permissions\n", GradeTransitionPermissionsVersion)
 	return tx.Commit()
 }
 
 // removeGradeTransitionPermissions removes grade transition permissions
 func removeGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.7: Removing grade transition permissions...")
+	fmt.Printf("Rolling back migration %s: Removing grade transition permissions...\n", GradeTransitionPermissionsVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -111,6 +111,6 @@ func removeGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing grade transition permissions: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.7: Successfully removed grade transition permissions")
+	fmt.Printf("Migration %s: Successfully removed grade transition permissions\n", GradeTransitionPermissionsVersion)
 	return tx.Commit()
 }

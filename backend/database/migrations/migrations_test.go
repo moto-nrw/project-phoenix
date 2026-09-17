@@ -2,9 +2,11 @@ package migrations
 
 import (
 	"context"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -92,6 +94,75 @@ func TestNoDuplicateMigrationVersions(t *testing.T) {
 		t.Errorf("Migration file count (%d) != MigrationRegistry entries (%d). "+
 			"%d migration(s) were silently overwritten due to version collisions.",
 			migrationFileCount, registryCount, migrationFileCount-registryCount)
+	}
+}
+
+// TestMigrationLogOutputMatchesRegisteredVersion catches migrations that print a
+// version different from the one they register (#3299). Six migrations did, so
+// "Migration 1.6.17" appeared twice in the log while 1.6.17.1 never showed up.
+// Interpolating the version constant instead of hardcoding the number keeps the
+// two in sync; this test fails if a hardcoded number reappears.
+func TestMigrationLogOutputMatchesRegisteredVersion(t *testing.T) {
+	t.Parallel()
+
+	// Both registration shapes: a `someVersion = "1.2.3"` const and an inline
+	// `Version: "1.2.3"` struct field.
+	versionPattern := regexp.MustCompile(`Version\s*[=:]\s*"([^"]+)"`)
+	// Interpreted Go string literals only. Raw literals hold SQL, not log lines.
+	stringLiteralPattern := regexp.MustCompile(`"(?:[^"\\\n]|\\.)*"`)
+	// Anchored at the literal's start, so it matches only the line a migration
+	// logs ABOUT ITSELF ("Migration 1.2.3: ...", "Rolling back migration
+	// 1.2.3: ..."). A version named later in the sentence is a deliberate
+	// cross-reference to another migration (1.15.132 points at 1.15.126) and
+	// must not be flagged.
+	loggedVersionPattern := regexp.MustCompile(`^"(?:Rolling back migration|Migration) (\d+(?:\.\d+)+)\b`)
+
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatalf("failed to read migrations directory: %v", err)
+	}
+
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
+			continue
+		}
+
+		content, err := os.ReadFile(filepath.Join(".", name))
+		if err != nil {
+			t.Fatalf("failed to read %s: %v", name, err)
+		}
+		src := string(content)
+
+		registered := make(map[string]bool)
+		for _, match := range versionPattern.FindAllStringSubmatch(src, -1) {
+			registered[match[1]] = true
+		}
+
+		for _, literal := range stringLiteralPattern.FindAllString(src, -1) {
+			match := loggedVersionPattern.FindStringSubmatch(literal)
+			if match == nil {
+				continue
+			}
+			logged := match[1]
+			if registered[logged] {
+				continue
+			}
+			// No version found in the file at all: the log line is the only
+			// version claim, so there is nothing keeping it honest.
+			if len(registered) == 0 {
+				t.Errorf("UNVERIFIABLE VERSION OUTPUT: %s logs %q but registers no version this test can find.\n"+
+					"Register the version in a constant or a Version: field and print that.",
+					name, logged)
+				continue
+			}
+			t.Errorf("VERSION OUTPUT MISMATCH: %s logs %q but registers %s.\n"+
+				"Print the version constant instead of a hardcoded number so the log cannot drift.",
+				name, logged, strings.Join(slices.Sorted(maps.Keys(registered)), ", "))
+		}
 	}
 }
 

@@ -92,7 +92,7 @@ func createAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
 }
 
 func dropAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.29: Dropping audit.data_access_log...")
+	fmt.Printf("Rolling back migration %s: Dropping audit.data_access_log...\n", auditDataAccessLogVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

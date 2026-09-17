@@ -34,7 +34,7 @@ func init() {
 }
 
 func addPositionToInvitationTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.17: Adding position column to auth.invitation_tokens...")
+	fmt.Printf("Migration %s: Adding position column to auth.invitation_tokens...\n", AddPositionToInvitationTokensVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -58,7 +58,7 @@ func addPositionToInvitationTokens(ctx context.Context, db *bun.DB) error {
 }
 
 func removePositionFromInvitationTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.17: Removing position column from auth.invitation_tokens...")
+	fmt.Printf("Rolling back migration %s: Removing position column from auth.invitation_tokens...\n", AddPositionToInvitationTokensVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

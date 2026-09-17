@@ -127,7 +127,7 @@ func consolidateRolesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func consolidateRolesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.1: Restoring teacher/staff roles...")
+	fmt.Printf("Rolling back migration %s: Restoring teacher/staff roles...\n", consolidateRolesVersion)
 
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
