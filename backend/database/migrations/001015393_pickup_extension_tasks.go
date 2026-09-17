@@ -44,7 +44,9 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		_ = tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			logRollbackFailure(ctx, rollbackErr)
+		}
 	}()
 
 	_, err = tx.ExecContext(ctx, `
