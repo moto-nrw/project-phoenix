@@ -251,11 +251,8 @@ type Factory struct {
 	// platform.schools (#3253); BindOrganizationTenancy replaces the
 	// unobserved default with the serving root's module.
 	School organizationtenancy.Capability
-
-	// Operator passkeys. The operator MFA records are owned by Identity &
-	// Access (#2723).
-	OperatorPasskeyCredential platformModels.OperatorPasskeyCredentialRepository
-	OperatorPasskeySession    platformModels.OperatorPasskeySessionRepository
+	// The operator MFA and passkey records are owned by Identity & Access
+	// (#2723, #2724).
 
 	// Enrollment domain (parent-enrollment PR 5+)
 	CareOffering enrollmentModels.CareOfferingRepository
@@ -697,9 +694,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		School:                   mustNewOrganizationTenancy(db),
-
-		OperatorPasskeyCredential: platformRepo.NewOperatorPasskeyCredentialRepository(db),
-		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,

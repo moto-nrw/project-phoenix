@@ -3,18 +3,16 @@ package platform
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -98,7 +96,7 @@ func TestOperatorPasskeySummaryAndUser(t *testing.T) {
 func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
 	t.Parallel()
 	baseCfg := OperatorPasskeyServiceConfig{
-		Repos:               &repositories.Factory{},
+		Records:             &operatorPasskeyRecordsStub{},
 		Operators:           &operatorPasskeyOperatorRepoStub{},
 		MFAService:          &operatorPasskeyMFAServiceStub{},
 		AuthService:         &operatorAuthService{},
@@ -112,7 +110,7 @@ func TestNewOperatorPasskeyServiceValidation(t *testing.T) {
 		name   string
 		mutate func(*OperatorPasskeyServiceConfig)
 	}{
-		{name: "missing repos", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.Repos = nil }},
+		{name: "missing records", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.Records = nil }},
 		{name: "missing operators", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.Operators = nil }},
 		{name: "missing mfa", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.MFAService = nil }},
 		{name: "missing auth", mutate: func(cfg *OperatorPasskeyServiceConfig) { cfg.AuthService = nil }},
@@ -196,9 +194,9 @@ func TestOperatorPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	sessions := &operatorPasskeySessionRepoStub{}
 	mfa := &operatorPasskeyMFAServiceStub{}
 	svc := &operatorPasskeyService{
-		repos: &repositories.Factory{
-			OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
-			OperatorPasskeySession:    sessions,
+		records: &operatorPasskeyRecordsStub{
+			credentials: &operatorPasskeyCredentialRepoStub{},
+			sessions:    sessions,
 		},
 		operators:          &operatorPasskeyOperatorRepoStub{operator: operator},
 		mfaService:         mfa,
@@ -238,7 +236,7 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 		name      string
 		req       OperatorPasskeyRegistrationStartRequest
 		operators OperatorDirectory
-		repos     *repositories.Factory
+		records   *operatorPasskeyRecordsStub
 		mfa       *operatorPasskeyMFAServiceStub
 		wantErr   error
 	}{
@@ -287,8 +285,8 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
 			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
-			repos: &repositories.Factory{
-				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{err: wantErr},
+			records: &operatorPasskeyRecordsStub{
+				credentials: &operatorPasskeyCredentialRepoStub{err: wantErr},
 			},
 			mfa: &operatorPasskeyMFAServiceStub{},
 		},
@@ -299,9 +297,9 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
 			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
-			repos: &repositories.Factory{
-				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
-				OperatorPasskeySession:    &operatorPasskeySessionRepoStub{createErr: wantErr},
+			records: &operatorPasskeyRecordsStub{
+				credentials: &operatorPasskeyCredentialRepoStub{},
+				sessions:    &operatorPasskeySessionRepoStub{createErr: wantErr},
 			},
 			mfa: &operatorPasskeyMFAServiceStub{},
 		},
@@ -310,7 +308,7 @@ func TestOperatorPasskeyBeginRegistrationErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &operatorPasskeyService{
-				repos:              tt.repos,
+				records:            tt.records,
 				operators:          tt.operators,
 				mfaService:         tt.mfa,
 				rpID:               "operator.localhost",
@@ -331,7 +329,7 @@ func TestOperatorPasskeyBeginLoginStoresSession(t *testing.T) {
 	t.Parallel()
 	sessions := &operatorPasskeySessionRepoStub{}
 	svc := &operatorPasskeyService{
-		repos:              &repositories.Factory{OperatorPasskeySession: sessions},
+		records:            &operatorPasskeyRecordsStub{sessions: sessions},
 		rpID:               "localhost",
 		rpName:             "moto",
 		operatorOriginHost: "operator.localhost",
@@ -374,7 +372,7 @@ func TestOperatorPasskeyBeginLoginErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &operatorPasskeyService{
-				repos:              &repositories.Factory{OperatorPasskeySession: tt.session},
+				records:            &operatorPasskeyRecordsStub{sessions: tt.session},
 				rpID:               "operator.localhost",
 				rpName:             "moto",
 				operatorOriginHost: "operator.localhost",
@@ -398,15 +396,20 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 		name      string
 		session   *platformModel.OperatorPasskeySession
 		operators OperatorDirectory
-		repos     *repositories.Factory
+		records   *operatorPasskeyRecordsStub
 		wantErr   error
 	}{
 		{
-			name: "consume fails",
-			repos: &repositories.Factory{
-				OperatorPasskeySession: &operatorPasskeySessionRepoStub{consumeErr: sql.ErrNoRows},
-			},
+			name:    "no pending ceremony",
+			records: &operatorPasskeyRecordsStub{sessions: &operatorPasskeySessionRepoStub{}},
 			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+		{
+			name: "consume store failure is not an invalid session",
+			records: &operatorPasskeyRecordsStub{
+				sessions: &operatorPasskeySessionRepoStub{consumeErr: errOperatorPasskeyStore},
+			},
+			wantErr: errOperatorPasskeyStore,
 		},
 		{
 			name: "missing operator id",
@@ -414,7 +417,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			repos:   &repositories.Factory{OperatorPasskeySession: &operatorPasskeySessionRepoStub{}},
+			records: &operatorPasskeyRecordsStub{sessions: &operatorPasskeySessionRepoStub{}},
 			wantErr: authService.ErrPasskeySessionInvalid,
 		},
 		{
@@ -424,7 +427,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			repos:   &repositories.Factory{OperatorPasskeySession: &operatorPasskeySessionRepoStub{}},
+			records: &operatorPasskeyRecordsStub{sessions: &operatorPasskeySessionRepoStub{}},
 			wantErr: authService.ErrPasskeySessionInvalid,
 		},
 		{
@@ -434,7 +437,7 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				SessionJSON:    json.RawMessage(`{`),
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
-			repos: &repositories.Factory{OperatorPasskeySession: &operatorPasskeySessionRepoStub{}},
+			records: &operatorPasskeyRecordsStub{sessions: &operatorPasskeySessionRepoStub{}},
 		},
 		{
 			name: "unknown operator",
@@ -444,8 +447,8 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
 			operators: &operatorPasskeyOperatorRepoStub{err: sql.ErrNoRows},
-			repos: &repositories.Factory{
-				OperatorPasskeySession: &operatorPasskeySessionRepoStub{},
+			records: &operatorPasskeyRecordsStub{
+				sessions: &operatorPasskeySessionRepoStub{},
 			},
 		},
 		{
@@ -456,9 +459,9 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 				ExpectedOrigin: "http://operator.localhost:3000",
 			},
 			operators: &operatorPasskeyOperatorRepoStub{operator: operator},
-			repos: &repositories.Factory{
-				OperatorPasskeyCredential: &operatorPasskeyCredentialRepoStub{},
-				OperatorPasskeySession:    &operatorPasskeySessionRepoStub{},
+			records: &operatorPasskeyRecordsStub{
+				credentials: &operatorPasskeyCredentialRepoStub{},
+				sessions:    &operatorPasskeySessionRepoStub{},
 			},
 			wantErr: authService.ErrPasskeySessionInvalid,
 		},
@@ -466,10 +469,10 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sessionRepo := tt.repos.OperatorPasskeySession.(*operatorPasskeySessionRepoStub)
+			sessionRepo := tt.records.sessions
 			sessionRepo.consumed = tt.session
 			svc := &operatorPasskeyService{
-				repos:              tt.repos,
+				records:            tt.records,
 				operators:          tt.operators,
 				rpID:               "operator.localhost",
 				rpName:             "moto",
@@ -492,13 +495,19 @@ func TestOperatorPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.
 func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		session *platformModel.OperatorPasskeySession
-		wantErr error
+		name       string
+		session    *platformModel.OperatorPasskeySession
+		consumeErr error
+		wantErr    error
 	}{
 		{
-			name:    "consume fails",
+			name:    "no pending ceremony",
 			wantErr: authService.ErrPasskeySessionInvalid,
+		},
+		{
+			name:       "consume store failure is not an invalid session",
+			consumeErr: errOperatorPasskeyStore,
+			wantErr:    errOperatorPasskeyStore,
 		},
 		{
 			name: "invalid session json",
@@ -519,12 +528,9 @@ func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sessionRepo := &operatorPasskeySessionRepoStub{consumed: tt.session}
-			if tt.session == nil {
-				sessionRepo.consumeErr = sql.ErrNoRows
-			}
+			sessionRepo := &operatorPasskeySessionRepoStub{consumed: tt.session, consumeErr: tt.consumeErr}
 			svc := &operatorPasskeyService{
-				repos:              &repositories.Factory{OperatorPasskeySession: sessionRepo},
+				records:            &operatorPasskeyRecordsStub{sessions: sessionRepo},
 				rpID:               "operator.localhost",
 				rpName:             "moto",
 				operatorOriginHost: "operator.localhost",
@@ -542,6 +548,67 @@ func TestOperatorPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 	}
 }
 
+// operatorPasskeyAssertion is a parseable discoverable-login response. The
+// WebAuthn library resolves the credential from it before checking the
+// signature, so it drives FinishLogin to the credential lookup.
+func operatorPasskeyAssertion(t *testing.T) json.RawMessage {
+	t.Helper()
+	encode := base64.RawURLEncoding.EncodeToString
+	clientData := `{"type":"webauthn.get","challenge":"Y2hhbGxlbmdl","origin":"http://operator.localhost:3000"}`
+	raw, err := json.Marshal(map[string]any{
+		"id": encode([]byte("credential-id")), "rawId": encode([]byte("credential-id")), "type": "public-key",
+		"response": map[string]string{
+			"clientDataJSON":    encode([]byte(clientData)),
+			"authenticatorData": encode(make([]byte, 37)),
+			"signature":         encode([]byte("signature")),
+			"userHandle":        encode([]byte("operator-handle")),
+		},
+	})
+	require.NoError(t, err)
+	return raw
+}
+
+// A failed credential lookup must surface as the store error, not as wrong
+// credentials; an unknown credential still reads as wrong credentials.
+func TestOperatorPasskeyFinishLoginCredentialLookup(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name        string
+		credentials *operatorPasskeyCredentialRepoStub
+		wantErr     error
+		wantInvalid bool
+	}{
+		{name: "store failure", credentials: &operatorPasskeyCredentialRepoStub{err: errOperatorPasskeyStore}, wantErr: errOperatorPasskeyStore},
+		{name: "unknown credential", credentials: &operatorPasskeyCredentialRepoStub{}, wantInvalid: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := &operatorPasskeySessionRepoStub{consumed: &platformModel.OperatorPasskeySession{
+				SessionJSON:    json.RawMessage(`{"challenge":"Y2hhbGxlbmdl"}`),
+				ExpectedOrigin: "http://operator.localhost:3000",
+			}}
+			svc := &operatorPasskeyService{
+				records:            &operatorPasskeyRecordsStub{credentials: tt.credentials, sessions: sessions},
+				rpID:               "operator.localhost",
+				rpName:             "moto",
+				operatorOriginHost: "operator.localhost",
+			}
+			_, err := svc.FinishLogin(context.Background(), OperatorPasskeyLoginFinishRequest{
+				SessionID:          "session-id",
+				CredentialResponse: operatorPasskeyAssertion(t),
+			})
+			if tt.wantInvalid {
+				var invalid *InvalidCredentialsError
+				require.ErrorAs(t, err, &invalid)
+				return
+			}
+			require.ErrorIs(t, err, tt.wantErr)
+			var invalid *InvalidCredentialsError
+			assert.False(t, errors.As(err, &invalid), "a store failure is not a credential failure")
+		})
+	}
+}
+
 func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 	t.Parallel()
 	now := time.Now().UTC()
@@ -554,7 +621,7 @@ func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 		Name:           "Admin laptop",
 	}
 	repo := &operatorPasskeyCredentialRepoStub{rows: []*platformModel.OperatorPasskeyCredential{row}}
-	svc := &operatorPasskeyService{repos: &repositories.Factory{OperatorPasskeyCredential: repo}}
+	svc := &operatorPasskeyService{records: &operatorPasskeyRecordsStub{credentials: repo}}
 
 	list, err := svc.ListCredentials(context.Background(), operator.ID)
 	require.NoError(t, err)
@@ -590,21 +657,64 @@ func TestOperatorPasskeyCredentialServiceErrors(t *testing.T) {
 	t.Parallel()
 	wantErr := errors.New("repo down")
 	repo := &operatorPasskeyCredentialRepoStub{err: wantErr}
-	svc := &operatorPasskeyService{repos: &repositories.Factory{OperatorPasskeyCredential: repo}}
+	svc := &operatorPasskeyService{records: &operatorPasskeyRecordsStub{credentials: repo}}
 
 	_, err := svc.ListCredentials(context.Background(), 1)
 	require.ErrorIs(t, err, wantErr)
 
 	err = svc.RevokeCredential(context.Background(), 1, 2)
-	require.ErrorIs(t, err, authService.ErrPasskeyNotFound)
+	require.ErrorIs(t, err, wantErr, "a store failure is not a missing passkey")
+	require.NotErrorIs(t, err, authService.ErrPasskeyNotFound)
 
 	_, err = svc.passkeyUserForOperator(context.Background(), &platformModel.Operator{Email: "operator@example.test"})
 	require.ErrorIs(t, err, wantErr)
+
+	missing := &operatorPasskeyService{records: &operatorPasskeyRecordsStub{credentials: &operatorPasskeyCredentialRepoStub{notRevoked: true}}}
+	err = missing.RevokeCredential(context.Background(), 1, 2)
+	require.ErrorIs(t, err, authService.ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
+}
+
+var errOperatorPasskeyStore = errors.New("passkey store down")
+
+// operatorPasskeyRecordsStub serves the records port from a credential and
+// a session stub.
+type operatorPasskeyRecordsStub struct {
+	credentials *operatorPasskeyCredentialRepoStub
+	sessions    *operatorPasskeySessionRepoStub
+}
+
+func (r *operatorPasskeyRecordsStub) CreateCredential(ctx context.Context, credential *platformModel.OperatorPasskeyCredential) error {
+	return r.credentials.Create(ctx, credential)
+}
+
+func (r *operatorPasskeyRecordsStub) ListActiveCredentials(ctx context.Context, operatorID int64) ([]*platformModel.OperatorPasskeyCredential, error) {
+	return r.credentials.FindActiveByOperatorID(ctx, operatorID)
+}
+
+func (r *operatorPasskeyRecordsStub) FindActiveCredential(ctx context.Context, credentialID, userHandle []byte) (*platformModel.OperatorPasskeyCredential, error) {
+	return r.credentials.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
+}
+
+func (r *operatorPasskeyRecordsStub) RecordCredentialUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error {
+	return r.credentials.UpdateAfterUse(ctx, id, credentialJSON, usedAt)
+}
+
+func (r *operatorPasskeyRecordsStub) RevokeCredential(ctx context.Context, operatorID, id int64, revokedAt time.Time) (bool, error) {
+	return r.credentials.Revoke(ctx, operatorID, id, revokedAt)
+}
+
+func (r *operatorPasskeyRecordsStub) CreateSession(ctx context.Context, session *platformModel.OperatorPasskeySession) error {
+	return r.sessions.Create(ctx, session)
+}
+
+func (r *operatorPasskeyRecordsStub) ConsumeSession(ctx context.Context, id, purpose string, consumedAt time.Time) (*platformModel.OperatorPasskeySession, error) {
+	return r.sessions.Consume(ctx, id, purpose, consumedAt)
 }
 
 type operatorPasskeyCredentialRepoStub struct {
 	rows                []*platformModel.OperatorPasskeyCredential
 	err                 error
+	notRevoked          bool
 	revokedOperatorID   int64
 	revokedCredentialID int64
 }
@@ -628,10 +738,13 @@ func (r *operatorPasskeyCredentialRepoStub) UpdateAfterUse(context.Context, int6
 	return r.err
 }
 
-func (r *operatorPasskeyCredentialRepoStub) Revoke(_ context.Context, operatorID, id int64, _ time.Time) error {
+func (r *operatorPasskeyCredentialRepoStub) Revoke(_ context.Context, operatorID, id int64, _ time.Time) (bool, error) {
 	r.revokedOperatorID = operatorID
 	r.revokedCredentialID = id
-	return r.err
+	if r.err != nil {
+		return false, r.err
+	}
+	return !r.notRevoked, nil
 }
 
 type operatorPasskeySessionRepoStub struct {
@@ -650,14 +763,7 @@ func (r *operatorPasskeySessionRepoStub) Consume(_ context.Context, _, _ string,
 	if r.consumeErr != nil {
 		return nil, r.consumeErr
 	}
-	if r.consumed == nil {
-		return nil, sql.ErrNoRows
-	}
 	return r.consumed, nil
-}
-
-func (r *operatorPasskeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int, error) {
-	return 0, nil
 }
 
 type operatorPasskeyOperatorRepoStub struct {
@@ -768,100 +874,4 @@ func (s *operatorPasskeyMFAServiceStub) ListTrustedDevices(context.Context, int6
 
 func (s *operatorPasskeyMFAServiceStub) RevokeTrustedDevice(context.Context, int64, int64) error {
 	return nil
-}
-
-func TestOperatorPasskeyRepositories(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	requireOperatorPasskeyTables(t, db, "platform.operator_passkey_credentials", "platform.operator_passkey_sessions")
-
-	ctx := context.Background()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-
-	operator := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("operator-passkey-%s@example.test", suffix), "Passkey Operator")
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_passkey_sessions WHERE operator_id = ?`, operator.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM platform.operator_passkey_credentials WHERE operator_id = ?`, operator.ID)
-	})
-
-	credentialID := []byte("operator-credential-" + suffix)
-	userHandle := []byte("operator-user-handle-" + suffix)
-	credential := &platformModel.OperatorPasskeyCredential{
-		OperatorID:     operator.ID,
-		UserHandle:     userHandle,
-		CredentialID:   credentialID,
-		CredentialJSON: json.RawMessage(`{"id":"operator-credential"}`),
-		Name:           "Admin laptop",
-	}
-	require.NoError(t, repos.OperatorPasskeyCredential.Create(ctx, credential))
-	require.NotZero(t, credential.ID)
-
-	active, err := repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
-	require.NoError(t, err)
-	require.Len(t, active, 1)
-	assert.Equal(t, "Admin laptop", active[0].Name)
-
-	byHandle, err := repos.OperatorPasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
-	require.NoError(t, err)
-	assert.Equal(t, credential.ID, byHandle.ID)
-
-	usedAt := time.Now().UTC().Truncate(time.Microsecond)
-	require.NoError(t, repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"operator-updated"}`), usedAt))
-	updated, err := repos.OperatorPasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
-	require.NoError(t, err)
-	require.NotNil(t, updated.LastUsedAt)
-	assert.JSONEq(t, `{"id":"operator-updated"}`, string(updated.CredentialJSON))
-
-	require.NoError(t, repos.OperatorPasskeyCredential.Revoke(ctx, operator.ID, credential.ID, time.Now()))
-	active, err = repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
-	require.NoError(t, err)
-	assert.Empty(t, active)
-	require.Error(t, repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"operator-revoked"}`), time.Now()))
-
-	sessionID := "test-operator-passkey-session-" + suffix
-	session := &platformModel.OperatorPasskeySession{
-		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: sessionID},
-		OperatorID:                   &operator.ID,
-		Purpose:                      platformModel.OperatorPasskeySessionPurposeRegistration,
-		RPID:                         "operator.localhost",
-		ExpectedOrigin:               "http://operator.localhost:3000",
-		SessionJSON:                  json.RawMessage(`{"challenge":"abc"}`),
-		ExpiresAt:                    time.Now().Add(time.Hour),
-	}
-	require.NoError(t, repos.OperatorPasskeySession.Create(ctx, session))
-
-	consumed, err := repos.OperatorPasskeySession.Consume(ctx, sessionID, platformModel.OperatorPasskeySessionPurposeRegistration, time.Now())
-	require.NoError(t, err)
-	require.NotNil(t, consumed.ConsumedAt)
-	_, err = repos.OperatorPasskeySession.Consume(ctx, sessionID, platformModel.OperatorPasskeySessionPurposeRegistration, time.Now())
-	require.Error(t, err)
-
-	expiredID := "test-operator-passkey-expired-" + suffix
-	require.NoError(t, repos.OperatorPasskeySession.Create(ctx, &platformModel.OperatorPasskeySession{
-		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: expiredID},
-		OperatorID:                   &operator.ID,
-		Purpose:                      platformModel.OperatorPasskeySessionPurposeLogin,
-		RPID:                         "operator.localhost",
-		ExpectedOrigin:               "http://operator.localhost:3000",
-		SessionJSON:                  json.RawMessage(`{"challenge":"expired"}`),
-		ExpiresAt:                    time.Now().Add(-time.Hour),
-	}))
-	deleted, err := repos.OperatorPasskeySession.DeleteExpired(ctx, time.Now())
-	require.NoError(t, err)
-	assert.Positive(t, deleted)
-}
-
-func requireOperatorPasskeyTables(t *testing.T, db *bun.DB, tables ...string) {
-	t.Helper()
-
-	ctx := context.Background()
-	for _, table := range tables {
-		var regclass sql.NullString
-		err := db.QueryRowContext(ctx, `SELECT to_regclass(?)`, table).Scan(&regclass)
-		require.NoError(t, err)
-		if !regclass.Valid {
-			t.Skipf("%s is missing; run backend migrations before repository passkey tests", table)
-		}
-	}
 }

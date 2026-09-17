@@ -3,7 +3,6 @@ package platform
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -15,7 +14,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
@@ -32,7 +30,9 @@ type OperatorPasskeyService interface {
 }
 
 type OperatorPasskeyServiceConfig struct {
-	Repos *repositories.Factory
+	// Records is the consumer-owned port over the Identity & Access operator
+	// passkey credentials and ceremony sessions.
+	Records OperatorPasskeyRecords
 	// Operators is the consumer-owned port over the Identity & Access
 	// operator rows the passkey ceremonies resolve their user from.
 	Operators           OperatorDirectory
@@ -72,7 +72,7 @@ type OperatorPasskeyLoginFinishRequest struct {
 }
 
 type operatorPasskeyService struct {
-	repos              *repositories.Factory
+	records            OperatorPasskeyRecords
 	operators          OperatorDirectory
 	mfaService         OperatorMFAService
 	authService        OperatorAuthService
@@ -86,8 +86,8 @@ type operatorPasskeyService struct {
 var _ OperatorPasskeyService = (*operatorPasskeyService)(nil)
 
 func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasskeyService, error) {
-	if cfg.Repos == nil {
-		return nil, errors.New("OperatorPasskeyServiceConfig.Repos is required")
+	if cfg.Records == nil {
+		return nil, errors.New("OperatorPasskeyServiceConfig.Records is required")
 	}
 	if cfg.Operators == nil {
 		return nil, errors.New("OperatorPasskeyServiceConfig.Operators is required")
@@ -118,7 +118,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 		logger = slog.Default()
 	}
 	return &operatorPasskeyService{
-		repos:              cfg.Repos,
+		records:            cfg.Records,
 		operators:          cfg.Operators,
 		mfaService:         cfg.MFAService,
 		authService:        cfg.AuthService,
@@ -199,18 +199,18 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 		ExpiresAt:      sessionData.Expires,
 	}
 	session.ID = sessionID.String()
-	if err := s.repos.OperatorPasskeySession.Create(ctx, session); err != nil {
+	if err := s.records.CreateSession(ctx, session); err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyCredentialCreation{SessionID: sessionID.String(), Options: creation}, nil
 }
 
 func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req OperatorPasskeyRegistrationFinishRequest) (*authService.PasskeyCredentialSummary, error) {
-	sessionRow, err := s.repos.OperatorPasskeySession.Consume(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeRegistration, time.Now())
+	sessionRow, err := s.records.ConsumeSession(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeRegistration, time.Now())
 	if err != nil {
-		return nil, authService.ErrPasskeySessionInvalid
+		return nil, err
 	}
-	if sessionRow.OperatorID == nil || *sessionRow.OperatorID != req.OperatorID {
+	if sessionRow == nil || sessionRow.OperatorID == nil || *sessionRow.OperatorID != req.OperatorID {
 		return nil, authService.ErrPasskeySessionInvalid
 	}
 	var sessionData webauthn.SessionData
@@ -252,7 +252,7 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 		CredentialJSON: credentialJSON,
 		Name:           name,
 	}
-	if err := s.repos.OperatorPasskeyCredential.Create(ctx, row); err != nil {
+	if err := s.records.CreateCredential(ctx, row); err != nil {
 		return nil, err
 	}
 	return summarizeOperatorPasskeyCredential(row), nil
@@ -290,15 +290,18 @@ func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin 
 		ExpiresAt:      sessionData.Expires,
 	}
 	session.ID = sessionID.String()
-	if err := s.repos.OperatorPasskeySession.Create(ctx, session); err != nil {
+	if err := s.records.CreateSession(ctx, session); err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyCredentialAssertion{SessionID: sessionID.String(), Options: assertion}, nil
 }
 
 func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPasskeyLoginFinishRequest) (*authService.PasskeyLoginResult, error) {
-	sessionRow, err := s.repos.OperatorPasskeySession.Consume(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeLogin, time.Now())
+	sessionRow, err := s.records.ConsumeSession(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeLogin, time.Now())
 	if err != nil {
+		return nil, err
+	}
+	if sessionRow == nil {
 		return nil, authService.ErrPasskeySessionInvalid
 	}
 	var sessionData webauthn.SessionData
@@ -314,13 +317,18 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 		return nil, err
 	}
 	var matchedCredentialID int64
+	// The WebAuthn library reports every handler error as a failed
+	// assertion; a failed credential lookup is kept apart so a store outage
+	// does not read as wrong credentials.
+	var lookupErr error
 	user, credential, err := webAuthn.FinishPasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
-		row, err := s.repos.OperatorPasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, rawID, userHandle)
+		row, err := s.records.FindActiveCredential(ctx, rawID, userHandle)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, &InvalidCredentialsError{}
-			}
+			lookupErr = err
 			return nil, err
+		}
+		if row == nil {
+			return nil, &InvalidCredentialsError{}
 		}
 		matchedCredentialID = row.ID
 		operator, err := s.operators.FindByID(ctx, row.OperatorID)
@@ -329,6 +337,9 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 		}
 		return s.passkeyUserForOperator(ctx, operator)
 	}, sessionData, httpReq)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
 	if err != nil {
 		return nil, &InvalidCredentialsError{}
 	}
@@ -336,7 +347,7 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
+	if err := s.records.RecordCredentialUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
 		return nil, err
 	}
 	passkeyUser, ok := user.(*authService.WebAuthnUser)
@@ -351,7 +362,7 @@ func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPa
 }
 
 func (s *operatorPasskeyService) ListCredentials(ctx context.Context, operatorID int64) ([]authService.PasskeyCredentialSummary, error) {
-	rows, err := s.repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operatorID)
+	rows, err := s.records.ListActiveCredentials(ctx, operatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -363,14 +374,18 @@ func (s *operatorPasskeyService) ListCredentials(ctx context.Context, operatorID
 }
 
 func (s *operatorPasskeyService) RevokeCredential(ctx context.Context, operatorID, credentialID int64) error {
-	if err := s.repos.OperatorPasskeyCredential.Revoke(ctx, operatorID, credentialID, time.Now()); err != nil {
+	revoked, err := s.records.RevokeCredential(ctx, operatorID, credentialID, time.Now())
+	if err != nil {
+		return err
+	}
+	if !revoked {
 		return authService.ErrPasskeyNotFound
 	}
 	return nil
 }
 
 func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, operator *platform.Operator, sessionUserHandle ...[]byte) (*authService.WebAuthnUser, error) {
-	rows, err := s.repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
+	rows, err := s.records.ListActiveCredentials(ctx, operator.ID)
 	if err != nil {
 		return nil, err
 	}

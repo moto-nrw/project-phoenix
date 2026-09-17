@@ -5802,19 +5802,6 @@
     },
     {
       "scope": "test",
-      "file": "services/platform/operator_passkey_service_test.go",
-      "declaration": "TestOperatorPasskeyRepositories",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        779
-      ],
-      "tables": [
-        "platform.operator_passkey_credentials",
-        "platform.operator_passkey_sessions"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "services/scheduler/overdue_test.go",
       "declaration": "buildOverdue",
       "target": "database/repositories.NewFactory",
@@ -23262,16 +23249,6 @@
           "file": "services/platform/operator_mfa_service.go",
           "line": 91,
           "declaration": "type OperatorMFAServiceConfig"
-        },
-        {
-          "file": "services/platform/operator_passkey_service.go",
-          "line": 35,
-          "declaration": "type OperatorPasskeyServiceConfig"
-        },
-        {
-          "file": "services/platform/operator_passkey_service.go",
-          "line": 75,
-          "declaration": "type operatorPasskeyService"
         }
       ]
     },

@@ -28,3 +28,14 @@ func NewOperatorMFARecordsForTests(db *bun.DB) (platform.OperatorMFARecords, err
 	}
 	return newOperatorMFARecords(module), nil
 }
+
+// NewOperatorPasskeyRecordsForTests serves the retained operator passkey
+// records port over the Identity & Access module composed for repository
+// fixtures, the way the service root binds it (#2724).
+func NewOperatorPasskeyRecordsForTests(db *bun.DB) (platform.OperatorPasskeyRecords, error) {
+	module, err := repositories.NewIdentityAccessForTests(db)
+	if err != nil {
+		return nil, err
+	}
+	return newOperatorPasskeyRecords(module), nil
+}

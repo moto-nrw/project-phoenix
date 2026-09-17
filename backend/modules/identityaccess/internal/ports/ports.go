@@ -107,6 +107,27 @@ type OperatorMFAStore interface {
 	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
 }
 
+// OperatorPasskeyStore is the persistence port over the operator passkey
+// credential and ceremony-session tables. Both are platform-wide: no row
+// carries a tenant. "Active" means unrevoked.
+type OperatorPasskeyStore interface {
+	InsertOperatorPasskey(ctx context.Context, credential domain.OperatorPasskeyCredential) (domain.OperatorPasskeyCredential, domain.OperationStats, error)
+	// ListActiveOperatorPasskeys orders by creation, oldest first.
+	ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]domain.OperatorPasskeyCredential, domain.OperationStats, error)
+	FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (domain.OperatorPasskeyCredential, bool, domain.OperationStats, error)
+	// UpdateOperatorPasskeyAfterUse stores the credential state on an active
+	// row and reports whether such a row existed.
+	UpdateOperatorPasskeyAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) (bool, domain.OperationStats, error)
+	// RevokeOperatorPasskey stamps revoked_at on an active row of that
+	// operator and reports whether such a row existed.
+	RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertOperatorPasskeySession(ctx context.Context, session domain.OperatorPasskeySession) (domain.OperatorPasskeySession, domain.OperationStats, error)
+	// ConsumeOperatorPasskeySession stamps consumed_at on an unconsumed row
+	// with that purpose that expires after consumedAt and returns it.
+	ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (domain.OperatorPasskeySession, bool, domain.OperationStats, error)
+}
+
 // AccountSessionStore is the persistence port over auth.tokens, the
 // tenant-scoped refresh sessions of platform accounts. Reads and deletes that
 // name no explicit tenant apply the scope the composition resolves from the
