@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	absenceAllowanceCarryoverVersion     = "1.15.390"
+	absenceAllowanceCarryoverVersion     = "1.15.391"
 	absenceAllowanceCarryoverDescription = "Let the rest of a staff absence allowance stay usable into the following year (#3257)"
 )
 
