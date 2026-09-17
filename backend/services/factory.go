@@ -80,7 +80,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -88,6 +87,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
@@ -278,7 +278,7 @@ type Factory struct {
 	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
-	Parent parent.Service
+	Parent parentportal.Service
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging communication.ParentMessagingCapability
@@ -468,7 +468,7 @@ func NewFactoryWithModules(
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	observeCarePlan CarePlanObserver,
-	mealPlan parent.MealPlan,
+	mealPlan parentportal.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
@@ -517,7 +517,7 @@ func newFactory(
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
 	observeCarePlan CarePlanObserver,
-	mealPlan parent.MealPlan,
+	mealPlan parentportal.MealPlan,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter users.FeedbackEntryCounter,
 	bindFeedbackSettings FeedbackSettingsBinder,
@@ -2619,7 +2619,10 @@ func newFactory(
 		Logger:                 logger.With("service", "calendar"),
 	})
 
-	parentService := parent.NewService(parent.ServiceConfig{
+	// The photo lifecycle exists only after EnableStudentPhotos runs in the
+	// API bootstrap, so the parent service resolves it on use.
+	var factory *Factory
+	parentService := parentportal.NewService(parentportal.ServiceConfig{
 		ChildRepo:                 repos.ParentChild,
 		EnrollablePhaseRepo:       repos.ParentEnrollablePhase,
 		EnrollmentSettings:        settingsService,
@@ -2663,13 +2666,20 @@ func newFactory(
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo: repos.GuardianChange,
 		StudentConsents:         studentConsentService,
-		CarePeriods:             repos.Enrollment(),
-		OfferingHistory:         repos.Enrollment(),
-		CareOfferingRepo:        repos.CareOffering,
-		OfferingChanges:         offeringChangeRequestService,
-		DB:                      db,
-		Logger:                  logger.With("service", "parent"),
-		Now:                     now,
+		StudentPhotos: func() parentportal.StudentPhotoUnlinker {
+			if factory == nil || factory.StudentPhotos == nil {
+				return nil
+			}
+			return factory.StudentPhotos
+		},
+		AbsenceNotifier:  absenceNotifier,
+		CarePeriods:      repos.Enrollment(),
+		OfferingHistory:  repos.Enrollment(),
+		CareOfferingRepo: repos.CareOffering,
+		OfferingChanges:  offeringChangeRequestService,
+		DB:               db,
+		Logger:           logger.With("service", "parent"),
+		Now:              now,
 	})
 
 	parentAnnouncementService := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
@@ -2823,12 +2833,6 @@ func newFactory(
 		settingsService,
 		logger.With("service", "pwa_usage"),
 	)
-
-	// Injected after the fact: the parent service is wired before the
-	// notification stack exists.
-	if setter, ok := parentService.(parent.AbsenceNotifierSetter); ok {
-		setter.SetAbsenceNotifier(absenceNotifier)
-	}
 
 	remindersService := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 		Clock:        reminderClock(),
@@ -2998,7 +3002,7 @@ func newFactory(
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
 	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
-	factory := &Factory{
+	factory = &Factory{
 		settingsRuntimeDB:       db,
 		Auth:                    authService,
 		Audit:                   auditCommand,
@@ -3263,9 +3267,6 @@ func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
 		Logger:      deps.Logger,
 		Consents:    f.StudentConsents,
 	})
-	if setter, ok := f.Parent.(parent.StudentPhotoSetter); ok {
-		setter.SetStudentPhotos(f.StudentPhotos)
-	}
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }
 

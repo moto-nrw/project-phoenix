@@ -142,7 +142,7 @@ const ARRIVAL_TIME_CACHE_KEY_PARTS = [
 // purpose: a parent care-exception (submit AND delete) rewrites that day's
 // pickup and arrival override but announces ONLY student_updated — no
 // pickup_schedule_changed, no arrival_schedule_changed
-// (services/parent/parent_write_service.go SubmitCareException). An approved
+// (workflows/parentportal/legacy/parent_write_service.go SubmitCareException). An approved
 // care request is the mirror gap: it emits arrival_schedule_changed but also
 // rewrites the weekly PICKUP plan. Every one of these caches disables focus
 // revalidation, so without this list an open page keeps showing the superseded

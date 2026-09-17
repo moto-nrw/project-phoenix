@@ -84,7 +84,7 @@ func (r *ChildRepository) ListByAccount(ctx context.Context, accountID int64) ([
 // existence.
 //
 // This is THE authorization gate for every per-child parent write
-// (services/parent resolvePermittedChild), so the alumnus exclusion that
+// (workflows/parentportal/legacy resolvePermittedChild), so the alumnus exclusion that
 // hides graduates from the dashboard also stops the writes: a guardian
 // cannot submit a future-dated sick note or care exception for a child
 // who has left the school (#405 review).

@@ -229,7 +229,7 @@ func (s *GuardianService) GuardianDisplays(ctx context.Context, ids []int64) ([]
 // UpdateGuardian updates a guardian profile
 func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req GuardianCreateRequest) error {
 	// Serialize all guardian contact writers on the profile row. The
-	// parents-portal contact path (services/parent.UpdateGuardianContact) locks
+	// parents-portal contact path (workflows/parentportal/legacy.UpdateGuardianContact) locks
 	// this same row FOR UPDATE before its read-modify-write plus wholesale phone
 	// replace; taking the lock here — BEFORE the read — makes this staff profile
 	// edit serialize against it, so a stale-read full-row Update can't clobber the
