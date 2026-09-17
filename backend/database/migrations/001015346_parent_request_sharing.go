@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -22,7 +21,6 @@ func init() {
 }
 
 func parentRequestSharingUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", slog.String("migration", parentRequestSharingVersion))
 	_, err := db.NewRaw(`
 		CREATE TABLE users.parent_request_share_events (
 			id BIGSERIAL PRIMARY KEY,

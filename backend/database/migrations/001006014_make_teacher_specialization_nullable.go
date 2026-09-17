@@ -32,8 +32,6 @@ func init() {
 
 // makeTeacherSpecializationNullableUp drops the NOT NULL constraint from users.teachers.specialization
 func makeTeacherSpecializationNullableUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.14: Making teacher specialization nullable...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -54,8 +52,6 @@ func makeTeacherSpecializationNullableUp(ctx context.Context, db *bun.DB) error 
 // Note: This sets a default value for any existing NULL specializations before
 // restoring the constraint, ensuring the rollback succeeds even if NULL values exist.
 func makeTeacherSpecializationNullableDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.14: Restoring NOT NULL constraint on specialization...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

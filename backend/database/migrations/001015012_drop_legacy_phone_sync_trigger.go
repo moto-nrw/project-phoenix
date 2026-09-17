@@ -31,8 +31,6 @@ func init() {
 }
 
 func dropLegacyPhoneSync(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.12: Dropping legacy phone sync trigger and columns...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -50,7 +48,6 @@ func dropLegacyPhoneSync(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop sync trigger: %w", err)
 	}
-	fmt.Println("  Dropped trigger sync_phone_to_legacy and function sync_guardian_phone_to_legacy")
 
 	// 2. Drop the legacy columns that nobody reads anymore.
 	// Phone numbers are stored in users.guardian_phone_numbers since migration 1.7.6.
@@ -63,15 +60,11 @@ func dropLegacyPhoneSync(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to drop legacy columns: %w", err)
 	}
-	fmt.Println("  Dropped legacy columns phone and mobile_phone from guardian_profiles")
 
-	fmt.Println("Migration 1.15.12: Done")
 	return tx.Commit()
 }
 
 func rollbackDropLegacyPhoneSync(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.12: Restoring legacy phone columns and sync trigger...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

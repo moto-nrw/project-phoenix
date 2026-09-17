@@ -130,8 +130,6 @@ const unambiguousNameFromMappedSchools = `
 //
 // Idempotent — every insert is guarded by NOT EXISTS.
 func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.293: Repairing accounts with a school role but no staff record...")
-
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		res, err := tx.ExecContext(ctx, `
 			INSERT INTO users.persons (tenant_id, account_id, first_name, last_name, created_at, updated_at)
@@ -151,7 +149,9 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("error repairing person records: %w", err)
 		}
 		if affected, affErr := res.RowsAffected(); affErr == nil {
-			fmt.Printf("  Created %d missing person record(s) from a name the account carries at another school\n", affected)
+			migrationLog().InfoContext(ctx, "missing person records created from a name the account carries at another school",
+				"rows", affected,
+			)
 		}
 
 		res, err = tx.ExecContext(ctx, `
@@ -193,7 +193,9 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("error repairing staff records: %w", err)
 		}
 		if affected, affErr := res.RowsAffected(); affErr == nil {
-			fmt.Printf("  Created %d missing staff record(s)\n", affected)
+			migrationLog().InfoContext(ctx, "missing staff records created",
+				"rows", affected,
+			)
 		}
 
 		res, err = tx.ExecContext(ctx, `
@@ -271,7 +273,9 @@ func repairSchoolIdentitiesUp(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("error repairing caregiver profiles: %w", err)
 		}
 		if affected, affErr := res.RowsAffected(); affErr == nil {
-			fmt.Printf("  Created %d missing caregiver profile(s)\n", affected)
+			migrationLog().InfoContext(ctx, "missing caregiver profiles created",
+				"rows", affected,
+			)
 		}
 
 		return reportUnrepairableSchoolIdentities(ctx, tx)
@@ -312,9 +316,23 @@ func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
 		return nil
 	}
 
-	fmt.Printf("  %d account(s) hold school access as personnel with an incomplete or invalid identity and need a human:\n", len(rows))
+	log := migrationLog()
+	log.WarnContext(ctx, "accounts hold school access as personnel with an incomplete or invalid identity and need a human",
+		"accounts", len(rows),
+	)
 	for _, row := range rows {
-		fmt.Printf("    school %d: account %d (%s) — %s\n", row.TenantID, row.AccountID, row.Email, row.Reason)
+		// The account id is what the staff UI resolves; the address is only a
+		// convenience for finding it, so it stays at Debug and out of the
+		// deployed log.
+		log.WarnContext(ctx, "school identity needs manual repair",
+			"tenant_id", row.TenantID,
+			"account_id", row.AccountID,
+			"reason", row.Reason,
+		)
+		log.DebugContext(ctx, "school identity needs manual repair",
+			"account_id", row.AccountID,
+			"email", row.Email,
+		)
 	}
 
 	return nil
@@ -390,6 +408,5 @@ func listUnrepairableSchoolIdentities(ctx context.Context, db bun.IDB) ([]unrepa
 // created are indistinguishable from the ones the fixed provisioning creates,
 // and deleting staff records would take their historical references with them.
 func repairSchoolIdentitiesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.293: nothing to undo (repair only, see doc comment)")
 	return nil
 }

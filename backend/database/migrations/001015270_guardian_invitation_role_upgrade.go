@@ -30,8 +30,6 @@ func init() {
 }
 
 func guardianInvitationRoleUpgradeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.270: Tracking guardian-invitation role upgrades...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations
 			ADD COLUMN IF NOT EXISTS role_upgrade BOOLEAN NOT NULL DEFAULT FALSE;
@@ -42,8 +40,6 @@ func guardianInvitationRoleUpgradeUp(ctx context.Context, db *bun.DB) error {
 }
 
 func guardianInvitationRoleUpgradeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.270: dropping role_upgrade marker...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations
 			DROP COLUMN IF EXISTS role_upgrade;

@@ -38,8 +38,6 @@ func init() {
 }
 
 func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.36: Creating activity instances and related tables...")
-
 	// 1. schedule.activity_instances — the concrete materialized instance of a template on a given date,
 	//    or a spontaneous instance (activity_group_id IS NULL).
 	//    - activity_group_id:  nullable FK — NULL = spontaneous (no template)
@@ -369,8 +367,6 @@ func createActivityInstancesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createActivityInstancesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.36: Dropping activity instance tables...")
-
 	// Drop in reverse dependency order: children first, then parent.
 	_, err := db.NewRaw(`DROP TABLE IF EXISTS schedule.activity_exceptions CASCADE;`).Exec(ctx)
 	if err != nil {

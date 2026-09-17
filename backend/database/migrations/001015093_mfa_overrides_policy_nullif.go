@@ -38,7 +38,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.93: rewriting auth.mfa_overrides RLS policy with NULLIF...")
 			_, err := db.ExecContext(ctx, `
 				DROP POLICY IF EXISTS mfa_overrides_tenant_isolation ON auth.mfa_overrides;
 				CREATE POLICY mfa_overrides_tenant_isolation ON auth.mfa_overrides
@@ -57,7 +56,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.93: restoring crash-on-unset policy shape...")
 			_, err := db.ExecContext(ctx, `
 				DROP POLICY IF EXISTS mfa_overrides_tenant_isolation ON auth.mfa_overrides;
 				CREATE POLICY mfa_overrides_tenant_isolation ON auth.mfa_overrides

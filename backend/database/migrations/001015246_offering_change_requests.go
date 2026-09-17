@@ -32,7 +32,6 @@ func init() {
 // Shape follows schedule.care_schedule_change_requests (#1803): one canonical
 // payload per row, decided atomically, at most one pending row per child.
 func offeringChangeRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.246: Creating enrollment.offering_change_requests...")
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS enrollment.offering_change_requests (
 			id BIGSERIAL PRIMARY KEY,
@@ -92,7 +91,6 @@ func offeringChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func offeringChangeRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.246: Dropping enrollment.offering_change_requests...")
 	if _, err := db.NewRaw(`
 		DROP TABLE IF EXISTS enrollment.offering_change_requests CASCADE;
 	`).Exec(ctx); err != nil {

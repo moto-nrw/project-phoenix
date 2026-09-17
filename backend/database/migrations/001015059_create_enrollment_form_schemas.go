@@ -33,8 +33,6 @@ func init() {
 }
 
 func createEnrollmentFormSchemasUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.59: Creating enrollment schema + enrollment.form_schemas table...")
-
 	if _, err := db.NewRaw(`CREATE SCHEMA IF NOT EXISTS enrollment;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed creating enrollment schema: %w", err)
 	}
@@ -96,7 +94,6 @@ func createEnrollmentFormSchemasUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createEnrollmentFormSchemasDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.59: Dropping enrollment.form_schemas...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS enrollment.form_schemas CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping form_schemas: %w", err)
 	}

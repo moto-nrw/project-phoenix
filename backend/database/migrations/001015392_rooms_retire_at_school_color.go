@@ -49,8 +49,6 @@ func init() {
 // runs IsReservedRoomColor on UPDATE as well as INSERT, so renaming or
 // changing capacity gets a 400 with no hint that the color is the problem.
 func roomsRetireAtSchoolColorUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.392: Backing up + clearing room colors that became the Schule status badge...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS audit.room_color_migration_backup (
 			id           BIGSERIAL PRIMARY KEY,
@@ -78,7 +76,10 @@ func roomsRetireAtSchoolColorUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
 	if backed, raErr := backupRes.RowsAffected(); raErr == nil && backed > 0 {
-		fmt.Printf("Migration 1.15.392: backed up %d room(s) into audit.room_color_migration_backup before clearing\n", backed)
+		migrationLog().InfoContext(ctx, "room colors backed up before clearing",
+			"rows", backed,
+			"backup_table", "audit.room_color_migration_backup",
+		)
 	}
 
 	res, err := db.NewRaw(`
@@ -91,7 +92,10 @@ func roomsRetireAtSchoolColorUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed clearing the Schule status room color: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.392: cleared %d room(s) carrying the Schule status color (audit.room_color_migration_backup retains the original values)\n", affected)
+		migrationLog().InfoContext(ctx, "room colors cleared: Schule status badge color",
+			"rows", affected,
+			"backup_table", "audit.room_color_migration_backup",
+		)
 	}
 
 	return nil
@@ -100,6 +104,5 @@ func roomsRetireAtSchoolColorUp(ctx context.Context, db *bun.DB) error {
 // roomsRetireAtSchoolColorDown is deliberately a no-op on the data. Restoring
 // the colors would hand rooms back a hex that Room.Validate now rejects.
 func roomsRetireAtSchoolColorDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.392: cleared colors are NOT auto-restored — see audit.room_color_migration_backup")
 	return nil
 }

@@ -38,8 +38,6 @@ var ActivitiesGroupsCreatedByDependencies = []string{
 // 2. Backfilling existing rows with their first supervisor (or fallback staff)
 // 3. Setting NOT NULL constraint
 func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.8.3: Adding created_by column to activities.groups...")
-
 	// Step 0: Check if column already exists (handles partial application)
 	var columnExists bool
 	err := db.QueryRowContext(ctx, `
@@ -67,15 +65,12 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("error checking nullable status: %w", err)
 		}
 		if isNullable == "NO" {
-			fmt.Println("  Column created_by already exists with NOT NULL - skipping migration")
 			return nil
 		}
-		fmt.Println("  Column created_by exists but migration was partially applied - resuming...")
 	}
 
 	// Step 1: Add created_by column as NULLABLE first (skip if already exists from partial run)
 	if !columnExists {
-		fmt.Println("  Adding created_by column (nullable)...")
 		_, err = db.ExecContext(ctx, `
 			ALTER TABLE activities.groups
 			ADD COLUMN created_by BIGINT
@@ -86,7 +81,6 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Step 2: Backfill existing rows with first assigned supervisor (prefer primary)
-	fmt.Println("  Backfilling existing groups with first supervisor...")
 	result, err := db.ExecContext(ctx, `
 		UPDATE activities.groups g
 		SET created_by = (
@@ -102,7 +96,9 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error backfilling created_by from supervisors: %w", err)
 	}
 	rowsUpdated, _ := result.RowsAffected()
-	fmt.Printf("  Updated %d groups with their first supervisor\n", rowsUpdated)
+	migrationLog().InfoContext(ctx, "activity groups assigned their first supervisor",
+		"rows", rowsUpdated,
+	)
 
 	// Step 3: Handle any remaining NULL values (groups without supervisors)
 	// Use the first active staff member as fallback
@@ -115,7 +111,9 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	}
 
 	if remainingNulls > 0 {
-		fmt.Printf("  Found %d groups without supervisors - using fallback staff...\n", remainingNulls)
+		migrationLog().InfoContext(ctx, "activity groups without a supervisor fall back to staff",
+			"rows", remainingNulls,
+		)
 		_, err = db.ExecContext(ctx, `
 			UPDATE activities.groups
 			SET created_by = (
@@ -143,7 +141,6 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Step 5: Set NOT NULL constraint
-	fmt.Println("  Setting NOT NULL constraint...")
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 		ALTER COLUMN created_by SET NOT NULL
@@ -153,7 +150,6 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Step 6: Add foreign key constraint
-	fmt.Println("  Adding foreign key constraint...")
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE activities.groups
 		ADD CONSTRAINT fk_activity_groups_created_by
@@ -164,7 +160,6 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Step 7: Add index for performance
-	fmt.Println("  Creating index on created_by...")
 	_, err = db.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_activity_groups_created_by
 		ON activities.groups(created_by)
@@ -173,14 +168,11 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating index: %w", err)
 	}
 
-	fmt.Println("Migration 1.8.3 completed successfully (zero data loss)")
 	return nil
 }
 
 // rollbackActivitiesGroupsCreatedBy removes the created_by column
 func rollbackActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.8.3: Removing created_by column from activities.groups...")
-
 	// Drop index
 	_, err := db.ExecContext(ctx, `
 		DROP INDEX IF EXISTS activities.idx_activity_groups_created_by
@@ -207,6 +199,5 @@ func rollbackActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping created_by column: %w", err)
 	}
 
-	fmt.Println("Rollback 1.8.3 completed successfully")
 	return nil
 }

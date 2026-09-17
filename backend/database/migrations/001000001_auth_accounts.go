@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createAuthAccountsTable creates the auth.accounts table
 func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.0.1: Creating auth.accounts table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -45,7 +42,7 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
 			// Log error or handle as appropriate
-			log.Printf("Failed to rollback transaction in up migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -100,8 +97,6 @@ func createAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthAccountsTable drops the auth.accounts table
 func dropAuthAccountsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.0.1: Removing auth.accounts table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -110,7 +105,7 @@ func dropAuthAccountsTable(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
 			// Log error or handle as appropriate
-			log.Printf("Failed to rollback transaction in down migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

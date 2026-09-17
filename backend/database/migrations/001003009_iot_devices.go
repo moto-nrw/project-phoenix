@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createIoTDevicesTable creates the iot.devices table
 func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.3.9: Creating iot.devices table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -116,8 +113,6 @@ func createIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 
 // dropIoTDevicesTable drops the iot.devices table
 func dropIoTDevicesTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.3.9: Removing iot.devices table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -125,7 +120,7 @@ func dropIoTDevicesTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createActiveGroupMappingsTable creates the active.group_mappings table
 func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.5: Creating active.group_mappings table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -89,8 +86,6 @@ func createActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActiveGroupMappingsTable drops the active.group_mappings table
 func dropActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.5: Removing active.group_mappings table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -98,7 +93,7 @@ func dropActiveGroupMappingsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

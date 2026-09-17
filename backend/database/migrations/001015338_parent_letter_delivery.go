@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -37,15 +36,13 @@ func init() {
 }
 
 func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.338: Adding Elternbrief delivery mode and per-recipient delivery records...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Error("rollback parent letter delivery migration", "error", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -216,8 +213,6 @@ func parentLetterDeliveryUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentLetterDeliveryDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.338: Dropping Elternbrief delivery mode and delivery records...")
-
 	if _, err := db.NewRaw(`
 		DROP TABLE IF EXISTS platform.email_delivery CASCADE;
 		ALTER TABLE users.parent_announcements

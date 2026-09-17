@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -36,8 +35,6 @@ func init() {
 // This is needed because phone numbers are now stored in guardian_phone_numbers table
 // and the guardian profile may be created first, then phone numbers added separately
 func removeGuardianContactConstraintUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.7: Removing check_contact_method constraint from guardian_profiles...")
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.guardian_profiles
 		DROP CONSTRAINT IF EXISTS check_contact_method
@@ -46,14 +43,11 @@ func removeGuardianContactConstraintUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping check_contact_method constraint: %w", err)
 	}
 
-	log.Println("Successfully removed check_contact_method constraint")
 	return nil
 }
 
 // removeGuardianContactConstraintDown restores the check_contact_method constraint
 func removeGuardianContactConstraintDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.7: Restoring check_contact_method constraint...")
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.guardian_profiles
 		ADD CONSTRAINT check_contact_method CHECK (
@@ -66,6 +60,5 @@ func removeGuardianContactConstraintDown(ctx context.Context, db *bun.DB) error 
 		return fmt.Errorf("error restoring check_contact_method constraint: %w", err)
 	}
 
-	log.Println("Successfully restored check_contact_method constraint")
 	return nil
 }

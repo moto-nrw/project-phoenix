@@ -23,7 +23,6 @@ func init() {
 }
 
 func careOfferingAvailabilityRulesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.196: Adding care-offering availability rules...")
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.care_offerings
 			ADD COLUMN IF NOT EXISTS availability_rule JSONB;
@@ -38,7 +37,6 @@ func careOfferingAvailabilityRulesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func careOfferingAvailabilityRulesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.196: Removing care-offering availability rules...")
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.care_offerings
 			DROP COLUMN IF EXISTS availability_rule;

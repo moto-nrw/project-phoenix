@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.14.3: Migrating UNIQUE constraints to include tenant_id...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -48,8 +45,6 @@ func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
 	// 13 FUNCTIONALLY NECESSARY CHANGES (§2.4.1)
 	// These are required for correct multi-tenant behavior.
 	// ===================================================================
-
-	fmt.Println("  Migrating functionally necessary constraints...")
 
 	// 1. facilities.rooms: UNIQUE(name) → UNIQUE(tenant_id, name)
 	_, err = tx.ExecContext(ctx, `
@@ -174,8 +169,6 @@ func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
 	// Tenant-specific roles must be unique per tenant.
 	// ===================================================================
 
-	fmt.Println("  Migrating auth.roles special case (nullable tenant_id)...")
-
 	_, err = tx.ExecContext(ctx, `
 		DROP INDEX IF EXISTS auth.idx_roles_name;
 		CREATE UNIQUE INDEX idx_roles_name_system ON auth.roles(name) WHERE tenant_id IS NULL;
@@ -189,8 +182,6 @@ func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
 	// 18 DEFENSE-IN-DEPTH CHANGES (§2.4.2)
 	// These add tenant_id to uniqueness for cross-tenant safety.
 	// ===================================================================
-
-	fmt.Println("  Migrating defense-in-depth constraints...")
 
 	// 1. users.staff: UNIQUE(person_id) → UNIQUE(tenant_id, person_id)
 	_, err = tx.ExecContext(ctx, `
@@ -369,8 +360,6 @@ func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
 	// device_id becomes per-tenant unique; api_key stays globally unique
 	// ===================================================================
 
-	fmt.Println("  Applying FIX-9: IoT device_id per-tenant unique...")
-
 	_, err = tx.ExecContext(ctx, `
 		ALTER TABLE iot.devices DROP CONSTRAINT IF EXISTS devices_device_id_key;
 		CREATE UNIQUE INDEX idx_devices_tenant_device_id ON iot.devices(tenant_id, device_id);
@@ -379,20 +368,17 @@ func migrateUniqueConstraints(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error migrating iot.devices device_id constraint: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.3: Successfully migrated all UNIQUE constraints")
 	return tx.Commit()
 }
 
 func rollbackUniqueConstraints(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.14.3: Restoring original UNIQUE constraints...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -706,6 +692,5 @@ func rollbackUniqueConstraints(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error restoring facilities.rooms constraint: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.3: Successfully restored original UNIQUE constraints")
 	return tx.Commit()
 }

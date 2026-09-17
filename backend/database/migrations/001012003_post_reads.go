@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createPostReads(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.12.3: Creating post_reads table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -73,20 +70,17 @@ func createPostReads(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding comment to suggestions.post_reads: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.3: Successfully created post_reads table")
 	return tx.Commit()
 }
 
 func rollbackPostReads(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.12.3: Dropping post_reads table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -95,6 +89,5 @@ func rollbackPostReads(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping suggestions.post_reads table: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.3: Successfully dropped post_reads table")
 	return tx.Commit()
 }

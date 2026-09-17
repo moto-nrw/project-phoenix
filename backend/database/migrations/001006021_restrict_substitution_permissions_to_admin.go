@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -34,8 +33,6 @@ func init() {
 }
 
 func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Printf("Migration %s: Restricting substitution write permissions to admin role...\n", RestrictSubstitutionPermissionsVersion)
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -46,7 +43,7 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-				log.Printf("Failed to rollback transaction: %v", rbErr)
+				logRollbackFailure(ctx, rbErr)
 			}
 		}
 	}()
@@ -85,7 +82,9 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 	`)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		log.Printf("Note: Could not remove permissions from staff role (role might not exist): %v", err)
+		migrationLog().WarnContext(ctx, "could not remove permissions from the staff role; it may not exist",
+			"error", err,
+		)
 	}
 
 	// Teachers keep substitutions:read for viewing their own transfers
@@ -96,13 +95,10 @@ func restrictSubstitutionPermissionsUp(ctx context.Context, db *bun.DB) error {
 	}
 	committed = true
 
-	log.Println("Successfully restricted substitution write permissions to admin role")
 	return nil
 }
 
 func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Printf("Rolling back migration %s: Restoring substitution permissions to teacher role...\n", RestrictSubstitutionPermissionsVersion)
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -113,7 +109,7 @@ func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error 
 	defer func() {
 		if !committed {
 			if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-				log.Printf("Failed to rollback transaction: %v", rbErr)
+				logRollbackFailure(ctx, rbErr)
 			}
 		}
 	}()
@@ -160,7 +156,9 @@ func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error 
 	`)
 	if err != nil {
 		// Staff role might not exist, which is okay
-		log.Printf("Note: Could not restore permissions to staff role (role might not exist): %v", err)
+		migrationLog().WarnContext(ctx, "could not restore permissions to the staff role; it may not exist",
+			"error", err,
+		)
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -168,6 +166,5 @@ func restrictSubstitutionPermissionsDown(ctx context.Context, db *bun.DB) error 
 	}
 	committed = true
 
-	log.Println("Successfully restored substitution permissions to teacher role")
 	return nil
 }

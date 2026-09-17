@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -54,7 +53,6 @@ func init() {
 // (public values, not secrets). The payload GDPR contract lives in
 // services/notifications: Title/Body/DeepLink only, never child data.
 func pushSubscriptionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.234: Creating iot.push_subscriptions...")
 	return ensurePushSubscriptions(ctx, db)
 }
 
@@ -65,7 +63,7 @@ func ensurePushSubscriptions(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -127,6 +125,5 @@ func pushSubscriptionsDown(_ context.Context, _ *bun.DB) error {
 	// that version collided with the already-published eligibility migration.
 	// A database from that branch may therefore contain subscription data that
 	// predates 1.15.234. Rollbacks must preserve the table and those rows.
-	fmt.Println("Rolling back migration 1.15.234: Leaving iot.push_subscriptions intact...")
 	return nil
 }

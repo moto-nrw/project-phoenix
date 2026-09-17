@@ -32,8 +32,6 @@ func init() {
 }
 
 func studentEnrollmentSelectedWeekdaysStrictUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.111: Tightening selected_weekdays validation on activities.student_enrollments...")
-
 	if _, err := db.NewRaw(`
 		CREATE OR REPLACE FUNCTION activities.is_valid_selected_weekdays(value JSONB)
 		RETURNS BOOLEAN
@@ -75,8 +73,6 @@ func studentEnrollmentSelectedWeekdaysStrictUp(ctx context.Context, db *bun.DB) 
 }
 
 func studentEnrollmentSelectedWeekdaysStrictDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.111: Restoring loose selected_weekdays validation...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
 			DROP CONSTRAINT IF EXISTS check_student_enrollments_selected_weekdays,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func parentMessageStaffNameVisibilityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.158: Adding staff_name_visible to parent messages...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -62,15 +59,13 @@ func parentMessageStaffNameVisibilityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentMessageStaffNameVisibilityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.158: Removing parent_messages.staff_name_visible...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

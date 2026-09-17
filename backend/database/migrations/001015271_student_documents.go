@@ -49,8 +49,6 @@ func init() {
 // Every other category rides on the existing users:update permission. All
 // three checks live in the document service.
 func studentDocumentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.271: Creating users.student_documents + student document permissions...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.student_documents (
 			id BIGSERIAL PRIMARY KEY,
@@ -163,7 +161,6 @@ func studentDocumentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentDocumentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.271: Dropping users.student_documents...")
 	if _, err := db.NewRaw(`
 		DELETE FROM auth.permissions WHERE name IN ('student_documents:health', 'student_documents:legal');
 		DROP TABLE IF EXISTS users.student_document_file_cleanup CASCADE;

@@ -24,8 +24,6 @@ func init() {
 	// Migration 1.0.0: Initial infrastructure setup
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Printf("Migration %s: Setting up migration infrastructure...\n", InfrastructureVersion)
-
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 			if err != nil {
@@ -72,8 +70,6 @@ func init() {
 			return tx.Commit()
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Printf("Rolling back migration %s: Removing infrastructure setup...\n", InfrastructureVersion)
-
 			// Begin a transaction for atomicity
 			tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 			if err != nil {

@@ -62,8 +62,6 @@ func init() {
 // colors (anything outside this set) are preserved untouched. Once cleared,
 // the partial unique index can apply without contention.
 func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.45: Backing up + clearing legacy bug-defaults (#4F46E5, #FFFFFF) then adding partial unique index...")
-
 	// Backup table: persists rows we're about to NULL so a manual restore
 	// is possible if our "no admin ever picked exactly #4F46E5" assumption
 	// is ever wrong. Outlives deploy log rotation, ~1 row per affected
@@ -104,7 +102,10 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed populating audit.room_color_migration_backup: %w", err)
 	}
 	if backed, raErr := backupRes.RowsAffected(); raErr == nil && backed > 0 {
-		fmt.Printf("Migration 1.15.45: backed up %d room(s) into audit.room_color_migration_backup before clearing\n", backed)
+		migrationLog().InfoContext(ctx, "room colors backed up before clearing",
+			"rows", backed,
+			"backup_table", "audit.room_color_migration_backup",
+		)
 	}
 
 	// NULL every room carrying either legacy bug-default. Case-insensitive
@@ -120,7 +121,11 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed clearing legacy room color defaults before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.45: cleared %d room(s) carrying a legacy bug-default hex (#4F46E5 or #FFFFFF) (audit.room_color_migration_backup retains the original values)\n", affected)
+		migrationLog().InfoContext(ctx, "room colors cleared: legacy bug-default hex",
+			"rows", affected,
+			"colors", "#4F46E5,#FFFFFF",
+			"backup_table", "audit.room_color_migration_backup",
+		)
 	}
 
 	createSQL := fmt.Sprintf(`
@@ -152,9 +157,6 @@ func roomsColorUniqueUp(ctx context.Context, db *bun.DB) error {
 // record of what was cleared on a panicky rollback is exactly the kind of
 // foot-gun this whole table exists to prevent.
 func roomsColorUniqueDown(ctx context.Context, db *bun.DB) error {
-	fmt.Printf("Rolling back migration 1.15.45: dropping %s (cleared colours not auto-restored — see audit.room_color_migration_backup)...\n",
-		roomsColorUniqueIndex)
-
 	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, roomsColorUniqueIndex)
 	if _, err := db.NewRaw(dropSQL).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping %s: %w", roomsColorUniqueIndex, err)

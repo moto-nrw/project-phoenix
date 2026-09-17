@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func disableLegacyBootstrapAdmin(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.7: Disabling legacy bootstrap admin account...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("failed to rollback transaction in 1.15.7: %v", rbErr)
+			logRollbackFailure(ctx, rbErr)
 		}
 	}()
 
@@ -52,13 +49,11 @@ func disableLegacyBootstrapAdmin(ctx context.Context, db *bun.DB) error {
 	`, "admin").Scan(ctx, &bootstrapAccountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			fmt.Println("Migration 1.15.7: Legacy bootstrap admin account not present, skipping")
 			return tx.Commit()
 		}
 		return fmt.Errorf("failed to verify bootstrap admin account: %w", err)
 	}
 	if bootstrapAccountID <= 0 {
-		fmt.Println("Migration 1.15.7: Legacy bootstrap admin account not present, skipping")
 		return tx.Commit()
 	}
 
@@ -87,7 +82,6 @@ func disableLegacyBootstrapAdmin(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to delete bootstrap admin tenant mappings: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.7: Legacy bootstrap admin account disabled")
 	return tx.Commit()
 }
 

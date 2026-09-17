@@ -24,7 +24,6 @@ func init() {
 			return studentEnrollmentRequestChildSourceUp(ctx, db)
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.141: Removing activities.student_enrollments enrollment_request_child_id...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS activities.idx_student_enrollments_request_child;
 				ALTER TABLE activities.student_enrollments
@@ -39,7 +38,6 @@ func init() {
 }
 
 func studentEnrollmentRequestChildSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.141: Adding activities.student_enrollments enrollment_request_child_id...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
 			ADD COLUMN IF NOT EXISTS enrollment_request_child_id BIGINT;

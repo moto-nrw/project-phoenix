@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.148: Creating enrollment.change_requests...")
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS enrollment.change_requests (
 					id BIGSERIAL PRIMARY KEY,
@@ -109,7 +108,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.148: Dropping enrollment.change_requests...")
 			if _, err := db.NewRaw(`
 				DROP TABLE IF EXISTS enrollment.change_request_messages CASCADE;
 				DROP TABLE IF EXISTS enrollment.change_requests CASCADE;

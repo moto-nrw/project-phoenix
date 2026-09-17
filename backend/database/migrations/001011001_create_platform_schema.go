@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createPlatformSchemaTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.11.1: Creating platform schema for operator dashboard...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -174,20 +171,17 @@ func createPlatformSchemaTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating updated_at triggers for platform tables: %w", err)
 	}
 
-	fmt.Println("Migration 1.11.1: Successfully created platform schema and tables")
 	return tx.Commit()
 }
 
 func dropPlatformSchemaTables(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.11.1: Removing platform schema...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -224,6 +218,5 @@ func dropPlatformSchemaTables(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping platform schema: %w", err)
 	}
 
-	fmt.Println("Migration 1.11.1: Successfully removed platform schema")
 	return tx.Commit()
 }

@@ -30,8 +30,6 @@ func init() {
 }
 
 func enrollmentLegalBlockTogglesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.128: Backfilling enrollment legal block toggles...")
-
 	if _, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)
 		SELECT tenant_id, target_key, 'true'::jsonb
@@ -63,8 +61,6 @@ func enrollmentLegalBlockTogglesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func enrollmentLegalBlockTogglesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.128: Removing enrollment legal block toggles...")
-
 	if _, err := db.NewRaw(`
 		DELETE FROM config.setting_values
 		WHERE setting_key IN (

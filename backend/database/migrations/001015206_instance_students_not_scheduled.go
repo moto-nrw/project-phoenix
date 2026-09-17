@@ -52,8 +52,6 @@ func init() {
 // deletion the plan tables never recorded as evidence. Those rows keep the
 // plain 'expected' state the old path left them in.
 func instanceStudentsNotScheduledUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.206: Adding not_scheduled column to schedule.instance_students (#1747)...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE schedule.instance_students
 		ADD COLUMN IF NOT EXISTS not_scheduled BOOLEAN NOT NULL DEFAULT FALSE;
@@ -65,8 +63,6 @@ func instanceStudentsNotScheduledUp(ctx context.Context, db *bun.DB) error {
 }
 
 func instanceStudentsNotScheduledDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.206: Dropping not_scheduled column from schedule.instance_students...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE schedule.instance_students DROP COLUMN IF EXISTS not_scheduled;
 	`).Exec(ctx); err != nil {

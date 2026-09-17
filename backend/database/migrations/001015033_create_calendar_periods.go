@@ -32,8 +32,6 @@ func init() {
 }
 
 func createCalendarPeriodsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.33: Creating calendar periods table...")
-
 	_, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS schedule.calendar_periods (
 			id BIGSERIAL PRIMARY KEY,
@@ -98,8 +96,6 @@ func createCalendarPeriodsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createCalendarPeriodsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.33: Dropping calendar periods table...")
-
 	_, err := db.NewRaw(`DROP TABLE IF EXISTS schedule.calendar_periods CASCADE;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping calendar_periods table: %w", err)

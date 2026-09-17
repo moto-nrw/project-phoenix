@@ -76,8 +76,6 @@ func init() {
 // archived rows have names like "Toilette (archiviert v1.15.48 id=7)"
 // which don't match the filter.
 func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.48: Archiving duplicate WC/Toilette aliases then adding partial unique index...")
-
 	// Backup table: persists every row we're about to rename so a manual
 	// restore is possible if the auto-picked winner turns out to be wrong
 	// for some tenant. Outlives the deploy log; ~1 row per archived loser,
@@ -158,7 +156,10 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed archiving duplicate WC/Toilette aliases before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.48: archived %d duplicate WC/Toilette alias row(s) (originals preserved in audit.wc_alias_migration_backup)\n", affected)
+		migrationLog().InfoContext(ctx, "duplicate WC/Toilette alias rooms archived",
+			"rows", affected,
+			"backup_table", "audit.wc_alias_migration_backup",
+		)
 	}
 
 	// Build the partial unique index. After the cleanup above, every tenant
@@ -197,9 +198,6 @@ func roomsWCAliasUniqueUp(ctx context.Context, db *bun.DB) error {
 // only be run after first deciding which row should keep the alias and
 // renaming the other one out of the namespace by hand.
 func roomsWCAliasUniqueDown(ctx context.Context, db *bun.DB) error {
-	fmt.Printf("Rolling back migration 1.15.48: dropping %s (archived names not auto-restored — see audit.wc_alias_migration_backup)...\n",
-		roomsWCAliasUniqueIndex)
-
 	dropSQL := fmt.Sprintf(`DROP INDEX IF EXISTS facilities.%s;`, roomsWCAliasUniqueIndex)
 	if _, err := db.NewRaw(dropSQL).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping %s: %w", roomsWCAliasUniqueIndex, err)

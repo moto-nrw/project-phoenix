@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -21,7 +20,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.143: Granting guardian.edit + pickup.manage to full-access guardians...")
 			// The "full" guardian presets (primary/legal/co) are exactly the
 			// guardians who should gain the new edit + pickup-management capabilities.
 			// We target them by guardian_role directly — the same predicate migration
@@ -45,7 +43,6 @@ func init() {
 			return err
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.143: removing guardian.edit + pickup.manage keys...")
 			_, err := db.NewRaw(`
 				UPDATE users.students_guardians
 				SET permissions = permissions

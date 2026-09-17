@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.132: Repairing activities.schedules valid date columns...")
-
 			if _, err := db.NewRaw(`
 				ALTER TABLE activities.schedules
 					ADD COLUMN IF NOT EXISTS valid_until DATE;
@@ -35,7 +33,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.132: no-op; columns are owned by migration 1.15.126.")
 			return nil
 		},
 	)

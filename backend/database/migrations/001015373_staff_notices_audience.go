@@ -36,8 +36,6 @@ func init() {
 // Frage in beiden Portalen denselben Namen trägt; das OGS-Portal liest
 // weiterhin über users:read, das jede Betreuungskraft hält.
 func staffNoticesAudienceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.373: Zielgruppe für Tagesinformationen und staff_notices:read...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.staff_notices
 		ADD COLUMN IF NOT EXISTS audience VARCHAR(20) NOT NULL DEFAULT 'all';
@@ -61,8 +59,6 @@ func staffNoticesAudienceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func staffNoticesAudienceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.373...")
-
 	if err := dropPermission(ctx, db, "staff_notices:read"); err != nil {
 		return err
 	}

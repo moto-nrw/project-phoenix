@@ -26,14 +26,12 @@ func init() {
 // would silently create a Mo-Fr offering, the exact misconfiguration behind
 // #1885. Without a default, such an INSERT fails loudly (column is NOT NULL).
 func dropCareOfferingAvailableDaysDefaultUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.191: Dropping Mo-Fr default on care_offerings.available_days...")
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE enrollment.care_offerings
 			ALTER COLUMN available_days DROP DEFAULT;
 	`); err != nil {
 		return fmt.Errorf("failed dropping available_days default: %w", err)
 	}
-	fmt.Println("Migration 1.15.191: Completed successfully")
 	return nil
 }
 

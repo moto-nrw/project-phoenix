@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -174,15 +173,13 @@ func isCompositePKTable(schema, table string) bool {
 }
 
 func createTenantIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.14.5: Creating tenant indexes on all tenant-scoped tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -221,7 +218,6 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 	// Composite (tenant_id, id) indexes on tables NOT already covered by V1.14.4.
 	// V1.14.4 creates UNIQUE(tenant_id, id) on 18 FK-target tables. The remaining
 	// 41 tables get a regular composite index for queries filtering on both tenant and PK.
-	fmt.Println("  Creating composite (tenant_id, id) indexes on remaining tables...")
 	for _, t := range allTenantScopedTables {
 		fullTable := fmt.Sprintf("%s.%s", t.schema, t.table)
 		if isCompositePKTable(t.schema, t.table) {
@@ -241,7 +237,6 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 	}
 
 	// Performance composite indexes for common query patterns
-	fmt.Println("  Creating performance composite indexes...")
 
 	_, err = tx.ExecContext(ctx, `
 		CREATE INDEX IF NOT EXISTS idx_students_tenant_class
@@ -260,20 +255,17 @@ func createTenantIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating performance composite indexes: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.5: Successfully created all tenant indexes")
 	return tx.Commit()
 }
 
 func rollbackTenantIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.14.5: Dropping tenant indexes...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -333,6 +325,5 @@ func rollbackTenantIndexes(ctx context.Context, db *bun.DB) error {
 		}
 	}
 
-	fmt.Println("Migration 1.14.5: Successfully dropped all tenant indexes")
 	return tx.Commit()
 }
