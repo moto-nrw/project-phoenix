@@ -37,6 +37,9 @@ type Store interface {
 
 	FindClassListEntry(ctx context.Context, id int64, lock string) (domain.ClassListEntry, bool, domain.OperationStats, error)
 	ListClassListEntries(context.Context, domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error)
+	// ListClassListEntriesInDisplayOrder returns the same rows in the
+	// class-then-name order a class list is read in.
+	ListClassListEntriesInDisplayOrder(context.Context, domain.ClassListEntryFilter) ([]domain.ClassListEntry, domain.OperationStats, error)
 	CreateClassListEntry(ctx context.Context, fields domain.ClassListEntryFields, createdBy *int64) (domain.ClassListEntry, domain.OperationStats, error)
 	UpdateClassListEntry(context.Context, int64, domain.ClassListEntryFields) (domain.ClassListEntry, domain.OperationStats, error)
 	DeleteClassListEntry(context.Context, int64) (domain.OperationStats, error)
@@ -53,6 +56,29 @@ type Store interface {
 	DeleteGroupAssignment(context.Context, int64) (domain.OperationStats, error)
 	DeleteGroupAssignmentsByTeacher(context.Context, int64) (domain.OperationStats, error)
 	LockGroupAssignments(context.Context) (domain.OperationStats, error)
+}
+
+// StudentDirectory is the consumer-owned People Directory port behind the
+// audited class-list administration (#2382). A class-list entry is a child
+// WITHOUT a student row, so both the duplicate guard and the "Zuordnen" hint
+// have to ask the student owner whether the name and class are already taken.
+// The module never joins users.students itself.
+type StudentDirectory interface {
+	// ListStudentIDsByNameAndClass returns the still-enrolled students of the
+	// class carrying exactly that name, matched case-insensitively and
+	// trimmed on all three keys.
+	ListStudentIDsByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]int64, error)
+	// IsEnrolledStudent reports whether the ID names a student that has not
+	// graduated. A graduated child is treated as absent, like the legacy
+	// lookup did.
+	IsEnrolledStudent(ctx context.Context, studentID int64) (bool, error)
+}
+
+// AuditTrail is the consumer-owned Audit platform port. The change is
+// appended inside the same transaction as the entry write, so a refused
+// trail never leaves an unaudited change behind.
+type AuditTrail interface {
+	AppendClassListEntryChange(context.Context, domain.ClassListEntryChange) error
 }
 
 type Transaction interface {

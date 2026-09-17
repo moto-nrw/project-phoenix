@@ -16,6 +16,12 @@ type Service struct {
 	store   ports.Store
 	tx      ports.Transaction
 	observe ports.Observer
+
+	// The audited class-list administration (#2382) reaches two owners the
+	// composition root only builds after this service exists, so they are
+	// bound late through BindClassListEntryAdministration. Every other
+	// operation works without them.
+	classListAdmin classListAdministration
 }
 
 func New(store ports.Store, tx ports.Transaction, observe ports.Observer) *Service {

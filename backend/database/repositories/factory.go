@@ -107,7 +107,6 @@ type Factory struct {
 	RFIDCard            authModels.RFIDCardRepository
 	Staff               userModels.StaffRepository
 	Student             userModels.StudentRepository
-	ClassListEntry      userModels.ClassListEntryRepository
 	CareExit            userModels.CareExitRepository
 	CareExitCleanup     userModels.CareExitCleanupRepository
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
@@ -478,7 +477,6 @@ func (f *Factory) bindStaffMembershipAdapters(capability schoolmembership.Capabi
 	f.Staff = staffMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Teacher = teacherMembershipRepository{membership: capability, deps: f.membershipDeps}
 	f.Guest = guestMembershipRepository{membership: capability}
-	f.ClassListEntry = classListEntryMembershipRepository{membership: capability}
 }
 
 // NewFactory creates a new repository factory with all repositories
