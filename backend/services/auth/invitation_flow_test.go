@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -367,12 +368,21 @@ func TestInvitationListingInvalidationAndCleanup(t *testing.T) {
 	listed, err := env.service.ListPendingInvitations(ctx)
 	require.NoError(t, err)
 	ids := make([]int64, 0, len(listed))
+	var pendingEntry *authModels.InvitationToken
 	for _, entry := range listed {
 		ids = append(ids, entry.ID)
+		if entry.ID == pending.ID {
+			pendingEntry = entry
+		}
 	}
 	assert.Contains(t, ids, pending.ID)
 	assert.NotContains(t, ids, expired.ID, "an expired invitation is not pending")
 	assert.NotContains(t, ids, spent.ID, "a spent invitation is not pending")
+	require.NotNil(t, pendingEntry)
+	require.NotNil(t, pendingEntry.Role, "the pending list carries the invited role")
+	assert.Equal(t, role.Name, pendingEntry.Role.Name)
+	require.NotNil(t, pendingEntry.Creator, "the pending list carries who sent the invitation")
+	assert.Equal(t, creator.Email, pendingEntry.Creator.Email)
 
 	invalidated, err := env.service.InvalidatePendingInvitationsByTenantID(ctx, testpkg.Tenant(t))
 	require.NoError(t, err)
@@ -407,6 +417,36 @@ func TestInvitationSubdomainFollowsTheSchoolHost(t *testing.T) {
 	assert.Equal(t, subdomain, env.service.GetTenantSubdomainForToken(context.Background(), invitation.Token))
 	assert.Empty(t, env.service.GetTenantSubdomainForToken(context.Background(), "unknown-token"),
 		"an unknown token answers without a host")
+}
+
+// Create queues the invitation mail after commit on a detached context.
+// Reply-To still follows the invitation's school, not the stripped tenant (#1936).
+func TestCreateInvitationMailUsesTheSchoolReplyTo(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	mailer := testpkg.NewCapturingMailer()
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db),
+		services.WithAuthTestMailer(mailer),
+		services.WithAuthTestPasswordResetBackoff(time.Millisecond),
+	)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	replyTo := fmt.Sprintf("ogs-%d@schule.test", time.Now().UnixNano())
+	_, err = db.NewRaw(`UPDATE platform.schools SET email = ?, name = 'OGS Am Berg' WHERE id = ?`, replyTo, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err)
+	creator := testpkg.CreateTestAccount(t, db, "invite-replyto-creator")
+	role := testpkg.CreateTestRole(t, db, "invited-replyto")
+
+	_, err = module.Invitation.CreateInvitation(ctx, authService.InvitationRequest{
+		Email: inviteeAddress("replyto"), RoleID: role.ID, CreatedBy: creator.ID,
+		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
+		ActorPermissions: []string{usersManagePermission},
+	})
+	require.NoError(t, err)
+	require.True(t, mailer.WaitForMessages(1, 2*time.Second), "create queues the invitation mail after commit")
+	message := mailer.Messages()[0]
+	assert.Equal(t, replyTo, message.ReplyTo.Address)
+	assert.Equal(t, "OGS Am Berg", message.ReplyTo.Name)
 }
 
 // An acceptance writes the account, its school mapping, the role and the

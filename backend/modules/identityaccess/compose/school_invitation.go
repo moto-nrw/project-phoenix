@@ -101,7 +101,7 @@ func publicSchoolInvitation(invitation domain.SchoolInvitation) identityaccess.S
 	return identityaccess.SchoolInvitation{
 		ID: invitation.ID, TenantID: invitation.TenantID, Email: invitation.Email, Token: invitation.Token,
 		RoleID: invitation.RoleID, RoleName: invitation.RoleName, ExpiresAt: invitation.ExpiresAt, UsedAt: invitation.UsedAt,
-		CreatedBy: invitation.CreatedBy, FirstName: invitation.FirstName, LastName: invitation.LastName,
+		CreatedBy: invitation.CreatedBy, CreatorEmail: invitation.CreatorEmail, FirstName: invitation.FirstName, LastName: invitation.LastName,
 		Position: invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled, PersonID: invitation.PersonID,
 		Delivery: identityaccess.TokenDelivery(invitation.Delivery), CreatedAt: invitation.CreatedAt,
 	}

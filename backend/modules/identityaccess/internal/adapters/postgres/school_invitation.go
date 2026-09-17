@@ -99,18 +99,62 @@ func (s *Store) FindSchoolInvitationByToken(ctx context.Context, token string) (
 	return row.toDomain(), found, stats, err
 }
 
+// schoolInvitationListRow is the pending-list projection: the invitation
+// plus the role name and creator address the staff list renders.
+type schoolInvitationListRow struct {
+	ID               int64      `bun:"id"`
+	TenantID         int64      `bun:"tenant_id"`
+	Email            string     `bun:"email"`
+	Token            string     `bun:"token"`
+	RoleID           int64      `bun:"role_id"`
+	RoleName         string     `bun:"role_name"`
+	ExpiresAt        time.Time  `bun:"expires_at"`
+	UsedAt           *time.Time `bun:"used_at"`
+	CreatedBy        *int64     `bun:"created_by"`
+	CreatorEmail     string     `bun:"creator_email"`
+	FirstName        *string    `bun:"first_name"`
+	LastName         *string    `bun:"last_name"`
+	Position         *string    `bun:"position"`
+	CaregiverEnabled bool       `bun:"caregiver_enabled"`
+	PersonID         *int64     `bun:"person_id"`
+	EmailSentAt      *time.Time `bun:"email_sent_at"`
+	EmailError       *string    `bun:"email_error"`
+	EmailRetryCount  int        `bun:"email_retry_count"`
+	CreatedAt        time.Time  `bun:"created_at"`
+}
+
+func (r schoolInvitationListRow) toDomain() domain.SchoolInvitation {
+	return domain.SchoolInvitation{
+		ID: r.ID, TenantID: r.TenantID, Email: r.Email, Token: r.Token, RoleID: r.RoleID, RoleName: r.RoleName,
+		ExpiresAt: r.ExpiresAt, UsedAt: r.UsedAt, CreatedBy: r.CreatedBy, CreatorEmail: r.CreatorEmail,
+		FirstName: r.FirstName, LastName: r.LastName, Position: r.Position, CaregiverEnabled: r.CaregiverEnabled,
+		PersonID:  r.PersonID,
+		Delivery:  domain.TokenDelivery{SentAt: r.EmailSentAt, Error: r.EmailError, RetryCount: r.EmailRetryCount},
+		CreatedAt: r.CreatedAt,
+	}
+}
+
 func (s *Store) ListRedeemableSchoolInvitations(ctx context.Context, now time.Time) ([]domain.SchoolInvitation, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	var rows []schoolInvitationRow
+	var rows []schoolInvitationListRow
 	started := time.Now()
-	query := invitationTenantFilter(s.scope(ctx), db.NewSelect().Model(&rows).
+	query := invitationTenantFilter(s.scope(ctx), db.NewSelect().
+		TableExpr(`auth.invitation_tokens AS "invitation_token"`).
+		ColumnExpr(`"invitation_token".id, "invitation_token".tenant_id, "invitation_token".email, "invitation_token".token, "invitation_token".role_id`).
+		ColumnExpr(`COALESCE("role".name, '') AS role_name`).
+		ColumnExpr(`"invitation_token".expires_at, "invitation_token".used_at, "invitation_token".created_by`).
+		ColumnExpr(`COALESCE("creator".email, '') AS creator_email`).
+		ColumnExpr(`"invitation_token".first_name, "invitation_token".last_name, "invitation_token".position, "invitation_token".caregiver_enabled, "invitation_token".person_id`).
+		ColumnExpr(`"invitation_token".email_sent_at, "invitation_token".email_error, "invitation_token".email_retry_count, "invitation_token".created_at`).
+		Join(`LEFT JOIN auth.roles AS "role" ON "role".id = "invitation_token".role_id`).
+		Join(`LEFT JOIN auth.accounts AS "creator" ON "creator".id = "invitation_token".created_by`).
 		Where(`"invitation_token".used_at IS NULL`).
-		Where(`"invitation_token".expires_at > ?`, now)).
-		OrderExpr(`"invitation_token".created_at DESC`)
-	err = query.Scan(ctx)
+		Where(`"invitation_token".expires_at > ?`, now).
+		OrderExpr(`"invitation_token".created_at DESC`))
+	err = query.Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return nil, stats, fmt.Errorf("identity access postgres: list redeemable school invitations: %w", err)

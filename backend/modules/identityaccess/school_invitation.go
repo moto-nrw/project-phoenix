@@ -58,6 +58,7 @@ type SchoolInvitation struct {
 	ExpiresAt        time.Time
 	UsedAt           *time.Time
 	CreatedBy        *int64
+	CreatorEmail     string
 	FirstName        *string
 	LastName         *string
 	Position         *string

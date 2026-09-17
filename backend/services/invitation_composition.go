@@ -154,8 +154,10 @@ func (d invitationDelivery) DispatchSchoolInvitation(ctx context.Context, invita
 		subject = fmt.Sprintf("Einladung zu moto – %s", schoolName)
 	}
 	// An invited Mitarbeiter answering this mail ("wer lädt mich ein?") must
-	// reach the OGS, not moto (#1936).
-	replyIdentity := email.ResolveReplyToIdentity(ctx, d.identity, tenant.FromContext(ctx), d.logger)
+	// reach the OGS, not moto (#1936). The invitation names its school;
+	// create queues this after commit on a detached context that has no
+	// ambient tenant.
+	replyIdentity := email.ResolveReplyToIdentity(ctx, d.identity, invitation.TenantID, d.logger)
 	message := email.Message{
 		From:     d.from,
 		ReplyTo:  email.NewEmail(replyIdentity.Name, replyIdentity.Address),
@@ -249,7 +251,7 @@ func invitationRecord(invitation identityaccess.SchoolInvitation) auth.Invitatio
 	return auth.InvitationRecord{
 		ID: invitation.ID, TenantID: invitation.TenantID, Email: invitation.Email, Token: invitation.Token,
 		RoleID: invitation.RoleID, RoleName: invitation.RoleName, ExpiresAt: invitation.ExpiresAt, UsedAt: invitation.UsedAt,
-		CreatedBy: invitation.CreatedBy, FirstName: invitation.FirstName, LastName: invitation.LastName,
+		CreatedBy: invitation.CreatedBy, CreatorEmail: invitation.CreatorEmail, FirstName: invitation.FirstName, LastName: invitation.LastName,
 		Position: invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled, PersonID: invitation.PersonID,
 		EmailSentAt: invitation.Delivery.SentAt, EmailError: invitation.Delivery.Error,
 		EmailRetryCount: invitation.Delivery.RetryCount, CreatedAt: invitation.CreatedAt,

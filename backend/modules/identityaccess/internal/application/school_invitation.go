@@ -145,7 +145,14 @@ func (s *SchoolInvitation) CreateInvitation(ctx context.Context, request domain.
 		schoolName = s.schoolName(ctx, result.TenantID)
 	}
 	s.runtime.RegisterAfterCommit(ctx, func() {
-		s.delivery.DispatchSchoolInvitation(s.runtime.Detach(ctx), result, schoolName, portal, s.expiry)
+		// Detach drops the request transaction and its commit hooks so the
+		// mail cannot join them. It also clears the tenant; put the
+		// invitation's school back so Reply-To still resolves (#1936).
+		dispatchCtx := s.runtime.Detach(ctx)
+		if result.TenantID > 0 {
+			dispatchCtx = s.runtime.WithTenantID(dispatchCtx, result.TenantID)
+		}
+		s.delivery.DispatchSchoolInvitation(dispatchCtx, result, schoolName, portal, s.expiry)
 	})
 	return result, nil
 }

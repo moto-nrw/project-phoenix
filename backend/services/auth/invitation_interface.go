@@ -109,6 +109,7 @@ type InvitationRecord struct {
 	ExpiresAt        time.Time
 	UsedAt           *time.Time
 	CreatedBy        *int64
+	CreatorEmail     string
 	FirstName        *string
 	LastName         *string
 	Position         *string
@@ -174,6 +175,13 @@ func invitationTokenModel(record InvitationRecord) *authModels.InvitationToken {
 		role := &authModels.Role{Name: record.RoleName}
 		role.ID = record.RoleID
 		token.Role = role
+	}
+	if record.CreatorEmail != "" {
+		creator := &authModels.Account{Email: record.CreatorEmail}
+		if record.CreatedBy != nil {
+			creator.ID = *record.CreatedBy
+		}
+		token.Creator = creator
 	}
 	return token
 }
