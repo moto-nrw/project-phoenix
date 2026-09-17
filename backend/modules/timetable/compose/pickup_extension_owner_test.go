@@ -98,10 +98,15 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 
 	freePlay := pickupExtensionInstance(t, module, ctx, fixture, date, "14:45:00", "16:00:00", "Freies Spiel")
 	office := pickupExtensionInstance(t, module, ctx, fixture, date, "15:00:00", "15:30:00", "Bürotermin")
+	notScheduled := pickupExtensionInstance(t, module, ctx, fixture, date, "15:31:00", "16:00:00", "Abgemeldet")
 	lunch := pickupExtensionInstance(t, module, ctx, fixture, date, "12:00:00", "13:00:00", "Mittagessen")
 	createOwnedInstanceStudent(t, module, ctx, freePlay.ID, other.ID, timetable.InstanceAttendanceExpected)
+	createOwnedInstanceStudent(t, module, ctx, notScheduled.ID, other.ID, timetable.InstanceAttendanceExpected)
 	createOwnedInstanceStudent(t, module, ctx, lunch.ID, other.ID, timetable.InstanceAttendanceExpected)
 	createOwnedInstanceStudent(t, module, ctx, lunch.ID, child.ID, timetable.InstanceAttendanceExpected)
+	require.NoError(t, module.MarkNotScheduled(ctx, []timetable.StudentInstanceRef{{
+		StudentID: other.ID, InstanceID: notScheduled.ID,
+	}}))
 
 	require.NoError(t, module.RecordPickupDayExtension(ctx, timetable.PickupDayExtension{
 		StudentID: child.ID, PickupExceptionID: exception.ID, Date: date, PreviousPickup: "14:45", Pickup: "16:00",
@@ -122,6 +127,8 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 
 	_, err = module.ResolvePickupExtension(ctx, task.ID, []int64{office.ID})
 	require.ErrorIs(t, err, timetable.ErrPickupExtensionBlockGone, "an office appointment is never a choice")
+	_, err = module.ResolvePickupExtension(ctx, task.ID, []int64{notScheduled.ID})
+	require.ErrorIs(t, err, timetable.ErrPickupExtensionBlockGone, "an instance without scheduled children is never a choice")
 
 	resolved, err := module.ResolvePickupExtension(ctx, task.ID, []int64{freePlay.ID})
 	require.NoError(t, err)
@@ -310,6 +317,34 @@ func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
 	}))
 	task := pickupExtensionTask(t, module, ctx, child.ID)
 	assert.Equal(t, []int64{freePlay.ID}, pickupExtensionBlockIDs(task.Blocks))
+}
+
+func TestModuleIgnoresPickupWeekdayEnrollmentsOutsideWeekday(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+	category := createCategory(t, ctx, module, fmt.Sprintf("Pickup weekday roster %d", suffix))
+	child := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("Pickup weekday-%d", suffix), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("Pickup weekday-%d", suffix), "1a")
+	weekdayOnly := pickupExtensionTemplate(t, module, ctx, category.ID, "Mittwoch", "14:45:00", "16:00:00", timetable.WeekdayTuesday)
+	selectedOnly := pickupExtensionTemplate(t, module, ctx, category.ID, "Auswahl Mittwoch", "14:45:00", "16:00:00", timetable.WeekdayTuesday)
+	wednesday := timetable.WeekdayWednesday
+	for _, input := range []timetable.StudentEnrollmentInput{
+		{StudentID: other.ID, ActivityGroupID: weekdayOnly.ID, ValidFrom: "2020-01-01", Weekday: &wednesday},
+		{StudentID: other.ID, ActivityGroupID: selectedOnly.ID, ValidFrom: "2020-01-01", SelectedWeekdays: []int{wednesday}},
+	} {
+		_, err := module.CreateStudentEnrollment(ctx, input)
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: "2099-03-05",
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	tasks, err := module.ListOpenPickupExtensions(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Empty(t, tasks, "a roster restricted to Wednesday offers no Tuesday block")
 }
 
 func TestModuleUsesEffectivePickupWeekdaySchedules(t *testing.T) {

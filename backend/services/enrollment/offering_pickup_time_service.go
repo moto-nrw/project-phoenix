@@ -108,12 +108,19 @@ func (s *decisionService) ResetStudentPickupDayToOffering(
 	if err != nil {
 		return fmt.Errorf("load pickup schedules: %w", err)
 	}
+	removed := false
 	for _, row := range rows {
 		if row != nil && row.Weekday == weekday {
 			if err := s.PickupScheduleRepo.Delete(ctx, row.ID); err != nil {
 				return fmt.Errorf("delete pickup schedule override: %w", err)
 			}
+			removed = true
 			break
+		}
+	}
+	if removed && s.ClearPickupWeekdayExtension != nil {
+		if err := s.ClearPickupWeekdayExtension(ctx, studentID, weekday); err != nil {
+			return fmt.Errorf("clear pickup weekday extension: %w", err)
 		}
 	}
 	if err := s.resyncPickupAutoExcusals(ctx, []int64{studentID}); err != nil {

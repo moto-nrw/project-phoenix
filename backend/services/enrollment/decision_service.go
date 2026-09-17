@@ -459,6 +459,10 @@ type DecisionServiceConfig struct {
 	// Runs in the caller's transaction. Production wires the schedule
 	// PickupAutoExcusalSyncer; tests may leave it nil.
 	ResyncPickupAutoExcusals func(ctx context.Context, studentIDs []int64) error
+	// ClearPickupWeekdayExtension closes a task that was created for a manual
+	// weekly pickup once that override is reset to an offering projection.
+	// Tests without the timetable owner may leave it nil.
+	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
 	// LockPickupStudents takes the students' care locks (users.students row
 	// FOR UPDATE, ascending order) BEFORE the reconciler writes weekly
 	// Gehzeit rows. Staff weekly editors lock the student first and schedule

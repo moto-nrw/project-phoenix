@@ -207,7 +207,8 @@ func (s *Store) ListPickupExtensionDayBlocks(ctx context.Context, tasks []domain
 			AND ("own".id IS NULL OR NOT "own".not_scheduled)
 			AND EXISTS (
 				SELECT 1 FROM schedule.instance_students AS "attendee"
-				WHERE "attendee".tenant_id = "instance".tenant_id AND "attendee".instance_id = "instance".id)
+				WHERE "attendee".tenant_id = "instance".tenant_id AND "attendee".instance_id = "instance".id
+					AND NOT "attendee".not_scheduled)
 		ORDER BY task.task_id, "instance".start_time, "instance".id`,
 		pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(dates),
 		pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
@@ -275,7 +276,9 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 				WHERE "attendee".tenant_id = "template".tenant_id AND "attendee".activity_group_id = "template".id
 					AND "attendee".valid_from <= task.effective_from
 					AND ("attendee".valid_until IS NULL OR "attendee".valid_until > task.effective_from)
-					AND ("attendee".weekday IS NULL OR "attendee".weekday = task.weekday)))
+					AND ("attendee".weekday IS NULL OR "attendee".weekday = task.weekday)
+					AND (COALESCE(jsonb_array_length("attendee".selected_weekdays), 0) = 0
+						OR "attendee".selected_weekdays @> to_jsonb(ARRAY[task.weekday]))))
 		ORDER BY task.task_id, "template".id, "schedule".valid_from DESC NULLS LAST`,
 		pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
 		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID,

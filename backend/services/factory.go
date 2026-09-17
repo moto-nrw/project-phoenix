@@ -2161,6 +2161,7 @@ func newFactory(
 				return nil
 			})
 		},
+		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
 		// The reconciler takes these BEFORE writing weekly rows — the same
 		// student → schedule-row → care-day lock order the staff weekly
 		// editors use, so the two weekly writers cannot deadlock against
