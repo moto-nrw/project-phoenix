@@ -24,8 +24,8 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -284,8 +284,8 @@ type ReportServiceConfig struct {
 	// the CURRENT truth — the enrollment form answer is only the snapshot the
 	// plan was materialized from. REQUIRED for ClassDay (same fail-fast as
 	// StudentStatusDayRepo); no other report path consumes them.
-	PickupScheduleSvc  scheduleService.PickupScheduleService
-	ArrivalScheduleSvc scheduleService.ArrivalScheduleService
+	PickupScheduleSvc  careschedule.PickupScheduleService
+	ArrivalScheduleSvc careschedule.ArrivalScheduleService
 	// ClassArrivalExceptions supplies the class-wide arrival day exception
 	// (#2962) the class day view shows as one line on top (#2970).
 	// Optional: nil serves the sheet without that line.
@@ -300,7 +300,7 @@ type ReportServiceConfig struct {
 	// it instead of re-deriving the precedence from raw schedule entries —
 	// re-implementations are explicitly forbidden (care_day_resolver.go).
 	// REQUIRED for ClassDay (same fail-fast); unused by the other reports.
-	CareDaySvc scheduleService.CareDayService
+	CareDaySvc careschedule.CareDayService
 	// Settings supplies enrollment.care_offerings_enabled so the class
 	// roster matches the form: a leftover active catalog must not constrain
 	// pickup times when offerings are turned off. Optional in tests; nil

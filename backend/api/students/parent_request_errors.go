@@ -11,9 +11,9 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -152,7 +152,7 @@ func isParentRequestNotPending(err error) bool {
 
 func isParentRequestForbidden(err error) bool {
 	return errors.Is(err, excusedrequests.ErrExcusedRequestForbidden) ||
-		errors.Is(err, scheduleService.ErrCareRequestForbidden) ||
+		errors.Is(err, careschedule.ErrCareRequestForbidden) ||
 		errors.Is(err, enrollmentService.ErrOfferingChangeForbidden) ||
 		errors.Is(err, userService.ErrReviewForbidden)
 }

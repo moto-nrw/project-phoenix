@@ -24,6 +24,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/classdaytest"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -38,8 +40,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -270,7 +270,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, rooms roomReader, settings compo
 // newTestServiceWithParticipation composes the projection the way the service
 // factory does: the owner facades serve the tenant-safe reads, the retained
 // schedule services stay behind the compatibility bindings.
-func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation scheduleSvc.CareParticipationResolver) classday.SlotLists {
+func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation careschedule.CareParticipationResolver) classday.SlotLists {
 	scheduleRepos := classdaytest.NewStudentScheduleRepositories(db)
 	people := newTestPeople(db)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
@@ -281,10 +281,10 @@ func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings comp
 		Persons:   people,
 		Groups:    newTestGroups(db),
 		Rooms:     rooms,
-		CareDays: scheduleSvc.NewCareDayService(scheduleSvc.CareDayDependencies{
+		CareDays: careschedule.NewCareDayService(careschedule.CareDayDependencies{
 			ArrivalSchedules:  scheduleRepos.ArrivalSchedule,
 			ArrivalExceptions: scheduleRepos.ArrivalException,
-			PickupBaselines: scheduletest.NewPickupBaselineService(
+			PickupBaselines: carescheduletest.NewPickupBaselineService(
 				scheduleRepos.PickupSchedule,
 				newApprovedOfferingProjection(db),
 				carePlanTest.CareOfferingRepository(db),
@@ -292,14 +292,14 @@ func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings comp
 			PickupExceptions:  scheduleRepos.PickupException,
 			CareParticipation: participation,
 		}),
-		PickupTimes: scheduleSvc.NewPickupScheduleServiceWithBulk(
+		PickupTimes: careschedule.NewPickupScheduleServiceWithBulk(
 			scheduleRepos.PickupSchedule,
 			scheduleRepos.PickupException,
 			scheduleRepos.PickupNote,
 			usersRepo.NewStudentRepository(db),
 			usersRepo.NewPersonRepository(db),
 			nil,
-			scheduletest.NewPickupBaselineService(
+			carescheduletest.NewPickupBaselineService(
 				scheduleRepos.PickupSchedule,
 				newApprovedOfferingProjection(db),
 				carePlanTest.CareOfferingRepository(db),
@@ -307,7 +307,7 @@ func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings comp
 			db,
 			slog.Default(),
 		),
-		ArrivalTimes: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
+		ArrivalTimes: careschedule.NewArrivalScheduleServiceWithBaselines(
 			scheduleRepos.ArrivalSchedule,
 			scheduleRepos.ArrivalException,
 			scheduleRepos.ArrivalNote,
@@ -318,7 +318,7 @@ func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings comp
 			db,
 			nil,
 		),
-		PickupBaselines: scheduletest.NewPickupBaselineService(
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
 			scheduleRepos.PickupSchedule,
 			newApprovedOfferingProjection(db),
 			carePlanTest.CareOfferingRepository(db),
@@ -3059,7 +3059,7 @@ func (slotListTestTB) Helper() {}
 
 func (slotListTestTB) Fatalf(format string, args ...any) { panic(fmt.Sprintf(format, args...)) }
 
-func newApprovedOfferingProjection(db *bun.DB) scheduleSvc.ApprovedBookingReader {
+func newApprovedOfferingProjection(db *bun.DB) careschedule.ApprovedBookingReader {
 	projection, err := classdaytest.NewApprovedOfferingProjection(db)
 	if err != nil {
 		panic(err)

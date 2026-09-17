@@ -28,11 +28,11 @@ import (
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1111,13 +1111,13 @@ func (stubOpActiveService) MoveStudentsToActiveGroupAuthorized(_ context.Context
 
 type stubOpArrivalService struct{}
 
-func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*scheduleSvc.EffectiveArrivalTime, error) {
+func (stubOpArrivalService) GetBulkEffectiveArrivalTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
 	return nil, nil
 }
 
 type stubOpPickupService struct{}
 
-func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*scheduleSvc.EffectivePickupTime, error) {
+func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
 	return nil, nil
 }
 
@@ -1126,12 +1126,12 @@ func (stubOpPickupService) GetBulkEffectivePickupTimesForDate(context.Context, [
 // before the care-day derivation (#1747) existed.
 type stubOpCareDayService struct{}
 
-func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]scheduleSvc.CareDayStatus, error) {
-	return map[int64]scheduleSvc.CareDayStatus{}, nil
+func (stubOpCareDayService) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
+	return map[int64]careschedule.CareDayStatus{}, nil
 }
 
-func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
-	return map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}, nil
+func (stubOpCareDayService) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
+	return map[int64]map[timezone.Date]careschedule.CareDayStatus{}, nil
 }
 
 // newRealSpontaneousOpsService wires a production timetableOperationsService so

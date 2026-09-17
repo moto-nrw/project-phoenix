@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -48,7 +48,7 @@ func NewCarePlan(db *bun.DB, students peopledirectory.Capability, slots schedule
 		return nil, err
 	}
 	if repository, ok := slots.(interface {
-		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+		BindCarePlan(timetableCompose.PickupExceptionDirectory)
 	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
@@ -161,7 +161,7 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 		repository.BindCarePlan(careExitDirectory{capability: capability})
 	}
 	if repository, ok := f.InstanceStudent.(interface {
-		BindCarePlan(scheduleRepo.PickupExceptionDirectory)
+		BindCarePlan(timetableCompose.PickupExceptionDirectory)
 	}); ok {
 		repository.BindCarePlan(pickupExceptionDirectory{query: capability})
 	}
@@ -171,7 +171,7 @@ type pickupExceptionDirectory struct {
 	query carePlanCompose.ExceptionQueries
 }
 
-func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*scheduleRepo.PickupExceptionProjection, error) {
+func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id int64) (*timetableCompose.PickupExceptionProjection, error) {
 	value, err := d.query.FindPickupException(ctx, id, false)
 	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
 		return nil, nil
@@ -179,10 +179,10 @@ func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id in
 	if err != nil {
 		return nil, err
 	}
-	return &scheduleRepo.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto}, nil
+	return &timetableCompose.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto}, nil
 }
 
-func (d pickupExceptionDirectory) ListPickupExceptions(ctx context.Context, filter scheduleRepo.PickupExceptionFilter) ([]scheduleRepo.PickupExceptionProjection, error) {
+func (d pickupExceptionDirectory) ListPickupExceptions(ctx context.Context, filter timetableCompose.PickupExceptionFilter) ([]timetableCompose.PickupExceptionProjection, error) {
 	ownerFilter := careplan.StudentScheduleFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs}
 	if filter.Date != "" {
 		ownerFilter.Date = careplan.Date(filter.Date)
@@ -194,14 +194,14 @@ func (d pickupExceptionDirectory) ListPickupExceptions(ctx context.Context, filt
 	if err != nil {
 		return nil, err
 	}
-	result := make([]scheduleRepo.PickupExceptionProjection, 0, len(values))
+	result := make([]timetableCompose.PickupExceptionProjection, 0, len(values))
 	for _, value := range values {
-		result = append(result, scheduleRepo.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto})
+		result = append(result, timetableCompose.PickupExceptionProjection{ID: value.ID, StudentID: value.StudentID, ExceptionDate: value.ExceptionDate.String(), ExcusedFrom: value.ExcusedFrom, ExcusedAuto: value.ExcusedAuto})
 	}
 	return result, nil
 }
 
-func (d pickupExceptionDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*scheduleRepo.StudentStatusDayProjection, error) {
+func (d pickupExceptionDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*timetableCompose.StudentStatusDayProjection, error) {
 	value, err := d.query.FindStudentStatusDay(ctx, id, activeOnly)
 	if errors.Is(err, careplan.ErrStudentStatusDayNotFound) {
 		return nil, nil
@@ -209,10 +209,10 @@ func (d pickupExceptionDirectory) FindStudentStatusDay(ctx context.Context, id i
 	if err != nil {
 		return nil, err
 	}
-	return &scheduleRepo.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status}, nil
+	return &timetableCompose.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status}, nil
 }
 
-func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter scheduleRepo.StudentStatusDayFilter) ([]scheduleRepo.StudentStatusDayProjection, error) {
+func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter timetableCompose.StudentStatusDayFilter) ([]timetableCompose.StudentStatusDayProjection, error) {
 	values, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{
 		IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date),
 		From: careplan.Date(filter.From), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly,
@@ -220,9 +220,9 @@ func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, fil
 	if err != nil {
 		return nil, err
 	}
-	result := make([]scheduleRepo.StudentStatusDayProjection, 0, len(values))
+	result := make([]timetableCompose.StudentStatusDayProjection, 0, len(values))
 	for _, value := range values {
-		result = append(result, scheduleRepo.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
+		result = append(result, timetableCompose.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})
 	}
 	return result, nil
 }

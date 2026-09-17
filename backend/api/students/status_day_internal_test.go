@@ -19,10 +19,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -307,8 +307,8 @@ func TestResolveDayPlanningStatusDaysOverridePlans(t *testing.T) {
 
 	status, reason, _ := resolveDayPlanningForDate(
 		StudentResponse{ID: 90, Sick: true},
-		&scheduleService.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
-		&scheduleService.EffectivePickupTime{PickupTime: &pickupTime},
+		&careschedule.EffectiveArrivalTime{ArrivalTime: &arrivalTime},
+		&careschedule.EffectivePickupTime{PickupTime: &pickupTime},
 		nil,
 		timetableIDs,
 		true,

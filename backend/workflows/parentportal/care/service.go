@@ -18,10 +18,10 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // Request types of the parent request-sharing ledger that this package
@@ -76,9 +76,9 @@ type Config struct {
 	Attendance    AttendanceReader
 	StatusDayRepo activeModels.StudentStatusDayRepository
 
-	ArrivalSchedules scheduleSvc.ArrivalScheduleService
-	PickupSchedules  scheduleSvc.PickupScheduleService
-	CareRequests     scheduleSvc.CareScheduleRequestService
+	ArrivalSchedules careschedule.ArrivalScheduleService
+	PickupSchedules  careschedule.PickupScheduleService
+	CareRequests     careschedule.CareScheduleRequestService
 
 	CarePeriods      enrollmentSvc.StudentCarePeriodReader
 	OfferingHistory  enrollmentSvc.OfferingHistoryReader

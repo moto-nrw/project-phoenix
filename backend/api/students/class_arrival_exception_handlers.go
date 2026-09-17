@@ -19,7 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -71,16 +71,16 @@ type ClassArrivalExceptionListResponse struct {
 }
 
 var classArrivalExceptionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: scheduleService.ErrClassArrivalExceptionPastDate, Render: func(err error) render.Renderer {
+	{Target: careschedule.ErrClassArrivalExceptionPastDate, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_past_date")
 	}},
-	{Target: scheduleService.ErrClassArrivalExceptionWeekend, Render: func(err error) render.Renderer {
+	{Target: careschedule.ErrClassArrivalExceptionWeekend, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, "class_arrival_exception_weekend")
 	}},
-	{Target: scheduleService.ErrClassArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
+	{Target: careschedule.ErrClassArrivalExceptionClassNotFound, Render: func(err error) render.Renderer {
 		return common.ErrorNotFoundWithCode(err, "class_arrival_exception_class_not_found")
 	}},
-	{Target: scheduleService.ErrClassArrivalExceptionNotFound, Render: common.ErrorNotFound},
+	{Target: careschedule.ErrClassArrivalExceptionNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)
 
 func mapClassArrivalException(row *scheduleModel.ClassArrivalException) ClassArrivalExceptionResponse {
@@ -217,7 +217,7 @@ func (rs *Resource) putClassArrivalException(w http.ResponseWriter, r *http.Requ
 	}
 	arrivalTime, _ := parseTimeOnly(req.ArrivalTime)
 
-	row, err := rs.ArrivalScheduleService.UpsertClassArrivalException(r.Context(), scheduleService.ClassArrivalExceptionInput{
+	row, err := rs.ArrivalScheduleService.UpsertClassArrivalException(r.Context(), careschedule.ClassArrivalExceptionInput{
 		SchoolClass: chi.URLParam(r, "schoolClass"),
 		Date:        date,
 		ArrivalTime: arrivalTime,

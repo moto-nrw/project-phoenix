@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +48,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	factory.BindTimetable(timetabletest.New(t, db))
 	instanceStudentRepo := factory.InstanceStudent

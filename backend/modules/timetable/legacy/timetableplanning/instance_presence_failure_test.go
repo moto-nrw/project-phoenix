@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,7 +85,7 @@ func TestInstanceStartPropagatesPresenceFailureAndRetries(t *testing.T) {
 	require.ErrorIs(t, err, injected)
 	assert.Nil(t, result)
 	require.Equal(t, 1, fault.reads)
-	var classified *scheduleSvc.ScheduleError
+	var classified *careschedule.ScheduleError
 	require.ErrorAs(t, err, &classified)
 	assert.Empty(t, broadcaster.Calls())
 	stored, err := s.repos.ActivityInstance.FindByID(s.ctx, instance.ID)

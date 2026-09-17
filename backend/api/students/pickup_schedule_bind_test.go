@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1000,8 +1000,8 @@ func TestBuildPickupDataResponse_PreservesExplicitEmptyDate(t *testing.T) {
 	t.Parallel()
 
 	date := timezone.NewDate(2026, 8, 18)
-	response := buildPickupDataResponse(&scheduleService.StudentPickupData{
-		EffectiveSchedules: []scheduleService.DatedPickupSchedule{{Date: date}},
+	response := buildPickupDataResponse(&careschedule.StudentPickupData{
+		EffectiveSchedules: []careschedule.DatedPickupSchedule{{Date: date}},
 	})
 
 	require.Len(t, response.EffectiveSchedules, 1)

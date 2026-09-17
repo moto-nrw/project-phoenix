@@ -3,9 +3,9 @@ package repositories
 import (
 	"context"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -20,7 +20,7 @@ func NewActivityRecoveryRepository(db *bun.DB, assignments scheduleModels.Instan
 	if !ok {
 		panic("activity recovery: timetable assignment adapter is required")
 	}
-	return scheduleRepo.NewActivityRecoveryRepository(db, recoveryAssignments{capability: owner.timetable}, newStudentPresence(db))
+	return timetableCompose.NewActivityRecoveryRepository(db, recoveryAssignments{capability: owner.timetable}, newStudentPresence(db))
 }
 
 func (r recoveryAssignments) LockAttendance(ctx context.Context, instanceID int64) error {

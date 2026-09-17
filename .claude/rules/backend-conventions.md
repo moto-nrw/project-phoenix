@@ -263,7 +263,7 @@ Cross-repo / cross-schema cleanup operations that genuinely don't fit a single r
 
 ### Handler-side transactions (`tenant.WithTenantTx` in `api/`)
 
-A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `services/schedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
+A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `modules/careplan/legacy/careschedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
 
 ### Why
 

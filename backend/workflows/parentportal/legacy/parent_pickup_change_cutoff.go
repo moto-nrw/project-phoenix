@@ -6,21 +6,21 @@ import (
 	"strconv"
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 type pickupChangePolicy struct {
 	enabled bool
-	cutoff  scheduleService.SameDayCutoff
+	cutoff  careschedule.SameDayCutoff
 }
 
 // pickupChangeCutoffInTx resolves the cutoff at the guardian write boundary.
 // It deliberately bypasses the request cache so a cutoff changed while this
 // request was waiting on its row locks takes effect for the pending write.
-func (s *service) pickupChangeCutoffInTx(ctx context.Context, tenantID int64) (scheduleService.SameDayCutoff, error) {
+func (s *service) pickupChangeCutoffInTx(ctx context.Context, tenantID int64) (careschedule.SameDayCutoff, error) {
 	policy, err := s.pickupChangePolicyInTx(ctx, tenantID)
 	if err != nil {
-		return scheduleService.SameDayCutoff{}, err
+		return careschedule.SameDayCutoff{}, err
 	}
 	return policy.cutoff, nil
 }
@@ -48,7 +48,7 @@ func (s *service) pickupChangePolicyInTx(ctx context.Context, tenantID int64) (p
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
 	}
-	cutoff, err := scheduleService.NewSameDayCutoffAt(clock, s.now)
+	cutoff, err := careschedule.NewSameDayCutoffAt(clock, s.now)
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: %w", err)
 	}

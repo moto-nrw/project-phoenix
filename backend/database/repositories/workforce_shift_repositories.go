@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -48,7 +48,7 @@ func (r workforceStaffShiftRepository) Create(ctx context.Context, shift *schedu
 func (r workforceStaffShiftRepository) FindByID(ctx context.Context, id any) (*scheduleModels.StaffShift, error) {
 	shiftID, err := shiftLegacyID(id)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("find by id", err)
+		return nil, timetableCompose.WrapDatabaseError("find by id", err)
 	}
 	value, err := r.workforce.FindStaffShift(ctx, shiftID)
 	if err != nil {
@@ -78,7 +78,7 @@ func (r workforceStaffShiftRepository) Update(ctx context.Context, shift *schedu
 func (r workforceStaffShiftRepository) Delete(ctx context.Context, id any) error {
 	shiftID, err := shiftLegacyID(id)
 	if err != nil {
-		return scheduleRepo.WrapDatabaseError("delete", err)
+		return timetableCompose.WrapDatabaseError("delete", err)
 	}
 	if err := r.workforce.DeleteStaffShift(ctx, shiftID); err != nil {
 		return shiftWriteError("delete", err)
@@ -94,7 +94,7 @@ func (r workforceStaffShiftRepository) List(ctx context.Context, filters map[str
 			continue
 		}
 		if err := applyShiftEqualityFilter(&filter, field, value); err != nil {
-			return nil, scheduleRepo.WrapDatabaseError("list", err)
+			return nil, timetableCompose.WrapDatabaseError("list", err)
 		}
 	}
 	return r.list(ctx, "list", filter)
@@ -102,10 +102,10 @@ func (r workforceStaffShiftRepository) List(ctx context.Context, filters map[str
 
 // ListWithOptions serves the query options the sick cascade builds for the
 // cover set of stamped shifts.
-func (r workforceStaffShiftRepository) ListWithOptions(ctx context.Context, options *scheduleRepo.StaffShiftQueryOptions) ([]*scheduleModels.StaffShift, error) {
-	typed, err := scheduleRepo.StaffShiftListOptions(options)
+func (r workforceStaffShiftRepository) ListWithOptions(ctx context.Context, options *timetableCompose.StaffShiftQueryOptions) ([]*scheduleModels.StaffShift, error) {
+	typed, err := timetableCompose.StaffShiftListOptions(options)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("list with options", err)
+		return nil, timetableCompose.WrapDatabaseError("list with options", err)
 	}
 	return r.list(ctx, "list with options", workforce.StaffShiftFilter{
 		SickAbsenceID: typed.SickAbsenceID, OriginShiftIDs: typed.OriginShiftIDs, StaffIDs: typed.StaffIDs,
@@ -351,7 +351,7 @@ func (r workforceStaffShiftSeriesRepository) Create(ctx context.Context, series 
 func (r workforceStaffShiftSeriesRepository) FindByID(ctx context.Context, id any) (*scheduleModels.StaffShiftSeries, error) {
 	seriesID, err := shiftLegacyID(id)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("find by id", err)
+		return nil, timetableCompose.WrapDatabaseError("find by id", err)
 	}
 	value, err := r.workforce.FindStaffShiftSeries(ctx, seriesID)
 	if err != nil {
@@ -381,7 +381,7 @@ func (r workforceStaffShiftSeriesRepository) Update(ctx context.Context, series 
 func (r workforceStaffShiftSeriesRepository) Delete(ctx context.Context, id any) error {
 	seriesID, err := shiftLegacyID(id)
 	if err != nil {
-		return scheduleRepo.WrapDatabaseError("delete", err)
+		return timetableCompose.WrapDatabaseError("delete", err)
 	}
 	if err := r.workforce.DeleteStaffShiftSeries(ctx, seriesID); err != nil {
 		return shiftWriteError("delete", err)
@@ -482,7 +482,7 @@ func (r workforceShiftTypeRepository) Create(ctx context.Context, shiftType *sch
 func (r workforceShiftTypeRepository) FindByID(ctx context.Context, id any) (*scheduleModels.ShiftType, error) {
 	typeID, err := shiftLegacyID(id)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("find by id", err)
+		return nil, timetableCompose.WrapDatabaseError("find by id", err)
 	}
 	value, err := r.workforce.FindShiftType(ctx, typeID)
 	if err != nil {
@@ -512,7 +512,7 @@ func (r workforceShiftTypeRepository) Update(ctx context.Context, shiftType *sch
 func (r workforceShiftTypeRepository) Delete(ctx context.Context, id any) error {
 	typeID, err := shiftLegacyID(id)
 	if err != nil {
-		return scheduleRepo.WrapDatabaseError("delete shift type", err)
+		return timetableCompose.WrapDatabaseError("delete shift type", err)
 	}
 	if err := r.workforce.DeleteShiftType(ctx, typeID); err != nil {
 		return shiftWriteError("delete shift type", err)
@@ -722,9 +722,9 @@ func shiftLegacyID(id any) (int64, error) {
 // failure keeps its cause behind the operation.
 func shiftReadError(op string, err error, notFound error) error {
 	if notFound != nil && errors.Is(err, notFound) {
-		return scheduleRepo.WrapNoRowsDatabaseError(op)
+		return timetableCompose.WrapNoRowsDatabaseError(op)
 	}
-	return scheduleRepo.WrapDatabaseError(op, err)
+	return timetableCompose.WrapDatabaseError(op, err)
 }
 
 // shiftWriteError keeps the legacy write error shape: validation failures
@@ -736,11 +736,11 @@ func shiftWriteError(op string, err error) error {
 		errors.Is(err, workforce.ErrInvalidShiftType) {
 		return fmt.Errorf("%w", err)
 	}
-	return scheduleRepo.WrapDatabaseError(op, err)
+	return timetableCompose.WrapDatabaseError(op, err)
 }
 
 // shiftRowsAffectedError is the legacy result of an update that matched no
 // row.
 func shiftRowsAffectedError(op string) error {
-	return scheduleRepo.WrapDatabaseError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
+	return timetableCompose.WrapDatabaseError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
 }

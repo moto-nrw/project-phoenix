@@ -12,8 +12,8 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // StudentStatusDayCancelled is the class-day-only marker for a pickup
@@ -580,7 +580,7 @@ func (s *reportService) classDayArrivalException(ctx context.Context, schoolClas
 	if err != nil {
 		// A deployment without the exception repository still serves the
 		// sheet; the exception line is an extra, not the report.
-		if errors.Is(err, scheduleService.ErrClassArrivalExceptionNotConfigured) {
+		if errors.Is(err, careschedule.ErrClassArrivalExceptionNotConfigured) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("class day report: load class arrival exception: %w", err)
@@ -614,7 +614,7 @@ func (s *reportService) classDayArrivalException(ctx context.Context, schoolClas
 // (the child normally is not in care then). A timeless exception carries no
 // time at all; that is "kommt heute nicht" and travels as a status, not as a
 // changed pickup.
-func applyClassDayPickup(facts *classDayFacts, studentID int64, entry *scheduleService.EffectivePickupTime) {
+func applyClassDayPickup(facts *classDayFacts, studentID int64, entry *careschedule.EffectivePickupTime) {
 	if entry.PickupTime != nil {
 		facts.pickups[studentID] = entry.PickupTime.Format("15:04")
 	}
@@ -659,9 +659,9 @@ func (s *reportService) classDayCancellations(ctx context.Context, studentIDs []
 	}
 	for studentID, status := range statuses {
 		switch status {
-		case scheduleService.CareDayCancelled:
+		case careschedule.CareDayCancelled:
 			cancelled[studentID] = true
-		case scheduleService.CareDayNotScheduled:
+		case careschedule.CareDayNotScheduled:
 			facts.notScheduled[studentID] = true
 		}
 	}

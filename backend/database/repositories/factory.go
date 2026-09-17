@@ -14,7 +14,6 @@ import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
-	"github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -32,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 
@@ -604,7 +604,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Education repositories
 		Group:                 groupRepo,
 		ClassArrivalTime:      education.NewClassArrivalTimeRepository(db),
-		ClassArrivalException: schedule.NewClassArrivalExceptionRepository(db),
+		ClassArrivalException: timetableCompose.NewClassArrivalExceptionRepository(db),
 		GroupSubstitution:     nil, // bound to Workforce below
 
 		// Schedule repositories. Dateframe, CalendarPeriod and ClosingDay
@@ -729,7 +729,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Calendar repositories
 		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
 		ParentAnnouncement:         parentAnnouncement,
-		StaffNotice:                schedule.NewStaffNoticeRepository(db),
+		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
 	}
 	factory.appointments = appointmentsModule
 	studentRepo.(interface {

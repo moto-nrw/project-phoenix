@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
@@ -25,7 +26,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -106,7 +106,7 @@ type Dependencies struct {
 	TemplateSplitService    *timetableplanning.TemplateSplitService
 	PersonService           userSvc.PersonService
 	TimetableData           *timetableplanning.TimetableDataService
-	CareDayService          scheduleSvc.CareDayService
+	CareDayService          careschedule.CareDayService
 	UserContextService      usercontextSvc.UserContextService
 	SettingsService         configSvc.SettingsService
 	SlotListsService        classday.SlotLists

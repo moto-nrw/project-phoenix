@@ -307,7 +307,7 @@ are temporary debt that goes with the retained services under #2730 and
 #3218; a fix to the #1844 staffing broadcast must land in both until then.
 #3218 moved the coverage probe, the staff pool, the bulk substitution and the
 shared interval vocabulary on with the timetable services (below); the
-partial-absence service stays in `services/schedule` for #3220.
+partial-absence service moved with the care services in #3220.
 
 The retained timetable and instance services that `services/schedule` used to
 hold (templates, splits and updates, materialization, the instance lifecycle
@@ -318,18 +318,17 @@ roster reconciler, cleanup and the attendance mirror) are retained as the
 `modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
 their behaviour tests. No HTTP path, status code, error string, authorization
 check, tenant scoping, recurrence, exception or materialization semantics
-changed. `services/schedule` keeps the care, arrival and pickup services for
-#3220, together with what only they need or what both sides share: the generic
+changed. The care, arrival and pickup services stayed behind for #3220 (below),
+together with what only they need or what both sides share: the generic
 effective-time engine (`effective_time_service.go`,
 `effective_time_domains.go`, which the arrival and pickup services
 instantiate), the day-planning resolver the care-day resolver calls, and the
 `ScheduleError` type with its sentinels (the moved package aliases the type,
 so `errors.As` matches either name). The moved package imports
-`services/schedule` for these and for the care-day, care-exception-lock,
-baseline and effective-time contracts; the `services/schedule` package never
-imports it back, so the packages depend in one direction only (only the
-test-support package `services/schedule/scheduletest` binds its mocks to the
-moved services). `germanDateLayout` now
+them (`modules/careplan/legacy/careschedule` since #3220) for these and for
+the care-day, care-exception-lock, baseline and effective-time contracts;
+that package never imports it back, so the packages depend in one direction
+only. `germanDateLayout` now
 exists in both packages, and the care-day resolver uses the effective-time
 engine's identical weekday helper instead of the materializer's copy. The
 package could not land on an existing point: it still speaks the retained
@@ -365,6 +364,58 @@ persistence adapter, the legacy weekend-instance cleanup in
 `database/repositories/schedule`, is deleted; production already used the
 Timetable owner's `DeleteRemovedWeekendActivityInstances`, whose owner test now
 also pins the retained-weekday and empty-set cases.
+
+The retained care, arrival and pickup services that `services/schedule` held
+last (care-schedule change requests, arrival and pickup schedules and their
+baselines, class arrival exceptions, the care-day and day-planning resolvers,
+the effective-time engine, pickup auto-excusal, partial absences, the
+same-day cutoff and the care-exception lock) are retained as the
+`inbound-schedules`/`adapter` compatibility package
+`modules/careplan/legacy/careschedule` (#3220), moved file for file with their
+behaviour tests; `services/schedule` no longer exists. No HTTP path, status
+code, error string, authorization check, tenant scoping, auto-excusal,
+attendance-correction or parent-permission semantics changed. The package
+could not land on the existing `care-plan`/`adapter` point for the same reason
+as #3218; `inbound-schedules` had no package left since #3073. Every
+`inbound-schedules.*` rule and every `<consumer>.<role>.inbound-schedules-*`
+rule is a compatibility permission that exists only because PR mode cannot
+record debt for a package the candidate creates: convert them to exact debt
+once the package exists at a base SHA, and dissolve the services into the Care
+Plan application and domain layers. The test doubles of
+`services/schedule/scheduletest` split with their subjects: the pickup
+baseline double is `modules/careplan/legacy/careschedule/carescheduletest`
+(`inbound-schedules`/`test-support`), and the closing-day mock became a test
+file of its only consumer, `api/timetable`. The care request service takes its
+sharing resolver and its test clock at construction
+(`WithRequestShareVisibility`, `WithCareRequestToday`) instead of the former
+setters; the legacy factory passes the same lazy resolver the excused requests
+use (`requestShares`), so a request the parents service has not been bound to
+yet still yields the neutral co-guardian line. Tests that pinned the clock
+after construction now pass it at construction (the students route through its
+module clock).
+
+`database/repositories/schedule` no longer exists either (#3220). Its three
+remaining SQL repositories (class arrival exceptions, staff notices and the
+activity-reopen instance update) write Timetable-owned tables, so their SQL
+moved into the owner's persistence adapter
+(`modules/timetable/internal/adapters/postgres`, `retained_rows.go`) with an
+explicit tenant filter on every statement; `modules/timetable/compose` serves
+the retained `models/schedule` and `models/users` repository contracts over it
+with the legacy error contract. `ClassArrivalExceptionRepository` dropped its
+unused generic CRUD methods. The pure query-option translations and listing
+adapters the legacy composition uses moved to `modules/timetable/compose`
+(`legacy_repository_options.go`, `legacy_composition_support.go`,
+`calendar_period_usage.go`), which may already import their models. The SQL
+test providers the cross-package tests build and the repository behaviour
+tests are the test-only root `modules/timetable/legacy/timetablesqltest`
+(`inbound-timetable`/`test-support`, `e2e-test` in both test scopes, as
+`modules/workforce/contracttest`); its `inbound-timetable.test-support.*`,
+`inbound-timetable.e2e-test.*` and `<consumer>.<role>.inbound-timetable-test-support`
+rules are compatibility permissions of the same kind. With both packages gone,
+all #2730 entries left `legacy.jsonl`, together with the other resolved
+imports of the two packages, and the 25 rules that only those imports used
+(for example `parent-portal.adapter.timetable-application` and
+`inbound-timetable.adapter.timetable-activities-application`) were deleted.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
@@ -1014,7 +1065,7 @@ same shapes. Every foreign fact enters through consumer-owned ports: the four
 queues, the correction log, the caller's rights, the group names and the
 Familienschutz flag. Its compatibility adapter (`modules/requestreview/legacy`,
 `request-review-view`/`adapter`) binds those ports to the retained
-`services/users`, `services/schedule`, `services/enrollment` review queues,
+`services/users`, `modules/careplan/legacy/careschedule`, `services/enrollment` review queues,
 the Care Plan excused-request contract, the retained review policy, people,
 education and Familienschutz services, and derives the per-row facts
 (urgency, past scope, version, conflict keys) with the owners' own rules.
