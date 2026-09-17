@@ -199,7 +199,7 @@ func TestSeedTimeTrackingCoverageCreatesQuotaOpeningAndBreak(t *testing.T) {
 
 	paths = nil
 	rt.Client.BindAuth(AuthRef{Token: "staff"})
-	require.NoError(t, seedOneWorkSessionBreak(rt))
+	require.NoError(t, seedOneWorkSessionBreak(rt.Client))
 	assert.Equal(t, []string{
 		"/api/time-tracking/break/start",
 		"/api/time-tracking/break/end",
