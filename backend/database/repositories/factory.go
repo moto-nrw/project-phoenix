@@ -252,10 +252,8 @@ type Factory struct {
 	// unobserved default with the serving root's module.
 	School organizationtenancy.Capability
 
-	// Operator MFA (issue #1308 phase 7b)
-	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
-	OperatorMFAEmailChallenge platformModels.OperatorMFAEmailChallengeRepository
-	OperatorMFATrustedDevice  platformModels.OperatorMFATrustedDeviceRepository
+	// Operator passkeys. The operator MFA records are owned by Identity &
+	// Access (#2723).
 	OperatorPasskeyCredential platformModels.OperatorPasskeyCredentialRepository
 	OperatorPasskeySession    platformModels.OperatorPasskeySessionRepository
 
@@ -700,9 +698,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
 		School:                   mustNewOrganizationTenancy(db),
 
-		OperatorMFACredential:     platformRepo.NewOperatorMFACredentialRepository(db),
-		OperatorMFAEmailChallenge: platformRepo.NewOperatorMFAEmailChallengeRepository(db),
-		OperatorMFATrustedDevice:  platformRepo.NewOperatorMFATrustedDeviceRepository(db),
 		OperatorPasskeyCredential: platformRepo.NewOperatorPasskeyCredentialRepository(db),
 		OperatorPasskeySession:    platformRepo.NewOperatorPasskeySessionRepository(db),
 

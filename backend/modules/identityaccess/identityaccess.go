@@ -51,9 +51,12 @@ func ErrorCode(err error) string {
 		return "none"
 	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
 		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
-		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound):
+		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound),
+		errors.Is(err, ErrOperatorMFACredentialNotFound), errors.Is(err, ErrOperatorMFAChallengeNotFound),
+		errors.Is(err, ErrOperatorTrustedDeviceNotFound):
 		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists):
+	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists),
+		errors.Is(err, ErrOperatorMFAChallengeStateChanged):
 		return "conflict"
 	case errors.Is(err, ErrTenantRequired):
 		return "tenant_required"
@@ -317,6 +320,7 @@ type AccountSessionAccess interface {
 type Engine interface {
 	GuardianAccess
 	OperatorAccess
+	OperatorMFARecords
 	AccountSessionAccess
 	RFIDQuery
 	SchoolAccountQuery

@@ -32,6 +32,16 @@ func newTestOperatorDirectory(db *bun.DB) platform.OperatorDirectory {
 	return directory
 }
 
+// newTestOperatorMFARecords binds the retained operator MFA records port
+// over the Identity & Access module the service root composes (#2723).
+func newTestOperatorMFARecords(db *bun.DB) platform.OperatorMFARecords {
+	records, err := services.NewOperatorMFARecordsForTests(db)
+	if err != nil {
+		panic(err)
+	}
+	return records
+}
+
 func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -46,6 +56,7 @@ func newTestOperatorMFAService(t *testing.T) (platform.OperatorMFAService, *repo
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:       repos,
 		Operators:   newTestOperatorDirectory(db),
+		Records:     newTestOperatorMFARecords(db),
 		TokenAuth:   tokenAuth,
 		Dispatcher:  dispatcher,
 		DefaultFrom: email.NewEmail("Operator Tests", "ops-tests@example.test"),
@@ -111,7 +122,7 @@ func TestOperatorMFAService_TrustedDeviceFlow(t *testing.T) {
 func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	svc, repos, db := newTestOperatorMFAService(t)
+	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
 
@@ -121,7 +132,7 @@ func TestOperatorMFAService_StartChallengeAndWrongCode(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenString)
 
-	active, err := repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, op.ID)
+	active, err := newTestOperatorMFARecords(db).FindActiveChallenge(ctx, op.ID)
 	require.NoError(t, err)
 	require.NotNil(t, active)
 	assert.Equal(t, op.ID, active.OperatorID)
