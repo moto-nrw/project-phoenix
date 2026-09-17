@@ -18,7 +18,7 @@ import (
 )
 
 // childResolver binds messaging's ChildResolver to the real guardian-child
-// resolution, as services/parent does in production.
+// resolution, as workflows/parentportal/legacy does in production.
 func childResolver(db *bun.DB, repos *repositories.Factory) messaging.ChildResolver {
 	return care.New(care.Config{
 		DB: db, ChildRepo: repos.ParentChild, StudentRepo: repos.Student,
@@ -40,7 +40,7 @@ func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (c
 
 // parentSettingsStub answers ResolveBoolForTenant / ResolveStringForTenant
 // from maps; every other SettingsService method panics via the embedded nil
-// interface. Test-only copy of the services/parent stub.
+// interface. Test-only copy of the workflows/parentportal/legacy stub.
 type parentSettingsStub struct {
 	configService.SettingsService
 	boolValues   map[string]bool
@@ -69,7 +69,7 @@ func (s parentSettingsStub) ResolveStringForTenantInTx(_ context.Context, _ int6
 }
 
 // endCareFor ends the child's care the day before the fixed test day (test-only
-// copy of the services/parent helper).
+// copy of the workflows/parentportal/legacy helper).
 func endCareFor(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().

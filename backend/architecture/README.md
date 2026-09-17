@@ -768,22 +768,54 @@ messaging and the self-service chat pills behind its `ChildResolver` port.
 It returns the guardian-child and note sentinels declared in `care`
 (`parent-portal.application.care`). Both packages are
 `parent-portal`/`application` with `workflow-integration-test` in both test
-scopes. The code moved file for file with its tests. `services/parent` keeps
-the public `parent.Service` contract, binds both ports and delegates the
-moved methods. No HTTP path, status code, error string, authorization check
-or tenant scoping changed. Every `parent-portal.application.*` and
-`parent-portal.integration-test.*` rule is a compatibility binding to the
-retained models, services and shared helpers the moved code already imported.
-These rules exist only because PR mode cannot record debt for a package the
-candidate creates. Convert them to exact debt with the rule above once the
-packages exist at a base SHA. `care-plan.application.parent-portal` is the
-transitional delegation edge. #3228 removes it together with
-`services/parent`, and #3229 moves `api/parent` onto the workflow.
+scopes. The code moved file for file with its tests. The retained parent
+services (see below) keep the public `Service` contract, bind both ports and
+delegate the moved methods. No HTTP path, status code, error string,
+authorization check or tenant scoping changed. Every
+`parent-portal.application.*` and `parent-portal.integration-test.*` rule is
+a compatibility binding to the retained models, services and shared helpers
+the moved code already imported. These rules exist only because PR mode
+cannot record debt for a package the candidate creates. Convert them to exact
+debt with the rule above once the packages exist at a base SHA. #3229 moves
+`api/parent` onto the workflow.
 
 Under ADR 0013 this data-less workflow registration raises the policy epoch
 from 11 to 12 and uses only candidate-created packages. No table changes
 owner and no existing-owner import guard is expanded. The move resolved six
 recorded `services/parent` internal-test imports, which left `legacy.jsonl`.
+
+The retained parent services (`workflows/parentportal/legacy`,
+`parent-portal`/`adapter`, #3228) are the write, master-data, guardian,
+related-account, consent, profile, enrollment-list, sick-note and meal-plan
+flows that `services/parent` still held after #3227, moved file for file with
+their behaviour tests. `services/parent` and its `care-plan`/`application`
+classification are gone, and with them the transitional
+`care-plan.application.parent-portal` edge and the last 47 `legacy.jsonl`
+entries that named the package (#3227 had already resolved six of its
+internal-test imports). The package keeps the public `Service` contract that
+`api/parent` and the service factory consume. No HTTP path, status code,
+error string, validation rule, authorization check or tenant scoping changed,
+and no table changed owner. The package could not join the existing
+`parent-portal`/`application` point: it still speaks the retained audit,
+identity, base, localization and realtime vocabulary, and PR mode rejects a
+new permission on a point that exists at the base SHA. It uses the
+candidate-created `parent-portal`/`adapter` point with `adapter-test` in both
+test scopes instead. Every `parent-portal.adapter.*` and
+`parent-portal.adapter-test.*` rule and the consumer rules
+`inbound-parent.http.parent-portal-adapter`,
+`inbound-parent.adapter-test.parent-portal-adapter` and
+`legacy-composition.compose.parent-portal-adapter` are compatibility
+permissions that exist only because PR mode cannot record debt for a package
+the candidate creates. They cover every future `parent-portal`/`adapter`
+package, so no other package may join that point before the conversion.
+Convert them to exact debt with the rule above under #2735 once the package
+exists at a base SHA, and dissolve the package into the workflow
+as each flow reaches its owner's public capability. The move replaced the
+post-construction absence-notifier and student-photo setters with
+construction-time configuration, because the composition surface guard
+records mutable wiring per package and a relocated setter would count as
+growth. The factory resolves the student-photo lifecycle on use, since the
+API bootstrap builds it after the parent services.
 
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present

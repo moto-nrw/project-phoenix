@@ -36,7 +36,7 @@ func (submitterOnlyVisibility) Allows(_ string, _, accountID, submittedBy int64)
 // parentSettingsStub answers ResolveBoolForTenant / ResolveStringForTenant
 // from maps; every other SettingsService method panics via the embedded nil
 // interface, keeping the tests honest about what the services touch. Test-only
-// copy of the services/parent stub for the relocated care-schedule tests.
+// copy of the workflows/parentportal/legacy stub for the relocated care-schedule tests.
 type parentSettingsStub struct {
 	configService.SettingsService
 	boolValues   map[string]bool
