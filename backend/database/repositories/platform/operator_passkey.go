@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	platformWhereID                     = "id = ?"
 	operatorPasskeyCredentialTable      = "platform.operator_passkey_credentials"
 	operatorPasskeyCredentialTableAlias = `platform.operator_passkey_credentials AS "operator_passkey_credential"`
 	operatorPasskeySessionTable         = "platform.operator_passkey_sessions"

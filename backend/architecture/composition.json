@@ -5798,7 +5798,7 @@
       "declaration": "newTestOperatorMFAService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        39
+        49
       ],
       "tables": []
     },
