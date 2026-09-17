@@ -40,7 +40,8 @@ the following hold against the base SHA:
 2. The base `legacy.jsonl` records at least one production
    `tables.unclassified` finding for the table.
 3. Every package those findings name is, in the candidate policy, classified
-   under the adopting owner or no longer classified at all.
+   under the adopting owner, no longer classified at all, or no longer reads
+   or writes the table in the candidate.
 4. The candidate policy epoch is greater than the base epoch.
 
 The candidate removes the consumed `tables.unclassified` entries from the
@@ -53,6 +54,19 @@ accessor, and because semantic findings are excluded from the import-debt
 conversion, a foreign accessor surfaces as a new violation and blocks the
 pull request. The owning package itself is not moved by this path; a
 relocation follows the ordinary candidate-created-package rules.
+
+The third alternative of rule 3 was added by
+[#3221](https://github.com/moto-nrw/project-phoenix/issues/3221). The staff
+messaging tables are recorded against `database/repositories/users`, a People
+Directory package that keeps serving People Directory tables after the
+messaging SQL moves to Communication. Without it the move needs the adoption
+(the moved access would otherwise be a new unclassified finding) and the
+adoption needs the move to delete a package that still has other work. The
+evaluator decides "no longer reads or writes" from the candidate's own
+ownership findings: under the candidate policy any remaining access by
+another owner's package is a `tables.foreign-read` or `tables.foreign-write`
+finding, so the same evidence that would block the pull request also blocks
+the adoption.
 
 This is the third reviewed-epoch path after
 [ADR 0013](0013-staff-offboarding-is-an-application-workflow.md) and

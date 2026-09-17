@@ -1432,7 +1432,11 @@ A reviewed epoch may also let a target owner adopt an existing table
 `data_objects` entry is accepted when the table has no owner in the base
 policy, the base `legacy.jsonl` records at least one production
 `tables.unclassified` finding for it, and every package those findings name is
-classified under the adopting owner in the candidate or no longer exists. The
+classified under the adopting owner in the candidate, no longer exists, or no
+longer reads or writes the table in the candidate's current findings. The last
+case covers a shared legacy package whose access to the table moved to the
+adopting owner while the package itself stays for other tables
+([#3221](https://github.com/moto-nrw/project-phoenix/issues/3221)). The
 candidate must remove those findings from the baseline as usual. Transferring
 an owned table, adopting a table with no recorded debt, and adopting while a
 package of another owner still accesses it remain loosenings; after the
