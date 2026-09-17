@@ -94,6 +94,50 @@ func TestDeviceCheckin_SchulhofWithoutBlocksKeepsTheKioskSession(t *testing.T) {
 	assert.Equal(t, freeplay.ID, k.openVisitSession(t, second))
 }
 
+func TestDeviceCheckin_SchulhofKioskTakesOverFreeplayNextToBlocks(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	k := setupCheckinRoute(t)
+	staff, _, _ := k.staff(t, "YardTakeover", "Staff")
+	device, deviceID := k.deviceRow(t, "yard-takeover")
+	yard := testpkg.CreateTestSystemRoom(t, k.db, "Schulhof", true)
+	block := testpkg.CreateTestRunningBlock(t, k.db, yard.ID, "Hof Klettern")
+	tagFirst, first, _ := k.studentCard(t, "TakeoverFirst", "Child", "1a")
+	tagSecond, second, _ := k.studentCard(t, "TakeoverSecond", "Child", "1b")
+
+	// The first scan opens the device-less Freispiel session next to the
+	// block, the same session a phone move would open.
+	rr := k.callIsolated(t, "POST", "/checkin", checkinBody(tagFirst, yard.ID), device, staff)
+	testutil.AssertSuccessResponse(t, rr, 200)
+	freeplay := k.openVisitSession(t, first)
+	require.NotEqual(t, block.ID, freeplay)
+	testpkg.LinkDeviceToActiveGroup(t, k.db, freeplay, deviceID)
+
+	rr = k.callIsolated(t, "POST", "/checkin", checkinBody(tagSecond, yard.ID), device, staff)
+	testutil.AssertSuccessResponse(t, rr, 200)
+	assert.Equal(t, freeplay, k.openVisitSession(t, second))
+	assert.Equal(t, float64(2), responseData(t, rr.Body.Bytes())["active_students"], "the kiosk counts its own session")
+}
+
+func TestDeviceCheckin_SchulhofKioskActivityKeepsItsChildrenNextToBlocks(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	k := setupCheckinRoute(t)
+	staff, _, _ := k.staff(t, "YardKioskActivity", "Staff")
+	device, deviceID := k.deviceRow(t, "yard-kiosk-activity")
+	yard := testpkg.CreateTestSystemRoom(t, k.db, "Schulhof", true)
+	kioskSession := testpkg.CreateTestRunningBlock(t, k.db, yard.ID, "Hof Kiosk-Spiel")
+	testpkg.LinkDeviceToActiveGroup(t, k.db, kioskSession.ID, deviceID)
+	testpkg.CreateTestRunningBlock(t, k.db, yard.ID, "Hof Staffellauf")
+	tag, student, _ := k.studentCard(t, "KioskActivity", "Child", "1a")
+
+	rr := k.callIsolated(t, "POST", "/checkin", checkinBody(tag, yard.ID), device, staff)
+
+	testutil.AssertSuccessResponse(t, rr, 200)
+	assert.Equal(t, kioskSession.ID, k.openVisitSession(t, student))
+	assert.Equal(t, 2, testpkg.CountOpenActiveGroupsInRoom(t, k.db, yard.ID), "no Freispiel session was opened")
+}
+
 func TestDeviceCheckin_UnreleasedSchulhofAppliesOnlyTheRoster(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)

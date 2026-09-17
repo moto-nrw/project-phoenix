@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"log/slog"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
@@ -17,10 +18,10 @@ import (
 // yard without release keeps every session under the ordinary room rules.
 //
 // A nil selection hands the returned candidates back to the ordinary choice;
-// blocksRun reports that sessions other than Freispiel run in the yard.
+// blocksRunning reports that sessions other than Freispiel run in the yard.
 // Without them, or without the roster and activity seams, the candidates are
 // the given sessions unchanged.
-func (s *Service) routeYardScan(ctx context.Context, sessions []ports.Session, room facilities.Room, studentID, deviceID int64) (selection *selectedSession, candidates []ports.Session, blocksRun bool, err error) {
+func (s *Service) routeYardScan(ctx context.Context, sessions []ports.Session, room facilities.Room, studentID, deviceID int64) (selection *selectedSession, candidates []ports.Session, blocksRunning bool, err error) {
 	if s.rosters == nil || s.activities == nil || len(sessions) == 0 {
 		return nil, sessions, false, nil
 	}
@@ -35,10 +36,20 @@ func (s *Service) routeYardScan(ctx context.Context, sessions []ports.Session, r
 	if err != nil || selection != nil {
 		return selection, nil, true, err
 	}
-	if isReleasedSchulhofRoom(room) {
-		return nil, freeplay, true, nil
+	if !isReleasedSchulhofRoom(room) {
+		return nil, sessions, true, nil
 	}
-	return nil, sessions, true, nil
+	// The kiosk books into the room it stands in and counts its own
+	// session, so a session this device runs keeps its children.
+	candidates = slices.Clone(freeplay)
+	for _, session := range sessions {
+		ownBlock := session.DeviceID != nil && *session.DeviceID == deviceID &&
+			!slices.ContainsFunc(freeplay, func(f ports.Session) bool { return f.ID == session.ID })
+		if ownBlock {
+			candidates = append(candidates, session)
+		}
+	}
+	return nil, candidates, true, nil
 }
 
 // openFreeplayNextToBlocks finds or opens the device-less Freispiel session

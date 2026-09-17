@@ -246,6 +246,7 @@ type fakeSessions struct {
 	started        []ports.NewSession
 	startErr       error
 	ensured        []ports.NewSession
+	ensureErr      error
 	nextSessionID  int64
 	deleted        []int64
 	ended          []int64
@@ -278,8 +279,8 @@ func (s *fakeSessions) Start(_ context.Context, input ports.NewSession) (ports.S
 }
 func (s *fakeSessions) EnsureRoomSession(_ context.Context, input ports.NewSession) (ports.Session, error) {
 	s.ensured = append(s.ensured, input)
-	if s.startErr != nil {
-		return ports.Session{}, s.startErr
+	if s.ensureErr != nil {
+		return ports.Session{}, s.ensureErr
 	}
 	s.nextSessionID++
 	activityID := input.ActivityID

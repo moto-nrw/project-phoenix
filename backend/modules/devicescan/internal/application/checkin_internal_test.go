@@ -467,8 +467,8 @@ func TestYardScan_RosteredChildJoinsDeviceLinkedBlockAsDeviceScoped(t *testing.T
 func TestYardScan_UnrosteredChildStaysOutOfRunningBlocks(t *testing.T) {
 	t.Parallel()
 	h, room := yardHarness(t)
-	// Even the block this kiosk runs does not absorb a child it does not list.
-	h.sessions.open[2].DeviceID = ptr(testDeviceID)
+	// A block another kiosk runs does not absorb a child it does not list.
+	h.sessions.open[2].DeviceID = ptr(testDeviceID + 1)
 
 	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
@@ -476,7 +476,35 @@ func TestYardScan_UnrosteredChildStaysOutOfRunningBlocks(t *testing.T) {
 	assert.Equal(t, yardFreeplaySessionID, selection.Session.ID)
 	assert.False(t, selection.DeviceScoped)
 	assert.Empty(t, h.sessions.started)
+	assert.Empty(t, h.sessions.ensured)
 	assert.Empty(t, h.sessions.ended, "running blocks stay untouched")
+}
+
+// The kiosk books into the room it stands in and shows the count of its
+// own session, so the activity it runs keeps the children it scans.
+func TestYardScan_UnrosteredChildJoinsTheSessionOfTheScanningKiosk(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open[1].DeviceID = ptr(testDeviceID)
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardBlockASessionID, selection.Session.ID)
+	assert.True(t, selection.DeviceScoped)
+}
+
+func TestYardScan_KioskSessionWithoutFreeplayOpensNothing(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open = h.sessions.open[1:]
+	h.sessions.open[0].DeviceID = ptr(testDeviceID)
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardBlockASessionID, selection.Session.ID)
+	assert.Empty(t, h.sessions.ensured, "no Freispiel session next to the kiosk's own")
 }
 
 func TestYardScan_UnrosteredChildPrefersTheFreeplaySessionTheKioskTookOver(t *testing.T) {
@@ -519,7 +547,7 @@ func TestYardScan_FreeplayCreationFailureNamesTheSchulhof(t *testing.T) {
 	t.Parallel()
 	h, room := yardHarness(t)
 	h.sessions.open = h.sessions.open[1:]
-	h.sessions.startErr = errBoom
+	h.sessions.ensureErr = errBoom
 
 	_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 

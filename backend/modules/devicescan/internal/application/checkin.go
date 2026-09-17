@@ -392,18 +392,18 @@ func (s *Service) findOrCreateSessionForRoom(ctx context.Context, room facilitie
 		}
 		current = s.sessionsStartedToday(sessions, now)
 	}
-	blocksRun := false
+	blocksRunning := false
 	if room.Name == facilities.SchulhofRoomName {
 		selection, candidates, running, err := s.routeYardScan(ctx, current, room, studentID, deviceID)
 		if err != nil || selection != nil {
 			return selection, err
 		}
-		current, blocksRun = candidates, running
+		current, blocksRunning = candidates, running
 	}
 	if len(current) > 0 {
 		return s.useExistingSession(ctx, current, room, deviceID), nil
 	}
-	if blocksRun {
+	if blocksRunning {
 		return s.openFreeplayNextToBlocks(ctx, room)
 	}
 	return s.createSpecialRoomSession(ctx, room)
