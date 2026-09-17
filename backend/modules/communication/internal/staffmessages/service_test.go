@@ -37,10 +37,40 @@ func newReadRepo(db *bun.DB) usersModels.StaffMessageReadRepository {
 			Where(`"staff".tenant_id = ?`, tenant.FromContext(ctx)).
 			Scan(ctx, &accountIDs)
 		return accountIDs, err
-	}, func(context.Context) *bun.SelectQuery {
-		// Identity & Access owns the global account switch; the test resolves
-		// the same set directly so the repository predicate stays exercised.
-		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
+	}, repoUsers.StaffMessageIdentity{
+		// Identity & Access owns the global account switch, the school mapping
+		// and the roles; the test resolves the same sets directly so the
+		// repository predicates stay exercised.
+		ActiveAccounts: func(context.Context) *bun.SelectQuery {
+			return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
+		},
+		ActiveMemberships: func(context.Context) *bun.SelectQuery {
+			return db.NewSelect().TableExpr(`auth.account_tenants AS "mapping"`).
+				ColumnExpr(`"mapping".account_id`).ColumnExpr(`"mapping".tenant_id`).
+				Where(`"mapping".status = ?`, authModels.AccountTenantStatusActive)
+		},
+		RoleClasses: func(ctx context.Context, tenantID int64, accountIDs []int64) ([]repoUsers.SchoolRoleClass, error) {
+			var rows []struct {
+				AccountID   int64 `bun:"account_id"`
+				IsAdmin     bool  `bun:"is_admin"`
+				IsLehrkraft bool  `bun:"is_lehrkraft"`
+			}
+			err := db.NewSelect().
+				TableExpr(`auth.account_roles AS "ar"`).
+				ColumnExpr(`"ar".account_id AS account_id`).
+				ColumnExpr(`COALESCE(bool_or("role".base_role = 'admin' OR ("role".is_system AND lower(btrim("role".name)) = 'admin')), false) AS is_admin`).
+				ColumnExpr(`COALESCE(bool_or("role".is_system AND lower(btrim("role".name)) = 'lehrkraft'), false) AS is_lehrkraft`).
+				Join(`JOIN auth.roles AS "role" ON "role".id = "ar".role_id`).
+				Where(`"ar".tenant_id = ?`, tenantID).
+				Where(`"ar".account_id IN (?)`, bun.List(accountIDs)).
+				GroupExpr(`"ar".account_id`).
+				Scan(ctx, &rows)
+			result := make([]repoUsers.SchoolRoleClass, 0, len(rows))
+			for _, row := range rows {
+				result = append(result, repoUsers.SchoolRoleClass{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
+			}
+			return result, err
+		},
 	})
 }
 

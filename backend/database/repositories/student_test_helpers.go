@@ -103,7 +103,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 		CareWithdrawal: lifecycle.CareWithdrawal, TagReleaser: lifecycle.TagReleaser,
 		StudentDeletionAudit: r.StudentDeletionAudit, StudentFieldEdit: lifecycle.StudentFieldEdit,
 		StudentConsentChange: r.StudentConsentChange, DataDeletion: r.DataDeletion,
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),
 	}, nil
 }

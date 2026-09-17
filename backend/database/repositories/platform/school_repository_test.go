@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -64,7 +65,7 @@ func TestSchoolRepository_QueryMethods(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewSchoolRepository(db)
+	repo := repositories.NewSchoolRepository(db)
 	ctx := testpkg.Ctx(t)
 	now := testpkg.UniqueSuffix()
 
