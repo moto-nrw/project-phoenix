@@ -60,9 +60,9 @@ rebuild or restart anything between the two states — only the source tree flip
    done
    ```
 5. **Verify sources are restored**: `git status --short` must be empty again.
-6. Deliver: Read the `pair-*.png` files to show them inline; for the PR, give
-   the user the local paths to attach manually (never host via releases/gists —
-   see the PR-screenshots rule in the root CLAUDE.md).
+6. Deliver: Read the `pair-*.png` files to show them inline, then post them on
+   the PR with `gh pr comment <NR> --attach pair-<name>.png ...` (rules:
+   [docs/agents/operations.md](../../../../docs/agents/operations.md#pr-screenshots-and-qa-evidence)).
 
 ## Gotchas (all hit in practice)
 
