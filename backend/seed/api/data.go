@@ -69,8 +69,9 @@ var DemoRooms = []DemoRoom{
 	// Sporthalle - Separate Building
 	{Name: "Sporthalle", Category: "Sport", Capacity: 40, Building: "Sporthalle", Floor: floor(0), IsOpenRoom: true},
 	{Name: "Bewegungsraum", Category: "Sport", Capacity: 15, Building: "Sporthalle", Floor: floor(0)},
-	// Note: Schulhof is auto-created as a system room by schulhof_service, and
-	// is released there — so the demo carries three open rooms in total.
+	// Note: the Schulhof is a system room that moto creates, already released,
+	// only when a school switches on the kiosk Schulhof button (ADR 0019). The
+	// demo leaves that switch off, so its open rooms are the two above.
 }
 
 // DemoStaff defines staff members for the demo environment
