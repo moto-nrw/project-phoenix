@@ -1,15 +1,17 @@
-package users
+package auth
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// Profile represents a user profile in the system
+// Profile represents a user profile in the system. The row lives in
+// users.profiles, but Identity & Access owns it (#3221): it hangs off the
+// account, not the person.
 type Profile struct {
 	base.Model `bun:"schema:users,table:profiles"`
 	base.TenantModel
@@ -19,7 +21,7 @@ type Profile struct {
 	Settings  string `bun:"settings" json:"settings,omitempty"` // JSON string
 
 	// Relations not stored in the database
-	Account *auth.Account `bun:"-" json:"account,omitempty"`
+	Account *Account `bun:"-" json:"account,omitempty"`
 
 	// Parsed settings
 	parsedSettings map[string]interface{} `bun:"-" json:"-"`
@@ -42,7 +44,7 @@ func (p *Profile) Validate() error {
 }
 
 // SetAccount links this profile to an account
-func (p *Profile) SetAccount(account *auth.Account) {
+func (p *Profile) SetAccount(account *Account) {
 	p.Account = account
 	if account != nil {
 		p.AccountID = account.ID
@@ -116,4 +118,15 @@ func (p *Profile) HasAvatar() bool {
 // HasBio checks if the profile has a bio
 func (p *Profile) HasBio() bool {
 	return p.Bio != ""
+}
+
+// ProfileRepository defines operations for managing profiles
+type ProfileRepository interface {
+	base.CRUDRepository[*Profile]
+
+	// FindByAccountID retrieves a profile by account ID
+	FindByAccountID(ctx context.Context, accountID int64) (*Profile, error)
+
+	// UpdateAvatar updates a profile's avatar
+	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 }

@@ -70,8 +70,6 @@ type DataAccessLogRepository interface {
 type UnregisteredTagScanRepository interface {
 	Create(ctx context.Context, scan *UnregisteredTagScan) error
 	FindByID(ctx context.Context, id int64) (*UnregisteredTagScan, error)
-	ListForOperator(ctx context.Context, filter UnregisteredTagScanFilter) ([]*UnregisteredTagScan, error)
-	Resolve(ctx context.Context, id, operatorID int64, note *string) (*UnregisteredTagScan, error)
 	DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error)
 }
 

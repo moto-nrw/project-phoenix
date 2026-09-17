@@ -45,7 +45,7 @@ type UserContextRepositories struct {
 	ActiveGroupRepo    active.GroupRepository
 	Presence           VisitReader
 	SupervisorRepo     active.GroupSupervisorRepository
-	ProfileRepo        users.ProfileRepository
+	ProfileRepo        auth.ProfileRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
 	ClassTeacherRepo   education.ClassTeacherRepository
 
@@ -68,7 +68,7 @@ type userContextService struct {
 	activeGroupRepo    active.GroupRepository
 	presence           VisitReader
 	supervisorRepo     active.GroupSupervisorRepository
-	profileRepo        users.ProfileRepository
+	profileRepo        auth.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
 	classTeacherRepo   education.ClassTeacherRepository
 	sseActiveSvc       SSEPresence
@@ -963,7 +963,7 @@ func (s *userContextService) updateProfileBioInTx(ctx context.Context, accountID
 
 // createProfileWithBio creates a new profile with bio
 func (s *userContextService) createProfileWithBio(ctx context.Context, accountID int64, bio string) error {
-	profile := &users.Profile{
+	profile := &auth.Profile{
 		AccountID: accountID,
 		Bio:       bio,
 		Settings:  "{}",
@@ -972,7 +972,7 @@ func (s *userContextService) createProfileWithBio(ctx context.Context, accountID
 }
 
 // updateExistingProfileBio updates existing profile's bio
-func (s *userContextService) updateExistingProfileBio(ctx context.Context, profile *users.Profile, bio string) error {
+func (s *userContextService) updateExistingProfileBio(ctx context.Context, profile *auth.Profile, bio string) error {
 	profile.Bio = bio
 	return s.profileRepo.Update(ctx, profile)
 }

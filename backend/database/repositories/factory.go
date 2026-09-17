@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -118,7 +119,7 @@ type Factory struct {
 	CareWithdrawal      userModels.CareWithdrawalCompletionRepository
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
-	Profile             userModels.ProfileRepository
+	Profile             authModels.ProfileRepository
 	StudentGuardian     userModels.StudentGuardianRepository
 	StudentCompanion    userModels.StudentCompanionRepository
 	GuardianProfile     userModels.GuardianProfileRepository
@@ -565,8 +566,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Student:             studentRepo,
 		CareExit:            users.NewCareExitRepository(db),
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
-		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
-		Profile:             users.NewProfileRepository(db),
+		Profile:             auth.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
@@ -718,14 +718,20 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
 
-		StaffMessageThread: users.NewStaffMessageThreadRepository(db),
-		StaffMessage:       users.NewStaffMessageRepository(db),
+		StaffMessageThread: staffStore.NewStaffMessageThreadRepository(db),
+		StaffMessage:       staffStore.NewStaffMessageRepository(db),
 
 		// Calendar repositories
 		CalendarStaffFeedTombstone: schoolCalendarCompose.NewFeedHistory(db),
 		ParentAnnouncement:         parentAnnouncement,
 		StaffNotice:                timetableCompose.NewStaffNoticeRepository(db),
 	}
+	// Care withdrawal completions belong to Care Plan (#3221); the adapter
+	// follows the factory's current Care Plan and People Directory bindings.
+	factory.CareWithdrawal = newCareWithdrawalCompletionRepository(
+		func() careplan.Capability { return factory.carePlan },
+		func() peopledirectory.StudentQuery { return factory.students },
+	)
 	factory.appointments = appointmentsModule
 	studentRepo.(interface {
 		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))

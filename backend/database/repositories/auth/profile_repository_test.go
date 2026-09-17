@@ -1,10 +1,10 @@
-package users_test
+package auth_test
 
 import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestProfileRepository_Create(t *testing.T) {
 	t.Run("creates profile with valid data", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-create")
 
-		profile := &users.Profile{
+		profile := &auth.Profile{
 			AccountID: account.ID,
 			Avatar:    "https://example.com/avatar.png",
 			Bio:       "Test bio",
@@ -46,7 +46,7 @@ func TestProfileRepository_Create(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-minimal")
 
 		// Settings must be valid JSON or empty object
-		profile := &users.Profile{
+		profile := &auth.Profile{
 			AccountID: account.ID,
 			Settings:  `{}`,
 		}
@@ -64,7 +64,7 @@ func TestProfileRepository_Create(t *testing.T) {
 	})
 
 	t.Run("fails without account ID", func(t *testing.T) {
-		profile := &users.Profile{
+		profile := &auth.Profile{
 			Bio: "Test bio",
 		}
 
@@ -76,7 +76,7 @@ func TestProfileRepository_Create(t *testing.T) {
 	t.Run("fails with invalid settings JSON", func(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "profile-bad-json")
 
-		profile := &users.Profile{
+		profile := &auth.Profile{
 			AccountID: account.ID,
 			Settings:  "not-valid-json",
 		}

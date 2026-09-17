@@ -1340,7 +1340,7 @@ func CreateTestGuest(tb testing.TB, db *bun.DB, expertise string) *users.Guest {
 
 // CreateTestProfile creates a user profile in the database.
 // This requires an Account, which is created automatically.
-func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile {
+func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *auth.Profile {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1349,7 +1349,7 @@ func CreateTestProfile(tb testing.TB, db *bun.DB, prefix string) *users.Profile 
 	// Create account first
 	account := CreateTestAccount(tb, db, prefix)
 
-	profile := &users.Profile{
+	profile := &auth.Profile{
 		AccountID: account.ID,
 		Avatar:    "https://example.com/avatar.png",
 		Bio:       "Test bio for " + prefix,

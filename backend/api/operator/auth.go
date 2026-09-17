@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 )
 
 // Operator login and refresh are Identity & Access routes (#3252); this
@@ -40,7 +41,7 @@ func IdentityResponses() identityoperator.Responses {
 		Conflict:           ErrConflict,
 		AuthFallback:       AuthErrorRenderer,
 		ProfileFallback:    ProfileErrorRenderer,
-		AccessFallback:     ProvisioningErrorRenderer,
+		AccessFallback:     provisioningoperator.ProvisioningErrorRenderer,
 	}
 }
 

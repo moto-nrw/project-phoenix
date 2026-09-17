@@ -5,7 +5,9 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/uptrace/bun"
 )
 
@@ -33,7 +35,8 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	}
 	r := &Factory{db: db,
 		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: tt.Timetable}, newStudentPresence(db)),
-		CareWithdrawal: usersRepo.NewCareWithdrawalCompletionRepository(db),
+		CareWithdrawal: newCareWithdrawalCompletionRepository(
+			func() careplan.Capability { return care }, func() peopledirectory.StudentQuery { return people }),
 	}
 	r.BindPeopleDirectory(people)
 	r.bindDefaultFacilities(db)
