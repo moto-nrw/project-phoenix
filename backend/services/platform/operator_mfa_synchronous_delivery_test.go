@@ -45,6 +45,7 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:      repos,
 		Operators:  newTestOperatorDirectory(db),
+		Records:    newTestOperatorMFARecords(db),
 		TokenAuth:  tokenAuth,
 		Dispatcher: email.NewDispatcher(mailer, nil),
 		JWTSecret:  operatorMFATestJWTSecret,
@@ -59,6 +60,7 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	require.ErrorIs(t, err, authService.ErrMFAStatusUnavailable)
 	assert.Empty(t, token)
 	assert.Equal(t, int32(1), mailer.attempts.Load())
-	_, activeErr := repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(context.Background(), operator.ID)
-	require.Error(t, activeErr, "the undelivered operator code must not remain redeemable")
+	active, activeErr := newTestOperatorMFARecords(db).FindActiveChallenge(context.Background(), operator.ID)
+	require.NoError(t, activeErr)
+	require.Nil(t, active, "the undelivered operator code must not remain redeemable")
 }
