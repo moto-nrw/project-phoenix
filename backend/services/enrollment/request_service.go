@@ -334,7 +334,7 @@ type EditDraft struct {
 	Guardians        []*enrollmentCapability.RequestGuardian
 	OfferingsByChild map[int64][]*RequestChildOffering
 	Phase            *enrollmentCapability.Phase
-	School           *platformModels.School
+	School           *School
 	Schema           *enrollmentCapability.FormSchema
 	OpenOfferings    []*enrollmentModels.CareOffering
 	LegalTexts       LegalTexts
@@ -565,7 +565,7 @@ type RequestServiceConfig struct {
 	LateInviteRepo   IntakeLateInvites
 	CareOfferingRepo enrollmentModels.CareOfferingRepository
 	Catalog          IntakeCatalog
-	SchoolRepo       platformModels.SchoolRepository
+	SchoolRepo       SchoolDirectory
 	// StudentRepo backs the new_students audience check (#1663): a
 	// submission for a child who is already an enrolled student at the
 	// school is rejected. Nil-safe — without the repo the check is
@@ -1954,7 +1954,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		childIDs  []int64
 		guardians []*enrollmentCapability.RequestGuardian
 		links     []*RequestChildOffering
-		school    *platformModels.School
+		school    *School
 	)
 	if err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
 		loadedReq, err := intakeRequestByToken(adminCtx, s.Requests, token, false)
@@ -1983,7 +1983,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			childIDs = append(childIDs, c.ID)
 		}
 		if s.SchoolRepo != nil {
-			loadedSchool, err := s.SchoolRepo.FindByID(adminCtx, req.TenantID)
+			loadedSchool, err := s.SchoolRepo.FindSchool(adminCtx, req.TenantID)
 			if err != nil {
 				return fmt.Errorf("edit draft: load school: %w", err)
 			}

@@ -161,7 +161,7 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 		return nil, nil, err
 	}
 
-	selection, err := s.findOrCreateSessionForRoom(ctx, room, deviceID)
+	selection, err := s.findOrCreateSessionForRoom(ctx, room, student.ID, deviceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -359,8 +359,9 @@ func errorText(err error) string {
 
 // findOrCreateSessionForRoom finds a running session in the room or
 // provisions one for a special room (released Schulhof, WC). With several
-// candidates it prefers the one linked to the scanning device.
-func (s *Service) findOrCreateSessionForRoom(ctx context.Context, room facilities.Room, deviceID int64) (*selectedSession, error) {
+// candidates it prefers the one linked to the scanning device; in the
+// Schulhof, running blocks first claim the children on their rosters.
+func (s *Service) findOrCreateSessionForRoom(ctx context.Context, room facilities.Room, studentID, deviceID int64) (*selectedSession, error) {
 	s.logger.DebugContext(ctx, "looking for active groups in room",
 		slog.Int64("room_id", room.ID),
 		slog.Int64("device_id", deviceID),
@@ -391,8 +392,19 @@ func (s *Service) findOrCreateSessionForRoom(ctx context.Context, room facilitie
 		}
 		current = s.sessionsStartedToday(sessions, now)
 	}
+	blocksRunning := false
+	if room.Name == facilities.SchulhofRoomName {
+		selection, candidates, running, err := s.routeYardScan(ctx, current, room, studentID, deviceID)
+		if err != nil || selection != nil {
+			return selection, err
+		}
+		current, blocksRunning = candidates, running
+	}
 	if len(current) > 0 {
 		return s.useExistingSession(ctx, current, room, deviceID), nil
+	}
+	if blocksRunning {
+		return s.openFreeplayNextToBlocks(ctx, room)
 	}
 	return s.createSpecialRoomSession(ctx, room)
 }

@@ -73,6 +73,21 @@ func TodayCalendarDate() string { return timezone.TodayDate().String() }
 // TenantIDFromContext returns the tenant the caller acts for, 0 when none.
 func TenantIDFromContext(ctx context.Context) int64 { return tenant.FromContext(ctx) }
 
+// WithTenantID scopes ctx to one school for repositories that read the
+// tenant from the context.
+func WithTenantID(ctx context.Context, tenantID int64) context.Context {
+	return tenant.WithTenantID(ctx, tenantID)
+}
+
+// IsUniqueViolation reports whether err is a PostgreSQL unique violation.
+func IsUniqueViolation(err error) bool { return modelBase.IsUniqueViolation(err) }
+
+// IsUniqueViolationOn reports whether err is a unique violation of the named
+// constraint or index.
+func IsUniqueViolationOn(err error, name string) bool {
+	return modelBase.IsUniqueViolationOn(err, name)
+}
+
 // CalendarOwnPermission is the permission a staff member needs to use the
 // calendar for themselves.
 const CalendarOwnPermission = permissions.CalendarOwn

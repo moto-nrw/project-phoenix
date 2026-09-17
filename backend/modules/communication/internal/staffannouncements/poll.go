@@ -12,8 +12,8 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the staff announcement
@@ -353,7 +353,7 @@ func (s *service) enqueueReminderEmails(
 			continue
 		}
 		seenEmails[address] = struct{}{}
-		if _, err := s.outbox.Enqueue(ctx, platformService.EnqueueRequest{
+		if _, err := s.outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
 			Kind: platformModels.EmailKindParentAnnouncement,
 			Payload: map[string]any{
 				emailPayloadRecipient:   address,

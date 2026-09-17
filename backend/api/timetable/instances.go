@@ -25,18 +25,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // StartInstanceResponse is the 200 body for POST /instances/{id}/start. Warnings
 // is always present (empty array when clean) so clients can iterate without a
 // nil check.
 type StartInstanceResponse struct {
-	InstanceID    int64                                 `json:"instance_id"`
-	Status        string                                `json:"status"`
-	ActiveGroupID int64                                 `json:"active_group_id"`
-	StartedAt     string                                `json:"started_at"`
-	Warnings      []scheduleSvc.InstanceConflictWarning `json:"warnings"`
+	InstanceID    int64                                       `json:"instance_id"`
+	Status        string                                      `json:"status"`
+	ActiveGroupID int64                                       `json:"active_group_id"`
+	StartedAt     string                                      `json:"started_at"`
+	Warnings      []timetableplanning.InstanceConflictWarning `json:"warnings"`
 }
 
 // InstanceStatusResponse is the 200 body for complete and cancel — minimal
@@ -73,17 +73,17 @@ type GuardianNoticeReachResponse struct {
 	FamilyCount int  `json:"family_count"`
 }
 
-func (req *GuardianNoticeRequest) toServiceInput() *scheduleSvc.GuardianNoticeInput {
+func (req *GuardianNoticeRequest) toServiceInput() *timetableplanning.GuardianNoticeInput {
 	if req == nil {
 		return nil
 	}
-	return &scheduleSvc.GuardianNoticeInput{
+	return &timetableplanning.GuardianNoticeInput{
 		Title:   strings.TrimSpace(req.Title),
 		Message: strings.TrimSpace(req.Message),
 	}
 }
 
-func guardianNoticeResponseOf(result *scheduleSvc.GuardianNoticeResult) *GuardianNoticeResponse {
+func guardianNoticeResponseOf(result *timetableplanning.GuardianNoticeResult) *GuardianNoticeResponse {
 	if result == nil {
 		return nil
 	}
@@ -151,7 +151,7 @@ func (rs *Resource) startInstance(w http.ResponseWriter, r *http.Request) {
 		Warnings:      result.Warnings,
 	}
 	if result.Warnings == nil {
-		resp.Warnings = []scheduleSvc.InstanceConflictWarning{}
+		resp.Warnings = []timetableplanning.InstanceConflictWarning{}
 	}
 	if result.Instance.StartedAt != nil {
 		resp.StartedAt = result.Instance.StartedAt.UTC().Format("2006-01-02T15:04:05Z")
@@ -172,7 +172,7 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	ctx := scheduleSvc.WithLifecycleActor(r.Context(), int64(claims.ID))
+	ctx := timetableplanning.WithLifecycleActor(r.Context(), int64(claims.ID))
 	// Planner complete has no live visit roster. An empty body (the historic
 	// e2e contract) is accepted; confirmation stays on the operations path.
 	instance, err := rs.InstanceService.Complete(ctx, id)
@@ -240,7 +240,7 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		notice = body.GuardianNotice
 	}
 
-	result, err := rs.InstanceService.CancelWithNotice(r.Context(), scheduleSvc.CancelInstanceInput{
+	result, err := rs.InstanceService.CancelWithNotice(r.Context(), timetableplanning.CancelInstanceInput{
 		InstanceID:     id,
 		Reason:         reason,
 		ActorAccountID: jwt.ActorAccountIDFromCtx(r.Context()),
@@ -300,30 +300,30 @@ func staticConflict(message, code string) func(error) render.Renderer {
 // status codes. Unknown errors fall through to 500 to avoid leaking a
 // potentially wrong 4xx for a real database failure.
 var instanceLifecycleErrorRules = []common.ErrorRule{
-	{Target: scheduleSvc.ErrInstanceNotFound, Render: common.ErrorNotFound},
+	{Target: timetableplanning.ErrInstanceNotFound, Render: common.ErrorNotFound},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, scheduleSvc.ErrInvalidInstanceReference) ||
-				errors.Is(err, scheduleSvc.ErrInstanceWeekend) ||
-				errors.Is(err, scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod) ||
-				errors.Is(err, scheduleSvc.ErrGuardianNoticeInvalid)
+			return errors.Is(err, timetableplanning.ErrInvalidInstanceReference) ||
+				errors.Is(err, timetableplanning.ErrInstanceWeekend) ||
+				errors.Is(err, timetableplanning.ErrInstanceOutsideActiveCalendarPeriod) ||
+				errors.Is(err, timetableplanning.ErrGuardianNoticeInvalid)
 		},
 		Render: common.ErrorInvalidRequest,
 	},
-	{Target: scheduleSvc.ErrGuardianNoticeDisabled, Render: conflictCode("guardian_notice_disabled")},
+	{Target: timetableplanning.ErrGuardianNoticeDisabled, Render: conflictCode("guardian_notice_disabled")},
 	{
-		Target: scheduleSvc.ErrInstanceMoved,
+		Target: timetableplanning.ErrInstanceMoved,
 		Render: staticConflict("block was changed concurrently; reopen it and try again", "instance_moved"),
 	},
-	{Target: scheduleSvc.ErrInvalidInstanceTransition, Render: conflictCode("invalid_transition")},
-	{Target: scheduleSvc.ErrInstanceStartTooEarly, Render: conflictCode("start_too_early")},
-	{Target: scheduleSvc.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
-	{Target: scheduleSvc.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
-	{Target: scheduleSvc.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
-	{Target: scheduleSvc.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
+	{Target: timetableplanning.ErrInvalidInstanceTransition, Render: conflictCode("invalid_transition")},
+	{Target: timetableplanning.ErrInstanceStartTooEarly, Render: conflictCode("start_too_early")},
+	{Target: timetableplanning.ErrInstanceStartExpired, Render: conflictCode("start_window_expired")},
+	{Target: timetableplanning.ErrInstanceCompleteEarly, Render: conflictCode("complete_too_early")},
+	{Target: timetableplanning.ErrCompletionConfirmationStale, Render: conflictCode("completion_confirmation_stale")},
+	{Target: timetableplanning.ErrTimetableOperationForbidden, Render: common.ErrorForbidden},
 	{
 		Match: func(err error) bool {
-			return errors.Is(err, scheduleSvc.ErrTimetableOperationConflict) ||
+			return errors.Is(err, timetableplanning.ErrTimetableOperationConflict) ||
 				errors.Is(err, activeSvc.ErrStudentAlreadyActive) ||
 				errors.Is(err, activeSvc.ErrRoomConflict) ||
 				errors.Is(err, activeSvc.ErrRoomCapacityExceeded)
@@ -331,14 +331,14 @@ var instanceLifecycleErrorRules = []common.ErrorRule{
 		Render: common.ErrorConflict,
 	},
 	{
-		Target: scheduleSvc.ErrUnderstaffedAckStillStaffed,
+		Target: timetableplanning.ErrUnderstaffedAckStillStaffed,
 		Render: staticConflict(
 			"dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist",
 			"understaffed_still_staffed",
 		),
 	},
 	{
-		Target: scheduleSvc.ErrAmbiguousTemplateInstanceDelete,
+		Target: timetableplanning.ErrAmbiguousTemplateInstanceDelete,
 		Render: staticConflict(
 			"dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat",
 			"ambiguous_template_instance_delete",

@@ -13,7 +13,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +70,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 			instances, assignments := repositories.NewAttendanceSyncTestRepositories(repositories.NewUnobservedTimetableDependencies(db).Capability)
 			injected := errors.New("fail after visit slot write")
 			rows := &failingVisitSlotCheckIn{InstanceStudentRepository: assignments, failAt: tc.failAt, err: injected}
-			syncer := scheduleService.NewAttendanceSyncService(instances, rows, slog.Default())
+			syncer := timetableplanning.NewAttendanceSyncService(instances, rows, slog.Default())
 			svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 			activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 			student := testpkg.CreateTestStudent(t, db, "VisitSlot", "Rollback", "3a")

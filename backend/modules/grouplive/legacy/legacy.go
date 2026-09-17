@@ -30,6 +30,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -47,7 +48,7 @@ type Sources struct {
 	Settings          configService.SettingsService
 	Pickups           scheduleService.PickupScheduleService
 	Arrivals          scheduleService.ArrivalScheduleService
-	Instances         scheduleService.InstanceService
+	Instances         timetableplanning.InstanceService
 	CareDays          scheduleService.CareDayService
 	CareParticipation userService.CareLifecycleService
 	ExcusedRequests   grouplive.PendingExcusedReader
@@ -366,7 +367,7 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 type planning struct {
 	arrivals  scheduleService.ArrivalScheduleService
 	pickups   scheduleService.PickupScheduleService
-	instances scheduleService.InstanceService
+	instances timetableplanning.InstanceService
 	careDays  scheduleService.CareDayService
 }
 

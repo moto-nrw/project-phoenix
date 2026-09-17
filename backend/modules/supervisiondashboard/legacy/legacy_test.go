@@ -22,6 +22,7 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
@@ -112,16 +113,21 @@ func (m *mockSchulhofService) GetSchulhofStatus(_ context.Context, staffID int64
 }
 
 type mockOperationsService struct {
-	scheduleService.TimetableOperationsService
-	plannedNowFn     func(timezone.Date, time.Time, scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error)
-	activeSessionsFn func(timezone.Date) ([]scheduleService.OperationActiveSession, error)
+	timetableplanning.TimetableOperationsService
+	plannedNowFn     func(timezone.Date, time.Time, timetableplanning.PlannedNowOptions) ([]timetableplanning.OperationPlannedInstance, error)
+	activeSessionsFn func(timezone.Date) ([]timetableplanning.OperationActiveSession, error)
+	sessionBlocksFn  func(int64, bool, timezone.Date, map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error)
 }
 
-func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, day timezone.Date, now time.Time, opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+func (m *mockOperationsService) SessionBlocks(_ context.Context, accountID int64, isAdmin bool, day timezone.Date, supervisors map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error) {
+	return m.sessionBlocksFn(accountID, isAdmin, day, supervisors)
+}
+
+func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, day timezone.Date, now time.Time, opts timetableplanning.PlannedNowOptions) ([]timetableplanning.OperationPlannedInstance, error) {
 	return m.plannedNowFn(day, now, opts)
 }
 
-func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.Date) ([]scheduleService.OperationActiveSession, error) {
+func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.Date) ([]timetableplanning.OperationActiveSession, error) {
 	return m.activeSessionsFn(day)
 }
 
@@ -533,34 +539,41 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 	note := "Nachmittag"
 	activeGroupID := int64(88)
 	roomName := "Zebra"
-	retained := scheduleService.OperationPlannedInstance{
+	retained := timetableplanning.OperationPlannedInstance{
 		ID: 5, Title: "Malen", Date: "2026-08-19", StartTime: "14:00", EndTime: "15:00", RoomID: 21, RoomName: &roomName, Status: "planned",
 		IsOverdue: true, MinutesUntilStart: 3, ExpectedStudentsCount: 4, PresentStudentsCount: 2, NotScheduledCount: 1,
 		AssignedStaffIDs: []int64{7, 9}, IsAssigned: true, IsPrimary: true, IsSubstitute: false, IsAbsent: false,
-		RosterPreview: []scheduleService.OperationRosterRow{{
+		RosterPreview: []timetableplanning.OperationRosterRow{{
 			StudentID: 1, StudentName: "Erika Muster", SchoolClass: "4a", GroupName: "Bären", Planned: true, CurrentlyPresent: true,
 			VisitID: int64Ptr(77), Status: "present", Substatus: &note, Note: &note, CheckedInAt: &pickup, VisitEntryTime: &pickup, PickupTime: &pickup,
-			Warnings:          []scheduleService.OperationRosterWarning{{Kind: "arrival", Message: "zu früh", ExpectedArrival: &pickup, ExpectedGroupID: int64Ptr(3)}},
-			ParallelPresentIn: &scheduleService.OperationParallelPresence{InstanceID: 6, Title: "Basteln", StartTime: "14:00", EndTime: "15:00"},
+			Warnings:          []timetableplanning.OperationRosterWarning{{Kind: "arrival", Message: "zu früh", ExpectedArrival: &pickup, ExpectedGroupID: int64Ptr(3)}},
+			ParallelPresentIn: &timetableplanning.OperationParallelPresence{InstanceID: 6, Title: "Basteln", StartTime: "14:00", EndTime: "15:00"},
 			CareDayStatus:     "scheduled",
 		}},
 		PickupTimesLoaded: true, PickupTimesRedacted: false,
-		Warnings: []scheduleService.InstanceConflictWarning{{Kind: "staff", ResourceID: 7, Message: "doppelt", CanOverride: true, Fingerprint: "abc", ConflictingInstanceID: 6, ConflictingTitle: "Basteln", OverlapStart: "14:00", OverlapEnd: "14:30"}},
+		Warnings: []timetableplanning.InstanceConflictWarning{{Kind: "staff", ResourceID: 7, Message: "doppelt", CanOverride: true, Fingerprint: "abc", ConflictingInstanceID: 6, ConflictingTitle: "Basteln", OverlapStart: "14:00", OverlapEnd: "14:30"}},
 		CanStart: true, StartAvailableAt: "13:45", StartExpiresAt: "15:00", ActiveGroupID: &activeGroupID, CancelReason: &note,
 		PlanningTrackName: &note, PlanningTrackColor: &note, GroupName: &note,
-		StaffNames: []scheduleService.OperationStaffName{{StaffID: 7, DisplayName: "Erika", IsSubstitute: true}},
+		StaffNames: []timetableplanning.OperationStaffName{{StaffID: 7, DisplayName: "Erika", IsSubstitute: true}},
 	}
-	minimal := scheduleService.OperationPlannedInstance{ID: 6}
+	minimal := timetableplanning.OperationPlannedInstance{ID: 6}
 	operations := &mockOperationsService{
-		plannedNowFn: func(day timezone.Date, gotNow time.Time, opts scheduleService.PlannedNowOptions) ([]scheduleService.OperationPlannedInstance, error) {
+		plannedNowFn: func(day timezone.Date, gotNow time.Time, opts timetableplanning.PlannedNowOptions) ([]timetableplanning.OperationPlannedInstance, error) {
 			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
 			assert.Equal(t, now, gotNow)
-			assert.Equal(t, scheduleService.PlannedNowOptions{HorizonMinutes: 480, Limit: 5, IncludeRoster: true}, opts)
-			return []scheduleService.OperationPlannedInstance{retained, minimal}, nil
+			assert.Equal(t, timetableplanning.PlannedNowOptions{HorizonMinutes: 480, Limit: 5, IncludeRoster: true}, opts)
+			return []timetableplanning.OperationPlannedInstance{retained, minimal}, nil
 		},
-		activeSessionsFn: func(day timezone.Date) ([]scheduleService.OperationActiveSession, error) {
+		activeSessionsFn: func(day timezone.Date) ([]timetableplanning.OperationActiveSession, error) {
 			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
-			return []scheduleService.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, nil
+			return []timetableplanning.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, nil
+		},
+		sessionBlocksFn: func(accountID int64, isAdmin bool, day timezone.Date, supervisors map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error) {
+			assert.Equal(t, int64(70), accountID)
+			assert.True(t, isAdmin)
+			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
+			assert.Equal(t, map[int64][]int64{88: {7}}, supervisors)
+			return []timetableplanning.OperationSessionBlock{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00", IsAssigned: true, CanOperate: true}}, nil
 		},
 	}
 	s := schedule{operations: operations}
@@ -573,9 +586,15 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 
 	sessions, err := s.ActiveSessions(ctx, "2026-08-19")
 	require.NoError(t, err)
-	assertSameJSON(t, []scheduleService.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, sessions)
+	assertSameJSON(t, []timetableplanning.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, sessions)
+
+	blocks, err := s.SessionBlocks(ctx, supervisiondashboard.SessionBlocksQuery{AccountID: 70, TokenAdmin: true, Date: "2026-08-19", Supervisors: map[int64][]int64{88: {7}}})
+	require.NoError(t, err)
+	assertSameJSON(t, []timetableplanning.OperationSessionBlock{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00", IsAssigned: true, CanOperate: true}}, blocks)
 
 	_, err = s.PlannedNow(ctx, supervisiondashboard.PlannedNowQuery{Date: "today"})
+	require.Error(t, err)
+	_, err = s.SessionBlocks(ctx, supervisiondashboard.SessionBlocksQuery{Date: "today"})
 	require.Error(t, err)
 }
 

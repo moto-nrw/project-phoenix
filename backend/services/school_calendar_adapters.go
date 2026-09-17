@@ -6,7 +6,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 type calendarCalDAVSettings interface {
@@ -30,14 +30,14 @@ func (a schoolCalendarHolidayAdapter) ValidHolidayRegion(region string) bool {
 	return a.query.ValidHolidayRegion(region)
 }
 
-func (a schoolCalendarHolidayAdapter) ListHolidays(ctx context.Context, region, from, to string) ([]schedule.CalendarHoliday, error) {
+func (a schoolCalendarHolidayAdapter) ListHolidays(ctx context.Context, region, from, to string) ([]timetableplanning.CalendarHoliday, error) {
 	values, err := a.query.ListHolidays(ctx, region, from, to)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]schedule.CalendarHoliday, 0, len(values))
+	result := make([]timetableplanning.CalendarHoliday, 0, len(values))
 	for _, value := range values {
-		result = append(result, schedule.CalendarHoliday{Date: value.Date, Name: value.Name})
+		result = append(result, timetableplanning.CalendarHoliday{Date: value.Date, Name: value.Name})
 	}
 	return result, nil
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -260,11 +260,11 @@ func TestCreateInstance_TemplateBoundAndErrorBranches(t *testing.T) {
 	errW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusInternalServerError, errW.Code)
 
-	s.mock.createErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInvalidInstanceReference)
+	s.mock.createErr = fmt.Errorf("wrapped: %w", timetableplanning.ErrInvalidInstanceReference)
 	refW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusBadRequest, refW.Code)
 
-	s.mock.createErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInstanceOutsideActiveCalendarPeriod)
+	s.mock.createErr = fmt.Errorf("wrapped: %w", timetableplanning.ErrInstanceOutsideActiveCalendarPeriod)
 	periodW := doCreate(t, router, body)
 	assert.Equal(t, http.StatusBadRequest, periodW.Code)
 }

@@ -83,3 +83,12 @@ remaining write, master-data and guardian flows into the workflow and deletes
 `api/parent` onto the workflow.
 
 This decision was authorized in the implementation session on 2026-09-16.
+
+## Addendum (#3228)
+
+The remaining flows moved into `workflows/parentportal/legacy`, classified
+`parent-portal`/`adapter`, and `services/parent` is gone together with
+`care-plan.application.parent-portal`. They could not join the
+`parent-portal`/`application` point, because that point exists at the base SHA
+and PR mode admits no new permission on it. The package now holds the public
+`Service` contract. The details are in `backend/architecture/README.md`.

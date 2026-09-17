@@ -84,7 +84,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 		Children:         repoFactory.Enrollment(),
 		CareOfferingRepo: repoFactory.CareOffering,
 		Catalog:          repoFactory.Enrollment(),
-		SchoolRepo:       repoFactory.School,
+		SchoolRepo:       factorySchools{repos: repoFactory},
 		RateLimitRepo:    repoFactory.Enrollment(),
 		LateInviteRepo:   repoFactory.Enrollment(),
 		OutboxEnqueuer:   outbox,

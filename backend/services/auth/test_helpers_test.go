@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -1410,43 +1410,52 @@ func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []i
 	panic("FindWithStaffAndPersonByIDs not implemented")
 }
 
-// newStubSchoolRepository returns a testpkg.SchoolRepoMock configured like the
-// former hand-rolled stubSchoolRepository: FindByID (and the ForShare/ForUpdate
-// variants) return an active school in organization 1, soft-deleted when its ID
-// is in deletedTenantIDs. Pass nil for no soft-deleted schools.
-func newStubSchoolRepository(deletedTenantIDs map[int64]bool) *testpkg.SchoolRepoMock {
-	findByID := func(_ context.Context, id int64) (*platformModel.School, error) {
-		school := &platformModel.School{
-			Model:          base.Model{ID: id},
-			Active:         true,
-			OrganizationID: 1,
-		}
-		if deletedTenantIDs[id] {
-			now := time.Now()
-			school.DeletedAt = &now
-		}
-		return school, nil
+// stubSchoolDirectory answers every school as active, soft-deleted when its
+// ID is in deleted. find, when set, replaces the plain lookup only; the
+// shared-lock lookup keeps the default answer.
+type stubSchoolDirectory struct {
+	deleted map[int64]bool
+	find    func(context.Context, int64) (*InvitationSchool, error)
+}
+
+// newStubSchoolDirectory returns a directory whose schools are soft-deleted
+// when their ID is in deletedTenantIDs. Pass nil for no soft-deleted schools.
+func newStubSchoolDirectory(deletedTenantIDs map[int64]bool) *stubSchoolDirectory {
+	return &stubSchoolDirectory{deleted: deletedTenantIDs}
+}
+
+func (s *stubSchoolDirectory) FindSchool(ctx context.Context, id int64) (*InvitationSchool, error) {
+	if s.find != nil {
+		return s.find(ctx, id)
 	}
-	return &testpkg.SchoolRepoMock{
-		CreateFn:   func(context.Context, *platformModel.School) error { return fmt.Errorf("not implemented") },
-		FindByIDFn: findByID,
-		FindByIDForShareFn: func(ctx context.Context, id int64) (*platformModel.School, error) {
-			return findByID(ctx, id)
-		},
-		FindByIDForUpdateFn: func(ctx context.Context, id int64) (*platformModel.School, error) {
-			return findByID(ctx, id)
-		},
-		FindBySlugFn: func(context.Context, string) (*platformModel.School, error) {
-			return nil, fmt.Errorf("not found")
-		},
-		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModel.School, error) {
-			return nil, fmt.Errorf("not found")
-		},
-		FindBySubdomainFn: func(context.Context, string) (*platformModel.School, error) {
-			return nil, fmt.Errorf("not found")
-		},
-		UpdateFn: func(context.Context, *platformModel.School) error { return fmt.Errorf("not implemented") },
+	return &InvitationSchool{Deleted: s.deleted[id]}, nil
+}
+
+func (s *stubSchoolDirectory) FindSchoolForShare(_ context.Context, id int64) (*InvitationSchool, error) {
+	return &InvitationSchool{Deleted: s.deleted[id]}, nil
+}
+
+// persistenceSchools reads the seeded schools through the invitation
+// persistence's Organisation & Tenancy capability.
+type persistenceSchools struct {
+	repos   *repositories.InvitationPersistence
+	runtime tenant.UnitOfWork
+}
+
+func (s persistenceSchools) FindSchool(ctx context.Context, id int64) (*InvitationSchool, error) {
+	school, err := s.repos.School.FindSchool(tenant.WithUnitOfWork(ctx, s.runtime), id)
+	if err != nil {
+		return nil, err
 	}
+	return &InvitationSchool{Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted()}, nil
+}
+
+func (s persistenceSchools) FindSchoolForShare(ctx context.Context, id int64) (*InvitationSchool, error) {
+	school, err := s.repos.School.FindSchoolForShare(tenant.WithUnitOfWork(ctx, s.runtime), id)
+	if err != nil {
+		return nil, err
+	}
+	return &InvitationSchool{Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted()}, nil
 }
 
 // helper to build default email used in tests.

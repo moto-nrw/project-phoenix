@@ -26,9 +26,7 @@ import (
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -61,7 +59,7 @@ func setupAuthRoute(t *testing.T) *testContext {
 func setupAuthDependenciesRoute(t *testing.T) (*bun.DB, *authAPI.Resource) {
 	t.Helper()
 	db, svc := testutil.SetupAuthModule(t)
-	resource := authAPI.NewResource(svc.Auth, svc.Invitation, svc.Schools, svc.AccountAuthentication, db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, testSchoolDirectory{schools: svc.Schools, db: db, runtime: testpkg.TenantRuntime(t, db)}, svc.AccountAuthentication, db)
 	resource.SettingsService = svc.Settings
 	resource.SetGuardianInvitationService(svc.GuardianInvitation)
 	return db, resource
@@ -2008,8 +2006,7 @@ func TestListTenants(t *testing.T) {
 	t.Parallel()
 	db, authRoute := setupAuthDependenciesRoute(t)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
@@ -2080,8 +2077,7 @@ func setupAuthRouteWithSchoolRepo(t *testing.T) *testContext {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 
 	return &testContext{
 		db:       db,
@@ -2302,8 +2298,7 @@ func TestResolveTenant_DeletedSchool_ReturnsNotFound(t *testing.T) {
 		`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, tenantID)
 	require.NoError(t, err)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), authRoute.Sessions, db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())

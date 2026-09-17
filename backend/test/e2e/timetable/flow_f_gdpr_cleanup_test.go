@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -97,7 +97,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Preview first (dry-run) ------------------------------------------
 	preview := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
 		return s.previewTimetableCleanup(ctx)
-	}).(*scheduleSvc.TimetableCleanupPreview)
+	}).(*timetableplanning.TimetableCleanupPreview)
 	assert.GreaterOrEqual(t, preview.InstancesToDelete, 1,
 		"at least the old instance is previewed for delete")
 	assert.GreaterOrEqual(t, preview.ExceptionsToDelete, 1,
@@ -107,7 +107,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Run the actual cleanup -------------------------------------------
 	result := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
 		return s.cleanupTimetable(ctx)
-	}).(*scheduleSvc.TimetableCleanupResult)
+	}).(*timetableplanning.TimetableCleanupResult)
 
 	assert.True(t, result.Success)
 	assert.Equal(t, 1, result.InstancesDeleted, "exactly one old instance deleted")
@@ -132,7 +132,7 @@ func TestFlowF_GDPRCleanup(t *testing.T) {
 	// --- Idempotency: second run deletes nothing --------------------------
 	result2 := runInTenantTx(t, s, func(ctx context.Context) (any, error) {
 		return s.cleanupTimetable(ctx)
-	}).(*scheduleSvc.TimetableCleanupResult)
+	}).(*timetableplanning.TimetableCleanupResult)
 	assert.True(t, result2.Success)
 	assert.Equal(t, 0, result2.InstancesDeleted, "idempotent: nothing left to delete")
 	assert.Equal(t, 0, result2.ExceptionsDeleted)

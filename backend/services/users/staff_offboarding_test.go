@@ -539,7 +539,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 		AccountTenantRepo: sc.repos.AccountTenant,
 		RoleRepo:          sc.repos.Role,
 		AccountRoleRepo:   sc.repos.AccountRole,
-		SchoolRepo:        sc.repos.School,
+		SchoolRepo:        services.InvitationSchoolsForTests(sc.repos.School, testpkg.TenantRuntime(t, sc.db)),
 		Mailer:            email.NewMockMailer(),
 		FrontendURL:       "http://localhost:3000",
 		InvitationExpiry:  time.Hour,

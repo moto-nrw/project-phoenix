@@ -16,15 +16,14 @@ import (
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -165,8 +164,8 @@ type Scheduler struct {
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
 	fileStoreCleaner           FileStoreCleaner
-	materializer               scheduleSvc.MaterializationService
-	timetableCleanup           scheduleSvc.TimetableCleanupService
+	materializer               timetableplanning.MaterializationService
+	timetableCleanup           timetableplanning.TimetableCleanupService
 	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    usersSvc.StudentChangeLogCleanupService
@@ -174,11 +173,11 @@ type Scheduler struct {
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         auditModel.BookingConsistencyRepository
 	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
-	autoStart                  scheduleSvc.AutoStartService
-	autoEnd                    scheduleSvc.AutoEndService
+	autoStart                  timetableplanning.AutoStartService
+	autoEnd                    timetableplanning.AutoEndService
 	settings                   SettingsResolver
 	db                         *bun.DB
-	schoolRepo                 platform.SchoolRepository
+	schoolRepo                 TenantDirectory
 	tenantRuntime              tenant.UnitOfWork
 	tenantRuntimeConfigured    bool
 	tenantRuntimeObserver      func(entryPoint, outcome string)
@@ -495,19 +494,14 @@ func (s *Scheduler) forEachTenantIncludingInactive(ctx context.Context, opName s
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
 		}
 	} else {
-		var schools []platform.School
 		if err := tenant.WithinAdmin(ctx, func(txCtx context.Context) error {
 			var listErr error
-			schools, listErr = s.schoolRepo.ListNonDeleted(txCtx)
+			tenantIDs, listErr = s.schoolRepo.ListNonDeletedTenantIDs(txCtx)
 			return listErr
 		}); err != nil {
 			recordJobCommandFailure(ctx, err)
 			s.observeTenantRuntime("transaction_failure")
 			return fmt.Errorf("load tenants for %s: %w", opName, err)
-		}
-		tenantIDs = make([]int64, 0, len(schools))
-		for _, school := range schools {
-			tenantIDs = append(tenantIDs, school.ID)
 		}
 	}
 	result := s.runTenantBatches(ctx, tenantIDs, opName, adaptTenantCommand(func(txCtx context.Context, _ int64) error {
@@ -1848,7 +1842,7 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 			slog.String("to", to.String()),
 		)
 
-		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, scheduleSvc.MaterializationSourceScheduler)
+		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, timetableplanning.MaterializationSourceScheduler)
 		if err != nil {
 			// Keep the today-mark so every subsequent minute does not retry a
 			// known-failing run. It naturally expires on the next scheduler day.

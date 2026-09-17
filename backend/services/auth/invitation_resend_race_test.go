@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -47,7 +48,7 @@ func TestInvitationResendCannotResurrectConsumedToken(t *testing.T) {
 	require.NoError(t, repos.InvitationToken.Create(ctx, invitation))
 	service := auth.NewInvitationService(auth.InvitationServiceConfig{
 		InvitationRepo: consumedAfterReadInvitationRepository{repos.InvitationToken},
-		RoleRepo:       repos.Role, SchoolRepo: repos.School, DB: db,
+		RoleRepo:       repos.Role, SchoolRepo: services.InvitationSchoolsForTests(repos.School, testpkg.TenantRuntime(t, db)), DB: db,
 	})
 	testpkg.SetTenantRuntime(t, service, db)
 	require.NoError(t, service.ResendInvitation(ctx, invitation.ID, creator.ID))

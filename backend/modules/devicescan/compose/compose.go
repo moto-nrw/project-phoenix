@@ -41,6 +41,10 @@ type Presence interface {
 // Rooms is the part of the Facilities capability the scans use.
 type Rooms = application.Rooms
 
+// Rosters resolves the day rosters of running blocks. The roots bind it to
+// the public Timetable & Activities capability (timetable.SessionRosters).
+type Rosters = ports.Rosters
+
 // PickupReader is the slice of the retained pickup schedule service the
 // scans read.
 type PickupReader interface {
@@ -62,6 +66,9 @@ type Dependencies struct {
 	// Activities is the retained activity catalog the special rooms
 	// provision from.
 	Activities activitiesSvc.ActivityService
+	// Rosters reads the day rosters of running blocks for the Schulhof
+	// scan rule (#3282).
+	Rosters Rosters
 	// Education resolves the child's group for the daily-checkout gate.
 	Education educationSvc.Service
 	// Pickups reads the effective pickup plan.
@@ -112,6 +119,7 @@ func New(deps Dependencies) DeviceScan {
 		Sessions:   sessions{active: deps.Active, presence: deps.Presence, clock: clock},
 		Attendance: attendance{active: deps.Active},
 		Activities: activities,
+		Rosters:    deps.Rosters,
 		Groups:     groups,
 		Pickups:    pickups,
 		Settings:   settings{settings: deps.Settings, active: deps.Active},

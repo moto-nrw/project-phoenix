@@ -43,8 +43,8 @@ type Rooms interface {
 
 // Dependencies are the collaborators of the workflow. Fleet, Presence,
 // Rooms, Principals, People, Visits, Sessions, Attendance, Settings,
-// UnitOfWork and Clock are required; Activities, Groups and Pickups may be
-// absent in narrow graphs, which disables the flows that need them.
+// UnitOfWork and Clock are required; Activities, Rosters, Groups and Pickups
+// may be absent in narrow graphs, which disables the flows that need them.
 type Dependencies struct {
 	Fleet      Fleet
 	Presence   Presence
@@ -55,6 +55,7 @@ type Dependencies struct {
 	Sessions   ports.Sessions
 	Attendance ports.Attendance
 	Activities ports.Activities
+	Rosters    ports.Rosters
 	Groups     ports.Groups
 	Pickups    ports.Pickups
 	Settings   ports.Settings
@@ -74,6 +75,7 @@ type Service struct {
 	sessions   ports.Sessions
 	attendance ports.Attendance
 	activities ports.Activities
+	rosters    ports.Rosters
 	groups     ports.Groups
 	pickups    ports.Pickups
 	settings   ports.Settings
@@ -98,7 +100,7 @@ func NewService(deps Dependencies) *Service {
 	return &Service{
 		fleet: deps.Fleet, presence: deps.Presence, rooms: deps.Rooms, principals: deps.Principals,
 		people: deps.People, visits: deps.Visits, sessions: deps.Sessions, attendance: deps.Attendance,
-		activities: deps.Activities, groups: deps.Groups, pickups: deps.Pickups, settings: deps.Settings,
+		activities: deps.Activities, rosters: deps.Rosters, groups: deps.Groups, pickups: deps.Pickups, settings: deps.Settings,
 		unit: deps.UnitOfWork, clock: deps.Clock, logger: logger,
 	}
 }

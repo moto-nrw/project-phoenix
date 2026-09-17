@@ -85,7 +85,7 @@ func setupInvitationService(t *testing.T, db *bun.DB) auth.InvitationService {
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
-		SchoolRepo:        repos.School,
+		SchoolRepo:        services.InvitationSchoolsForTests(repos.School, testpkg.TenantRuntime(t, db)),
 		Mailer:            email.NewMockMailer(),
 		FrontendURL:       config.FrontendURL, SchoolURL: config.SchoolURL,
 		InvitationExpiry: 48 * time.Hour, DB: db,

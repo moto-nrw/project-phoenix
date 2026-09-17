@@ -15,7 +15,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -39,6 +38,22 @@ type CleanupResult struct {
 	Cutoff        time.Time
 }
 
+// UsageRow is one (school, portal) bucket of PWA standalone-usage counts.
+// EligibleUsers counts the accounts of that school matching the portal's
+// role predicate; StandaloneUsers never exceeds it.
+type UsageRow struct {
+	TenantID        int64
+	Portal          string
+	StandaloneUsers int
+	EligibleUsers   int
+}
+
+// UsageCounts reads the per-school usage buckets within a window. tenantID 0
+// returns every school; callers run it inside an administrative transaction.
+type UsageCounts interface {
+	PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]UsageRow, error)
+}
+
 type usageRepository interface {
 	RecordSeen(ctx context.Context, tenantID, accountID int64, portal string) error
 	DeleteLastSeenBefore(ctx context.Context, tenantID int64, cutoff time.Time) (int, error)
@@ -60,20 +75,20 @@ type UsageService interface {
 	// SnapshotUsage returns per-school, per-portal counts over UsageWindow
 	// for the Prometheus exporter, cached for snapshotTTL so scrapes cannot
 	// hammer the database.
-	SnapshotUsage() ([]platformModels.SchoolPWAUsageRow, error)
+	SnapshotUsage() ([]UsageRow, error)
 }
 
 type usageService struct {
 	db             *bun.DB
 	repo           usageRepository
-	summaries      platformModels.OperatorSummariesRepository
+	summaries      UsageCounts
 	accountTenants authModels.AccountTenantRepository
 	settings       config.SettingsService
 	logger         *slog.Logger
 	tenantRuntime  *tenant.UnitOfWork
 
 	snapshotMu   sync.Mutex
-	snapshot     []platformModels.SchoolPWAUsageRow
+	snapshot     []UsageRow
 	snapshotTime time.Time
 }
 
@@ -85,7 +100,7 @@ func (s *usageService) SetTenantRuntime(runtime tenant.UnitOfWork) {
 func NewUsageService(
 	db *bun.DB,
 	repo usageRepository,
-	summaries platformModels.OperatorSummariesRepository,
+	summaries UsageCounts,
 	accountTenants authModels.AccountTenantRepository,
 	settings config.SettingsService,
 	logger *slog.Logger,
@@ -199,14 +214,14 @@ func validateTenantWriteContext(ctx context.Context, expectedTenantID int64) err
 	return nil
 }
 
-func (s *usageService) SnapshotUsage() ([]platformModels.SchoolPWAUsageRow, error) {
+func (s *usageService) SnapshotUsage() ([]UsageRow, error) {
 	s.snapshotMu.Lock()
 	defer s.snapshotMu.Unlock()
 	if s.snapshot != nil && time.Since(s.snapshotTime) < snapshotTTL {
 		return s.snapshot, nil
 	}
 
-	var rows []platformModels.SchoolPWAUsageRow
+	var rows []UsageRow
 	ctx := context.Background()
 	if s.tenantRuntime != nil {
 		ctx = tenant.WithUnitOfWork(ctx, *s.tenantRuntime)

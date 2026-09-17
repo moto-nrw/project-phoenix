@@ -1,0 +1,157 @@
+package emailoutbox
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+const mailIdentityTenantID int64 = 4711
+
+type schoolContactsFunc func(context.Context, int64) (*SchoolContact, error)
+
+func (f schoolContactsFunc) FindSchoolContact(ctx context.Context, tenantID int64) (*SchoolContact, error) {
+	return f(ctx, tenantID)
+}
+
+func schoolRepoReturning(school *SchoolContact, err error) SchoolContacts {
+	return schoolContactsFunc(func(context.Context, int64) (*SchoolContact, error) {
+		return school, err
+	})
+}
+
+func settingsReturning(value string, err error) func(context.Context, int64) (string, error) {
+	return func(context.Context, int64) (string, error) { return value, err }
+}
+
+// The explicit setting is the school's own decision and must win over the
+// Stammdaten contact address.
+func TestResolveTenantMailIdentity_SettingWinsOverSchoolContact(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg", Email: "buero@schule.example"}, nil),
+		settingsReturning("eltern@schule.example", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.Equal(t, "eltern@schule.example", identity.Address)
+	assert.Equal(t, "OGS Am Berg", identity.Name)
+}
+
+// Without an explicit setting the school contact address is used. This is the
+// fallback that makes the fix reach schools that never open the setting —
+// the reported failure was answers landing at moto (#1936).
+func TestResolveTenantMailIdentity_FallsBackToSchoolContact(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg", Email: "buero@schule.example"}, nil),
+		settingsReturning("", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.Equal(t, "buero@schule.example", identity.Address)
+}
+
+// Neither source configured must stay silent: no Reply-To header, mail
+// behaves exactly as it did before this feature.
+func TestResolveTenantMailIdentity_NothingConfigured_IsZero(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg"}, nil),
+		settingsReturning("", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.True(t, identity.IsZero())
+}
+
+// Whitespace-only values are not addresses. Trimming them to empty keeps the
+// fallback chain working instead of writing a broken header.
+func TestResolveTenantMailIdentity_BlankSettingFallsThrough(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "  buero@schule.example  "}, nil),
+		settingsReturning("   ", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.Equal(t, "buero@schule.example", identity.Address)
+}
+
+// Existing school contact data can predate UI validation. It must not be
+// copied into Reply-To because SMTP header construction would then fail.
+func TestResolveTenantMailIdentity_InvalidSchoolEmailIsIgnored(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "not an email"}, nil),
+		settingsReturning("", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.True(t, identity.IsZero())
+}
+
+// A failing settings lookup must degrade to the school contact address, never
+// cost the mail. Losing the return path is bad; losing the invitation is worse.
+func TestResolveTenantMailIdentity_SettingsErrorFallsBackToSchool(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "buero@schule.example"}, nil),
+		settingsReturning("", errors.New("settings unavailable")),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.Equal(t, "buero@schule.example", identity.Address)
+}
+
+// Same rule for a failing school lookup: no identity, no error, mail still goes.
+func TestResolveTenantMailIdentity_SchoolErrorDegradesToNoReplyTo(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(nil, errors.New("school lookup failed")),
+		settingsReturning("", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), mailIdentityTenantID)
+	require.NoError(t, err)
+	assert.True(t, identity.IsZero())
+}
+
+// A cross-tenant send path with no tenant (operator/system mail) must never
+// pick up a school reply address.
+func TestResolveTenantMailIdentity_NoTenant_IsZero(t *testing.T) {
+	t.Parallel()
+
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "buero@schule.example"}, nil),
+		settingsReturning("eltern@schule.example", nil),
+		nil,
+	)
+
+	identity, err := svc.ResolveReplyTo(context.Background(), 0)
+	require.NoError(t, err)
+	assert.True(t, identity.IsZero())
+}

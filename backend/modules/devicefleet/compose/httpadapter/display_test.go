@@ -95,7 +95,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 			PickupSchedule: pickup,
 		}),
 		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-			Schools:  repos.School,
+			Schools:  displaySchools{db: db},
 			Settings: settingsService,
 		}),
 		Now:     firstClock(clocks),
@@ -103,6 +103,27 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	})
 	require.NoError(t, err)
 	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settingsService).Router())
+}
+
+// displaySchools reads the display facts straight from the seeded
+// platform.schools rows.
+type displaySchools struct{ db *bun.DB }
+
+func (d displaySchools) FindDisplaySchool(ctx context.Context, tenantID int64) (devicefleetCompose.School, bool, error) {
+	var rows []struct {
+		Name      string     `bun:"name"`
+		Active    bool       `bun:"active"`
+		DeletedAt *time.Time `bun:"deleted_at"`
+	}
+	err := d.db.NewSelect().
+		TableExpr(`platform.schools AS "school"`).
+		Column("school.name", "school.active", "school.deleted_at").
+		Where(`"school".id = ?`, tenantID).
+		Scan(ctx, &rows)
+	if err != nil || len(rows) == 0 {
+		return devicefleetCompose.School{}, false, err
+	}
+	return devicefleetCompose.School{Name: rows[0].Name, Active: rows[0].Active, Deleted: rows[0].DeletedAt != nil}, true, nil
 }
 
 func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {

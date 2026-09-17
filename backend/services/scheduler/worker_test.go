@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +36,7 @@ func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 	return WorkerDependencies{
 		Logger:                    slog.Default(),
 		DB:                        new(bun.DB),
-		SchoolRepo:                &testpkg.SchoolRepoMock{},
+		SchoolRepo:                dbTenantDirectory{},
 		TenantRuntime:             &runtime,
 		Settings:                  &stubSettingsResolver{},
 		AuthCleanup:               &fakeAuthCleanup{},
@@ -95,12 +94,12 @@ func TestNewWorkerRejectsTypedNilDependencies(t *testing.T) {
 	t.Run("core dependency", func(t *testing.T) {
 		t.Parallel()
 		deps := minimalWorkerDependencies(t)
-		var schoolRepo *testpkg.SchoolRepoMock
+		var schoolRepo *erroringSchoolRepo
 		deps.SchoolRepo = schoolRepo
 
 		_, err := NewWorker(deps)
 
-		require.ErrorContains(t, err, "school repository")
+		require.ErrorContains(t, err, "tenant directory")
 	})
 
 	t.Run("job dependency", func(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/services/education"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 type scheduleSubstitutionBridge struct {
@@ -62,7 +62,7 @@ func (b *scheduleSubstitutionBridge) apply(
 		}
 	}
 	wholeDays := assignment.WholeDays
-	return b.adapter.ApplyWholeDays(ctx, schedule.BulkSubstitutionInput{
+	return b.adapter.ApplyWholeDays(ctx, timetableplanning.BulkSubstitutionInput{
 		AbsentStaffID: wholeDays.AbsentStaffID, SubstituteStaffID: wholeDays.SubstituteStaffID,
 		Dates: wholeDays.Dates, Reason: wholeDays.Reason, ActorAccountID: &actorAccountID,
 	})
@@ -88,8 +88,8 @@ func hasAppointmentChanges(assignment education.ScheduleSubstitutionAssignment) 
 func mapScheduleDeviationInput(
 	assignment education.ScheduleSubstitutionAssignment,
 	actorAccountID int64,
-) schedule.ApplyDeviationsInput {
-	input := schedule.ApplyDeviationsInput{
+) timetableplanning.ApplyDeviationsInput {
+	input := timetableplanning.ApplyDeviationsInput{
 		UnderstaffedAck:  assignment.UnderstaffedAck,
 		UnderstaffedNote: assignment.UnderstaffedNote,
 		ActorAccountID:   &actorAccountID,
@@ -101,20 +101,20 @@ func mapScheduleDeviationInput(
 	return input
 }
 
-func mapScheduleAbsences(source []education.ScheduleAbsenceChange) []schedule.DeviationAbsenceInput {
-	result := make([]schedule.DeviationAbsenceInput, 0, len(source))
+func mapScheduleAbsences(source []education.ScheduleAbsenceChange) []timetableplanning.DeviationAbsenceInput {
+	result := make([]timetableplanning.DeviationAbsenceInput, 0, len(source))
 	for _, change := range source {
-		result = append(result, schedule.DeviationAbsenceInput{
+		result = append(result, timetableplanning.DeviationAbsenceInput{
 			StaffID: change.StaffID, Reason: change.Reason, InstanceIDs: change.InstanceIDs,
 		})
 	}
 	return result
 }
 
-func mapScheduleSubstitutions(source []education.ScheduleSubstitutionChange) []schedule.DeviationSubstitutionInput {
-	result := make([]schedule.DeviationSubstitutionInput, 0, len(source))
+func mapScheduleSubstitutions(source []education.ScheduleSubstitutionChange) []timetableplanning.DeviationSubstitutionInput {
+	result := make([]timetableplanning.DeviationSubstitutionInput, 0, len(source))
 	for _, change := range source {
-		result = append(result, schedule.DeviationSubstitutionInput{
+		result = append(result, timetableplanning.DeviationSubstitutionInput{
 			AbsentStaffID: change.AbsentStaffID, SubstituteStaffID: change.SubstituteStaffID,
 			Reason: change.Reason, InstanceIDs: change.InstanceIDs,
 		})
@@ -122,20 +122,20 @@ func mapScheduleSubstitutions(source []education.ScheduleSubstitutionChange) []s
 	return result
 }
 
-func mapScheduleSubstitutionRemovals(source []education.ScheduleSubstitutionRemoval) []schedule.DeviationSubstitutionRemovalInput {
-	result := make([]schedule.DeviationSubstitutionRemovalInput, 0, len(source))
+func mapScheduleSubstitutionRemovals(source []education.ScheduleSubstitutionRemoval) []timetableplanning.DeviationSubstitutionRemovalInput {
+	result := make([]timetableplanning.DeviationSubstitutionRemovalInput, 0, len(source))
 	for _, change := range source {
-		result = append(result, schedule.DeviationSubstitutionRemovalInput{
+		result = append(result, timetableplanning.DeviationSubstitutionRemovalInput{
 			StaffID: change.StaffID, InstanceIDs: change.InstanceIDs,
 		})
 	}
 	return result
 }
 
-func mapSchedulePresences(source []education.SchedulePresenceChange) []schedule.DeviationPresenceInput {
-	result := make([]schedule.DeviationPresenceInput, 0, len(source))
+func mapSchedulePresences(source []education.SchedulePresenceChange) []timetableplanning.DeviationPresenceInput {
+	result := make([]timetableplanning.DeviationPresenceInput, 0, len(source))
 	for _, change := range source {
-		result = append(result, schedule.DeviationPresenceInput{
+		result = append(result, timetableplanning.DeviationPresenceInput{
 			StaffID: change.StaffID, InstanceIDs: change.InstanceIDs,
 		})
 	}
@@ -215,7 +215,7 @@ func mapWholeDayMutation(source *shiftplanning.SubstitutionMutation) *education.
 	}
 }
 
-func mapScheduleAffected(source []schedule.DeviationAffected) []education.ScheduleAffectedAppointment {
+func mapScheduleAffected(source []timetableplanning.DeviationAffected) []education.ScheduleAffectedAppointment {
 	result := make([]education.ScheduleAffectedAppointment, 0, len(source))
 	for _, item := range source {
 		result = append(result, education.ScheduleAffectedAppointment{
@@ -226,7 +226,7 @@ func mapScheduleAffected(source []schedule.DeviationAffected) []education.Schedu
 	return result
 }
 
-func mapScheduleWarnings(source []schedule.SubstituteTimeConflict) []education.ScheduleTimeConflict {
+func mapScheduleWarnings(source []timetableplanning.SubstituteTimeConflict) []education.ScheduleTimeConflict {
 	result := make([]education.ScheduleTimeConflict, 0, len(source))
 	for _, item := range source {
 		result = append(result, education.ScheduleTimeConflict{
@@ -252,7 +252,7 @@ func mapScheduleSubstitutionError(err error) error {
 			Target: education.ErrNotRunning, Code: "not_running", Message: "Die Terminvertretung ist nicht mehr aktiv.",
 		}
 	}
-	var deviation *schedule.DeviationError
+	var deviation *timetableplanning.DeviationError
 	if !errors.As(err, &deviation) || deviation.Status == 500 {
 		return err
 	}

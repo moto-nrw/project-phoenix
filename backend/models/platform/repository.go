@@ -11,29 +11,6 @@ import (
 // Identity & Access module (#2720, #3252); the retained flows in
 // services/platform reach them through their own consumer-owned ports.
 
-// SchoolRepository defines operations for school (tenant) records.
-type SchoolRepository interface {
-	Create(ctx context.Context, school *School) error
-	FindByID(ctx context.Context, id int64) (*School, error)
-	FindByIDForShare(ctx context.Context, id int64) (*School, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*School, error)
-	FindBySlug(ctx context.Context, slug string) (*School, error)
-	FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*School, error)
-	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
-	List(ctx context.Context) ([]*School, error)
-	// ListNonDeleted returns all non-deleted schools, regardless of whether
-	// they currently admit users. Retention recovery uses this to clean files
-	// for inactive tenants too.
-	ListNonDeleted(ctx context.Context) ([]School, error)
-	ListActive(ctx context.Context) ([]School, error)
-	ListPublic(ctx context.Context) ([]School, error)
-	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
-	Update(ctx context.Context, school *School) error
-	SoftDelete(ctx context.Context, id int64) error
-	Restore(ctx context.Context, id int64) error
-	CountByIDs(ctx context.Context, ids []int64) (int, error)
-}
-
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens
 type OperatorEmailChangeTokenRepository interface {
 	Create(ctx context.Context, token *OperatorEmailChangeToken) error

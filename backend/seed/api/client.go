@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"mime/multipart"
 	"strings"
+	"sync"
 )
 
 // Client handles HTTP communication with the backend API
@@ -159,8 +160,7 @@ func (c *Client) PostFile(path, fieldName, filename string, contents []byte) ([]
 		return nil, err
 	}
 	if c.verbose {
-		c.logRequest("POST", path, nil)
-		c.logResponse(statusCode, respBody)
+		c.logExchange("POST", path, nil, statusCode, respBody)
 	}
 	return respBody, nil
 }
@@ -220,10 +220,20 @@ func (c *Client) doRequestWithExplicitAuth(method, path string, body any, authRe
 	}
 
 	if c.verbose {
-		c.logRequest(method, path, body)
-		c.logResponse(statusCode, respBody)
+		c.logExchange(method, path, body, statusCode, respBody)
 	}
 	return respBody, nil
+}
+
+// verboseLogMu keeps one request/response block together when parallel
+// seed workers log at the same time.
+var verboseLogMu sync.Mutex
+
+func (c *Client) logExchange(method, path string, body any, statusCode int, respBody []byte) {
+	verboseLogMu.Lock()
+	defer verboseLogMu.Unlock()
+	c.logRequest(method, path, body)
+	c.logResponse(statusCode, respBody)
 }
 
 // logRequest logs the HTTP request details (called by Client methods)

@@ -24,14 +24,14 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // Conflict kinds — aliased to the schedule service so the detection logic and
 // the wire strings stay in lockstep.
 const (
-	ConflictKindCancelledArrivals = scheduleSvc.ConflictKindCancelledArrivals
-	ConflictKindModifiedMismatch  = scheduleSvc.ConflictKindModifiedMismatch
+	ConflictKindCancelledArrivals = timetableplanning.ConflictKindCancelledArrivals
+	ConflictKindModifiedMismatch  = timetableplanning.ConflictKindModifiedMismatch
 )
 
 // ConflictEntry is a single row in the conflict response. The optional string
@@ -105,7 +105,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 }
 
 // mapConflictEntry lifts a detected conflict into the wire shape.
-func mapConflictEntry(c scheduleSvc.ExceptionConflict) ConflictEntry {
+func mapConflictEntry(c timetableplanning.ExceptionConflict) ConflictEntry {
 	return ConflictEntry{
 		Kind:               c.Kind,
 		Date:               c.Date,

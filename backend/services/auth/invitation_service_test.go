@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -64,7 +63,7 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		RoleRepo:          roleRepo,
 		AccountRoleRepo:   accountRoleRepo,
 		SchoolIdentity:    identityStub(personRepo, staffRepo, teacherRepo),
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       "http://localhost:3000",
@@ -694,7 +693,7 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 		RoleRepo:          roles,
 		AccountRoleRepo:   accountRoles,
 		SchoolIdentity:    identityStub(persons, staff, teachers),
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -837,7 +836,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 
 	invitationRepo := newStubInvitationTokenRepository()
-	schoolRepo := newStubSchoolRepository(map[int64]bool{42: true})
+	schoolRepo := newStubSchoolDirectory(map[int64]bool{42: true})
 	staffRepo, _ := newStubStaffRepository()
 
 	service := newTestInvitationService(t, InvitationServiceConfig{
@@ -897,11 +896,9 @@ func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
 	// School where slug != subdomain (issue #1977: OGS Burbach,
 	// slug=ogs-burbach, subdomain=burbach). The redirect after accepting an
 	// invitation must use the subdomain — tenant routing resolves by it.
-	schoolRepo := newStubSchoolRepository(nil)
-	schoolRepo.FindByIDFn = func(_ context.Context, id int64) (*platformModel.School, error) {
-		return &platformModel.School{
-			Model:     baseModel.Model{ID: id},
-			Active:    true,
+	schoolRepo := newStubSchoolDirectory(nil)
+	schoolRepo.find = func(context.Context, int64) (*InvitationSchool, error) {
+		return &InvitationSchool{
 			Slug:      "ogs-burbach",
 			Subdomain: "burbach",
 		}, nil
@@ -1141,7 +1138,7 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "admin", IsSystem: true}),
 		AccountRoleRepo:   newStubAccountRoleRepository(),
 		SchoolIdentity:    identityStub(newStubPersonRepository(), staffRepoOnly(), newStubTeacherRepository()),
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,

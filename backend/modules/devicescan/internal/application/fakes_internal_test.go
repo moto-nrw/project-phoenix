@@ -245,6 +245,8 @@ type fakeSessions struct {
 	currentErr     error
 	started        []ports.NewSession
 	startErr       error
+	ensured        []ports.NewSession
+	ensureErr      error
 	nextSessionID  int64
 	deleted        []int64
 	ended          []int64
@@ -270,6 +272,15 @@ func (s *fakeSessions) Start(_ context.Context, input ports.NewSession) (ports.S
 	s.started = append(s.started, input)
 	if s.startErr != nil {
 		return ports.Session{}, s.startErr
+	}
+	s.nextSessionID++
+	activityID := input.ActivityID
+	return ports.Session{ID: 200 + s.nextSessionID, RoomID: input.RoomID, StartTime: fixedNow, TemplateID: &activityID}, nil
+}
+func (s *fakeSessions) EnsureRoomSession(_ context.Context, input ports.NewSession) (ports.Session, error) {
+	s.ensured = append(s.ensured, input)
+	if s.ensureErr != nil {
+		return ports.Session{}, s.ensureErr
 	}
 	s.nextSessionID++
 	activityID := input.ActivityID
@@ -369,6 +380,28 @@ type fakeGroups struct {
 
 func (g fakeGroups) Find(context.Context, int64) (*ports.Group, error) { return g.group, g.err }
 
+// fakeRosters lists the sessions whose running block has the scanned child
+// in its day roster, and records every lookup.
+type fakeRosters struct {
+	rostered map[int64]bool
+	err      error
+	calls    [][]int64
+}
+
+func (r *fakeRosters) SessionsRosteringStudent(_ context.Context, _ int64, sessionIDs []int64) ([]int64, error) {
+	r.calls = append(r.calls, sessionIDs)
+	if r.err != nil {
+		return nil, r.err
+	}
+	var matched []int64
+	for _, id := range sessionIDs {
+		if r.rostered[id] {
+			matched = append(matched, id)
+		}
+	}
+	return matched, nil
+}
+
 type fakePickups struct {
 	pickup *ports.Pickup
 	err    error
@@ -437,12 +470,14 @@ type harness struct {
 	sessions   *fakeSessions
 	attendance *fakeAttendance
 	activities *fakeActivities
-	groups     *fakeGroups
-	pickups    *fakePickups
-	settings   *fakeSettings
-	unit       *fakeUnit
-	clock      fakeClock
-	logger     *slog.Logger
+	// rosters stays nil, like a narrow graph, unless a test sets it.
+	rosters  *fakeRosters
+	groups   *fakeGroups
+	pickups  *fakePickups
+	settings *fakeSettings
+	unit     *fakeUnit
+	clock    fakeClock
+	logger   *slog.Logger
 }
 
 // newHarness builds a service around a device, a student card and an
@@ -479,10 +514,14 @@ func newHarness(t *testing.T) *harness {
 }
 
 func (h *harness) service() *Service {
+	var rosters ports.Rosters
+	if h.rosters != nil {
+		rosters = h.rosters
+	}
 	return NewService(Dependencies{
 		Fleet: h.fleet, Presence: h.presence, Rooms: h.rooms, Principals: h.principals, People: h.people,
 		Visits: h.visits, Sessions: h.sessions, Attendance: h.attendance, Activities: h.activities,
-		Groups: h.groups, Pickups: h.pickups, Settings: h.settings, UnitOfWork: h.unit, Clock: h.clock, Logger: h.logger,
+		Rosters: rosters, Groups: h.groups, Pickups: h.pickups, Settings: h.settings, UnitOfWork: h.unit, Clock: h.clock, Logger: h.logger,
 	})
 }
 

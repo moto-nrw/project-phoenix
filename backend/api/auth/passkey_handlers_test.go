@@ -13,8 +13,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/models/base"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -96,27 +94,23 @@ func (s *passkeyServiceStub) RevokeCredential(_ context.Context, accountID, cred
 }
 
 type passkeySchoolServiceStub struct {
-	byID        *platformModel.School
-	bySubdomain *platformModel.School
+	byID        *TenantSchool
+	bySubdomain *TenantSchool
 }
 
-func (s passkeySchoolServiceStub) GetSchoolByID(context.Context, int64) (*platformModel.School, error) {
+func (s passkeySchoolServiceStub) GetSchoolByID(context.Context, int64) (*TenantSchool, error) {
 	return s.byID, nil
 }
 
-func (s passkeySchoolServiceStub) GetSchoolBySlug(context.Context, string) (*platformModel.School, error) {
-	return nil, nil
-}
-
-func (s passkeySchoolServiceStub) GetSchoolBySubdomain(context.Context, string) (*platformModel.School, error) {
+func (s passkeySchoolServiceStub) GetSchoolBySubdomain(context.Context, string) (*TenantSchool, error) {
 	return s.bySubdomain, nil
 }
 
-func (s passkeySchoolServiceStub) ListPublicSchools(context.Context) ([]platformModel.School, error) {
+func (s passkeySchoolServiceStub) ListPublicSchools(context.Context) ([]TenantSchool, error) {
 	return nil, nil
 }
 
-func (s passkeySchoolServiceStub) ListActiveSchoolsByAccountID(context.Context, int64) ([]platformModel.School, error) {
+func (s passkeySchoolServiceStub) ListActiveSchoolsByAccountID(context.Context, int64) ([]TenantSchool, error) {
 	return nil, nil
 }
 
@@ -124,8 +118,8 @@ func TestPasskeyLoginHandlers(t *testing.T) {
 	t.Parallel()
 
 	svc := &passkeyServiceStub{}
-	school := &platformModel.School{
-		Model:     base.Model{ID: 42},
+	school := &TenantSchool{
+		ID:        42,
 		Subdomain: "school-a",
 		Active:    true,
 	}
@@ -163,8 +157,8 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 	t.Parallel()
 
 	svc := &passkeyServiceStub{}
-	school := &platformModel.School{
-		Model:     base.Model{ID: 42},
+	school := &TenantSchool{
+		ID:        42,
 		Subdomain: "school-a",
 		Active:    true,
 	}
