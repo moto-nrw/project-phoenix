@@ -245,19 +245,126 @@ and delete the adapter with the last consumer of those contracts.
 
 The Workforce shift-planning HTTP composition
 (`modules/workforce/inbound/shiftplanning`) is classified `workforce`/`http`
-for the same reason (#2689). It serves the public `StaffShiftPlanning` and
-`ShiftTypeAdministration` contracts from the retained `services/schedule` and
-`services/planexport` services and maps their `models/schedule` rows. Every
-`workforce.http.*` rule is a compatibility permission, not a target
-dependency: the `timetable-activities`, `document-rendering` and
-`legacy-shared` edges go when the shift services move into the Workforce
-owner, and the `inbound-common`, `security-runtime`, `tenant-runtime`,
-`orm-sql` and route-adapter edges follow the same conversion the
-`workforce.adapter.*` rules above are bound to. Convert them to exact debt
+for the same reason (#2689). It mounts the `/api/staff-shifts` and
+`/api/shift-types` route adapters over the public `StaffShiftPlanning` and
+`ShiftTypeAdministration` contracts. Every `workforce.http.*` rule is a
+compatibility permission, not a target dependency: the `inbound-common`,
+`security-runtime`, `tenant-runtime`, `orm-sql` and route-adapter edges
+follow the same conversion the `workforce.adapter.*` rules above are bound
+to, and the `timetable-domain` and `legacy-shared-domain` edges remain for
+the time-tracking composition below. The `timetable-application` and
+`document-rendering` edges fell with #3219. Convert the rest to exact debt
 once the package exists at a base SHA.
 The retained `models/schedule` repository contracts are served from
 `database/repositories` over the Workforce facade; that package's
 `models/schedule` import is already recorded debt.
+
+The retained staff-shift, shift-type, assignment, Dienstplan overview,
+staff-notice, shift-plan sync and substitution services that
+`services/schedule` used to hold are retained as the
+`inbound-staff-shifts`/`adapter` compatibility package
+`modules/workforce/legacy/shiftplanning` (#3219), moved file for file with
+their behaviour tests. The package also serves the public `StaffShiftPlanning`
+and `ShiftTypeAdministration` contracts that the shift-planning HTTP
+composition used to map, so the implementations now sit behind the contracts
+and the HTTP composition only mounts the routes. No HTTP path, status code,
+error string, authorization check, tenant scoping, coverage-conflict or
+substitution semantics changed. The services could not land on the existing
+`workforce`/`adapter` point: they still speak the retained `models/schedule`,
+`models/audit`, `models/config` and `models/facilities` rows, the Delivery
+producer, the plan export capability and the retained timetable services (in
+`services/schedule` then, `modules/timetable/legacy/timetableplanning` since
+#3218), and PR mode rejects a new permission on a point that exists at the
+base SHA. Every `inbound-staff-shifts.adapter.*`,
+`inbound-staff-shifts.module-internal-test.*` and
+`inbound-staff-shifts.module-behavior-test.*` rule and every
+`<consumer>.<role>.inbound-staff-shifts-adapter` rule is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+package exists at a base SHA, and dissolve the services into the Workforce
+application and domain layers under #2730. The `adapter` role also covers the
+`cmp.Or` logger fallback the helper-consolidation ratchet requires
+(`inbound-staff-shifts.adapter.test`). The move replaced the post-construction
+setters of the shift and series services with construction-time options,
+because the composition surface guard records mutable wiring per package and
+a relocated setter would count as growth. Four subjects the ticket listed stay
+in `services/schedule` because they are methods of, or are served through,
+the retained timetable services and the two packages may only depend in one
+direction: the shift-coverage probe (`DetectShiftCoverage`, reached through
+`TimetableDataService`), the staff pool (a `TimetableDataService` method),
+the whole-day bulk substitution (an `InstanceService` method over the
+deviation pipeline) and the student partial-absence service (a student-care
+write over the care-exception lock). The shift-coverage interval vocabulary
+the overview and the probe share stays in `services/schedule`
+(`shift_coverage_intervals.go`) and the moved overview binds it through the
+package's own aliases (`vocabulary.go`). Seven package-private helpers the
+moved services shared with the retained timetable services (`isoWeekday`,
+`marshalDeviationValue`, `normalizeActor`, `int64FilterArgs`, `legacyList`,
+`broadcastStaffingChanged`, `isPlannableInstance`; `legacy_helpers.go`) and
+the overview test fakes now exist in both packages, because exporting them
+would widen the retained timetable package that #3218 dissolves. The copies
+are temporary debt that goes with the retained services under #2730 and
+#3218; a fix to the #1844 staffing broadcast must land in both until then.
+#3218 moved the coverage probe, the staff pool, the bulk substitution and the
+shared interval vocabulary on with the timetable services (below); the
+partial-absence service stays in `services/schedule` for #3220.
+
+The retained timetable and instance services that `services/schedule` used to
+hold (templates, splits and updates, materialization, the instance lifecycle
+and deviation pipeline, conflict detection, the timetable data and operations
+reads, calendar periods, holidays and closing days, planning tracks, the
+roster reconciler, cleanup and the attendance mirror) are retained as the
+`inbound-timetable`/`adapter` compatibility package
+`modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
+their behaviour tests. No HTTP path, status code, error string, authorization
+check, tenant scoping, recurrence, exception or materialization semantics
+changed. `services/schedule` keeps the care, arrival and pickup services for
+#3220, together with what only they need or what both sides share: the generic
+effective-time engine (`effective_time_service.go`,
+`effective_time_domains.go`, which the arrival and pickup services
+instantiate), the day-planning resolver the care-day resolver calls, and the
+`ScheduleError` type with its sentinels (the moved package aliases the type,
+so `errors.As` matches either name). The moved package imports
+`services/schedule` for these and for the care-day, care-exception-lock,
+baseline and effective-time contracts; the `services/schedule` package never
+imports it back, so the packages depend in one direction only (only the
+test-support package `services/schedule/scheduletest` binds its mocks to the
+moved services). `germanDateLayout` now
+exists in both packages, and the care-day resolver uses the effective-time
+engine's identical weekday helper instead of the materializer's copy. The
+package could not land on an existing point: it still speaks the retained
+models, repositories, Delivery producer, Presence services, settings and
+identity helpers, and PR mode rejects a new permission on a point that exists
+at the base SHA. Every `inbound-timetable.adapter.*`,
+`inbound-timetable.module-internal-test.*` and
+`inbound-timetable.module-behavior-test.*` rule and every
+`<consumer>.<role>.inbound-timetable-adapter` rule is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+package exists at a base SHA, and dissolve the services into the Timetable
+application and domain layers under #2730. The five
+`timetable-activities`/`application` rules of the Workforce and Presence
+consumers fell with the move because those packages no longer import
+`services/schedule`. The materialization and split services and the instance
+lifecycle take their optional collaborators at construction
+(`WithCareBoundReader`, `WithOfferingRosterResync`,
+`InstanceServiceDependencies.GuardianNotices`) instead of post-construction
+setters, because the composition surface guard records mutable wiring per
+package; the legacy factory binds the later-constructed enrollment decision
+and announcement services behind construction-time closures (the announcement
+side through the delegating `lateCareCancellationPublisher`, which replaces
+the former setter; `GuardianNotices` is therefore never nil in production).
+The moved test helpers the guard flagged for appending cleanups to shared
+fixture structs drop their no-op appends and register their sweeps with
+`t.Cleanup` in the same order; no-op appends inside test bodies are unchanged.
+The typed-root composition inventory only scans `api`, `cmd`, `services`,
+`database/repositories` and `test`, so the moved tests' factory calls left
+`composition.json` with the move (as with #3219); they are not fewer callers.
+The only SQL call site the cluster still reached outside the owner's
+persistence adapter, the legacy weekend-instance cleanup in
+`database/repositories/schedule`, is deleted; production already used the
+Timetable owner's `DeleteRemovedWeekendActivityInstances`, whose owner test now
+also pins the retained-weekday and empty-set cases.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
@@ -265,13 +372,45 @@ under the same compatibility permissions (#2690). It replaced
 `api/time-tracking` and serves the public work-session, absence, month,
 ledger, month-close, overview, audit-log, export and personnel-record
 contracts of `modules/workforce`, which the root composition adapts from the
-retained `services/active` and `services/users` services. Its remaining
-`services/schedule`, `models/schedule` and `api/staff-shifts` imports (own
-shifts and assignments) go with the shift services' move. The kiosk staff
+retained time-tracking services in `modules/workforce/legacy/timetracking`
+and the retained `services/users` services. Its own-shift, assignment and
+staff-notice routes reach the retained services in
+`modules/workforce/legacy/shiftplanning` (`workforce.http.inbound-staff-shifts-adapter`,
+#3219) and still map their `models/schedule` rows. The kiosk staff
 clock consumes the public device-scan contract in `modules/devicescan`
 (`process-device-scan`/`public`); `staff-clock.to.process-device-scan` is the
 one rule anchored to that new point, and the staff-clock workflow reaches the
 Workforce time clock only through its own port.
+
+The retained Workforce time-tracking services
+(`modules/workforce/legacy/timetracking`, #3213) are classified
+`workforce`/`adapter` with `adapter-test` in both test scopes. They are the
+work-session, absence, month-card, ledger, month-close, overview, audit-log,
+export, vacation-opening, absence-type, labor-policy, payroll-configuration
+and GDPR-cleanup services that `services/active` used to hold, moved file for
+file with their tests: the root composition adapts them behind the public
+`modules/workforce` contracts exactly as before, and no HTTP path, status
+code, error string, authorization check, tenant scoping, payroll or DATEV
+output changed. Their production imports (`internal/timezone`,
+`models/active`, `models/base`, `tenant`) are covered by the existing
+`workforce.adapter.*` compatibility permissions; the Delivery producer, the
+scheduler, the CLI and the schedule-owned sick cascade are reached through
+ports the composition root binds (`TimeTrackingEvents`,
+`schedulerTimeTrackingCleanupPort`, the `services` root aliases and
+`ShiftPlanSyncBridge`). The move also replaced every post-construction setter
+of these services with construction-time options, because the composition
+surface guard records mutable wiring per package and a relocated setter would
+count as growth. The in-package tests build the retained calendar-date, model
+and base vocabulary through the package's own aliases (`vocabulary.go`)
+because the `workforce`/`adapter-test` internal seam already existed and can
+admit no new permission. The external behaviour tests keep importing the
+retained contracts directly under the `external_test`-scoped
+`workforce.adapter-test.*` rules added with the package: they exist only
+because PR mode cannot record debt for a package the candidate creates.
+Convert them to exact debt with the rule above once the package exists at a
+base SHA; the package itself goes when the Presence half (#3214) deletes
+`services/active` and its keys, and finally when the retained services
+dissolve into the Workforce application and domain layers.
 
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
@@ -304,6 +443,22 @@ middleware takes), to the `inbound-school.identity-application` and
 `inbound-school.orm-sql` permissions of the school portal (`modules/schoolportal`),
 and to the retained-repository and retained-service permissions of the
 projection's integration and adapter tests.
+
+The operator dashboard read projection
+(`modules/organizationtenancy/internal/adapters/operatordashboard`,
+`operator-dashboard-view`/`postgres`, #3253) serves the counts, the
+organisation and school summaries and the PWA standalone-usage buckets that
+Organisation & Tenancy's operator provisioning shows. It replaces the raw
+platform summaries repository with constant, named queries and holds the
+exact `operator-dashboard` grant for `platform.organizations`,
+`platform.schools`, `auth.accounts`, `auth.account_tenants`,
+`auth.account_roles`, `auth.roles` and `iot.pwa_standalone_usage`; it never
+writes, and table write ownership is unchanged. Only
+`modules/organizationtenancy/compose` constructs it, over the caller's
+administrative transaction. Devices and persons are not part of it: the
+provisioning flow reads them through Device Fleet and People Directory.
+Replace each grant with an owner query once Identity & Access and Delivery
+expose the account and usage counts.
 
 The live-group read projection (`modules/grouplive`, `group-live-view`/`public`)
 reads every foreign fact through consumer-owned ports and the Care Plan
@@ -356,6 +511,50 @@ common package moves, the calendar-date edge with the retained
 fixtures that still name them. Convert them to exact debt with the rule above
 once the package exists at a base SHA.
 
+The retained Presence services, rows and repositories (#3214) moved file for
+file, with their tests, out of the legacy packages the HTTP composition left
+behind: `services/active` into
+`modules/studentpresence/legacy/services/active` (`student-presence`/`adapter`,
+`adapter-test` in the package, `e2e-test` for the behaviour tests that compose
+the legacy repository and service graph over a real database),
+`services/statistics` into `modules/studentpresence/legacy/statistics`
+(`student-presence`/`adapter`, `adapter-test`), `models/active` into
+`modules/studentpresence/legacy/models/active` (`student-presence`/`domain`,
+`adapter-test`) and `database/repositories/active` into
+`modules/studentpresence/legacy/repositories/active`
+(`student-presence`/`postgres`, `e2e-test`). The root composition serves the
+public `modules/studentpresence` contracts from them exactly as before; no
+HTTP path, status code, error string, authorization check or tenant scoping
+changed, and the IoT error strings PyrePortal maps stay byte-identical. Every
+`*.student-presence-adapter`, `*.student-presence-domain`,
+`student-presence.adapter.*`, `student-presence.domain.*`,
+`student-presence.e2e-test.*`, `student-presence.compose.student-presence-domain`
+and `student-presence.adapter-test.student-presence-domain` rule that names
+#3214 is a compatibility permission, not a target dependency: PR mode cannot
+record debt for a package the candidate creates, so the 87 baseline entries
+that named the four old paths (the 28 recorded against #2737 and the 59 that
+other Contract tickets held for their own imports of those packages) became
+these rules instead of new keys. Convert them to exact
+debt with the rule above once the packages exist at a base SHA, and remove
+each rule with the last consumer of the retained contract. The move also
+replaced the retained services' post-construction setters (settings resolver,
+tenant runtime, guardian waker) and the session repository's room-directory
+binder with construction-time options, because the composition surface guard
+records mutable wiring per package; the legacy repository root rebinds the
+room owner behind the directory it installed at construction. The legacy
+composition roots and the retained timetable and isolation tests reach the
+retained repositories only through the `Legacy*` names in
+`modules/studentpresence/compose`, so no package outside Student Presence
+imports the retained Postgres package. The retained repositories parse
+calendar dates through the row vocabulary (`models/active/vocabulary.go`) and
+the retained services' in-package tests build the shared persistence base
+through the package's own aliases (`vocabulary.go`), because the
+`student-presence`/`postgres` and `student-presence`/`adapter-test` seams
+already existed and can admit no new permission. The package goes when the
+retained services dissolve into the Student Presence application and domain
+layers; `modules/workforce/legacy/timetracking` keeps importing the retained
+rows until then.
+
 The import HTTP composition (`modules/dataimport/inbound`, with its runtime
 binding in `modules/dataimport/inbound/compose`) keeps the `inbound-import`
 owner and its `http` / `compose` roles after replacing `api/import` (#3217).
@@ -367,6 +566,31 @@ permission checks. The `root-composition.to.import-http` mount replaces the
 `inbound-import.compose.*` rules that bind `api/common`, `auth/jwt`, `tenant`
 and the ORM are compatibility permissions, not target dependencies. Convert
 them to exact debt with the rule above once the package exists at a base SHA.
+
+The user-context read side (who is the caller, which tenant, which
+permissions: the request-memoized identity chain, the SSE subscription
+resolution, the parent request-review policy and the student-access decision)
+is retained as the `inbound-usercontext`/`adapter` compatibility package
+`modules/identityaccess/legacy/usercontext`, and its `/api/me` routes are
+served by `modules/identityaccess/inbound/usercontext` under the same owner's
+`http` role (#3224). Both replaced `services/usercontext` and `api/usercontext`
+with unchanged behaviour, paths, status codes, error strings and authorization
+checks; their 49 baseline entries fell with the old packages. The read side
+could not land on the existing `identity-access`/`application` point: it still
+returns the retained `models/*` rows to its consumers, and PR mode rejects
+a new permission on a point that exists at the base SHA. Every
+`inbound-usercontext.adapter.*`, `inbound-usercontext.http.*` and
+`inbound-usercontext.adapter-test.*` rule, every
+`<consumer>.<role>.inbound-usercontext-adapter` rule and the
+`root-composition.compose.inbound-usercontext-http` mount is a compatibility
+permission that exists only because PR mode cannot record debt for a package
+the candidate creates: convert them to exact debt with the rule above once the
+packages exist at a base SHA, and dissolve the adapter into the Identity &
+Access application and public contract under #2725. The adapter role also
+covers the `net/http` status constants the SSE setup error carries through
+the generic `external.http-router.adapter` rule, and the former
+`inbound-usercontext.to.identity-access` target rule is removed until that
+contract exists.
 
 The settings test support (`services/config/settingstest`, `settings-platform`/
 `test-support`) scripts the payroll and work-schedule settings that presence
@@ -409,13 +633,40 @@ administrative transaction and otherwise run on the root connection; the
 operator flows open the transaction where rotation or revocation and its
 audit evidence must commit together. `platform.operator_audit_log` is
 appended through the Audit owner's appender as a platform-scoped ledger
-(`models/audit.OperatorAuditEntry`, no tenant handshake). The retained
-`models/platform` operator repository contracts are compatibility adapters in
-the legacy composition (`database/repositories/operator_identity.go`), bound
-at construction, and go with #2751. The foreign `auth.accounts` reads of the
-People Directory, Care Plan parent and CLI packages use owner queries bound
-the same way (`identity_ports.go`): the account lookup and active-account
-subquery of `database/repositories/auth` and the public account fact. The
+(`models/audit.OperatorAuditEntry`, no tenant handshake). Operator login with
+its mandatory MFA gate, the MFA-proven token issue, refresh with rotation
+recovery, profile and password changes with their session revocation, and
+the operator-led school access of accounts (which schools an existing
+account reaches, with which role; `auth.account_tenants`,
+`auth.account_roles` and `auth.account_permissions` writes with the
+account's session revocation) live in the module's application layer as the
+public `OperatorAuthentication` and `OperatorAccountAccess` capabilities
+(#3252). The facts those flows need from other owners (the operator MFA
+service, the operator audit ledger, the pending e-mail change links, the
+password policy, schools and organisations, the People Directory and School
+Membership identity chain a school access provisions, the retained role
+assignment rules) are bound at the serving root through public-typed seams
+(`compose.OperatorDependencies`). The login, refresh, profile, password and
+school-access handlers live in `modules/identityaccess/inbound/operator`,
+the owner's HTTP adapter, and call the public contract there. `api/operator`
+keeps the operator router with its middleware chain and rate limiters,
+mounts those handlers (`inbound-operator.http.identity-access-http`) and
+hands them its error bodies, so the operator surface keeps one wire format.
+The rules of the new `identity-access/http` role are anchored to that
+package; `api/operator` itself still has no rule for the public package.
+The retained `services/platform` operator service keeps the MFA and passkey
+token exchange (`OperatorSessions`), the profile read and the e-mail change;
+operator rows reach the retained MFA, passkey, invitation and e-mail change
+flows through the `OperatorDirectory` port the root binds to the public
+module. The public audit evidence is typed (`TenantAccessEvidence`,
+`OperatorAccessChange`); the root renders it into the ledger keys. The former
+`models/platform` operator and refresh-session repository contracts and
+their compatibility adapters are deleted; the operator invitation, e-mail
+change, MFA and passkey flows stay under #2722, #2723 and #2724. The foreign
+`auth.accounts` reads of the People Directory, Care Plan parent and CLI
+packages use owner queries bound the same way (`identity_ports.go`): the
+account lookup and active-account subquery of `database/repositories/auth`
+and the public account fact. The
 same owner serves the account refresh sessions behind tenant, parent and
 school login, refresh, tenant switching, logout, session validation and
 revocation (#2720): `auth.tokens` is read and written only through the
@@ -424,19 +675,26 @@ filter the runtime scoped the caller to, so tenant-scoped callers see only
 their school's sessions while the tenantless pre-authentication flows
 resolve every school's rows; the writes join the caller's transaction, which
 for login, refresh, switch and logout is the administrative transaction the
-auth service opens around rotation and its audit evidence. The retained
-`models/auth.TokenRepository` contract is a compatibility adapter in the
-legacy composition (`database/repositories/account_sessions.go`), bound at
-construction, and goes with #2751; the former `database/repositories/auth`
-token repository is deleted. The login, refresh, switch and revocation
-orchestration itself, with its identity-access-owned `auth.accounts` and
-`auth.account_tenants` repositories, stays in `services/auth` under #2720
-until the #2725 re-cut moves those files into the module as a whole, because
-`identity-access/application` may not import the module's public package
-without a ratchet loosening. The legacy
-`auth.accounts_parents` model, repository and its six
-`/auth/parent-accounts` routes stay unchanged; the table has no target owner
-and that conflict stays open under #2720.
+module opens around rotation and its audit evidence. The login, refresh,
+tenant and school switch, logout, session validation, session cleanup and
+revocation orchestration lives in the module's application layer (#3251),
+with the `auth.accounts`, `auth.account_tenants`, role and permission reads
+it needs served by the module's own store; the retained
+`models/auth.TokenRepository` contract and its compatibility adapter are
+deleted. The facts the flows need from other owners (schools, persons, the
+password verifier, the JWT codec, the MFA gate, the settings lock, the audit
+ledger, push subscriptions) are bound at the serving root through
+public-typed seams (`compose.SessionDependencies`). The retained
+`services/auth.Service` keeps the `AuthService` contract by delegating its
+session methods to a consumer-owned port the root binds to the public
+module; `api/auth` and the operator identity routes
+(`modules/identityaccess/inbound/operator`) call the public contract
+directly, while `api/parent`, the school portal and the SSE routes keep the
+delegation
+because no target rule lets those inbound packages import the identity-access
+public package. The legacy `auth.accounts_parents` model, repository and its
+six `/auth/parent-accounts` routes stay unchanged; the table has no target
+owner and that conflict stays open under #2720.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
@@ -451,8 +709,9 @@ event and guardian wake for after the commit. Its `ports` name the four owner
 capabilities it consumes (`session-end.port.*`, `session-end.application.*`);
 `compose` binds the tenant runtime and the realtime broadcaster. The root
 still satisfies `InstanceCompletion` with the retained
-`services/schedule.TimetableBridgeService` (the attendance finalization that
-#1747 requires before an instance may close); that binding is a legacy edge
+`TimetableBridgeService` in `modules/timetable/legacy/timetableplanning`
+(#3218; the attendance finalization that #1747 requires before an instance
+may close); that binding is a legacy edge
 of the root composition tracked by #2762, and the port is rebound to the
 Timetable owner's public capability when that cutover lands. The kiosk
 endpoint (`api/iot/sessions`, `inbound-iot-sessions.to.session-end`) calls
@@ -571,6 +830,70 @@ Under ADR 0013 this data-less workflow registration raises the policy epoch
 from 9 to 10 and uses only candidate-created packages. The School Structure
 capability grows inside its existing owner and roles; no table changes
 owner and no existing-owner import guard is expanded.
+
+The parent-portal workflow (`workflows/parentportal`, owner `parent-portal`,
+kind `workflow`, #3227,
+[ADR 0019](../../docs/adr/0019-parent-portal-is-an-application-workflow.md))
+takes the guardian-portal flows out of `services/parent`, which coordinates
+Care Plan, Enrollment, Timetable & Activities, Communication, People
+Directory, Settings and Student Presence for one guardian and one child.
+`workflows/parentportal/care` holds the today status, the weekly care plan
+and its requests, the booked care offerings and their change requests, the
+course requests and the guardian-child resolution. It reaches the
+request-sharing ledger only through its `RequestSharer` port.
+`workflows/parentportal/messaging` holds announcements, request sharing,
+messaging and the self-service chat pills behind its `ChildResolver` port.
+It returns the guardian-child and note sentinels declared in `care`
+(`parent-portal.application.care`). Both packages are
+`parent-portal`/`application` with `workflow-integration-test` in both test
+scopes. The code moved file for file with its tests. The retained parent
+services (see below) keep the public `Service` contract, bind both ports and
+delegate the moved methods. No HTTP path, status code, error string,
+authorization check or tenant scoping changed. Every
+`parent-portal.application.*` and `parent-portal.integration-test.*` rule is
+a compatibility binding to the retained models, services and shared helpers
+the moved code already imported. These rules exist only because PR mode
+cannot record debt for a package the candidate creates. Convert them to exact
+debt with the rule above once the packages exist at a base SHA. #3229 moves
+`api/parent` onto the workflow.
+
+Under ADR 0013 this data-less workflow registration raises the policy epoch
+from 11 to 12 and uses only candidate-created packages. No table changes
+owner and no existing-owner import guard is expanded. The move resolved six
+recorded `services/parent` internal-test imports, which left `legacy.jsonl`.
+
+The retained parent services (`workflows/parentportal/legacy`,
+`parent-portal`/`adapter`, #3228) are the write, master-data, guardian,
+related-account, consent, profile, enrollment-list, sick-note and meal-plan
+flows that `services/parent` still held after #3227, moved file for file with
+their behaviour tests. `services/parent` and its `care-plan`/`application`
+classification are gone, and with them the transitional
+`care-plan.application.parent-portal` edge and the last 47 `legacy.jsonl`
+entries that named the package (#3227 had already resolved six of its
+internal-test imports). The package keeps the public `Service` contract that
+`api/parent` and the service factory consume. No HTTP path, status code,
+error string, validation rule, authorization check or tenant scoping changed,
+and no table changed owner. The package could not join the existing
+`parent-portal`/`application` point: it still speaks the retained audit,
+identity, base, localization and realtime vocabulary, and PR mode rejects a
+new permission on a point that exists at the base SHA. It uses the
+candidate-created `parent-portal`/`adapter` point with `adapter-test` in both
+test scopes instead. Every `parent-portal.adapter.*` and
+`parent-portal.adapter-test.*` rule and the consumer rules
+`inbound-parent.http.parent-portal-adapter`,
+`inbound-parent.adapter-test.parent-portal-adapter` and
+`legacy-composition.compose.parent-portal-adapter` are compatibility
+permissions that exist only because PR mode cannot record debt for a package
+the candidate creates. They cover every future `parent-portal`/`adapter`
+package, so no other package may join that point before the conversion.
+Convert them to exact debt with the rule above under #2735 once the package
+exists at a base SHA, and dissolve the package into the workflow
+as each flow reaches its owner's public capability. The move replaced the
+post-construction absence-notifier and student-photo setters with
+construction-time configuration, because the composition surface guard
+records mutable wiring per package and a relocated setter would count as
+growth. The factory resolves the student-photo lifecycle on use, since the
+API bootstrap builds it after the parent services.
 
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present

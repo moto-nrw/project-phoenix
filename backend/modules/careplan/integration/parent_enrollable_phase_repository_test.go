@@ -142,7 +142,7 @@ func TestEnrollablePhaseRepository_ListEnrollable_AlreadyLinkedFlag(t *testing.T
 func TestEnrollablePhaseRepository_ListEnrollable_DoesNotReadEnrollmentSetting(t *testing.T) {
 	t.Parallel()
 
-	// Settings filtering belongs to services/parent. The repository returns
+	// Settings filtering belongs to workflows/parentportal/legacy. The repository returns
 	// eligible phases even when no config.setting_values row exists.
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)

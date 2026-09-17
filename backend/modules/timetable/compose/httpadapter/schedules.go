@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,12 +34,12 @@ const (
 
 // SchedulesResource defines the schedules API resource
 type SchedulesResource struct {
-	ScheduleService scheduleSvc.Service
+	ScheduleService timetableplanning.Service
 	db              *bun.DB
 }
 
 // NewSchedulesResource creates a new schedules resource
-func NewSchedulesResource(scheduleService scheduleSvc.Service, db *bun.DB) *SchedulesResource {
+func NewSchedulesResource(scheduleService timetableplanning.Service, db *bun.DB) *SchedulesResource {
 	return &SchedulesResource{
 		ScheduleService: scheduleService,
 		db:              db,

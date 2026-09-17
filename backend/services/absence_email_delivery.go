@@ -5,11 +5,11 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 // absenceEmailMessage is the consumer-owned input mapped by this adapter.
-type absenceEmailMessage = active.AbsenceEmailMessage
+type absenceEmailMessage = timetracking.AbsenceEmailMessage
 
 type absenceEmailDispatcher struct {
 	dispatcher interface {

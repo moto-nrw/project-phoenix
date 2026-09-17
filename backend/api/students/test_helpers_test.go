@@ -3,6 +3,7 @@ package students_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -10,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -27,6 +28,7 @@ import (
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -177,7 +179,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
 		DB: db, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
 		Feedback: &testpkg.FeedbackEntryCounterMock{}, IsVerifiedStaff: svc.UserContext.HasCurrentStaff,
-		LockCareBookingWrites: func(ctx context.Context) error { return scheduleSvc.LockTenantRecurrenceWrites(ctx, db) },
+		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		UnlinkPhoto:           studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit,
 		Now: clock,
 	})
@@ -191,11 +193,11 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
 		IoTService:             svc.IoT,
-		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), svc.Schools, nil, svc.Settings, testDevicePIN).Device(),
+		DeviceAuthenticator:    testutil.NewDeviceAuthenticators(svc.IoT.Fleet(), testutil.DeviceSchools(t, db), nil, svc.Settings, testDevicePIN).Device(),
 		PickupScheduleService:  svc.PickupSchedule,
 		PartialAbsenceService:  svc.PartialAbsence,
 		ArrivalScheduleService: svc.ArrivalSchedule,
-		SchoolService:          svc.Schools,
+		SchoolService:          exportSchools{schools: svc.Schools},
 		SettingsService:        svc.Settings,
 		StudentHistoryService: activeSvc.NewStudentHistoryService(presence, func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			rooms, err := repoFactory.Room.FindByIDs(ctx, ids)
@@ -301,4 +303,19 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppCl
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
 	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
+}
+
+// exportSchools reads the export title through the Organisation & Tenancy
+// capability, as the serving root does.
+type exportSchools struct{ schools organizationtenancy.Query }
+
+func (s exportSchools) GetSchoolByID(ctx context.Context, id int64) (*studentsAPI.ExportSchool, error) {
+	school, err := s.schools.FindSchool(ctx, id)
+	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &studentsAPI.ExportSchool{Name: school.Name}, nil
 }

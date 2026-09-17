@@ -25,6 +25,7 @@ import (
 var (
 	ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
 	ErrVacationQuotaInvalid     = errors.New("vacation quota is invalid")
+	ErrVacationQuotaExceeded    = errors.New("vacation quota exceeded")
 
 	ErrAdjustmentInvalid           = errors.New("balance adjustment is invalid")
 	ErrAdjustmentNotFound          = errors.New("balance adjustment not found")
@@ -377,6 +378,8 @@ type StaffAbsences interface {
 	ListAbsenceRequests(ctx context.Context, query AbsenceRequestListQuery) ([]*StaffAbsenceRequestItem, error)
 	VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*VacationQuotaSummary, error)
 	UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error
+	// SetVacationQuota changes the entitlement with a reason (#3256).
+	SetVacationQuota(ctx context.Context, change VacationQuotaChange) error
 	SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request SetVacationOpeningRequest) (*StaffVacationOpening, error)
 	DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error
 }
@@ -672,4 +675,15 @@ type PlanningCalendar interface {
 type StaffTimeExport interface {
 	ExportStaffTime(ctx context.Context, request TimeExportRequest, actorAccountID int64, actorRole string) (*ExportFile, error)
 	DatevReport(ctx context.Context, request TimeExportRequest) (*DatevExportReport, error)
+}
+
+// VacationQuotaChange is a reasoned change of one staff member's yearly
+// vacation entitlement (#3256).
+type VacationQuotaChange struct {
+	StaffID       int64
+	Year          int
+	EntitledDays  float64
+	CarryoverDays float64
+	Reason        string
+	ChangedBy     int64
 }

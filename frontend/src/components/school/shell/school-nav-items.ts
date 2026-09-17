@@ -34,8 +34,8 @@ export interface SchoolNavItem {
    */
   readonly badge?: "teamChat" | "notices";
   /**
-   * `true` für Ziele, die es nur gibt, wenn die Schule die Funktion
-   * eingeschaltet hat. Die Leisten blenden den Eintrag aus, solange das
+   * `true` für Ziele, die es nur gibt, solange die Schule die Funktion
+   * nicht ausgeschaltet hat. Die Leisten blenden den Eintrag aus, solange das
    * nicht feststeht oder verneint ist — ein toter Link ist schlimmer als
    * ein fehlender.
    */

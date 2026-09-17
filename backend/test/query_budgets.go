@@ -22,7 +22,7 @@ type queryBudget struct {
 //
 //   - Never raise a number. A scenario that needs more statements is an N+1
 //     regression until proven otherwise; the fix is a batch load keyed by an
-//     ID set (services/schedule/timetable_read_exception_conflicts.go, the
+//     ID set (modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, the
 //     FindByStudentIDsAndDate calls, is the reference shape).
 //   - Lower a number when a fix removes statements, so the win cannot regress.
 //   - Every new list endpoint gets an entry plus a test calling
@@ -33,9 +33,11 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 var queryBudgets = map[string]queryBudget{
-	// database/repositories — the operator device listing (#2676). Three
-	// statements: school summaries, organization summaries, and one device
-	// read through the Device Fleet owner. Flat in the number of devices.
+	// services — the operator device listing, organizationtenancy
+	// Provisioning.ListAllDevices (#2676, #3253), inside the request's
+	// administrative transaction. Three statements: school summaries,
+	// organization summaries, and one device read through the Device Fleet
+	// owner. Flat in the number of devices.
 	"repositories.operator.device_rows": {max: 3},
 	// api/parent — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
@@ -71,6 +73,13 @@ var queryBudgets = map[string]queryBudget{
 	// Reviewer approval for the raise is recorded in the #3065 pull request,
 	// per the deviation clause in .claude/rules/backend-conventions.md.
 	"api.active.supervision_dashboard": {max: 41},
+	// api/active — the same aggregate with released rooms running timetable
+	// blocks (#3281): three rooms, five blocks, every block supervised. The
+	// block rows cost four fixed statements on top of the shared view (the
+	// day's instances, their plan entries, the caller's person and staff
+	// rows); TestOpenRooms_BlockCostDoesNotGrowWithRoomsOrBlocks asserts the
+	// count is identical for one room with one block.
+	"api.active.supervision_dashboard.open_room_blocks": {max: 50},
 	// api/active — GET /active/groups list, 8 active groups with visits.
 	"api.active.groups.list": {max: 9},
 	// #2941: formerly one identity query per supervisor / teacher.
@@ -94,7 +103,7 @@ var queryBudgets = map[string]queryBudget{
 	// the number of periods. Pinned exact so an owner-boundary move fails
 	// here instead of at a runtime checkpoint (#3020).
 	"api.timetable.periods.list": {max: 7, exact: true},
-	// services/schedule — GET /planned-now backing list, 8 eligible instances:
+	// modules/timetable/legacy/timetableplanning — GET /planned-now backing list, 8 eligible instances:
 	// instance list + rooms + staff batch + student batch (#2941).
 	"services.schedule.planned_now": {max: 4},
 	// modules/schoolcalendar/portal — ListMyStaffEvents over a week, 8 appointments.
@@ -160,7 +169,7 @@ var queryBudgets = map[string]queryBudget{
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
 	"modules.careplan.request_feed.list": {max: 1, exact: true},
-	// services/usercontext — #2099 request cache dedups the identity chain.
+	// modules/identityaccess/legacy/usercontext — #2099 request cache dedups the identity chain.
 	"services.usercontext.identity_chain.persons":       {max: 1, exact: true},
 	"services.usercontext.identity_chain.staff":         {max: 1, exact: true},
 	"services.usercontext.identity_chain.teachers":      {max: 1, exact: true},
@@ -212,7 +221,7 @@ func AssertQueryBudget(tb testing.TB, scenario string, queries []string) {
 	case got > budget.max:
 		tb.Errorf("query budget exceeded: scenario %q issued %d statements, budget %d.\n"+
 			"  Likely an N+1: a query inside a loop over rows. Batch-load by ID set instead\n"+
-			"  (reference: services/schedule/timetable_read_exception_conflicts.go, FindByStudentIDsAndDate).\n"+
+			"  (reference: modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go, FindByStudentIDsAndDate).\n"+
 			"  Never raise the register entry.\n%s",
 			scenario, got, budget.max, indentQueries(queries))
 	case budget.exact && got < budget.max:

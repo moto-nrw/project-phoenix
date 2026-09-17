@@ -11,11 +11,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
@@ -58,7 +58,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
 	require.NoError(t, err)
 	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
-	authService, err := authSvcPkg.NewService(repos, authCfg, db, nil)
+	authService, err := services.NewAuthServiceForTests(repos, *authCfg, db, nil)
 	require.NoError(t, err)
 	testpkg.SetTenantRuntime(t, authService, db)
 
@@ -530,23 +530,20 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
+	schoolIdentity, identityErr := services.NewSchoolIdentityForTests(sc.db, testpkg.TenantRuntime(t, sc.db))
+	require.NoError(t, identityErr)
 	invSvc := authSvcPkg.NewInvitationService(authSvcPkg.InvitationServiceConfig{
+		SchoolIdentity:    schoolIdentity,
 		InvitationRepo:    sc.repos.InvitationToken,
 		AccountRepo:       sc.repos.Account,
 		AccountTenantRepo: sc.repos.AccountTenant,
 		RoleRepo:          sc.repos.Role,
 		AccountRoleRepo:   sc.repos.AccountRole,
-		PersonRepo:        sc.repos.Person,
-		StaffRepo:         sc.repos.Staff,
-		TeacherRepo:       sc.repos.Teacher,
-		// Accepting onto an existing person checks that person is not a child's
-		// record, so the repository is required, not optional (#2222).
-		StudentRepo:      sc.repos.Student,
-		SchoolRepo:       sc.repos.School,
-		Mailer:           email.NewMockMailer(),
-		FrontendURL:      "http://localhost:3000",
-		InvitationExpiry: time.Hour,
-		DB:               sc.db,
+		SchoolRepo:        services.InvitationSchoolsForTests(sc.repos.School, testpkg.TenantRuntime(t, sc.db)),
+		Mailer:            email.NewMockMailer(),
+		FrontendURL:       "http://localhost:3000",
+		InvitationExpiry:  time.Hour,
+		DB:                sc.db,
 	})
 	testpkg.SetTenantRuntime(t, invSvc, sc.db)
 

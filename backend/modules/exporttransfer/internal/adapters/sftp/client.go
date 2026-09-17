@@ -52,7 +52,7 @@ var (
 // reason is a sentinel that also names WHY the transfer failed, as a stable
 // code. Callers read the code through a TransferReason() interface instead of
 // importing these sentinels, so the transport stays replaceable — see
-// services/active.ReasonedTransferError.
+// modules/studentpresence/legacy/services/active.ReasonedTransferError.
 //
 // The codes are a contract with audit.export_transfers; they are values, not
 // prose, and must not be reworded.

@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -18,7 +18,7 @@ func CreateTestStaffAbsenceType(tb testing.TB, db *bun.DB, name string) *active.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	absenceType := &active.StaffAbsenceType{Name: name, BaseType: active.AbsenceTypeOther, IsActive: true, OverrunPolicy: active.AbsenceTypeOverrunWarn}
+	absenceType := &active.StaffAbsenceType{Name: name, BaseType: active.AbsenceTypeOther, IsActive: true}
 	absenceType.SetTenantID(fixtureTenantID(tb))
 	err := db.NewInsert().Model(absenceType).ModelTableExpr(`active.staff_absence_types`).Scan(ctx)
 	require.NoError(tb, err, "Failed to create test staff absence type")

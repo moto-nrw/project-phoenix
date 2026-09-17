@@ -9,20 +9,20 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
-// loginGateStub satisfies authService.AuthService by embedding the
+// loginGateStub satisfies AccountSessions by embedding the
 // interface — only LoginWithMFAGate is implemented; any other method
 // reached by the handler under test will panic with a nil-interface
 // dereference, which is exactly the signal we want for "the handler
 // drifted away from the planned shape".
 type loginGateStub struct {
-	authService.AuthService
-	result          *authService.LoginResult
+	AccountSessions
+	result          *identityaccess.LoginResult
 	err             error
 	gotEmail        string
 	gotPassword     string
@@ -33,12 +33,12 @@ type loginGateStub struct {
 }
 
 // Compile-time assertion the stub satisfies the interface.
-var _ authService.AuthService = (*loginGateStub)(nil)
+var _ AccountSessions = (*loginGateStub)(nil)
 
 func (s *loginGateStub) LoginWithMFAGate(
 	_ context.Context,
 	email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string,
-) (*authService.LoginResult, error) {
+) (*identityaccess.LoginResult, error) {
 	s.gotEmail = email
 	s.gotPassword = password
 	s.gotIPAddress = ipAddress
@@ -63,9 +63,9 @@ func TestLogin_MFARequiredResponseShape(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		AuthService: &loginGateStub{
-			result: &authService.LoginResult{
-				Status:         authService.LoginStatusMFARequired,
+		Sessions: &loginGateStub{
+			result: &identityaccess.LoginResult{
+				Status:         identityaccess.LoginStatusMFARequired,
 				ChallengeToken: "fake.challenge.jwt",
 				MaskedEmail:    "j***@example.com",
 			},
@@ -91,9 +91,9 @@ func TestLogin_AuthenticatedResponseShape(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		AuthService: &loginGateStub{
-			result: &authService.LoginResult{
-				Status:       authService.LoginStatusAuthenticated,
+		Sessions: &loginGateStub{
+			result: &identityaccess.LoginResult{
+				Status:       identityaccess.LoginStatusAuthenticated,
 				AccessToken:  "access.tok",
 				RefreshToken: "refresh.tok",
 			},
@@ -123,9 +123,9 @@ func TestLogin_EnrollmentRequiredEmitsScopedToken(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		AuthService: &loginGateStub{
-			result: &authService.LoginResult{
-				Status:                authService.LoginStatusMFAEnrollmentRequired,
+		Sessions: &loginGateStub{
+			result: &identityaccess.LoginResult{
+				Status:                identityaccess.LoginStatusMFAEnrollmentRequired,
 				AccessToken:           "enrollment.scoped.tok",
 				MaskedEmail:           "x***@y.de",
 				MFAEnrollmentRequired: true,
@@ -152,13 +152,13 @@ func TestLogin_PassesTrustedDeviceCookie(t *testing.T) {
 	t.Parallel()
 
 	stub := &loginGateStub{
-		result: &authService.LoginResult{
-			Status:       authService.LoginStatusAuthenticated,
+		result: &identityaccess.LoginResult{
+			Status:       identityaccess.LoginStatusAuthenticated,
 			AccessToken:  "a",
 			RefreshToken: "r",
 		},
 	}
-	rs := &Resource{AuthService: stub}
+	rs := &Resource{Sessions: stub}
 
 	req := newLoginRequest(t, "j@example.com", "Test1234%")
 	req.AddCookie(&http.Cookie{Name: trustedDeviceCookieName, Value: "trust.cookie.value"})
@@ -181,20 +181,20 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 		err    error
 		status int
 	}{
-		{"invalid creds", &authService.AuthError{Op: "login", Err: authService.ErrInvalidCredentials}, http.StatusUnauthorized},
-		{"account inactive", &authService.AuthError{Op: "login", Err: authService.ErrAccountInactive}, http.StatusUnauthorized},
-		{"tenant not found", &authService.AuthError{Op: "login", Err: authService.ErrTenantNotFound}, http.StatusNotFound},
+		{"invalid creds", &identityaccess.AuthenticationError{Op: "login", Err: identityaccess.ErrInvalidCredentials}, http.StatusUnauthorized},
+		{"account inactive", &identityaccess.AuthenticationError{Op: "login", Err: identityaccess.ErrAccountInactive}, http.StatusUnauthorized},
+		{"tenant not found", &identityaccess.AuthenticationError{Op: "login", Err: identityaccess.ErrTenantNotFound}, http.StatusNotFound},
 		// Item #3: an MFA gate that couldn't resolve required/enrolled
 		// (settings or credentials lookup hit a non-not-found error) must
 		// surface as 503 so the frontend can retry, and so a settings DB
 		// outage cannot silently downgrade MFA to "off" for this login.
-		{"mfa status unavailable", &authService.AuthError{Op: "check mfa required", Err: authService.ErrMFAStatusUnavailable}, http.StatusServiceUnavailable},
+		{"mfa status unavailable", &identityaccess.AuthenticationError{Op: "check mfa required", Err: identityaccess.ErrMFAStatusUnavailable}, http.StatusServiceUnavailable},
 		{"unknown server error", errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			rs := &Resource{
-				AuthService: &loginGateStub{err: tc.err},
+				Sessions: &loginGateStub{err: tc.err},
 			}
 			rr := httptest.NewRecorder()
 			rs.login(rr, newLoginRequest(t, "x@y.de", "Test1234%"))
@@ -216,10 +216,10 @@ func TestLogin_GuardianOnlyReturnsParentPortalCode(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{
-		AuthService: &loginGateStub{
-			err: &authService.AuthError{
+		Sessions: &loginGateStub{
+			err: &identityaccess.AuthenticationError{
 				Op:  "login",
-				Err: authService.ErrParentMustUseParentPortal,
+				Err: identityaccess.ErrParentMustUseParentPortal,
 			},
 		},
 	}

@@ -17,8 +17,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	statisticsService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	statisticsService "github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/uptrace/bun"
 )
 

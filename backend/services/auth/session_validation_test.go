@@ -7,36 +7,33 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
+// TestValidateSessionTokens drives the retained AuthService's session
+// validation, which delegates to Identity & Access (#3251). Sessions are
+// persisted through the owner's public capability; the signer shares the
+// factory's JWT configuration so the minted pairs verify.
 func TestValidateSessionTokens(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	// NewService retains the aggregate type; validation uses only these five repositories.
-	persistence := repositories.NewSessionValidationPersistence(db)
-	repos := &repositories.Factory{
-		Account:              persistence.Account,
-		AccountTenant:        persistence.AccountTenant,
-		Token:                persistence.Token,
-		Operator:             persistence.Operator,
-		OperatorRefreshToken: persistence.OperatorRefreshToken,
-	}
-	signer, err := jwt.NewTokenAuthWithDurations("session-validation-test-signing-key", 15*time.Minute, time.Hour)
+	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	config := authTestFactoryConfig(false)
+	serviceFactory, err := services.NewFactoryForTestsWithConfig(repoFactory, db, slog.Default(), config)
 	require.NoError(t, err)
-	cfg, err := authService.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
+	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
+	service, ok := serviceFactory.Auth.(authService.SessionTokenValidator)
+	require.True(t, ok, "the retained auth service validates session hand-offs")
+	signer, err := jwt.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
 	require.NoError(t, err)
-	cfg.TokenAuth = signer
-	service, err := authService.NewService(repos, cfg, db, slog.Default())
+	sessions, err := repositories.NewIdentityAccessForTests(db)
 	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, service, db)
 	ctx := testpkg.Ctx(t)
 	for _, portal := range []string{"tenant", "parent", "school", "platform"} {
 		t.Run(portal, func(t *testing.T) {
@@ -57,14 +54,17 @@ func TestValidateSessionTokens(t *testing.T) {
 			if portal == "platform" {
 				operator := testpkg.CreateTestOperator(t, db)
 				accountID = operator.ID
-				row := &platformModels.OperatorRefreshToken{OperatorID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family}
-				require.NoError(t, repos.OperatorRefreshToken.Create(ctx, row))
-				tokenID = row.ID
+				stored, err := sessions.CreateOperatorSession(ctx, identityaccess.OperatorSession{
+					OperatorID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family,
+				})
+				require.NoError(t, err)
+				tokenID = stored.ID
 			} else {
-				row := &authModels.Token{AccountID: accountID, Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family, PortalScope: portal}
-				row.TenantID = testpkg.Tenant(t)
-				require.NoError(t, repos.Token.Create(ctx, row))
-				tokenID = row.ID
+				stored, err := sessions.CreateAccountSession(ctx, identityaccess.AccountSession{
+					AccountID: accountID, TenantID: testpkg.Tenant(t), Token: handle, Expiry: time.Now().Add(time.Hour), FamilyID: family, PortalScope: portal,
+				})
+				require.NoError(t, err)
+				tokenID = stored.ID
 			}
 			accessClaims := jwt.AppClaims{ID: int(accountID), Sub: account.Email, Roles: []string{"user"}, Scope: scope, TenantID: tenantID, FamilyID: family}
 			refreshClaims := jwt.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
@@ -132,9 +132,9 @@ func TestValidateSessionTokens(t *testing.T) {
 			_, err = service.ValidateSessionTokens(ctx, access, unknownRefresh, portal)
 			require.Error(t, err)
 			if portal == "platform" {
-				require.NoError(t, repos.OperatorRefreshToken.Delete(ctx, tokenID))
+				require.NoError(t, sessions.DeleteOperatorSession(ctx, tokenID))
 			} else {
-				require.NoError(t, repos.Token.Delete(ctx, tokenID))
+				require.NoError(t, sessions.DeleteAccountSession(ctx, tokenID))
 			}
 			_, err = service.ValidateSessionTokens(ctx, access, refresh, portal)
 			require.Error(t, err)

@@ -12,12 +12,12 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarPortal "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -59,7 +59,7 @@ type CalendarDependencies struct {
 }
 
 type CalendarOutbox interface {
-	Enqueue(context.Context, platformService.EnqueueRequest) (*platformModels.EmailOutbox, error)
+	Enqueue(context.Context, emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
 }
 type CalendarPushOutbox interface {
@@ -185,10 +185,13 @@ func (p calendarIdentityPort) MissingStaff(err error) bool {
 type calendarOutboxPort struct{ CalendarOutbox }
 
 func (p calendarOutboxPort) Enqueue(ctx context.Context, req calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error) {
-	value, err := p.CalendarOutbox.Enqueue(ctx, platformService.EnqueueRequest{Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType, RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey})
-	return calendarOutbox(value), err
+	value, err := p.CalendarOutbox.Enqueue(ctx, emailoutbox.EnqueueRequest{Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType, RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey})
+	if value == nil {
+		return nil, err
+	}
+	return &calendarCompose.EmailOutbox{ID: value.ID, TenantID: tenant.FromContext(ctx), Kind: req.Kind, Payload: req.Payload}, err
 }
-func calendarOutbox(value *platformModels.EmailOutbox) *calendarCompose.EmailOutbox {
+func calendarOutbox(value *emailoutbox.Intent) *calendarCompose.EmailOutbox {
 	if value == nil {
 		return nil
 	}
@@ -221,13 +224,13 @@ type CalendarEmailDependencies struct {
 	}
 }
 
-func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	cfg := calendarCompose.EmailConfig{Guardians: d.Guardians, RenderCancelled: platformService.ErrRenderCancelled}
+func NewCalendarAppointmentRenderer(d CalendarEmailDependencies) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	cfg := calendarCompose.EmailConfig{Guardians: d.Guardians, RenderCancelled: emailoutbox.ErrRenderCancelled}
 	if d.DB != nil {
 		cfg.Runtime = calendarPortalRuntime{d.DB}
 	}
 	render := calendarCompose.NewAppointmentRenderer(cfg)
-	return func(ctx context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+	return func(ctx context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		value, err := render(ctx, calendarOutbox(row))
 		if err != nil {
 			return nil, err

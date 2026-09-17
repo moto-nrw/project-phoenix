@@ -9,7 +9,6 @@ import (
 	"time"
 
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -75,7 +74,7 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 	)
 	s := unitScheduler(&Scheduler{
 		db:                      db,
-		schoolRepo:              platformRepo.NewSchoolRepository(db),
+		schoolRepo:              dbTenantDirectory{db: db},
 		studentChangeLogCleanup: cleanup,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{

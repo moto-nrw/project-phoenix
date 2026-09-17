@@ -201,10 +201,20 @@ func (rs *StaffAdminResource) approveAbsence(w http.ResponseWriter, r *http.Requ
 	}
 	resp, err := rs.StaffAbsenceService.ApproveAbsence(r.Context(), absenceID, claims.AccountID, decidedBy, req.DecisionNote)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.RenderWithRules(err, approveAbsenceErrorRules, common.ErrorInternalServer))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Absence approved")
+}
+
+// approveAbsenceErrorRules keeps an approval beyond the Resturlaub (#3256)
+// and a stale decision out of the 5xx bucket.
+var approveAbsenceErrorRules = []common.ErrorRule{
+	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+	}},
+	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: absenceMsgIs("only requested absences can be approved"), Render: common.ErrorConflict},
 }
 
 // denyAbsence handles POST /api/staff/absences/{absenceId}/deny
@@ -307,6 +317,7 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 		Year          int     `json:"year"`
 		EntitledDays  float64 `json:"entitled_days"`
 		CarryoverDays float64 `json:"carryover_days"`
+		Reason        string  `json:"reason"`
 	}
 	if err := render.DecodeJSON(r.Body, &body); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -315,9 +326,24 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 	if body.Year == 0 {
 		body.Year = timezone.TodayDate().Year()
 	}
-	if err := rs.StaffAbsenceService.UpsertVacationQuota(r.Context(), staffID, body.Year, body.EntitledDays, body.CarryoverDays); err != nil {
+	// Every change of the Urlaubsanspruch is recorded with its reason (#3256).
+	if strings.TrimSpace(body.Reason) == "" {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(errors.New("reason is required"), "vacation_quota_reason_required"))
+		return
+	}
+	changedBy, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	if err := rs.StaffAbsenceService.SetVacationQuota(r.Context(), workforce.VacationQuotaChange{
+		StaffID: staffID, Year: body.Year, EntitledDays: body.EntitledDays, CarryoverDays: body.CarryoverDays,
+		Reason: body.Reason, ChangedBy: changedBy,
+	}); err != nil {
 		if errors.Is(err, workforce.ErrVacationQuotaInvalid) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		} else if errors.Is(err, workforce.ErrVacationQuotaExceeded) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "vacation_quota_below_used"))
 		} else {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -551,10 +577,16 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	}},
 	{Target: workforce.ErrAbsenceTypeNotFound, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrAbsenceTypeAllowanceInvalid, Render: common.ErrorInvalidRequest},
-	{Target: workforce.ErrAbsenceTypeAllowanceExceeded, Render: common.ErrorConflict},
+	{Target: workforce.ErrAbsenceTypeAllowanceExceeded, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "absence_allowance_exceeded")
+	}},
+	{Target: workforce.ErrVacationQuotaExceeded, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
+	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
+	{Match: absenceMsgPrefix("dates overlap"), Render: common.ErrorConflict},
 	{Target: workforce.ErrStaffShiftOverlap, Render: common.ErrorConflict},
 	{Match: absenceMsgPrefix("invalid"), Render: common.ErrorInvalidRequest},
 	{Match: absenceMsgPrefix("vacation"), Render: common.ErrorInvalidRequest},

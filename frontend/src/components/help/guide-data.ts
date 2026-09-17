@@ -995,11 +995,19 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Seitenleiste `Offene Räume` aufklappen. Die Räume stehen direkt unter Ihren eigenen Aufsichten.",
           "Einen Raum wählen. Oben steht `Offener Raum`. Haben Sie dort die Aufsicht, steht daneben `Eigene Aufsicht`.",
           "Den Raum zu sehen heißt nicht, dass Sie dort die Aufsicht haben.",
-          "Sie sehen alle Kinder, die dort gerade erfasst sind. Jedes Kind steht einmal in der Liste, mit seinem Angebot. Laufen dort mehrere Angebote, stehen alle in derselben Liste.",
-          "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Aufsicht oder ein gestarteter Termin, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
+          "Laufen im Raum Blöcke, hat jeder Block einen eigenen Abschnitt mit seiner Liste. Ihre eigenen Blöcke stehen oben und sind aufgeklappt. Dort checken Sie Kinder wie gewohnt ein und aus.",
+          "Blöcke anderer Betreuungskräfte sind eingeklappt. Im Kopf stehen die Uhrzeit, die Zahl der Kinder und `Sie sind hier nicht eingeplant.` Mit dem Pfeil klappen Sie die Liste auf.",
+          "Eintragen können dort die Betreuungskräfte des Blocks und Admins. Alle anderen sehen die Liste nur.",
+          "Mit `Betreuer hinzufügen` tragen Sie eine weitere Betreuungskraft ein. Der Knopf steht im Kopf eines Abschnitts, wenn Sie dort die Aufsicht haben.",
+          "Kinder, die nur den Raum nutzen, stehen unten unter `Ohne Angebot`. Jedes Kind steht einmal auf der Seite. Die Zahl oben zählt alle Kinder im Raum.",
+          "Läuft im Raum kein Block, sehen Sie alle Kinder in einer Liste. Das ist zum Beispiel auf dem Schulhof mit Tablet so. Bei jedem Kind steht sein Angebot oder `Ohne Angebot`.",
+          "Ein Kind in einen offenen Raum setzen: Auf der Raumseite, in der das Kind gerade ist, Kinder auswählen. Als `Zielraum` den Raum mit dem Zusatz `(offener Raum)` wählen und `In Raum setzen` tippen. Sie brauchen dort keine Aufsicht. Das Kind nimmt dadurch an keinem Angebot teil.",
+          "Endet ein Angebot, sind seine Kinder `Unterwegs`. Kinder ohne Angebot bleiben im Raum. Am Ende des Tages endet jeder Aufenthalt. Die Kinder sind dann `Unterwegs`, aber nicht abgemeldet.",
+          "Den Schulhof über `Beaufsichtigen` oben rechts übernehmen. Läuft dort bereits eine Hofaufsicht, treten Sie als weitere Aufsicht bei; sonst startet eine spontane Schulhof-Aufsicht. Im Dialog für eine spontane Aktivität lässt sich der Raum `Schulhof` wie jeder andere Raum wählen.",
+          "Laufen im Schulhof Blöcke, stehen `Beaufsichtigen` und `Aufsicht abgeben` nicht oben. Jeder Block hat seine eigenen Knöpfe.",
         ],
         screenshot:
-          "Offener Raum `Kreativraum` mit dem Abzeichen `Offener Raum` oben und dem Bereich `Offene Räume` in der Seitenleiste.",
+          "Offener Raum `Schulhof`: oben der eigene Block `Tanzen` mit seiner Liste, darunter die eingeklappten Blöcke der anderen und `Ohne Angebot`.",
         image: "/help/screens/offene-raeume.webp",
       },
       {
@@ -1175,7 +1183,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei Bedarf `Raum suchen...` nutzen oder nach `Gebäude` und `Status` filtern.",
           "Eine Raumkarte öffnen. Das öffnet die Raumseite mit der Kinderliste und der Historie; wer Räume bearbeiten darf, sieht dort zusätzlich den Reiter `Stammdaten`.",
           "In der Kinderliste Kinder auswählen, einen `Zielraum` wählen und mit `In Raum setzen` verschieben. Das Kind steht sofort im neuen Raum; die Aufsicht dort muss nichts bestätigen.",
-          "Sie beaufsichtigen den Ausgangsraum? Dann wählen Sie einen Zielraum mit genau einem laufenden Angebot und Aufsicht.",
+          "Sie beaufsichtigen den Ausgangsraum? Dann wählen Sie einen Zielraum mit genau einem laufenden Angebot und Aufsicht. Offene Räume stehen immer zur Auswahl, mit dem Zusatz `(offener Raum)`. Das Kind ist dann im Raum, aber in keinem Angebot.",
           "Sie beaufsichtigen nur den Zielraum? Dann können Sie Kinder in Ihr eigenes Angebot holen. In diesem Raum dürfen auch mehrere Angebote laufen. Leitungen können in alle Räume verschieben.",
           "Die Karte `Unterwegs` öffnen. Sie führt auf eine eigene Seite mit den Kindern ohne Raum; dort ein Kind über `Zuweisen` zuordnen.",
         ],
@@ -1221,7 +1229,7 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Team-Chat",
         icon: MessageSquare,
         summary:
-          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Bereich erscheint nur, wenn Ihre Schule ihn eingeschaltet hat.",
+          "Nachrichten an einzelne Personen Ihrer Schule: Kolleginnen und Kollegen der OGS und Lehrkräfte. Eltern sehen davon nichts. Der Team-Chat ist standardmäßig eingeschaltet. Ein Admin kann ihn unter `Einstellungen` -> `Betrieb` -> `Team-Chat für Mitarbeitende` ausschalten. Dann fehlt der Bereich für alle.",
         steps: [
           "`Team-Chat` in der Seitenleiste öffnen.",
           "Auf `Neue Nachricht` tippen und die Person aus der Liste wählen. Sie sehen nur Personen Ihrer Schule. Lehrkräfte sind mit `Lehrkraft` gekennzeichnet; sie lesen und antworten in ihrem Portal „moto schule“ unter `Nachrichten` (siehe `Lehrkraft schreibt Nachrichten`).",
@@ -1298,11 +1306,11 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Das tägliche Soll als Dezimalstunden mit Komma oder Punkt eingeben, zum Beispiel `4,45`; moto zeigt die daraus berechnete Dauer an und rundet auf die nächste volle Minute, halbe Minuten werden aufgerundet. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen, mit Begründung ablehnen oder eine `Rückfrage` mit Notiz stellen. Die Person sieht die Rückfrage in ihrer Zeiterfassung, kann ihre Antwort ergänzen und den Antrag erneut einreichen.",
           "Beim Umstieg auf moto den Resturlaub über die `Urlaubs-Übernahme` erfassen: Stichtag und Resturlaub zum Stichtag eintragen; moto errechnet daraus die vor der Einführung bereits genommenen Tage. Der Jahresanspruch bleibt unverändert, spätere Anspruchskorrekturen wirken sich weiterhin korrekt auf den Rest aus. Auch ein überzogenes Konto (negativer Rest) lässt sich abbilden.",
-          "Über `Freizeitausgleich eintragen` im Reiter `Abwesenheiten` einen ganzen freien Zeitraum oder einen halben einzelnen Tag direkt für die Person erfassen. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
+          "Freizeitausgleich trägt die Leitung über `Abwesenheit eintragen` im Reiter `Abwesenheiten` ein (siehe `Kontingente und Abwesenheiten eintragen`): einen ganzen freien Zeitraum oder einen halben einzelnen Tag. Das Stundenkonto sinkt um die ausfallende Sollzeit. Bei einem halben Tag muss die gearbeitete Hälfte als Arbeitszeit erfasst sein; nicht erfasste Zeit bleibt als Minus bestehen. Mitarbeitende können diesen Eintrag nur ansehen, nicht selbst anlegen, ändern oder löschen.",
           "Vor dem Speichern zeigt das Fenster den aktuellen Stand des Stundenkontos, den Abzug für den Eintrag und den Stand danach. Bereits geplanter Freizeitausgleich ist eingerechnet. Fällt das Konto unter null, warnt moto und fragt nach einer Bestätigung per Häkchen. Nach Absprache mit dem Träger ist die Buchung trotzdem möglich, das Konto darf ins Minus laufen.",
-          "Eigene Bezeichnungen für Abwesenheiten pflegt die Leitung unter `Datenverwaltung` -> `Abwesenheitsarten`: `Abwesenheitsart anlegen`, Name eintragen, fertig. Danach steht die Bezeichnung im Feld `Art der Abwesenheit` zur Wahl. Ein vorhandener Eintrag lässt sich dort umbenennen oder über das Menü mit den drei Punkten aus der Auswahl nehmen; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.",
+          "Eigene Abwesenheitsarten wie `Regenerationstag` pflegt die Leitung unter `Datenverwaltung` -> `Abwesenheitsarten`: `Abwesenheitsart anlegen`, Name eintragen, bei Bedarf `Tage je Person zählen (Kontingent)` anhaken, speichern. Danach steht die Art beim Eintragen zur Wahl. Ein vorhandener Eintrag lässt sich dort umbenennen oder über das Menü mit den drei Punkten aus der Auswahl nehmen; bereits eingetragene Abwesenheiten behalten ihre Bezeichnung. Die vier Standardarten (`Urlaub`, `Krank`, `Fortbildung`, `Sonstige`) sowie `Freizeitausgleich` sind fest vorgegeben und lassen sich nicht ändern.",
           "Aus einem offenen Abwesenheits-Fenster führt der Link `Abwesenheitsarten verwalten` neben dem Feld dorthin. Er öffnet ein neues Fenster, damit Ihr angefangener Eintrag stehen bleibt.",
-          "Eine eigene Abwesenheitsart wird wie `Sonstige` berechnet. Sie kann ein eigenes Jahreskontingent haben. Den Anspruch ändern Sie im Mitarbeiterprofil.",
+          "Eine eigene Abwesenheitsart schreibt wie `Sonstige` das Tagessoll gut. Mit Kontingent zählt moto die Tage je Person; den Anspruch ändern Sie im Mitarbeiterprofil.",
           "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert reguläre Schichten und markiert Betreuungsblöcke als abwesend. Bereits eingetragene Vertretungsschichten bleiben bestehen und müssen manuell geprüft werden. Ein halber Krankheitstag gilt immer für ein einzelnes Datum und ändert Dienst- und Betreuungsplan nicht automatisch. Beim Löschen der Krankmeldung werden nur Schichten und Blöcke ohne eingetragenen Ersatz automatisch wiederhergestellt.",
         ],
         callout: {
@@ -1313,6 +1321,31 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Mitarbeiterprofil mit Tabs für Übersicht, Zeiterfassung, Arbeitszeitmodell und Abwesenheiten.",
         printCompact: true,
+      },
+      {
+        id: "mitarbeiter-kontingente",
+        title: "Kontingente und Abwesenheiten eintragen",
+        icon: CalendarDays,
+        summary:
+          "Zeigt je Person, wie viele Urlaubstage, Regenerationstage oder andere Tage noch übrig sind, und trägt Abwesenheiten direkt ein.",
+        steps: [
+          "Arten anlegen: `Datenverwaltung` -> `Abwesenheitsarten` -> `Abwesenheitsart anlegen`. Name eintragen, zum Beispiel `Regenerationstag`, `Krank-Urlaubstag` oder `Umwandlungstag`. `Tage je Person zählen (Kontingent)` anhaken und speichern. Umbenennen oder ausschalten geht dort über das Menü mit den drei Punkten.",
+          "Kontingent je Person: `Mitarbeiter` öffnen, Person wählen, Reiter `Abwesenheiten`. Die Karte `Kontingente` zeigt für Urlaub und jede Art mit Kontingent `Anspruch`, `Genommen`, `Vorgemerkt` und `Übrig`. Oben lässt sich das Jahr wechseln, zum Beispiel im Dezember für das nächste Jahr.",
+          "Anspruch ändern: an der Art `Anspruch ändern` wählen, mit `+` und `−` die Tage anpassen (halbe Tage mit Komma, z. B. 1,5), eine Begründung eintragen und `Speichern`. Die Änderung steht mit Begründung im Änderungsprotokoll. Beim Start mit moto tragen Sie die Tage ein, die zum Stichtag noch übrig sind.",
+          "Beim Urlaub öffnet `Anspruch ändern` die Felder `Jahresanspruch` und `Übertrag aus Vorjahr`. Auch hier ist eine Begründung Pflicht, und die Änderung steht im Änderungsprotokoll.",
+          "Eintragen ohne Antrag: im Reiter `Abwesenheiten` `Abwesenheit eintragen` wählen. Zeitraum oder halben Tag wählen, dann die Art: `Urlaub`, eine eigene Art, `Freizeitausgleich`, `Fortbildung` oder `Sonstige`. Neben jeder Art steht, wie viele Tage noch übrig sind. Unten zeigt moto, wie viele Tage danach übrig bleiben. `Eintragen` bucht sofort, es entsteht kein Antrag.",
+          "Krankheit trägt weiterhin `Krank melden` daneben ein, weil sie Dienst- und Betreuungsplan ändert.",
+        ],
+        checklist: [
+          "Kontingente gehen nicht ins Minus. Reicht der Rest nicht, lässt sich nicht eintragen. Erst den Anspruch erhöhen oder eine andere Art wählen.",
+          "Das gilt auch für Urlaub: Anträge und Genehmigungen über den Resturlaub hinaus lehnt moto ab.",
+          "Nur das Stundenkonto darf ins Minus: Freizeitausgleich zieht das Tagessoll ab und fragt vorher nach einer Bestätigung.",
+          "Alle anderen Arten schreiben das Tagessoll gut. Die Überstunden bleiben gleich.",
+          "Mitarbeitende können ihren Urlaub weiter selbst beantragen. Von der Leitung eingetragene Tage können sie nur ansehen.",
+        ],
+        screenshot:
+          "Reiter Abwesenheiten mit der Karte Kontingente: Urlaub und eigene Arten mit Anspruch, Genommen, Vorgemerkt und Übrig.",
+        image: "/help/screens/mitarbeiter-kontingente.webp",
       },
       {
         id: "mitarbeiter-vorschau",
@@ -1415,7 +1448,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Gibt Lehrkräften in moto schule den kurzen Draht zur OGS: dieselbe Unterhaltung wie im `Team-Chat`, nur aus dem anderen Portal. Dazu gehört, was die Lehrkraft dort selbst einstellt.",
         steps: [
-          "Voraussetzung: Ihre Schule hat den Team-Chat eingeschaltet (siehe `Team-Chat`). Solange er aus ist, erscheint `Nachrichten` in moto schule gar nicht erst.",
+          "Hat Ihre Schule den Team-Chat ausgeschaltet (siehe `Team-Chat`), erscheint `Nachrichten` in moto schule gar nicht erst.",
           "Die Lehrkraft öffnet in moto schule `Nachrichten`. Dort stehen ihre Unterhaltungen mit der OGS.",
           "Über `Neue Nachricht` wählt sie eine Person aus. Neben jedem Namen steht, um wen es sich handelt: `OGS-Leitung`, `OGS-Team` oder `Lehrkraft`. Eltern sehen von diesen Nachrichten nichts.",
           "Eine Zahl neben `Nachrichten` zeigt, wie viele Nachrichten noch nicht gelesen sind. Sie verschwindet, sobald die Unterhaltung geöffnet ist.",
@@ -1775,7 +1808,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Zeigt Resturlaub, Anträge, Wochen- oder Monatsansichten und nachvollziehbare Korrekturen.",
         steps: [
           "In der Karte `Urlaub` Resturlaub, beantragte, genehmigte und abgelehnte Anträge prüfen.",
-          "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft.",
+          "Mit `Urlaub beantragen` einen Zeitraum wählen. Halbe Tage, Notiz, Überschneidungen und Resturlaub werden direkt im Dialog geprüft. Mehr als den Resturlaub können Sie nicht beantragen; dann hilft die OGS-Leitung weiter.",
           "Eigene Urlaubsanträge in `Meine Anträge` verfolgen und offene oder zukünftige genehmigte Anträge bei Bedarf stornieren.",
           "Stellt die Leitung eine `Rückfrage`, erscheint sie unabhängig von Jahr und Alter des Antrags im eigenen Bereich `Rückfragen`: die Antwort im Textfeld ergänzen und mit `Antwort senden & erneut einreichen` den Antrag zurück zur Entscheidung geben.",
           "In der Tabelle `Zeiterfassung` zwischen Woche und Monat wechseln und mit `Diese Woche` oder `Diesen Monat` zurückspringen.",
@@ -3145,7 +3178,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Das Kind scannt sein Armband erneut - es erscheint `Wohin geht ...?`.",
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
-          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
+          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz. Läuft dort ein Block, in dem das Kind eingeplant ist, kommt es in diesen Block. Sonst steht es auf dem Schulhof unter `Ohne Angebot`.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
         ],
         screenshot:

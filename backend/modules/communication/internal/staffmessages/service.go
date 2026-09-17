@@ -115,8 +115,8 @@ func (s *Service) actor(ctx context.Context) (int64, error) {
 //
 // Unlike the parent-OGS messenger this fails CLOSED on a settings error. There
 // the inbox must never half-disable for a school that uses it daily, so a blip
-// counts as enabled. Here the opposite is true: a school that has not switched
-// the internal messenger on must not start exchanging staff messages because a
+// counts as enabled. Here the opposite is true: a school that switched the
+// internal messenger off must not start exchanging staff messages because a
 // settings read hiccuped. A blocked send is recoverable; an unwanted internal
 // chat channel at a school that declined it is not.
 func (s *Service) requireEnabled(ctx context.Context) error {

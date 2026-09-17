@@ -6,14 +6,16 @@ import (
 	"log/slog"
 	"time"
 
+	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -61,13 +63,34 @@ func NewCleanupAuditCommand(logger *slog.Logger) (AuditCommand, error) {
 // making the CLI import the Audit domain package directly.
 type AuditCommand = auditModels.Command
 
-func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) *auth.Service {
+// NewAuthCleanupService composes the token and rate-limit maintenance the
+// cleanup CLI runs. The expired session sweep and the revocation follow-ups
+// are Identity & Access flows (#3251); the module is composed with the
+// cleanup repositories and a signer the sweep never uses.
+func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*auth.Service, error) {
 	repos := repositories.NewAuthCleanupRepositories(db, command)
-	return auth.NewCleanupService(auth.CleanupDependencies{
-		Account: repos.Account, Token: repos.Token, PasswordResetRateLimit: repos.PasswordResetRateLimit,
-		AuthEvent: repos.AuthEvent, Audit: command, PushSubscription: repos.PushSubscription,
-		DB: db, Logger: logger, TenantRuntime: runtime,
+	tokenAuth, err := authjwt.NewTokenAuth()
+	if err != nil {
+		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
+	}
+	var service *auth.Service
+	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+		repos: sessionRepositories{
+			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+		},
+		tokenAuth: tokenAuth, audit: command, logger: logger,
+		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 	})
+	if err != nil {
+		return nil, err
+	}
+	service = auth.NewCleanupService(auth.CleanupDependencies{
+		PasswordResetRateLimit: repos.PasswordResetRateLimit,
+		Sessions:               newAccountSessions(identityAccess),
+		Audit:                  command,
+		DB:                     db, Logger: logger, TenantRuntime: runtime,
+	})
+	return service, nil
 }
 
 func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.InvitationService {
@@ -79,15 +102,12 @@ func NewInvitationCleanupService(db *bun.DB, logger *slog.Logger) auth.Invitatio
 func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger) active.Service {
 	repos := repositories.NewSessionCleanupRepositories(db, timetableCapability)
 	settings := NewCleanupSettingsService(db, runtime, schools, logger)
-	service := active.NewService(active.ServiceDependencies{
+	return active.NewService(active.ServiceDependencies{
 		PrincipalReader: AttendancePrincipal,
 		SchoolPresence:  newStudentPresence(db, logger),
 		GroupRepo:       repos.Group, SupervisorRepo: repos.Supervisor,
 		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
-	})
-	service.SetTenantRuntime(runtime)
-	service.SetSettingsService(PresenceSettings(settings))
-	return service
+	}, active.WithTenantRuntime(runtime), active.WithSettings(PresenceSettings(settings)))
 }
 
 func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCommand) active.CleanupService {
@@ -97,21 +117,29 @@ func NewRetentionCleanupService(db *bun.DB, logger *slog.Logger, command AuditCo
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) schedule.TimetableCleanupService {
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) timetableplanning.TimetableCleanupService {
 	repos := repositories.NewTimetableCleanupRepositories(db, command, timetableCapability)
-	return schedule.NewTimetableCleanupService(
+	return timetableplanning.NewTimetableCleanupService(
 		repos.Instance, repos.Exception, repos.Student, repos.Deletion, repos.Deviation,
 		NewCleanupSettingsService(db, runtime, schools, logger), logger,
 	)
 }
 
-func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) active.TimeTrackingCleanupService {
+func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, logger *slog.Logger, command AuditCommand) timetracking.TimeTrackingCleanupService {
 	repos := repositories.NewTimeTrackingCleanupRepositories(db, command)
-	return active.NewTimeTrackingCleanupService(
-		repos.Session, repos.Absence, NewDeletionAudit(repos.Deletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
+	return timetracking.NewTimeTrackingCleanupService(
+		repos.Session, repos.Absence, NewTimeTrackingRetentionAudit(repos.Deletion), PresenceSettings(NewCleanupSettingsService(db, runtime, schools, logger)), logger,
 	)
 }
 
 func NewSettingsCommandRepository(db *bun.DB) configModels.SettingValueRepository {
 	return repositories.NewSettingsCommandRepository(db)
 }
+
+// The time-tracking cleanup contract and its result shapes, exposed to CLI
+// composition the way AuditCommand is: the CLI keeps composing through this
+// root instead of importing the retained Workforce package.
+type TimeTrackingCleanupService = timetracking.TimeTrackingCleanupService
+type TimeTrackingCleanupResult = timetracking.TimeTrackingCleanupResult
+type TimeTrackingCleanupPreview = timetracking.TimeTrackingCleanupPreview
+type TimeTrackingCleanupStats = timetracking.TimeTrackingCleanupStats

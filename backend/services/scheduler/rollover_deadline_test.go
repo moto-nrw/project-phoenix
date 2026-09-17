@@ -55,7 +55,7 @@ func TestRolloverDeadlineWorkerErrorRollsBackTenantTick(t *testing.T) {
 	}
 	s := unitScheduler(&Scheduler{
 		db:                     db,
-		schoolRepo:             repos.School,
+		schoolRepo:             dbTenantDirectory{db: db},
 		rolloverDeadlineRunner: probe,
 		logger:                 slog.Default()})
 

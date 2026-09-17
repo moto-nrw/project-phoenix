@@ -14,10 +14,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/students"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

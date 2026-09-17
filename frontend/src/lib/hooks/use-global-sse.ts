@@ -142,7 +142,7 @@ const ARRIVAL_TIME_CACHE_KEY_PARTS = [
 // purpose: a parent care-exception (submit AND delete) rewrites that day's
 // pickup and arrival override but announces ONLY student_updated — no
 // pickup_schedule_changed, no arrival_schedule_changed
-// (services/parent/parent_write_service.go SubmitCareException). An approved
+// (workflows/parentportal/legacy/parent_write_service.go SubmitCareException). An approved
 // care request is the mirror gap: it emits arrival_schedule_changed but also
 // rewrites the weekly PICKUP plan. Every one of these caches disables focus
 // revalidation, so without this list an open page keeps showing the superseded
@@ -414,7 +414,7 @@ export function useGlobalSSE(): SSEHookState {
     // carry ACTIVE-group and student ids. Keeping them would re-broaden every
     // scoped event and save nothing (same lesson as #2057). Supervision
     // changes do not alter has_full_access — that is decided by the viewer's
-    // EDUCATION groups (services/usercontext/student_access.go).
+    // EDUCATION groups (modules/identityaccess/legacy/usercontext/student_access.go).
     {
       const unfilteredSearchOnly =
         hasPendingUnscopedActiveEvent.current &&
@@ -425,7 +425,7 @@ export function useGlobalSSE(): SSEHookState {
         hasPendingPickupScheduleEvent.current ||
         hasPendingStudentUpdateEvent.current ||
         // A group handover or leader change rewrites GetMyGroups and with it
-        // the has_full_access of every row (services/usercontext/
+        // the has_full_access of every row (modules/identityaccess/legacy/usercontext/
         // student_access.go), which decides whether a card shows absence,
         // times and the precise location at all. Broad, never scoped: the
         // event deliberately carries no group id, and the recipient's tab is

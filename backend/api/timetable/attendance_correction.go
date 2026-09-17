@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // CorrectAttendanceRequest reuses the PATCH body shape (same tri-state
@@ -74,22 +74,22 @@ func (rs *Resource) correctInstanceStudent(w http.ResponseWriter, r *http.Reques
 // reason rules render as field errors so the form can point at the input that
 // needs fixing.
 func (rs *Resource) renderCorrectionError(w http.ResponseWriter, r *http.Request, err error) {
-	var validationErr *scheduleSvc.TimetableAttendanceValidationError
+	var validationErr *timetableplanning.TimetableAttendanceValidationError
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, scheduleSvc.ErrCorrectionReasonRequired):
+	case errors.Is(err, timetableplanning.ErrCorrectionReasonRequired):
 		renderValidationErrors(w, r, []fieldError{{Field: "reason", Reason: "a reason is required"}})
-	case errors.Is(err, scheduleSvc.ErrCorrectionReasonTooLong):
+	case errors.Is(err, timetableplanning.ErrCorrectionReasonTooLong):
 		renderValidationErrors(w, r, []fieldError{{Field: "reason", Reason: "reason is too long"}})
-	case errors.Is(err, scheduleSvc.ErrAttendanceEntryNotFound),
-		errors.Is(err, scheduleSvc.ErrInstanceNotFound):
+	case errors.Is(err, timetableplanning.ErrAttendanceEntryNotFound),
+		errors.Is(err, timetableplanning.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
-	case errors.Is(err, scheduleSvc.ErrCorrectionRequiresCompleted):
+	case errors.Is(err, timetableplanning.ErrCorrectionRequiresCompleted):
 		common.RenderError(w, r, common.ErrorConflict(errors.New("only a completed block can be corrected")))
-	case errors.Is(err, scheduleSvc.ErrCorrectionCancelled):
+	case errors.Is(err, timetableplanning.ErrCorrectionCancelled):
 		common.RenderError(w, r, common.ErrorConflict(errors.New("attendance of a cancelled block cannot be corrected")))
-	case errors.Is(err, scheduleSvc.ErrCorrectionTrailUnavailable):
+	case errors.Is(err, timetableplanning.ErrCorrectionTrailUnavailable):
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("correction trail is not available")))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("correct attendance failed", err))

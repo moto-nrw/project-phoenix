@@ -51,9 +51,9 @@ func ErrorCode(err error) string {
 		return "none"
 	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
 		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
-		errors.Is(err, ErrAccountSessionNotFound):
+		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound):
 		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated):
+	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists):
 		return "conflict"
 	case errors.Is(err, ErrTenantRequired):
 		return "tenant_required"
@@ -325,6 +325,12 @@ type Engine interface {
 	SchoolRoleQuery
 	RolePermissionQuery
 	SchoolMembershipQuery
+	AccountAuthentication
+	AccountSessionMaintenance
+	AccountClaimsQuery
+	OperatorAuthentication
+	OperatorAccountAccess
+	AccountLifecycle
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

@@ -10,9 +10,9 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -56,7 +56,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		instanceRepo:        instanceRepo,
 		instanceStudentRepo: instanceStudentRepo,
 
-		timetableBridge: scheduleSvc.NewTimetableBridgeService(scheduleSvc.TimetableBridgeDependencies{
+		timetableBridge: timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
 			Instances:        instanceRepo,
 			InstanceStudents: instanceStudentRepo,
 		}),

@@ -346,6 +346,7 @@ func quotaToDomain(value workforce.StaffVacationQuota) domain.StaffVacationQuota
 	return domain.StaffVacationQuota{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Year: value.Year,
 		EntitledDays: value.EntitledDays, CarryoverDays: value.CarryoverDays, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		ChangeReason: value.ChangeReason, ChangedBy: value.ChangedBy,
 	}
 }
 

@@ -7,21 +7,21 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // timeClock serves workforce.TimeClock from the retained work session service
 // while that service's own move into the Workforce module is pending (#2690).
 type timeClock struct {
-	sessions active.WorkSessionService
+	sessions timetracking.WorkSessionService
 }
 
 // TimeClockCapability binds the stamp contract of the web app and the kiosk
 // to the work session service.
-func TimeClockCapability(sessions active.WorkSessionService) workforce.TimeClock {
+func TimeClockCapability(sessions timetracking.WorkSessionService) workforce.TimeClock {
 	if sessions == nil {
 		panic("time clock capability: work session service is required")
 	}
@@ -144,7 +144,7 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 			continue
 		}
 		session := daySession.WorkSession
-		if expired, stale := active.ExpireStaleOpenBlock(session, now); stale {
+		if expired, stale := timetracking.ExpireStaleOpenBlock(session, now); stale {
 			if !expired.CheckOutTime.After(dayStart) {
 				continue
 			}
@@ -161,7 +161,7 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 		}
 		result.Breaks[daySession.ID] = breaks
 	}
-	evaluation := active.EvaluateWorkSessionsLaborTime(sessions, breaksBySession, now)
+	evaluation := timetracking.EvaluateWorkSessionsLaborTime(sessions, breaksBySession, now)
 	result.LaborTime = workforce.LaborTimeEvaluation{
 		NetMinutes: evaluation.NetMinutes, BreakMinutes: evaluation.BreakMinutes,
 		RequiredBreakMinutes: evaluation.RequiredBreakMinutes, IsBreakCompliant: evaluation.IsBreakCompliant,
@@ -198,10 +198,10 @@ func MapTimeTrackingError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if plannedStart, ok := errors.AsType[*active.PlannedStartNotReachedError](err); ok {
+	if plannedStart, ok := errors.AsType[*timetracking.PlannedStartNotReachedError](err); ok {
 		return &workforce.PlannedStartNotReachedError{PlannedStartTime: plannedStart.PlannedStartTime, CurrentTime: plannedStart.CurrentTime}
 	}
-	if deviation, ok := errors.AsType[*active.DeviationReasonRequiredError](err); ok {
+	if deviation, ok := errors.AsType[*timetracking.DeviationReasonRequiredError](err); ok {
 		return &workforce.DeviationReasonRequiredError{
 			Action: deviation.Action, PlannedTime: deviation.PlannedTime, ActualTime: deviation.ActualTime, DeviationMinutes: deviation.DeviationMinutes,
 		}

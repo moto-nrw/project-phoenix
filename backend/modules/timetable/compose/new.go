@@ -414,6 +414,13 @@ func (e engine) SetPrimaryPlannedSupervisor(ctx context.Context, id int64) error
 	return mapError(e.service.SetPrimaryPlannedSupervisor(ctx, id))
 }
 
+func (e engine) LockPlannedSupervisors(ctx context.Context) error {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return errors.New("timetable: planned supervisor locks require a transaction")
+	}
+	return mapError(e.service.LockPlannedSupervisors(ctx))
+}
+
 func (e engine) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, error) {
 	rows, err := e.service.DeletePlannedSupervisorsByStaff(ctx, staffID)
 	return rows, mapError(err)

@@ -26,11 +26,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -68,10 +68,9 @@ func newActiveService(t *testing.T, db *bun.DB) activeService.Service {
 		})),
 		DB:     db,
 		Logger: slog.Default(),
-	})
-	svc.SetSettingsService(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
+	}, activeService.WithSettings(services.PresenceSettings(&configtest.Mock{ResolveStringFn: func(context.Context, string) (string, error) {
 		return "binary", nil
-	}}))
+	}})))
 	return svc
 }
 

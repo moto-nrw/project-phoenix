@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	repoActive "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
@@ -350,56 +349,6 @@ func TestTenantIsolation_DisplayVisibility(t *testing.T) {
 }
 
 // ============================================================================
-// Auth Domain
-// ============================================================================
-
-func TestTenantIsolation_TokenVisibility(t *testing.T) {
-	t.Parallel()
-
-	db := SetupTestDB(t)
-	tenantA, tenantB := isolationTenants(t, db)
-
-	// Tokens require an account (accounts are not tenant-scoped).
-	acctA := CreateTestAccount(t, db, "token-isolation-a")
-	acctB := CreateTestAccount(t, db, "token-isolation-b")
-
-	tkA := CreateTestTokenForTenant(t, db, tenantA, acctA.ID)
-	tkB := CreateTestTokenForTenant(t, db, tenantB, acctB.ID)
-
-	repo := repositories.NewTokenRepository(db)
-
-	// --- Tenant A ---
-	ctx42 := ctxForTenant(tenantA)
-
-	tokens, err := repo.List(ctx42, nil)
-	require.NoError(t, err)
-
-	for _, tk := range tokens {
-		assert.Equal(t, tenantA, tk.TenantID,
-			"cross-tenant leak: tenant B token visible to tenant A (List)")
-	}
-
-	_, err = repo.FindByToken(ctx42, tkB.Token)
-	assert.Error(t, err,
-		"cross-tenant FindByToken should fail: tenant A must not see tenant B token %d", tkB.ID)
-
-	// --- Tenant B ---
-	ctx43 := ctxForTenant(tenantB)
-
-	tokens, err = repo.List(ctx43, nil)
-	require.NoError(t, err)
-
-	for _, tk := range tokens {
-		assert.Equal(t, tenantB, tk.TenantID,
-			"cross-tenant leak: tenant A token visible to tenant B (List)")
-	}
-
-	_, err = repo.FindByToken(ctx43, tkA.Token)
-	assert.Error(t, err,
-		"cross-tenant FindByToken should fail: tenant B must not see tenant A token %d", tkA.ID)
-}
-
-// ============================================================================
 // Active Domain
 // ============================================================================
 
@@ -412,13 +361,13 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	agA := CreateTestActiveGroupForTenant(t, db, tenantA)
 	agB := CreateTestActiveGroupForTenant(t, db, tenantB)
 
-	repo := repoActive.NewGroupRepository(nil, repositories.NewPresenceGroupRecords(db), nil)
+	repo := repositories.NewSessionCleanupRepositories(db, repositories.NewUnobservedTimetableDependencies(db).Capability).Group
 	presence := repositories.NewPresenceGroupRecords(db)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
 
-	groups, err := presence.QueryGroupRecords(ctx42, repoActive.GroupRecordFilter{})
+	groups, err := presence.QueryGroupRecords(ctx42, repositories.PresenceGroupRecordFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {
@@ -433,7 +382,7 @@ func TestTenantIsolation_ActiveGroupVisibility(t *testing.T) {
 	// --- Tenant B ---
 	ctx43 := ctxForTenant(tenantB)
 
-	groups, err = presence.QueryGroupRecords(ctx43, repoActive.GroupRecordFilter{})
+	groups, err = presence.QueryGroupRecords(ctx43, repositories.PresenceGroupRecordFilter{})
 	require.NoError(t, err)
 
 	for _, g := range groups {

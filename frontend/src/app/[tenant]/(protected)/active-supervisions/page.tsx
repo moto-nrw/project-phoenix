@@ -20,7 +20,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { hasPermission, isCaregiver } from "~/lib/auth-utils";
 import { UnclaimedRooms } from "~/components/active/unclaimed-rooms";
@@ -37,7 +37,10 @@ import { SpontaneousActivityStart } from "~/components/active-supervisions/spont
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import {
   additionalSupervisionTarget,
-  openRoomRosterActiveGroupId,
+  hasOwnBlock,
+  occupiedRoomIdsForSpontaneousStart,
+  openRoomSections,
+  schulhofHeadActionsApply,
   sessionsOutsideOpenRooms,
   supervisionTabLabel,
 } from "~/components/active-supervisions/view-model";
@@ -49,6 +52,7 @@ import { useTimetableActions } from "~/components/active-supervisions/use-timeta
 import { useSchulhofActions } from "~/components/active-supervisions/use-schulhof-actions";
 import { TimetableRosterContent } from "~/components/active-supervisions/timetable-roster";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
+import { OpenRoomSections } from "~/components/active-supervisions/open-room-sections";
 import { AddSupervisorModal } from "~/components/active-supervisions/add-supervisor-modal";
 
 function MeinRaumPageContent() {
@@ -101,29 +105,28 @@ function MeinRaumPageContent() {
     refresh,
   } = dashboard;
 
-  const openRoomRosterGroupId = openRoomRosterActiveGroupId({
-    currentOpenRoom,
-  });
-  // A released-room tab is the room, not one offering. Binding the caller's
-  // session — or a leftover timetable instance after `?session=` /
-  // last-session was consumed while resolving `?room=` — would hide every
-  // other child in the room. Occupancy is already on `currentOpenRoom`.
-  const showMergedOpenRoomOccupancy =
-    currentOpenRoom !== null && openRoomRosterGroupId === null;
-
+  // A released room is one page with a section per running block (ADR 0019,
+  // point 3); null keeps its plain view of every child. The page's own
+  // roster belongs to an own session only: each block section loads its own.
+  const openRoomLayout = currentOpenRoom
+    ? openRoomSections(currentOpenRoom)
+    : null;
   const roster = useTimetableRoster({
-    selectedTimetableInstanceId: showMergedOpenRoomOccupancy
+    selectedTimetableInstanceId: currentOpenRoom
       ? null
       : selectedTimetableInstanceId,
-    currentRoomId: showMergedOpenRoomOccupancy
-      ? undefined
-      : (openRoomRosterGroupId ?? currentRoom?.id),
+    currentRoomId: currentOpenRoom ? undefined : currentRoom?.id,
   });
   const { currentTimetableRoster } = roster;
+  const { overviewEnabled } = useOptionalSupervision();
 
   const filters = useStudentFilters(students);
   const reopen = useReopenBanner();
-  const [showAddSupervisor, setShowAddSupervisor] = useState(false);
+  // The session „Betreuer hinzufügen“ was opened for: the head action or one
+  // section of a released room.
+  const [addSupervisorTarget, setAddSupervisorTarget] = useState<string | null>(
+    null,
+  );
 
   const actions = useTimetableActions({
     allRooms,
@@ -162,11 +165,13 @@ function MeinRaumPageContent() {
   });
 
   // The Schulhof's own supervision offer (#2161) belongs to the Schulhof room,
-  // matched by room id — never by the name of the room on screen.
+  // matched by room id — never by the name of the room on screen — and to
+  // the yard's own session, never to a block running there (#3281).
   const isSchulhofOpenRoom =
     !!currentOpenRoom &&
     !!schulhofStatus?.roomId &&
-    schulhofStatus.roomId === currentOpenRoom.roomId;
+    schulhofStatus.roomId === currentOpenRoom.roomId &&
+    schulhofHeadActionsApply(openRoomLayout, schulhofStatus.activeGroupId);
 
   // Desktop detection — sidebar handles room switching at lg+
   const [isDesktop, setIsDesktop] = useState(false);
@@ -182,19 +187,14 @@ function MeinRaumPageContent() {
     [openRooms],
   );
 
-  const occupiedRoomIds = useMemo(() => {
-    const ids = allRooms
-      .map((room) => room.room_id)
-      .filter((roomId): roomId is string => Boolean(roomId));
-    // A released room that currently holds a session is occupied too, even
-    // though it is not one of the caller's own tabs. The spontaneous modal
-    // treats such a destination as navigation to the running supervision
-    // instead of disabling it; every normal occupied room stays unavailable.
-    for (const room of openRooms) {
-      if (room.activeGroupIds.length > 0) ids.push(room.roomId);
-    }
-    return ids;
-  }, [allRooms, openRooms]);
+  const occupiedRoomIds = useMemo(
+    () =>
+      occupiedRoomIdsForSpontaneousStart({
+        ownSupervisionRoomIds: allRooms.map((room) => room.room_id),
+        openRooms,
+      }),
+    [allRooms, openRooms],
+  );
 
   // Set breadcrumb so the header names what is open — a shared room by its
   // room name, an own supervision by its session (parallel sessions can share
@@ -380,7 +380,7 @@ function MeinRaumPageContent() {
       type="button"
       variant="outline"
       size="md"
-      onClick={() => setShowAddSupervisor(true)}
+      onClick={() => setAddSupervisorTarget(additionalSupervisionActiveGroupId)}
     >
       <UserPlus className="h-4 w-4" aria-hidden="true" />
       Betreuer hinzufügen
@@ -436,16 +436,57 @@ function MeinRaumPageContent() {
     openRooms.length === 0 &&
     plannedNow.length === 0;
 
+  const studentGridProps = {
+    pickupTimesData: dashboard.pickupTimesData,
+    arrivalTimesData: dashboard.arrivalTimesData,
+    trackingData: dashboard.trackingData,
+    myGroupIds: dashboard.myGroupIds,
+    myGroupRooms: dashboard.myGroupRooms,
+    now,
+    onOpenStudent: (studentId: string) =>
+      router.push(`/students/${studentId}?from=/active-supervisions`),
+  };
+
   // Render helper for student grid content
   const renderStudentContent = () => {
     if (
       dashboard.isWaitingForUrlRoomSelection ||
-      (!showMergedOpenRoomOccupancy && roster.isWaitingForTimetableRoster)
+      roster.isWaitingForTimetableRoster
     ) {
       return <ActiveSupervisionLoadingView withHeader={false} />;
     }
 
-    if (currentTimetableRoster && !showMergedOpenRoomOccupancy) {
+    if (openRoomLayout) {
+      return (
+        <OpenRoomSections
+          sections={openRoomLayout}
+          students={students}
+          filteredStudents={filters.filteredStudents}
+          grid={studentGridProps}
+          blocks={{
+            allRooms,
+            currentStaffId,
+            mutateDashboard,
+            refresh,
+            adoptSession: dashboard.adoptSession,
+            setSelectedTimetableInstanceId:
+              dashboard.setSelectedTimetableInstanceId,
+            setError,
+            router,
+            reopenableInstanceId: reopen.reopenableInstanceId,
+            rememberReopenable: reopen.rememberReopenable,
+            clearReopenable: reopen.clearReopenable,
+            attendanceWebEnabled,
+            showTimetableCounts,
+            canExcuseRestOfDay: hasPermission(session, "users:update"),
+            overviewEnabled,
+            onAddSupervisor: setAddSupervisorTarget,
+          }}
+        />
+      );
+    }
+
+    if (currentTimetableRoster) {
       return (
         <>
           {actions.moveNotice && (
@@ -482,15 +523,7 @@ function MeinRaumPageContent() {
       <SupervisionStudentGrid
         students={students}
         filteredStudents={filters.filteredStudents}
-        pickupTimesData={dashboard.pickupTimesData}
-        arrivalTimesData={dashboard.arrivalTimesData}
-        trackingData={dashboard.trackingData}
-        myGroupIds={dashboard.myGroupIds}
-        myGroupRooms={dashboard.myGroupRooms}
-        now={now}
-        onOpenStudent={(studentId) =>
-          router.push(`/students/${studentId}?from=/active-supervisions`)
-        }
+        {...studentGridProps}
       />
     );
   };
@@ -542,39 +575,13 @@ function MeinRaumPageContent() {
       }
       overlays={
         <>
-          <ConfirmationModal
+          <CompleteInstanceModal
             isOpen={actions.showCompleteConfirmation}
+            roster={currentTimetableRoster}
+            isCompleting={actions.isCompletingInstance}
             onClose={() => actions.setShowCompleteConfirmation(false)}
             onConfirm={() => void actions.confirmCompleteTimetableInstance()}
-            title="Aktivität wirklich beenden?"
-            confirmText="Aktivität beenden"
-            isConfirmLoading={actions.isCompletingInstance}
-            isDismissDisabled={actions.isCompletingInstance}
-          >
-            <div className="space-y-3 text-sm text-gray-700">
-              <p>
-                <strong>{currentTimetableRoster?.instance.title}</strong> endet
-                laut Plan um {currentTimetableRoster?.instance.endTime} Uhr.
-              </p>
-              <p>
-                Aktuell anwesend:{" "}
-                {currentTimetableRoster?.rows.filter(
-                  (row) => row.currentlyPresent,
-                ).length ?? 0}
-              </p>
-              {(currentTimetableRoster?.rows.filter(
-                (row) => row.currentlyPresent,
-              ).length ?? 0) > 0 ? (
-                <ul className="list-disc space-y-1 pl-5">
-                  {currentTimetableRoster?.rows
-                    .filter((row) => row.currentlyPresent)
-                    .map((row) => (
-                      <li key={row.studentId}>{row.studentName}</li>
-                    ))}
-                </ul>
-              ) : null}
-            </div>
-          </ConfirmationModal>
+          />
           {/* Schulhof Release Supervision Modal */}
           <ReleaseSupervisionModal
             isOpen={schulhof.showReleaseModal}
@@ -584,11 +591,11 @@ function MeinRaumPageContent() {
             }
             isConfirmLoading={schulhof.isReleasingSupervision}
           />
-          {showAddSupervisor ? (
+          {addSupervisorTarget ? (
             <AddSupervisorModal
-              activeGroupId={additionalSupervisionActiveGroupId}
+              activeGroupId={addSupervisorTarget}
               isOpen
-              onClose={() => setShowAddSupervisor(false)}
+              onClose={() => setAddSupervisorTarget(null)}
               onAdded={mutateDashboard}
             />
           ) : null}
@@ -629,7 +636,9 @@ function MeinRaumPageContent() {
 
           <PlannedNowSection
             plannedNow={plannedNow}
-            hasActiveTimetableSession={currentTimetableRoster !== null}
+            hasActiveTimetableSession={
+              currentTimetableRoster !== null || hasOwnBlock(openRoomLayout)
+            }
             isStartingInstance={actions.isStartingInstance}
             onStart={(instance) =>
               void actions.handleStartPlannedInstance(instance)

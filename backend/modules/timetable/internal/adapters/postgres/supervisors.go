@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
@@ -122,6 +123,24 @@ func (s *Store) UpdatePlannedSupervisor(ctx context.Context, id int64, fields do
 
 func (s *Store) DeletePlannedSupervisor(ctx context.Context, id int64) (domain.OperationStats, error) {
 	return s.deletePlannedSupervisors(ctx, "delete planned supervisor", func(query *bun.DeleteQuery) *bun.DeleteQuery { return query.Where("id = ?", id) })
+}
+
+// LockPlannedSupervisors takes a table-level SHARE ROW EXCLUSIVE lock on
+// activities.supervisors: it also blocks inserts, which is what a caregiver
+// capability re-check needs.
+func (s *Store) LockPlannedSupervisors(ctx context.Context) (domain.OperationStats, error) {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	_, err = db.ExecContext(ctx, "LOCK TABLE activities.supervisors IN SHARE ROW EXCLUSIVE MODE")
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("lock planned supervisors: %w", err)
+	}
+	return stats, nil
 }
 
 func (s *Store) DeletePlannedSupervisorsByStaff(ctx context.Context, staffID int64) (int64, domain.OperationStats, error) {

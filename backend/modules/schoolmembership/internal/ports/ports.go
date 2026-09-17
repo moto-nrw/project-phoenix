@@ -52,6 +52,7 @@ type Store interface {
 	UpdateGroupAssignment(context.Context, int64, int64, int64) (domain.GroupAssignment, domain.OperationStats, error)
 	DeleteGroupAssignment(context.Context, int64) (domain.OperationStats, error)
 	DeleteGroupAssignmentsByTeacher(context.Context, int64) (domain.OperationStats, error)
+	LockGroupAssignments(context.Context) (domain.OperationStats, error)
 }
 
 type Transaction interface {

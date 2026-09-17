@@ -10,13 +10,13 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
 // Compile-time assertions for base.Entity interface compliance
@@ -44,9 +44,6 @@ var (
 	_ base.Entity = (*education.Group)(nil)
 	_ base.Entity = (*education.GroupSubstitution)(nil)
 	_ base.Entity = (*education.GroupTeacher)(nil)
-
-	// platform package
-	_ base.Entity = (*platform.OperatorRefreshToken)(nil)
 
 	// schedule package
 

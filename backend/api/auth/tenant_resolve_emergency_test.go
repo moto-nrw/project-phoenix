@@ -19,10 +19,8 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -53,8 +51,7 @@ func TestResolveTenant_EmergencyHealthInfo_DefaultTrue(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -84,8 +81,7 @@ func TestResolveTenant_EmergencyHealthInfo_OverrideFalse(t *testing.T) {
 		authRoute.SettingsService.SetValue(ctx, configModel.KeyEmergencyListHealthInfo, false, nil, nil),
 		"disable emergency_list_health_info for the isolated tenant")
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
@@ -111,8 +107,7 @@ func TestResolveTenant_EmergencyHealthInfo_SettingFailureFailsRequest(t *testing
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = failingTenantShellSettings{SettingsService: authRoute.SettingsService}
 
 	router := chi.NewRouter()
@@ -145,8 +140,7 @@ func TestResolveTenant_EmergencyHealthInfo_UnreadableValueFailsClosed(t *testing
 		configRepo.NewSettingValueRepository(testpkg.ConfigRuntime(db)).Upsert(scope.Context(), stored),
 		"store an unreadable emergency_list_health_info override")
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()

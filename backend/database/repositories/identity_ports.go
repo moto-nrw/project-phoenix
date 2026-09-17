@@ -65,11 +65,80 @@ func (d identityAccountDirectory) AccountEmail(ctx context.Context, accountID in
 }
 
 // NewGuardianProfileRepository composes the People Directory guardian profile
-// repository with the Identity & Access active-account query its portal
-// reachability check joins (#2720). Compositions that do not build the whole
-// factory use it so no call site can forget the owner query.
+// repository with the Identity & Access active-account (#2720),
+// active-membership and guardian-role (#2721) queries its portal
+// reachability check joins. Compositions that do not build the whole factory
+// use it so no call site can forget the owner queries.
 func NewGuardianProfileRepository(db *bun.DB) userModels.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(db, usersRepo.WithActiveAccounts(activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))))
+	return usersRepo.NewGuardianProfileRepository(db,
+		usersRepo.WithActiveAccounts(activeAccountQuery(mustAccountRepository(authRepo.NewAccountRepository(db)))),
+		usersRepo.WithSchoolAccess(activeMembershipQuery(db), guardianRoleQuery(db)),
+	)
+}
+
+// NewStudentGuardianRepository composes the People Directory relationship
+// repository with the Identity & Access active-membership query its
+// permission checks filter through (#2721).
+func NewStudentGuardianRepository(db *bun.DB) userModels.StudentGuardianRepository {
+	return usersRepo.NewStudentGuardianRepository(db, usersRepo.WithStudentGuardianMemberships(activeMembershipQuery(db)))
+}
+
+// NewMessageableGuardianRepository composes the parent-message recipient
+// lookup with the Identity & Access active-membership query (#2721).
+func NewMessageableGuardianRepository(db *bun.DB) *usersRepo.MessageableGuardianRepository {
+	return usersRepo.NewMessageableGuardianRepository(db, activeMembershipQuery(db))
+}
+
+// staffMessageIdentity returns the Identity & Access owner queries the staff
+// messaging reads filter through.
+func staffMessageIdentity(db *bun.DB, accounts authModels.AccountRepository) usersRepo.StaffMessageIdentity {
+	return usersRepo.StaffMessageIdentity{
+		ActiveAccounts:    activeAccountQuery(mustAccountRepository(accounts)),
+		ActiveMemberships: activeMembershipQuery(db),
+		RoleClasses:       schoolRoleClassQuery(db),
+	}
+}
+
+// activeMembershipQuery returns the owner query "every ACTIVE school
+// mapping" the People Directory, Organisation & Tenancy and parent portal
+// repositories join (#2721).
+func activeMembershipQuery(db *bun.DB) func(context.Context) *bun.SelectQuery {
+	tenants, ok := authRepo.NewAccountTenantRepository(db).(*authRepo.AccountTenantRepository)
+	if !ok {
+		panic("repository factory: account tenant repository must be the Identity & Access Postgres adapter")
+	}
+	return tenants.ActiveMemberships
+}
+
+// guardianRoleQuery returns the owner query "every guardian base role
+// assignment" the portal reachability check joins (#2721).
+func guardianRoleQuery(db *bun.DB) usersRepo.GuardianRoleQuery {
+	return mustAccountRoleRepository(db).GuardianRoleHolders
+}
+
+// schoolRoleClassQuery adapts the owner's role classification to the staff
+// messaging projection (#2721).
+func schoolRoleClassQuery(db *bun.DB) usersRepo.SchoolRoleClassQuery {
+	roles := mustAccountRoleRepository(db)
+	return func(ctx context.Context, tenantID int64, accountIDs []int64) ([]usersRepo.SchoolRoleClass, error) {
+		rows, err := roles.ClassifySchoolRoles(ctx, tenantID, accountIDs)
+		if err != nil {
+			return nil, err
+		}
+		result := make([]usersRepo.SchoolRoleClass, 0, len(rows))
+		for _, row := range rows {
+			result = append(result, usersRepo.SchoolRoleClass{AccountID: row.AccountID, IsAdmin: row.IsAdmin, IsLehrkraft: row.IsLehrkraft})
+		}
+		return result, nil
+	}
+}
+
+func mustAccountRoleRepository(db *bun.DB) *authRepo.AccountRoleRepository {
+	roles, ok := authRepo.NewAccountRoleRepository(db).(*authRepo.AccountRoleRepository)
+	if !ok {
+		panic("repository factory: account role repository must be the Identity & Access Postgres adapter")
+	}
+	return roles
 }
 
 // NewPersonRepository composes the People Directory person repository with

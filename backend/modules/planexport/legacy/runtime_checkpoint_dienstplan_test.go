@@ -10,10 +10,11 @@ import (
 	"testing"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -37,7 +38,7 @@ func TestDienstplanRuntimeEvidence(t *testing.T) {
 	export := func(txCtx context.Context, tx bun.Tx, renderer planexport.Renderer, params planexport.Params) (listexport.File, error) {
 		reads := txOverviewReads{tx: tx}
 		service := New(Sources{
-			Overview: scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
+			Overview: shiftplanning.NewStaffScheduleOverviewService(shiftplanning.StaffScheduleOverviewDependencies{
 				Shifts:        reads,
 				Instances:     scheduleRepo.NewActivityInstanceRepository(db),
 				InstanceStaff: scheduleRepo.NewInstanceStaffRepository(db),

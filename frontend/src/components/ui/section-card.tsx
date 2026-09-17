@@ -8,6 +8,46 @@ import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
 /**
+ * The disclosure toggle of a collapsible `SectionCard`. Exported for a
+ * section whose expanded head is drawn by its content (the block roster on a
+ * released room's page, #3281), so both states carry the same control.
+ */
+export function SectionCollapseToggle({
+  title,
+  collapsed,
+  controls,
+  onToggle,
+}: Readonly<{
+  title?: string;
+  collapsed: boolean;
+  /** Id of the body the toggle shows or hides, while it is rendered. */
+  controls?: string;
+  onToggle: () => void;
+}>) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className="shrink-0"
+      aria-label={
+        collapsed
+          ? `${title ?? "Abschnitt"} ausklappen`
+          : `${title ?? "Abschnitt"} einklappen`
+      }
+      aria-expanded={!collapsed}
+      aria-controls={controls}
+      onClick={onToggle}
+    >
+      <ChevronDown
+        className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
+        aria-hidden="true"
+      />
+    </Button>
+  );
+}
+
+/**
  * The canonical content section of the calm design language the app converged
  * on (Anmeldungen, Planung, Personal-Stammdaten, Elternportal): a
  * `moto-content-surface` card with a blue uppercase kicker, a `text-base`
@@ -119,7 +159,7 @@ export function SectionCard({
       className={
         bare
           ? cn("space-y-4", className)
-          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} rounded-2xl border p-5 shadow-sm backdrop-blur-md max-sm:p-4 ${className}`
+          : `moto-content-surface ${overflow === "hidden" ? "overflow-hidden" : "overflow-visible"} compact:p-4 rounded-2xl border p-5 shadow-sm backdrop-blur-md max-sm:p-4 ${className}`
       }
     >
       {hasHeader && (
@@ -197,29 +237,16 @@ export function SectionCard({
             </div>
           )}
           {collapsible && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              aria-label={
-                collapsed
-                  ? `${title ?? "Abschnitt"} ausklappen`
-                  : `${title ?? "Abschnitt"} einklappen`
-              }
-              aria-expanded={!collapsed}
-              aria-controls={showBody ? bodyId : undefined}
-              onClick={() => {
+            <SectionCollapseToggle
+              title={title}
+              collapsed={collapsed}
+              controls={showBody ? bodyId : undefined}
+              onToggle={() => {
                 const next = !collapsed;
                 if (collapsedProp === undefined) setCollapsedState(next);
                 onCollapsedChange?.(next);
               }}
-            >
-              <ChevronDown
-                className={`h-4 w-4 transition-transform ${collapsed ? "-rotate-90" : ""}`}
-                aria-hidden="true"
-              />
-            </Button>
+            />
           )}
         </div>
       )}
@@ -227,7 +254,9 @@ export function SectionCard({
         <div
           id={collapsible ? bodyId : undefined}
           className={
-            hasHeader && !bare ? (bodyClassName ?? "mt-4") : bodyClassName
+            hasHeader && !bare
+              ? (bodyClassName ?? "compact:mt-3 mt-4")
+              : bodyClassName
           }
         >
           {children}

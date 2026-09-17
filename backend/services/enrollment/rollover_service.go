@@ -251,7 +251,7 @@ type RolloverServiceConfig struct {
 	// offerings) the catalog is not cloned and any carried booking fails
 	// the rollover instead of persisting a source-phase reference.
 	OfferingCatalogCloner RolloverOfferingCatalogCloner
-	SchoolRepo            platformModels.SchoolRepository
+	SchoolRepo            SchoolDirectory
 	OutboxEnqueuer        platformModels.OutboxEnqueuer
 	Settings              RequestSettingsResolver
 	// DecisionService is consumed by RunDeadlineWorker only when a

@@ -45,7 +45,8 @@ interface TimetableActionsOptions {
   readonly adoptSession: (
     activeGroupId: string,
     timetableInstanceId: string | null,
-  ) => void;
+    roomId: string,
+  ) => string;
   readonly setSelectedTimetableInstanceId: (id: string | null) => void;
   readonly setError: (message: string | null) => void;
   readonly router: { push: (url: string) => void };
@@ -203,8 +204,9 @@ export function useTimetableActions(
         const startedRoom = allRooms.find(
           (room) => room.room_id === instance.roomId,
         );
-        adoptSession(result.activeGroupId, instance.id);
-        router.push(`/active-supervisions?session=${result.activeGroupId}`);
+        router.push(
+          adoptSession(result.activeGroupId, instance.id, instance.roomId),
+        );
         localStorage.setItem("supervision-last-session", result.activeGroupId);
         localStorage.setItem("sidebar-last-room", instance.roomId);
         if (startedRoom?.room_name) {
@@ -254,8 +256,9 @@ export function useTimetableActions(
             : undefined,
           staff_ids: staffIds,
         });
-        adoptSession(result.activeGroupId, result.instanceId);
-        router.push(`/active-supervisions?session=${result.activeGroupId}`);
+        router.push(
+          adoptSession(result.activeGroupId, result.instanceId, payload.roomId),
+        );
         localStorage.setItem("supervision-last-session", result.activeGroupId);
         localStorage.setItem("sidebar-last-room", payload.roomId);
         await mutateDashboard();

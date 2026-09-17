@@ -29,7 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,8 +45,8 @@ type scenario struct {
 	resource       *timetableTestResource
 	createVisit    func(context.Context, *studentpresence.Visit) error
 	endVisit       func(context.Context, int64) error
-	previewCleanup func(context.Context) (*scheduleSvc.TimetableCleanupPreview, error)
-	cleanup        func(context.Context) (*scheduleSvc.TimetableCleanupResult, error)
+	previewCleanup func(context.Context) (*timetableplanning.TimetableCleanupPreview, error)
+	cleanup        func(context.Context) (*timetableplanning.TimetableCleanupResult, error)
 	router         timetableTestRouter
 	tokenAuth      *timetableTestTokenAuth
 	today          func() timezone.Date
@@ -104,11 +104,11 @@ func (s *scenario) endActiveVisit(ctx context.Context, visitID int64) error {
 	return s.endVisit(ctx, visitID)
 }
 
-func (s *scenario) previewTimetableCleanup(ctx context.Context) (*scheduleSvc.TimetableCleanupPreview, error) {
+func (s *scenario) previewTimetableCleanup(ctx context.Context) (*timetableplanning.TimetableCleanupPreview, error) {
 	return s.previewCleanup(ctx)
 }
 
-func (s *scenario) cleanupTimetable(ctx context.Context) (*scheduleSvc.TimetableCleanupResult, error) {
+func (s *scenario) cleanupTimetable(ctx context.Context) (*timetableplanning.TimetableCleanupResult, error) {
 	return s.cleanup(ctx)
 }
 

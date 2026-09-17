@@ -6,12 +6,12 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
 
@@ -29,13 +29,17 @@ type InvitationPersistence struct {
 	Staff           userModels.StaffRepository
 	Teacher         userModels.TeacherRepository
 	Student         userModels.StudentRepository
-	School          platformModels.SchoolRepository
+	School          organizationtenancy.Capability
 }
 
 // NewInvitationPersistence constructs only invitation dependencies through the
 // existing composition seam, keeping postgres adapters out of behavior tests.
 func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 	staff, teachers, err := newInvitationMembershipRepositories(db)
+	if err != nil {
+		return nil, err
+	}
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
@@ -50,29 +54,8 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		Person:          NewPersonRepository(db),
 		Staff:           staff, Teacher: teachers,
 		Student: usersRepo.NewStudentRepository(db),
-		School:  platformRepo.NewSchoolRepository(db),
+		School:  organizations,
 	}, nil
-}
-
-// SessionValidationPersistence contains only the repositories consulted when
-// validating an existing token pair; it does not build the login/MFA graph.
-type SessionValidationPersistence struct {
-	Account              authModels.AccountRepository
-	AccountTenant        authModels.AccountTenantRepository
-	Token                authModels.TokenRepository
-	Operator             platformModels.OperatorRepository
-	OperatorRefreshToken platformModels.OperatorRefreshTokenRepository
-}
-
-func NewSessionValidationPersistence(db *bun.DB) *SessionValidationPersistence {
-	identity := newIdentityAccess(db, nil)
-	return &SessionValidationPersistence{
-		Account:              authRepo.NewAccountRepository(db),
-		AccountTenant:        authRepo.NewAccountTenantRepository(db),
-		Token:                accountSessionRepository{identity: identity},
-		Operator:             operatorRepository{identity: identity},
-		OperatorRefreshToken: operatorRefreshTokenRepository{identity: identity},
-	}
 }
 
 // NewOperatorAuditLogPersistence composes only the retained operator audit

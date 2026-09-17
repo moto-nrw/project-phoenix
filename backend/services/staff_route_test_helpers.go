@@ -4,15 +4,16 @@ import (
 	"log/slog"
 	"time"
 
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
+
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -66,7 +67,7 @@ func NewBirthdayTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() 
 }
 
 type ShiftTypeTestModule struct {
-	ShiftTypes   schedule.ShiftTypeService
+	ShiftTypes   shiftplanning.ShiftTypeService
 	Activities   activities.ActivityService
 	Repositories repositories.ShiftTypeTestRepositories
 }
@@ -78,7 +79,7 @@ func NewShiftTypeTestModule(db *bun.DB) (ShiftTypeTestModule, error) {
 		return ShiftTypeTestModule{}, err
 	}
 	return ShiftTypeTestModule{
-		ShiftTypes: schedule.NewShiftTypeService(repos.Types, slog.Default()), Activities: linker, Repositories: repos,
+		ShiftTypes: shiftplanning.NewShiftTypeService(repos.Types, slog.Default()), Activities: linker, Repositories: repos,
 	}, nil
 }
 

@@ -23,8 +23,7 @@ func TestCustomAbsenceAllowanceSummarizesOnlyItsOwnType(t *testing.T) {
 	absenceType, err := svc.CreateAbsenceType(ctx, workforce.CreateAbsenceType{Name: "Regenerationstag"})
 	require.NoError(t, err)
 	enabled := true
-	policy := workforce.AbsenceTypeOverrunBlock
-	_, err = svc.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: absenceType.ID, AllowanceEnabled: &enabled, OverrunPolicy: &policy})
+	_, err = svc.UpdateAbsenceType(ctx, workforce.UpdateAbsenceType{ID: absenceType.ID, AllowanceEnabled: &enabled})
 	require.NoError(t, err)
 
 	summary, err := svc.SetAllowance(ctx, workforce.SetAbsenceTypeAllowance{

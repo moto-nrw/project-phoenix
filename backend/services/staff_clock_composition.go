@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 	"github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -23,7 +23,7 @@ func (staffClockClock) Day(instant time.Time) string { return timezone.DateFromT
 func newStaffClockService[C interface {
 	comparable
 	rfidCard
-}](people users.PersonService, find func(context.Context, string) (C, error), sessions active.WorkSessionService) *staffclock.Service {
+}](people users.PersonService, find func(context.Context, string) (C, error), sessions timetracking.WorkSessionService) *staffclock.Service {
 	return staffclock.NewService(staffclock.Dependencies{
 		Cards:     newRFIDCardLookup(find),
 		Staff:     StaffClockStaffLookup(people),

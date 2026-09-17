@@ -2,11 +2,24 @@ package platform
 
 import (
 	"errors"
+	"reflect"
 	"testing"
+	"unsafe"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
+
+// newPgError constructs a pgdriver.Error carrying only the SQLSTATE code.
+func newPgError(code string) error {
+	pgErr := pgdriver.Error{}
+	v := reflect.ValueOf(&pgErr).Elem()
+	mField := v.FieldByName("m")
+	ptr := unsafe.Pointer(mField.UnsafeAddr()) //nolint:gosec
+	*(*map[byte]string)(ptr) = map[byte]string{'C': code}
+	return pgErr
+}
 
 // =============================================================================
 // isUniqueViolation — DatabaseError wrapping tests

@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -17,14 +17,14 @@ import (
 // Resource defines the activities API resource
 type Resource struct {
 	ActivityService    activitiesSvc.ActivityService
-	ScheduleService    scheduleSvc.Service
+	ScheduleService    timetableplanning.Service
 	UserService        usersSvc.PersonService
 	UserContextService usercontextSvc.UserContextService
 	db                 *bun.DB
 }
 
 // NewResource creates a new activities resource
-func NewResource(activityService activitiesSvc.ActivityService, scheduleService scheduleSvc.Service, userService usersSvc.PersonService, userContextService usercontextSvc.UserContextService, db *bun.DB) *Resource {
+func NewResource(activityService activitiesSvc.ActivityService, scheduleService timetableplanning.Service, userService usersSvc.PersonService, userContextService usercontextSvc.UserContextService, db *bun.DB) *Resource {
 	return &Resource{
 		ActivityService:    activityService,
 		ScheduleService:    scheduleService,

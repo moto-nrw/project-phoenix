@@ -1418,16 +1418,14 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		DepartureCompanionNote *string                     `bun:"departure_companion_note"`
 	}
 	var rows []weekdayDaysRow
-	sql := `SELECT "student".id, "student".bus_days, "student".pickup_days, "student".departure_days,` +
-		` "student".allowed_departure_modes, "student".departure_companion_note` +
-		` FROM users.students AS "student" WHERE "student".id IN (?)`
-	args := []any{bun.List(ids)}
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		sql += ` AND "student".tenant_id = ?`
-		args = append(args, tenantID)
-	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`users.students AS "student"`).
+		ColumnExpr(`"student".id, "student".bus_days, "student".pickup_days, "student".departure_days`).
+		ColumnExpr(`"student".allowed_departure_modes, "student".departure_companion_note`).
+		Where(`"student".id IN (?)`, bun.List(ids))
+	query = base.WithTenantFilter(ctx, query, "student")
 
-	if err := base.GetDB(ctx, r.db).NewRaw(sql, args...).Scan(ctx, &rows); err != nil {
+	if err := query.Scan(ctx, &rows); err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "hydrate student weekday days",
 			Err: base.TranslateNotFound(err),
@@ -1681,14 +1679,16 @@ func (r *StudentRepository) lockClassWrites(ctx context.Context, shared bool) er
 		return fmt.Errorf("lockClassWrites: tenant_id %d exceeds advisory-lock obj id range", tenantID)
 	}
 
-	lockFn, op := "pg_advisory_xact_lock", "lock_student_class_writes"
+	db := base.GetDB(ctx, r.db)
+	var err error
+	op := "lock_student_class_writes"
 	if shared {
-		lockFn, op = "pg_advisory_xact_lock_shared", "lock_student_class_writes_shared"
+		op = "lock_student_class_writes_shared"
+		_, err = db.NewRaw("SELECT pg_advisory_xact_lock_shared(?, ?)", studentClassWritesLockClass, int32(tenantID)).Exec(ctx)
+	} else {
+		_, err = db.NewRaw("SELECT pg_advisory_xact_lock(?, ?)", studentClassWritesLockClass, int32(tenantID)).Exec(ctx)
 	}
-
-	if _, err := base.GetDB(ctx, r.db).
-		NewRaw("SELECT "+lockFn+"(?, ?)", studentClassWritesLockClass, int32(tenantID)).
-		Exec(ctx); err != nil {
+	if err != nil {
 		return &modelBase.DatabaseError{Op: op, Err: base.TranslateNotFound(err)}
 	}
 	return nil
@@ -1876,11 +1876,18 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 		PhotoPath string `bun:"photo_path"`
 	}
 
-	const baseQuery = `
+	// The two statements differ only in the defense-in-depth tenant predicate
+	// inside the CTE. RLS already scopes the query when the caller is inside a
+	// tenant tx (the standard path); the explicit predicate guards against a
+	// future caller running this outside the tenant middleware. The CTE has no
+	// "student" alias, so the predicate names the column directly.
+	const (
+		purgePhotosHead = `
 		WITH locked AS (
 			SELECT id, photo_path
 			FROM users.students
-			WHERE photo_path IS NOT NULL%s
+			WHERE photo_path IS NOT NULL`
+		purgePhotosTail = `
 			FOR UPDATE
 		)
 		UPDATE users.students AS student
@@ -1889,23 +1896,16 @@ func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error
 		WHERE student.id = locked.id
 		RETURNING locked.photo_path
 	`
+		purgePhotosQuery       = purgePhotosHead + purgePhotosTail
+		purgePhotosTenantQuery = purgePhotosHead + ` AND tenant_id = ?` + purgePhotosTail
+	)
 
 	var rows []photoRow
 	var err error
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		// Defense-in-depth tenant filter; the CTE alias is "student"-less so
-		// substitute the qualified column directly. RLS already scopes the
-		// query when the caller is inside a tenant tx (the standard path);
-		// the explicit predicate guards against a future caller running this
-		// outside the tenant middleware.
-		_ = where // documented for parity with other repo methods
-		err = base.GetDB(ctx, r.db).
-			NewRaw(fmt.Sprintf(baseQuery, " AND tenant_id = ?"), val).
-			Scan(ctx, &rows)
+	if _, val, ok := base.TenantWhere(ctx, "student"); ok {
+		err = base.GetDB(ctx, r.db).NewRaw(purgePhotosTenantQuery, val).Scan(ctx, &rows)
 	} else {
-		err = base.GetDB(ctx, r.db).
-			NewRaw(fmt.Sprintf(baseQuery, "")).
-			Scan(ctx, &rows)
+		err = base.GetDB(ctx, r.db).NewRaw(purgePhotosQuery).Scan(ctx, &rows)
 	}
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "purge_all_photos", Err: base.TranslateNotFound(err)}

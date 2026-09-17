@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -30,7 +29,7 @@ const (
 
 // ProvisioningResource handles operator tenant provisioning endpoints.
 type ProvisioningResource struct {
-	service                    platformSvc.OperatorProvisioningService
+	service                    organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	TenantMFAService           authSvc.MFAService
 	db                         *bun.DB
@@ -38,7 +37,7 @@ type ProvisioningResource struct {
 }
 
 // NewProvisioningResource creates a new provisioning resource.
-func NewProvisioningResource(service platformSvc.OperatorProvisioningService) *ProvisioningResource {
+func NewProvisioningResource(service organizationtenancy.Provisioning) *ProvisioningResource {
 	return &ProvisioningResource{service: service}
 }
 
@@ -245,7 +244,7 @@ func (rs *ProvisioningResource) CreateSchool(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	school := &platformModels.School{
+	school := &organizationtenancy.CreateSchool{
 		OrganizationID: req.OrganizationID,
 		Name:           req.Name,
 		Slug:           req.Slug,
@@ -286,7 +285,7 @@ func (rs *ProvisioningResource) UpdateOrganization(w http.ResponseWriter, r *htt
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	svcReq := platformSvc.UpdateOrganizationRequest{
+	svcReq := organizationtenancy.OrganizationChanges{
 		Name:   req.Name,
 		Slug:   req.Slug,
 		Active: req.Active,
@@ -310,7 +309,7 @@ func (rs *ProvisioningResource) UpdateSchool(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	svcReq := platformSvc.UpdateSchoolRequest{
+	svcReq := organizationtenancy.SchoolChanges{
 		OrganizationID: req.OrganizationID,
 		Name:           req.Name,
 		Slug:           req.Slug,
@@ -394,7 +393,7 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	invitationReq := authSvc.InvitationRequest{
+	invitationReq := organizationtenancy.SchoolAdminInvitationInput{
 		Email:            req.Email,
 		CaregiverEnabled: req.CaregiverEnabled,
 	}
@@ -430,15 +429,11 @@ func (rs *ProvisioningResource) InviteSchoolAdmin(w http.ResponseWriter, r *http
 		EmailError:       invitation.EmailError,
 		EmailRetryCount:  invitation.EmailRetryCount,
 	}
-	if invitation.Role != nil {
-		resp.RoleName = invitation.Role.Name
-	}
+	resp.RoleName = invitation.RoleName
 	if shouldExposeSeedInvitationToken(r, rs.appEnv) {
 		resp.Token = &invitation.Token
 	}
-	if invitation.Creator != nil {
-		resp.Creator = invitation.Creator.Email
-	}
+	resp.Creator = invitation.CreatorEmail
 	common.Respond(w, r, http.StatusCreated, resp, "School admin invitation created successfully")
 }
 
@@ -453,7 +448,7 @@ func (rs *ProvisioningResource) CreateSchoolAccount(w http.ResponseWriter, r *ht
 		return
 	}
 	operatorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
-	svcReq := platformSvc.CreateSchoolAccountRequest{
+	svcReq := organizationtenancy.SchoolAccountInput{
 		Email:            req.Email,
 		Password:         req.Password,
 		FirstName:        req.FirstName,
@@ -476,7 +471,7 @@ func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, ProvisioningErrorRenderer(err))
 		return
 	}
-	common.Respond(w, r, http.StatusOK, platformSvc.OperatorRoleOptions(roles), "System roles retrieved successfully")
+	common.Respond(w, r, http.StatusOK, roles, "System roles retrieved successfully")
 }
 
 func jsonIDPointer(id *common.JSONID) *int64 {
@@ -612,24 +607,26 @@ func (rs *ProvisioningResource) ListAllAccounts(w http.ResponseWriter, r *http.R
 func ProvisioningErrorRenderer(err error) render.Renderer {
 	var invalidData *platformSvc.InvalidDataError
 	var conflictErr *platformSvc.ConflictError
-	var organizationNotFound *platformSvc.OrganizationNotFoundError
-	var organizationAlreadyDeleted *platformSvc.OrganizationAlreadyDeletedError
-	var organizationNotDeleted *platformSvc.OrganizationNotDeletedError
-	var organizationHasSchools *platformSvc.OrganizationHasSchoolsError
-	var organizationDeleted *platformSvc.OrganizationDeletedError
-	var schoolNotFound *platformSvc.SchoolNotFoundError
-	var schoolInactive *platformSvc.SchoolInactiveError
-	var schoolAlreadyDeleted *platformSvc.SchoolAlreadyDeletedError
-	var schoolNotDeleted *platformSvc.SchoolNotDeletedError
-	var operatorDeviceNotFound *platformSvc.OperatorDeviceNotFoundError
-	var deviceInUse *platformSvc.DeviceInUseError
-	var deviceProtected *platformSvc.DeviceProtectedError
-	var deviceTransferProtected *platformSvc.DeviceTransferProtectedError
-	var deviceTransferBlocked *platformSvc.DeviceTransferBlockedError
-	var deviceTransferOrganizationMismatch *platformSvc.DeviceTransferOrganizationMismatchError
-	var deviceTransferSameSchool *platformSvc.DeviceTransferSameSchoolError
-	var personNotFound *platformSvc.PersonNotFoundError
-	var personActiveSupervisors *platformSvc.PersonHasActiveSupervisionsError
+	var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
+	var provisioningConflict *organizationtenancy.ProvisioningConflictError
+	var organizationNotFound *organizationtenancy.OrganizationNotFoundError
+	var organizationAlreadyDeleted *organizationtenancy.OrganizationAlreadyDeletedError
+	var organizationNotDeleted *organizationtenancy.OrganizationNotDeletedError
+	var organizationHasSchools *organizationtenancy.OrganizationHasSchoolsError
+	var organizationDeleted *organizationtenancy.OrganizationDeletedError
+	var schoolNotFound *organizationtenancy.SchoolNotFoundError
+	var schoolInactive *organizationtenancy.SchoolInactiveError
+	var schoolAlreadyDeleted *organizationtenancy.SchoolAlreadyDeletedError
+	var schoolNotDeleted *organizationtenancy.SchoolNotDeletedError
+	var operatorDeviceNotFound *organizationtenancy.OperatorDeviceNotFoundError
+	var deviceInUse *organizationtenancy.DeviceInUseError
+	var deviceProtected *organizationtenancy.DeviceProtectedError
+	var deviceTransferProtected *organizationtenancy.DeviceTransferProtectedError
+	var deviceTransferBlocked *organizationtenancy.DeviceTransferBlockedError
+	var deviceTransferOrganizationMismatch *organizationtenancy.DeviceTransferOrganizationMismatchError
+	var deviceTransferSameSchool *organizationtenancy.DeviceTransferSameSchoolError
+	var personNotFound *organizationtenancy.PersonNotFoundError
+	var personActiveSupervisors *organizationtenancy.PersonHasActiveSupervisionsError
 	var authErr *authSvc.AuthError
 
 	if errors.As(err, &authErr) && authErr.Err != nil {
@@ -650,10 +647,12 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	}
 
 	switch {
-	case errors.As(err, &invalidData):
+	case errors.As(err, &invalidData), errors.As(err, &invalidProvisioningData):
 		return ErrInvalidRequest(errors.New("invalid input data"))
 	case errors.As(err, &conflictErr):
 		return ErrConflict(conflictErr.Err.Error())
+	case errors.As(err, &provisioningConflict):
+		return ErrConflict(provisioningConflict.Err.Error())
 	case errors.As(err, &organizationNotFound):
 		return ErrNotFound("Organization not found")
 	case errors.As(err, &organizationAlreadyDeleted):
@@ -682,9 +681,9 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 		return ErrForbidden("This system device cannot be transferred")
 	case errors.As(err, &deviceTransferBlocked):
 		switch deviceTransferBlocked.Reason {
-		case platformSvc.DeviceTransferBlockedOnline:
+		case organizationtenancy.DeviceTransferBlockedOnline:
 			return ErrConflict("Device is online and cannot be transferred")
-		case platformSvc.DeviceTransferBlockedActiveSession:
+		case organizationtenancy.DeviceTransferBlockedActiveSession:
 			return ErrConflict("Device has an active session and cannot be transferred")
 		default:
 			return ErrInternal(internalErrorMessage)
@@ -719,6 +718,10 @@ func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
 		var invalidData *platformSvc.InvalidDataError
 		if errors.As(err, &invalidData) {
 			return ErrInvalidRequest(invalidData.Err)
+		}
+		var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
+		if errors.As(err, &invalidProvisioningData) {
+			return ErrInvalidRequest(invalidProvisioningData.Err)
 		}
 		var validationErr *usersSvc.ValidationError
 		if errors.As(err, &validationErr) {

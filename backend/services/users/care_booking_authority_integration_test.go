@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -52,7 +52,7 @@ func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLif
 		TagReleaser:  repos.StudentTagReleaser(),
 		AuditService: userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
 		LockCareBookingWrites: func(ctx context.Context) error {
-			return scheduleService.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		BookingsAuthoritative: func(context.Context) (bool, error) { return true, nil },
 		DB:                    db, Logger: slog.Default(),

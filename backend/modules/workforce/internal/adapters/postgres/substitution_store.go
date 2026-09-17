@@ -206,6 +206,24 @@ func (s *Store) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID in
 	return stats.Rows, stats, err
 }
 
+// LockGroupSubstitutions takes a table-level SHARE ROW EXCLUSIVE lock on
+// education.group_substitution: it also blocks inserts, which is what a
+// caregiver capability re-check needs.
+func (s *Store) LockGroupSubstitutions(ctx context.Context) (domain.OperationStats, error) {
+	db, _, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	_, err = db.ExecContext(ctx, "LOCK TABLE education.group_substitution IN SHARE ROW EXCLUSIVE MODE")
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("lock group substitutions: %w", err)
+	}
+	return stats, nil
+}
+
 func groupSubstitutionFromDomain(value domain.GroupSubstitution) *groupSubstitutionRow {
 	return &groupSubstitutionRow{
 		ID: value.ID, TenantID: value.TenantID, TargetType: value.TargetType, GroupID: value.GroupID,

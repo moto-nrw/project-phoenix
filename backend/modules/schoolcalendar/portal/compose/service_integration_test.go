@@ -18,23 +18,36 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
-	platformService "github.com/moto-nrw/project-phoenix/services/platform"
-	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64) {
+	t.Helper()
+	_, err := db.NewUpdate().
+		TableExpr("auth.account_tenants").
+		Set("status = ?", authModels.AccountTenantStatusInactive).
+		Set("deactivated_at = NOW()").
+		Set("staff_calendar_feed_token = NULL").
+		Set("updated_at = NOW()").
+		Where("account_id = ?", accountID).
+		Where("tenant_id = ?", tenantID).
+		Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+}
 
 func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDependencies {
 	t.Helper()
@@ -127,25 +140,25 @@ func (r *recordingAppointmentCreate) CreateAppointment(ctx context.Context, inpu
 }
 
 type recordingOutbox struct {
-	enqueued  []platformService.EnqueueRequest
+	enqueued  []emailoutbox.EnqueueRequest
 	cancelled int
 	nextID    int64
 	keys      map[string]struct{}
 }
 
-func (r *recordingOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+func (r *recordingOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
 	if req.IdempotencyKey != "" {
 		if r.keys == nil {
 			r.keys = make(map[string]struct{})
 		}
 		if _, exists := r.keys[req.IdempotencyKey]; exists {
-			return &platformModels.EmailOutbox{}, nil
+			return &emailoutbox.Enqueued{}, nil
 		}
 		r.keys[req.IdempotencyKey] = struct{}{}
 	}
 	r.enqueued = append(r.enqueued, req)
 	r.nextID++
-	return &platformModels.EmailOutbox{Model: base.Model{ID: r.nextID}}, nil
+	return &emailoutbox.Enqueued{ID: r.nextID}, nil
 }
 
 func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error) {
@@ -854,7 +867,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, rotated.CalDAV.AppPassword)
 	require.NoError(t, err)
 
-	require.NoError(t, repos.AccountTenant.Deactivate(testpkg.Ctx(t), account.ID, testpkg.Tenant(t)))
+	deactivateAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	_, err = service.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, rotated.CalDAV.AppPassword)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound, "an inactive school mapping must receive no calendar data")
 }
@@ -942,7 +955,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	_, _, err = service.ParentCalendarFeedByToken(testpkg.Ctx(t), parentToken)
 	require.NoError(t, err, "staff rotation must not invalidate the independent parent feed")
 
-	require.NoError(t, repos.AccountTenant.Deactivate(testpkg.Ctx(t), account.ID, testpkg.Tenant(t)))
+	deactivateAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 	_, _, err = service.StaffCalendarFeedByToken(testpkg.Ctx(t), rotatedToken)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 	require.NoError(t, repos.AccountTenant.EnsureActive(testpkg.Ctx(t), &authModels.AccountTenant{

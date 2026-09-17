@@ -22,6 +22,21 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// Sessions composes the account-authentication flows (#3251): tenant,
+	// parent and school login, refresh, switching, logout, session validation,
+	// cleanup and revocation. Compositions that only read identity facts
+	// leave it nil; the flows then report ErrAccountAuthenticationUnavailable.
+	Sessions *SessionDependencies
+	// Operators composes the operator flows (#3252): operator login, the
+	// MFA-proven token issue, refresh, profile and password changes, and
+	// the operator-led school access of accounts. It requires Sessions;
+	// compositions without it report ErrOperatorAuthenticationUnavailable.
+	Operators *OperatorDependencies
+	// Lifecycle composes the account lifecycle flows (#3225): staff PIN,
+	// staff preview, staff offboarding, school identity, parent accounts and
+	// guardian relative access. It requires Sessions; compositions without
+	// it report ErrAccountLifecycleUnavailable.
+	Lifecycle *LifecycleDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -62,7 +77,23 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	})
-	return identityaccess.NewModule(engine{service: service}), nil
+	auth, err := newAccountAuthentication(service, store, dependencies.Sessions)
+	if err != nil {
+		return nil, err
+	}
+	lifecycle, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	operatorAuth, accountAccess, err := newOperatorFlows(service, store, auth, dependencies.Sessions, dependencies.Operators, lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	e := engine{service: service, auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle}
+	if dependencies.Sessions != nil {
+		e.runtime = dependencies.Sessions.TenantRuntime
+	}
+	return identityaccess.NewModule(e), nil
 }
 
 type transaction struct{}
@@ -94,7 +125,20 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 	return callback(ctx)
 }
 
-type engine struct{ service *application.Service }
+type engine struct {
+	service *application.Service
+	// auth is nil when the module was composed without session dependencies.
+	auth *application.AccountAuthentication
+	// operatorAuth and accountAccess are nil when the module was composed
+	// without operator dependencies.
+	operatorAuth  *application.OperatorAuthentication
+	accountAccess *application.OperatorAccountAccess
+	// lifecycle is nil when the module was composed without lifecycle
+	// dependencies.
+	lifecycle *application.AccountLifecycle
+	// runtime attaches the composed unit of work ahead of every session flow.
+	runtime func(context.Context) context.Context
+}
 
 func (e engine) FindAccount(ctx context.Context, id int64) (identityaccess.Account, error) {
 	value, err := e.service.FindAccount(ctx, id)

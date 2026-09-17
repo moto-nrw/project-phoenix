@@ -35,6 +35,7 @@ import {
   summarizeStudentMoveResult,
 } from "~/lib/active-service";
 import type { ActiveGroup, Supervisor, Visit } from "~/lib/active-helpers";
+import type { ApiError } from "~/lib/api-error";
 import type { Room } from "~/lib/room-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
@@ -87,7 +88,9 @@ export function StudentsInRoomSection({
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
     () => new Set(),
   );
-  const [targetActiveGroupId, setTargetActiveGroupId] = useState("");
+  // The chosen target's option value: a session ID or `room:<id>` for a
+  // released room.
+  const [targetValue, setTargetValue] = useState("");
   const [bulkMoveState, setBulkMoveState] = useState<
     { type: "idle" } | { type: "loading" } | { type: "error"; message: string }
   >({ type: "idle" });
@@ -128,8 +131,9 @@ export function StudentsInRoomSection({
       : `room-bulk-active-supervisions-${currentStaff.id}`,
     () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
   );
-  const { data: rooms = [] } = useSWRAuth<Room[]>("room-bulk-rooms", () =>
-    roomService.getRooms(),
+  const { data: rooms = [], mutate: refreshMoveRooms } = useSWRAuth<Room[]>(
+    "room-bulk-rooms",
+    () => roomService.getRooms(),
   );
 
   if (error) {
@@ -222,10 +226,12 @@ export function StudentsInRoomSection({
     (targetScope !== "own" ||
       (sourceGroups.length > 0 && targetOptions.length > 0));
   const selectedTarget = targetOptions.find(
-    (option) => option.activeGroupId === targetActiveGroupId,
+    (option) => option.value === targetValue,
   );
+  // A released room is never "own": moving into it keeps the push rule, so
+  // only children from groups the caller supervises may be selected.
   const selectedTargetIsOwn =
-    selectedTarget !== undefined &&
+    selectedTarget?.kind === "session" &&
     supervisedTargetGroupIds.has(selectedTarget.activeGroupId);
   // A supervised target authorizes a pull from every source group. For a
   // colleague's target, however, the backend authorizes only children from
@@ -270,7 +276,7 @@ export function StudentsInRoomSection({
 
   useEffect(() => {
     setSelectedStudentIds(new Set());
-    setTargetActiveGroupId("");
+    setTargetValue("");
     setBulkMoveState({ type: "idle" });
   }, [roomId]);
 
@@ -280,14 +286,12 @@ export function StudentsInRoomSection({
 
   useEffect(() => {
     if (
-      targetActiveGroupId &&
-      !targetOptions.some(
-        (option) => option.activeGroupId === targetActiveGroupId,
-      )
+      targetValue &&
+      !targetOptions.some((option) => option.value === targetValue)
     ) {
-      setTargetActiveGroupId("");
+      setTargetValue("");
     }
-  }, [targetActiveGroupId, targetOptions]);
+  }, [targetValue, targetOptions]);
 
   useEffect(() => {
     setSelectedStudentIds((current) => {
@@ -335,8 +339,8 @@ export function StudentsInRoomSection({
     setBulkMoveState({ type: "idle" });
   };
 
-  const changeTarget = (activeGroupId: string) => {
-    setTargetActiveGroupId(activeGroupId);
+  const changeTarget = (value: string) => {
+    setTargetValue(value);
     setBulkMoveState({ type: "idle" });
   };
 
@@ -362,17 +366,27 @@ export function StudentsInRoomSection({
     }
 
     setBulkMoveState({ type: "loading" });
+    const targetLog =
+      target.kind === "openRoom"
+        ? { target_room_id: target.roomId }
+        : { target_active_group_id: target.activeGroupId };
     try {
-      const result = await activeService.moveStudentsToActiveGroup(
-        studentIds,
-        target.activeGroupId,
-      );
+      const result =
+        target.kind === "openRoom"
+          ? await activeService.moveStudentsToOpenRoom(
+              studentIds,
+              target.roomId,
+            )
+          : await activeService.moveStudentsToActiveGroup(
+              studentIds,
+              target.activeGroupId,
+            );
       const skipped = result.skipped.length;
       if (skipped > 0) {
         logger.warn("room_bulk_move_partial_failure", {
           selected_count: studentIds.length,
           skipped_count: skipped,
-          target_active_group_id: target.activeGroupId,
+          ...targetLog,
           skipped_reasons: result.skipped.map((item) => item.reason),
         });
         setBulkMoveState({
@@ -384,7 +398,7 @@ export function StudentsInRoomSection({
       }
 
       setSelectedStudentIds(new Set());
-      setTargetActiveGroupId("");
+      setTargetValue("");
       setBulkMoveState({ type: "idle" });
       const successCount = summarizeStudentMoveResult(result).successCount;
       toastSuccess(
@@ -396,12 +410,22 @@ export function StudentsInRoomSection({
     } catch (err) {
       logger.warn("room_bulk_move_partial_failure", {
         selected_count: studentIds.length,
-        target_active_group_id: target.activeGroupId,
+        ...targetLog,
         error: err instanceof Error ? err.message : String(err),
       });
+      const releaseRemoved =
+        (err as ApiError | undefined)?.code === "room_not_released";
+      if (releaseRemoved) {
+        // The release was removed after the room list loaded: drop the stale
+        // choice and reload the rooms, so the list stops offering it.
+        setTargetValue("");
+        await refreshMoveRooms();
+      }
       setBulkMoveState({
         type: "error",
-        message: "Die ausgewählten Kinder konnten nicht bewegt werden.",
+        message: releaseRemoved
+          ? "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum."
+          : "Die ausgewählten Kinder konnten nicht bewegt werden.",
       });
       await refreshRoomConsumers();
     }
@@ -457,7 +481,7 @@ export function StudentsInRoomSection({
           <BulkMoveToolbar
             selectedCount={selectedVisibleCount}
             totalCount={selectableStudentIds.size}
-            targetActiveGroupId={targetActiveGroupId}
+            targetValue={targetValue}
             targetOptions={targetOptions}
             targetScope={targetScope}
             state={bulkMoveState}
@@ -483,11 +507,28 @@ export function StudentsInRoomSection({
   );
 }
 
-interface TargetRoomOption {
-  readonly activeGroupId: string;
-  readonly roomId: string;
-  readonly roomName: string;
-}
+/**
+ * One entry of the target select. A `session` target moves children into a
+ * running session; an `openRoom` target records an independent stay in a
+ * released room (#3066), whatever runs there.
+ */
+type TargetRoomOption =
+  | {
+      readonly kind: "session";
+      readonly value: string;
+      readonly activeGroupId: string;
+      readonly roomId: string;
+      readonly roomName: string;
+      /** Text in the target select; `roomName` names the room in messages. */
+      readonly label: string;
+    }
+  | {
+      readonly kind: "openRoom";
+      readonly value: string;
+      readonly roomId: string;
+      readonly roomName: string;
+      readonly label: string;
+    };
 
 /**
  * Which rooms may be offered as move targets (#2969):
@@ -511,6 +552,8 @@ function buildTargetRoomOptions(
 
   // Group BEFORE filtering by eligibility: a room with one supervised and
   // one unsupervised session is still ambiguous and must not be offered.
+  // Session targets skip the current room; the independent stay of this
+  // released room is offered separately below.
   activeGroups.forEach((group) => {
     if (!group.isActive || group.roomId === currentRoomId) return;
     const groupsInRoom = groupsByRoomId.get(group.roomId) ?? [];
@@ -518,13 +561,38 @@ function buildTargetRoomOptions(
     groupsByRoomId.set(group.roomId, groupsInRoom);
   });
 
-  return [...groupsByRoomId.entries()]
-    .flatMap(([targetRoomId, groups]) => {
+  // A released room is a shared destination (#3066): choosing it records an
+  // independent stay, so it is offered as the room itself. That includes the
+  // current room, so children in an activity there can stay without the
+  // offering. Moving there needs rights over the children's current place,
+  // which pull-only staff ("own") do not have.
+  const openRoomOptions: TargetRoomOption[] =
+    scope === "own"
+      ? []
+      : rooms
+          .filter((room) => room.isOpenRoom)
+          .map((room) => ({
+            kind: "openRoom",
+            value: `room:${room.id}`,
+            roomId: room.id,
+            roomName: room.name,
+            label: `${room.name} (offener Raum)`,
+          }));
+
+  const sessionOptions = [...groupsByRoomId.entries()].flatMap(
+    ([targetRoomId, groups]) => {
       const room = roomsById.get(targetRoomId);
-      const ownGroups = groups.filter((group) =>
+      // Independent stays in a released room are the open-room target, not a
+      // session. Supervised activities in that room stay pull/push targets.
+      const sessionGroups =
+        room?.isOpenRoom === true
+          ? groups.filter((group) => (group.supervisorCount ?? 0) > 0)
+          : groups;
+      const ownGroups = sessionGroups.filter((group) =>
         ownActiveGroupIds.has(group.id),
       );
-      const unambiguousGroup = groups.length === 1 ? groups[0] : undefined;
+      const unambiguousGroup =
+        sessionGroups.length === 1 ? sessionGroups[0] : undefined;
 
       const eligibleGroups =
         scope === "all"
@@ -542,19 +610,27 @@ function buildTargetRoomOptions(
                   : []),
               ];
 
-      return eligibleGroups.map((activeGroup) => ({
+      const roomName = room?.name ?? `Raum ${targetRoomId}`;
+      return eligibleGroups.map((activeGroup): TargetRoomOption => ({
+        kind: "session",
+        value: activeGroup.id,
         activeGroupId: activeGroup.id,
         roomId: targetRoomId,
-        roomName: room?.name ?? `Raum ${targetRoomId}`,
+        roomName,
+        label: roomName,
       }));
-    })
-    .sort((a, b) => a.roomName.localeCompare(b.roomName, "de"));
+    },
+  );
+
+  return [...sessionOptions, ...openRoomOptions].sort((a, b) =>
+    a.label.localeCompare(b.label, "de"),
+  );
 }
 
 interface BulkMoveToolbarProps {
   readonly selectedCount: number;
   readonly totalCount: number;
-  readonly targetActiveGroupId: string;
+  readonly targetValue: string;
   readonly targetOptions: readonly TargetRoomOption[];
   readonly targetScope: TargetScope;
   readonly state:
@@ -568,7 +644,7 @@ interface BulkMoveToolbarProps {
 function BulkMoveToolbar({
   selectedCount,
   totalCount,
-  targetActiveGroupId,
+  targetValue,
   targetOptions,
   targetScope,
   state,
@@ -578,8 +654,7 @@ function BulkMoveToolbar({
   onMoveSelected,
 }: BulkMoveToolbarProps) {
   const isMoving = state.type === "loading";
-  const canMove =
-    selectedCount > 0 && targetActiveGroupId.length > 0 && !isMoving;
+  const canMove = selectedCount > 0 && targetValue.length > 0 && !isMoving;
   const allSelected = totalCount > 0 && selectedCount === totalCount;
   const hasSelection = selectedCount > 0;
   const noTargets = targetOptions.length === 0;
@@ -620,15 +695,15 @@ function BulkMoveToolbar({
           id="room-bulk-target"
           name="room-bulk-target"
           label="Zielraum"
-          value={targetActiveGroupId}
+          value={targetValue}
           onChange={onTargetChange}
           disabled={noTargets || isMoving}
           placeholder={
             noTargets ? "Kein Zielraum verfügbar" : "Zielraum wählen"
           }
           options={targetOptions.map((option) => ({
-            value: option.activeGroupId,
-            label: option.roomName,
+            value: option.value,
+            label: option.label,
           }))}
           className="bg-white text-sm md:text-sm"
         />
@@ -664,7 +739,8 @@ function BulkMoveToolbar({
 /** One line under the toolbar heading: what may be chosen as a target. */
 const TARGET_SCOPE_HINT: Record<TargetScope, string> = {
   all: "Zielraum wählen und gemeinsam verschieben",
-  supervised: "Zur Auswahl stehen Räume mit laufender Aufsicht.",
+  supervised:
+    "Zur Auswahl stehen Räume mit laufender Aufsicht und offene Räume.",
   own: "Zur Auswahl stehen nur Räume, die Sie selbst beaufsichtigen.",
 };
 

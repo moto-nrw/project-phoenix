@@ -5,16 +5,15 @@ import (
 	"log/slog"
 	"time"
 
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/active"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -27,7 +26,7 @@ type WorkerDependencies struct {
 	Logger                    *slog.Logger
 	Getenv                    func(string) string
 	DB                        *bun.DB
-	SchoolRepo                platform.SchoolRepository
+	SchoolRepo                TenantDirectory
 	TenantRuntime             *tenant.UnitOfWork
 	TenantRuntimeObserver     func(entryPoint, outcome string)
 	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
@@ -47,17 +46,17 @@ type WorkerDependencies struct {
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
-	Materializer              scheduleSvc.MaterializationService
-	TimetableCleanup          scheduleSvc.TimetableCleanupService
+	Materializer              timetableplanning.MaterializationService
+	TimetableCleanup          timetableplanning.TimetableCleanupService
 	CalendarFeedCleanup       CalendarFeedCleaner
-	TimeTrackingCleanup       active.TimeTrackingCleanupService
+	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   usersSvc.StudentChangeLogCleanupService
 	PWAUsageCleanup           pwaSvc.UsageService
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        auditModel.BookingConsistencyRepository
 	EnrollmentRejectedCleanup enrollmentSvc.RejectedEnrollmentCleaner
-	AutoStart                 scheduleSvc.AutoStartService
-	AutoEnd                   scheduleSvc.AutoEndService
+	AutoStart                 timetableplanning.AutoStartService
+	AutoEnd                   timetableplanning.AutoEndService
 	InstanceRepo              scheduleModel.ActivityInstanceRepository
 	InstanceRoomRepo          facilitiesModel.RoomRepository
 	InstanceStudentRepo       scheduleModel.InstanceStudentRepository
@@ -99,7 +98,7 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 	}{
 		{name: "logger", value: deps.Logger},
 		{name: "database", value: deps.DB},
-		{name: "school repository", value: deps.SchoolRepo},
+		{name: "tenant directory", value: deps.SchoolRepo},
 		{name: "tenant runtime", value: deps.TenantRuntime},
 		{name: "settings", value: deps.Settings},
 		{name: "auth cleanup", value: deps.AuthCleanup},

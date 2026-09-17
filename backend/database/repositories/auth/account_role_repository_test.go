@@ -221,49 +221,6 @@ func TestAccountRoleRepository_DeleteByAccountAndRole(t *testing.T) {
 	})
 }
 
-// DeleteByAccountRoleAndTenant backs operator-led school access management
-// (#1021): revoking access at one school must never touch the same account's
-// role assignments at another school.
-func TestAccountRoleRepository_DeleteByAccountRoleAndTenant(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountRole
-	otherTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureTestTenant(t, db, otherTenantID)
-
-	t.Run("deletes only the assignment of the given school", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant")
-		role := testpkg.CreateTestRole(t, db, "DeleteTenantRole")
-
-		homeAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
-		require.NoError(t, repo.Create(testpkg.Ctx(t), homeAssignment))
-		otherAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: role.ID}
-		require.NoError(t, repo.Create(testpkg.TenantContext(otherTenantID), otherAssignment))
-
-		err := repo.DeleteByAccountRoleAndTenant(testpkg.Ctx(t), account.ID, role.ID, otherTenantID)
-		require.NoError(t, err)
-
-		// The other school's assignment is gone...
-		remainingOther, err := repo.FindByAccountIDForTenant(testpkg.Ctx(t), account.ID, otherTenantID)
-		require.NoError(t, err)
-		assert.Empty(t, remainingOther)
-
-		// ...while the home school keeps its own.
-		remainingHome, err := repo.FindByAccountIDForTenant(testpkg.Ctx(t), account.ID, testpkg.Tenant(t))
-		require.NoError(t, err)
-		assert.Len(t, remainingHome, 1)
-	})
-
-	t.Run("does not error when nothing matches", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "delete_ar_tenant_none")
-
-		err := repo.DeleteByAccountRoleAndTenant(testpkg.Ctx(t), account.ID, 999999, otherTenantID)
-		require.NoError(t, err)
-	})
-}
-
 func TestAccountRoleRepository_DeleteByAccountID(t *testing.T) {
 	t.Parallel()
 

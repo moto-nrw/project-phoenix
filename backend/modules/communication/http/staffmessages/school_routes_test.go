@@ -45,7 +45,8 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	tenantRouter := staffMessages.Router()
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
-	// The chat is off by default (#2598); the school switches it on.
+	// Pin the chat on explicitly so the test does not hang on the registry
+	// default (opt-out since #3254).
 	require.NoError(t, serviceFactory.Settings.SetValue(
 		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
 	))
@@ -154,11 +155,24 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, teacherAccount.ID, tenantID)
 
-	req := httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)
-	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, jwt.AppClaims{
+	claims := jwt.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
-	})
+	}
+
+	// Without an override the registry default applies: the chat is on
+	// (opt-out since #3254).
+	req := httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)
+	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	// The school switches it off.
+	require.NoError(t, serviceFactory.Settings.SetValue(
+		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, false, nil, nil,
+	))
+
+	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)
+	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	// Same stable code as the tenant portal, so the school page can render the
 	// off-state instead of a technical error.
 	require.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())

@@ -3,7 +3,7 @@ package common
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 )
 
 // IsUnlinkedStaffIdentity distinguishes missing staff linkage from lookup failures.

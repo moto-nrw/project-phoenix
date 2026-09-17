@@ -10,9 +10,10 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -38,9 +39,9 @@ type ActiveTestModule struct {
 	Schulhof             activeTestYard
 	PickupSchedule       schedule.PickupScheduleService
 	ArrivalSchedule      schedule.ArrivalScheduleService
-	TimetableOperations  schedule.TimetableOperationsService
+	TimetableOperations  timetableplanning.TimetableOperationsService
 	CareDay              schedule.CareDayService
-	Instance             schedule.InstanceService
+	Instance             timetableplanning.InstanceService
 	SupervisionDashboard supervisiondashboard.Query
 	// SessionEnd is the kiosk session end workflow over the real owners.
 	SessionEnd       sessionend.Command
@@ -109,7 +110,7 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		return ActiveTestModule{}, err
 	}
 	schedule.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := schedule.NewTimetableBridgeService(schedule.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
+	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay})
 	students, err := repositories.NewPeopleDirectory(db)
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -132,18 +133,17 @@ func NewActiveTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() ti
 		StudentRepo: PresenceStudents(r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup), ActivityCatRepo: NewAttendanceActivityCategories(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db, Broadcaster: hub, WorkSessionService: work.WorkSession,
-		AttendanceSyncer:         schedule.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
+		AttendanceSyncer:         timetableplanning.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: optionalClock(clocks),
 	}
-	presence := active.NewService(presenceDeps)
-	presence.SetSettingsService(PresenceSettings(settings.Settings))
+	presence := active.NewService(presenceDeps, active.WithSettings(PresenceSettings(settings.Settings)))
 	groups.Active = presence
 	groups.Users = data.Users
 	yard := facilities.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(facilitiesGroupSupervisions(newStudentPresence(db, logger)), facilitiesRoomSessions(newStudentPresence(db, logger)), facilitiesGroupVisits(newStudentPresence(db, logger))), logger)
 	autoExcusal := schedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, pickup, r.InstanceStudent, db)
 	pickups := schedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote, r.Student, r.Person, autoExcusal, pickup, db, logger)
 	arrivals := schedule.NewArrivalScheduleServiceWithBaselines(r.StudentArrivalSchedule, r.StudentArrivalException, r.StudentArrivalNote, r.Student, r.Person, arrival, r.ClassArrivalTime, db, logger, schedule.WithClassArrivalExceptions(r.ClassArrivalException))
-	operations := schedule.NewTimetableOperationsService(schedule.TimetableOperationsDependencies{
+	operations := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
 		InstanceRepo: r.ActivityInstance, InstanceStaffRepo: r.InstanceStaff, InstanceStudents: r.InstanceStudent, InstanceService: tt.Instance,
 		ActiveGroupRepo: r.ActiveGroup, ActivityGroupRepo: r.ActivityGroup, ActiveService: presence,
 		ArrivalService: arrivals, PickupService: pickups, CareDayService: careDay, SupervisorRepo: r.GroupSupervisor, Presence: newStudentPresence(db, logger),

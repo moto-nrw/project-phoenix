@@ -20,11 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -186,25 +184,22 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 	}
 	testpkg.CreateTestOrganization(t, db, org)
 
-	targetSchool := &platformModels.School{
-		Model:          baseModel.Model{ID: now + 100},
-		OrganizationID: org.ID,
-		Name:           "Target Public Phase School",
-		Slug:           fmt.Sprintf("target-public-phase-school-%d", now),
-		Subdomain:      fmt.Sprintf("target-public-phase-school-%d", now),
-		Active:         true,
+	targetSchool := publicPhaseSchool{
+		ID:   now + 100,
+		Slug: fmt.Sprintf("target-public-phase-school-%d", now),
 	}
-	otherSchool := &platformModels.School{
-		Model:          baseModel.Model{ID: now + 200},
-		OrganizationID: org.ID,
-		Name:           "Other Public Phase School",
-		Slug:           fmt.Sprintf("other-public-phase-school-%d", now),
-		Subdomain:      fmt.Sprintf("other-public-phase-school-%d", now),
-		Active:         true,
+	otherSchool := publicPhaseSchool{
+		ID:   now + 200,
+		Slug: fmt.Sprintf("other-public-phase-school-%d", now),
 	}
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	require.NoError(t, schoolRepo.Create(ctx, targetSchool))
-	require.NoError(t, schoolRepo.Create(ctx, otherSchool))
+	for _, school := range []struct {
+		publicPhaseSchool
+		name string
+	}{{targetSchool, "Target Public Phase School"}, {otherSchool, "Other Public Phase School"}} {
+		_, err := db.NewRaw(`INSERT INTO platform.schools (id, organization_id, name, slug, subdomain, active) VALUES (?, ?, ?, ?, ?, true)`,
+			school.ID, org.ID, school.name, school.Slug, school.Slug).Exec(ctx)
+		require.NoError(t, err)
+	}
 	t.Cleanup(func() {
 		_, _ = db.NewRaw(`DELETE FROM enrollment.phases WHERE tenant_id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
 		_, _ = db.NewRaw(`DELETE FROM platform.schools WHERE id IN (?, ?)`, targetSchool.ID, otherSchool.ID).Exec(context.Background())
@@ -222,7 +217,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 	}))
 
 	rs := &Resource{
-		SchoolService: platformSvc.NewSchoolService(schoolRepo),
+		SchoolService: dbPublicSchools{db: db},
 		PhaseService: enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
 			Owner: enrollmentCompose.New(),
 		}),
@@ -372,6 +367,28 @@ func TestCreatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+// The service wraps the Postgres unique-violation text into the sentinel. The
+// response must carry the stable code and drop the SQL detail (#3263).
+func TestCreatePhaseHandler_DuplicateNameCarriesCodeWithoutSQLDetail(t *testing.T) {
+	t.Parallel()
+
+	wrapped := fmt.Errorf("%w: %v", enrollmentService.ErrPhaseDuplicateName,
+		errors.New(`ERROR: duplicate key value violates unique constraint "enrollment_phases_unique_name" (SQLSTATE 23505)`))
+	mock := &mockPhaseService{createErr: wrapped}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body struct {
+		Code  string `json:"code"`
+		Error string `json:"error"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, ErrCodePhaseNameExists, body.Code)
+	assert.Equal(t, enrollmentService.ErrPhaseDuplicateName.Error(), body.Error)
+	assert.NotContains(t, body.Error, "SQLSTATE")
+}
+
 func TestCreatePhaseHandler_ServiceErrorReturns500(t *testing.T) {
 	t.Parallel()
 
@@ -501,6 +518,12 @@ func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, ErrCodePhaseCareOfferingConflict, body.Code)
 }
 
 func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
@@ -721,4 +744,27 @@ func TestCreatePhaseHandler_BadCalendarPeriodIDReturns400(t *testing.T) {
 	body["calendar_period_id"] = "not-a-number"
 	w := executePhaseJSON(t, router, http.MethodPost, "/enrollment/phases", body)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+type publicPhaseSchool struct {
+	ID   int64
+	Slug string
+}
+
+// dbPublicSchools resolves a public enrollment slug straight from the seeded
+// platform.schools rows.
+type dbPublicSchools struct{ db *bun.DB }
+
+func (d dbPublicSchools) GetSchoolBySlug(ctx context.Context, slug string) (*PublicSchool, error) {
+	var ids []int64
+	err := d.db.NewSelect().
+		TableExpr(`platform.schools AS "school"`).
+		Column("school.id").
+		Where(`"school".slug = ?`, slug).
+		Where(`"school".deleted_at IS NULL`).
+		Scan(ctx, &ids)
+	if err != nil || len(ids) == 0 {
+		return nil, err
+	}
+	return &PublicSchool{ID: ids[0]}, nil
 }

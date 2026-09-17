@@ -18,6 +18,7 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -67,7 +68,7 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 		GuardianProfileRepo: repoFactory.GuardianProfile,
 		StudentGuardianRepo: repoFactory.StudentGuardian,
 		StudentRepo:         repoFactory.Student,
-		SchoolRepo:          repoFactory.School,
+		SchoolRepo:          services.InvitationSchoolsForTests(repoFactory.School, testpkg.TenantRuntime(t, db)),
 		OutboxEnqueuer:      &stubOutboxEnqueuer{},
 		FrontendURL:         "http://localhost:3000",
 		FallbackExpiry:      48 * time.Hour,
@@ -77,8 +78,8 @@ func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.Guard
 	for _, m := range mutate {
 		m(&cfg)
 	}
-	service := authService.NewGuardianInvitationService(cfg)
-	testpkg.SetTenantRuntime(t, service, db)
+	service, err := services.NewGuardianInvitationServiceForTests(db, testpkg.TenantRuntime(t, db), cfg)
+	require.NoError(t, err)
 
 	cleanup := func() {
 	}
@@ -645,7 +646,7 @@ func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.Enro
 		RoleRepo:             repoFactory.Role,
 		PersonRepo:           repoFactory.Person,
 		GuardianProfileRepo:  repoFactory.GuardianProfile,
-		SchoolRepo:           repoFactory.School,
+		SchoolRepo:           services.InvitationSchoolsForTests(repoFactory.School, testpkg.TenantRuntime(t, db)),
 		EnrollmentBackfiller: backfiller,
 		OutboxEnqueuer:       &stubOutboxEnqueuer{},
 		FrontendURL:          "http://localhost:3000",

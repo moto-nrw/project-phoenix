@@ -368,14 +368,6 @@ func (r *AccountRepository) FindByUsername(ctx context.Context, username string)
 	return account, nil
 }
 
-// UpdateLastLogin updates the last login timestamp for an account
-func (r *AccountRepository) UpdateLastLogin(ctx context.Context, id int64) error {
-	now := time.Now()
-	account := &auth.Account{Model: modelBase.Model{ID: id}, LastLogin: &now}
-	_, err := r.UpdateColumns(ctx, account, "last_login")
-	return err
-}
-
 // UpdatePassword updates the password hash for an account and resets the
 // OTP flag (a permanent password replaces any one-time password).
 func (r *AccountRepository) UpdatePassword(ctx context.Context, id int64, passwordHash string) error {
@@ -441,67 +433,6 @@ func (r *AccountRepository) ResetMFAAttempts(ctx context.Context, id int64) erro
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "reset mfa attempts",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return nil
-}
-
-// IncrementPINAttempts atomically bumps pin_attempts by one and sets the lock
-// deadline from the application clock when the post-increment count is >=
-// threshold. Returns the post-update counter and lock timestamp so the caller
-// can detect the lockout transition (exact threshold equality means *this*
-// call crossed the line).
-//
-// This replaces the old model-level Account.IncrementPINAttempts() +
-// accountRepo.Update() read-modify-write, which was racy: two concurrent
-// failed PIN entries both read pin_attempts=N and both wrote N+1, advancing
-// the counter by only 1 and letting an attacker double their attempt budget.
-// A single SQL statement removes the race (issue #586, mirrors the MFA fix).
-func (r *AccountRepository) IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (auth.PINAttemptResult, error) {
-	type incrementRow struct {
-		PINAttempts    int        `bun:"pin_attempts"`
-		PINLockedUntil *time.Time `bun:"pin_locked_until"`
-	}
-	row := new(incrementRow)
-	lockedUntil := time.Now().Add(lockoutDuration)
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("pin_attempts = pin_attempts + 1").
-		Set(
-			"pin_locked_until = CASE WHEN pin_attempts + 1 >= ? THEN ? ELSE pin_locked_until END",
-			threshold, lockedUntil,
-		).
-		Where(whereID, id).
-		Returning("pin_attempts, pin_locked_until").
-		Exec(ctx, row)
-	if err != nil {
-		return auth.PINAttemptResult{}, &modelBase.DatabaseError{
-			Op:  "increment pin attempts",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return auth.PINAttemptResult{
-		Attempts:    row.PINAttempts,
-		LockedUntil: row.PINLockedUntil,
-	}, nil
-}
-
-// ResetPINAttempts atomically clears pin_attempts and pin_locked_until after a
-// successful PIN verify so a stale in-memory Account.Update can't re-set a
-// concurrent racer's incremented counter.
-func (r *AccountRepository) ResetPINAttempts(ctx context.Context, id int64) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.Account)(nil)).
-		ModelTableExpr(accountTable).
-		Set("pin_attempts = 0").
-		Set("pin_locked_until = NULL").
-		Where(whereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "reset pin attempts",
 			Err: base.TranslateNotFound(err),
 		}
 	}

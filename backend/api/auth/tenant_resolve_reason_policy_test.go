@@ -16,9 +16,7 @@ import (
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -49,8 +47,7 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	scope, slug := newTenantResolveScope(t, db)
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, configModel.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
@@ -85,8 +82,7 @@ func TestTenantResolveReasonPolicyUnknownValueFallsBackToBoth(t *testing.T) {
 		configRepo.NewSettingValueRepository(testpkg.ConfigRuntime(db)).Upsert(scope.Context(), stored),
 		"store an unknown parent_request_reason_policy override")
 
-	schoolRepo := platformRepo.NewSchoolRepository(db)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, platformSvc.NewSchoolService(schoolRepo), db)
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, authRoute.SchoolService, authRoute.Sessions, db)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.Equal(t, configModel.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource))

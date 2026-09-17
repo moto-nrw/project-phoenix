@@ -154,6 +154,50 @@ describe("GET /api/rooms/[id]", () => {
 
     expect(response.status).toBe(404);
   });
+
+  // The room form renders "Offener Raum" from this field. Dropping it made a
+  // released Schulhof look unreleased in the form (#3276).
+  it("keeps the release and system flags (wrapped response)", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        id: 54,
+        name: "Schulhof",
+        is_occupied: false,
+        is_system: true,
+        is_open_room: true,
+      },
+    });
+
+    const request = createMockRequest("/api/rooms/54");
+    const response = await GET(request, createMockContext({ id: "54" }));
+
+    const json =
+      await parseJsonResponse<
+        ApiResponse<{ is_system: boolean; is_open_room: boolean }>
+      >(response);
+    expect(json.data.is_system).toBe(true);
+    expect(json.data.is_open_room).toBe(true);
+  });
+
+  it("keeps the release and system flags (direct response)", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      id: 54,
+      name: "Schulhof",
+      is_occupied: false,
+      is_system: true,
+      is_open_room: false,
+    });
+
+    const request = createMockRequest("/api/rooms/54");
+    const response = await GET(request, createMockContext({ id: "54" }));
+
+    const json =
+      await parseJsonResponse<
+        ApiResponse<{ is_system: boolean; is_open_room: boolean }>
+      >(response);
+    expect(json.data.is_system).toBe(true);
+    expect(json.data.is_open_room).toBe(false);
+  });
 });
 
 describe("PUT /api/rooms/[id]", () => {
@@ -236,6 +280,61 @@ describe("PUT /api/rooms/[id]", () => {
       }),
     );
     expect(response.status).toBe(200);
+  });
+
+  // Regression for #3276: unticking "Offener Raum" sends is_open_room=false.
+  // The proxy used to rebuild the body without it, so the backend kept the
+  // standing release and the revocation was a silent no-op.
+  it("forwards a release revocation (is_open_room=false)", async () => {
+    mockApiPut.mockResolvedValueOnce({
+      id: 54,
+      name: "Schulhof",
+      is_open_room: false,
+    });
+
+    const request = createMockRequest("/api/rooms/54", {
+      method: "PUT",
+      body: { name: "Schulhof", is_open_room: false },
+    });
+    const response = await PUT(request, createMockContext({ id: "54" }));
+
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/api/rooms/54",
+      "test-token",
+      expect.objectContaining({ is_open_room: false }),
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it("forwards a release (is_open_room=true)", async () => {
+    mockApiPut.mockResolvedValueOnce({ id: 7, name: "Turnhalle" });
+
+    const request = createMockRequest("/api/rooms/7", {
+      method: "PUT",
+      body: { name: "Turnhalle", is_open_room: true },
+    });
+    await PUT(request, createMockContext({ id: "7" }));
+
+    expect(mockApiPut).toHaveBeenCalledWith(
+      "/api/rooms/7",
+      "test-token",
+      expect.objectContaining({ is_open_room: true }),
+    );
+  });
+
+  // An unrelated edit (for example the colour) must not touch the release:
+  // the backend treats an omitted field as "leave it as it is".
+  it("omits is_open_room when the client did not send it", async () => {
+    mockApiPut.mockResolvedValueOnce({ id: 54, name: "Schulhof" });
+
+    const request = createMockRequest("/api/rooms/54", {
+      method: "PUT",
+      body: { name: "Schulhof", color: "#76BB40" },
+    });
+    await PUT(request, createMockContext({ id: "54" }));
+
+    const forwarded = mockApiPut.mock.calls[0]?.[2] as Record<string, unknown>;
+    expect(forwarded).not.toHaveProperty("is_open_room");
   });
 });
 

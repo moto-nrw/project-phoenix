@@ -67,6 +67,7 @@ type Store interface {
 	RestoreVisits(context.Context, []int64) (Stats, error)
 	LockOpenSupervisors(context.Context, int64) (Stats, error)
 	LockSupervisors(context.Context, []int64) (Stats, error)
+	LockGroupSupervisions(context.Context) (Stats, error)
 	RestoreGroup(context.Context, int64, time.Time) (Stats, error)
 	RestoreSupervisors(context.Context, []int64) (Stats, error)
 }

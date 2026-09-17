@@ -9,8 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/stretchr/testify/assert"
 )
 

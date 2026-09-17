@@ -12,8 +12,9 @@ import (
 // machine, the Team-Chat screen looks broken to anyone reviewing it, and
 // TestSeedCoverageRatchet fails the build for the unlisted empty tables.
 //
-// The feature defaults OFF, so the step switches it on for the seeded school
-// first — otherwise every send below would 403.
+// The Team-Chat is on by default (opt-out since #3254), so the step relies on
+// the registry default instead of writing an override. If that default ever
+// flips back, every send below fails with 403 and the seeder stops loudly.
 type seedStaffMessagingStep struct{}
 
 func (seedStaffMessagingStep) Name() string { return "Seeding staff messages" }
@@ -34,16 +35,10 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 		return fmt.Errorf("staff messages require at least three staff accounts, got %d", len(staff))
 	}
 
-	// The Team-Chat is opt-in (operations.staff_messaging_enabled, default off).
-	// Turn it on with admin auth before writing anything.
+	// The first recipient lookup runs before any staff login, so it uses the
+	// admin session; the deferred bind hands that session back to later steps.
 	rt.Client.BindAuth(rt.TenantAuth)
 	defer rt.Client.BindAuth(rt.TenantAuth)
-	if _, err := rt.Client.Put(
-		"/api/settings/values/operations.staff_messaging_enabled",
-		map[string]any{"value": true},
-	); err != nil {
-		return fmt.Errorf("enable Team-Chat: %w", err)
-	}
 
 	// Two conversations, each opened by a different person, so the demo data
 	// shows both an unread and an already-answered thread.

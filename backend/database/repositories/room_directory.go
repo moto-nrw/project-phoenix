@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -56,9 +56,15 @@ func (f *Factory) registerFacilitiesRoomBinder() {
 }
 
 func (f *Factory) registerActiveRoomBinders() {
-	if repo, ok := f.ActiveGroup.(*activeRepo.GroupRepository); ok {
+	if repo, ok := f.ActiveGroup.(*presenceCompose.LegacyGroupRepository); ok {
+		// The directory is installed at construction (#3214); the binder
+		// swaps the room owner behind it once Facilities is observed.
+		directory, ok := repo.RoomDirectory().(*activeRoomDirectory)
+		if !ok {
+			panic("repository factory: active group repository has no rebindable room directory")
+		}
 		f.roomBinders = append(f.roomBinders, func(rooms facilitiesModule.Query) {
-			repo.BindRoomDirectory(activeRoomDirectory{rooms})
+			directory.rooms = rooms
 		})
 	}
 }
@@ -92,16 +98,22 @@ func (f *Factory) bindRoomDirectories(rooms facilitiesModule.Query) {
 	}
 }
 
+// activeRoomDirectory adapts the room owner for the retained session
+// repository. It is a pointer so the room binders can swap the owner behind a
+// repository constructed earlier (#2665, #3214).
 type activeRoomDirectory struct{ rooms facilitiesModule.Query }
 
-func (d activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]activeRepo.DirectoryRoom, error) {
+func (d *activeRoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]presenceCompose.LegacyDirectoryRoom, error) {
+	if d.rooms == nil {
+		return nil, fmt.Errorf("active room directory: no room owner bound")
+	}
 	rooms, err := d.rooms.ListRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]activeRepo.DirectoryRoom, 0, len(rooms))
+	result := make([]presenceCompose.LegacyDirectoryRoom, 0, len(rooms))
 	for _, room := range rooms {
-		result = append(result, activeRepo.DirectoryRoom{
+		result = append(result, presenceCompose.LegacyDirectoryRoom{
 			ID: room.ID, TenantID: room.TenantID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
 			Name: room.Name, Building: room.Building, Floor: room.Floor, Capacity: room.Capacity,
 			Category: room.Category, Color: room.Color, IsSystem: room.IsSystem,

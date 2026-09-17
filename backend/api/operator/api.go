@@ -9,8 +9,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -21,7 +23,7 @@ import (
 
 // Resource defines the operator API resource
 type Resource struct {
-	authResource            *AuthResource
+	identity                *identityoperator.Resource
 	passkeyService          platformSvc.OperatorPasskeyService
 	mfaResource             *MFAResource
 	provisioningResource    *ProvisioningResource
@@ -39,12 +41,16 @@ type Resource struct {
 
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
-	AppEnv                     string
-	AuthService                platformSvc.OperatorAuthService
+	AppEnv      string
+	AuthService platformSvc.OperatorAuthService
+	// Identity serves operator login, refresh, the profile and password
+	// changes and the school access of accounts from Identity & Access
+	// (#3252). Without it those routes are not mounted.
+	Identity                   *identityoperator.Resource
 	PasskeyService             platformSvc.OperatorPasskeyService
 	MFAService                 platformSvc.OperatorMFAService
 	InvitationService          platformSvc.OperatorInvitationService
-	ProvisioningService        platformSvc.OperatorProvisioningService
+	ProvisioningService        organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	AnnouncementsService       communication.Capability
 	UnregisteredTagScanService auditSvc.UnregisteredTagScanService
@@ -56,7 +62,7 @@ type ResourceConfig struct {
 	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
-	SchoolService platformSvc.SchoolService
+	SchoolService SchoolLookup
 	ActiveService activeSvc.Service
 	CareLifecycle usersSvc.CareLifecycleService
 	// TenantMFAService is the tenant-side MFA service (auth package).
@@ -111,7 +117,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 
 	resource := &Resource{
-		authResource:          NewAuthResource(cfg.AuthService),
+		identity:              cfg.Identity,
 		passkeyService:        cfg.PasskeyService,
 		mfaResource:           NewMFAResource(cfg.AuthService, cfg.MFAService, tokenAuth),
 		provisioningResource:  NewProvisioningResource(cfg.ProvisioningService),
@@ -165,7 +171,9 @@ func (rs *Resource) mountPublicAuthRoutes(r chi.Router) {
 			if rs.authRateLimiter != nil {
 				r.Use(rs.authRateLimiter)
 			}
-			r.Post("/login", rs.authResource.Login)
+			if rs.identity != nil {
+				r.Post("/login", rs.identity.Login)
+			}
 
 			// MFA challenge → token-pair exchange (issue #1308). Mirror of
 			// the tenant-side endpoints — they take the short-lived
@@ -195,7 +203,9 @@ func (rs *Resource) mountRefreshRoute(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.tokenAuth.Verifier())
 		r.Use(jwt.AuthenticateRefreshJWT)
-		r.Post("/auth/refresh", rs.authResource.RefreshToken)
+		if rs.identity != nil {
+			r.Post("/auth/refresh", rs.identity.RefreshToken)
+		}
 	})
 }
 
@@ -363,23 +373,28 @@ func (rs *Resource) mountAccountMFARoutes(r chi.Router) {
 // single account (issue #1021). Keyed by account, not by school, because the
 // whole point is to see and change every school one account can reach.
 func (rs *Resource) mountAccountTenantAccessRoutes(r chi.Router) {
+	if rs.identity == nil {
+		return
+	}
 	// Chi treats collection paths with and without a trailing slash as distinct
 	// routes. The operator client deliberately uses the canonical no-slash form.
-	r.Get("/accounts/{accountId}/tenants", rs.provisioningResource.ListAccountTenantAccess)
-	r.Get("/accounts/{accountId}/tenants/", rs.provisioningResource.ListAccountTenantAccess)
-	r.Post("/accounts/{accountId}/tenants", rs.provisioningResource.GrantAccountTenantAccess)
-	r.Post("/accounts/{accountId}/tenants/", rs.provisioningResource.GrantAccountTenantAccess)
-	r.Get("/accounts/{accountId}/tenants/{tenantId}/roles", rs.provisioningResource.ListAssignableSchoolRoles)
-	r.Put("/accounts/{accountId}/tenants/{tenantId}", rs.provisioningResource.UpdateAccountTenantRole)
-	r.Delete("/accounts/{accountId}/tenants/{tenantId}", rs.provisioningResource.RevokeAccountTenantAccess)
+	r.Get("/accounts/{accountId}/tenants", rs.identity.ListAccountTenantAccess)
+	r.Get("/accounts/{accountId}/tenants/", rs.identity.ListAccountTenantAccess)
+	r.Post("/accounts/{accountId}/tenants", rs.identity.GrantAccountTenantAccess)
+	r.Post("/accounts/{accountId}/tenants/", rs.identity.GrantAccountTenantAccess)
+	r.Get("/accounts/{accountId}/tenants/{tenantId}/roles", rs.identity.ListAssignableSchoolRoles)
+	r.Put("/accounts/{accountId}/tenants/{tenantId}", rs.identity.UpdateAccountTenantRole)
+	r.Delete("/accounts/{accountId}/tenants/{tenantId}", rs.identity.RevokeAccountTenantAccess)
 }
 
 // mountProfileRoutes registers operator profile management.
 func (rs *Resource) mountProfileRoutes(r chi.Router) {
 	r.Route("/profile", func(r chi.Router) {
 		r.Get("/", rs.profileResource.GetProfile)
-		r.Put("/", rs.profileResource.UpdateProfile)
-		r.Post("/password", rs.profileResource.ChangePassword)
+		if rs.identity != nil {
+			r.Put("/", rs.identity.UpdateProfile)
+			r.Post("/password", rs.identity.ChangePassword)
+		}
 		r.Post("/email-change", rs.profileResource.InitiateEmailChange)
 	})
 }

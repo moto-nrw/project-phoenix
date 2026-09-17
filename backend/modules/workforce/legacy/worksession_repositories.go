@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -1136,6 +1136,7 @@ func quotaToCapability(entity *activeModels.StaffVacationQuota) workforce.StaffV
 	return workforce.StaffVacationQuota{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, Year: entity.Year,
 		EntitledDays: entity.EntitledDays, CarryoverDays: entity.CarryoverDays, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt,
+		ChangeReason: entity.ChangeReason, ChangedBy: entity.ChangedBy,
 	}
 }
 

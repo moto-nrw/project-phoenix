@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
@@ -311,13 +312,13 @@ func (f *Factory) NewStaffMembershipRuntime(db *bun.DB, logger *slog.Logger, hoo
 		},
 
 		PINStatus: func(ctx context.Context, accountID int64) (bool, *time.Time, error) {
-			return authSvc.StaffPINStatus(ctx, f.Auth, accountID)
+			return f.AccountAuthentication().StaffPINStatus(ctx, accountID)
 		},
 		PINPreflight: func(ctx context.Context, accountID int64) error {
-			return authSvc.StaffPINPreflight(ctx, f.Auth, accountID)
+			return f.AccountAuthentication().StaffPINPreflight(ctx, accountID)
 		},
 		UpdatePIN: func(ctx context.Context, accountID int64, currentPIN *string, newPIN string) error {
-			return authSvc.ChangeStaffPIN(ctx, f.Auth, db, logger, accountID, currentPIN, newPIN)
+			return f.AccountAuthentication().ChangeStaffPIN(ctx, accountID, currentPIN, newPIN)
 		},
 	}
 }
@@ -371,13 +372,13 @@ func ClassifyStaffSchoolClassFailure(err error) (StaffFailureKind, error) {
 // request, wrong current PIN -> unauthorized, else internal.
 func ClassifyStaffPINFailure(err error) (StaffFailureKind, error) {
 	switch {
-	case errors.Is(err, authSvc.ErrStaffPINAccountNotFound):
+	case errors.Is(err, identityaccess.ErrStaffPINAccountNotFound):
 		return StaffFailureNotFound, err
-	case errors.Is(err, authSvc.ErrStaffPINSelfServiceLocked):
+	case errors.Is(err, identityaccess.ErrStaffPINSelfServiceLocked):
 		return StaffFailureForbidden, err
-	case errors.Is(err, authSvc.ErrStaffPINCurrentRequired):
+	case errors.Is(err, identityaccess.ErrStaffPINCurrentRequired):
 		return StaffFailureInvalidRequest, err
-	case errors.Is(err, authSvc.ErrStaffPINCurrentWrong):
+	case errors.Is(err, identityaccess.ErrStaffPINCurrentWrong):
 		return StaffFailureUnauthorized, err
 	default:
 		return StaffFailureInternal, err

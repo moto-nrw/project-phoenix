@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type timeTrackingAuditReader struct {
@@ -14,7 +14,7 @@ type timeTrackingAuditReader struct {
 }
 
 // NewTimeTrackingAuditReader adapts the audit-owned merged query for its consumer.
-func NewTimeTrackingAuditReader(records audit.TimeTrackingAuditLogRepository) active.TimeTrackingAuditReader {
+func NewTimeTrackingAuditReader(records audit.TimeTrackingAuditLogRepository) timetracking.TimeTrackingAuditReader {
 	return timeTrackingAuditReader{records: records}
 }
 
@@ -22,7 +22,7 @@ func (r timeTrackingAuditReader) ValidSources() []string {
 	return slices.Clone(audit.ValidAuditLogSources)
 }
 
-func (r timeTrackingAuditReader) ListEntries(ctx context.Context, filter active.TimeTrackingAuditFilter) ([]*active.TimeTrackingAuditEntry, error) {
+func (r timeTrackingAuditReader) ListEntries(ctx context.Context, filter timetracking.TimeTrackingAuditFilter) ([]*timetracking.TimeTrackingAuditEntry, error) {
 	query := audit.TimeTrackingAuditLogFilter{
 		From: auditFeedDate(filter.From), To: auditFeedDate(filter.To), StaffID: filter.StaffID,
 		ActorStaffID: filter.ActorStaffID, Sources: filter.Sources, Limit: filter.Limit,
@@ -34,12 +34,12 @@ func (r timeTrackingAuditReader) ListEntries(ctx context.Context, filter active.
 	if rows == nil {
 		return nil, err
 	}
-	result := make([]*active.TimeTrackingAuditEntry, len(rows))
+	result := make([]*timetracking.TimeTrackingAuditEntry, len(rows))
 	for i, row := range rows {
 		if row == nil {
 			continue
 		}
-		result[i] = &active.TimeTrackingAuditEntry{
+		result[i] = &timetracking.TimeTrackingAuditEntry{
 			OccurredAt: row.OccurredAt, Source: row.Source, EntryID: row.EntryID,
 			StaffID: row.StaffID, ActorStaffID: row.ActorStaffID, ActorIsSystem: row.ActorIsSystem,
 			Reason: row.Reason, Detail: row.Detail,

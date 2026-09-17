@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -191,10 +191,6 @@ func (noopAccountRepository) List(context.Context, map[string]interface{}) ([]*a
 	panic("List not implemented")
 }
 
-func (noopAccountRepository) UpdateLastLogin(context.Context, int64) error {
-	panic("UpdateLastLogin not implemented")
-}
-
 func (noopAccountRepository) UpdatePassword(context.Context, int64, string) error {
 	panic("UpdatePassword not implemented")
 }
@@ -229,14 +225,6 @@ func (noopAccountRepository) IncrementMFAAttempts(context.Context, int64, int, t
 
 func (noopAccountRepository) ResetMFAAttempts(context.Context, int64) error {
 	panic("ResetMFAAttempts not implemented")
-}
-
-func (noopAccountRepository) IncrementPINAttempts(context.Context, int64, int, time.Duration) (authModel.PINAttemptResult, error) {
-	panic("IncrementPINAttempts not implemented")
-}
-
-func (noopAccountRepository) ResetPINAttempts(context.Context, int64) error {
-	panic("ResetPINAttempts not implemented")
 }
 
 func (noopAccountRepository) ClearPIN(context.Context, int64) error {
@@ -393,14 +381,6 @@ func (r *stubAccountRepository) IncrementMFAAttempts(_ context.Context, _ int64,
 
 func (r *stubAccountRepository) ResetMFAAttempts(_ context.Context, _ int64) error {
 	panic("ResetMFAAttempts not implemented in stubAccountRepository")
-}
-
-func (r *stubAccountRepository) IncrementPINAttempts(_ context.Context, _ int64, _ int, _ time.Duration) (authModel.PINAttemptResult, error) {
-	panic("IncrementPINAttempts not implemented in stubAccountRepository")
-}
-
-func (r *stubAccountRepository) ResetPINAttempts(_ context.Context, _ int64) error {
-	panic("ResetPINAttempts not implemented in stubAccountRepository")
 }
 
 func (r *stubAccountRepository) ClearPIN(_ context.Context, _ int64) error {
@@ -903,14 +883,6 @@ func (noopAccountRoleRepository) FindByAccountID(context.Context, int64) ([]*aut
 	panic("FindByAccountID not implemented")
 }
 
-func (noopAccountRoleRepository) FindByAccountIDForTenant(context.Context, int64, int64) ([]*authModel.AccountRole, error) {
-	panic("FindByAccountIDForTenant not implemented")
-}
-
-func (noopAccountRoleRepository) FindByAccountIDForTenantForShare(context.Context, int64, int64) ([]*authModel.AccountRole, error) {
-	panic("FindByAccountIDForTenantForShare not implemented")
-}
-
 func (noopAccountRoleRepository) FindByRoleID(context.Context, int64) ([]*authModel.AccountRole, error) {
 	panic("FindByRoleID not implemented")
 }
@@ -921,10 +893,6 @@ func (noopAccountRoleRepository) FindByAccountAndRole(context.Context, int64, in
 
 func (noopAccountRoleRepository) DeleteByAccountAndRole(context.Context, int64, int64) error {
 	panic("DeleteByAccountAndRole not implemented")
-}
-
-func (noopAccountRoleRepository) DeleteByAccountRoleAndTenant(context.Context, int64, int64, int64) error {
-	panic("DeleteByAccountRoleAndTenant not implemented")
 }
 
 func (noopAccountRoleRepository) DeleteByAccountID(context.Context, int64) error {
@@ -970,12 +938,16 @@ func (r *stubAccountRoleRepository) FindByAccountAndRole(_ context.Context, acco
 	return nil, sql.ErrNoRows
 }
 
-func (r *stubAccountRoleRepository) FindByAccountIDForTenant(_ context.Context, accountID, tenantID int64) ([]*authModel.AccountRole, error) {
+// FindByAccountID returns the account's assignments at the school the
+// context carries, like the repository's tenant filter. findByTenantErr
+// simulates a failing lookup.
+func (r *stubAccountRoleRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*authModel.AccountRole, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.findByTenantErr != nil {
 		return nil, r.findByTenantErr
 	}
+	tenantID := tenant.FromContext(ctx)
 	var roles []*authModel.AccountRole
 	for _, assignment := range r.assignments {
 		if assignment.AccountID == accountID && assignment.TenantID == tenantID {
@@ -983,12 +955,6 @@ func (r *stubAccountRoleRepository) FindByAccountIDForTenant(_ context.Context, 
 		}
 	}
 	return roles, nil
-}
-
-// FindByAccountIDForTenantForShare mirrors the unlocked variant — the stub has
-// no transactions, so the FOR SHARE lock has nothing to model here.
-func (r *stubAccountRoleRepository) FindByAccountIDForTenantForShare(ctx context.Context, accountID, tenantID int64) ([]*authModel.AccountRole, error) {
-	return r.FindByAccountIDForTenant(ctx, accountID, tenantID)
 }
 
 func (r *stubAccountRoleRepository) Assignments() []*authModel.AccountRole {
@@ -1160,121 +1126,6 @@ func (r *stubPersonRepository) FindByID(_ context.Context, id interface{}) (*use
 	return nil, sql.ErrNoRows
 }
 
-// noopTokenRepository provides default panic implementations.
-type noopTokenRepository struct{}
-
-func (noopTokenRepository) Create(context.Context, *authModel.Token) error {
-	panic("Create not implemented")
-}
-
-func (noopTokenRepository) FindByID(context.Context, interface{}) (*authModel.Token, error) {
-	panic("FindByID not implemented")
-}
-
-func (noopTokenRepository) Update(context.Context, *authModel.Token) error {
-	panic("Update not implemented")
-}
-
-func (noopTokenRepository) Delete(context.Context, interface{}) error {
-	panic("Delete not implemented")
-}
-
-func (noopTokenRepository) List(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
-	panic("List not implemented")
-}
-
-func (noopTokenRepository) FindByToken(context.Context, string) (*authModel.Token, error) {
-	panic("FindByToken not implemented")
-}
-
-func (noopTokenRepository) FindByTokenForUpdate(context.Context, string) (*authModel.Token, error) {
-	panic("FindByTokenForUpdate not implemented")
-}
-
-func (noopTokenRepository) MarkRotated(context.Context, int64, string, []byte, time.Time) error {
-	panic("MarkRotated not implemented")
-}
-
-func (noopTokenRepository) DeleteExpiredRotatedForAccount(context.Context, int64, time.Time) error {
-	panic("DeleteExpiredRotatedForAccount not implemented")
-}
-
-func (noopTokenRepository) FindByAccountID(context.Context, int64) ([]*authModel.Token, error) {
-	panic("FindByAccountID not implemented")
-}
-
-func (noopTokenRepository) FindByAccountIDAndIdentifier(context.Context, int64, string) (*authModel.Token, error) {
-	panic("FindByAccountIDAndIdentifier not implemented")
-}
-
-func (noopTokenRepository) CountExpiredTokens(context.Context) (int, error) {
-	panic("CountExpiredTokens not implemented")
-}
-
-func (noopTokenRepository) DeleteExpiredTokens(context.Context) (int, error) {
-	panic("DeleteExpiredTokens not implemented")
-}
-
-func (noopTokenRepository) ListInactiveAccountIDsWithLiveTokens(context.Context) ([]int64, error) {
-	panic("ListInactiveAccountIDsWithLiveTokens not implemented")
-}
-
-func (noopTokenRepository) HasLiveTokensCreatedAfter(context.Context, int64, time.Time) (bool, error) {
-	panic("HasLiveTokensCreatedAfter not implemented")
-}
-
-func (noopTokenRepository) DeleteByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
-	panic("DeleteByAccountIDReturning not implemented")
-}
-
-func (noopTokenRepository) DeleteAllByAccountIDReturning(context.Context, int64) ([]*authModel.Token, error) {
-	panic("DeleteAllByAccountIDReturning not implemented")
-}
-
-func (noopTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(context.Context, int64, time.Time) ([]*authModel.Token, error) {
-	panic("DeleteByAccountIDCreatedAtOrBeforeReturning not implemented")
-}
-
-func (noopTokenRepository) DeleteByAccountIDAndIdentifier(context.Context, int64, string) error {
-	panic("DeleteByAccountIDAndIdentifier not implemented")
-}
-
-func (noopTokenRepository) FindValidTokens(context.Context, map[string]interface{}) ([]*authModel.Token, error) {
-	panic("FindValidTokens not implemented")
-}
-
-func (noopTokenRepository) CleanupOldTokensForAccountReturning(context.Context, int64, string, int) ([]*authModel.Token, error) {
-	panic("CleanupOldTokensForAccountReturning not implemented")
-}
-
-func (noopTokenRepository) RetireFamily(context.Context, int64, string, time.Time) error {
-	panic("RetireFamily not implemented")
-}
-
-func (noopTokenRepository) DeleteByFamilyIDReturning(context.Context, string) ([]*authModel.Token, error) {
-	panic("DeleteByFamilyIDReturning not implemented")
-}
-
-func (noopTokenRepository) GetLatestTokenInFamily(context.Context, string) (*authModel.Token, error) {
-	panic("GetLatestTokenInFamily not implemented")
-}
-
-func (noopTokenRepository) DeleteByTenantIDReturning(context.Context, int64) ([]*authModel.Token, error) {
-	panic("DeleteByTenantIDReturning not implemented")
-}
-
-// stubTokenRepository tracks delete operations for verification.
-type stubTokenRepository struct {
-	noopTokenRepository
-
-	mu                sync.Mutex
-	deletedAccountIDs []int64
-}
-
-func newStubTokenRepository() *stubTokenRepository {
-	return &stubTokenRepository{}
-}
-
 type stubAccountTenantRepository struct {
 	mu       sync.Mutex
 	mappings map[int64]*authModel.AccountTenant
@@ -1315,19 +1166,6 @@ func (r *stubAccountTenantRepository) EnsureActive(_ context.Context, accountTen
 	}
 	accountTenant.Status = authModel.AccountTenantStatusActive
 	r.mappings[accountTenant.ID] = accountTenant
-	return nil
-}
-
-func (r *stubAccountTenantRepository) Deactivate(_ context.Context, accountID, tenantID int64) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	now := time.Now()
-	for _, mapping := range r.mappings {
-		if mapping.AccountID == accountID && mapping.TenantID == tenantID {
-			mapping.Status = authModel.AccountTenantStatusInactive
-			mapping.DeactivatedAt = &now
-		}
-	}
 	return nil
 }
 
@@ -1372,32 +1210,6 @@ func (r *stubAccountTenantRepository) ListAccountsByOrganizationID(context.Conte
 }
 func (r *stubAccountTenantRepository) ListAllAccounts(context.Context) ([]authModel.OrgAccountInfo, error) {
 	return nil, nil
-}
-func (r *stubAccountTenantRepository) ListTenantAccessByAccountID(context.Context, int64) ([]authModel.AccountTenantAccessInfo, error) {
-	return nil, nil
-}
-
-func (r *stubTokenRepository) DeleteByAccountIDReturning(_ context.Context, accountID int64) ([]*authModel.Token, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.deletedAccountIDs = append(r.deletedAccountIDs, accountID)
-	return nil, nil
-}
-
-func (r *stubTokenRepository) DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*authModel.Token, error) {
-	return r.DeleteByAccountIDReturning(ctx, accountID)
-}
-
-func (r *stubTokenRepository) DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, _ time.Time) ([]*authModel.Token, error) {
-	return r.DeleteByAccountIDReturning(ctx, accountID)
-}
-
-func (r *stubTokenRepository) DeletedAccountIDs() []int64 {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]int64, len(r.deletedAccountIDs))
-	copy(out, r.deletedAccountIDs)
-	return out
 }
 
 // newStubStaffRepository returns a testpkg.StaffRepoMock configured to behave
@@ -1487,13 +1299,6 @@ type stubStudentRepository struct {
 
 func newStubStudentRepository() *stubStudentRepository {
 	return &stubStudentRepository{studentPersonIDs: make(map[int64]bool)}
-}
-
-// markStudent makes the given person read as a child's record.
-func (r *stubStudentRepository) markStudent(personID int64) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	r.studentPersonIDs[personID] = true
 }
 
 // FindByPersonID mirrors the real repository, including how it reports a miss:
@@ -1605,43 +1410,52 @@ func (r *stubTeacherRepository) FindWithStaffAndPersonByIDs(context.Context, []i
 	panic("FindWithStaffAndPersonByIDs not implemented")
 }
 
-// newStubSchoolRepository returns a testpkg.SchoolRepoMock configured like the
-// former hand-rolled stubSchoolRepository: FindByID (and the ForShare/ForUpdate
-// variants) return an active school in organization 1, soft-deleted when its ID
-// is in deletedTenantIDs. Pass nil for no soft-deleted schools.
-func newStubSchoolRepository(deletedTenantIDs map[int64]bool) *testpkg.SchoolRepoMock {
-	findByID := func(_ context.Context, id int64) (*platformModel.School, error) {
-		school := &platformModel.School{
-			Model:          base.Model{ID: id},
-			Active:         true,
-			OrganizationID: 1,
-		}
-		if deletedTenantIDs[id] {
-			now := time.Now()
-			school.DeletedAt = &now
-		}
-		return school, nil
+// stubSchoolDirectory answers every school as active, soft-deleted when its
+// ID is in deleted. find, when set, replaces the plain lookup only; the
+// shared-lock lookup keeps the default answer.
+type stubSchoolDirectory struct {
+	deleted map[int64]bool
+	find    func(context.Context, int64) (*InvitationSchool, error)
+}
+
+// newStubSchoolDirectory returns a directory whose schools are soft-deleted
+// when their ID is in deletedTenantIDs. Pass nil for no soft-deleted schools.
+func newStubSchoolDirectory(deletedTenantIDs map[int64]bool) *stubSchoolDirectory {
+	return &stubSchoolDirectory{deleted: deletedTenantIDs}
+}
+
+func (s *stubSchoolDirectory) FindSchool(ctx context.Context, id int64) (*InvitationSchool, error) {
+	if s.find != nil {
+		return s.find(ctx, id)
 	}
-	return &testpkg.SchoolRepoMock{
-		CreateFn:   func(context.Context, *platformModel.School) error { return fmt.Errorf("not implemented") },
-		FindByIDFn: findByID,
-		FindByIDForShareFn: func(ctx context.Context, id int64) (*platformModel.School, error) {
-			return findByID(ctx, id)
-		},
-		FindByIDForUpdateFn: func(ctx context.Context, id int64) (*platformModel.School, error) {
-			return findByID(ctx, id)
-		},
-		FindBySlugFn: func(context.Context, string) (*platformModel.School, error) {
-			return nil, fmt.Errorf("not found")
-		},
-		FindByOrganizationAndSlugFn: func(context.Context, int64, string) (*platformModel.School, error) {
-			return nil, fmt.Errorf("not found")
-		},
-		FindBySubdomainFn: func(context.Context, string) (*platformModel.School, error) {
-			return nil, fmt.Errorf("not found")
-		},
-		UpdateFn: func(context.Context, *platformModel.School) error { return fmt.Errorf("not implemented") },
+	return &InvitationSchool{Deleted: s.deleted[id]}, nil
+}
+
+func (s *stubSchoolDirectory) FindSchoolForShare(_ context.Context, id int64) (*InvitationSchool, error) {
+	return &InvitationSchool{Deleted: s.deleted[id]}, nil
+}
+
+// persistenceSchools reads the seeded schools through the invitation
+// persistence's Organisation & Tenancy capability.
+type persistenceSchools struct {
+	repos   *repositories.InvitationPersistence
+	runtime tenant.UnitOfWork
+}
+
+func (s persistenceSchools) FindSchool(ctx context.Context, id int64) (*InvitationSchool, error) {
+	school, err := s.repos.School.FindSchool(tenant.WithUnitOfWork(ctx, s.runtime), id)
+	if err != nil {
+		return nil, err
 	}
+	return &InvitationSchool{Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted()}, nil
+}
+
+func (s persistenceSchools) FindSchoolForShare(ctx context.Context, id int64) (*InvitationSchool, error) {
+	school, err := s.repos.School.FindSchoolForShare(tenant.WithUnitOfWork(ctx, s.runtime), id)
+	if err != nil {
+		return nil, err
+	}
+	return &InvitationSchool{Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted()}, nil
 }
 
 // helper to build default email used in tests.
@@ -1667,39 +1481,5 @@ func (r *stubTeacherRepository) ListActiveCaregivers(context.Context) ([]*userMo
 }
 
 func (r *stubTeacherRepository) FindActiveCaregiverByAccountID(context.Context, int64) (*userModel.ActiveCaregiver, error) {
-	return nil, nil
-}
-
-// stubRFIDCardRepository holds the transponders that exist at the school, so the
-// identity provisioning can refuse one that does not (#2222).
-type stubRFIDCardRepository struct {
-	mu    sync.Mutex
-	cards map[string]bool
-}
-
-func newStubRFIDCardRepository(ids ...string) *stubRFIDCardRepository {
-	cards := make(map[string]bool, len(ids))
-	for _, id := range ids {
-		cards[id] = true
-	}
-	return &stubRFIDCardRepository{cards: cards}
-}
-
-// FindByID mirrors the real repository, which reports an unknown card as a clean
-// (nil, nil) rather than an error.
-func (r *stubRFIDCardRepository) FindByID(_ context.Context, id string) (*authModel.RFIDCard, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if !r.cards[id] {
-		return nil, nil
-	}
-	return &authModel.RFIDCard{StringIDModel: base.StringIDModel{ID: id}}, nil
-}
-
-func (r *stubRFIDCardRepository) Create(context.Context, *authModel.RFIDCard) error { return nil }
-func (r *stubRFIDCardRepository) Update(context.Context, *authModel.RFIDCard) error { return nil }
-func (r *stubRFIDCardRepository) Delete(context.Context, string) error              { return nil }
-func (r *stubRFIDCardRepository) Deactivate(context.Context, string) error          { return nil }
-func (r *stubRFIDCardRepository) List(context.Context, map[string]interface{}) ([]*authModel.RFIDCard, error) {
 	return nil, nil
 }

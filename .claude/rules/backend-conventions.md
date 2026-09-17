@@ -213,7 +213,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 ## 9. Auth Code Location — Audit Before Adding
 
-**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `services/auth/` (and `services/usercontext/`) — match the existing layering rather than creating a third home.**
+**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `services/auth/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
 
 `backend/auth/` is NOT legacy. It contains structured low-level utility packages:
 
@@ -226,7 +226,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 - New low-level primitive (hash, parse, verify)? → `backend/auth/{subdomain}/`
 - New business flow (login, invite, reset)? → `services/auth/`
-- New permission decision? → `services/usercontext/` or `backend/auth/authorize/policy/`
+- New permission decision? → `backend/auth/authorize/policy/` (`modules/identityaccess/legacy/usercontext/` is the retained user-context read side under #2725: do not extend it)
 - Handler needs to authorize? → call the service or middleware, never decide inline
 
 ---
@@ -291,10 +291,10 @@ The four violations this rule originally named were all extracted in issue #586 
 
 | Was in model | Now lives at |
 |---|---|
-| `Visit.EndVisit()` | `services/active/` (with logging, events, audit) |
+| `Visit.EndVisit()` | `modules/studentpresence/legacy/services/active/` (with logging, events, audit) |
 | `Device.IsOnline()` (hardcoded 5 min) | service + `iot.device_online_window_minutes` setting |
 | `Group` default duration (hardcoded 30 min) | settings registry |
-| `Account.HasPermission()` | `services/usercontext` / `backend/auth/authorize` |
+| `Account.HasPermission()` | `modules/identityaccess/legacy/usercontext` / `backend/auth/authorize` |
 
 Remaining known hits: `RFIDCard.Activate/Deactivate` (`models/users/rfid_card.go`) — don't copy that pattern.
 
@@ -349,7 +349,7 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 ```
 
 - **One counter.** `testpkg.QueryCounter` (`backend/test/query_counter.go`) is the only bun hook tests may define: `CaptureQueries(t, db)` attaches it to a DB, `NewQueryCounter()` feeds `db.WithQueryHook` for a private clone. It buckets by operation (`Operation("SELECT")`), table (`Selects("config.setting_values")`) or predicate (`Matching`). Tests that count own their database (`SetupIsolatedTestDB`) or a `WithQueryHook` clone before they run in parallel.
-- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`services/schedule/timetable_read_exception_conflicts.go` is the reference shape).
+- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`modules/timetable/legacy/timetableplanning/timetable_read_exception_conflicts.go` is the reference shape).
 - **Two CI halves.** `TestQueryBudgetRatchet` (source-level, runs in the no-database ratchet step) fails on register entries no test references, scenario names no entry defines, and any `_test.go` file defining its own `BeforeQuery` hook. The budget tests themselves run with the full backend suite.
 
 ---

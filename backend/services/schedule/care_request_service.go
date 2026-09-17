@@ -31,10 +31,10 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -85,6 +85,10 @@ func pickupTermsFromPayload(payload map[string]any) (timezone.Date, time.Time, b
 	}
 	return date, pickup, true
 }
+
+// germanDateLayout renders calendar dates as dd.mm.yyyy in user-facing copy.
+// The moved timetable services keep their own copy (#3218).
+const germanDateLayout = "02.01.2006"
 
 // pickupPillDetail names the requested day and time of a pickup change the
 // way the staff thread shows it ("15.09.2026, 14:30 Uhr"), or "" when the

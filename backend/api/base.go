@@ -32,40 +32,17 @@ import (
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
-	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
-	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
-
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
+	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
+	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
+	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
 	staffshiftsAPI "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	substitutionsAPI "github.com/moto-nrw/project-phoenix/api/substitutions"
 	timetableAPI "github.com/moto-nrw/project-phoenix/api/timetable"
-	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
-	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
-
-	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
-	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
-	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
-	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
-	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-
 	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -73,17 +50,28 @@ import (
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
+	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
+	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
+	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
+	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/httpadapter"
@@ -92,6 +80,9 @@ import (
 	feedbackAPI "github.com/moto-nrw/project-phoenix/modules/feedback/http"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	usercontextAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/usercontext"
 	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
@@ -101,29 +92,39 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	classListHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http/classlistentries"
+	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
+	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
+	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceInbound "github.com/moto-nrw/project-phoenix/modules/workforce/inbound"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
+	workforceShiftServices "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
+	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
 
 // offeringSourceOptions narrows the enrollment decision service to the
@@ -442,7 +443,7 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db,
 		DeletionLock: func(ctx context.Context) error {
-			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
 			if *legacyFacilities == nil {
@@ -1302,18 +1303,35 @@ func requestReviewDependencies(api *API, modules moduleServices, db *bun.DB) (re
 	}, nil
 }
 
+// activeSchoolMemberships lists the schools an account is actively mapped to.
+func activeSchoolMemberships(repoFactory *repositories.Factory) accountSchoolMemberships {
+	accountTenants := repoFactory.AccountTenant
+	return func(ctx context.Context, accountID int64) ([]int64, error) {
+		memberships, err := accountTenants.FindActiveByAccountID(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(memberships))
+		for _, membership := range memberships {
+			ids = append(ids, membership.TenantID)
+		}
+		return ids, nil
+	}
+}
+
 func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules moduleServices, db *bun.DB, logger *slog.Logger) error {
 	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
+	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: activeSchoolMemberships(repoFactory)}
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
-		Schools:     api.Services.Schools,
+		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
 		StaffPIN:    deviceauth.StaffPIN(api.Services.StaffPINAuth.AuthenticateStaffPIN),
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, db)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
@@ -1362,7 +1380,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
 		InstanceService:              api.Services.Instance,
 		CareDayService:               api.Services.CareDay,
-		SchoolService:                api.Services.Schools,
+		SchoolService:                studentSchoolDirectory{schools: api.Services.Schools},
 		SettingsService:              api.Services.Settings,
 		MasterDataReviewService:      api.Services.MasterDataReview,
 		CareRequestService:           api.Services.CareRequests,
@@ -1383,7 +1401,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
 		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		Broadcaster:            api.Services.RealtimeHub,
 		ParentEventEmitter:     api.Services.ParentEventEmitter,
@@ -1415,7 +1433,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	}
 	api.Staff, api.StaffAdmin = staffResource, staffAdmin
 	api.StaffShifts = workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
-		Planning: workforceShiftPlanning.NewStaffShiftPlanning(workforceShiftPlanning.PlanningDependencies{
+		Planning: workforceShiftServices.NewStaffShiftPlanning(workforceShiftServices.PlanningDependencies{
 			Shifts: api.Services.StaffShifts, Series: api.Services.StaffShiftSeries,
 			Overview: api.Services.StaffScheduleOverview, PlanExport: api.Services.PlanExport,
 		}),
@@ -1424,7 +1442,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ActorAccountID: projectJWT.ActorAccountIDFromCtx,
 	})
 	api.ShiftTypes = workforceShiftPlanning.NewShiftTypesResource(
-		workforceShiftPlanning.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
+		workforceShiftServices.NewShiftTypeAdministration(api.Services.ShiftTypes, api.Services.Activities.SetCategoryShiftTypeLinks), db)
 	api.AbsenceTypes = workforceInbound.NewAbsenceTypesResource(services.AbsenceTypeAdministration(workforce, logger.With("service", "active")), db, api.currentStaffID)
 	api.Enrollment = enrollmentAPI.NewResource(
 		api.Services.EnrollmentFormSchema,
@@ -1439,7 +1457,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentDeletion,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
-		api.Services.Schools,
+		enrollmentSchoolDirectory{schools: api.Services.Schools},
 		db,
 		repoFactory.Enrollment(),
 	)
@@ -1452,6 +1470,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
 	presence := newStudentPresence(db, logger)
+	openRoomPresence, ok := api.Services.Active.(openRoomMoveCompose.RetainedPresence)
+	if !ok {
+		return errors.New("open room move: the active service does not provide the room session operations")
+	}
+	openRoomMove, err := newOpenRoomMove(modules, openRoomPresence, logger)
+	if err != nil {
+		return err
+	}
 	teacherGroupIDs := func(ctx context.Context, teacherID int64) ([]int64, error) {
 		groups, err := api.Services.Education.GetTeacherGroups(ctx, teacherID)
 		if err != nil {
@@ -1465,16 +1491,16 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		}
 		return ids, nil
 	}
-	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization())
+	api.Active = presenceAPI.NewResource(services.NewPresenceOperations(api.Services.Active), activePeople{source: services.NewAttendanceRoutePeople(api.Services.Users)}, teacherGroupIDs, services.NewSchulhofProjection(api.Services.Schulhof), activeStaffAccess{source: services.NewAttendanceRouteStaff(api.Services.UserContext)}, api.Services.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	api.Active.SupervisionDashboardService = api.Services.SupervisionDashboard
 	sessionEnd, err := newSessionEnd(presence, modules, api.Services, logger)
 	if err != nil {
 		return err
 	}
 	// The device-scan workflow runs every kiosk scan through one
-	// orchestrator over the public Device Fleet, Student Presence and
-	// Facilities capabilities; the retained services behind its ports are
-	// compatibility bindings (#2698).
+	// orchestrator over the public Device Fleet, Student Presence,
+	// Facilities and Timetable & Activities capabilities; the retained
+	// services behind its ports are compatibility bindings (#2698).
 	deviceScan := devicescanCompose.New(devicescanCompose.Dependencies{
 		Fleet:      api.Services.IoT.Fleet(),
 		Presence:   presence,
@@ -1482,6 +1508,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Active:     api.Services.Active,
 		Users:      api.Services.Users,
 		Activities: api.Services.Activities,
+		Rosters:    timetableModule.SessionRosters{Query: modules.timetable},
 		Education:  api.Services.Education,
 		Pickups:    api.Services.PickupSchedule,
 		Settings:   api.Services.Settings,
@@ -1500,13 +1527,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		SchoolName: devicescanCompose.NewSchoolName(func(ctx context.Context, id int64) (string, error) {
-			school, err := api.Services.Schools.GetSchoolByID(ctx, id)
-			if err != nil {
-				return "", err
-			}
-			return school.Name, nil
-		}),
+		SchoolName:              devicescanCompose.NewSchoolName(schoolName(api.Services.Schools)),
 		SessionEnd:              sessionEnd,
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
@@ -1563,6 +1584,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AppEnv:                     viper.GetString("app_env"),
 		AuthService:                api.Services.OperatorAuth,
+		Identity:                   identityOperatorAPI.NewResource(api.Services.AccountAuthentication(), operatorAPI.IdentityResponses()),
 		PasskeyService:             api.Services.OperatorPasskey,
 		MFAService:                 api.Services.OperatorMFA,
 		InvitationService:          api.Services.OperatorInvitation,
@@ -1588,7 +1610,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.Parent,
 		api.Services.EnrollmentRequest,
 		api.Services.GuardianProfileLoader,
-		api.Services.Schools,
+		parentSchoolDirectory{schools: api.Services.Schools},
 		db,
 	)
 	api.Parent.SetCalendarService(api.Services.Calendar)

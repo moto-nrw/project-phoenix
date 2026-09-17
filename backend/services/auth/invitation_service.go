@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -60,11 +59,7 @@ type InvitationServiceConfig struct {
 	RoleRepo          authModels.RoleRepository
 	PermissionRepo    authModels.PermissionRepository
 	AccountRoleRepo   authModels.AccountRoleRepository
-	PersonRepo        userModels.PersonRepository
-	StaffRepo         userModels.StaffRepository
-	TeacherRepo       userModels.TeacherRepository
-	StudentRepo       userModels.StudentRepository
-	SchoolRepo        platformModels.SchoolRepository
+	SchoolRepo        SchoolDirectory
 	Mailer            email.Mailer
 	Dispatcher        *email.Dispatcher
 	FrontendURL       string
@@ -79,23 +74,23 @@ type InvitationServiceConfig struct {
 	// moto (#1936). This send bypasses the outbox, so it stamps the header
 	// itself. Optional: nil sends without a Reply-To, exactly as before.
 	MailIdentity email.ReplyToResolver
-	DB           *bun.DB
-	Logger       *slog.Logger
+	// SchoolIdentity provisions the person, staff and caregiver chain an
+	// accepted invitation's role requires (#2222) through Identity & Access.
+	SchoolIdentity SchoolIdentityProvisioning
+	DB             *bun.DB
+	Logger         *slog.Logger
 }
 
 type invitationService struct {
 	tokenAuth         *jwt.TokenAuth
+	schoolIdentity    SchoolIdentityProvisioning
 	invitationRepo    authModels.InvitationTokenRepository
 	accountRepo       authModels.AccountRepository
 	accountTenantRepo authModels.AccountTenantRepository
 	roleRepo          authModels.RoleRepository
 	permissionRepo    authModels.PermissionRepository
 	accountRoleRepo   authModels.AccountRoleRepository
-	personRepo        userModels.PersonRepository
-	staffRepo         userModels.StaffRepository
-	teacherRepo       userModels.TeacherRepository
-	studentRepo       userModels.StudentRepository
-	schoolRepo        platformModels.SchoolRepository
+	schoolRepo        SchoolDirectory
 	dispatcher        *email.Dispatcher
 	frontendURL       string
 	schoolURL         string
@@ -125,16 +120,13 @@ func NewInvitationService(config InvitationServiceConfig) InvitationService {
 	}
 	return &invitationService{
 		tokenAuth:         config.TokenAuth,
+		schoolIdentity:    config.SchoolIdentity,
 		invitationRepo:    config.InvitationRepo,
 		accountRepo:       config.AccountRepo,
 		accountTenantRepo: config.AccountTenantRepo,
 		roleRepo:          config.RoleRepo,
 		permissionRepo:    config.PermissionRepo,
 		accountRoleRepo:   config.AccountRoleRepo,
-		personRepo:        config.PersonRepo,
-		staffRepo:         config.StaffRepo,
-		teacherRepo:       config.TeacherRepo,
-		studentRepo:       config.StudentRepo,
 		schoolRepo:        config.SchoolRepo,
 		dispatcher:        dispatcher,
 		frontendURL:       trimmedFrontend,
@@ -195,7 +187,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	}
 	// A school-portal invitation must link to the school portal, not the
 	// staff frontend — decided here, before the send is queued (#2207).
-	schoolPortal := isSchoolPortalRole(role)
+	schoolPortal := IsLehrkraftSystemRole(role)
 	// Queue the email until the surrounding tenant transaction commits: the
 	// staff import creates invitations mid-transaction, and a rolled-back
 	// token must never reach an inbox as a dead link. Outside a tenant tx
@@ -384,11 +376,11 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		// SoftDeleteSchool commits the deletion before the account is created.
 		// The lock is held until this admin transaction commits.
 		if invitation.TenantID > 0 && s.schoolRepo != nil {
-			school, schoolErr := s.schoolRepo.FindByIDForShare(adminCtx, invitation.TenantID)
+			school, schoolErr := s.schoolRepo.FindSchoolForShare(adminCtx, invitation.TenantID)
 			if schoolErr != nil {
 				return &AuthError{Op: opAcceptInvitation, Err: schoolErr}
 			}
-			if school == nil || school.IsDeleted() {
+			if school == nil || school.Deleted {
 				return &AuthError{Op: opAcceptInvitation, Err: ErrInvitationTenantDeleted}
 			}
 		}
@@ -675,7 +667,10 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	if role == nil {
 		return &AuthError{Op: "assign caregiver role", Err: fmt.Errorf("role not found")}
 	}
-	if IsPlatformCaregiverRole(role) {
+	if s.schoolIdentity == nil {
+		return &AuthError{Op: "assign caregiver role", Err: ErrAccountLifecycleUnavailable}
+	}
+	if s.schoolIdentity.IsPlatformCaregiverRole(RoleFactsOf(role)) {
 		return nil
 	}
 	// Defense in depth for tokens minted before the creation-side check
@@ -747,15 +742,13 @@ func (s *invitationService) provisionSchoolIdentity(
 		position = *invitation.Position
 	}
 
-	_, err = EnsureSchoolIdentity(ctx, SchoolIdentityRepos{
-		Persons:  s.personRepo,
-		Staff:    s.staffRepo,
-		Teachers: s.teacherRepo,
-		Students: s.studentRepo,
-	}, SchoolIdentityInput{
+	if s.schoolIdentity == nil {
+		return &AuthError{Op: "provision school identity", Err: ErrAccountLifecycleUnavailable}
+	}
+	_, err = s.schoolIdentity.EnsureSchoolIdentity(ctx, SchoolIdentityInput{
 		AccountID: accountID,
 		TenantID:  invitation.TenantID,
-		Role:      role,
+		Role:      RoleFactsOf(role),
 		FirstName: firstName,
 		LastName:  lastName,
 		Position:  position,
@@ -808,7 +801,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("actor_account_id", actorAccountID))
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, isSchoolPortalRole(role))
+	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, IsLehrkraftSystemRole(role))
 	return nil
 }
 
@@ -924,14 +917,14 @@ func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64
 	if tenantID == 0 || s.schoolRepo == nil {
 		return ""
 	}
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	school, err := s.schoolRepo.FindSchool(ctx, tenantID)
 	if err != nil {
 		s.getLogger().Warn("failed to lookup school name for invitation email",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
 		return ""
 	}
-	if school == nil || school.IsDeleted() {
+	if school == nil || school.Deleted {
 		return ""
 	}
 	return school.Name
@@ -1099,11 +1092,11 @@ func (s *invitationService) GetTenantSubdomainForToken(ctx context.Context, toke
 		if invitation == nil {
 			return nil
 		}
-		school, err := s.schoolRepo.FindByID(txCtx, invitation.TenantID)
+		school, err := s.schoolRepo.FindSchool(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
 		}
-		if school == nil || school.IsDeleted() {
+		if school == nil || school.Deleted {
 			return nil
 		}
 		subdomain = school.Subdomain

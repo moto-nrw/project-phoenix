@@ -41,7 +41,7 @@ func init() {
 //
 // Existing rows are untouched — they all carry a non-null student_id, which
 // the check constraint accepts as the student-subject path. New consumers
-// (active.TimeTrackingCleanupService) populate staff_id only.
+// (modules/workforce/legacy/timetracking.TimeTrackingCleanupService) populate staff_id only.
 func addDataDeletionsStaffSubject(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.104: extending audit.data_deletions for staff subjects...")
 

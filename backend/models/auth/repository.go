@@ -26,7 +26,6 @@ type AccountRepository interface {
 	// callers therefore all receive the same stored value instead of a URL a
 	// later write overwrote.
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
-	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
 	FindByRole(ctx context.Context, role string) ([]*Account, error)
@@ -52,30 +51,12 @@ type AccountRepository interface {
 	// after a successful verify so a single Account.Update can't
 	// inadvertently overwrite a concurrent increment.
 	ResetMFAAttempts(ctx context.Context, id int64) error
-	// IncrementPINAttempts atomically bumps pin_attempts by one and sets
-	// pin_locked_until to the application-clock deadline when the post-increment
-	// value reaches threshold. Mirrors IncrementMFAAttempts: the CAS-style
-	// UPDATE means N concurrent failed PIN entries count as N, not 1,
-	// closing the read-modify-write lockout-bypass race that the previous
-	// model-level Account.IncrementPINAttempts() suffered (issue #586).
-	IncrementPINAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (PINAttemptResult, error)
-	// ResetPINAttempts atomically clears pin_attempts + pin_locked_until
-	// after a successful PIN verify.
-	ResetPINAttempts(ctx context.Context, id int64) error
 }
 
 // MFAAttemptResult is the post-update snapshot returned by
 // AccountRepository.IncrementMFAAttempts. Used by callers to decide
 // whether the increment triggered the lockout transition.
 type MFAAttemptResult struct {
-	Attempts    int
-	LockedUntil *time.Time
-}
-
-// PINAttemptResult is the post-update snapshot returned by
-// AccountRepository.IncrementPINAttempts. Mirrors MFAAttemptResult so the
-// caller can tell whether this attempt crossed the lockout threshold.
-type PINAttemptResult struct {
 	Attempts    int
 	LockedUntil *time.Time
 }
@@ -99,13 +80,6 @@ type PermissionRepository interface {
 	base.CRUDRepository[*Permission]
 	FindByName(ctx context.Context, name string) (*Permission, error)
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
-	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*Permission, error)
-	// LockAccountPermissionSourcesForTenant takes FOR SHARE locks on the
-	// direct grants and role-permission rows that make up the account's
-	// effective permissions at a tenant. Transaction-only: it lets a caller
-	// read the permission set and write a token derived from it without a
-	// concurrent revocation committing in between.
-	LockAccountPermissionSourcesForTenant(ctx context.Context, accountID int64, tenantID int64) error
 	FindDirectByAccountID(ctx context.Context, accountID int64) ([]*Permission, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*Permission, error)
 	AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error
@@ -117,7 +91,6 @@ type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
 	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
-	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 }
 
@@ -133,20 +106,9 @@ type RolePermissionRepository interface {
 type AccountRoleRepository interface {
 	base.CRUDRepository[*AccountRole]
 	FindByAccountID(ctx context.Context, accountID int64) ([]*AccountRole, error)
-	FindByAccountIDForTenant(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
-	// FindByAccountIDForTenantForShare is FindByAccountIDForTenant with a FOR
-	// SHARE row lock. Transaction-only: it lets a caller re-check a role and
-	// write in the same transaction without a concurrent revocation slipping
-	// in between.
-	FindByAccountIDForTenantForShare(ctx context.Context, accountID int64, tenantID int64) ([]*AccountRole, error)
 	FindByRoleID(ctx context.Context, roleID int64) ([]*AccountRole, error)
 	FindByAccountAndRole(ctx context.Context, accountID, roleID int64) (*AccountRole, error)
 	DeleteByAccountAndRole(ctx context.Context, accountID, roleID int64) error
-	// DeleteByAccountRoleAndTenant removes a single role assignment scoped to
-	// one school. Unlike DeleteByAccountAndRole it never touches the account's
-	// assignments at other schools, which is what cross-tenant access
-	// management requires.
-	DeleteByAccountRoleAndTenant(ctx context.Context, accountID, roleID, tenantID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) error
 	DeleteByRoleID(ctx context.Context, roleID int64) error
 }
@@ -160,40 +122,6 @@ type AccountPermissionRepository interface {
 	RemovePermission(ctx context.Context, accountID, permissionID int64) error
 	DeleteByPermissionID(ctx context.Context, permissionID int64) error
 	DeleteByAccountID(ctx context.Context, accountID int64) (int64, error)
-}
-
-// TokenRepository is the retained contract over auth.tokens. Identity &
-// Access owns the table (#2720); the legacy composition binds this contract
-// to an adapter over the owner's account-session capability. Every lookup
-// reports a missing row through a DatabaseError that satisfies
-// base.IsNoRows, except GetLatestTokenInFamily, which keeps its historical
-// plain "token not found" error.
-type TokenRepository interface {
-	Create(ctx context.Context, token *Token) error
-	Delete(ctx context.Context, id any) error
-	// List serves the filters account_id, family_id, mobile, active and
-	// expired and refuses any other key.
-	List(ctx context.Context, filters map[string]any) ([]*Token, error)
-	FindByToken(ctx context.Context, token string) (*Token, error)
-	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
-	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
-	DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error
-	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
-	CountExpiredTokens(ctx context.Context) (int, error)
-	DeleteExpiredTokens(ctx context.Context) (int, error)
-	ListInactiveAccountIDsWithLiveTokens(ctx context.Context) ([]int64, error)
-	HasLiveTokensCreatedAfter(ctx context.Context, accountID int64, since time.Time) (bool, error)
-	DeleteByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
-	DeleteAllByAccountIDReturning(ctx context.Context, accountID int64) ([]*Token, error)
-	DeleteByAccountIDCreatedAtOrBeforeReturning(ctx context.Context, accountID int64, cutoff time.Time) ([]*Token, error)
-	CleanupOldTokensForAccountReturning(ctx context.Context, accountID int64, portalScope string, keepCount int) ([]*Token, error)
-
-	// Bulk deletion
-	DeleteByTenantIDReturning(ctx context.Context, tenantID int64) ([]*Token, error)
-
-	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*Token, error)
-	RetireFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error
-	GetLatestTokenInFamily(ctx context.Context, familyID string) (*Token, error)
 }
 
 // PasswordResetTokenRepository defines operations for managing password reset tokens
@@ -402,19 +330,17 @@ type CaregiverChain struct {
 type AccountTenantRepository interface {
 	Create(ctx context.Context, mapping *AccountTenant) error
 	EnsureActive(ctx context.Context, mapping *AccountTenant) error
-	Deactivate(ctx context.Context, accountID, tenantID int64) error
 	FindActiveByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	FindActiveGuardianByAccountID(ctx context.Context, accountID int64) ([]AccountTenant, error)
 	ExistsByAccountAndTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// ExistsActiveByAccountAndTenantForShare is ExistsByAccountAndTenant with a
-	// FOR SHARE row lock. Transaction-only: it blocks a concurrent Deactivate
-	// until the caller's transaction commits, which is what makes a
+	// FOR SHARE row lock. Transaction-only: it blocks a concurrent membership
+	// revocation until the caller's transaction commits, which is what makes a
 	// membership check and a token write in that transaction atomic.
 	ExistsActiveByAccountAndTenantForShare(ctx context.Context, accountID, tenantID int64) (bool, error)
 	ListAccountsByTenantID(ctx context.Context, tenantID int64) ([]TenantAccountInfo, error)
 	ListAccountsByOrganizationID(ctx context.Context, organizationID int64) ([]OrgAccountInfo, error)
 	ListAllAccounts(ctx context.Context) ([]OrgAccountInfo, error)
-	ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]AccountTenantAccessInfo, error)
 }
 
 type StaffCalendarFeedOwner struct {

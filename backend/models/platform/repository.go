@@ -7,59 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// OperatorRepository defines operations for managing operators
-type OperatorRepository interface {
-	// Core CRUD operations
-	Create(ctx context.Context, operator *Operator) error
-	FindByID(ctx context.Context, id int64) (*Operator, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*Operator, error)
-	FindByEmail(ctx context.Context, email string) (*Operator, error)
-	Update(ctx context.Context, operator *Operator) error
-	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context) ([]*Operator, error)
-
-	// Auth operations
-	UpdateLastLogin(ctx context.Context, id int64) error
-
-	// IncrementMFAAttempts atomically bumps mfa_attempts and applies the
-	// lockout window once threshold is reached. Mirrors the auth.Account
-	// version from #1430 review item #6 — prevents concurrent failed
-	// verifies from collapsing into a single counted attempt.
-	IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (OperatorMFAAttemptResult, error)
-	// ResetMFAAttempts atomically clears mfa_attempts + mfa_locked_until
-	// after a successful verify.
-	ResetMFAAttempts(ctx context.Context, id int64) error
-}
-
-// OperatorMFAAttemptResult is the post-update snapshot returned by
-// OperatorRepository.IncrementMFAAttempts. Mirrors auth.MFAAttemptResult.
-type OperatorMFAAttemptResult struct {
-	Attempts    int
-	LockedUntil *time.Time
-}
-
-// SchoolRepository defines operations for school (tenant) records.
-type SchoolRepository interface {
-	Create(ctx context.Context, school *School) error
-	FindByID(ctx context.Context, id int64) (*School, error)
-	FindByIDForShare(ctx context.Context, id int64) (*School, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*School, error)
-	FindBySlug(ctx context.Context, slug string) (*School, error)
-	FindByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (*School, error)
-	FindBySubdomain(ctx context.Context, subdomain string) (*School, error)
-	List(ctx context.Context) ([]*School, error)
-	// ListNonDeleted returns all non-deleted schools, regardless of whether
-	// they currently admit users. Retention recovery uses this to clean files
-	// for inactive tenants too.
-	ListNonDeleted(ctx context.Context) ([]School, error)
-	ListActive(ctx context.Context) ([]School, error)
-	ListPublic(ctx context.Context) ([]School, error)
-	FindActiveByAccountID(ctx context.Context, accountID int64) ([]School, error)
-	Update(ctx context.Context, school *School) error
-	SoftDelete(ctx context.Context, id int64) error
-	Restore(ctx context.Context, id int64) error
-	CountByIDs(ctx context.Context, ids []int64) (int, error)
-}
+// The operator identity rows and their refresh sessions are owned by the
+// Identity & Access module (#2720, #3252); the retained flows in
+// services/platform reach them through their own consumer-owned ports.
 
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens
 type OperatorEmailChangeTokenRepository interface {
@@ -70,19 +20,6 @@ type OperatorEmailChangeTokenRepository interface {
 	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
 	InvalidateExpiredTokens(ctx context.Context) (int, error)
 	DeleteStaleTokens(ctx context.Context) (int, error)
-}
-
-// OperatorRefreshTokenRepository persists revocable platform-operator refresh sessions.
-type OperatorRefreshTokenRepository interface {
-	Create(ctx context.Context, token *OperatorRefreshToken) error
-	FindByTokenForUpdate(ctx context.Context, token string) (*OperatorRefreshToken, error)
-	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
-	DeleteExpiredRotated(ctx context.Context, familyID string, now time.Time) error
-	Delete(ctx context.Context, id any) error
-	DeleteByOperatorIDReturning(ctx context.Context, operatorID int64) ([]*OperatorRefreshToken, error)
-	DeleteByFamilyIDReturning(ctx context.Context, familyID string) ([]*OperatorRefreshToken, error)
-	GetLatestTokenInFamily(ctx context.Context, familyID string) (*OperatorRefreshToken, error)
-	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 }
 
 // OperatorInvitationTokenRepository defines operations for operator invitation tokens

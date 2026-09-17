@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // educationPersonQuery adapts the People Directory to the person port the
@@ -52,6 +52,6 @@ func (q staffNoticeNameLookup) ListPersonNamesByAccount(ctx context.Context, acc
 	return names, nil
 }
 
-func newStaffNoticeNameLookup(persons peopledirectory.Query) scheduleService.StaffNoticeNameLookup {
+func newStaffNoticeNameLookup(persons peopledirectory.Query) shiftplanning.StaffNoticeNameLookup {
 	return staffNoticeNameLookup{persons: persons}
 }

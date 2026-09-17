@@ -47,11 +47,15 @@ func (s *Service) clearPendingAccountWideWipes(ctx context.Context, accountID in
 }
 
 func (s *Service) markPendingWipeCompletedIndependently(ctx context.Context, accountID int64) error {
+	sessions, err := s.accountSessions("clear pending account-wide wipe")
+	if err != nil {
+		return err
+	}
 	if tenant.IsAdminTx(ctx) || s.db == nil {
-		return s.markAccountWideWipeCompleted(ctx, accountID)
+		return sessions.MarkAccountWideWipeCompleted(ctx, accountID)
 	}
 	return tenant.WithAdminTx(s.withTenantRuntime(s.independentCleanupCtx(ctx)), s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return s.markAccountWideWipeCompleted(adminCtx, accountID)
+		return sessions.MarkAccountWideWipeCompleted(adminCtx, accountID)
 	})
 }
 
@@ -71,7 +75,11 @@ func (s *Service) DeactivateAccount(ctx context.Context, accountID int) error {
 	if err != nil {
 		return err
 	}
-	if revokeErr := s.scheduleAccountWideRevoke(ctx, int64(accountID), "account_deactivated", "", ""); revokeErr != nil {
+	sessions, err := s.accountSessions("revoke tokens during account deactivation")
+	if err != nil {
+		return err
+	}
+	if revokeErr := sessions.ScheduleAccountWideRevoke(ctx, int64(accountID), "account_deactivated", "", ""); revokeErr != nil {
 		return &AuthError{Op: "revoke tokens during account deactivation", Err: revokeErr}
 	}
 	return nil
@@ -129,4 +137,15 @@ func (s *Service) GetAccountsWithRolesAndPermissions(ctx context.Context, filter
 		return nil, &AuthError{Op: "get accounts with roles and permissions", Err: err}
 	}
 	return accounts, nil
+}
+
+// AccountAdministrationOperations activate, update and list accounts.
+type AccountAdministrationOperations interface {
+	// Account Management Extensions
+	ActivateAccount(ctx context.Context, accountID int) error
+	DeactivateAccount(ctx context.Context, accountID int) error
+	UpdateAccount(ctx context.Context, account *auth.Account) error
+	ListAccounts(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
+	GetAccountsByRole(ctx context.Context, roleName string) ([]*auth.Account, error)
+	GetAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*auth.Account, error)
 }

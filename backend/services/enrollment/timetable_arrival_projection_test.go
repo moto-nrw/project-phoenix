@@ -14,7 +14,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -27,11 +27,11 @@ func timetableDataWithArrivalBaseline(
 	t *testing.T,
 	env *decisionTestEnv,
 	authoritative bool,
-) *scheduleService.TimetableDataService {
+) *timetableplanning.TimetableDataService {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	return scheduleService.NewTimetableDataService(scheduleService.TimetableDataDependencies{
+	return timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo:   env.repos.InstanceStudent,
 		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(env.db),
 		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(env.db),
@@ -152,7 +152,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	conflicts, err := data.DetectExceptionConflicts(ctx, monday, monday, slog.Default())
 	require.NoError(t, err)
 	require.Len(t, conflicts, 1)
-	assert.Equal(t, scheduleService.SlotSourceSchedule, conflicts[0].ArrivalSource,
+	assert.Equal(t, timetableplanning.SlotSourceSchedule, conflicts[0].ArrivalSource,
 		"a timeless care day remains scheduled even without an arrival time")
 	assert.Empty(t, conflicts[0].ExpectedArrival,
 		"a timeless care day must not render as 00:00 in a cancellation warning")

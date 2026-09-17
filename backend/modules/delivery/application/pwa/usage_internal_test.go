@@ -10,7 +10,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -59,13 +58,12 @@ func (r accountTenantStub) FindActiveGuardianByAccountID(context.Context, int64)
 }
 
 type summariesStub struct {
-	platformModels.OperatorSummariesRepository
-	rows  []platformModels.SchoolPWAUsageRow
+	rows  []UsageRow
 	err   error
 	calls int
 }
 
-func (s *summariesStub) PWAUsage(context.Context, int64, time.Duration) ([]platformModels.SchoolPWAUsageRow, error) {
+func (s *summariesStub) PWAUsage(context.Context, int64, time.Duration) ([]UsageRow, error) {
 	s.calls++
 	return s.rows, s.err
 }
@@ -183,7 +181,7 @@ func TestUsageServiceCleanupExpiredUsage(t *testing.T) {
 func TestUsageServiceSnapshotUsage(t *testing.T) {
 	t.Parallel()
 
-	rows := []platformModels.SchoolPWAUsageRow{{TenantID: testpkg.Tenant(t), Portal: "staff", StandaloneUsers: 2, EligibleUsers: 5}}
+	rows := []UsageRow{{TenantID: testpkg.Tenant(t), Portal: "staff", StandaloneUsers: 2, EligibleUsers: 5}}
 	summaries := &summariesStub{rows: rows}
 	// nil db degrades WithAdminTxOrDirect to a direct call — exactly what a
 	// unit test needs.

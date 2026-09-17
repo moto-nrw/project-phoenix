@@ -3,7 +3,6 @@ package repositories
 import (
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -41,7 +40,7 @@ func NewParentMessagingTestRepositories(db *bun.DB) (ParentMessagingTestReposito
 	groupTeachers := newGroupTeacherRepository(membership, educationRepo.NewGroupRepository(db))
 	deps.groupTeachers = func() educationModels.GroupTeacherRepository { return groupTeachers }
 	return ParentMessagingTestRepositories{
-		Thread:  parentStore.NewParentMessageThreadRepository(db, usersRepo.NewMessageableGuardianRepository(db)),
+		Thread:  parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		Message: parentStore.NewParentMessageRepository(db),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the factory binds them.

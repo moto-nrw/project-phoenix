@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 )
 
 // classifyPresence maps a retained presence service failure to the port
@@ -182,6 +182,25 @@ func (s sessions) Start(ctx context.Context, input ports.NewSession) (ports.Sess
 	activityID := input.ActivityID
 	group := &active.Group{GroupID: &activityID, RoomID: input.RoomID, StartTime: now, LastActivity: now}
 	if err := s.active.CreateActiveGroup(ctx, group); err != nil {
+		return ports.Session{}, err
+	}
+	return sessionFromGroup(group), nil
+}
+
+// openRoomSessions is the room session lookup-or-create of the retained
+// presence service that the open-room move uses too (ADR 0018). It is not
+// part of activeSvc.Service, so the binding asserts it like the root does.
+type openRoomSessions interface {
+	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*active.Group, error)
+}
+
+func (s sessions) EnsureRoomSession(ctx context.Context, input ports.NewSession) (ports.Session, error) {
+	ensurer, ok := s.active.(openRoomSessions)
+	if !ok {
+		return ports.Session{}, errors.New("device scan: presence service cannot provide room sessions")
+	}
+	group, err := ensurer.EnsureOpenRoomSession(ctx, input.RoomID, input.ActivityID)
+	if err != nil {
 		return ports.Session{}, err
 	}
 	return sessionFromGroup(group), nil

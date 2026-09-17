@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	baseModel "github.com/moto-nrw/project-phoenix/models/base"
-	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -53,7 +52,6 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 	personRepo := newStubPersonRepository()
 	staffRepo, _ := newStubStaffRepository()
 	teacherRepo := newStubTeacherRepository()
-	studentRepo := newStubStudentRepository()
 
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(3, []time.Duration{10 * time.Millisecond, 20 * time.Millisecond, 40 * time.Millisecond})
@@ -64,11 +62,8 @@ func newInvitationTestEnvWithMailer(t *testing.T, mailer email.Mailer) (Invitati
 		AccountTenantRepo: newStubAccountTenantRepository(),
 		RoleRepo:          roleRepo,
 		AccountRoleRepo:   accountRoleRepo,
-		PersonRepo:        personRepo,
-		StaffRepo:         staffRepo,
-		TeacherRepo:       teacherRepo,
-		StudentRepo:       studentRepo,
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolIdentity:    identityStub(personRepo, staffRepo, teacherRepo),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       "http://localhost:3000",
@@ -652,60 +647,6 @@ func TestTranslateRoleNameToGerman(t *testing.T) {
 	}
 }
 
-// Successor of TestShouldCreateTeacherForRole: the name-based helper became the
-// tier-based RoleNeedsCaregiverProfile (#2222). Every assertion of the old test
-// is kept; the new cases are the school's own roles, which the name check could
-// not see at all.
-func TestRoleNeedsCaregiverProfile(t *testing.T) {
-	t.Parallel()
-
-	system := func(name string) *authModel.Role { return &authModel.Role{Name: name, IsSystem: true} }
-	custom := func(name, base string) *authModel.Role {
-		return &authModel.Role{Name: name, BaseRole: &base}
-	}
-
-	require.True(t, RoleNeedsCaregiverProfile(system("teacher")))
-	require.True(t, RoleNeedsCaregiverProfile(system("Teacher")))
-	require.True(t, RoleNeedsCaregiverProfile(system("user")))
-	require.False(t, RoleNeedsCaregiverProfile(system("admin")))
-	// A Lehrkraft (#1772) gets the staff record every staff role gets, but
-	// deliberately no users.teachers caregiver profile: it supervises no OGS
-	// group, its scope comes from education.class_teachers.
-	require.False(t, RoleNeedsCaregiverProfile(system("lehrkraft")))
-
-	// A school's own role is decided by its tier, not by its label.
-	require.True(t, RoleNeedsCaregiverProfile(custom("OGS-Kraft", authModel.BaseRoleUser)))
-	require.False(t, RoleNeedsCaregiverProfile(custom("OGS-Leitung", authModel.BaseRoleAdmin)))
-	// The label alone means nothing: a custom role named "teacher" with an
-	// admin tier is an admin role.
-	require.False(t, RoleNeedsCaregiverProfile(custom("teacher", authModel.BaseRoleAdmin)))
-	require.False(t, RoleNeedsCaregiverProfile(nil))
-}
-
-// The bug of #2222: a school's own role produced a person and no staff record.
-// Staff membership is decided by tier, and an unknown tier (base_role NULL on a
-// role created before the column existed) counts as personnel — a staff row
-// grants nothing, withholding it is what breaks the account.
-func TestRoleNeedsStaffRecord(t *testing.T) {
-	t.Parallel()
-
-	custom := func(name string, base *string) *authModel.Role {
-		return &authModel.Role{Name: name, BaseRole: base}
-	}
-	ptr := func(s string) *string { return &s }
-
-	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "admin", IsSystem: true}))
-	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "user", IsSystem: true}))
-	require.True(t, RoleNeedsStaffRecord(&authModel.Role{Name: "lehrkraft", IsSystem: true}))
-	require.True(t, RoleNeedsStaffRecord(custom("OGS-Leitung", ptr(authModel.BaseRoleAdmin))))
-	require.True(t, RoleNeedsStaffRecord(custom("OGS-Kraft", ptr(authModel.BaseRoleUser))))
-	require.True(t, RoleNeedsStaffRecord(custom("Alt-Rolle", nil)))
-
-	require.False(t, RoleNeedsStaffRecord(&authModel.Role{Name: "guardian", IsSystem: true}))
-	require.False(t, RoleNeedsStaffRecord(custom("Sorgeberechtigt", ptr(authModel.BaseRoleGuardian))))
-	require.False(t, RoleNeedsStaffRecord(nil))
-}
-
 // The caregiver upgrade (#1772) is refused for the lehrkraft SYSTEM role in
 // both acceptance branches; a school's custom role sharing the label is a
 // different role and stays eligible.
@@ -751,10 +692,8 @@ func TestAcceptInvitation_AdminCaregiverEnabledCreatesUserRoleAndTeacherProfile(
 		AccountTenantRepo: newStubAccountTenantRepository(),
 		RoleRepo:          roles,
 		AccountRoleRepo:   accountRoles,
-		PersonRepo:        persons,
-		StaffRepo:         staff,
-		TeacherRepo:       teachers,
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolIdentity:    identityStub(persons, staff, teachers),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -897,7 +836,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 	bunDB := bun.NewDB(sqlDB, pgdialect.New())
 
 	invitationRepo := newStubInvitationTokenRepository()
-	schoolRepo := newStubSchoolRepository(map[int64]bool{42: true})
+	schoolRepo := newStubSchoolDirectory(map[int64]bool{42: true})
 	staffRepo, _ := newStubStaffRepository()
 
 	service := newTestInvitationService(t, InvitationServiceConfig{
@@ -908,9 +847,7 @@ func TestAcceptInvitationDeletedSchoolRejectsAcceptance(t *testing.T) {
 			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "user", IsSystem: true},
 		),
 		AccountRoleRepo:  newStubAccountRoleRepository(),
-		PersonRepo:       newStubPersonRepository(),
-		StaffRepo:        staffRepo,
-		TeacherRepo:      newStubTeacherRepository(),
+		SchoolIdentity:   identityStub(newStubPersonRepository(), staffRepo, newStubTeacherRepository()),
 		SchoolRepo:       schoolRepo,
 		FrontendURL:      "http://localhost:3000",
 		DefaultFrom:      newDefaultFromEmail(),
@@ -959,11 +896,9 @@ func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
 	// School where slug != subdomain (issue #1977: OGS Burbach,
 	// slug=ogs-burbach, subdomain=burbach). The redirect after accepting an
 	// invitation must use the subdomain — tenant routing resolves by it.
-	schoolRepo := newStubSchoolRepository(nil)
-	schoolRepo.FindByIDFn = func(_ context.Context, id int64) (*platformModel.School, error) {
-		return &platformModel.School{
-			Model:     baseModel.Model{ID: id},
-			Active:    true,
+	schoolRepo := newStubSchoolDirectory(nil)
+	schoolRepo.find = func(context.Context, int64) (*InvitationSchool, error) {
+		return &InvitationSchool{
 			Slug:      "ogs-burbach",
 			Subdomain: "burbach",
 		}, nil
@@ -977,7 +912,7 @@ func TestGetTenantSubdomainForTokenUsesSubdomainNotSlug(t *testing.T) {
 			&authModel.Role{Model: baseModel.Model{ID: 2}, Name: "user", IsSystem: true},
 		),
 		AccountRoleRepo:  newStubAccountRoleRepository(),
-		PersonRepo:       newStubPersonRepository(),
+		SchoolIdentity:   identityStub(newStubPersonRepository(), staffRepoOnly(), newStubTeacherRepository()),
 		SchoolRepo:       schoolRepo,
 		FrontendURL:      "http://localhost:3000",
 		DefaultFrom:      newDefaultFromEmail(),
@@ -1202,10 +1137,8 @@ func TestCreateInvitationRejectsExistingTenantAccess(t *testing.T) {
 		AccountTenantRepo: accountTenants,
 		RoleRepo:          newStubRoleRepository(&authModel.Role{Model: baseModel.Model{ID: 1}, Name: "admin", IsSystem: true}),
 		AccountRoleRepo:   newStubAccountRoleRepository(),
-		PersonRepo:        newStubPersonRepository(),
-		StaffRepo:         staffRepoOnly(),
-		TeacherRepo:       newStubTeacherRepository(),
-		SchoolRepo:        newStubSchoolRepository(nil),
+		SchoolIdentity:    identityStub(newStubPersonRepository(), staffRepoOnly(), newStubTeacherRepository()),
+		SchoolRepo:        newStubSchoolDirectory(nil),
 		FrontendURL:       "http://localhost:3000",
 		DefaultFrom:       newDefaultFromEmail(),
 		InvitationExpiry:  48 * time.Hour,
@@ -1684,7 +1617,7 @@ func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
 					Name:     "admin",
 					IsSystem: true,
 				})
-				svc.staffRepo = failingStaffRepository{StaffRepoMock: staffRepoOnly()}
+				svc.schoolIdentity = identityStub(newStubPersonRepository(), failingStaffRepository{StaffRepoMock: staffRepoOnly()}, newStubTeacherRepository())
 			},
 			wantErr: "staff failed",
 		},
@@ -1697,7 +1630,7 @@ func TestCreateAccountWithRoleStopsOnPartialFailures(t *testing.T) {
 					Name:     "user",
 					IsSystem: true,
 				})
-				svc.teacherRepo = failingTeacherRepository{stubTeacherRepository: newStubTeacherRepository()}
+				svc.schoolIdentity = identityStub(newStubPersonRepository(), staffRepoOnly(), failingTeacherRepository{stubTeacherRepository: newStubTeacherRepository()})
 			},
 			wantErr: "teacher failed",
 		},

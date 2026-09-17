@@ -20,9 +20,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModel "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -102,7 +102,7 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date")))
 			return
 		}
-		if opts.Scope == scheduleSvc.PlannedNowScopePast && parsed != today {
+		if opts.Scope == timetableplanning.PlannedNowScopePast && parsed != today {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("past scope only supports today's date")))
 			return
 		}
@@ -120,9 +120,9 @@ func (rs *Resource) operationsPlannedNow(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, map[string]any{"instances": result}, "Planned timetable instances retrieved")
 }
 
-func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc.PlannedNowOptions, bool) {
+func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (timetableplanning.PlannedNowOptions, bool) {
 	query := r.URL.Query()
-	var opts scheduleSvc.PlannedNowOptions
+	var opts timetableplanning.PlannedNowOptions
 	if raw := query.Get("horizon_minutes"); raw != "" {
 		value, err := strconv.Atoi(raw)
 		if err != nil || value < 0 || value > 24*60 {
@@ -140,7 +140,7 @@ func parsePlannedNowOptions(w http.ResponseWriter, r *http.Request) (scheduleSvc
 		opts.Limit = value
 	}
 	if raw := query.Get("scope"); raw != "" {
-		if raw != scheduleSvc.PlannedNowScopePast && raw != scheduleSvc.PlannedNowScopeDay {
+		if raw != timetableplanning.PlannedNowScopePast && raw != timetableplanning.PlannedNowScopeDay {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid scope")))
 			return opts, false
 		}
@@ -222,7 +222,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 	if !rs.webSpontaneousActivitiesEnabled(r) {
-		common.RenderError(w, r, common.ErrorForbidden(scheduleSvc.ErrTimetableOperationForbidden))
+		common.RenderError(w, r, common.ErrorForbidden(timetableplanning.ErrTimetableOperationForbidden))
 		return
 	}
 	req, ok := bindSpontaneousStartRequest(w, r)
@@ -243,7 +243,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	currentStaffID := rs.resolveStartedByStaffID(r.Context())
 	if currentStaffID <= 0 {
-		common.RenderError(w, r, common.ErrorForbidden(scheduleSvc.ErrTimetableOperationForbidden))
+		common.RenderError(w, r, common.ErrorForbidden(timetableplanning.ErrTimetableOperationForbidden))
 		return
 	}
 
@@ -273,7 +273,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 
 	isSpontaneous := true
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, scheduleSvc.CreateInstanceInput{
+	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, timetableplanning.CreateInstanceInput{
 		Date:             window.date,
 		StartTime:        window.startTime,
 		EndTime:          window.endTime,
@@ -292,7 +292,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		// the request tx). A Create-phase failure is wrapped so it keeps the
 		// create-specific error mapping; a Start-phase failure uses the
 		// operations mapping.
-		var createErr *scheduleSvc.SpontaneousCreateError
+		var createErr *timetableplanning.SpontaneousCreateError
 		if errors.As(err, &createErr) {
 			renderCreateInstanceError(w, r, createErr.Err)
 		} else {
@@ -493,7 +493,7 @@ func (rs *Resource) operationsComplete(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("confirmed_present_student_ids is required")))
 		return
 	}
-	r = r.WithContext(scheduleSvc.WithCompletionConfirmation(r.Context(), body.ConfirmedPresentStudentIDs))
+	r = r.WithContext(timetableplanning.WithCompletionConfirmation(r.Context(), body.ConfirmedPresentStudentIDs))
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
 		accountID, isAdmin := operationActor(r.Context())
 		return rs.OperationsService.Complete(r.Context(), accountID, isAdmin, instanceID)
@@ -581,7 +581,7 @@ func canViewOperationPickupTimes(ctx context.Context) bool {
 		authorize.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
 }
 
-func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
+func redactOperationRosterPickupTimes(roster *timetableplanning.OperationRoster) {
 	if roster == nil {
 		return
 	}
@@ -592,7 +592,7 @@ func redactOperationRosterPickupTimes(roster *scheduleSvc.OperationRoster) {
 	}
 }
 
-func redactOperationPlannedPickupTimes(instances []scheduleSvc.OperationPlannedInstance) {
+func redactOperationPlannedPickupTimes(instances []timetableplanning.OperationPlannedInstance) {
 	for i := range instances {
 		instances[i].PickupTimesLoaded = false
 		instances[i].PickupTimesRedacted = true
@@ -642,10 +642,10 @@ func parseOperationID(w http.ResponseWriter, r *http.Request, key string) (int64
 }
 
 type startOperationResponse struct {
-	InstanceID    int64                                 `json:"instance_id"`
-	Status        string                                `json:"status"`
-	ActiveGroupID int64                                 `json:"active_group_id"`
-	Warnings      []scheduleSvc.InstanceConflictWarning `json:"warnings"`
+	InstanceID    int64                                       `json:"instance_id"`
+	Status        string                                      `json:"status"`
+	ActiveGroupID int64                                       `json:"active_group_id"`
+	Warnings      []timetableplanning.InstanceConflictWarning `json:"warnings"`
 }
 
 func appendUniquePositive(ids []int64, id int64) []int64 {
@@ -669,23 +669,23 @@ func renderSpontaneousActivityResolutionError(w http.ResponseWriter, r *http.Req
 }
 
 func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request, err error) {
-	var validationErr *scheduleSvc.TimetableAttendanceValidationError
+	var validationErr *timetableplanning.TimetableAttendanceValidationError
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
-	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
+	case errors.Is(err, timetableplanning.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):
+	case errors.Is(err, timetableplanning.ErrTimetableOperationNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, scheduleSvc.ErrTimetableOperationConflict), errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition),
-		errors.Is(err, scheduleSvc.ErrInstanceStartTooEarly), errors.Is(err, scheduleSvc.ErrInstanceStartExpired),
-		errors.Is(err, scheduleSvc.ErrInstanceCompleteEarly):
+	case errors.Is(err, timetableplanning.ErrTimetableOperationConflict), errors.Is(err, timetableplanning.ErrInvalidInstanceTransition),
+		errors.Is(err, timetableplanning.ErrInstanceStartTooEarly), errors.Is(err, timetableplanning.ErrInstanceStartExpired),
+		errors.Is(err, timetableplanning.ErrInstanceCompleteEarly):
 		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, scheduleSvc.ErrInstanceWeekend):
+	case errors.Is(err, timetableplanning.ErrInstanceWeekend):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case errors.Is(err, scheduleSvc.ErrCompletionConfirmationStale):
+	case errors.Is(err, timetableplanning.ErrCompletionConfirmationStale):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "completion_confirmation_stale"))
-	case errors.Is(err, scheduleSvc.ErrInstanceNotFound):
+	case errors.Is(err, timetableplanning.ErrInstanceNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, activeSvc.ErrStudentAlreadyActive), errors.Is(err, activeSvc.ErrRoomConflict),
 		errors.Is(err, activeSvc.ErrRoomCapacityExceeded), errors.Is(err, activeSvc.ErrStudentsNotPresent),

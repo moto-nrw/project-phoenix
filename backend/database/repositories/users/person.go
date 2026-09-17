@@ -17,12 +17,13 @@ import (
 // Error messages (S1192 - avoid duplicate string literals)
 const errPersonNotFound = "no person found with ID %d"
 
-// unlinkField sets a person's field to NULL and handles common error patterns
+// unlinkField sets a person's column to NULL and handles common error patterns.
+// The column name is bound as a quoted identifier.
 func (r *PersonRepository) unlinkField(ctx context.Context, personID int64, fieldName, opName string) error {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*users.Person)(nil)).
 		ModelTableExpr(`users.persons AS "person"`).
-		Set(fieldName+" = NULL").
+		Set("? = NULL", bun.Ident(fieldName)).
 		Where(`"person".id = ?`, personID)
 
 	query = base.WithTenantFilter(ctx, query, "person")

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/require"
@@ -113,6 +114,19 @@ func TestProvisioningErrorRendererMapsConflictErrors(t *testing.T) {
 	t.Parallel()
 
 	renderer := ProvisioningErrorRenderer(&platformSvc.ConflictError{
+		Err: errors.New("school subdomain already exists"),
+	})
+
+	resp, ok := renderer.(*ErrResponse)
+	require.True(t, ok)
+	require.Equal(t, 409, resp.HTTPStatusCode)
+	require.Equal(t, "school subdomain already exists", resp.ErrorText)
+}
+
+func TestProvisioningErrorRendererMapsProvisioningConflictErrors(t *testing.T) {
+	t.Parallel()
+
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningConflictError{
 		Err: errors.New("school subdomain already exists"),
 	})
 

@@ -17,7 +17,8 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 )
 
 // ShiftTypeSource is the slice of the retained shift-type repository the
@@ -48,17 +49,17 @@ type InstanceStudentCountSource interface {
 // be nil, in which case the matching port stays unbound and the capability
 // prints without that detail — the same contract the retained service had.
 type Sources struct {
-	Overview       scheduleSvc.StaffScheduleOverviewGetter
+	Overview       shiftplanning.StaffScheduleOverviewGetter
 	ShiftTypes     ShiftTypeSource
-	Instances      scheduleSvc.ActivityInstanceRangeReader
-	InstanceStaff  scheduleSvc.InstanceStaffBatchReader
+	Instances      shiftplanning.ActivityInstanceRangeReader
+	InstanceStaff  timetableplanning.InstanceStaffBatchReader
 	Students       InstanceStudentCountSource
-	Rooms          scheduleSvc.RoomBatchReader
-	Staff          scheduleSvc.StaffOverviewReader
+	Rooms          shiftplanning.RoomBatchReader
+	Staff          shiftplanning.StaffOverviewReader
 	ActivityGroups ActivityGroupSource
 	PlanningTracks PlanningTrackSource
-	ClosingDays    scheduleSvc.ClosingDayService
-	Holidays       scheduleSvc.HolidayService
+	ClosingDays    timetableplanning.ClosingDayService
+	Holidays       timetableplanning.HolidayService
 	Renderer       planexport.Renderer
 	Logger         *slog.Logger
 }
@@ -121,7 +122,7 @@ func parseRange(from, to planexport.Date) (timezone.Date, timezone.Date, error) 
 }
 
 type overviewAdapter struct {
-	source scheduleSvc.StaffScheduleOverviewGetter
+	source shiftplanning.StaffScheduleOverviewGetter
 }
 
 func (a overviewAdapter) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
@@ -209,7 +210,7 @@ func (a shiftTypeAdapter) ListShiftTypes(ctx context.Context) ([]*planexport.Shi
 }
 
 type instanceAdapter struct {
-	source scheduleSvc.ActivityInstanceRangeReader
+	source shiftplanning.ActivityInstanceRangeReader
 }
 
 func (a instanceAdapter) InstancesInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.Instance, error) {
@@ -254,7 +255,7 @@ func (a studentCountAdapter) CountNonAbsentByInstanceIDs(ctx context.Context, in
 }
 
 type instanceStaffAdapter struct {
-	source scheduleSvc.InstanceStaffBatchReader
+	source timetableplanning.InstanceStaffBatchReader
 }
 
 func (a instanceStaffAdapter) InstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*planexport.InstanceStaff, error) {
@@ -279,7 +280,7 @@ func (a instanceStaffAdapter) InstanceStaffByInstanceIDs(ctx context.Context, in
 }
 
 type roomAdapter struct {
-	source scheduleSvc.RoomBatchReader
+	source shiftplanning.RoomBatchReader
 }
 
 func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport.Room, error) {
@@ -298,7 +299,7 @@ func (a roomAdapter) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport
 }
 
 type staffAdapter struct {
-	source scheduleSvc.StaffOverviewReader
+	source shiftplanning.StaffOverviewReader
 }
 
 func (a staffAdapter) StaffByIDs(ctx context.Context, ids []int64) (map[int64]*planexport.StaffMember, error) {
@@ -362,7 +363,7 @@ func (a planningTrackAdapter) ListPlanningTracks(ctx context.Context) ([]*planex
 }
 
 type closingDayAdapter struct {
-	source scheduleSvc.ClosingDayService
+	source timetableplanning.ClosingDayService
 }
 
 func (a closingDayAdapter) ClosingDaysInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.ClosingPeriod, error) {
@@ -389,7 +390,7 @@ func (a closingDayAdapter) ClosingDaysInRange(ctx context.Context, from, to plan
 }
 
 type holidayAdapter struct {
-	source scheduleSvc.HolidayService
+	source timetableplanning.HolidayService
 }
 
 func (a holidayAdapter) HolidaysInRange(ctx context.Context, from, to planexport.Date) ([]planexport.Holiday, error) {

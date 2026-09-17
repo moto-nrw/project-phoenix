@@ -5,17 +5,17 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/statistics"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/statistics"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type StatisticsTestModule struct {
 	Statistics  statistics.Service
-	ClosingDays schedule.ClosingDayService
+	ClosingDays timetableplanning.ClosingDayService
 	ListExport  *listexport.RendererService
 }
 
@@ -45,10 +45,10 @@ func NewStatisticsTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func(
 		return StatisticsTestModule{}, err
 	}
 	students := overlappingRosterGroupNames{StudentRepository: r.Timetable.Student, groups: groups}
-	closing := schedule.NewClosingDayService(r.Timetable.ClosingDay)
+	closing := timetableplanning.NewClosingDayService(r.Timetable.ClosingDay)
 	service := statistics.NewService(statistics.Config{
 		Statistics: statisticsRoomUtilization{newStudentPresence(db, slog.Default())}, Attendance: statisticsAttendance{newStudentPresence(db, slog.Default())}, StatusDays: statisticsStatusDays{r.CarePlan}, Courses: statisticsReportCourses{r.Timetable.Timetable},
-		Holidays:    schedule.NewHolidayService(settings.Settings, schoolCalendarHolidayAdapter{query: calendar}, slog.Default()),
+		Holidays:    timetableplanning.NewHolidayService(settings.Settings, schoolCalendarHolidayAdapter{query: calendar}, slog.Default()),
 		ClosingDays: closing, Periods: statisticsReportPeriods{calendar}, Students: statisticsReportStudents{students}, Rooms: statisticsReportRooms{rooms},
 		AccessLog: statisticsAuditLog{r.AccessLog}, Retention: statisticsRetention{settings.Settings}, PrivacyConsents: statisticsRetentionSettings{newStudentPresence(db, slog.Default())}, Logger: slog.Default(), Now: optionalClock(clocks),
 	})

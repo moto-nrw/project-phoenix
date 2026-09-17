@@ -61,31 +61,6 @@ func personsByAccountAndTenant(ctx context.Context, query peopledirectory.Query,
 	return result, nil
 }
 
-func (r personAccountTenantRepository) ListTenantAccessByAccountID(ctx context.Context, accountID int64) ([]authModels.AccountTenantAccessInfo, error) {
-	rows, err := r.AccountTenantRepository.ListTenantAccessByAccountID(ctx, accountID)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	persons, err := personsByAccountAndTenant(ctx, r.persons, []int64{accountID})
-	if err != nil {
-		return nil, err
-	}
-	chains, err := r.caregiverChains(ctx, persons)
-	if err != nil {
-		return nil, err
-	}
-	for index := range rows {
-		person, found := persons[tenantAccountKey{AccountID: accountID, TenantID: rows[index].TenantID}]
-		rows[index].HasPerson = found
-		if !found {
-			continue
-		}
-		chain, hasChain := chains[person.ID]
-		rows[index].HasStaff = hasChain && chain.TenantID == rows[index].TenantID
-	}
-	return rows, nil
-}
-
 // accountEntry is one account row under enrichment together with the
 // tenant it belongs to and whether a person backs it.
 type accountEntry struct {

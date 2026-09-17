@@ -1,3 +1,14 @@
+// Package permissions holds the permission names the authorization layer
+// checks against.
+//
+// The constants below are the ones code refers to; catalog.json beside them is
+// the complete list of what the migrations create in auth.permissions,
+// including permissions no Go code names. It is the contract the tenant portal
+// translates into German — TestPermissionCatalogMatchesMigratedDatabase pins it
+// against a migrated database, and the frontend test on
+// frontend/src/lib/permission-labels.ts demands German wording for every entry
+// (#3238). A migration that adds a permission updates catalog.json in the same
+// change.
 package permissions
 
 // Standard permission action types

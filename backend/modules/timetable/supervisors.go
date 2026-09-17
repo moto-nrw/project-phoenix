@@ -50,6 +50,10 @@ type PlannedSupervisorQuery interface {
 }
 
 type PlannedSupervisorCommand interface {
+	// LockPlannedSupervisors takes a SHARE ROW EXCLUSIVE table lock on the
+	// planned supervisor rows for the caller's transaction, so a caregiver
+	// capability re-check cannot race a concurrent planned supervision write.
+	LockPlannedSupervisors(context.Context) error
 	CreatePlannedSupervisor(context.Context, PlannedSupervisorInput) (PlannedSupervisor, error)
 	UpdatePlannedSupervisor(context.Context, int64, PlannedSupervisorInput) (PlannedSupervisor, error)
 	DeletePlannedSupervisor(context.Context, int64) error

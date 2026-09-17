@@ -9,10 +9,21 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// ProfileResource handles operator profile endpoints
+// The display name and password changes are Identity & Access routes
+// (#3252) mounted from modules/identityaccess/inbound/operator; the profile
+// read and the e-mail change stay here.
+type (
+	// UpdateProfileRequest represents the profile update request body.
+	UpdateProfileRequest = identityoperator.UpdateProfileRequest
+	// ChangePasswordRequest represents the password change request body.
+	ChangePasswordRequest = identityoperator.ChangePasswordRequest
+)
+
+// ProfileResource handles the retained operator profile endpoints
 type ProfileResource struct {
 	authService platformSvc.OperatorAuthService
 }
@@ -22,27 +33,6 @@ func NewProfileResource(authService platformSvc.OperatorAuthService) *ProfileRes
 	return &ProfileResource{
 		authService: authService,
 	}
-}
-
-// UpdateProfileRequest represents the profile update request body
-type UpdateProfileRequest struct {
-	DisplayName string `json:"display_name"`
-}
-
-// Bind validates the update profile request
-func (req *UpdateProfileRequest) Bind(r *http.Request) error {
-	return nil
-}
-
-// ChangePasswordRequest represents the password change request body
-type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password"`
-	NewPassword     string `json:"new_password"`
-}
-
-// Bind validates the change password request
-func (req *ChangePasswordRequest) Bind(r *http.Request) error {
-	return nil
 }
 
 // GetProfile handles retrieving the current operator's profile
@@ -63,61 +53,6 @@ func (rs *ProfileResource) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Profile retrieved successfully")
-}
-
-// UpdateProfile handles updating the current operator's profile
-func (rs *ProfileResource) UpdateProfile(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	operatorID := int64(claims.ID)
-
-	req := &UpdateProfileRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
-		return
-	}
-
-	if req.DisplayName == "" {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("display_name is required")))
-		return
-	}
-
-	operator, err := rs.authService.UpdateProfile(r.Context(), operatorID, req.DisplayName)
-	if err != nil {
-		common.RenderError(w, r, ProfileErrorRenderer(err))
-		return
-	}
-
-	response := &OperatorResponse{
-		ID:          operator.ID,
-		Email:       operator.Email,
-		DisplayName: operator.DisplayName,
-	}
-
-	common.Respond(w, r, http.StatusOK, response, "Profile updated successfully")
-}
-
-// ChangePassword handles changing the current operator's password
-func (rs *ProfileResource) ChangePassword(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	operatorID := int64(claims.ID)
-
-	req := &ChangePasswordRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
-		return
-	}
-
-	if req.CurrentPassword == "" || req.NewPassword == "" {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("current_password and new_password are required")))
-		return
-	}
-
-	if err := rs.authService.ChangePassword(r.Context(), operatorID, req.CurrentPassword, req.NewPassword); err != nil {
-		common.RenderError(w, r, ProfileErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Password changed successfully")
 }
 
 // InitiateEmailChangeRequest represents the email change initiation request body

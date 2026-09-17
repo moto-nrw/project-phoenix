@@ -10,7 +10,7 @@ type authorizationStudent interface{ IsAuthorizationStudent() bool }
 // StudentAccessUserContext is the narrow subset of the user-context service
 // the student gates need: identify the caller's staff record (if any).
 // Defined here (not imported) to keep this package a sibling of
-// services/usercontext without a package cycle.
+// modules/identityaccess/legacy/usercontext without a package cycle.
 type StudentAccessUserContext interface {
 	HasCurrentStaff(ctx context.Context) (bool, error)
 }

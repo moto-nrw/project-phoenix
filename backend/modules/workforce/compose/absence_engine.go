@@ -145,20 +145,20 @@ func (e engine) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int
 
 func (e engine) CreateAbsenceType(ctx context.Context, input workforce.CreateAbsenceType) (workforce.StaffAbsenceType, error) {
 	value, err := e.service.CreateAbsenceType(ctx, domain.StaffAbsenceTypeFields{
-		Name: input.Name, AllowanceEnabled: input.AllowanceEnabled, OverrunPolicy: input.OverrunPolicy,
+		Name: input.Name, AllowanceEnabled: input.AllowanceEnabled,
 	})
 	return absenceTypeToPublic(value), mapError(err)
 }
 
 func (e engine) UpdateAbsenceType(ctx context.Context, input workforce.UpdateAbsenceType) (workforce.StaffAbsenceType, error) {
-	value, err := e.service.UpdateAbsenceType(ctx, input.ID, input.Name, input.IsActive, input.AllowanceEnabled, input.OverrunPolicy)
+	value, err := e.service.UpdateAbsenceType(ctx, input.ID, input.Name, input.IsActive, input.AllowanceEnabled)
 	return absenceTypeToPublic(value), mapError(err)
 }
 
 func (e engine) CreateStaffAbsenceType(ctx context.Context, fields workforce.StaffAbsenceTypeFields) (workforce.StaffAbsenceType, error) {
 	value, err := e.service.CreateStaffAbsenceType(ctx, domain.StaffAbsenceTypeFields{
 		Name: fields.Name, BaseType: fields.BaseType, IsActive: fields.IsActive,
-		AllowanceEnabled: fields.AllowanceEnabled, OverrunPolicy: fields.OverrunPolicy,
+		AllowanceEnabled: fields.AllowanceEnabled,
 	})
 	return absenceTypeToPublic(value), mapError(err)
 }
@@ -166,7 +166,7 @@ func (e engine) CreateStaffAbsenceType(ctx context.Context, fields workforce.Sta
 func (e engine) UpdateStaffAbsenceType(ctx context.Context, value workforce.StaffAbsenceType) (workforce.StaffAbsenceType, error) {
 	updated, err := e.service.UpdateStaffAbsenceType(ctx, domain.StaffAbsenceType{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled, OverrunPolicy: value.OverrunPolicy,
+		AllowanceEnabled: value.AllowanceEnabled,
 	})
 	return absenceTypeToPublic(updated), mapError(err)
 }
@@ -232,6 +232,13 @@ func (e engine) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID in
 	return value, mapError(err)
 }
 
+func (e engine) LockGroupSubstitutions(ctx context.Context) error {
+	if _, ok := tenant.TransactionFromContext(ctx); !ok {
+		return errors.New("workforce: group substitution locks require a transaction")
+	}
+	return mapError(e.service.LockGroupSubstitutions(ctx))
+}
+
 // --- mapping ---
 
 func absenceFilterToDomain(filter workforce.StaffAbsenceFilter) domain.StaffAbsenceFilter {
@@ -283,7 +290,7 @@ func absencesToPublic(values []domain.StaffAbsence) []workforce.StaffAbsence {
 func absenceTypeToPublic(value domain.StaffAbsenceType) workforce.StaffAbsenceType {
 	return workforce.StaffAbsenceType{
 		ID: value.ID, TenantID: value.TenantID, Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
-		AllowanceEnabled: value.AllowanceEnabled, OverrunPolicy: value.OverrunPolicy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		AllowanceEnabled: value.AllowanceEnabled, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 

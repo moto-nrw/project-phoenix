@@ -24,15 +24,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/services/active"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	educationService "github.com/moto-nrw/project-phoenix/services/education"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
-	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -47,7 +48,7 @@ type Sources struct {
 	Settings          configService.SettingsService
 	Pickups           scheduleService.PickupScheduleService
 	Arrivals          scheduleService.ArrivalScheduleService
-	Instances         scheduleService.InstanceService
+	Instances         timetableplanning.InstanceService
 	CareDays          scheduleService.CareDayService
 	CareParticipation userService.CareLifecycleService
 	ExcusedRequests   grouplive.PendingExcusedReader
@@ -366,7 +367,7 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 type planning struct {
 	arrivals  scheduleService.ArrivalScheduleService
 	pickups   scheduleService.PickupScheduleService
-	instances scheduleService.InstanceService
+	instances timetableplanning.InstanceService
 	careDays  scheduleService.CareDayService
 }
 

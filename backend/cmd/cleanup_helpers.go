@@ -14,9 +14,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services"
-	"github.com/moto-nrw/project-phoenix/services/active"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -42,8 +42,8 @@ type cleanupContext struct {
 	AuthCleanupService         authCleanupService
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
-	TimetableCleanupService    schedule.TimetableCleanupService
-	TimeTrackingCleanupService active.TimeTrackingCleanupService
+	TimetableCleanupService    timetableplanning.TimetableCleanupService
+	TimeTrackingCleanupService services.TimeTrackingCleanupService
 	TenantRuntime              tenant.UnitOfWork
 	Output                     io.Writer
 	Logger                     *log.Logger
@@ -68,8 +68,8 @@ type sessionCleanupService interface {
 }
 
 type retentionCleanupService = active.CleanupService
-type timetableCleanupService = schedule.TimetableCleanupService
-type timeTrackingCleanupService = active.TimeTrackingCleanupService
+type timetableCleanupService = timetableplanning.TimetableCleanupService
+type timeTrackingCleanupService = services.TimeTrackingCleanupService
 
 type cleanupRoot struct {
 	openDatabase        func() (*bun.DB, error)
@@ -77,8 +77,8 @@ type cleanupRoot struct {
 	invitationCleanup   func(*cleanupContext) invitationCleanupService
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
 	retentionCleanup    func(*cleanupContext) active.CleanupService
-	timetableCleanup    func(*cleanupContext) schedule.TimetableCleanupService
-	timeTrackingCleanup func(*cleanupContext) active.TimeTrackingCleanupService
+	timetableCleanup    func(*cleanupContext) timetableplanning.TimetableCleanupService
+	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
 }
 
 var defaultCleanupRoot = cleanupRoot{
@@ -213,7 +213,12 @@ func newCleanupAuditCommand() (services.AuditCommand, error) {
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
-	return services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+	service, err := services.NewAuthCleanupService(ctx.DB, ctx.TenantRuntime, slog.Default().With("service", "auth-cleanup-cli"), ctx.Audit)
+	if err != nil {
+		slog.Default().Error("auth cleanup service composition failed", "error", err)
+		return nil
+	}
+	return service
 }
 
 func newCleanupContextWithInvitationCleanup() (*cleanupContext, error) {
@@ -300,7 +305,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimetableCleanupService(ctx *cleanupContext) schedule.TimetableCleanupService {
+func buildTimetableCleanupService(ctx *cleanupContext) timetableplanning.TimetableCleanupService {
 	return services.NewTimetableCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, ctx.Timetable, slog.Default().With("service", "timetable-cleanup-cli"), ctx.Audit)
 }
 
@@ -324,7 +329,7 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimeTrackingCleanupService(ctx *cleanupContext) active.TimeTrackingCleanupService {
+func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
 	return services.NewTimeTrackingCleanupService(ctx.DB, ctx.TenantRuntime, ctx.Schools, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 

@@ -10,7 +10,6 @@ import (
 	"time"
 
 	configRepository "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	platformRepository "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,7 +62,7 @@ func TestLoadMinuteSnapshotUsesOneSettingsQuery(t *testing.T) {
 	settings := configService.NewSettingsService(valueRepository, nil, nil, testpkg.SettingsRuntime(t, db), slog.Default())
 	scheduler := unitScheduler(&Scheduler{
 		db:         db,
-		schoolRepo: platformRepository.NewSchoolRepository(db),
+		schoolRepo: dbTenantDirectory{db: db},
 		settings:   settings,
 		done:       make(chan struct{}),
 		logger:     slog.Default()})

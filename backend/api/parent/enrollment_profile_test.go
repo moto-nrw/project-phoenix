@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -54,7 +53,7 @@ func TestGetEnrollmentProfile_HiddenSchoolIsUnreachableWithoutFamilyLink(t *test
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	repo := &guardianProfileRepoStub{}
 	rs := &Resource{
@@ -81,7 +80,7 @@ func TestGetEnrollmentProfile_HiddenSchoolLoadsForLinkedFamily(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: true, Hidden: true}
+	school := &EnrollmentSchool{Active: true, Hidden: true}
 	school.ID = 1
 	repo := &guardianProfileRepoStub{}
 	rs := &Resource{
@@ -107,7 +106,7 @@ func TestGetEnrollmentProfile_InactiveSchoolIsUnreachable(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 
-	school := &platformModels.School{Name: "Testschule", Slug: "testschule", Subdomain: "testschule", Active: false}
+	school := &EnrollmentSchool{Active: false}
 	school.ID = 1
 	repo := &guardianProfileRepoStub{}
 	rs := &Resource{

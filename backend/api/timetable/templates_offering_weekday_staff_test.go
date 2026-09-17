@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,13 +25,13 @@ const sourcedOfferingID int64 = 17
 
 func buildSourcedTemplateModule(t *testing.T) *templateSetup {
 	t.Helper()
-	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	mat := &mockMaterializationService{result: &timetableplanning.MaterializationResult{}}
 	s := buildTemplateModule(t, mat, fixedTemplateClock)
 	s.res.TimetableData = testTimetableDataWithOfferingCallbacks(
 		s.db,
 		nil,
 		func(context.Context, []int64, []int64, *int64) error { return nil },
-		func(context.Context, scheduleSvc.OfferingRosterResyncInput) error { return nil },
+		func(context.Context, timetableplanning.OfferingRosterResyncInput) error { return nil },
 		fixedTemplateClock,
 	)
 	attachSplitService(s, mat)

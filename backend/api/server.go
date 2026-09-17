@@ -177,7 +177,7 @@ func workerRuntimeDependencies(api *API, logger *slog.Logger) scheduler.WorkerDe
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
 		DB:                     api.db,
-		SchoolRepo:             api.repos.School,
+		SchoolRepo:             schedulerTenantDirectory{schools: api.Services.Schools},
 		TenantRuntime:          &api.tenantRuntime,
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
@@ -215,7 +215,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	deps.Materializer = services.Materialization
 	deps.TimetableCleanup = services.TimetableCleanup
 	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
-	deps.TimeTrackingCleanup = services.TimeTrackingCleanup
+	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
 	deps.StudentChangeLogCleanup = services.StudentChangeLogCleanup
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)

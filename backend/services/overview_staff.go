@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
 )
 
 type overviewStaffRecords interface {
@@ -13,18 +13,18 @@ type overviewStaffRecords interface {
 
 type overviewStaffQuery struct{ source overviewStaffRecords }
 
-func OverviewStaff(source overviewStaffRecords) active.OverviewStaffQuery {
+func OverviewStaff(source overviewStaffRecords) timetracking.OverviewStaffQuery {
 	return overviewStaffQuery{source: source}
 }
 
-func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]active.OverviewStaff, error) {
+func (q overviewStaffQuery) ListOverviewStaff(ctx context.Context) ([]timetracking.OverviewStaff, error) {
 	rows, err := q.source.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
-	staff := make([]active.OverviewStaff, len(rows))
+	staff := make([]timetracking.OverviewStaff, len(rows))
 	for i, row := range rows {
-		staff[i] = active.OverviewStaff{
+		staff[i] = timetracking.OverviewStaff{
 			ID: row.ID, EmploymentType: row.EmploymentType, PersonnelNumber: row.PersonnelNumber,
 			WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
 		}

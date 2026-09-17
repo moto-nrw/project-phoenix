@@ -4,19 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/uptrace/bun"
@@ -39,9 +41,12 @@ func auditRootRuntime(db *bun.DB) auditRepo.Runtime {
 	}
 }
 
+// AuthCleanupRepositories are the retained repositories the auth cleanup
+// CLI composes. The expired session sweep runs through Identity & Access,
+// which the composition binds to the school and person lookups here (#3251).
 type AuthCleanupRepositories struct {
-	Account                authModels.AccountRepository
-	Token                  authModels.TokenRepository
+	School                 organizationtenancy.Capability
+	Person                 userModels.PersonRepository
 	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	AuthEvent              auditModels.AuthEventRepository
 	PushSubscription       deliveryModels.PushSubscriptionRepository
@@ -50,7 +55,7 @@ type AuthCleanupRepositories struct {
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		Account: authRepo.NewAccountRepository(db), Token: NewTokenRepository(db),
+		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
 		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
@@ -75,15 +80,15 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose device fleet: %v", err))
 	}
-	group := activeRepo.NewGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}))
 	device := devicefleetRepositoryAdapter.NewDeviceRepository(fleet)
 	rooms, err := NewFacilities(db)
 	if err != nil {
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
-	group.(*activeRepo.GroupRepository).BindRoomDirectory(activeRoomDirectory{rooms})
+	group := presenceCompose.NewLegacyGroupRepository(activeDeviceDirectory{devices: fleet}, NewPresenceGroupRecords(db), NewSessionActivities(timetableActivityGroupRepository{timetable: timetableCapability}),
+		presenceCompose.WithLegacyRoomDirectory(&activeRoomDirectory{rooms: rooms}))
 	return SessionCleanupRepositories{
-		Group: group, Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
+		Group: group, Supervisor: presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db)), Device: device,
 		TimetableBridge: timetableActivityInstanceRepository{timetable: timetableCapability},
 	}
 }
@@ -96,7 +101,7 @@ type RetentionCleanupRepositories struct {
 func NewRetentionCleanupRepositories(db *bun.DB, command auditModels.Command) RetentionCleanupRepositories {
 	deletions := auditRepo.NewDataDeletionRepository(auditRootRuntime(db))
 	return RetentionCleanupRepositories{
-		Supervisor: activeRepo.NewGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
+		Supervisor: presenceCompose.NewLegacyGroupSupervisorRepository(NewPresenceSupervisionRecords(db)),
 		Deletion:   RouteDataDeletionWrites(deletions, command),
 	}
 }
