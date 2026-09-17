@@ -148,6 +148,48 @@ func TestRouter(t *testing.T) {
 	})
 }
 
+// TestUnregisteredTagScanRoutesSitBehindOperatorAuth pins the mount of the
+// Device Fleet scan review (#3232): the router hands it the rest of the path
+// only after the operator auth chain accepted the caller.
+func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
+	t.Parallel()
+
+	tokenAuth := newOperatorRouteTokenAuth(t)
+	var reached []string
+	review := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reached = append(reached, r.Method+" "+chi.RouteContext(r.Context()).RoutePath)
+		w.WriteHeader(http.StatusTeapot)
+	})
+	router := operator.NewResource(operator.ResourceConfig{
+		AuthService: &mockOperatorAuthService{
+			getOperatorFn: func(_ context.Context, id int64) (*platformModels.Operator, error) {
+				op := &platformModels.Operator{Active: true}
+				op.ID = id
+				return op, nil
+			},
+		},
+		UnregisteredTagScans: review,
+		TokenAuth:            tokenAuth,
+	}).Router()
+
+	anonymous := httptest.NewRecorder()
+	router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/unregistered-tag-scans/", nil))
+	assert.Equal(t, http.StatusUnauthorized, anonymous.Code)
+	assert.Empty(t, reached)
+
+	for _, target := range []struct{ method, path, routePath string }{
+		{method: http.MethodGet, path: "/unregistered-tag-scans/", routePath: "/"},
+		{method: http.MethodPost, path: "/unregistered-tag-scans/123/resolve", routePath: "/123/resolve"},
+	} {
+		req := httptest.NewRequest(target.method, target.path, nil)
+		req.Header.Set("Authorization", "Bearer "+operatorRouteAccessToken(t, tokenAuth, 42))
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusTeapot, rr.Code, target.path)
+		assert.Contains(t, reached, target.method+" "+target.routePath)
+	}
+}
+
 func TestProtectedOperatorRoutesRejectInactiveOperator(t *testing.T) {
 	t.Parallel()
 

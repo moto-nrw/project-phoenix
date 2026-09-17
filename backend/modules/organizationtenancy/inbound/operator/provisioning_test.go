@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -19,7 +20,7 @@ func TestProvisioningErrorRendererMapsInvitationValidationErrors(t *testing.T) {
 		Err: authSvc.ErrEmailAlreadyExists,
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
 	require.Equal(t, authSvc.ErrEmailAlreadyExists.Error(), resp.ErrorText)
@@ -33,7 +34,7 @@ func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T)
 		Err: errors.New("invalid email address"),
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
 	require.Equal(t, "invalid email address", resp.ErrorText)
@@ -47,7 +48,7 @@ func TestProvisioningErrorRendererMapsInvitationNameRequired(t *testing.T) {
 		Err: authSvc.ErrInvitationNameRequired,
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
 	require.Equal(t, authSvc.ErrInvitationNameRequired.Error(), resp.ErrorText)
@@ -61,7 +62,7 @@ func TestProvisioningErrorRendererMapsPasswordMismatch(t *testing.T) {
 		Err: authSvc.ErrPasswordMismatch,
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
 	require.Equal(t, authSvc.ErrPasswordMismatch.Error(), resp.ErrorText)
@@ -75,7 +76,7 @@ func TestProvisioningErrorRendererMapsPasswordTooWeak(t *testing.T) {
 		Err: authSvc.ErrPasswordTooWeak,
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
 	require.Equal(t, authSvc.ErrPasswordTooWeak.Error(), resp.ErrorText)
@@ -89,7 +90,7 @@ func TestProvisioningErrorRendererMapsAuthErrorWithNilErr(t *testing.T) {
 		Err: nil,
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	// When Err is nil, the authErr condition is false, falls through to generic
 	require.Equal(t, 500, resp.HTTPStatusCode)
@@ -104,7 +105,7 @@ func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
 		Err: &modelBase.DatabaseError{Op: "insert", Err: errors.New("db fail")},
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 500, resp.HTTPStatusCode)
 	require.Equal(t, "An error occurred", resp.ErrorText)
@@ -117,7 +118,7 @@ func TestProvisioningErrorRendererMapsConflictErrors(t *testing.T) {
 		Err: errors.New("school subdomain already exists"),
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
 	require.Equal(t, "school subdomain already exists", resp.ErrorText)
@@ -130,7 +131,7 @@ func TestProvisioningErrorRendererMapsProvisioningConflictErrors(t *testing.T) {
 		Err: errors.New("school subdomain already exists"),
 	})
 
-	resp, ok := renderer.(*ErrResponse)
+	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
 	require.Equal(t, "school subdomain already exists", resp.ErrorText)

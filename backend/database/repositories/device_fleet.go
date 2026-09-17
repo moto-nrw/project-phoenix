@@ -96,48 +96,6 @@ func (r unregisteredTagScanRepository) FindByID(ctx context.Context, id int64) (
 	return &result, nil
 }
 
-func (r unregisteredTagScanRepository) ListForOperator(ctx context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
-	tenantIDs := filter.SchoolIDs
-	if filter.SchoolID != nil {
-		if tenantIDs == nil {
-			tenantIDs = []int64{*filter.SchoolID}
-		} else {
-			// The retired query applied both predicates, so a school outside
-			// the organization's schools matches nothing.
-			narrowed := make([]int64, 0, 1)
-			for _, id := range tenantIDs {
-				if id == *filter.SchoolID {
-					narrowed = append(narrowed, id)
-				}
-			}
-			tenantIDs = narrowed
-		}
-	}
-	scans, err := r.scans.ListUnregisteredTagScans(ctx, devicefleet.UnregisteredTagScanFilter{
-		TenantIDs: tenantIDs, UnresolvedOnly: filter.UnresolvedOnly,
-	})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]*auditModels.UnregisteredTagScan, 0, len(scans))
-	for _, scan := range scans {
-		mapped := toAuditUnregisteredTagScan(scan)
-		result = append(result, &mapped)
-	}
-	return result, nil
-}
-
-func (r unregisteredTagScanRepository) Resolve(ctx context.Context, id, operatorID int64, note *string) (*auditModels.UnregisteredTagScan, error) {
-	scan, err := r.scans.ResolveUnregisteredTagScan(ctx, devicefleet.ResolveUnregisteredTagScan{
-		ID: id, OperatorID: operatorID, Note: note,
-	})
-	if err != nil {
-		return nil, err
-	}
-	result := toAuditUnregisteredTagScan(scan)
-	return &result, nil
-}
-
 func (r unregisteredTagScanRepository) DeleteOlderThan(ctx context.Context, cutoff time.Time) (int, error) {
 	deleted, err := r.scans.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
 	if err != nil {

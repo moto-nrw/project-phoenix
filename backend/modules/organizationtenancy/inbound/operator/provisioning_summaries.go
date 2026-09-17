@@ -20,7 +20,7 @@ func (rs *ProvisioningResource) GetProvisioningStats(w http.ResponseWriter, r *h
 // GetSchoolPWAUsage returns one school's PWA standalone-usage counts
 // (staff/parent, 30-day window). GET /api/operator/schools/{id}/pwa-usage.
 func (rs *ProvisioningResource) GetSchoolPWAUsage(w http.ResponseWriter, r *http.Request) {
-	idList(w, r, "id", "invalid school ID", rs.service.GetSchoolPWAUsage, ProvisioningErrorRenderer, "School PWA usage retrieved successfully")
+	common.IDFetch("id", "invalid school ID", rs.service.GetSchoolPWAUsage, ProvisioningErrorRenderer, "School PWA usage retrieved successfully")(w, r)
 }
 
 // ListOrganizationSummaries returns all organizations with per-row counts for
@@ -48,11 +48,11 @@ func (rs *ProvisioningResource) ListSchoolSummaries(w http.ResponseWriter, r *ht
 // ListOrganizationSchoolSummaries returns schools under a specific organization
 // with per-row counts. GET /api/operator/organizations/{id}/schools.
 func (rs *ProvisioningResource) ListOrganizationSchoolSummaries(w http.ResponseWriter, r *http.Request) {
-	idList(w, r, "id", "invalid organization ID", rs.service.ListOrganizationSchoolSummaries, ProvisioningErrorRenderer, "Organization school summaries retrieved successfully")
+	common.IDFetch("id", "invalid organization ID", rs.service.ListOrganizationSchoolSummaries, ProvisioningErrorRenderer, "Organization school summaries retrieved successfully")(w, r)
 }
 
 // ListOrganizationPersons returns all persons across every school belonging to
 // the given organization. GET /api/operator/organizations/{id}/persons.
 func (rs *ProvisioningResource) ListOrganizationPersons(w http.ResponseWriter, r *http.Request) {
-	idList(w, r, "id", "invalid organization ID", rs.service.ListOrganizationPersons, ProvisioningErrorRenderer, "Organization persons retrieved successfully")
+	common.IDFetch("id", "invalid organization ID", rs.service.ListOrganizationPersons, ProvisioningErrorRenderer, "Organization persons retrieved successfully")(w, r)
 }

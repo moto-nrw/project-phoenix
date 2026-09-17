@@ -1888,13 +1888,7 @@ func newFactory(
 	)
 	unregisteredTagScanService, err := auditService.NewUnregisteredTagScanService(
 		repos.UnregisteredTagScan,
-		organizations,
-		auditService.UnregisteredTagScanRuntime{
-			TenantID: tenant.FromContext,
-			WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error {
-				return tenant.WithinAdmin(ctx, fn)
-			},
-		},
+		auditService.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
 	)
 	if err != nil {
 		return nil, err

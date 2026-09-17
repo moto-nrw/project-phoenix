@@ -9,6 +9,7 @@ import (
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
@@ -206,4 +207,43 @@ func findSchool[K any](ctx context.Context, find func(context.Context, K) (organ
 		return nil, err
 	}
 	return &school, nil
+}
+
+// tagScanSchoolDirectory labels and narrows the operator review of
+// unregistered RFID scans (#3232).
+type tagScanSchoolDirectory struct {
+	schools organizationModule.Query
+}
+
+func (d tagScanSchoolDirectory) ListSchoolsByID(ctx context.Context, ids []int64) ([]tagScanOperatorAPI.School, error) {
+	schools, err := d.schools.ListSchoolsByID(ctx, ids)
+	return tagScanSchools(schools), err
+}
+
+func (d tagScanSchoolDirectory) ListSchoolsByOrganization(ctx context.Context, id int64) ([]tagScanOperatorAPI.School, error) {
+	schools, err := d.schools.ListSchoolsByOrganization(ctx, id)
+	return tagScanSchools(schools), err
+}
+
+func (d tagScanSchoolDirectory) ListOrganizationsByID(ctx context.Context, ids []int64) ([]tagScanOperatorAPI.Organization, error) {
+	organizations, err := d.schools.ListOrganizationsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]tagScanOperatorAPI.Organization, 0, len(organizations))
+	for _, organization := range organizations {
+		result = append(result, tagScanOperatorAPI.Organization{ID: organization.ID, Name: organization.Name})
+	}
+	return result, nil
+}
+
+func tagScanSchools(schools []organizationModule.School) []tagScanOperatorAPI.School {
+	if schools == nil {
+		return nil
+	}
+	result := make([]tagScanOperatorAPI.School, 0, len(schools))
+	for _, school := range schools {
+		result = append(result, tagScanOperatorAPI.School{ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name})
+	}
+	return result
 }

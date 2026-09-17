@@ -7,24 +7,15 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/require"
 )
 
 type fakeUnregisteredTagScanRepo struct {
-	created       *auditModels.UnregisteredTagScan
-	createErr     error
-	listFilter    auditModels.UnregisteredTagScanFilter
-	listResult    []*auditModels.UnregisteredTagScan
-	listErr       error
-	resolveID     int64
-	resolveOpID   int64
-	resolveNote   *string
-	resolveResult *auditModels.UnregisteredTagScan
-	resolveErr    error
-	deleteCutoff  time.Time
-	deleteResult  int
-	deleteErr     error
+	created      *auditModels.UnregisteredTagScan
+	createErr    error
+	deleteCutoff time.Time
+	deleteResult int
+	deleteErr    error
 }
 
 func (r *fakeUnregisteredTagScanRepo) Create(_ context.Context, scan *auditModels.UnregisteredTagScan) error {
@@ -36,18 +27,6 @@ func (r *fakeUnregisteredTagScanRepo) FindByID(_ context.Context, _ int64) (*aud
 	return nil, nil
 }
 
-func (r *fakeUnregisteredTagScanRepo) ListForOperator(_ context.Context, filter auditModels.UnregisteredTagScanFilter) ([]*auditModels.UnregisteredTagScan, error) {
-	r.listFilter = filter
-	return r.listResult, r.listErr
-}
-
-func (r *fakeUnregisteredTagScanRepo) Resolve(_ context.Context, id int64, operatorID int64, note *string) (*auditModels.UnregisteredTagScan, error) {
-	r.resolveID = id
-	r.resolveOpID = operatorID
-	r.resolveNote = note
-	return r.resolveResult, r.resolveErr
-}
-
 func (r *fakeUnregisteredTagScanRepo) DeleteOlderThan(_ context.Context, cutoff time.Time) (int, error) {
 	r.deleteCutoff = cutoff
 	return r.deleteResult, r.deleteErr
@@ -55,53 +34,13 @@ func (r *fakeUnregisteredTagScanRepo) DeleteOlderThan(_ context.Context, cutoff 
 
 type testTenantKey struct{}
 
-type fakeOrganizationQuery struct {
-	listByIDsFn                 func(context.Context, []int64) ([]organizationtenancy.Organization, error)
-	listSchoolsByIDsFn          func(context.Context, []int64) ([]organizationtenancy.School, error)
-	listSchoolsByOrganizationFn func(context.Context, int64) ([]organizationtenancy.School, error)
-}
-
-func (q *fakeOrganizationQuery) ListSchoolsByID(ctx context.Context, ids []int64) ([]organizationtenancy.School, error) {
-	if q.listSchoolsByIDsFn != nil {
-		return q.listSchoolsByIDsFn(ctx, ids)
-	}
-	schools := make([]organizationtenancy.School, 0, len(ids))
-	for _, id := range ids {
-		schools = append(schools, organizationtenancy.School{ID: id, OrganizationID: id / 2})
-	}
-	return schools, nil
-}
-
-func (q *fakeOrganizationQuery) ListSchoolsByOrganization(ctx context.Context, id int64) ([]organizationtenancy.School, error) {
-	if q.listSchoolsByOrganizationFn != nil {
-		return q.listSchoolsByOrganizationFn(ctx, id)
-	}
-	return []organizationtenancy.School{{ID: id * 2, OrganizationID: id}}, nil
-}
-
-func (q *fakeOrganizationQuery) ListOrganizationsByID(ctx context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
-	if q.listByIDsFn != nil {
-		return q.listByIDsFn(ctx, ids)
-	}
-	organizations := make([]organizationtenancy.Organization, 0, len(ids))
-	for _, id := range ids {
-		organizations = append(organizations, organizationtenancy.Organization{ID: id})
-	}
-	return organizations, nil
-}
-
 func newUnregisteredTagScanService(t *testing.T, repo *fakeUnregisteredTagScanRepo) UnregisteredTagScanService {
-	return newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{})
-}
-
-func newUnregisteredTagScanServiceWithOrganizations(t *testing.T, repo *fakeUnregisteredTagScanRepo, organizations OrganizationNameQuery) UnregisteredTagScanService {
 	t.Helper()
-	service, err := NewUnregisteredTagScanService(repo, organizations, UnregisteredTagScanRuntime{
+	service, err := NewUnregisteredTagScanService(repo, UnregisteredTagScanRuntime{
 		TenantID: func(ctx context.Context) int64 {
 			id, _ := ctx.Value(testTenantKey{}).(int64)
 			return id
 		},
-		WithinAdmin: func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) },
 	})
 	require.NoError(t, err)
 	return service
@@ -168,148 +107,6 @@ func TestUnregisteredTagScanRecordPropagatesRepositoryError(t *testing.T) {
 	require.NotNil(t, repo.created)
 }
 
-func TestUnregisteredTagScanListForOperatorPassesFilter(t *testing.T) {
-	t.Parallel()
-
-	schoolID := int64(10)
-	orgID := schoolID / 2
-	want := []*auditModels.UnregisteredTagScan{{TagUID: "ABC123", SchoolID: schoolID}}
-	repo := &fakeUnregisteredTagScanRepo{listResult: want}
-	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
-		listByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.Organization, error) {
-			require.Equal(t, []int64{orgID}, ids)
-			return []organizationtenancy.Organization{{ID: orgID, Name: "Organization"}}, nil
-		},
-		listSchoolsByIDsFn: func(_ context.Context, ids []int64) ([]organizationtenancy.School, error) {
-			require.Equal(t, []int64{schoolID}, ids)
-			return []organizationtenancy.School{{ID: schoolID, Name: "School", OrganizationID: orgID}}, nil
-		},
-	})
-
-	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{
-		SchoolID:       &schoolID,
-		OrganizationID: &orgID,
-		UnresolvedOnly: true,
-	})
-
-	require.NoError(t, err)
-	require.Equal(t, want, got)
-	require.Equal(t, "Organization", got[0].OrganizationName)
-	require.Equal(t, "School", got[0].SchoolName)
-	require.Equal(t, &schoolID, repo.listFilter.SchoolID)
-	require.Equal(t, &orgID, repo.listFilter.OrganizationID)
-	require.True(t, repo.listFilter.UnresolvedOnly)
-}
-
-func TestUnregisteredTagScanOrganizationFilterKeepsDeletedSchoolHistory(t *testing.T) {
-	t.Parallel()
-
-	deletedAt := time.Now()
-	organizationID := time.Now().UnixNano()
-	schoolID := organizationID + 1
-	repo := &fakeUnregisteredTagScanRepo{}
-	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
-		listSchoolsByOrganizationFn: func(_ context.Context, id int64) ([]organizationtenancy.School, error) {
-			require.Equal(t, organizationID, id)
-			return []organizationtenancy.School{{ID: schoolID, OrganizationID: id, DeletedAt: &deletedAt}}, nil
-		},
-	})
-
-	_, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{OrganizationID: &organizationID})
-
-	require.NoError(t, err)
-	require.Equal(t, []int64{schoolID}, repo.listFilter.SchoolIDs)
-}
-
-func TestUnregisteredTagScanOrganizationFilterReturnsEmptyWithoutSchools(t *testing.T) {
-	t.Parallel()
-
-	organizationID := time.Now().UnixNano()
-	repo := &fakeUnregisteredTagScanRepo{listErr: errors.New("repository must not be called")}
-	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
-		listSchoolsByOrganizationFn: func(context.Context, int64) ([]organizationtenancy.School, error) {
-			return []organizationtenancy.School{}, nil
-		},
-	})
-
-	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{OrganizationID: &organizationID})
-
-	require.NoError(t, err)
-	require.Empty(t, got)
-}
-
-func TestUnregisteredTagScanListForOperatorPropagatesRepositoryError(t *testing.T) {
-	t.Parallel()
-
-	wantErr := errors.New("list failed")
-	repo := &fakeUnregisteredTagScanRepo{listErr: wantErr}
-	service := newUnregisteredTagScanService(t, repo)
-
-	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{})
-
-	require.ErrorIs(t, err, wantErr)
-	require.Nil(t, got)
-}
-
-func TestUnregisteredTagScanListForOperatorPropagatesOrganizationQueryError(t *testing.T) {
-	t.Parallel()
-	wantErr := errors.New("organization query failed")
-	repo := &fakeUnregisteredTagScanRepo{listResult: []*auditModels.UnregisteredTagScan{{SchoolID: 84}}}
-	service := newUnregisteredTagScanServiceWithOrganizations(t, repo, &fakeOrganizationQuery{
-		listByIDsFn: func(context.Context, []int64) ([]organizationtenancy.Organization, error) {
-			return nil, wantErr
-		},
-	})
-
-	got, err := service.ListForOperator(context.Background(), auditModels.UnregisteredTagScanFilter{})
-
-	require.ErrorIs(t, err, wantErr)
-	require.Nil(t, got)
-}
-
-func TestUnregisteredTagScanResolveValidatesIDs(t *testing.T) {
-	t.Parallel()
-
-	service := newUnregisteredTagScanService(t, &fakeUnregisteredTagScanRepo{})
-
-	_, err := service.Resolve(context.Background(), 0, 15, nil)
-	require.ErrorContains(t, err, "scan ID is required")
-
-	_, err = service.Resolve(context.Background(), 300, 0, nil)
-	require.ErrorContains(t, err, "operator ID is required")
-}
-
-func TestUnregisteredTagScanResolveNormalizesNoteAndReturnsScan(t *testing.T) {
-	t.Parallel()
-
-	scan := &auditModels.UnregisteredTagScan{TagUID: "ABC123"}
-	repo := &fakeUnregisteredTagScanRepo{resolveResult: scan}
-	service := newUnregisteredTagScanService(t, repo)
-	note := "  replacement issued  "
-
-	got, err := service.Resolve(context.Background(), 300, 15, &note)
-
-	require.NoError(t, err)
-	require.Equal(t, scan, got)
-	require.Equal(t, int64(300), repo.resolveID)
-	require.Equal(t, int64(15), repo.resolveOpID)
-	require.NotNil(t, repo.resolveNote)
-	require.Equal(t, "replacement issued", *repo.resolveNote)
-}
-
-func TestUnregisteredTagScanResolvePropagatesRepositoryError(t *testing.T) {
-	t.Parallel()
-
-	wantErr := errors.New("resolve failed")
-	repo := &fakeUnregisteredTagScanRepo{resolveErr: wantErr}
-	service := newUnregisteredTagScanService(t, repo)
-
-	got, err := service.Resolve(context.Background(), 300, 15, nil)
-
-	require.ErrorIs(t, err, wantErr)
-	require.Nil(t, got)
-}
-
 func TestUnregisteredTagScanDeleteOlderThanUsesDefaultRetention(t *testing.T) {
 	t.Parallel()
 
@@ -341,18 +138,4 @@ func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *t
 	require.Zero(t, deleted)
 	require.False(t, repo.deleteCutoff.Before(before))
 	require.False(t, repo.deleteCutoff.After(after))
-}
-
-func TestNormalizeNote(t *testing.T) {
-	t.Parallel()
-
-	note := "  assigned to replacement card  "
-
-	require.Nil(t, trimPtrToNil(nil))
-	require.Nil(t, trimPtrToNil(pointerToString("   ")))
-	require.Equal(t, "assigned to replacement card", *trimPtrToNil(&note))
-}
-
-func pointerToString(value string) *string {
-	return &value
 }
