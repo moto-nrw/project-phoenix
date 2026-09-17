@@ -22333,7 +22333,7 @@
     },
     {
       "id": "inbound-parent.http.identity-access-application",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained parent login and password-reset flows (#2725). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained parent login and password-reset flows and maps the auth, related-account and invitation errors (#2725). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
         "production"
       ],
@@ -22355,7 +22355,7 @@
     },
     {
       "id": "inbound-parent.http.delivery-platform-adapter",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) renders localized notification preference labels. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) validates the requested portal locale. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
         "production"
       ],
@@ -22377,7 +22377,7 @@
     },
     {
       "id": "inbound-parent.http.enrollment-application",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained enrollment request, offering and course services. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained enrollment request service and maps the enrollment, offering and course result types and errors. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
         "production"
       ],
@@ -22407,17 +22407,6 @@
       "source_role": "http",
       "target_owner": "timetable-activities",
       "target_role": "domain"
-    },
-    {
-      "id": "inbound-parent.http.timetable-application",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained care-schedule service vocabulary in services/schedule. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
     },
     {
       "id": "inbound-parent.http.people-directory-domain",
