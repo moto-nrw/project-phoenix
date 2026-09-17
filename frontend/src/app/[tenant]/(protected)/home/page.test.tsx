@@ -420,6 +420,7 @@ const HIDDEN_DEFAULTS: HomeLayoutOverrides = {
   "tile.students_sick": false,
   "tile.students_excused": false,
   "tile.students_home": false,
+  "tile.students_at_school": false,
   "section.open_requests": false,
   "section.active_groups": false,
   "section.day_flow": false,

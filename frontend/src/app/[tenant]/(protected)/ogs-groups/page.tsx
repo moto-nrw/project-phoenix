@@ -24,7 +24,7 @@ import type {
   ActiveFilter,
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/api";
-import { isHomeLocation } from "~/lib/location-helper";
+import { isNotCheckedInLocation } from "~/lib/location-helper";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -641,10 +641,10 @@ function OGSGroupPageContent() {
 
     if (sortMode === "pickup") {
       return sorted.sort((a, b) => {
-        const aHome = isHomeLocation(a.current_location);
-        const bHome = isHomeLocation(b.current_location);
+        const aHome = isNotCheckedInLocation(a.current_location);
+        const bHome = isNotCheckedInLocation(b.current_location);
 
-        // Zuhause immer ganz unten
+        // Nicht eingecheckt (Zuhause oder noch in der Schule) immer ganz unten
         if (aHome && !bHome) return 1;
         if (!aHome && bHome) return -1;
         if (aHome && bHome) return compareByName(a, b);
@@ -686,14 +686,14 @@ function OGSGroupPageContent() {
 
     if (sortMode === "arrival") {
       return sorted.sort((a, b) => {
-        const aHome = isHomeLocation(a.current_location);
-        const bHome = isHomeLocation(b.current_location);
+        const aHome = isNotCheckedInLocation(a.current_location);
+        const bHome = isNotCheckedInLocation(b.current_location);
 
-        // Angekommene Kinder (nicht zu Hause) immer unten
+        // Angekommene Kinder (eingecheckt) immer unten
         if (!aHome && bHome) return 1;
         if (aHome && !bHome) return -1;
 
-        // Beide zu Hause: nach Ankunfts-Urgency sortieren
+        // Beide nicht eingecheckt: nach Ankunfts-Urgency sortieren
         const timeA = a.arrival_time;
         const timeB = b.arrival_time;
         const statusA = getStudentTimeStatus({
@@ -789,6 +789,11 @@ function OGSGroupPageContent() {
             icon: "M21 12a9 9 0 11-18 0 9 9 0 0118 0zM12 12a8 8 0 008 4M7.5 13.5a12 12 0 008.5 6.5M12 12a8 8 0 00-7.464 4.928M12.951 7.353a12 12 0 00-9.88 4.111M12 12a8 8 0 00-.536-8.928M15.549 15.147a12 12 0 001.38-10.611",
           },
           {
+            value: "at_school",
+            label: "Schule",
+            icon: "M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422A12.083 12.083 0 0118.825 17.057 11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z",
+          },
+          {
             value: "at_home",
             label: "Zuhause",
             icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6",
@@ -825,6 +830,7 @@ function OGSGroupPageContent() {
         foreign_room: "Fremder Raum",
         transit: "Unterwegs",
         schoolyard: "Schulhof",
+        at_school: "Schule",
         at_home: "Zuhause",
       };
       filters.push({

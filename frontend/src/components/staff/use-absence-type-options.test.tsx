@@ -26,6 +26,7 @@ const REGENERATIONSTAG: AbsenceType = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: true,
+  carryoverUntil: null,
 };
 
 const SONDERURLAUB: AbsenceType = {
@@ -34,6 +35,7 @@ const SONDERURLAUB: AbsenceType = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: true,
+  carryoverUntil: null,
 };
 
 describe("useAbsenceTypeOptions", () => {

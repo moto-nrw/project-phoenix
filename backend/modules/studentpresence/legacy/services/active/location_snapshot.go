@@ -35,6 +35,16 @@ const (
 // second copy of the string literal.
 const YardLocationLabel = "Schulhof"
 
+// AbsentLocationLabel is the resolved location of a child without an open
+// check-in: not checked in yet today, or checked out.
+const AbsentLocationLabel = "Abwesend"
+
+// AtSchoolLocationLabel replaces AbsentLocationLabel for a child the day plan
+// expects who has not checked in yet, so the morning reads "Schule" instead of
+// "Zuhause" (#3260). The resolver here never emits it: only the callers that
+// hold the day plan can decide it (careschedule.IsAtSchoolBeforeCheckIn).
+const AtSchoolLocationLabel = "Schule"
+
 // StudentLocationSnapshot caches attendance, visit, and group data for a set of students.
 // Callers can reuse the snapshot to resolve location strings without triggering N+1 queries.
 //

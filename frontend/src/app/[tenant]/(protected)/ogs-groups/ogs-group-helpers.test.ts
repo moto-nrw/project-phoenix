@@ -252,6 +252,14 @@ describe("matchesAttendanceFilter", () => {
     expect(matchesAttendanceFilter(presentStudent, "at_home", {})).toBe(false);
   });
 
+  it("keeps at_school and at_home apart (#3260)", () => {
+    const schoolStudent = makeStudent({ current_location: "Schule" });
+    const homeStudent = makeStudent({ current_location: "Zuhause" });
+    expect(matchesAttendanceFilter(schoolStudent, "at_school", {})).toBe(true);
+    expect(matchesAttendanceFilter(homeStudent, "at_school", {})).toBe(false);
+    expect(matchesAttendanceFilter(schoolStudent, "at_home", {})).toBe(false);
+  });
+
   it("returns true for unknown filter values (default case)", () => {
     const student = makeStudent();
     expect(matchesAttendanceFilter(student, "unknown_filter", {})).toBe(true);

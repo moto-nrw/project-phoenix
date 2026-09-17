@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -129,6 +130,7 @@ func activeLiveListFilters(params *studentListParams) []string {
 // export must keep accepting them (#1939).
 var locationDerivedExportStatuses = map[string]struct{}{
 	"abwesend":  {},
+	"schule":    {},
 	"unterwegs": {},
 	"schulhof":  {},
 	"anwesend":  {},
@@ -202,7 +204,124 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	}
 
 	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, isToday)
+	if isToday {
+		careDayEnd, err := rs.SettingsService.ResolveString(ctx, configModel.KeySessionEndTime)
+		if err != nil {
+			return dayPlanningTimes{}, err
+		}
+		applyAtSchoolLocation(responses, pickups, attendances, careDayEnd, rs.Now())
+	}
 	return dayPlanningTimes{arrivals: arrivals, pickups: pickups}, nil
+}
+
+// CountAtSchoolToday counts the given students who read "Schule" right now.
+// The dashboard hands in its "Zuhause" candidates (active, not present, not
+// sick or excused) and moves this many into its own tile (#3260). It runs the
+// same loaders and rule as the student list, so both agree on every child.
+func (rs *Resource) CountAtSchoolToday(ctx context.Context, studentIDs []int64) (int, error) {
+	if len(studentIDs) == 0 {
+		return 0, nil
+	}
+	today := rs.todayDate()
+	attendances, err := rs.ActiveService.GetStudentsAttendanceStatuses(ctx, studentIDs)
+	if err != nil {
+		return 0, err
+	}
+	arrivals, err := rs.loadDayPlanningArrivals(ctx, studentIDs, today)
+	if err != nil {
+		return 0, err
+	}
+	pickups, err := rs.loadDayPlanningPickups(ctx, studentIDs, today)
+	if err != nil {
+		return 0, err
+	}
+	timetableIDs, err := rs.loadDayPlanningTimetableIDs(ctx, studentIDs, today)
+	if err != nil {
+		return 0, err
+	}
+	careDayEnd, err := rs.SettingsService.ResolveString(ctx, configModel.KeySessionEndTime)
+	if err != nil {
+		return 0, err
+	}
+
+	responses := make([]StudentResponse, len(studentIDs))
+	for i, id := range studentIDs {
+		responses[i] = StudentResponse{ID: id, HasFullAccess: true, Location: common.AbsentLocationLabel}
+	}
+	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, true)
+	applyAtSchoolLocation(responses, pickups, attendances, careDayEnd, rs.Now())
+
+	count := 0
+	for i := range responses {
+		if responses[i].Location == common.AtSchoolLocationLabel {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// enrichCurrentLocationWithDayPlanning resolves the same status and day-plan
+// facts as the list and detail responses before the direct location endpoint
+// returns its compact projection.
+func (rs *Resource) enrichCurrentLocationWithDayPlanning(ctx context.Context, response *StudentResponse) error {
+	if response == nil {
+		return nil
+	}
+	now := rs.Now()
+	responses := []StudentResponse{*response}
+	if err := rs.applyStatusDaysForDate(ctx, responses, now); err != nil {
+		return err
+	}
+	attendances := map[int64]*activeService.AttendanceStatus{}
+	if response.HasFullAccess {
+		attendance, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, response.ID)
+		if err != nil {
+			return err
+		}
+		attendances[response.ID] = attendance
+	}
+	if _, err := rs.enrichWithDayPlanning(ctx, responses, timezone.DateFromTime(now), true, attendances); err != nil {
+		return err
+	}
+	*response = responses[0]
+	return nil
+}
+
+// applyAtSchoolLocation turns "Abwesend" into "Schule" for every full-access
+// child the day plan expects who has not checked in yet (#3260). It runs after
+// applyDayPlanning because the rule reads the plan it just resolved; the
+// restricted rows carry no plan and keep "Abwesend".
+func applyAtSchoolLocation(
+	responses []StudentResponse,
+	pickups map[int64]*careschedule.EffectivePickupTime,
+	attendances map[int64]*activeService.AttendanceStatus,
+	careDayEnd string,
+	now time.Time,
+) {
+	for i := range responses {
+		response := &responses[i]
+		if !response.HasFullAccess || response.Location != common.AbsentLocationLabel {
+			continue
+		}
+		var pickupTime *time.Time
+		if pickup := pickups[response.ID]; pickup != nil {
+			pickupTime = pickup.PickupTime
+		}
+		if !careschedule.IsAtSchoolBeforeCheckIn(careschedule.AtSchoolInputs{
+			Decision: careschedule.DayPlanningDecision{
+				ComesToday: response.DayPlanningStatus == DayPlanningStatusComesToday,
+				Reason:     response.DayPlanningReason,
+			},
+			CheckedInToday: attendances[response.ID].HasRecordToday(),
+			PickupTime:     pickupTime,
+			CareDayEnd:     careDayEnd,
+			Now:            now,
+		}) {
+			continue
+		}
+		response.Location = common.AtSchoolLocationLabel
+		response.LocationSince = nil
+	}
 }
 
 // applyPendingExcusedNotes attaches the guardian's note of a pending

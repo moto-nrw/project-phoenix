@@ -112,6 +112,20 @@ describe("PresenceBadge", () => {
     expect(pill.getAttribute("data-presence-state")).toBe("abwesend");
   });
 
+  it("renders Schule in its own tone before the first check-in (#3260)", () => {
+    render(<PresenceBadge student={{ current_location: "Schule" }} />);
+    expect(screen.getByText("Schule")).toBeInTheDocument();
+    expect(screen.queryByText("Zuhause")).not.toBeInTheDocument();
+    const pill = getPill();
+    expect(pill.getAttribute("data-presence-state")).toBe("abwesend");
+    expect(
+      bgMatchesBrandColor(
+        pill,
+        getLocationBadgeTone(LOCATION_COLORS.AT_SCHOOL).backgroundColor,
+      ),
+    ).toBe(true);
+  });
+
   it("renders Abwesend when current_location is empty", () => {
     render(<PresenceBadge student={{ current_location: null }} />);
     expect(screen.getByText("Zuhause")).toBeInTheDocument();

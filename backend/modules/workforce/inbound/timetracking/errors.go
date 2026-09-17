@@ -96,6 +96,9 @@ func classifyAbsenceError(err error) render.Renderer {
 	case errors.Is(err, workforce.ErrVacationQuotaExceeded):
 		return common.ErrorConflictWithCode(err, "vacation_quota_exceeded")
 
+	case errors.Is(err, workforce.ErrAllowanceBookingOverlap):
+		return common.ErrorConflict(err)
+
 	case msg == "absence not found":
 		return common.ErrorNotFound(err)
 

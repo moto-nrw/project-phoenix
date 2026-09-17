@@ -741,10 +741,5 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 	// Build response
 	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
 
-	// Apply location filter
-	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
-		return nil
-	}
-
 	return &studentResponse
 }

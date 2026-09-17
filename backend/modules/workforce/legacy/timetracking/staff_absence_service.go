@@ -21,6 +21,17 @@ import (
 // only a time-tracking manager may create, change, or delete.
 var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled")
 
+// ErrAllowanceBookingOverlap keeps the entry date of every allowance booking
+// intact. A merge would make newly added days look as though they were entered
+// with the older booking, which could wrongly make expired carryover usable.
+var ErrAllowanceBookingOverlap error = allowanceBookingOverlapError{}
+
+type allowanceBookingOverlapError struct{}
+
+func (allowanceBookingOverlapError) Error() string {
+	return "Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."
+}
+
 // ErrVacationQuotaInvalid marks invalid quota input supplied by a caller.
 var ErrVacationQuotaInvalid = errors.New("invalid vacation quota")
 
@@ -357,19 +368,19 @@ func (s *staffAbsenceService) today() timezone.Date {
 // The base type is taken from the art, never from the client: that is the whole
 // point of the split — a school can name a day "Regenerationstag", but it stays
 // arithmetically the type the art was created as (v1: always "Sonstige").
-func (s *staffAbsenceService) resolveAbsenceTypeSelection(ctx context.Context, typeID *int64, fallbackType string) (*int64, string, error) {
+func (s *staffAbsenceService) resolveAbsenceTypeSelection(ctx context.Context, typeID *int64, fallbackType string) (*activeModels.StaffAbsenceType, *int64, string, error) {
 	if typeID == nil || *typeID <= 0 {
-		return nil, fallbackType, nil
+		return nil, nil, fallbackType, nil
 	}
 	if s.absenceTypes == nil {
-		return nil, "", ErrAbsenceTypeNotFound
+		return nil, nil, "", ErrAbsenceTypeNotFound
 	}
 	resolved, err := s.absenceTypes.ResolveForAbsence(ctx, *typeID)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	id := resolved.ID
-	return &id, resolved.BaseType, nil
+	return resolved, &id, resolved.BaseType, nil
 }
 
 // withLabels stamps the school's own wording onto the given responses and
@@ -468,7 +479,7 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	// Resolve the school-defined art first (#2403): it, not the client, decides
 	// the canonical type every guard below and every later calculation reads.
-	typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, req.AbsenceType)
+	selectedType, typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, req.AbsenceType)
 	if err != nil {
 		return nil, err
 	}
@@ -509,6 +520,9 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 
 	var resp *StaffAbsenceResponse
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
+		if selectedType != nil && selectedType.AllowanceEnabled {
+			return nil, ErrAllowanceBookingOverlap
+		}
 		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, createdByStaffID, req)
 	} else {
 		if err := validateSingleDayHalfDayAbsence(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
@@ -1032,7 +1046,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 				absence.AbsenceType = before.AbsenceType
 			}
 		} else {
-			typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
+			_, typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, absence.AbsenceType)
 			if err != nil {
 				return nil, err
 			}

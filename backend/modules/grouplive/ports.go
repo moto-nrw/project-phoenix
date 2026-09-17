@@ -198,6 +198,21 @@ type Planning interface {
 	TimetablePlannedStudentIDs(ctx context.Context, studentIDs []int64, date Date) (map[int64]bool, error)
 	// DecideDay applies the shared day-planning precedence.
 	DecideDay(inputs DayInputs) DayDecision
+	// AtSchoolBeforeCheckIn applies the owner's rule for "Schule": an
+	// expected child without a check-in whose care day is not over (#3260).
+	AtSchoolBeforeCheckIn(inputs AtSchoolInputs) bool
+}
+
+// AtSchoolInputs are the facts the "Schule" rule decides from. CheckedIn is
+// true once today's attendance holds a check-in, also a checked-out one.
+// PickupTime is today's effective pickup time; CareDayEnd is the school's
+// "HH:MM" session end used without one.
+type AtSchoolInputs struct {
+	Decision   DayDecision
+	CheckedIn  bool
+	PickupTime *time.Time
+	CareDayEnd string
+	Now        time.Time
 }
 
 // TransferReader lists the group handovers active on a date.
@@ -214,6 +229,8 @@ type Settings interface {
 	// TrackingIndicatorLabels returns the configured labels, empty when the
 	// indicators are disabled.
 	TrackingIndicatorLabels(ctx context.Context) ([]string, error)
+	// CareDayEnd is the school's session end as "HH:MM".
+	CareDayEnd(ctx context.Context) (string, error)
 }
 
 // Calendar supplies the tenant's calendar day and wall-clock rendering.
@@ -222,4 +239,6 @@ type Calendar interface {
 	Today() Date
 	// Clock renders an instant as the local wall clock (HH:MM).
 	Clock(at time.Time) string
+	// Now is the current instant.
+	Now() time.Time
 }

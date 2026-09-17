@@ -14,13 +14,30 @@ import {
   type CatalogConfig,
 } from "~/components/database/catalog/catalog-page";
 import { absenceTypeService, type AbsenceType } from "~/lib/absence-type-api";
+import { CARRYOVER_OPTIONS, carryoverRuleLabel } from "~/lib/absence-helpers";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const CACHE_KEY = "database-absence-types";
 
-function sections(): SectionConfig[] {
+// Ein per API gesetzter Tag, der kein Monatsende ist, bleibt wählbar.
+function carryoverOptions(type: AbsenceType | null) {
+  const current = type?.carryoverUntil;
+  if (
+    !current ||
+    CARRYOVER_OPTIONS.some((option) => option.value === current)
+  ) {
+    return [...CARRYOVER_OPTIONS];
+  }
+  const [month, day] = current.split("-");
+  return [
+    ...CARRYOVER_OPTIONS,
+    { value: current, label: `Bis ${day}.${month}. des Folgejahres` },
+  ];
+}
+
+function sections(type: AbsenceType | null): SectionConfig[] {
   return [
     {
       title: "Abwesenheitsart",
@@ -40,6 +57,15 @@ function sections(): SectionConfig[] {
           colSpan: 2,
           helperText:
             "Die Tage je Person tragen Sie unter Mitarbeiter im Reiter Abwesenheiten ein. Mehr als dort steht, lässt sich nicht eintragen.",
+        },
+        {
+          name: "carryoverUntil",
+          label: "Rest verfällt",
+          type: "select",
+          colSpan: 2,
+          options: carryoverOptions(type),
+          helperText:
+            "Gilt nur mit Kontingent. Bis zu diesem Tag gehen Tage im neuen Jahr zuerst vom Rest des Vorjahres ab. Danach ist der Rest verfallen.",
         },
       ],
     },
@@ -65,7 +91,7 @@ const config: CatalogConfig<AbsenceType> = {
   toRow: (type) => ({
     name: type.name,
     subtitle: type.allowanceEnabled
-      ? "Mit Kontingent je Person"
+      ? `Mit Kontingent · ${carryoverRuleLabel(type.carryoverUntil)}`
       : "Ohne Kontingent",
     retired: !type.isActive,
   }),
@@ -73,10 +99,12 @@ const config: CatalogConfig<AbsenceType> = {
   toFormValues: (type) => ({
     name: type.name,
     allowanceEnabled: type.allowanceEnabled,
+    carryoverUntil: type.carryoverUntil ?? "",
   }),
   createDefaults: {
     name: "",
     allowanceEnabled: false,
+    carryoverUntil: "",
   },
   // Der POST nimmt die vollständige Konfiguration an und speichert sie in
   // einem Vorgang. Ein fehlgeschlagener Nachtrag kann so keinen Eintrag mit
@@ -86,6 +114,7 @@ const config: CatalogConfig<AbsenceType> = {
       String(values.name ?? "").trim(),
       {
         allowanceEnabled: Boolean(values.allowanceEnabled),
+        carryoverUntil: String(values.carryoverUntil ?? "") || null,
       },
     );
   },
@@ -93,6 +122,7 @@ const config: CatalogConfig<AbsenceType> = {
     absenceTypeService.updateAbsenceType(type.id, {
       name: String(values.name ?? type.name).trim(),
       allowanceEnabled: Boolean(values.allowanceEnabled),
+      carryoverUntil: String(values.carryoverUntil ?? "") || null,
     }),
   retire: {
     menuLabel: "Nicht mehr anbieten",

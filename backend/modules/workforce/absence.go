@@ -172,8 +172,11 @@ type StaffAbsenceType struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	// CarryoverUntil is "MM-DD" in the following year until which a yearly
+	// rest stays usable; "" lets it expire on 31.12.
+	CarryoverUntil string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // StaffAbsenceTypeFields is the writable part of an absence type.
@@ -182,6 +185,7 @@ type StaffAbsenceTypeFields struct {
 	BaseType         string
 	IsActive         bool
 	AllowanceEnabled bool
+	CarryoverUntil   string
 }
 
 // StaffAbsenceAudit is one status transition of an absence.
@@ -268,11 +272,29 @@ type AbsenceTypeAllowanceSummary struct {
 	TakenDays     float64
 	ReservedDays  float64
 	RemainingDays float64
+	// ExpiresOn (YYYY-MM-DD) is the last day the rest can be booked;
+	// ExpiredDays is the rest left when that day passed (#3257).
+	ExpiresOn   string
+	ExpiredDays float64
+	// BookingDays is what a previewed booking takes from this year.
+	BookingDays float64
+	// CarriedIn is the previous year's rest still usable in this year.
+	CarriedIn *AbsenceTypeAllowanceCarry
+}
+
+// AbsenceTypeAllowanceCarry is the previous year's account as seen from the
+// year its rest is carried into.
+type AbsenceTypeAllowanceCarry struct {
+	Year          int
+	RemainingDays float64
+	ExpiredDays   float64
+	ExpiresOn     string
 }
 
 type CreateAbsenceType struct {
 	Name             string
 	AllowanceEnabled bool
+	CarryoverUntil   string
 }
 
 // UpdateAbsenceType patches an absence type; nil fields stay as they are, so a
@@ -282,6 +304,8 @@ type UpdateAbsenceType struct {
 	Name             *string
 	IsActive         *bool
 	AllowanceEnabled *bool
+	// CarryoverUntil: nil keeps the rule, "" lets the rest expire on 31.12.
+	CarryoverUntil *string
 }
 
 type SetAbsenceTypeAllowance struct {
@@ -301,6 +325,9 @@ type AbsenceTypeAdministration interface {
 	CreateAbsenceType(context.Context, CreateAbsenceType) (StaffAbsenceType, error)
 	UpdateAbsenceType(context.Context, UpdateAbsenceType) (StaffAbsenceType, error)
 	AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (AbsenceTypeAllowanceSummary, error)
+	// PreviewAllowanceBooking shows which yearly accounts a booking would
+	// use. With ErrAbsenceTypeAllowanceExceeded the previews are still set.
+	PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]AbsenceTypeAllowanceSummary, error)
 	SetAllowance(context.Context, SetAbsenceTypeAllowance) (AbsenceTypeAllowanceSummary, error)
 }
 

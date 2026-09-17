@@ -516,7 +516,7 @@ src/components/ui/page-header/OverflowMenu.tsx|text-[10px]@393 text-[11px]@456
 src/components/ui/parent-visible-badge.tsx|text-[11px]@44
 src/components/ui/plan-block.tsx|text-[11px]@126 text-[11px]@133
 src/components/ui/plan-legend.tsx|text-[11px]@106
-src/components/ui/presence-badge.tsx|text-[11px]@78 text-[11px]@79 text-[10px]@248
+src/components/ui/presence-badge.tsx|text-[11px]@80 text-[11px]@81 text-[10px]@257
 `);
 
 const noTinyText = makeClassStringRule({

@@ -630,6 +630,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     expect(statusFilterOptions()).toEqual([
       "all",
       "anwesend",
+      "schule",
       "abwesend",
       "unterwegs",
       "schulhof",

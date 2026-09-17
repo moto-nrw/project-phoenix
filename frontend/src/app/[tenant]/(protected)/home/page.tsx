@@ -68,6 +68,7 @@ const ANALYTICS_BLOCKS: readonly HomeBlockKey[] = [
   "tile.students_on_playground",
   "tile.students_sick",
   "tile.students_excused",
+  "tile.students_at_school",
   "tile.students_home",
   "tile.active_activities",
   "tile.capacity_utilization",

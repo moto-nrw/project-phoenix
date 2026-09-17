@@ -188,6 +188,7 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
       "tile.students_sick": false,
       "tile.students_excused": false,
       "tile.students_home": false,
+      "tile.students_at_school": false,
       "section.active_groups": false,
       "section.open_requests": false,
       "section.day_flow": false,
