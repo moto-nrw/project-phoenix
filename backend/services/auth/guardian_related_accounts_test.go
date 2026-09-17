@@ -865,7 +865,7 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	openForStudent := 0
 	now := time.Now()
 	for _, inv := range invitations {
-		if inv.StudentID != nil && *inv.StudentID == student.ID && authService.GuardianInvitationValid(inv, now) {
+		if inv.StudentID != nil && *inv.StudentID == student.ID && inv.AcceptedAt == nil && inv.ExpiresAt.After(now) {
 			openForStudent++
 		}
 	}

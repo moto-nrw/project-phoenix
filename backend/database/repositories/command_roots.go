@@ -5,10 +5,8 @@ import (
 	"fmt"
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
@@ -57,10 +55,6 @@ func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCle
 		School: mustNewOrganizationTenancy(db), Person: NewPersonRepository(db),
 		AuthEvent: RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
-}
-
-func NewInvitationCleanupRepository(db *bun.DB) authModels.InvitationTokenRepository {
-	return authRepo.NewInvitationTokenRepository(db)
 }
 
 type SessionCleanupRepositories struct {

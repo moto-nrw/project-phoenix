@@ -123,14 +123,6 @@ func (s *Service) WithTenantRuntime(ctx context.Context) context.Context {
 	return s.withTenantRuntime(ctx)
 }
 
-// detachedTenantContext preserves tenant/runtime values while isolating
-// asynchronous work from the request transaction and its commit hooks.
-func detachedTenantContext(ctx context.Context) context.Context {
-	ctx = context.WithoutCancel(ctx)
-	ctx = tenant.ContextWithoutTransaction(ctx)
-	return tenant.ContextWithoutAfterCommitHooks(ctx)
-}
-
 func (s *Service) SetTenantRuntime(runtime tenant.UnitOfWork) {
 	s.tenantRuntime = &runtime
 }
