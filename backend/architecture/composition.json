@@ -4813,7 +4813,7 @@
       "declaration": "TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure",
       "target": "database/repositories.NewFactory",
       "lines": [
-        3872
+        3995
       ],
       "tables": []
     },
