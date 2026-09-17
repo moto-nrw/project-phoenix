@@ -89,10 +89,23 @@ describe("StaffSessionTable Abwesenheit nachtragen", () => {
     );
 
     expect(onBackfillAbsence).toHaveBeenCalledTimes(1);
-    const day = onBackfillAbsence.mock.calls[0]![0] as Date;
+    const [day, kind] = onBackfillAbsence.mock.calls[0]! as [Date, string];
     expect([day.getFullYear(), day.getMonth(), day.getDate()]).toEqual([
       2026, 0, 5,
     ]);
+    expect(kind).toBe("absence");
+  });
+
+  it("bietet auf einem Tag ohne Eintrag die Krankmeldung an", () => {
+    const onBackfillAbsence = vi.fn();
+    renderTable({ onBackfillAbsence });
+
+    openMondayMenu();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Krankmeldung nachtragen" }),
+    );
+
+    expect(onBackfillAbsence).toHaveBeenCalledWith(expect.any(Date), "sick");
   });
 
   it("bietet sie nicht an, wenn der Tag schon Arbeitszeit hat", () => {

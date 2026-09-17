@@ -22,7 +22,15 @@ import {
 } from "~/lib/staff-api";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { AbsenceBookingModal } from "~/components/staff/absence-booking-modal";
-import type { SickReportStaff } from "~/components/staff/sick-report-modal";
+import {
+  SickReportModal,
+  type SickReportStaff,
+} from "~/components/staff/sick-report-modal";
+import { createLogger } from "~/lib/logger";
+import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
+} from "~/lib/timetable-helpers";
 import { isStaleAfterSessionSave } from "~/components/staff/staff-session-table";
 import { absenceTypeService } from "~/lib/absence-type-api";
 import { useSWRConfig } from "swr";
@@ -49,11 +57,13 @@ import {
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { usePeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
+
+const logger = createLogger({ component: "ZeiterfassungTab" });
 
 // Reopening changes both the staff-detail chain and, when the selected person
 // is the signed-in manager, the self-service month chain. The remaining
@@ -97,7 +107,17 @@ export function ZeiterfassungTab({
   readonly staff?: SickReportStaff;
   readonly canBookAbsences?: boolean;
 }) {
-  const [backfillDate, setBackfillDate] = useState<string | null>(null);
+  const [backfill, setBackfill] = useState<{
+    date: string;
+    kind: "absence" | "sick";
+  } | null>(null);
+  // Eine Krankmeldung ändert Dienst- und Vertretungsplan mit (#1843).
+  const refreshPlanCaches = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+    VERTRETUNG_WEEK_KEY_PREFIX,
+    VERTRETUNG_GAPS_KEY_PREFIX,
+  ]);
   const canBackfill = canBookAbsences && staff !== undefined;
   const { data: absenceTypes } = useSWRAuth(
     canBackfill ? "staff-absence-types" : null,
@@ -262,6 +282,12 @@ export function ZeiterfassungTab({
     accountStartDate !== "" && accountStartDate > todayISO;
   const [showReopenModal, setShowReopenModal] = useState(false);
   const { mutate: globalMutate } = useSWRConfig();
+  const refreshAfterBackfill = () =>
+    globalMutate(
+      (key) =>
+        isStaleAfterSessionSave(key, staffId) ||
+        isStaleAfterMonthReopen(key, staffId),
+    );
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -448,25 +474,39 @@ export function ZeiterfassungTab({
               plannedShifts={visibleShifts ?? []}
               onBackfillAbsence={
                 canBackfill
-                  ? (day) => setBackfillDate(toDateKey(day))
+                  ? (day, kind) => setBackfill({ date: toDateKey(day), kind })
                   : undefined
               }
             />
           </div>
         )}
       </SectionCard>
-      {backfillDate && staff ? (
+      {backfill?.kind === "absence" && staff ? (
         <AbsenceBookingModal
           staff={staff}
           types={absenceTypes ?? []}
-          initialDate={backfillDate}
-          onClose={() => setBackfillDate(null)}
+          initialDate={backfill.date}
+          onClose={() => setBackfill(null)}
           onSaved={async () => {
-            setBackfillDate(null);
-            await globalMutate(
-              (key) =>
-                isStaleAfterSessionSave(key, staffId) ||
-                isStaleAfterMonthReopen(key, staffId),
+            setBackfill(null);
+            await refreshAfterBackfill();
+          }}
+        />
+      ) : null}
+      {backfill?.kind === "sick" && staff ? (
+        <SickReportModal
+          isOpen
+          staff={staff}
+          initialDate={backfill.date}
+          onClose={() => setBackfill(null)}
+          onCreated={() => {
+            Promise.all([refreshPlanCaches(), refreshAfterBackfill()]).catch(
+              (err: unknown) => {
+                logger.error("sick_backfill_refresh_failed", {
+                  staff_id: staffId,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
             );
           }}
         />

@@ -1372,7 +1372,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Die betroffenen Tage ankreuzen, zum Beispiel alle Freitage seit August. Dann `Weiter` wählen.",
           "Die neue Art wählen. moto zeigt, wie sich das Stundenkonto ändert und wie viele Tage vom Kontingent abgehen.",
           "Einen Grund eintragen und `Art ändern` wählen. Die Einträge bleiben stehen, nur ihre Art ändert sich.",
-          "Fehlt an einem vergangenen Tag noch jeder Eintrag: Reiter `Zeiterfassung`, im Menü mit den drei Punkten des Tages `Abwesenheit nachtragen` wählen. Der Tag ist dann schon vorbelegt.",
+          "Fehlt an einem vergangenen Tag noch jeder Eintrag: Reiter `Zeiterfassung`, im Menü mit den drei Punkten des Tages `Abwesenheit nachtragen` oder `Krankmeldung nachtragen` wählen. Der Tag ist dann schon vorbelegt.",
         ],
         checklist: [
           "Von Freizeitausgleich auf eine andere Art bekommt das Stundenkonto die abgezogene Sollzeit zurück.",

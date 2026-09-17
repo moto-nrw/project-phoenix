@@ -1,6 +1,11 @@
 "use client";
 
-import { CalendarPlus, ChevronRight, SquarePen } from "lucide-react";
+import {
+  CalendarPlus,
+  ChevronRight,
+  SquarePen,
+  Thermometer,
+} from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
 
@@ -316,7 +321,7 @@ export function StaffSessionTable({
   ) => void;
   // Admin: a past day without any entry can get an absence instead of work
   // time (#3258). Only offered when the caller can book absences.
-  readonly onBackfillAbsence?: (date: Date) => void;
+  readonly onBackfillAbsence?: (date: Date, kind: "absence" | "sick") => void;
   // Audit-trail fetcher for the expanded row. Defaults to the admin route
   // (time_tracking:manage); the MA self-view passes the self-scoped
   // /api/time-tracking/{id}/edits fetcher so staff can read their own
@@ -919,7 +924,19 @@ export function StaffSessionTable({
                                               aria-hidden
                                             />
                                           ),
-                                          onClick: () => onBackfillAbsence(day),
+                                          onClick: () =>
+                                            onBackfillAbsence(day, "absence"),
+                                        },
+                                        {
+                                          label: "Krankmeldung nachtragen",
+                                          icon: (
+                                            <Thermometer
+                                              className="h-4 w-4"
+                                              aria-hidden
+                                            />
+                                          ),
+                                          onClick: () =>
+                                            onBackfillAbsence(day, "sick"),
                                         },
                                       ]
                                     : []),
