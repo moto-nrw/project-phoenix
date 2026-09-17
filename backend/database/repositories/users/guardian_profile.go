@@ -152,10 +152,11 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // Runtime-role note: this runs under phoenix_tenant (the staff calendar routes
 // use TenantTxMiddleware). That role has SELECT on every auth table via the
 // "GRANT SELECT ON ALL TABLES IN SCHEMA auth TO phoenix_tenant" in migration
-// 1.14.1 (no later revoke), and RLS permits the owner subqueries with
-// app.current_tenant_id set: auth.roles allows tenant_id IS NULL (the guardian
-// base role), and auth.account_roles / auth.account_tenants rows match the
-// current tenant. It is NOT limited to phoenix_auth — no admin tx is needed.
+// 1.14.1 (no later revoke). RLS scopes auth.account_roles to the current
+// tenant and lets auth.roles show tenant_id IS NULL (the guardian base role).
+// auth.account_tenants has NO RLS: the membership subquery lists every
+// school, so the row-value predicates below MUST keep pairing it with
+// "guardian_profile".tenant_id. No admin tx is needed.
 func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil

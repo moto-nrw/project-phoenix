@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -32,7 +31,9 @@ func TestIdentityMembershipRuntimeEvidence(t *testing.T) {
 	colleague, colleagueAccount := testpkg.CreateTestStaffWithAccount(t, db, "Evidence", "Colleague")
 	require.NotNil(t, colleague)
 	testpkg.AssignLehrkraftSystemRole(t, db, colleagueAccount.ID, chain.TenantID)
-	perm := authorize.GuardianPermissionPortalAccess
+	// authorize.GuardianPermissionPortalAccess; this test scope may not import
+	// the security runtime.
+	perm := "parent_portal.access"
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	testpkg.AttachLockWaitEvidence(db)

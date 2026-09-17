@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -18,15 +17,15 @@ type membershipPair struct {
 	TenantID  int64 `bun:"tenant_id"`
 }
 
-// scanPairs runs an owner query as a subquery on the caller's transaction and
-// keeps only the rows of the given accounts, so parallel fixtures stay out.
-func scanPairs(ctx context.Context, db *bun.DB, query *bun.SelectQuery, accountIDs ...int64) ([]membershipPair, error) {
+// scanPairs runs an owner query on the transaction it was built on and keeps
+// only the rows of the given accounts, so parallel fixtures stay out. Only
+// the mapping and assignment tables carry an account_id column, so the
+// unqualified filter is unambiguous.
+func scanPairs(ctx context.Context, query *bun.SelectQuery, accountIDs ...int64) ([]membershipPair, error) {
 	var rows []membershipPair
-	err := base.GetDB(ctx, db).NewSelect().
-		TableExpr(`(?) AS "owner"`, query).
-		ColumnExpr(`"owner".account_id, "owner".tenant_id`).
-		Where(`"owner".account_id IN (?)`, bun.List(accountIDs)).
-		OrderExpr(`"owner".account_id, "owner".tenant_id`).
+	err := query.
+		Where(`account_id IN (?)`, bun.List(accountIDs)).
+		OrderExpr(`1, 2`).
 		Scan(ctx, &rows)
 	return rows, err
 }
@@ -87,12 +86,12 @@ func TestMembershipQueries_TwoTenantIsolation(t *testing.T) {
 			{AccountID: member.ID, TenantID: other},
 		}
 		withinSchool(t, home, func(txCtx context.Context) {
-			rows, err := scanPairs(txCtx, db, tenants.ActiveMemberships(txCtx), member.ID, departed.ID)
+			rows, err := scanPairs(txCtx, tenants.ActiveMemberships(txCtx), member.ID, departed.ID)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, want, rows, "the inactive mapping is never a membership")
 		})
 		require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(txCtx context.Context) error {
-			rows, err := scanPairs(txCtx, db, tenants.ActiveMemberships(txCtx), member.ID, departed.ID)
+			rows, err := scanPairs(txCtx, tenants.ActiveMemberships(txCtx), member.ID, departed.ID)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, want, rows)
 			return nil
@@ -101,7 +100,7 @@ func TestMembershipQueries_TwoTenantIsolation(t *testing.T) {
 
 	t.Run("guardian role holders are scoped to the school in context", func(t *testing.T) {
 		withinSchool(t, home, func(txCtx context.Context) {
-			rows, err := scanPairs(txCtx, db, roles.GuardianRoleHolders(txCtx), member.ID, departed.ID)
+			rows, err := scanPairs(txCtx, roles.GuardianRoleHolders(txCtx), member.ID, departed.ID)
 			require.NoError(t, err)
 			assert.ElementsMatch(t, []membershipPair{
 				{AccountID: member.ID, TenantID: home},
@@ -109,7 +108,7 @@ func TestMembershipQueries_TwoTenantIsolation(t *testing.T) {
 			}, rows, "the role assignment is its own fact; the mapping status is filtered by the consumer")
 		})
 		withinSchool(t, other, func(txCtx context.Context) {
-			rows, err := scanPairs(txCtx, db, roles.GuardianRoleHolders(txCtx), member.ID, departed.ID)
+			rows, err := scanPairs(txCtx, roles.GuardianRoleHolders(txCtx), member.ID, departed.ID)
 			require.NoError(t, err)
 			assert.Equal(t, []membershipPair{{AccountID: member.ID, TenantID: other}}, rows)
 		})

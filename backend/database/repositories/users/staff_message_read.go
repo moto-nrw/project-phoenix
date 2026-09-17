@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -90,7 +91,7 @@ func (r *StaffMessageReadRepository) resolveStaffAccounts(ctx context.Context) (
 // queries addresses nobody.
 func (r *StaffMessageReadRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
 	if r.identity.ActiveAccounts == nil || r.identity.ActiveMemberships == nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve active accounts", Err: errors.New("active account and membership queries are required")}
+		return nil, &modelBase.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active account and membership queries are required")}
 	}
 	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
 	if err != nil {
@@ -328,7 +329,7 @@ func (r *StaffMessageReadRepository) StaffRoleKinds(ctx context.Context, account
 
 	rows, err := r.identity.RoleClasses(ctx, tenant.FromContext(ctx), accountIDs)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "resolve staff role kinds", Err: err}
+		return nil, fmt.Errorf("resolve staff role kinds: %w", err)
 	}
 	for _, row := range rows {
 		switch {

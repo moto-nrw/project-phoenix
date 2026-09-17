@@ -50,7 +50,10 @@ The harness only uses constructors that exist on both sides
 unchanged file `backend/database/repositories/identity_membership_runtime_evidence_test.go`
 was copied into a temporary worktree of that commit and run with the same
 command; the worktree was removed afterwards. Both runs happened back to back
-on an idle machine. Raw records:
+on an idle machine. After the measurement the harness replaced its
+`authorize.GuardianPermissionPortalAccess` import by the equal literal
+`"parent_portal.access"`, because that test scope may not import the security
+runtime; the measured behavior is identical. Raw records:
 [baseline](identity-membership-2721.baseline.raw.json),
 [candidate](identity-membership-2721.raw.json).
 
@@ -110,9 +113,12 @@ round trip, so the statement counts are unchanged by construction.
   portal reachability or the parent message recipients at the relationship's
   school. Replacing one row-value predicate by an account-only predicate
   makes it fail.
-- `TestIdentityMembership_UnboundQueriesFailClosed` and
-  `TestIdentityMembership_RoleClassFailureIsNotSwallowed` prove that a
-  missing owner query or a failing owner read surfaces as an error.
+- `TestIdentityMembership_UnboundQueriesFailClosed`,
+  `TestPlatformReadsFailClosedWithoutMembershipQuery`,
+  `TestParentReadsFailClosedWithoutMembershipQuery` and
+  `TestIdentityMembership_RoleClassFailureIsNotSwallowed` prove that each
+  missing #2721 owner query, with the #2720 account query still bound, and
+  a failing owner read surface as an error.
 - Rollback: the operations only read. A failing owner read returns its error
   to the caller, whose transaction then rolls back unchanged; no write path
   changed.

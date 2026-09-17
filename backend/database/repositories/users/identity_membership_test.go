@@ -135,17 +135,23 @@ func TestIdentityMembership_UnboundQueriesFailClosed(t *testing.T) {
 	_, err = usersRepo.NewMessageableGuardianRepository(db, nil).ListGuardiansForStudent(ctx, chain.StudentID)
 	require.Error(t, err)
 
-	_, err = usersRepo.NewGuardianProfileRepository(db).FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
-	require.Error(t, err)
+	// Only the #2720 account switch is bound, so the #2721 school access
+	// queries are what is missing.
+	activeAccounts := func(context.Context) *bun.SelectQuery {
+		return db.NewSelect().TableExpr(`auth.accounts AS "account"`).ColumnExpr(`"account".id`).Where(`"account".active = TRUE`)
+	}
+	_, err = usersRepo.NewGuardianProfileRepository(db, usersRepo.WithActiveAccounts(activeAccounts)).
+		FindActivePortalProfilesByIDs(ctx, []int64{chain.GuardianProfileID})
+	require.ErrorContains(t, err, "school access queries are required")
 
 	staffAccounts := func(context.Context) ([]int64, error) { return []int64{chain.AccountID}, nil }
-	reads := usersRepo.NewStaffMessageReadRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{})
+	reads := usersRepo.NewStaffMessageReadRepository(db, staffAccounts, usersRepo.StaffMessageIdentity{ActiveAccounts: activeAccounts})
 	_, err = reads.ListMessageableStaff(ctx, chain.AccountID)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "membership queries are required")
 	_, err = reads.IsMessageableStaff(ctx, chain.AccountID)
-	require.Error(t, err)
+	require.ErrorContains(t, err, "membership queries are required")
 	_, err = reads.StaffRoleKinds(ctx, []int64{chain.AccountID})
-	require.Error(t, err)
+	require.ErrorContains(t, err, "role class query is required")
 }
 
 // TestIdentityMembership_RoleClassFailureIsNotSwallowed pins that a failing
