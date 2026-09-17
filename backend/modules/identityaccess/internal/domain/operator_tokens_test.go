@@ -76,6 +76,7 @@ func TestOperatorLinksAreNeverStoredExpiredOrSpent(t *testing.T) {
 		{"invitation without token", invitation(func(i *OperatorInvitation) { i.Token = "" }).Validate(now), "token value is required"},
 		{"invitation without inviter", invitation(func(i *OperatorInvitation) { i.CreatedBy = 0 }).Validate(now), "created_by operator ID is required"},
 		{"valid email change", emailChange(func(*OperatorEmailChange) {}).Validate(now), ""},
+		{"email change expiring now", emailChange(func(c *OperatorEmailChange) { c.Expiry = now }).Validate(now), "token has already expired"},
 		{"expired email change", emailChange(func(c *OperatorEmailChange) { c.Expiry = now.Add(-time.Second) }).Validate(now), "token has already expired"},
 		{"used email change", emailChange(func(c *OperatorEmailChange) { c.Used = true }).Validate(now), "token has already been used"},
 		{"email change without operator", emailChange(func(c *OperatorEmailChange) { c.OperatorID = 0 }).Validate(now), "operator ID is required"},

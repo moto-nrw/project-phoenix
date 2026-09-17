@@ -55,7 +55,7 @@ func (t *OperatorTokens) FindInvitation(ctx context.Context, id int64) (result d
 		invitation, found, queryStats, findErr := t.store.FindOperatorInvitation(txCtx, id)
 		stats.Add(queryStats)
 		result = invitation
-		return foundOr(found, findErr, domain.ErrOperatorInvitationNotFound)
+		return stateChange(found, findErr, domain.ErrOperatorInvitationNotFound)
 	})
 	return result, err
 }
@@ -68,7 +68,7 @@ func (t *OperatorTokens) FindRedeemableInvitation(ctx context.Context, token str
 		invitation, found, queryStats, findErr := t.store.FindRedeemableOperatorInvitation(txCtx, token, t.now())
 		stats.Add(queryStats)
 		result = invitation
-		return foundOr(found, findErr, domain.ErrOperatorInvitationNotFound)
+		return stateChange(found, findErr, domain.ErrOperatorInvitationNotFound)
 	})
 	return result, err
 }
@@ -103,7 +103,7 @@ func (t *OperatorTokens) RedeemInvitation(ctx context.Context, token string) (re
 		invitation, found, queryStats, redeemErr := t.store.RedeemOperatorInvitation(txCtx, token, t.now())
 		stats.Add(queryStats)
 		result = invitation
-		return foundOr(found, redeemErr, domain.ErrOperatorInvitationNotFound)
+		return stateChange(found, redeemErr, domain.ErrOperatorInvitationNotFound)
 	})
 	return result, err
 }
@@ -191,7 +191,7 @@ func (t *OperatorTokens) RedeemEmailChange(ctx context.Context, token string) (r
 		change, found, queryStats, redeemErr := t.store.RedeemOperatorEmailChange(txCtx, token, t.now())
 		stats.Add(queryStats)
 		result = change
-		return foundOr(found, redeemErr, domain.ErrOperatorEmailChangeNotFound)
+		return stateChange(found, redeemErr, domain.ErrOperatorEmailChangeNotFound)
 	})
 	return result, err
 }
@@ -231,15 +231,4 @@ func (t *OperatorTokens) DeleteStaleEmailChanges(ctx context.Context) (result in
 		return deleteErr
 	})
 	return result, err
-}
-
-// foundOr reports a lookup that matched nothing as notFound.
-func foundOr(found bool, err error, notFound error) error {
-	if err != nil {
-		return err
-	}
-	if !found {
-		return notFound
-	}
-	return nil
 }

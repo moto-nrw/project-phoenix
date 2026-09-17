@@ -45,10 +45,11 @@ func (e engine) CountOperatorEmailChangesCreatedAfter(ctx context.Context, opera
 }
 
 func (e engine) CreateOperatorInvitation(ctx context.Context, invitation identityaccess.OperatorInvitation) (identityaccess.OperatorInvitation, error) {
+	// UsedAt is passed so validation refuses a spent link; identity,
+	// delivery and timestamps are assigned by the store.
 	value, err := e.tokens.CreateInvitation(ctx, domain.OperatorInvitation{
-		ID: invitation.ID, Email: invitation.Email, Token: invitation.Token, ExpiresAt: invitation.ExpiresAt, UsedAt: invitation.UsedAt,
-		CreatedBy: invitation.CreatedBy, DisplayName: invitation.DisplayName, Delivery: domain.TokenDelivery(invitation.Delivery),
-		CreatedAt: invitation.CreatedAt, UpdatedAt: invitation.UpdatedAt,
+		Email: invitation.Email, Token: invitation.Token, ExpiresAt: invitation.ExpiresAt, UsedAt: invitation.UsedAt,
+		CreatedBy: invitation.CreatedBy, DisplayName: invitation.DisplayName,
 	})
 	return publicOperatorInvitation(value), mapError(err)
 }
@@ -82,8 +83,7 @@ func (e engine) DeleteExpiredOperatorInvitations(ctx context.Context) (int, erro
 
 func (e engine) CreateOperatorEmailChange(ctx context.Context, change identityaccess.OperatorEmailChange) (identityaccess.OperatorEmailChange, error) {
 	value, err := e.tokens.CreateEmailChange(ctx, domain.OperatorEmailChange{
-		ID: change.ID, OperatorID: change.OperatorID, NewEmail: change.NewEmail, Token: change.Token, Expiry: change.Expiry,
-		Used: change.Used, Delivery: domain.TokenDelivery(change.Delivery), CreatedAt: change.CreatedAt, UpdatedAt: change.UpdatedAt,
+		OperatorID: change.OperatorID, NewEmail: change.NewEmail, Token: change.Token, Expiry: change.Expiry, Used: change.Used,
 	})
 	return publicOperatorEmailChange(value), mapError(err)
 }

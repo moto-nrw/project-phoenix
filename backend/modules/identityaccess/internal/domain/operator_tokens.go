@@ -76,7 +76,7 @@ func (c *OperatorEmailChange) Validate(now time.Time) error {
 		return errors.New("token value is required")
 	case c.NewEmail == "":
 		return errors.New("new email is required")
-	case c.Expiry.Before(now):
+	case !c.Expiry.After(now):
 		return errors.New("token has already expired")
 	case c.Used:
 		return errors.New("token has already been used")
