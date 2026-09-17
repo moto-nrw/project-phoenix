@@ -585,6 +585,7 @@ var adminAbsenceErrorRules = []common.ErrorRule{
 	}},
 	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
 	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
+	{Match: absenceMsgIs("Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."), Render: common.ErrorConflict},
 	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
 	{Match: absenceMsgPrefix("dates overlap"), Render: common.ErrorConflict},
 	{Target: workforce.ErrStaffShiftOverlap, Render: common.ErrorConflict},

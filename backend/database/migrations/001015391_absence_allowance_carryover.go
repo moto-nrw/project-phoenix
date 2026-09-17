@@ -34,7 +34,7 @@ func absenceAllowanceCarryoverUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE active.staff_absence_types
 			ADD CONSTRAINT chk_sat_carryover_until CHECK (
 				carryover_until IS NULL
-				OR carryover_until ~ '^(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$'
+				OR carryover_until ~ '^(?:(?:01|03|05|07|08|10|12)-(?:0[1-9]|[12][0-9]|3[01])|(?:04|06|09|11)-(?:0[1-9]|[12][0-9]|30)|02-(?:0[1-9]|1[0-9]|2[0-8]))$'
 			);
 	`).Exec(ctx)
 	if err != nil {
