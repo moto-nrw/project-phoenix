@@ -63,6 +63,12 @@ var unmappedDateColumns = map[string]string{
 	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
 	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
 	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local timezone.Date rows — no models/ struct",
+	// Later-pickup tasks (#3261) are owned by the Timetable module, whose
+	// internals carry calendar days as validated YYYY-MM-DD strings. The
+	// Postgres adapter binds them with ?::date and reads them back with
+	// ::text, so no time.Time ever touches these columns.
+	"schedule.pickup_extension_tasks.task_date":      "timetable adapter binds YYYY-MM-DD text with ::date — no models/ struct, no time.Time",
+	"schedule.pickup_extension_tasks.effective_from": "timetable adapter binds YYYY-MM-DD text with ::date — no models/ struct, no time.Time",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a

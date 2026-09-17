@@ -96,6 +96,10 @@ var queryBudgets = map[string]queryBudget{
 	// plus the setting, offering and series-root reads for roster maintenance
 	// (#3140). The test proves all 11 statements stay flat from 3 to 8 rows.
 	"api.timetable.templates.list": {max: 11},
+	// api/timetable — GET /pickup-extensions (#3261), day tasks only: tenant
+	// transaction and tenant setup, task read, one batched block read,
+	// student and person names. Flat in the number of open tasks.
+	"api.timetable.pickup_extensions.list": {max: 9},
 	// api/timetable — GET /periods (#3124): tenant transaction (BEGIN, SET
 	// LOCAL ROLE, set_config, COMMIT) + period list + one usage read per
 	// owner (Enrollment phases, Timetable planning tables). The two owner

@@ -11,6 +11,7 @@ import type { AggregatedRequestFilters } from "~/components/students/aggregated-
 import { StaffAbsenceRequestList } from "~/components/staff/staff-absence-request-list";
 import { RequestFeedDialog } from "~/components/students/request-feed-dialog";
 import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absence-request-list";
+import { PickupExtensionAccessProvider } from "~/components/timetable/pickup-extension-access";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -23,6 +24,7 @@ import type {
   AggregatedRequestType,
 } from "~/lib/change-request-list-api";
 import { ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
+import { hasPermission } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -496,16 +498,22 @@ function ElternTab({
   filters: AggregatedRequestFilters;
   onCountChange: (count: number | null, hasMore: boolean) => void;
 }>) {
+  const { data: session } = useSession();
+  // Wer Termine im Betreuungsplan zuordnen darf, wird nach dem Freigeben
+  // einer späteren Abholzeit direkt nach dem Termin gefragt (#3261).
+  const canPlanBlocks = hasPermission(session, "schedules:manage");
   return (
     <div className="w-full">
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
-      <AggregatedRequestList
-        key={view}
-        view={view}
-        filters={filters}
-        onCountChange={onCountChange}
-      />
+      <PickupExtensionAccessProvider value={canPlanBlocks}>
+        <AggregatedRequestList
+          key={view}
+          view={view}
+          filters={filters}
+          onCountChange={onCountChange}
+        />
+      </PickupExtensionAccessProvider>
     </div>
   );
 }

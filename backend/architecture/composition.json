@@ -6273,7 +6273,7 @@
       "declaration": "TestAutoExcusal_DeletingTheExceptionRestoresBlocks",
       "target": "database/repositories.NewFactory",
       "lines": [
-        213
+        219
       ],
       "tables": []
     },
@@ -6283,7 +6283,7 @@
       "declaration": "TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        471
+        477
       ],
       "tables": []
     },
@@ -6293,14 +6293,14 @@
       "declaration": "autoExcusalHarness.exception",
       "target": "database/repositories.NewFactory",
       "lines": [
-        357
+        363
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "services/schedule/pickup_auto_excusal_test.go",
-      "declaration": "setupAutoExcusalHarness",
+      "declaration": "autoExcusalRepositories",
       "target": "database/repositories.NewFactory",
       "lines": [
         50

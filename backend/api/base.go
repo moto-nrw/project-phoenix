@@ -1569,6 +1569,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		OfferingSourceOptions:   offeringSourceOptions(api.Services.EnrollmentDecision),
 		ReportService:           api.Services.EnrollmentReport,
 		PlanExportService:       api.Services.PlanExport,
+		PickupExtensions:        modules.timetable,
 		Broadcaster:             api.Services.RealtimeHub,
 		Logger:                  logger.With("handler", "timetable"),
 		DB:                      db,

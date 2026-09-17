@@ -44,10 +44,16 @@ func wallClockAt(h, m int) *time.Time {
 	return &t
 }
 
+// autoExcusalRepositories is the one repository graph the pickup trigger
+// tests share (auto excusal and later-pickup tasks).
+func autoExcusalRepositories(db *bun.DB) *repositories.Factory {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+}
+
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := autoExcusalRepositories(db)
 
 	syncer := scheduleService.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,

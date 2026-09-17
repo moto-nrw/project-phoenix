@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -119,10 +120,13 @@ type Dependencies struct {
 	// PlanExportService renders the printable Betreuungsplan week (#2079).
 	PlanExportService    planexport.Service
 	PlanningTrackService timetableplanning.PlanningTrackService
-	Broadcaster          realtime.Broadcaster
-	Logger               *slog.Logger
-	DB                   *bun.DB
-	Now                  func() time.Time
+	// PickupExtensions serves the open block decisions for later pickup
+	// times (#3261).
+	PickupExtensions timetable.PickupExtensionCapability
+	Broadcaster      realtime.Broadcaster
+	Logger           *slog.Logger
+	DB               *bun.DB
+	Now              func() time.Time
 }
 
 // NewResource creates a new timetable resource from the given Dependencies.
@@ -289,6 +293,15 @@ func (rs *Resource) Router() chi.Router {
 		// advisory). Same permission + tx middleware as /exception-conflicts.
 		r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
+
+		// Later pickup times without a block (#3261). Resolving changes
+		// rosters, so both routes need SchedulesManage.
+		r.Route("/pickup-extensions", func(r chi.Router) {
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+				Get("/", rs.listPickupExtensions)
+			r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/resolve", rs.resolvePickupExtension)
+		})
 
 		// Per-user conflict acknowledgements (#2139). SchedulesRead on
 		// purpose: whoever sees the banner may manage their own view state;

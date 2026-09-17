@@ -1309,11 +1309,13 @@ func newFactory(
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
 	// parent care-exception writers so both derive the same state.
+	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
 		pickupBaselines,
 		repos.InstanceStudent,
 		db,
+		schedule.WithPickupExtensions(timetableCapability),
 	)
 
 	// Initialize pickup schedule service
