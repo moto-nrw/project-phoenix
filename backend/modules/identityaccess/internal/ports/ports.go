@@ -73,6 +73,40 @@ type OperatorStore interface {
 	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 }
 
+// OperatorMFAStore is the persistence port over the operator MFA enrollment,
+// e-mail challenge and trusted-device tables. All three are platform-wide:
+// no row carries a tenant. "Active" compares against the now the caller
+// passes.
+type OperatorMFAStore interface {
+	FindOperatorMFACredential(ctx context.Context, operatorID int64) (domain.OperatorMFACredential, bool, domain.OperationStats, error)
+	InsertOperatorMFACredential(ctx context.Context, credential domain.OperatorMFACredential) (domain.OperatorMFACredential, domain.OperationStats, error)
+	TouchOperatorMFACredential(ctx context.Context, id int64, usedAt time.Time) (domain.OperationStats, error)
+	DeleteOperatorMFACredentials(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+
+	InsertOperatorMFAChallenge(ctx context.Context, challenge domain.OperatorMFAChallenge) (domain.OperatorMFAChallenge, domain.OperationStats, error)
+	// FindActiveOperatorMFAChallenge returns the unconsumed, unexpired code
+	// with the latest expiry.
+	FindActiveOperatorMFAChallenge(ctx context.Context, operatorID int64, now time.Time) (domain.OperatorMFAChallenge, bool, domain.OperationStats, error)
+	CountOperatorMFAChallengesSince(ctx context.Context, operatorID int64, since time.Time) (int, domain.OperationStats, error)
+	// ActivateOperatorMFAChallenge clears consumed_at on a consumed row and
+	// reports whether such a row existed.
+	ActivateOperatorMFAChallenge(ctx context.Context, id int64) (bool, domain.OperationStats, error)
+	// ConsumeOperatorMFAChallenge stamps consumed_at on an unconsumed row and
+	// reports whether such a row existed.
+	ConsumeOperatorMFAChallenge(ctx context.Context, id int64, consumedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertOperatorTrustedDevice(ctx context.Context, device domain.OperatorTrustedDevice) (domain.OperatorTrustedDevice, domain.OperationStats, error)
+	FindActiveOperatorTrustedDevice(ctx context.Context, operatorID int64, tokenHash string, now time.Time) (domain.OperatorTrustedDevice, bool, domain.OperationStats, error)
+	// ListActiveOperatorTrustedDevices orders by last use, most recent first,
+	// then by creation.
+	ListActiveOperatorTrustedDevices(ctx context.Context, operatorID int64, now time.Time) ([]domain.OperatorTrustedDevice, domain.OperationStats, error)
+	TouchOperatorTrustedDevice(ctx context.Context, id int64, usedAt time.Time) (domain.OperationStats, error)
+	// RevokeOperatorTrustedDevice stamps revoked_at on an unrevoked row and
+	// reports whether such a row existed.
+	RevokeOperatorTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
+}
+
 // AccountSessionStore is the persistence port over auth.tokens, the
 // tenant-scoped refresh sessions of platform accounts. Reads and deletes that
 // name no explicit tenant apply the scope the composition resolves from the

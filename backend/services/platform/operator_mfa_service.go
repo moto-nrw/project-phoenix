@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -88,10 +87,14 @@ type OperatorMFAService interface {
 
 // OperatorMFAServiceConfig groups dependencies for NewOperatorMFAService.
 type OperatorMFAServiceConfig struct {
+	// Repos supplies the operator audit log only.
 	Repos *repositories.Factory
 	// Operators is the consumer-owned port over the Identity & Access
 	// operator rows the lockout counter and the enrollment checks read.
-	Operators   OperatorDirectory
+	Operators OperatorDirectory
+	// Records is the consumer-owned port over the Identity & Access MFA
+	// enrollment, challenge and trusted-device rows.
+	Records     OperatorMFARecords
 	TokenAuth   *authjwt.TokenAuth
 	Dispatcher  *email.Dispatcher
 	DefaultFrom email.Email
@@ -129,6 +132,9 @@ func NewOperatorMFAService(cfg OperatorMFAServiceConfig) (OperatorMFAService, er
 	if cfg.Operators == nil {
 		return nil, errors.New("OperatorMFAServiceConfig.Operators is required")
 	}
+	if cfg.Records == nil {
+		return nil, errors.New("OperatorMFAServiceConfig.Records is required")
+	}
 	if cfg.TokenAuth == nil {
 		return nil, errors.New("OperatorMFAServiceConfig.TokenAuth is required")
 	}
@@ -151,15 +157,11 @@ func NewOperatorMFAService(cfg OperatorMFAServiceConfig) (OperatorMFAService, er
 // ===== Inquiry =====
 
 func (s *operatorMFAService) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {
-	cred, err := s.Repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
+	cred, err := s.Records.FindCredential(ctx, operatorID)
 	if err != nil {
-		// sql.ErrNoRows is the legitimate "not enrolled" signal — every
-		// fresh operator hits it on the first login. Anything else is
-		// infrastructure: refuse this login rather than fail-open with
-		// false. errors.Is walks through DatabaseError.Unwrap().
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
+		// A missing enrollment is (nil, nil) — every fresh operator hits it
+		// on the first login. Any error is infrastructure: refuse this login
+		// rather than fail-open with false.
 		s.Logger.Warn("operator mfa enrollment lookup failed; refusing login",
 			slog.Int64("operator_id", operatorID),
 			slog.String("error", err.Error()))
@@ -180,7 +182,7 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 	}
 
 	since := time.Now().Add(-OperatorMFARateLimitWindow)
-	count, err := s.Repos.OperatorMFAEmailChallenge.CountRecentByOperatorID(ctx, operatorID, since)
+	count, err := s.Records.CountChallengesSince(ctx, operatorID, since)
 	if err == nil && count >= OperatorMFARateLimitMaxSent {
 		return "", ErrOperatorMFARateLimited
 	}
@@ -202,14 +204,14 @@ func (s *operatorMFAService) StartChallenge(ctx context.Context, operatorID int6
 		ConsumedAt: &createdAt,
 		IPAddress:  ip,
 	}
-	if err := s.Repos.OperatorMFAEmailChallenge.Create(ctx, challenge); err != nil {
+	if err := s.Records.CreateChallenge(ctx, challenge); err != nil {
 		return "", fmt.Errorf("persist email challenge: %w", err)
 	}
 
 	if err := s.dispatchChallengeEmail(ctx, op, plainCode, ip); err != nil {
 		return "", authService.ErrMFAStatusUnavailable
 	}
-	if err := s.Repos.OperatorMFAEmailChallenge.MarkActive(ctx, challenge.ID); err != nil {
+	if err := s.Records.ActivateChallenge(ctx, challenge.ID); err != nil {
 		s.Logger.Error("failed to activate delivered operator mfa challenge",
 			slog.Int64("challenge_id", challenge.ID),
 			slog.String("error", err.Error()))
@@ -244,7 +246,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 		return nil, ErrOperatorMFALocked
 	}
 
-	active, err := s.Repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, op.ID)
+	active, err := s.Records.FindActiveChallenge(ctx, op.ID)
 	if err != nil || active == nil {
 		s.recordAudit(ctx, op.ID, platform.ActionMFAFailed, nil, nil, map[string]any{"reason": "no active challenge"})
 		return nil, ErrOperatorMFACodeInvalid
@@ -263,7 +265,7 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	// continued, which let two racing requests both mint a session from a
 	// single-use code. Refuse the loser instead.
 	now := time.Now()
-	if err := s.Repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+	if err := s.Records.ConsumeChallenge(ctx, active.ID, now); err != nil {
 		s.Logger.Warn("failed to mark operator challenge consumed; refusing verify",
 			slog.Int64("operator_id", op.ID),
 			slog.Int64("challenge_id", active.ID),
@@ -278,9 +280,9 @@ func (s *operatorMFAService) VerifyChallenge(ctx context.Context, challengeToken
 	}
 	op.MFAAttempts = 0
 	op.MFALockedUntil = nil
-	cred, _ := s.Repos.OperatorMFACredential.FindByOperatorID(ctx, op.ID)
+	cred, _ := s.Records.FindCredential(ctx, op.ID)
 	if cred != nil && cred.ID > 0 {
-		_ = s.Repos.OperatorMFACredential.UpdateLastUsedAt(ctx, cred.ID, now)
+		_ = s.Records.TouchCredential(ctx, cred.ID, now)
 	}
 	s.recordAudit(ctx, op.ID, platform.ActionMFAVerified, nil, &active.ID, nil)
 	return &OperatorVerifiedChallenge{OperatorID: op.ID}, nil
@@ -309,7 +311,7 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 	if s.isMFALocked(op, time.Now()) {
 		return ErrOperatorMFALocked
 	}
-	active, err := s.Repos.OperatorMFAEmailChallenge.FindActiveByOperatorID(ctx, operatorID)
+	active, err := s.Records.FindActiveChallenge(ctx, operatorID)
 	if err != nil || active == nil {
 		s.recordAudit(ctx, operatorID, platform.ActionMFAFailed, nil, nil, map[string]any{"reason": "no active challenge"})
 		return ErrOperatorMFACodeInvalid
@@ -321,7 +323,7 @@ func (s *operatorMFAService) VerifyCodeForOperator(ctx context.Context, operator
 		return ErrOperatorMFACodeInvalid
 	}
 	now := time.Now()
-	if err := s.Repos.OperatorMFAEmailChallenge.MarkConsumed(ctx, active.ID, now); err != nil {
+	if err := s.Records.ConsumeChallenge(ctx, active.ID, now); err != nil {
 		// Same race-loser refusal as VerifyChallenge (operator scope).
 		s.Logger.Warn("failed to mark operator challenge consumed; refusing verify",
 			slog.Int64("operator_id", operatorID),
@@ -367,7 +369,7 @@ func (s *operatorMFAService) handleFailedAttempt(ctx context.Context, op *platfo
 // ===== Enrollment =====
 
 func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error {
-	existing, _ := s.Repos.OperatorMFACredential.FindByOperatorID(ctx, operatorID)
+	existing, _ := s.Records.FindCredential(ctx, operatorID)
 	if existing != nil && existing.ID > 0 {
 		return ErrOperatorMFAAlreadyEnrolled
 	}
@@ -376,7 +378,7 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 		Method:     platform.OperatorMFAMethodEmail,
 		EnrolledAt: time.Now(),
 	}
-	if err := s.Repos.OperatorMFACredential.Create(ctx, cred); err != nil {
+	if err := s.Records.CreateCredential(ctx, cred); err != nil {
 		return fmt.Errorf("persist operator mfa credential: %w", err)
 	}
 	s.recordAudit(ctx, operatorID, platform.ActionMFAEnrolled, nil, nil, nil)
@@ -392,10 +394,10 @@ func (s *operatorMFAService) Enroll(ctx context.Context, operatorID int64) error
 // (#1430 review item #7)
 func (s *operatorMFAService) Disable(ctx context.Context, operatorID int64) error {
 	err := tenant.WithAdminTx(s.withTenantRuntime(ctx), s.DB, func(txCtx context.Context, _ bun.Tx) error {
-		if err := s.Repos.OperatorMFACredential.DeleteByOperatorID(txCtx, operatorID); err != nil {
+		if err := s.Records.DeleteCredentials(txCtx, operatorID); err != nil {
 			return fmt.Errorf("delete operator credential: %w", err)
 		}
-		if err := s.Repos.OperatorMFATrustedDevice.RevokeAllByOperatorID(txCtx, operatorID, time.Now()); err != nil {
+		if err := s.Records.RevokeAllTrustedDevices(txCtx, operatorID, time.Now()); err != nil {
 			return fmt.Errorf("revoke operator trusted devices: %w", err)
 		}
 		// Atomic reset — replaces the previous fetch + full-row Update with a
@@ -431,7 +433,7 @@ func (s *operatorMFAService) IssueTrustedDevice(ctx context.Context, operatorID 
 		ua := userAgent
 		device.UserAgent = &ua
 	}
-	if err := s.Repos.OperatorMFATrustedDevice.Create(ctx, device); err != nil {
+	if err := s.Records.CreateTrustedDevice(ctx, device); err != nil {
 		return "", time.Time{}, fmt.Errorf("persist operator trusted device: %w", err)
 	}
 	signed := authService.SignTrustedDeviceToken(rawToken, s.mfaSecret)
@@ -448,22 +450,22 @@ func (s *operatorMFAService) VerifyTrustedDevice(ctx context.Context, operatorID
 		return false, nil
 	}
 	tokenHash := authService.HashTrustedDeviceToken(rawToken)
-	device, err := s.Repos.OperatorMFATrustedDevice.FindActiveByOperatorIDAndTokenHash(ctx, operatorID, tokenHash)
+	device, err := s.Records.FindActiveTrustedDevice(ctx, operatorID, tokenHash)
 	if err != nil || device == nil {
 		return false, nil
 	}
-	_ = s.Repos.OperatorMFATrustedDevice.UpdateLastUsedAt(ctx, device.ID, time.Now())
+	_ = s.Records.TouchTrustedDevice(ctx, device.ID, time.Now())
 	return true, nil
 }
 
 func (s *operatorMFAService) ListTrustedDevices(ctx context.Context, operatorID int64) ([]*platform.OperatorMFATrustedDevice, error) {
-	return s.Repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
+	return s.Records.ListActiveTrustedDevices(ctx, operatorID)
 }
 
 func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID, deviceID int64) error {
 	// Validate ownership before revoke — a device row can only be revoked
 	// by its own operator account.
-	devices, err := s.Repos.OperatorMFATrustedDevice.ListActiveByOperatorID(ctx, operatorID)
+	devices, err := s.Records.ListActiveTrustedDevices(ctx, operatorID)
 	if err != nil {
 		return err
 	}
@@ -477,7 +479,7 @@ func (s *operatorMFAService) RevokeTrustedDevice(ctx context.Context, operatorID
 	if !owned {
 		return ErrOperatorMFAPermissionDenied
 	}
-	return s.Repos.OperatorMFATrustedDevice.Revoke(ctx, deviceID, time.Now())
+	return s.Records.RevokeTrustedDevice(ctx, deviceID, time.Now())
 }
 
 // ===== Internal helpers =====

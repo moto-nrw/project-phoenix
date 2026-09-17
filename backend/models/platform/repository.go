@@ -3,13 +3,12 @@ package platform
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // The operator identity rows and their refresh sessions are owned by the
 // Identity & Access module (#2720, #3252); the retained flows in
-// services/platform reach them through their own consumer-owned ports.
+// services/platform reach them through their own consumer-owned ports. The
+// same holds for the operator MFA records (#2723).
 
 // OperatorEmailChangeTokenRepository defines operations for email change verification tokens
 type OperatorEmailChangeTokenRepository interface {
@@ -43,42 +42,7 @@ type OperatorAuditLogRepository interface {
 	Create(ctx context.Context, entry *OperatorAuditLog) error
 
 	// Query audit logs
-	FindByOperatorID(ctx context.Context, operatorID int64, limit int) ([]*OperatorAuditLog, error)
 	FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*OperatorAuditLog, error)
-}
-
-// OperatorMFACredentialRepository persists per-operator MFA enrollment.
-// Mirror of auth.MFACredentialRepository for the platform.operator_*
-// schema.
-type OperatorMFACredentialRepository interface {
-	base.CRUDRepository[*OperatorMFACredential]
-	FindByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFACredential, error)
-	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
-	DeleteByOperatorID(ctx context.Context, operatorID int64) error
-}
-
-// OperatorMFAEmailChallengeRepository persists time-limited 6-digit codes
-// for moto-Operators. Mirror of auth.MFAEmailChallengeRepository.
-type OperatorMFAEmailChallengeRepository interface {
-	Create(ctx context.Context, challenge *OperatorMFAEmailChallenge) error
-	FindByID(ctx context.Context, id interface{}) (*OperatorMFAEmailChallenge, error)
-	FindActiveByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFAEmailChallenge, error)
-	MarkActive(ctx context.Context, id int64) error
-	MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error
-	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
-	DeleteExpired(ctx context.Context) (int, error)
-}
-
-// OperatorMFATrustedDeviceRepository persists HMAC-signed trusted-device
-// records for moto-Operators. Mirror of auth.MFATrustedDeviceRepository.
-type OperatorMFATrustedDeviceRepository interface {
-	Create(ctx context.Context, device *OperatorMFATrustedDevice) error
-	FindActiveByOperatorIDAndTokenHash(ctx context.Context, operatorID int64, tokenHash string) (*OperatorMFATrustedDevice, error)
-	ListActiveByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorMFATrustedDevice, error)
-	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
-	Revoke(ctx context.Context, id int64, revokedAt time.Time) error
-	RevokeAllByOperatorID(ctx context.Context, operatorID int64, revokedAt time.Time) error
-	DeleteExpired(ctx context.Context) (int, error)
 }
 
 // OperatorPasskeyCredentialRepository persists WebAuthn credentials for moto operators.
