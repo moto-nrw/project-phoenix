@@ -785,6 +785,56 @@ applies the security-runtime guardian presets, which neither the module nor
 the root may import, so it moved to its write owner, the People Directory
 (`services/users`).
 
+The non-identity operator handlers left `api/operator` for their owners
+(#3232), moved file for file with their adapter tests: provisioning and its
+summaries to `modules/organizationtenancy/inbound/operator`
+(`organization-tenancy`/`http`), the school settings routes to
+`modules/settings/inbound/operator` (`settings-platform`/`http`), and the
+announcement routes to `modules/communication/http/operatorannouncements`
+(`communication`/`http`), all with `adapter-test` in both test scopes. No
+route path, status code, error string or authorization check changed.
+`api/operator` keeps the router with its middleware chain, builds these
+resources from its configuration and mounts them
+(`inbound-operator.http.organization-tenancy-http`,
+`inbound-operator.http.settings-platform-http`,
+`inbound-operator.http.communication-http`). The operator error body and
+the operator-audited id action live in `api/common` (`OperatorErrResponse`,
+`OperatorAuditedIDAction`), so every half of the operator surface renders
+one wire format; `api/operator` keeps its `Err*` names as thin delegations.
+The three packages are the only packages of their points, which exist only
+in the candidate. The owner rules `organization-tenancy.http.public`,
+`settings-platform.http.organization-public` and `communication.http.public`
+are the target shape (an inbound adapter calling a public capability).
+Every other `organization-tenancy.http.*`,
+`organization-tenancy.adapter-test.*`, `settings-platform.http.*`,
+`settings-platform.adapter-test.*`, `communication.http.*` and
+`communication.adapter-test.*` rule is a compatibility permission for the
+retained services, rows, token claims, calendar date, tenant runtime and
+ORM the handlers still speak, including the `internal/timezone` edge the
+ticket names: convert them to exact debt with the rule above under #2736
+once the packages exist at a base SHA. The operator settings hook is now
+construction-time configuration (`SettingsConfig.OnValueSet`,
+`ResourceConfig.SettingValueSet`) instead of a setter, because the
+composition surface guard records mutable wiring per package.
+
+The review of unregistered RFID scans could not join a candidate-only
+point: `device-fleet`/`http` already exists (`api/iot/devices`,
+`modules/devicefleet/deviceauth`), so PR mode admits no new permission for
+it, and `inbound-operator` may not import that point. Its handlers in
+`modules/devicefleet/inbound/operator` therefore read and resolve scans
+through the public Device Fleet capability, label them through a
+consumer-owned school directory, and take the operator surface (error
+bodies, response envelope, authenticated operator, resolution fallback) as
+plain functions. The root composition binds the directory to Organisation &
+Tenancy (`api/school_directories.go`) and hands the built router to
+`api/operator`, which mounts it as a plain handler. The wire shape of a scan,
+the school and Träger narrowing and labelling, and the administrative
+transaction are unchanged. The retained `services/audit` review path
+(`ListForOperator`, `Resolve`) and its repository methods are deleted; the
+service keeps recording and expiring scans. The school MFA admin handlers
+stay in `api/operator` with the identity half (#3231), which also removes
+`api.go` and the package.
+
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
 public command closes one live kiosk session in one UnitOfWork: it joins the

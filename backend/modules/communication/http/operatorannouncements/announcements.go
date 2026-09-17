@@ -1,4 +1,9 @@
-package operator
+// Package operatorannouncements serves the operator announcement routes of
+// Communication (#3232): authoring, publishing and the view statistics of
+// platform announcements. The operator router in api/operator mounts these
+// handlers behind its middleware chain, so the operator wire format and
+// authorization stay unchanged.
+package operatorannouncements
 
 import (
 	"errors"
@@ -139,16 +144,16 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 
 	req := &CreateAnnouncementRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
 	if req.Title == "" {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("title is required")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("title is required")))
 		return
 	}
 	if req.Content == "" {
-		common.RenderError(w, r, ErrInvalidRequest(errors.New("content is required")))
+		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("content is required")))
 		return
 	}
 
@@ -176,13 +181,13 @@ func (rs *AnnouncementsResource) CreateAnnouncement(w http.ResponseWriter, r *ht
 	if req.ExpiresAt != nil && *req.ExpiresAt != "" {
 		expiresAt, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 		if err != nil {
-			common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid expires_at format, expected RFC3339")))
+			common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid expires_at format, expected RFC3339")))
 			return
 		}
 		announcement.ExpiresAt = &expiresAt
 	}
 
-	clientIP := getClientIP(r)
+	clientIP := common.ParseClientIP(r)
 
 	if err := rs.announcementService.CreateAnnouncement(r.Context(), announcement, operatorID, clientIP); err != nil {
 		common.RenderError(w, r, AnnouncementErrorRenderer(err))
@@ -204,7 +209,7 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 
 	req := &UpdateAnnouncementRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrInvalidRequest(err))
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 
@@ -235,14 +240,14 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 		} else {
 			expiresAt, err := time.Parse(time.RFC3339, *req.ExpiresAt)
 			if err != nil {
-				common.RenderError(w, r, ErrInvalidRequest(errors.New("invalid expires_at format, expected RFC3339")))
+				common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid expires_at format, expected RFC3339")))
 				return
 			}
 			existing.ExpiresAt = &expiresAt
 		}
 	}
 
-	clientIP := getClientIP(r)
+	clientIP := common.ParseClientIP(r)
 
 	if err := rs.announcementService.UpdateAnnouncement(r.Context(), existing, operatorID, clientIP); err != nil {
 		common.RenderError(w, r, AnnouncementErrorRenderer(err))
@@ -254,17 +259,17 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 
 // DeleteAnnouncement handles deleting an announcement
 func (rs *AnnouncementsResource) DeleteAnnouncement(w http.ResponseWriter, r *http.Request) {
-	idAuditedAction(w, r, "id", "invalid announcement ID", rs.announcementService.DeleteAnnouncement, AnnouncementErrorRenderer, "Announcement deleted successfully")
+	common.OperatorAuditedIDAction(w, r, "id", "invalid announcement ID", rs.announcementService.DeleteAnnouncement, AnnouncementErrorRenderer, "Announcement deleted successfully")
 }
 
 // PublishAnnouncement handles publishing an announcement
 func (rs *AnnouncementsResource) PublishAnnouncement(w http.ResponseWriter, r *http.Request) {
-	idAuditedAction(w, r, "id", "invalid announcement ID", rs.announcementService.PublishAnnouncement, AnnouncementErrorRenderer, "Announcement published successfully")
+	common.OperatorAuditedIDAction(w, r, "id", "invalid announcement ID", rs.announcementService.PublishAnnouncement, AnnouncementErrorRenderer, "Announcement published successfully")
 }
 
 // GetStats handles getting view statistics for an announcement
 func (rs *AnnouncementsResource) GetStats(w http.ResponseWriter, r *http.Request) {
-	idList(w, r, "id", "invalid announcement ID", rs.announcementService.GetStats, AnnouncementErrorRenderer, "Stats retrieved successfully")
+	common.IDFetch("id", "invalid announcement ID", rs.announcementService.GetStats, AnnouncementErrorRenderer, "Stats retrieved successfully")(w, r)
 }
 
 // AnnouncementViewDetailResponse represents a view detail in the response
@@ -299,6 +304,21 @@ func (rs *AnnouncementsResource) GetViewDetails(w http.ResponseWriter, r *http.R
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "View details retrieved successfully")
+}
+
+// AnnouncementErrorRenderer maps announcement service errors to HTTP responses
+func AnnouncementErrorRenderer(err error) render.Renderer {
+	var notFound *communication.AnnouncementNotFoundError
+	var invalidData *communication.InvalidDataError
+
+	switch {
+	case errors.As(err, &notFound):
+		return common.OperatorNotFound("Announcement not found")
+	case errors.As(err, &invalidData):
+		return common.OperatorInvalidRequest(err)
+	default:
+		return common.OperatorInternal("An error occurred")
+	}
 }
 
 // newAnnouncementResponse creates an announcement response from an announcement model

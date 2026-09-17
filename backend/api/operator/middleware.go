@@ -102,16 +102,3 @@ func renderOperatorLookupError(w http.ResponseWriter, r *http.Request, operatorI
 	)
 	common.RenderError(w, r, ErrServiceUnavailable("Operator status temporarily unavailable, please retry"))
 }
-
-// ErrResponse is an error response struct
-type ErrResponse struct {
-	HTTPStatusCode int    `json:"-"`
-	StatusText     string `json:"status"`
-	ErrorText      string `json:"message,omitempty"`
-}
-
-// Render implements the render.Renderer interface
-func (e *ErrResponse) Render(w http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
-}

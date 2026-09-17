@@ -21,10 +21,3 @@ type UnregisteredTagScan struct {
 	DeviceIdentifier *string `bun:"device_identifier,scanonly" json:"device_identifier,omitempty"`
 	DeviceName       *string `bun:"device_name,scanonly" json:"device_name,omitempty"`
 }
-
-type UnregisteredTagScanFilter struct {
-	SchoolID       *int64
-	OrganizationID *int64
-	SchoolIDs      []int64
-	UnresolvedOnly bool
-}
