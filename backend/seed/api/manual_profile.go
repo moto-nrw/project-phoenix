@@ -560,6 +560,9 @@ func verifyManualStudentRows(rows []struct {
 			if student.ActualPickupAt != nil {
 				checkedOut++
 			}
+		case "Schule":
+			// Expected today but not checked in yet (#3260); the profile keeps
+			// the care day open until 23:59, so these rows stay "Schule".
 		default:
 			return fmt.Errorf("manual profile student %d has room-tracking location %q", student.ID, student.Location)
 		}
