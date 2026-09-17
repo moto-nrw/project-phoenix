@@ -48,65 +48,63 @@ type Resource struct {
 	PreferenceService     notificationsService.PreferenceService
 	PWAUsageService       pwaService.UsageService
 	db                    *bun.DB
-	authRateLimiter       func(http.Handler) http.Handler
 }
 
-// SetPreferenceService injects the notification consent service.
-func (rs *Resource) SetPreferenceService(service notificationsService.PreferenceService) {
-	rs.PreferenceService = service
-}
-
-// SetPushService injects the Web Push subscription service (#2003).
-func (rs *Resource) SetPushService(service notificationsService.PushSubscriptionService) {
-	rs.PushService = service
-}
-
-// SetPWAUsageService injects the PWA standalone-usage service (#2189).
-func (rs *Resource) SetPWAUsageService(service pwaService.UsageService) {
-	rs.PWAUsageService = service
-}
-
-// SetAuthRateLimiter sets the rate limiter middleware for public parent auth
-// endpoints. Mirrors the tenant and operator wiring in api/base.go so
-// brute-force attempts return 429.
-func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
-	rs.authRateLimiter = mw
-}
-
-func (rs *Resource) SetCalendarService(service calendarService.Service) {
-	rs.CalendarService = service
+// ResourceConfig lists the parent-portal collaborators. The composition root
+// supplies all of them at construction; tests set only the ones their routes
+// reach.
+type ResourceConfig struct {
+	Auth                  authService.AuthService
+	Parent                parentService.Service
+	Calendar              calendarService.Service
+	Requests              enrollmentService.RequestService
+	GuardianProfileLoader *usersService.GuardianProfileLoader
+	Schools               SchoolDirectory
+	// Push is the Web Push subscription service (#2003).
+	Push notificationsService.PushSubscriptionService
+	// Preferences is the notification consent service.
+	Preferences notificationsService.PreferenceService
+	// PWAUsage is the PWA standalone-usage service (#2189).
+	PWAUsage pwaService.UsageService
+	DB       *bun.DB
 }
 
 // NewResource builds the parent-portal resource.
-func NewResource(
-	auth authService.AuthService,
-	parent parentService.Service,
-	requestSvc enrollmentService.RequestService,
-	guardianProfileLoader *usersService.GuardianProfileLoader,
-	schoolService SchoolDirectory,
-	db *bun.DB,
-) *Resource {
+func NewResource(cfg ResourceConfig) *Resource {
 	var sharing parentService.RequestSharingService
-	if parent != nil {
+	if cfg.Parent != nil {
 		var ok bool
-		sharing, ok = parent.(parentService.RequestSharingService)
+		sharing, ok = cfg.Parent.(parentService.RequestSharingService)
 		if !ok {
 			panic("parent resource requires a request sharing service")
 		}
 	}
 	return &Resource{
-		AuthService:           auth,
-		ParentService:         parent,
+		AuthService:           cfg.Auth,
+		ParentService:         cfg.Parent,
 		RequestSharing:        sharing,
-		RequestService:        requestSvc,
-		GuardianProfileLoader: guardianProfileLoader,
-		SchoolService:         schoolService,
-		db:                    db,
+		CalendarService:       cfg.Calendar,
+		RequestService:        cfg.Requests,
+		GuardianProfileLoader: cfg.GuardianProfileLoader,
+		SchoolService:         cfg.Schools,
+		PushService:           cfg.Push,
+		PreferenceService:     cfg.Preferences,
+		PWAUsageService:       cfg.PWAUsage,
+		db:                    cfg.DB,
 	}
 }
 
-// Router returns the chi router scoped to /parent.
+// Router returns the chi router scoped to /parent without a rate limiter on
+// the public auth endpoints; tests drive it directly.
 func (rs *Resource) Router() chi.Router {
+	return rs.RouterWithAuthRateLimiter(nil)
+}
+
+// RouterWithAuthRateLimiter returns the chi router scoped to /parent with the
+// given rate limiter middleware on the public parent auth endpoints. Mirrors
+// the tenant and operator wiring in api/base.go so brute-force attempts return
+// 429; nil mounts the routes unthrottled.
+func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -117,8 +115,8 @@ func (rs *Resource) Router() chi.Router {
 	// tenant resolution happens at downstream parent endpoints from
 	// the URL or the picked child.
 	r.Route("/auth", func(r chi.Router) {
-		if rs.authRateLimiter != nil {
-			r.Use(rs.authRateLimiter)
+		if authRateLimiter != nil {
+			r.Use(authRateLimiter)
 		}
 		r.Post("/login", rs.login)
 		r.Post("/password-reset", rs.initiatePasswordReset)

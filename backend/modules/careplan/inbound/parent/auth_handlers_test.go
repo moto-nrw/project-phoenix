@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/parent"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -49,7 +49,7 @@ func (s *stubParentAuthService) ResetPassword(ctx context.Context, token, newPas
 // reaches into them, the nil deref will surface as a test failure, which is
 // the desired guardrail.
 func newTestResource(svc authService.AuthService) *parent.Resource {
-	return parent.NewResource(svc, nil, nil, nil, nil, nil)
+	return parent.NewResource(parent.ResourceConfig{Auth: svc})
 }
 
 // postLogin runs a single POST against the login handler via the resource's
@@ -458,4 +458,28 @@ func TestParentPasswordResetConfirm_UnexpectedError_Returns500(t *testing.T) {
 	})
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+}
+
+// TestRouterWithAuthRateLimiter_ThrottlesOnlyPublicAuthRoutes pins the
+// composition root's brute-force guard: the limiter passed to
+// RouterWithAuthRateLimiter wraps every public /auth route and nothing that
+// sits behind the parent-scope token check.
+func TestRouterWithAuthRateLimiter_ThrottlesOnlyPublicAuthRoutes(t *testing.T) {
+	t.Parallel()
+	limiter := func(http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusTooManyRequests)
+		})
+	}
+	router := newTestResource(&stubParentAuthService{}).RouterWithAuthRateLimiter(limiter)
+
+	for _, path := range []string{"/auth/login", "/auth/password-reset", "/auth/password-reset/confirm"} {
+		rr := httptest.NewRecorder()
+		router.ServeHTTP(rr, httptest.NewRequest(http.MethodPost, path, bytes.NewReader([]byte("{}"))))
+		assert.Equal(t, http.StatusTooManyRequests, rr.Code, path)
+	}
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, httptest.NewRequest(http.MethodGet, "/me/profile", nil))
+	assert.Equal(t, http.StatusUnauthorized, rr.Code)
 }

@@ -899,7 +899,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/parent",
+      "path": "modules/careplan/inbound/parent",
       "owner": "inbound-parent",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -16610,7 +16610,7 @@
     },
     {
       "id": "inbound-parent.http.parent-portal-adapter",
-      "description": "The guardian portal HTTP adapter (api/parent) serves the retained parent-portal services contract until #3229 moves it onto the workflow (#3228).",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent) serves the retained parent-portal services contract until the handlers move onto the workflow (#3228, #3229).",
       "scopes": [
         "production"
       ],
@@ -16621,7 +16621,7 @@
     },
     {
       "id": "inbound-parent.adapter-test.parent-portal-adapter",
-      "description": "The guardian portal HTTP adapter tests stub and build the retained parent-portal services contract until #3229 moves them onto the workflow (#3228).",
+      "description": "The guardian portal HTTP tests stub and build the retained parent-portal services contract until the handlers move onto the workflow (#3228, #3229).",
       "scopes": [
         "internal_test",
         "external_test"
@@ -22287,6 +22287,391 @@
       "source_role": "http",
       "target_owner": "student-presence",
       "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.http.orm-sql",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) runs the enrollment submit and bootstrap in tenant and admin transactions over the concrete Bun database and maps the legacy no-rows reset error. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-parent.http.inbound-common",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) binds the shared middleware, response rendering and error helpers. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-parent.http.inbound-enrollment",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) reuses the public enrollment wire request, bootstrap response and error rendering. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "inbound-enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-parent.http.identity-access-adapter",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) verifies parent-scope tokens and reads their claims (#2725). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.http.identity-access-application",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained parent login and password-reset flows (#2725). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.http.legacy-shared-domain",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) parses and renders calendar dates while the date type migrates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.http.delivery-platform-adapter",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) renders localized notification preference labels. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.http.enrollment-domain",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained enrollment request and offering rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.http.enrollment-application",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained enrollment request, offering and course services. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.http.care-plan-domain",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained parent-portal rows in models/parent. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.http.timetable-domain",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained care-exception and care-schedule rows in models/schedule. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.http.timetable-application",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained care-schedule service vocabulary in services/schedule. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.http.people-directory-domain",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) maps the retained person and guardian rows in models/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.http.people-directory-application",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) loads guardian profiles through the retained services/users loader. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.http.tenant-runtime",
+      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) opens the tenant and admin transactions of the enrollment routes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-parent.adapter-test.inbound-enrollment",
+      "description": "The guardian portal HTTP tests (#3229) build the public enrollment wire request the routes accept. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-parent.adapter-test.identity-access-adapter",
+      "description": "The guardian portal HTTP tests (#3229) mint and read parent-scope tokens. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.adapter-test.identity-access-application",
+      "description": "The guardian portal HTTP tests (#3229) stub the retained parent login and password-reset flows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.adapter-test.identity-access-domain",
+      "description": "The guardian portal HTTP tests (#3229) return the retained password-reset token rows from their auth stub. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.legacy-shared-domain",
+      "description": "The guardian portal HTTP tests (#3229) build fixed calendar dates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.transaction-runtime-domain",
+      "description": "The guardian portal HTTP tests (#3229) build the retained base model of their fake rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.school-calendar-domain",
+      "description": "The guardian portal HTTP tests (#3229) build the retained calendar rows of the calendar route fakes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "school-calendar",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.enrollment-domain",
+      "description": "The guardian portal HTTP tests (#3229) build the retained enrollment rows of their fakes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.enrollment-application",
+      "description": "The guardian portal HTTP tests (#3229) stub the retained enrollment services. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.adapter-test.care-plan-domain",
+      "description": "The guardian portal HTTP tests (#3229) build the retained parent-portal rows of their fakes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.timetable-domain",
+      "description": "The guardian portal HTTP tests (#3229) build the retained care-exception and care-schedule rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.timetable-application",
+      "description": "The guardian portal HTTP tests (#3229) build the retained care-schedule service vocabulary. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.adapter-test.people-directory-domain",
+      "description": "The guardian portal HTTP tests (#3229) build the retained person and guardian rows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.people-directory-application",
+      "description": "The guardian portal HTTP tests (#3229) build the retained guardian profile loader. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.adapter-test.legacy-composition",
+      "description": "The guardian portal HTTP tests (#3229) build the retained repository factory for the database-backed routes. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-parent.adapter-test.settings-platform-domain",
+      "description": "The guardian portal HTTP tests (#3229) name the retained tenant setting keys the routes gate on. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-parent.adapter-test.settings-platform-application",
+      "description": "The guardian portal HTTP tests (#3229) wrap the retained settings service to script the route gates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-parent.adapter-test.cli-config",
+      "description": "The guardian portal HTTP tests (#3229) pin the process-wide JWT configuration once in TestMain. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "root-composition.to.inbound-parent-http",
+      "description": "The root API composition mounts the guardian portal route adapter (#3229). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-parent",
+      "target_role": "http"
+    },
+    {
+      "id": "test-support.e2e-test.inbound-parent-http",
+      "description": "The calendar end-to-end test drives the staff-to-parent flow through the guardian portal route adapter (#3229). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-parent",
+      "target_role": "http"
     },
     {
       "id": "inbound-students.http.student-presence-domain",

@@ -871,7 +871,7 @@ classification are gone, and with them the transitional
 `care-plan.application.parent-portal` edge and the last 47 `legacy.jsonl`
 entries that named the package (#3227 had already resolved six of its
 internal-test imports). The package keeps the public `Service` contract that
-`api/parent` and the service factory consume. No HTTP path, status code,
+the guardian portal HTTP composition and the service factory consume. No HTTP path, status code,
 error string, validation rule, authorization check or tenant scoping changed,
 and no table changed owner. The package could not join the existing
 `parent-portal`/`application` point: it still speaks the retained audit,
@@ -894,6 +894,32 @@ construction-time configuration, because the composition surface guard
 records mutable wiring per package and a relocated setter would count as
 growth. The factory resolves the student-photo lifecycle on use, since the
 API bootstrap builds it after the parent services.
+
+The guardian portal HTTP composition (`modules/careplan/inbound/parent`,
+#3229) replaced `api/parent`, moved file for file with its adapter tests. It
+keeps the `inbound-parent` owner and the `http` / `adapter-test` roles, so the
+36 `legacy.jsonl` entries #2735 recorded for `api/parent` fell with the path,
+together with the root mount (#2750) and the calendar end-to-end import
+(#2748). No route path, method, status code, error string, authorization check
+or tenant scoping changed. The handlers still call the retained auth,
+enrollment, schedule and users services, the parent-portal adapter and the
+shared HTTP helpers directly instead of the one `care-plan` capability that
+`inbound-parent.to.care-plan` names: routing those calls through the
+`modules/careplan` contract would add imports to the existing
+`care-plan`/`public` point, which PR mode rejects. After the move the package
+is the only `inbound-parent` package, so the point exists only in the
+candidate. Every `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
+rule this move added, `root-composition.to.inbound-parent-http` and
+`test-support.e2e-test.inbound-parent-http` are compatibility permissions, not
+target dependencies. They cover every future `inbound-parent` package, so no
+other package may join that point before the conversion. Convert them to exact
+debt with the rule above once the package exists at a base SHA; the
+`auth/jwt` and `services/auth` edges then wait for #2725. The move replaced
+the calendar, push, notification-preference and PWA-usage setters with a
+construction-time `ResourceConfig`, and the auth rate-limiter setter with
+`RouterWithAuthRateLimiter` (the school portal shape), because the
+composition surface guard records mutable wiring per package and a relocated
+setter would count as growth.
 
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
