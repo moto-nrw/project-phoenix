@@ -12,27 +12,23 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	modelbase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// raceLosingOperatorChallengeRepo wraps a real
-// OperatorMFAEmailChallengeRepository but forces MarkConsumed to return a
-// 0-rows-affected DatabaseError — the exact signal a concurrent race-loser
-// would see. Mirror of the tenant-side test helper.
-type raceLosingOperatorChallengeRepo struct {
-	platformModels.OperatorMFAEmailChallengeRepository
+// raceLosingOperatorChallengeRecords wraps the real operator MFA records
+// port but forces ConsumeChallenge to return the state-change refusal — the
+// exact signal a concurrent race-loser sees. Mirror of the tenant-side test
+// helper.
+type raceLosingOperatorChallengeRecords struct {
+	platform.OperatorMFARecords
 	markCalls int
 }
 
-func (r *raceLosingOperatorChallengeRepo) MarkConsumed(_ context.Context, _ int64, _ time.Time) error {
+func (r *raceLosingOperatorChallengeRecords) ConsumeChallenge(_ context.Context, _ int64, _ time.Time) error {
 	r.markCalls++
-	return &modelbase.DatabaseError{
-		Op:  "mark operator mfa email challenge consumed",
-		Err: errors.New("expected 1 rows affected, got 0"),
-	}
+	return errors.New("operator mfa challenge was already consumed or activated")
 }
 
 // TestOperatorMFAService_VerifyChallenge_RaceLoserRejected exercises Item #4
@@ -44,13 +40,12 @@ func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	// Discard the helper-built service: we need to swap repos.OperatorMFAEmailChallenge
-	// before constructing the service so it captures the stub.
+	// Discard the helper-built service: we need to swap the challenge
+	// consumption before constructing the service so it captures the stub.
 	_, repos, db := newTestOperatorMFAService(t)
 
-	realChallengeRepo := repos.OperatorMFAEmailChallenge
-	stub := &raceLosingOperatorChallengeRepo{OperatorMFAEmailChallengeRepository: realChallengeRepo}
-	repos.OperatorMFAEmailChallenge = stub
+	realRecords := newTestOperatorMFARecords(db)
+	stub := &raceLosingOperatorChallengeRecords{OperatorMFARecords: realRecords}
 
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
@@ -58,6 +53,7 @@ func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
 		Operators: newTestOperatorDirectory(db),
+		Records:   stub,
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,
@@ -76,7 +72,7 @@ func TestOperatorMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 		CodeHash:   hash,
 		ExpiresAt:  time.Now().Add(platform.OperatorMFAChallengeTTL),
 	}
-	require.NoError(t, realChallengeRepo.Create(ctx, challenge))
+	require.NoError(t, realRecords.CreateChallenge(ctx, challenge))
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("platform.operator_mfa_email_challenges").
 			Where("operator_id = ?", op.ID).Exec(context.Background())
@@ -103,9 +99,8 @@ func TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected(t *testing.T
 	ctx := context.Background()
 	_, repos, db := newTestOperatorMFAService(t)
 
-	realChallengeRepo := repos.OperatorMFAEmailChallenge
-	stub := &raceLosingOperatorChallengeRepo{OperatorMFAEmailChallengeRepository: realChallengeRepo}
-	repos.OperatorMFAEmailChallenge = stub
+	realRecords := newTestOperatorMFARecords(db)
+	stub := &raceLosingOperatorChallengeRecords{OperatorMFARecords: realRecords}
 
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
@@ -113,6 +108,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected(t *testing.T
 	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
 		Repos:     repos,
 		Operators: newTestOperatorDirectory(db),
+		Records:   stub,
 		TokenAuth: tokenAuth,
 		JWTSecret: operatorMFATestJWTSecret,
 		DB:        db,
@@ -130,7 +126,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_RaceLoserRejected(t *testing.T
 		CodeHash:   hash,
 		ExpiresAt:  time.Now().Add(platform.OperatorMFAChallengeTTL),
 	}
-	require.NoError(t, realChallengeRepo.Create(ctx, challenge))
+	require.NoError(t, realRecords.CreateChallenge(ctx, challenge))
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Table("platform.operator_mfa_email_challenges").
 			Where("operator_id = ?", op.ID).Exec(context.Background())

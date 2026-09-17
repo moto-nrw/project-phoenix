@@ -662,7 +662,19 @@ module. The public audit evidence is typed (`TenantAccessEvidence`,
 `OperatorAccessChange`); the root renders it into the ledger keys. The former
 `models/platform` operator and refresh-session repository contracts and
 their compatibility adapters are deleted; the operator invitation, e-mail
-change, MFA and passkey flows stay under #2722, #2723 and #2724. The foreign
+change and passkey flows stay under #2722 and #2724. The operator MFA
+records (#2723): `platform.operator_mfa_credentials`,
+`platform.operator_mfa_email_challenges` and
+`platform.operator_mfa_trusted_devices` are read and written only through the
+public `OperatorMFARecords` capability, with the same platform-wide
+transaction rule as the operator rows. The retained `services/platform`
+operator MFA service keeps the challenge, verification, enrollment and
+trusted-device flow and reaches the rows through the `OperatorMFARecords`
+port the root binds to the public module; its disable cascade (enrollment
+delete, device revocation, lockout reset) stays one administrative
+transaction the module operations join. The `models/platform` MFA repository
+contracts and their `database/repositories/platform` adapters are deleted;
+the MFA models remain as the retained port's value types. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
 account lookup and active-account subquery of `database/repositories/auth`
