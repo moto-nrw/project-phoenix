@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 func TestParseRecipientGuardianProfileIDsRejectsForgedValuesAndDuplicates(t *testing.T) {

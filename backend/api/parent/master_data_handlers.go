@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 // MasterDataResponse is the parent-facing Stammdaten projection: stringified

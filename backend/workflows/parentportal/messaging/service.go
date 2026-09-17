@@ -1,7 +1,7 @@
 // Package messaging holds the retained communication side of the guardian
 // portal: announcements and their attachments, the request-sharing ledger,
 // the parent-OGS conversation and the self-service chat pills (#3227).
-// services/parent keeps the public parent.Service contract and delegates
+// workflows/parentportal/legacy keeps the public Service contract and delegates
 // these methods here; no HTTP path, status code, error string, authorization
 // check or tenant scoping changed with the move.
 package messaging

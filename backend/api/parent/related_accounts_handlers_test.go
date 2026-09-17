@@ -16,8 +16,8 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 // relAcctHandlerSettings is a configurable settings stub for the related-

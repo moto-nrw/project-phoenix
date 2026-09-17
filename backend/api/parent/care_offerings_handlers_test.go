@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 func TestCareOfferingsResponseOmitsActivityGroups(t *testing.T) {

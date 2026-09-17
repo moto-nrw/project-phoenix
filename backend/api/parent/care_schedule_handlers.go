@@ -7,8 +7,8 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 // CareScheduleResponse is the parent-facing weekly care plan: per weekday the

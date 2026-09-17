@@ -4,8 +4,8 @@
  *
  * Backend source of truth (keep in sync in the same PR when a response struct
  * gains or loses a field):
- *   - `ChildMasterData`  — backend/services/parent/parent_master_data_service.go
- *   - `ChildGuardian`    — backend/services/parent/parent_guardian_service.go
+ *   - `ChildMasterData`  — backend/workflows/parentportal/legacy/parent_master_data_service.go
+ *   - `ChildGuardian`    — backend/workflows/parentportal/legacy/parent_guardian_service.go
  *
  * Deliberately NOT mirrored today, so these fields carry no marker: the child's
  * address, Betreuernotizen, "Elternnotizen" (extra_info), Gruppe, Foto and
