@@ -13,7 +13,6 @@ import {
   buildGroupNameToIdMap,
   mapSupervisedGroupsToRooms,
   mapVisitsToSupervisionStudents,
-  openRoomSessionSelection,
   resolveSupervisionSelection,
 } from "~/components/active-supervisions/view-model";
 import type {
@@ -130,8 +129,8 @@ export interface SupervisionDashboardOptions {
 
 /**
  * The shared room a URL addresses, if it names either the room directly or a
- * session that runs in it. The session form is retained only for old links;
- * its destination is still the room's merged occupancy.
+ * session that runs in it. The session form is retained for old links; its
+ * destination is the room page, which shows that session as one section.
  */
 export function releasedRoomTargetedByUrl(options: {
   readonly sessionParam: string | null;
@@ -196,23 +195,24 @@ export interface SupervisionDashboard {
   /**
    * Open one released room's shared view (state only — no navigation). Needs
    * no refetch: the room arrives complete with every dashboard response, which
-   * is what lets an empty or foreign room open immediately.
+   * is what lets an empty or foreign room open immediately. The room shows
+   * every session running in it (#3281), so no session is selected with it.
    */
-  readonly selectOpenRoom: (
-    roomId: string,
-    preferredSessionId?: string,
-  ) => void;
+  readonly selectOpenRoom: (roomId: string) => void;
   /** Leave the shared room view (before switching to an own session). */
   readonly clearOpenRoom: () => void;
   /**
-   * Adopt a session this client just started (planned/spontaneous start):
-   * selects it and pre-seeds the fetch parameter so the follow-up
+   * Adopt a session this client just started (planned/spontaneous start) in
+   * `roomId` and return the page address that shows it. A session in a
+   * released room is shown by that room (#3281); any other session is
+   * selected, and the fetch parameter is pre-seeded so the follow-up
    * revalidation requests the new session, not the previous one.
    */
   readonly adoptSession: (
     activeGroupId: string,
     timetableInstanceId: string | null,
-  ) => void;
+    roomId: string,
+  ) => string;
 
   // Page-level status
   readonly hasAccess: boolean | null;
@@ -760,37 +760,38 @@ export function useSupervisionDashboard(
     [selectedRoomId, allRoomsBase, mutateDashboard],
   );
 
-  const selectOpenRoom = useCallback(
-    (roomId: string, preferredSessionId?: string) => {
-      const selection = openRoomSessionSelection({
-        roomId,
-        preferredSessionId,
-        selectedSessionId: selectedRoomId,
-        rooms: allRoomsBase,
-      });
-      setSelectedOpenRoomId(roomId);
-      setSelectedRoomId(selection.sessionId);
-      if (!selection.keepsTimetableInstance) {
-        setSelectedTimetableInstanceId(null);
-      }
-    },
-    [allRoomsBase, selectedRoomId],
-  );
+  const selectOpenRoom = useCallback((roomId: string) => {
+    setSelectedOpenRoomId(roomId);
+    setSelectedRoomId(null);
+    setSelectedTimetableInstanceId(null);
+  }, []);
 
   const clearOpenRoom = useCallback(() => {
     setSelectedOpenRoomId(null);
   }, []);
 
   const adoptSession = useCallback(
-    (activeGroupId: string, timetableInstanceId: string | null) => {
+    (
+      activeGroupId: string,
+      timetableInstanceId: string | null,
+      roomId: string,
+    ) => {
+      if (openRoomIds.has(roomId)) {
+        // The room page lists the new block with the others; the next
+        // dashboard response carries it.
+        requestedGroupIdRef.current = null;
+        selectOpenRoom(roomId);
+        return `/active-supervisions?room=${roomId}`;
+      }
       // Pre-seed the request parameter so the caller's follow-up
       // revalidation targets the new session immediately.
       requestedGroupIdRef.current = activeGroupId;
       setSelectedTimetableInstanceId(timetableInstanceId);
       setSelectedRoomId(activeGroupId);
       setSelectedOpenRoomId(null);
+      return `/active-supervisions?session=${activeGroupId}`;
     },
-    [],
+    [openRoomIds, selectOpenRoom],
   );
 
   // Sync the selected session with the URL / localStorage. The resolution
@@ -813,16 +814,7 @@ export function useSupervisionDashboard(
     });
 
     if (target.kind === "open-room") {
-      const preferredSessionId = sessionParam ?? savedSessionId;
-      const sessionId =
-        preferredSessionId &&
-        allRoomsBase.some(
-          (room) =>
-            room.id === preferredSessionId && room.room_id === target.roomId,
-        )
-          ? preferredSessionId
-          : undefined;
-      selectOpenRoom(target.roomId, sessionId);
+      selectOpenRoom(target.roomId);
       localStorage.removeItem("supervision-last-session");
       localStorage.setItem("sidebar-last-room", target.roomId);
       if (!roomParam) {

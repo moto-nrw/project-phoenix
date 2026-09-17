@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 // careExceptionTimeLayout is the wall-clock layout parents send (HH:MM).

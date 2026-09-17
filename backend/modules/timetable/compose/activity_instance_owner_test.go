@@ -209,6 +209,10 @@ func TestModuleActivityInstanceWeekendCleanup(t *testing.T) {
 	materialized, err := module.CreateActivityInstance(ctx, materializedInput)
 	require.NoError(t, err)
 	manual := createOwnedActivityInstance(t, module, ctx, fixture, saturday, "10:00:00", "Manual")
+	sundayInput := ownedActivityInstanceInput(fixture, "2099-01-04", "08:00:00", "Retained Sunday")
+	sundayInput.CalendarPeriodID = &periodID
+	sunday, err := module.CreateActivityInstance(ctx, sundayInput)
+	require.NoError(t, err)
 
 	rows, err := module.DeleteRemovedWeekendActivityInstances(ctx, fixture.groupID, []int{6})
 	require.NoError(t, err)
@@ -216,7 +220,13 @@ func TestModuleActivityInstanceWeekendCleanup(t *testing.T) {
 	_, err = module.FindActivityInstance(ctx, materialized.ID)
 	require.ErrorIs(t, err, timetable.ErrActivityInstanceNotFound)
 	_, err = module.FindActivityInstance(ctx, manual.ID)
+	require.NoError(t, err, "manual weekend instances must remain")
+	_, err = module.FindActivityInstance(ctx, sunday.ID)
+	require.NoError(t, err, "weekend days retained by the template must remain")
+
+	rows, err = module.DeleteRemovedWeekendActivityInstances(ctx, fixture.groupID, nil)
 	require.NoError(t, err)
+	assert.Zero(t, rows, "an empty weekday set must be a no-op")
 }
 
 func TestModuleActivityInstanceListKindPropagation(t *testing.T) {

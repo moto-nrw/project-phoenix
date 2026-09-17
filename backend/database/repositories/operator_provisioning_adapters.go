@@ -49,6 +49,9 @@ type OperatorProvisioningAdapters struct {
 	Presence   organizationCompose.ProvisioningPresence
 	Categories organizationCompose.ProvisioningCategories
 	Audit      organizationCompose.OperatorAudit
+	// ActiveMemberships is the Identity & Access active-membership statement
+	// the dashboard account counts aggregate over (#2721).
+	ActiveMemberships func(context.Context) *bun.SelectQuery
 }
 
 // NewOperatorProvisioningAdapters binds the provisioning seams.
@@ -64,9 +67,10 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 			persons: deps.Persons, membership: deps.Membership, personRepo: deps.PersonRepo,
 			staffRepo: deps.StaffRepo, accounts: deps.Accounts, db: deps.DB,
 		},
-		Presence:   provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
-		Categories: provisioningCategories{categories: deps.Categories},
-		Audit:      provisioningAudit{log: deps.AuditLog},
+		Presence:          provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
+		Categories:        provisioningCategories{categories: deps.Categories},
+		Audit:             provisioningAudit{log: deps.AuditLog},
+		ActiveMemberships: activeMembershipQuery(deps.DB),
 	}, nil
 }
 

@@ -7,9 +7,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -21,7 +21,7 @@ type TimetableScenarioTestModule struct {
 	Users            users.PersonService
 	UserContext      usercontext.UserContextService
 	Settings         config.SettingsService
-	TimetableCleanup schedule.TimetableCleanupService
+	TimetableCleanup timetableplanning.TimetableCleanupService
 }
 
 func NewTimetableScenarioTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableScenarioTestModule, error) {
@@ -41,7 +41,7 @@ func NewTimetableScenarioTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks .
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	cleanup := schedule.NewTimetableCleanupService(r.ActivityInstance, r.ActivityException, r.InstanceStudent,
+	cleanup := timetableplanning.NewTimetableCleanupService(r.ActivityInstance, r.ActivityException, r.InstanceStudent,
 		repositories.NewDataDeletionTestRepository(db, command), r.DeviationEvent, live.Settings, slog.Default(), optionalClock(clocks))
 	return TimetableScenarioTestModule{TimetableTestModule: timetable, Active: live.Active, Users: live.Users, UserContext: live.UserContext, Settings: live.Settings, TimetableCleanup: cleanup}, nil
 }

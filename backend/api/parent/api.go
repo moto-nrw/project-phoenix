@@ -31,8 +31,8 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.

@@ -11,6 +11,8 @@ export interface TimetableRosterState {
   readonly currentTimetableRoster: TimetableRoster | null;
   readonly activeTimetableInstanceId: string | null;
   readonly isWaitingForTimetableRoster: boolean;
+  /** The roster request failed (e.g. no permission to view the block). */
+  readonly hasRosterError: boolean;
   readonly mutateRoster: (
     data?: TimetableRoster | null,
     opts?: { revalidate?: boolean },
@@ -40,6 +42,7 @@ export function useTimetableRoster(options: {
   });
   const {
     data: timetableRoster,
+    error: timetableRosterError,
     isLoading: isTimetableRosterLoading,
     mutate: mutateRoster,
   } = useSWRAuth<TimetableRoster | null>(
@@ -95,6 +98,8 @@ export function useTimetableRoster(options: {
     currentTimetableRoster,
     activeTimetableInstanceId: currentTimetableRoster?.instance?.id ?? null,
     isWaitingForTimetableRoster,
+    hasRosterError:
+      timetableRosterKey !== null && Boolean(timetableRosterError),
     mutateRoster,
   };
 }

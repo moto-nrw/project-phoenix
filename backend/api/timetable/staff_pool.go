@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // StaffPoolAssignmentResponse is one overlapping same-day assignment of a
@@ -79,7 +79,7 @@ func (rs *Resource) getStaffPool(w http.ResponseWriter, r *http.Request) {
 }
 
 // staffPoolResponseOf maps the neutral service result onto the wire shape.
-func staffPoolResponseOf(pool *scheduleSvc.StaffPoolResult) StaffPoolResponse {
+func staffPoolResponseOf(pool *timetableplanning.StaffPoolResult) StaffPoolResponse {
 	entries := make([]StaffPoolEntryResponse, 0, len(pool.Entries))
 	for _, entry := range pool.Entries {
 		assignments := make([]StaffPoolAssignmentResponse, 0, len(entry.Assignments))

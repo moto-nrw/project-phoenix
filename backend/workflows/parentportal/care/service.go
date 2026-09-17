@@ -1,7 +1,7 @@
 // Package care holds the retained Care Plan side of the guardian
 // portal: the child's today status, weekly care plan and its change requests,
 // booked care offerings and their change requests, and course requests
-// (#3227). services/parent keeps the public parent.Service contract and
+// (#3227). workflows/parentportal/legacy keeps the public Service contract and
 // delegates these methods here; no HTTP path, status code, error string,
 // authorization check or tenant scoping changed with the move.
 package care
@@ -25,7 +25,7 @@ import (
 )
 
 // Request types of the parent request-sharing ledger that this package
-// shares and reads. Wire-stable values; services/parent re-exports them.
+// shares and reads. Wire-stable values; workflows/parentportal/legacy re-exports them.
 const (
 	RequestShareCareSchedule = "care_schedule"
 	RequestShareOffering     = "offering"

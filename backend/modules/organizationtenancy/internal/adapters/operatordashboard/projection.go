@@ -4,13 +4,16 @@
 //
 // It is a read-only projection because every one of those answers joins
 // Organisation & Tenancy's platform rows with Identity & Access account
-// mappings and roles and with the Observability usage rows. It never writes.
+// mappings and roles and with the Observability usage rows. The account
+// counts join the owner's active-membership statement; the PWA buckets still
+// read the mappings and roles directly. It never writes.
 // Every statement is a compile-time constant so the architecture evaluator
 // can read which tables it touches.
 package operatordashboard
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
@@ -20,20 +23,44 @@ import (
 // Database resolves the caller's ambient administrative transaction.
 type Database func(context.Context) (bun.IDB, error)
 
+// ActiveMemberships returns the Identity & Access owner statement selecting
+// (account_id, tenant_id) of every active school mapping (#2721). The account
+// counts aggregate over it instead of reading the mapping table.
+type ActiveMemberships func(context.Context) *bun.SelectQuery
+
+var errActiveMembershipsRequired = errors.New("organization tenancy operator dashboard: active membership query is not bound")
+
 // guardianRoleName mirrors the Identity & Access base role that marks a
 // parent account. It is a literal here because a projection reads another
 // owner's rows without importing that owner's package.
 const guardianRoleName = "guardian"
 
 // Projection answers the operator dashboard reads.
-type Projection struct{ database Database }
+type Projection struct {
+	database    Database
+	memberships ActiveMemberships
+}
 
-// New builds the projection over the ambient transaction runtime.
-func New(database Database) *Projection {
+// New builds the projection over the ambient transaction runtime. Without
+// memberships the account-counting reads fail closed.
+func New(database Database, memberships ActiveMemberships) *Projection {
 	if database == nil {
 		panic("organization tenancy operator dashboard: database runtime is required")
 	}
-	return &Projection{database: database}
+	return &Projection{database: database, memberships: memberships}
+}
+
+// accountReads resolves the transaction and the membership statement the
+// account counts aggregate over.
+func (p *Projection) accountReads(ctx context.Context) (bun.IDB, *bun.SelectQuery, error) {
+	if p.memberships == nil {
+		return nil, nil, errActiveMembershipsRequired
+	}
+	db, err := p.database(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	return db, p.memberships(ctx), nil
 }
 
 // countsQuery counts an account active in several schools once.
@@ -43,10 +70,9 @@ SELECT
 	(SELECT COUNT(*) FROM platform.schools WHERE deleted_at IS NULL) AS schools,
 	(
 		SELECT COUNT(DISTINCT "at".account_id)
-		FROM auth.account_tenants AS "at"
+		FROM (?) AS "at"
 		INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
 		WHERE "s".deleted_at IS NULL
-			AND "at".status = 'active'
 	) AS accounts
 `
 
@@ -58,12 +84,12 @@ type countsRow struct {
 
 // Counts returns the platform-wide organisation, school and account counts.
 func (p *Projection) Counts(ctx context.Context) (domain.DashboardCounts, error) {
-	db, err := p.database(ctx)
+	db, memberships, err := p.accountReads(ctx)
 	if err != nil {
 		return domain.DashboardCounts{}, err
 	}
 	var row countsRow
-	if err := db.NewRaw(countsQuery).Scan(ctx, &row); err != nil {
+	if err := db.NewRaw(countsQuery, memberships).Scan(ctx, &row); err != nil {
 		return domain.DashboardCounts{}, err
 	}
 	return domain.DashboardCounts{Organizations: row.Organizations, Schools: row.Schools, Accounts: row.Accounts}, nil
@@ -83,10 +109,9 @@ WITH school_agg AS (
 account_agg AS (
 	SELECT "s".organization_id,
 		COUNT(DISTINCT "at".account_id) AS account_count
-	FROM auth.account_tenants AS "at"
+	FROM (?) AS "at"
 	INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
 	WHERE "s".deleted_at IS NULL
-		AND "at".status = 'active'
 	GROUP BY "s".organization_id
 )
 SELECT
@@ -123,12 +148,12 @@ type organizationSummaryRow struct {
 // with the counts of its non-deleted schools and their active accounts. An
 // account active in several schools of one organisation counts once.
 func (p *Projection) OrganizationSummaries(ctx context.Context) ([]domain.OrganizationSummary, error) {
-	db, err := p.database(ctx)
+	db, memberships, err := p.accountReads(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []organizationSummaryRow
-	if err := db.NewRaw(organizationSummariesQuery).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(organizationSummariesQuery, memberships).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
 	result := make([]domain.OrganizationSummary, 0, len(rows))
@@ -144,8 +169,7 @@ const schoolSummariesQuery = `
 WITH account_agg AS (
 	SELECT "at".tenant_id,
 		COUNT(DISTINCT "at".account_id) AS account_count
-	FROM auth.account_tenants AS "at"
-	WHERE "at".status = 'active'
+	FROM (?) AS "at"
 	GROUP BY "at".tenant_id
 )
 SELECT
@@ -197,9 +221,8 @@ SELECT
 	COALESCE("s".settings, '{}') AS settings,
 	COALESCE((
 		SELECT COUNT(DISTINCT "at".account_id)
-		FROM auth.account_tenants AS "at"
+		FROM (?) AS "at"
 		WHERE "at".tenant_id = "s".id
-			AND "at".status = 'active'
 	), 0) AS account_count
 FROM platform.schools AS "s"
 INNER JOIN platform.organizations AS "o" ON "o".id = "s".organization_id
@@ -232,15 +255,15 @@ type schoolSummaryRow struct {
 // deleted ones included, with the organisation's name and the count of
 // active accounts.
 func (p *Projection) SchoolSummaries(ctx context.Context, organizationID *int64) ([]domain.SchoolSummary, error) {
-	db, err := p.database(ctx)
+	db, memberships, err := p.accountReads(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []schoolSummaryRow
 	if organizationID == nil {
-		err = db.NewRaw(schoolSummariesQuery).Scan(ctx, &rows)
+		err = db.NewRaw(schoolSummariesQuery, memberships).Scan(ctx, &rows)
 	} else {
-		err = db.NewRaw(organizationSchoolSummariesQuery, *organizationID).Scan(ctx, &rows)
+		err = db.NewRaw(organizationSchoolSummariesQuery, memberships, *organizationID).Scan(ctx, &rows)
 	}
 	if err != nil {
 		return nil, err

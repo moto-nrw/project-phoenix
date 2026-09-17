@@ -402,9 +402,9 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
 		"api/timetable/understaffed_test.go",                     // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
-		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
-		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
-		"services/schedule/substitute_conflict_test.go",          // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
+		"timetableplanning/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
+		"timetableplanning/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)
+		"timetableplanning/substitute_conflict_test.go",          // Pure unit test with in-memory structs; int64(1)/int64(2) are fake IDs, not DB rows (WP-B12)
 		"realtime/hub_broadcast_to_tenant_test.go",               // Pure SSE-hub unit test; tenant IDs are in-memory channel routing keys, not DB rows
 		"services/config/sideeffects/registry_test.go",           // Pure registry unit test; tenant IDs are pass-through arguments, not DB rows
 		"services/facilities/settings_sideeffects_test.go",       // Pure side-effect dispatch unit test against fake services; tenant IDs are not DB rows
@@ -521,15 +521,15 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupCareTest",                  // services/enrollment care-offering integration tests — wraps SetupTestDB
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
-		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
-		"makeRosterChain",                // services/schedule split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
-		"makeMoveSetup",                  // services/schedule staff-pool/move tests (#1884) — wraps SetupTestDB
+		"makeScenario",                   // modules/timetable/legacy/timetableplanning materialization/split integration tests — wraps SetupTestDB
+		"makeRosterChain",                // modules/timetable/legacy/timetableplanning split-series roster tests (#2187) — wraps makeSeriesChain → makeScenario
+		"makeMoveSetup",                  // modules/timetable/legacy/timetableplanning staff-pool/move tests (#1884) — wraps SetupTestDB
 		"buildDevSetup",                  // api/timetable deviations/protocol tests — wraps SetupTestDB
 		"setupAbsenceAdminTest",          // api/staff absence question tests (#1419) — wraps setupTestContext
 		"newOverviewFixture",             // modules/studentpresence/legacy/services/active overview/export integration tests (#1417) — wraps SetupTestDB
 		"setupOverviewAPI",               // api/staff overview/export tests (#1417) — wraps setupTestContext
 		"newTransitionFixture",           // services/education grade-transition workflow tests — wraps SetupTestDB
-		"buildLifecycle",                 // services/schedule instance-lifecycle tests — wraps SetupTestDB
+		"buildLifecycle",                 // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB
 		"newCareFixture",                 // services/schedule care-request tests — wraps SetupTestDB
 		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 	}

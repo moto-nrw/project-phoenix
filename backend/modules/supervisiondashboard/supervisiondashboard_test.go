@@ -34,6 +34,10 @@ type fakes struct {
 	photosEnabled     func(context.Context) (bool, error)
 	trackingLabels    func(context.Context) ([]string, error)
 	spontaneous       func(context.Context) (bool, error)
+	released          func(context.Context) ([]ReleasedRoom, error)
+	inRooms           func(context.Context, []int64) ([]RunningSession, error)
+	openVisits        func(context.Context, []int64) ([]VisitRecord, error)
+	sessionBlocks     func(context.Context, SessionBlocksQuery) ([]SessionBlock, error)
 	now               func() time.Time
 }
 
@@ -86,7 +90,26 @@ func (f *fakes) Unclaimed(ctx context.Context) ([]UnclaimedGroup, error) {
 	return f.unclaimed(ctx)
 }
 
-func (*fakes) InRooms(context.Context, []int64) ([]RunningSession, error) { return nil, nil }
+func (f *fakes) InRooms(ctx context.Context, roomIDs []int64) ([]RunningSession, error) {
+	if f.inRooms == nil {
+		return nil, nil
+	}
+	return f.inRooms(ctx, roomIDs)
+}
+
+func (f *fakes) Released(ctx context.Context) ([]ReleasedRoom, error) {
+	if f.released == nil {
+		return nil, nil
+	}
+	return f.released(ctx)
+}
+
+func (f *fakes) SessionBlocks(ctx context.Context, query SessionBlocksQuery) ([]SessionBlock, error) {
+	if f.sessionBlocks == nil {
+		return nil, nil
+	}
+	return f.sessionBlocks(ctx, query)
+}
 
 func (f *fakes) Status(ctx context.Context, staffID int64) (*SchulhofStatus, error) {
 	if f.yard == nil {
@@ -137,7 +160,12 @@ func (f *fakes) TrackingIndicators(ctx context.Context, studentIDs []int64, labe
 	return f.tracking(ctx, studentIDs, labels)
 }
 
-func (*fakes) OpenVisitsOfSessions(context.Context, []int64) ([]VisitRecord, error) { return nil, nil }
+func (f *fakes) OpenVisitsOfSessions(ctx context.Context, sessionIDs []int64) ([]VisitRecord, error) {
+	if f.openVisits == nil {
+		return nil, nil
+	}
+	return f.openVisits(ctx, sessionIDs)
+}
 
 func (f *fakes) Pickups(ctx context.Context, studentIDs []int64, date Date) (map[int64]Pickup, error) {
 	if f.pickups == nil {
@@ -208,7 +236,7 @@ func (testCalendar) Weekday(date Date) time.Weekday {
 
 func newService(f *fakes) *service {
 	deps := Dependencies{
-		Access: f, Sessions: f, Yard: f, Groups: f, Schedule: f, Presence: f, Planning: f, Settings: f,
+		Access: f, Sessions: f, Rooms: f, Yard: f, Groups: f, Schedule: f, Presence: f, Planning: f, Settings: f,
 		Calendar: testCalendar{},
 		Now:      f.now,
 	}
@@ -833,6 +861,12 @@ func TestProjectionWireShape(t *testing.T) {
 	projection.CurrentStaffID = int64Ptr(7)
 	projection.EducationalGroups = []EducationalGroup{{ID: 41, Name: "Bären", RoomName: "Igel"}}
 	projection.Schulhof = &SchulhofStatus{Exists: true, RoomName: "Schulhof", Supervisors: []Supervisor{{ID: 1, StaffID: 7, Name: "Erika", IsCurrentUser: true}}}
+	projection.OpenRooms = []OpenRoom{{RoomID: 31, Name: "Schulhof", IsUserSupervising: true, ActiveGroupIDs: []string{"11", "14"}, HasOccupyingSession: true, StudentCount: 1,
+		Students: []OpenRoomStudent{{Visit: Visit{StudentID: 2, StudentName: "Max Hof", ActiveGroupID: 14, CheckInTime: entry}, Independent: true}},
+		Sessions: []OpenRoomSession{
+			{ActiveGroupID: 11, Title: "Malen", IsUserSupervising: true, CanAssign: true, Block: &OpenRoomBlock{InstanceID: 5, StartTime: "14:00", EndTime: "15:00", IsUserAssigned: true, CanOperate: true}},
+			{ActiveGroupID: 14, Independent: true, StudentCount: 1},
+		}}}
 	projection.Capabilities = Capabilities{WebSpontaneousActivitiesEnabled: true}
 	projection.ActiveSessions = []ActiveSession{{ActiveGroupID: 11, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}
 	projection.PlannedNow = []PlannedInstance{{ID: 5, Title: "Malen", Date: "2026-08-19", StartTime: "14:00", EndTime: "15:00", RoomID: 21, Status: "planned",
@@ -852,7 +886,11 @@ func TestProjectionWireShape(t *testing.T) {
 		`"selected_group_id":"11","unclaimed_groups":[{"id":"13","room_name":"Igel"}],"current_staff_id":"7",` +
 		`"educational_groups":[{"id":"41","name":"Bären","room_name":"Igel"}],` +
 		`"schulhof_status":{"exists":true,"room_name":"Schulhof","is_user_supervising":false,"supervisor_count":0,"student_count":0,"supervisors":[{"id":1,"staff_id":7,"name":"Erika","is_current_user":true}]},` +
-		`"open_rooms":[],` +
+		`"open_rooms":[{"room_id":"31","name":"Schulhof","is_user_supervising":true,"active_group_ids":["11","14"],"has_occupying_session":true,"student_count":1,` +
+		`"students":[{"student_id":"2","student_name":"Max Hof","school_class":"","group_name":"","active_group_id":"14","check_in_time":"2026-08-19T06:00:00Z","sick":false,"excused":false,"independent":true}],` +
+		`"sessions":[{"active_group_id":"11","title":"Malen","independent":false,"is_user_supervising":true,"can_assign":true,"student_count":0,` +
+		`"block":{"instance_id":"5","start_time":"14:00","end_time":"15:00","is_user_assigned":true,"can_operate":true}},` +
+		`{"active_group_id":"14","title":"","independent":true,"is_user_supervising":false,"can_assign":false,"student_count":1,"block":null}]}],` +
 		`"capabilities":{"web_spontaneous_activities_enabled":true},` +
 		`"active_sessions":[{"active_group_id":11,"instance_id":5,"title":"Malen","start_time":"14:00","end_time":"15:00"}],` +
 		`"planned_now":[{"id":5,"title":"Malen","date":"2026-08-19","start_time":"14:00","end_time":"15:00","room_id":21,"status":"planned","is_overdue":false,"minutes_until_start":0,` +

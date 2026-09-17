@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -228,7 +228,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	}
 
 	t.Run("internal cause is hidden", func(t *testing.T) {
-		resource := NewResource(Dependencies{TimetableData: scheduleSvc.NewTimetableDataService(scheduleSvc.TimetableDataDependencies{})})
+		resource := NewResource(Dependencies{TimetableData: timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{})})
 		failureRouter := shiftCoverageRouter(s.ctx, resource)
 		recorder := postShiftCoverage(t, failureRouter, ShiftCoverageRequest{
 			Dates: []string{validDate.String()}, StartTime: "09:00", EndTime: "10:00", StaffIDs: []int64{99},

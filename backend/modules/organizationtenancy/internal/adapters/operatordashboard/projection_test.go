@@ -24,19 +24,58 @@ const (
 	roleGuardian = "guardian"
 )
 
-// newProjection resolves the ambient transaction exactly like the
+// ambientTransaction resolves the ambient transaction exactly like the
 // Organisation & Tenancy composition does.
+func ambientTransaction(ctx context.Context) (bun.IDB, error) {
+	transaction, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return nil, errors.New("transaction is required")
+	}
+	tx, ok := transaction.(bun.Tx)
+	if !ok {
+		return nil, fmt.Errorf("unsupported transaction %T", transaction)
+	}
+	return tx, nil
+}
+
+// activeMemberships spells the Identity & Access active-membership statement
+// (AccountTenantRepository.ActiveMemberships, #2721) the root binds; this
+// test scope may not import that owner's adapter.
+func activeMemberships(ctx context.Context) *bun.SelectQuery {
+	db, err := ambientTransaction(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return db.NewSelect().
+		TableExpr(`auth.account_tenants AS "account_tenant"`).
+		ColumnExpr(`"account_tenant".account_id`).
+		ColumnExpr(`"account_tenant".tenant_id`).
+		Where(`"account_tenant".status = ?`, "active")
+}
+
 func newProjection() *operatordashboard.Projection {
-	return operatordashboard.New(func(ctx context.Context) (bun.IDB, error) {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			return nil, errors.New("transaction is required")
-		}
-		tx, ok := transaction.(bun.Tx)
-		if !ok {
-			return nil, fmt.Errorf("unsupported transaction %T", transaction)
-		}
-		return tx, nil
+	return operatordashboard.New(ambientTransaction, activeMemberships)
+}
+
+// TestAccountCountsFailClosedWithoutMembershipQuery pins that the account
+// counting reads report an error when composed without the Identity &
+// Access membership statement, instead of counting nothing.
+func TestAccountCountsFailClosedWithoutMembershipQuery(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	projection := operatordashboard.New(ambientTransaction, nil)
+	organizationID := testpkg.Tenant(t)
+
+	withinAdmin(t, db, func(ctx context.Context) error {
+		_, err := projection.Counts(ctx)
+		require.ErrorContains(t, err, "active membership query is not bound")
+		_, err = projection.OrganizationSummaries(ctx)
+		require.ErrorContains(t, err, "active membership query is not bound")
+		_, err = projection.SchoolSummaries(ctx, nil)
+		require.ErrorContains(t, err, "active membership query is not bound")
+		_, err = projection.SchoolSummaries(ctx, &organizationID)
+		require.ErrorContains(t, err, "active membership query is not bound")
+		return nil
 	})
 }
 

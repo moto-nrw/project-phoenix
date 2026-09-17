@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
@@ -17,10 +18,10 @@ import (
 )
 
 type TimetableTestModule struct {
-	Instance        schedule.InstanceService
-	CalendarPeriod  schedule.CalendarPeriodService
-	TimetableData   *schedule.TimetableDataService
-	Materialization schedule.MaterializationService
+	Instance        timetableplanning.InstanceService
+	CalendarPeriod  timetableplanning.CalendarPeriodService
+	TimetableData   *timetableplanning.TimetableDataService
+	Materialization timetableplanning.MaterializationService
 	RealtimeHub     *realtime.Hub
 }
 
@@ -53,7 +54,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return TimetableTestModule{}, err
 	}
 	schedule.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge := schedule.NewTimetableBridgeService(schedule.TimetableBridgeDependencies{
+	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
 		Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay,
 	})
 	// Instance completion consumes only the active-session end capability.
@@ -65,27 +66,27 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		StudentRepo: PresenceStudents(r.Student), RoomRepo: NewAttendanceRooms(r.Room), ActivityGroupRepo: repositories.NewSessionActivities(r.ActivityGroup),
 		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
 		DB: db, Broadcaster: hub, Logger: logger, Now: now,
-		AttendanceSyncer:         schedule.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
+		AttendanceSyncer:         timetableplanning.NewAttendanceSyncService(r.ActivityInstance, r.InstanceStudent, logger),
 		TimetableBridgeCompleter: bridge,
 	}, active.WithSettings(PresenceSettings(settings.Settings)))
 	offerings := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
 		Repo: r.CareOffering, Bookings: r.Enrollment(), ActivityGroupRepo: r.ActivityGroup,
 		ActivityScheduleRepo: r.ActivitySchedule, CalendarPeriodRepo: r.CalendarPeriod, TimeframeRepo: r.Timeframe,
 		ActivityExceptionRepo: r.ActivityException, Phases: r.Enrollment(), Settings: settings.Settings, Today: today,
-		LockTemplateRecurrence: func(ctx context.Context) error { return schedule.LockTenantRecurrenceWrites(ctx, db) },
+		LockTemplateRecurrence: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },
 		Logger:                 logger,
 	})
 	series := offerings.(enrollment.CareOfferingSeriesValidator)
-	periods := schedule.NewCalendarPeriodServiceWithConfig(schedule.CalendarPeriodServiceConfig{
+	periods := timetableplanning.NewCalendarPeriodServiceWithConfig(timetableplanning.CalendarPeriodServiceConfig{
 		Repo: r.CalendarPeriod, DB: db, Logger: logger,
 		ValidateCareOfferingChange: offerings.(enrollment.CareOfferingCalendarPeriodValidator).ValidateCalendarPeriodChange,
 	})
-	materialization := schedule.NewMaterializationService(r.ActivityGroup, r.ActivitySchedule, r.StudentEnrollment,
+	materialization := timetableplanning.NewMaterializationService(r.ActivityGroup, r.ActivitySchedule, r.StudentEnrollment,
 		r.ActivitySupervisor, r.CalendarPeriod, r.ActivityInstance, r.InstanceStaff, r.InstanceStudent,
-		r.ActivityException, r.Timeframe, periods, db, hub, logger)
-	schedule.WireMaterializationCareBounds(materialization, r.Student)
+		r.ActivityException, r.Timeframe, periods, db, hub, logger,
+		timetableplanning.WithCareBoundReader(r.Student))
 	recovery := repositories.NewActivityRecoveryRepository(db, r.InstanceStudent)
-	instance := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+	instance := timetableplanning.NewInstanceService(timetableplanning.InstanceServiceDependencies{
 		Presence:     newStudentPresence(db, logger),
 		InstanceRepo: r.ActivityInstance, IdempotencyRepo: r.InstanceIdempotency, InstanceStaffRepo: r.InstanceStaff,
 		InstanceStudents: r.InstanceStudent, ExceptionRepo: r.ActivityException, ActiveGroupRepo: r.ActiveGroup,
@@ -94,7 +95,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		ActiveService: ender, Materialization: materialization, CareDayService: careDay, DeviationEventRepo: r.DeviationEvent,
 		Broadcaster: hub, DB: db, Logger: logger, Settings: settings.Settings, RecoveryRepo: recovery, Now: now,
 	})
-	data := schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
+	data := timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo: r.InstanceStudent, ActivityInstanceRepo: r.ActivityInstance, ActivityExceptionRepo: r.ActivityException,
 		ActivityScheduleRepo: r.ActivitySchedule, InstanceStaffRepo: r.InstanceStaff, StaffShiftRepo: r.StaffShift,
 		StaffRepo: r.Staff, CalendarPeriodRepo: r.CalendarPeriod, ActiveGroupRepo: r.ActiveGroup, SupervisorRepo: r.GroupSupervisor,

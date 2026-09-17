@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -136,7 +137,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)
 	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(repos.StudentPickupException, pickupBaselines, repos.InstanceStudent, db)
-	rosterReconciler := schedule.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
+	rosterReconciler := timetableplanning.NewRosterReconciler(repos.ActivityInstance, repos.InstanceStudent, repos.StudentEnrollment, logger, now)
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		DB:          db,
 		Runtime:     unit,
@@ -202,7 +203,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		ParentsURL:                parentsURL,
 		Settings:                  settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return schedule.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		InstanceRosters: rosterReconciler,
 		ResyncPickupAutoExcusals: func(ctx context.Context, studentIDs []int64) error {

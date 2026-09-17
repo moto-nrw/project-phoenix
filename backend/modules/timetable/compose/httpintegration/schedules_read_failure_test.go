@@ -10,13 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
 
 type failedScheduleRead struct {
-	scheduleSvc.Service
+	timetableplanning.Service
 	err error
 }
 

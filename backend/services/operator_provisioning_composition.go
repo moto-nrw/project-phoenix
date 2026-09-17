@@ -36,13 +36,14 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 			repos: sources.repos, authService: sources.authService,
 			invitations: sources.invitations, schoolIdentity: sources.schoolIdentity,
 		},
-		Devices:    sources.adapters.Devices,
-		People:     sources.adapters.People,
-		Presence:   sources.adapters.Presence,
-		Categories: sources.adapters.Categories,
-		Settings:   provisioningSettings{settings: sources.settings},
-		Audit:      sources.adapters.Audit,
-		Logger:     sources.logger,
+		Devices:           sources.adapters.Devices,
+		People:            sources.adapters.People,
+		Presence:          sources.adapters.Presence,
+		Categories:        sources.adapters.Categories,
+		Settings:          provisioningSettings{settings: sources.settings},
+		Audit:             sources.adapters.Audit,
+		Logger:            sources.logger,
+		ActiveMemberships: sources.adapters.ActiveMemberships,
 	})
 }
 

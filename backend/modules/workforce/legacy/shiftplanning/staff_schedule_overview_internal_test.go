@@ -6,13 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +33,7 @@ func testShift(t *testing.T, staffID int64, date timezone.Date, start, end strin
 	}
 }
 
-func formattedGaps(gaps []schedule.ShiftCoverageInterval) [][2]string {
+func formattedGaps(gaps []timetableplanning.ShiftCoverageInterval) [][2]string {
 	out := make([][2]string, 0, len(gaps))
 	for _, gap := range gaps {
 		out = append(out, [2]string{
@@ -181,7 +180,7 @@ type fakeOverviewHolidayService struct {
 	to    timezone.Date
 }
 
-func (f *fakeOverviewHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]schedule.Holiday, error) {
+func (f *fakeOverviewHolidayService) HolidaysInRange(_ context.Context, _, _ timezone.Date) ([]timetableplanning.Holiday, error) {
 	return nil, f.err
 }
 

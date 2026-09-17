@@ -94,10 +94,39 @@ type PlannedNowQuery struct {
 	IncludeRoster  bool
 }
 
+// SessionBlocksQuery scopes the Timetable owner's read of the blocks running
+// behind live sessions (#3281).
+type SessionBlocksQuery struct {
+	AccountID  int64
+	TokenAdmin bool
+	Date       Date
+	// Supervisors maps every asked session to the staff ids of its current
+	// supervisors, as the session read reported them.
+	Supervisors map[int64][]int64
+}
+
+// SessionBlock is the running timetable block behind one live session, seen
+// by the caller. StartTime/EndTime are the plan window (HH:MM).
+type SessionBlock struct {
+	ActiveGroupID int64
+	InstanceID    int64
+	Title         string
+	StartTime     string
+	EndTime       string
+	// IsAssigned reports that the caller is planned on the block.
+	IsAssigned bool
+	// CanOperate is the Timetable owner's verdict whether the caller may act
+	// on the block (#3167).
+	CanOperate bool
+}
+
 // Schedule reads the day's planned and running timetable instances.
 type Schedule interface {
 	PlannedNow(ctx context.Context, query PlannedNowQuery) ([]PlannedInstance, error)
 	ActiveSessions(ctx context.Context, date Date) ([]ActiveSession, error)
+	// SessionBlocks answers for all asked sessions in one bulk read; sessions
+	// without a running block are left out.
+	SessionBlocks(ctx context.Context, query SessionBlocksQuery) ([]SessionBlock, error)
 }
 
 // VisitRecord is one visit of a live session with the student's display

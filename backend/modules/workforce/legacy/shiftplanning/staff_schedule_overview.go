@@ -7,13 +7,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services/schedule"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 const (
@@ -47,7 +46,7 @@ type StaffScheduleAssignment struct {
 	AbsenceReason      *string
 	CoverageStatus     string
 	CoverageReason     *string
-	UncoveredIntervals []schedule.ShiftCoverageInterval
+	UncoveredIntervals []timetableplanning.ShiftCoverageInterval
 }
 
 // StaffWeeklySummary aggregates one staff member's planned shift minutes for
@@ -114,7 +113,7 @@ type StaffScheduleOverviewDependencies struct {
 	Shifts        StaffShiftRangeReader
 	ShiftWeeks    StaffShiftWeekUsageReader
 	Instances     ActivityInstanceRangeReader
-	InstanceStaff schedule.InstanceStaffBatchReader
+	InstanceStaff timetableplanning.InstanceStaffBatchReader
 	Rooms         RoomBatchReader
 	Staff         StaffOverviewReader
 	// WorkSchedules and WorkModels feed the contractual weekly-target side of
@@ -124,7 +123,7 @@ type StaffScheduleOverviewDependencies struct {
 	WorkModels    WorkTimeModelBatchReader
 	// Holidays reduces the weekly targets by public-holiday Soll (#1418 3a).
 	// Optional: nil skips the reduction (unit fixtures).
-	Holidays schedule.HolidayService
+	Holidays timetableplanning.HolidayService
 }
 
 type StaffScheduleOverviewGetter interface {
@@ -342,7 +341,7 @@ func newStaffScheduleAssignment(
 		IsAbsent:           row.IsAbsent,
 		IsSubstitute:       row.IsSubstitute,
 		AbsenceReason:      row.AbsenceReason,
-		UncoveredIntervals: make([]schedule.ShiftCoverageInterval, 0),
+		UncoveredIntervals: make([]timetableplanning.ShiftCoverageInterval, 0),
 	}
 }
 

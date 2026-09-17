@@ -569,7 +569,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
 		CareWithdrawal:      users.NewCareWithdrawalCompletionRepository(db),
 		Profile:             users.NewProfileRepository(db),
-		StudentGuardian:     users.NewStudentGuardianRepository(db),
+		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
 		GuardianProfile:     NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
@@ -710,15 +710,15 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		SubmissionRateLimit: enrollmentModule,
 
 		// Parent (cross-tenant guardian portal — PR 9+)
-		ParentChild:             parentRepo.NewChildRepository(parentRuntime),
-		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule),
+		ParentChild:             parentRepo.NewChildRepository(parentRuntime, activeMembershipQuery(db)),
+		ParentEnrollablePhase:   parentRepo.NewEnrollablePhaseRepository(parentRuntime, enrollmentModule, activeMembershipQuery(db)),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(parentRuntime, enrollmentModule, identityAccountDirectory{accounts: identity}),
 
 		// Parent Stammdaten direct-edit audit + change-request review
 		StudentDataChangeRequest: nil, // bound to Care Plan below
 
 		// Parent-OGS messaging (tenant-scoped two-way conversation per child)
-		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, users.NewMessageableGuardianRepository(db)),
+		ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, NewMessageableGuardianRepository(db)),
 		ParentMessage:       parentStore.NewParentMessageRepository(db),
 		// ParentMessageRead and StaffMessageRead are bound by
 		// bindStaffMembershipDecorators, they need the membership owner.
