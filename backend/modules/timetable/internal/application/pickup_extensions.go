@@ -174,15 +174,7 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 	}
 	validFrom := max(task.EffectiveFrom, s.today(), block.ValidFrom)
 	weekday := task.Weekday
-	_, enrollStats, err := s.store.CreateStudentEnrollment(ctx, domain.StudentEnrollmentFields{
-		StudentID:        task.StudentID,
-		ActivityGroupID:  block.ID,
-		ValidFrom:        validFrom,
-		CalendarPeriodID: block.CalendarPeriodID,
-		Weekday:          &weekday,
-	})
-	stats.Add(enrollStats)
-	if err != nil {
+	if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, block, weekday, validFrom, stats); err != nil {
 		return nil, err
 	}
 	// The generator only fills new blocks. Blocks already planned for this
@@ -201,6 +193,68 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 		instanceIDs = append(instanceIDs, instance.ID)
 	}
 	return instanceIDs, nil
+}
+
+func (s *Service) ensurePickupWeekdayEnrollment(
+	ctx context.Context,
+	studentID int64,
+	block domain.PickupExtensionBlock,
+	weekday int,
+	validFrom string,
+	stats *domain.OperationStats,
+) error {
+	enrollments, listStats, err := s.store.ListStudentEnrollments(ctx, domain.StudentEnrollmentFilter{
+		StudentIDs: []int64{studentID}, ActivityGroupIDs: []int64{block.ID},
+	})
+	stats.Add(listStats)
+	if err != nil {
+		return err
+	}
+	for _, enrollment := range enrollments {
+		if enrollment.ValidUntil != nil || enrollment.Weekday == nil || *enrollment.Weekday != weekday ||
+			!samePickupExtensionPeriod(enrollment.CalendarPeriodID, block.CalendarPeriodID) {
+			continue
+		}
+		fields := domain.StudentEnrollmentFields{
+			StudentID:                enrollment.StudentID,
+			ActivityGroupID:          enrollment.ActivityGroupID,
+			ValidFrom:                min(enrollment.ValidFrom, validFrom),
+			ValidUntil:               enrollment.ValidUntil,
+			CalendarPeriodID:         enrollment.CalendarPeriodID,
+			EnrollmentRequestChildID: enrollment.EnrollmentRequestChildID,
+			SelectedWeekdays:         enrollment.SelectedWeekdays,
+			AttendanceStatus:         enrollment.AttendanceStatus,
+			Weekday:                  enrollment.Weekday,
+		}
+		if len(fields.SelectedWeekdays) > 0 && !slices.Contains(fields.SelectedWeekdays, weekday) {
+			fields.SelectedWeekdays = append(fields.SelectedWeekdays, weekday)
+		}
+		_, found, updateStats, updateErr := s.store.UpdateStudentEnrollment(ctx, enrollment.ID, fields)
+		stats.Add(updateStats)
+		if updateErr != nil {
+			return updateErr
+		}
+		if !found {
+			return domain.ErrStudentEnrollmentNotFound
+		}
+		return nil
+	}
+	_, enrollStats, err := s.store.CreateStudentEnrollment(ctx, domain.StudentEnrollmentFields{
+		StudentID:        studentID,
+		ActivityGroupID:  block.ID,
+		ValidFrom:        validFrom,
+		CalendarPeriodID: block.CalendarPeriodID,
+		Weekday:          &weekday,
+	})
+	stats.Add(enrollStats)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func samePickupExtensionPeriod(a, b *int64) bool {
+	return (a == nil && b == nil) || (a != nil && b != nil && *a == *b)
 }
 
 // addPlannedStudent adds the child as expected, like the generator does, and

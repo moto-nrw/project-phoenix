@@ -304,8 +304,9 @@ func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
 		StudentID: other.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2020-01-01",
 	})
 	require.NoError(t, err)
-	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
-		StudentID: child.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2100-01-01",
+	weekday := timetable.WeekdayTuesday
+	futureEnrollment, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: child.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2100-01-01", Weekday: &weekday,
 	})
 	require.NoError(t, err)
 
@@ -317,6 +318,15 @@ func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
 	}))
 	task := pickupExtensionTask(t, module, ctx, child.ID)
 	assert.Equal(t, []int64{freePlay.ID}, pickupExtensionBlockIDs(task.Blocks))
+	_, err = module.ResolvePickupExtension(ctx, task.ID, []int64{freePlay.ID})
+	require.NoError(t, err)
+	enrollments, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{
+		StudentIDs: []int64{child.ID}, ActivityGroupIDs: []int64{freePlay.ID},
+	})
+	require.NoError(t, err)
+	require.Len(t, enrollments, 1)
+	assert.Equal(t, futureEnrollment.ID, enrollments[0].ID)
+	assert.Equal(t, "2099-03-05", enrollments[0].ValidFrom)
 }
 
 func TestModuleIgnoresPickupWeekdayEnrollmentsOutsideWeekday(t *testing.T) {
