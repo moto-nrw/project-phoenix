@@ -4220,7 +4220,7 @@
       "declaration": "setupAuthFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        62
+        63
       ],
       "tables": []
     },
@@ -4417,21 +4417,9 @@
       "declaration": "setupAuthServiceWithDB",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        24
       ],
       "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/role_assignment_policy_test.go",
-      "declaration": "TestValidateAssignableSchoolRole",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": [
-        "auth.roles"
-      ]
     },
     {
       "scope": "test",
@@ -4439,7 +4427,7 @@
       "declaration": "createPlatformRole",
       "target": "database/repositories.NewFactory",
       "lines": [
-        139
+        140
       ],
       "tables": [
         "auth.roles"

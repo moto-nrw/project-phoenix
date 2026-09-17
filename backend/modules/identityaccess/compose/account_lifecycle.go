@@ -12,11 +12,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// The account lifecycle flows (#3225) need facts other owners hold and seams
-// the composition root binds: persons, staff and caregiver profiles, guardian
-// profiles and relationships, the audit evidence, the PIN and password
-// hashers, the retained role management and the retained guardian invitation
-// delivery. The seams below are expressed in public values; this package
+// The account lifecycle flows (#3225) and the role administration (#3314)
+// need facts other owners hold and seams the composition root binds: persons,
+// staff and caregiver profiles, guardian profiles and relationships, the
+// audit evidence, the PIN and password hashers, the retained role storage and
+// account management and the retained guardian invitation delivery. The seams below are expressed in public values; this package
 // adapts them to the consumer-owned ports.
 
 // StaffMember is the users.staff fact of a school.
@@ -68,6 +68,9 @@ type StaffDirectory interface {
 	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
+	// HasLiveCaregiverProfile reports whether the account's live person at the
+	// school carries a live staff record with a live caregiver profile.
+	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
 // PINHasher hashes and verifies staff PINs.
@@ -101,10 +104,10 @@ type PreviewAudit interface {
 	StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error)
 }
 
-// AccountAdministration is the retained role and account management staff
-// offboarding drives on the caller's transaction (#2721).
+// AccountAdministration is the retained account management staff offboarding
+// drives on the caller's transaction: the deactivation records the durable
+// account-wide revocation intent.
 type AccountAdministration interface {
-	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
 	DeactivateAccount(ctx context.Context, accountID int64) error
 }
 
@@ -231,42 +234,60 @@ type LifecycleDependencies struct {
 	Invitations GuardianInvitationStore
 	Delivery    GuardianInvitationDelivery
 	Financial   FinancialAudit
-	Logger      *slog.Logger
+	// Roles is the retained role and permission storage the role
+	// administration (#3314) reads and writes.
+	Roles  RoleDirectory
+	Logger *slog.Logger
 }
 
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies) (*application.AccountLifecycle, error) {
+// newAccountLifecycle composes the lifecycle flows and the role
+// administration: offboarding removes roles through the administration, and
+// an assignment completes the school identity through the lifecycle.
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if auth == nil || sessions == nil {
-		return nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
+		return nil, nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
 	}
 	switch {
 	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil, deps.Admin == nil,
-		deps.Passwords == nil, deps.Guardians == nil, deps.Invitations == nil, deps.Delivery == nil, deps.Financial == nil:
-		return nil, errors.New("identity access compose: every lifecycle dependency is required")
+		deps.Passwords == nil, deps.Guardians == nil, deps.Invitations == nil, deps.Delivery == nil, deps.Financial == nil,
+		deps.Roles == nil:
+		return nil, nil, errors.New("identity access compose: every lifecycle dependency is required")
 	}
 	attach := sessions.TenantRuntime
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	return application.NewAccountLifecycle(service, auth, application.AccountLifecycleDependencies{
+	runtime := tenantRuntime{attach: attach, runner: newTransactionRunner()}
+	var lifecycle *application.AccountLifecycle
+	roles, err := newRoleAdministration(auth, runtime, deps, func() *application.AccountLifecycle { return lifecycle })
+	if err != nil {
+		return nil, nil, err
+	}
+	lifecycle, err = application.NewAccountLifecycle(service, auth, application.AccountLifecycleDependencies{
 		Store: store, Logins: store, RFID: canonicalTagStore{store},
 		Staff:       staffDirectory{deps.Staff},
+		Profiles:    staffDirectory{deps.Staff},
 		Roles:       rolePolicy{},
 		PINs:        deps.PINs,
 		Lockout:     deps.Lockout,
 		Audit:       previewAudit{deps.Audit},
 		Codec:       tokenCodec{sessions.Codec},
-		Admin:       deps.Admin,
+		Admin:       accountAdministration{roles: roles, accounts: deps.Admin},
 		Passwords:   deps.Passwords,
 		Guardians:   guardianDirectory{deps.Guardians},
 		Invitations: guardianInvitationStore{deps.Invitations},
 		Delivery:    guardianInvitationDelivery{deps.Delivery},
 		Financial:   deps.Financial,
-		Runtime:     tenantRuntime{attach: attach, runner: newTransactionRunner()},
+		Runtime:     runtime,
 		Logger:      deps.Logger,
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return lifecycle, roles, nil
 }
 
 // lifecycleStore is the module store as the lifecycle flows read it.
@@ -658,6 +679,14 @@ func (e engine) EnsureSchoolIdentity(ctx context.Context, input identityaccess.S
 	}
 	result := identityaccess.SchoolIdentity(*identity)
 	return &result, nil
+}
+
+func (e engine) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	if e.lifecycle == nil {
+		return false, errAccountLifecycleUnavailable
+	}
+	hasProfile, err := e.lifecycle.HasLiveCaregiverProfile(e.attach(ctx), accountID)
+	return hasProfile, lifecycleError(err)
 }
 
 func parentAccount(value domain.ParentAccount) identityaccess.ParentAccount {

@@ -13,6 +13,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/users"
 )
 
 // Identity & Access owns staff PIN verification and lockout, the admin
@@ -20,9 +21,9 @@ import (
 // parent accounts and guardian relative access (#3225). This file binds the
 // seams those flows need to the retained owners the root still composes
 // (persons, staff, teachers, students, guardian profiles and relationships,
-// the audit ledger, the retained role management, the guardian invitation
-// storage and delivery) and serves the retained auth service's
-// consumer-owned port over the public module.
+// the audit ledger, the retained account management and role storage, the
+// guardian invitation storage and delivery) and serves the retained auth
+// service's consumer-owned port over the public module.
 
 // lifecycleWiring is the retained material the lifecycle seams are bound to.
 // The module composition fills repos from the session repositories. admin
@@ -47,13 +48,14 @@ type lifecycleRepositories struct {
 	studentGuardians    userModels.StudentGuardianRepository
 	guardianInvitations auth.GuardianInvitationStore
 	authEvents          auditModels.AuthEventRepository
+	roles               identityaccessCompose.RoleDirectory
 }
 
 func (w lifecycleWiring) complete() bool {
 	r := w.repos
 	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
 		r.guardianProfiles != nil && r.studentGuardians != nil && r.guardianInvitations != nil && r.authEvents != nil &&
-		w.audit != nil && w.admin != nil && w.delivery != nil
+		r.roles != nil && w.audit != nil && w.admin != nil && w.delivery != nil
 }
 
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
@@ -61,7 +63,7 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		return nil, nil
 	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle repository, the audit command, the retained auth service and the guardian invitation delivery are required")
+		return nil, errors.New("identity access composition: every lifecycle and role repository, the audit command, the retained auth service and the guardian invitation delivery are required")
 	}
 	return &identityaccessCompose.LifecycleDependencies{
 		Staff:       staffDirectory{repos: wiring.repos},
@@ -74,6 +76,7 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		Invitations: guardianInvitationStore{store: wiring.repos.guardianInvitations},
 		Delivery:    guardianInvitationDelivery{current: wiring.delivery},
 		Financial:   financialAudit{command: wiring.audit},
+		Roles:       wiring.repos.roles,
 		Logger:      logger,
 	}, nil
 }
@@ -217,6 +220,10 @@ func (d staffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64)
 	return identityaccessCompose.CaregiverProfile{ID: teacher.ID, StaffID: teacher.StaffID, Deleted: teacher.DeletedAt != nil}, true, nil
 }
 
+func (d staffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return hasLiveCaregiverProfile(ctx, d.repos.persons, d.repos.staff, d.repos.teachers, accountID)
+}
+
 func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error) {
 	teacher := &userModels.Teacher{StaffID: staffID, Role: position}
 	teacher.SetTenantID(tenantID)
@@ -292,17 +299,9 @@ func (a previewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int6
 	return a.events.StaffPreviewEnded(ctx, adminAccountID, previewID)
 }
 
-// --- retained role and account management -----------------------------------
+// --- retained account management -------------------------------------------
 
 type accountAdministration struct{ current func() *auth.Service }
-
-func (a accountAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
-	service := a.current()
-	if service == nil {
-		return errors.New("auth service is not composed")
-	}
-	return service.RemoveRoleFromAccount(ctx, int(accountID), int(roleID))
-}
 
 func (a accountAdministration) DeactivateAccount(ctx context.Context, accountID int64) error {
 	service := a.current()
@@ -429,7 +428,7 @@ func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkI
 	if link == nil {
 		return userModels.ErrStudentGuardianNotFound
 	}
-	auth.PromoteStudentGuardianLink(link)
+	users.PromoteStudentGuardianLink(link)
 	return d.repos.studentGuardians.Update(ctx, link)
 }
 
@@ -464,10 +463,10 @@ func (d guardianDirectory) DeleteStudentGuardianLink(ctx context.Context, linkID
 }
 
 func (d guardianDirectory) GuardianRoleClass(role string) identityaccessCompose.GuardianRoleClass {
-	switch auth.ClassifyGuardianRole(role) {
-	case auth.GuardianRoleFull:
+	switch {
+	case users.IsFullGuardianRole(role):
 		return identityaccessCompose.GuardianRoleFull
-	case auth.GuardianRoleSocialWorker:
+	case users.IsSocialWorkerGuardianRole(role):
 		return identityaccessCompose.GuardianRoleSocialWorker
 	default:
 		return identityaccessCompose.GuardianRoleRestricted

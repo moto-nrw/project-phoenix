@@ -286,7 +286,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	// the same policy the staff invitation uses, so guardian and retired roles
 	// cannot be handed out through the back door of account creation.
 	// TenantTxMiddleware ensures RLS sees tenant-scoped roles.
-	role, err := rs.AuthService.ResolveAssignableSchoolRole(r.Context(), *requestedRoleID, claims.TenantID)
+	role, err := rs.Sessions.ResolveAssignableSchoolRole(r.Context(), *requestedRoleID, claims.TenantID)
 	if err != nil {
 		renderRoleAssignmentError(w, r, *requestedRoleID, err)
 		return nil, 0, true
@@ -312,12 +312,12 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 // itself failed and must not be reported as a bad role.
 func renderRoleAssignmentError(w http.ResponseWriter, r *http.Request, roleID int64, err error) {
 	switch {
-	case errors.Is(err, authService.ErrRoleNotAssignable),
+	case errors.Is(err, identityaccess.ErrRoleNotAssignable),
 		errors.Is(err, sql.ErrNoRows):
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrRoleNotAssignable))
-	case errors.Is(err, authService.ErrRoleForeignTenant),
-		errors.Is(err, authService.ErrRoleGuardianNotAssignable),
-		errors.Is(err, authService.ErrRoleLegacyTeacherNotAssignable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrRoleNotAssignable))
+	case errors.Is(err, identityaccess.ErrRoleForeignTenant),
+		errors.Is(err, identityaccess.ErrRoleGuardianNotAssignable),
+		errors.Is(err, identityaccess.ErrRoleLegacyTeacherNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		slog.Default().Error("role lookup failed",

@@ -5,7 +5,9 @@
 // acceptance (#2699), the platform operator identity and refresh sessions
 // behind operator login, refresh and revocation, and the account refresh
 // sessions behind tenant, parent and school login, refresh, switching and
-// revocation (#2720).
+// revocation (#2720). The role and permission administration behind the RBAC
+// routes, staff membership, operator provisioning and staff offboarding
+// followed with #3314.
 //
 // Accounts are platform-wide rows without a tenant. The school mapping
 // (`auth.account_tenants`), the guardian base role assignment
@@ -331,6 +333,7 @@ type Engine interface {
 	OperatorAuthentication
 	OperatorAccountAccess
 	AccountLifecycle
+	RoleAdministration
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

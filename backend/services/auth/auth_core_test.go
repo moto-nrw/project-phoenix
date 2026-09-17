@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1100,6 +1101,7 @@ func TestAuthService_CreateRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates role successfully", func(t *testing.T) {
@@ -1107,22 +1109,22 @@ func TestAuthService_CreateRole(t *testing.T) {
 		name := fmt.Sprintf("test-role-%d", time.Now().UnixNano())
 
 		// ACT
-		role, err := service.CreateRole(ctx, name, "Test role description", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, name, "Test role description", testpkg.StrPtr("user"))
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, role)
+		assert.NotZero(t, role)
 		assert.Greater(t, role.ID, int64(0))
 		assert.Equal(t, name, role.Name)
 	})
 
 	t.Run("returns error for empty name", func(t *testing.T) {
 		// ACT
-		role, err := service.CreateRole(ctx, "", "description", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, "", "description", testpkg.StrPtr("user"))
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, role)
+		assert.Zero(t, role)
 	})
 }
 
@@ -1132,30 +1134,31 @@ func TestAuthService_GetRoleByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns role when found", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("get-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "description", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, name, "description", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetRoleByID(ctx, int(role.ID))
+		result, err := rbac.GetRole(ctx, role.ID)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.NotZero(t, result)
 		assert.Equal(t, role.ID, result.ID)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetRoleByID(ctx, 99999999)
+		result, err := rbac.GetRole(ctx, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -1165,24 +1168,25 @@ func TestAuthService_UpdateRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("update-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "original description", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, name, "original description", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		role.Description = "updated description"
 
 		// ACT
-		err = service.UpdateRole(ctx, role)
+		err = rbac.UpdateRole(ctx, role)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := service.GetRoleByID(ctx, int(role.ID))
+		updated, err := rbac.GetRole(ctx, role.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "updated description", updated.Description)
 	})
@@ -1194,22 +1198,23 @@ func TestAuthService_DeleteRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes role successfully", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("delete-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, name, "to delete", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, name, "to delete", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
-		err = service.DeleteRole(ctx, int(role.ID))
+		err = rbac.DeleteRole(ctx, role.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetRoleByID(ctx, int(role.ID))
+		_, err = rbac.GetRole(ctx, role.ID)
 		require.Error(t, err)
 	})
 }
@@ -1220,16 +1225,17 @@ func TestAuthService_ListRoles(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns roles", func(t *testing.T) {
 		// ARRANGE
 		name := fmt.Sprintf("list-role-%d", time.Now().UnixNano())
-		_, err := service.CreateRole(ctx, name, "for listing", testpkg.StrPtr("user"))
+		_, err := rbac.CreateRole(ctx, name, "for listing", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.ListRoles(ctx, nil)
+		result, err := rbac.ListRoles(ctx, identityaccess.RoleFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1243,6 +1249,7 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns role to account", func(t *testing.T) {
@@ -1253,17 +1260,17 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("assign-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for assignment", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "for assignment", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		// ACT
-		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		err = rbac.AssignRoleToAccount(ctx, account.ID, role.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify assignment
-		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		roles, err := rbac.GetAccountRoles(ctx, account.ID)
 		require.NoError(t, err)
 		found := false
 		for _, r := range roles {
@@ -1282,21 +1289,21 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		token := testpkg.CreateTestTokenForTenant(t, db, testpkg.Tenant(t), account.ID)
 
 		roleName := fmt.Sprintf("assign-role-tx-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "transaction rollback verification", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "transaction rollback verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		sentinelErr := errors.New("force outer rollback")
 		txHandler := tenant.NewTransactionRunner()
 
 		err = txHandler.RunInTx(ctx, func(txCtx context.Context) error {
-			if err := service.AssignRoleToAccount(txCtx, int(account.ID), int(role.ID)); err != nil {
+			if err := rbac.AssignRoleToAccount(txCtx, account.ID, role.ID); err != nil {
 				return err
 			}
 			return sentinelErr
 		})
 		require.ErrorIs(t, err, sentinelErr)
 
-		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		roles, err := rbac.GetAccountRoles(ctx, account.ID)
 		require.NoError(t, err)
 		assert.Empty(t, roles, "role assignment should roll back with the outer transaction")
 
@@ -1316,10 +1323,10 @@ func TestAuthService_AssignRoleToAccount(t *testing.T) {
 		require.NoError(t, err)
 
 		roleName := fmt.Sprintf("assign-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
-		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		err = rbac.AssignRoleToAccount(ctx, account.ID, role.ID)
 		require.NoError(t, err)
 
 		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
@@ -1334,56 +1341,57 @@ func TestAuthService_ReplaceAccountRole(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "replace-account-role")
 	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
-	oldRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-old-%d", time.Now().UnixNano()), "old role", testpkg.StrPtr("user"))
+	oldRole, err := rbac.CreateRole(ctx, fmt.Sprintf("replace-old-%d", time.Now().UnixNano()), "old role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
-	newRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-new-%d", time.Now().UnixNano()), "new role", testpkg.StrPtr("user"))
+	newRole, err := rbac.CreateRole(ctx, fmt.Sprintf("replace-new-%d", time.Now().UnixNano()), "new role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	// A second staff role is the state a half-finished swap or a direct POST
 	// leaves behind; the Konto field is single-valued, so it must go too.
-	extraRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-extra-%d", time.Now().UnixNano()), "extra role", testpkg.StrPtr("user"))
+	extraRole, err := rbac.CreateRole(ctx, fmt.Sprintf("replace-extra-%d", time.Now().UnixNano()), "extra role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
 	// Guardian access is a parent-portal relationship, not a staff role, and
 	// survives every staff role change (parent who later became staff).
-	guardianRole, err := service.CreateRole(ctx, fmt.Sprintf("replace-guardian-%d", time.Now().UnixNano()), "guardian role", testpkg.StrPtr(authModels.BaseRoleGuardian))
+	guardianRole, err := rbac.CreateRole(ctx, fmt.Sprintf("replace-guardian-%d", time.Now().UnixNano()), "guardian role", testpkg.StrPtr(authModels.BaseRoleGuardian))
 	require.NoError(t, err)
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(guardianRole.ID)))
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(oldRole.ID)))
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(extraRole.ID)))
+	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, guardianRole.ID))
+	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, oldRole.ID))
+	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, extraRole.ID))
 
-	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+	require.NoError(t, rbac.ReplaceAccountRole(ctx, account.ID, newRole.ID))
 
-	roles, err := service.GetAccountRoles(ctx, int(account.ID))
+	roles, err := rbac.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
 
 	// Replacing with a role the account already holds keeps that role and
 	// still drops every other staff role.
-	require.NoError(t, service.AssignRoleToAccount(ctx, int(account.ID), int(extraRole.ID)))
-	require.NoError(t, service.ReplaceAccountRole(ctx, int(account.ID), int(newRole.ID)))
+	require.NoError(t, rbac.AssignRoleToAccount(ctx, account.ID, extraRole.ID))
+	require.NoError(t, rbac.ReplaceAccountRole(ctx, account.ID, newRole.ID))
 
-	roles, err = service.GetAccountRoles(ctx, int(account.ID))
+	roles, err = rbac.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
 
 	sentinelErr := errors.New("force outer rollback")
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-		if err := service.ReplaceAccountRole(txCtx, int(account.ID), int(oldRole.ID)); err != nil {
+		if err := rbac.ReplaceAccountRole(txCtx, account.ID, oldRole.ID); err != nil {
 			return err
 		}
 		return sentinelErr
 	})
 	require.ErrorIs(t, err, sentinelErr)
 
-	roles, err = service.GetAccountRoles(ctx, int(account.ID))
+	roles, err = rbac.GetAccountRoles(ctx, account.ID)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []int64{guardianRole.ID, newRole.ID}, roleIDs(roles))
 }
 
-func roleIDs(roles []*authModels.Role) []int64 {
+func roleIDs(roles []identityaccess.Role) []int64 {
 	ids := make([]int64, 0, len(roles))
 	for _, role := range roles {
 		ids = append(ids, role.ID)
@@ -1397,6 +1405,7 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes role from account", func(t *testing.T) {
@@ -1407,20 +1416,20 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("remove-role-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "for removal", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "for removal", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
-		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		err = rbac.AssignRoleToAccount(ctx, account.ID, role.ID)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.RemoveRoleFromAccount(ctx, int(account.ID), int(role.ID))
+		err = rbac.RemoveRoleFromAccount(ctx, account.ID, role.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify removal
-		roles, err := service.GetAccountRoles(ctx, int(account.ID))
+		roles, err := rbac.GetAccountRoles(ctx, account.ID)
 		require.NoError(t, err)
 		for _, r := range roles {
 			assert.NotEqual(t, role.ID, r.ID)
@@ -1434,16 +1443,16 @@ func TestAuthService_RemoveRoleFromAccount(t *testing.T) {
 		testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
 
 		roleName := fmt.Sprintf("remove-role-refresh-%d", time.Now().UnixNano())
-		role, err := service.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "refresh propagation verification", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
-		err = service.AssignRoleToAccount(ctx, int(account.ID), int(role.ID))
+		err = rbac.AssignRoleToAccount(ctx, account.ID, role.ID)
 		require.NoError(t, err)
 
 		_, refreshToken, err := service.Login(ctx, email, testPassword)
 		require.NoError(t, err)
 
-		err = service.RemoveRoleFromAccount(ctx, int(account.ID), int(role.ID))
+		err = rbac.RemoveRoleFromAccount(ctx, account.ID, role.ID)
 		require.NoError(t, err)
 
 		newAccessToken, newRefreshToken, err := service.RefreshToken(ctx, refreshToken)
@@ -1463,6 +1472,7 @@ func TestAuthService_CreatePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("creates permission successfully", func(t *testing.T) {
@@ -1472,12 +1482,12 @@ func TestAuthService_CreatePermission(t *testing.T) {
 		resource := fmt.Sprintf("resource-create-%s", uniqueID)
 
 		// ACT
-		perm, err := service.CreatePermission(ctx, name, "Test permission", resource, "read")
+		perm, err := rbac.CreatePermission(ctx, name, "Test permission", resource, "read")
 
 		// ASSERT
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, perm.ID)
-		assert.NotNil(t, perm)
+		assert.NotZero(t, perm)
 		assert.Greater(t, perm.ID, int64(0))
 		assert.Equal(t, name, perm.Name)
 	})
@@ -1489,6 +1499,7 @@ func TestAuthService_GetPermissionByID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns permission when found", func(t *testing.T) {
@@ -1496,16 +1507,16 @@ func TestAuthService_GetPermissionByID(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		name := fmt.Sprintf("get-perm-%s", uniqueID)
 		resource := fmt.Sprintf("resource-get-%s", uniqueID)
-		perm, err := service.CreatePermission(ctx, name, "desc", resource, "read")
+		perm, err := rbac.CreatePermission(ctx, name, "desc", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// ACT
-		result, err := service.GetPermissionByID(ctx, int(perm.ID))
+		result, err := rbac.GetPermission(ctx, perm.ID)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.NotZero(t, result)
 		assert.Equal(t, perm.ID, result.ID)
 	})
 }
@@ -1516,11 +1527,12 @@ func TestAuthService_ListPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns permissions", func(t *testing.T) {
 		// ACT
-		result, err := service.ListPermissions(ctx, nil)
+		result, err := rbac.ListPermissions(ctx, identityaccess.PermissionFilter{})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1534,6 +1546,7 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("grants permission to account", func(t *testing.T) {
@@ -1546,12 +1559,12 @@ func TestAuthService_GrantPermissionToAccount(t *testing.T) {
 
 		permName := fmt.Sprintf("grant-perm-%s", uniqueID)
 		resource := fmt.Sprintf("resource-grant-%s", uniqueID)
-		perm, err := service.CreatePermission(ctx, permName, "desc", resource, "read")
+		perm, err := rbac.CreatePermission(ctx, permName, "desc", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, perm.ID)
 
 		// ACT
-		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(perm.ID))
+		err = rbac.GrantPermissionToAccount(ctx, account.ID, perm.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1674,6 +1687,7 @@ func TestAuthService_GetPermissionByName(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns permission when found", func(t *testing.T) {
@@ -1681,26 +1695,26 @@ func TestAuthService_GetPermissionByName(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("test-perm-%s", uniqueID)
 		resource := fmt.Sprintf("res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "Test permission", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "Test permission", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
-		result, err := service.GetPermissionByName(ctx, permName)
+		result, err := rbac.GetPermissionByName(ctx, permName)
 
 		// ASSERT
 		require.NoError(t, err)
-		assert.NotNil(t, result)
+		assert.NotZero(t, result)
 		assert.Equal(t, permission.ID, result.ID)
 	})
 
 	t.Run("returns error when not found", func(t *testing.T) {
 		// ACT
-		result, err := service.GetPermissionByName(ctx, "nonexistent-permission")
+		result, err := rbac.GetPermissionByName(ctx, "nonexistent-permission")
 
 		// ASSERT
 		require.Error(t, err)
-		assert.Nil(t, result)
+		assert.Zero(t, result)
 	})
 }
 
@@ -1710,6 +1724,7 @@ func TestAuthService_UpdatePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("updates permission successfully", func(t *testing.T) {
@@ -1717,20 +1732,20 @@ func TestAuthService_UpdatePermission(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("update-perm-%s", uniqueID)
 		resource := fmt.Sprintf("upd-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "Original description", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "Original description", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		permission.Description = "Updated description"
 
 		// ACT
-		err = service.UpdatePermission(ctx, permission)
+		err = rbac.UpdatePermission(ctx, permission)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify update
-		updated, err := service.GetPermissionByID(ctx, int(permission.ID))
+		updated, err := rbac.GetPermission(ctx, permission.ID)
 		require.NoError(t, err)
 		assert.Equal(t, "Updated description", updated.Description)
 	})
@@ -1742,6 +1757,7 @@ func TestAuthService_DeletePermission(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("deletes permission successfully", func(t *testing.T) {
@@ -1749,18 +1765,18 @@ func TestAuthService_DeletePermission(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("delete-perm-%s", uniqueID)
 		resource := fmt.Sprintf("del-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "To be deleted", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "To be deleted", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
-		err = service.DeletePermission(ctx, int(permission.ID))
+		err = rbac.DeletePermission(ctx, permission.ID)
 
 		// ASSERT
 		require.NoError(t, err)
 
 		// Verify deletion
-		_, err = service.GetPermissionByID(ctx, int(permission.ID))
+		_, err = rbac.GetPermission(ctx, permission.ID)
 		require.Error(t, err)
 	})
 }
@@ -1771,6 +1787,7 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns account permissions", func(t *testing.T) {
@@ -1783,15 +1800,15 @@ func TestAuthService_GetAccountPermissions(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("acctperm-%s", uniqueID)
 		resource := fmt.Sprintf("acct-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "Account permission", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "Account permission", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
-		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetAccountPermissions(ctx, int(account.ID))
+		result, err := rbac.GetAccountPermissions(ctx, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1805,6 +1822,7 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns direct permissions only", func(t *testing.T) {
@@ -1817,15 +1835,15 @@ func TestAuthService_GetAccountDirectPermissions(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("directperm-%s", uniqueID)
 		resource := fmt.Sprintf("direct-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "Direct permission", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "Direct permission", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
-		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetAccountDirectPermissions(ctx, int(account.ID))
+		result, err := rbac.GetAccountDirectPermissions(ctx, account.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1839,6 +1857,7 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes permission from account", func(t *testing.T) {
@@ -1851,15 +1870,15 @@ func TestAuthService_RemovePermissionFromAccount(t *testing.T) {
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		permName := fmt.Sprintf("removeperm-%s", uniqueID)
 		resource := fmt.Sprintf("rem-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "To be removed", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "To be removed", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
-		err = service.GrantPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		err = rbac.GrantPermissionToAccount(ctx, account.ID, permission.ID)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.RemovePermissionFromAccount(ctx, int(account.ID), int(permission.ID))
+		err = rbac.RemovePermissionFromAccount(ctx, account.ID, permission.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1876,23 +1895,24 @@ func TestAuthService_AssignPermissionToRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("assigns permission to role", func(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleperm-%s", uniqueID)
 		resource := fmt.Sprintf("role-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "Role permission", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "Role permission", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
-		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
+		err = rbac.AssignPermissionToRole(ctx, role.ID, permission.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1904,35 +1924,36 @@ func TestAuthService_ReplaceRolePermissions(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 	uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-	role, err := service.CreateRole(ctx, "replace-permissions-"+uniqueID, "Test role", testpkg.StrPtr("user"))
+	role, err := rbac.CreateRole(ctx, "replace-permissions-"+uniqueID, "Test role", testpkg.StrPtr("user"))
 	require.NoError(t, err)
-	oldPermission, err := service.CreatePermission(ctx, "replace-old-"+uniqueID, "Old permission", "replace-old-"+uniqueID, "read")
+	oldPermission, err := rbac.CreatePermission(ctx, "replace-old-"+uniqueID, "Old permission", "replace-old-"+uniqueID, "read")
 	require.NoError(t, err)
 	testpkg.OwnTestPermission(t, db, oldPermission.ID)
-	newPermission, err := service.CreatePermission(ctx, "replace-new-"+uniqueID, "New permission", "replace-new-"+uniqueID, "read")
+	newPermission, err := rbac.CreatePermission(ctx, "replace-new-"+uniqueID, "New permission", "replace-new-"+uniqueID, "read")
 	require.NoError(t, err)
 	testpkg.OwnTestPermission(t, db, newPermission.ID)
-	require.NoError(t, service.AssignPermissionToRole(ctx, int(role.ID), int(oldPermission.ID)))
+	require.NoError(t, rbac.AssignPermissionToRole(ctx, role.ID, oldPermission.ID))
 
-	require.NoError(t, service.ReplaceRolePermissions(ctx, int(role.ID), []int64{newPermission.ID}))
+	require.NoError(t, rbac.ReplaceRolePermissions(ctx, role.ID, []int64{newPermission.ID}))
 
-	permissions, err := service.GetRolePermissions(ctx, int(role.ID))
+	permissions, err := rbac.GetRolePermissions(ctx, role.ID)
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
 	assert.Equal(t, newPermission.ID, permissions[0].ID)
 
 	sentinelErr := errors.New("force outer rollback")
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
-		if err := service.ReplaceRolePermissions(txCtx, int(role.ID), []int64{oldPermission.ID}); err != nil {
+		if err := rbac.ReplaceRolePermissions(txCtx, role.ID, []int64{oldPermission.ID}); err != nil {
 			return err
 		}
 		return sentinelErr
 	})
 	require.ErrorIs(t, err, sentinelErr)
 
-	permissions, err = service.GetRolePermissions(ctx, int(role.ID))
+	permissions, err = rbac.GetRolePermissions(ctx, role.ID)
 	require.NoError(t, err)
 	require.Len(t, permissions, 1)
 	assert.Equal(t, newPermission.ID, permissions[0].ID)
@@ -1944,26 +1965,27 @@ func TestAuthService_RemovePermissionFromRole(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("removes permission from role", func(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-remove-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("rolerem-%s", uniqueID)
 		resource := fmt.Sprintf("rolerem-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "To be removed from role", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "To be removed from role", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
-		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
+		err = rbac.AssignPermissionToRole(ctx, role.ID, permission.ID)
 		require.NoError(t, err)
 
 		// ACT
-		err = service.RemovePermissionFromRole(ctx, int(role.ID), int(permission.ID))
+		err = rbac.RemovePermissionFromRole(ctx, role.ID, permission.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1976,26 +1998,27 @@ func TestAuthService_GetRolePermissions(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns role permissions", func(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
 		roleName := fmt.Sprintf("role-get-%s", uniqueID)
-		role, err := service.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
+		role, err := rbac.CreateRole(ctx, roleName, "Test role", testpkg.StrPtr("user"))
 		require.NoError(t, err)
 
 		permName := fmt.Sprintf("roleget-%s", uniqueID)
 		resource := fmt.Sprintf("roleget-res-%s", uniqueID)
-		permission, err := service.CreatePermission(ctx, permName, "Role permission", resource, "read")
+		permission, err := rbac.CreatePermission(ctx, permName, "Role permission", resource, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
-		err = service.AssignPermissionToRole(ctx, int(role.ID), int(permission.ID))
+		err = rbac.AssignPermissionToRole(ctx, role.ID, permission.ID)
 		require.NoError(t, err)
 
 		// ACT
-		result, err := service.GetRolePermissions(ctx, int(role.ID))
+		result, err := rbac.GetRolePermissions(ctx, role.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -2116,17 +2139,18 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupAuthService(t, db)
+	rbac := roleAdministrationOf(t, service)
 	ctx := testpkg.Ctx(t)
 
 	t.Run("returns error for non-existent account", func(t *testing.T) {
 		// ARRANGE
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permission, err := service.CreatePermission(ctx, "deny-perm-"+uniqueID, "Test permission", "deny-resource-"+uniqueID, "read")
+		permission, err := rbac.CreatePermission(ctx, "deny-perm-"+uniqueID, "Test permission", "deny-resource-"+uniqueID, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
-		err = service.DenyPermissionToAccount(ctx, 99999999, int(permission.ID))
+		err = rbac.DenyPermissionToAccount(ctx, 99999999, permission.ID)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2137,7 +2161,7 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-perm-%d@test.com", time.Now().UnixNano()))
 
 		// ACT
-		err := service.DenyPermissionToAccount(ctx, int(account.ID), 99999999)
+		err := rbac.DenyPermissionToAccount(ctx, account.ID, 99999999)
 
 		// ASSERT
 		require.Error(t, err)
@@ -2147,12 +2171,12 @@ func TestAuthService_DenyPermissionToAccount(t *testing.T) {
 		// ARRANGE
 		account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("deny-success-%d@test.com", time.Now().UnixNano()))
 		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		permission, err := service.CreatePermission(ctx, "deny-success-perm-"+uniqueID, "Test", "deny-success-res-"+uniqueID, "read")
+		permission, err := rbac.CreatePermission(ctx, "deny-success-perm-"+uniqueID, "Test", "deny-success-res-"+uniqueID, "read")
 		require.NoError(t, err)
 		testpkg.OwnTestPermission(t, db, permission.ID)
 
 		// ACT
-		err = service.DenyPermissionToAccount(ctx, int(account.ID), int(permission.ID))
+		err = rbac.DenyPermissionToAccount(ctx, account.ID, permission.ID)
 
 		// ASSERT
 		require.NoError(t, err)
