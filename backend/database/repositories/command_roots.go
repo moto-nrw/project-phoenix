@@ -7,7 +7,6 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -56,7 +55,7 @@ type AuthCleanupRepositories struct {
 func NewAuthCleanupRepositories(db *bun.DB, command auditModels.Command) AuthCleanupRepositories {
 	authEvents := auditRepo.NewAuthEventRepository(auditRootRuntime(db))
 	return AuthCleanupRepositories{
-		School: platformRepo.NewSchoolRepository(db), Person: NewPersonRepository(db),
+		School: NewSchoolRepository(db), Person: NewPersonRepository(db),
 		PasswordResetRateLimit: authRepo.NewPasswordResetRateLimitRepository(db),
 		AuthEvent:              RouteAuthEventWrites(authEvents, command), PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 	}
