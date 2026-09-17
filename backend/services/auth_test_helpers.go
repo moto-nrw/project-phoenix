@@ -185,7 +185,6 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
-	authConfig.Resets = accountSessionsPort
 	service, err = auth.NewService(r, authConfig, db, logger)
 	if err != nil {
 		return AuthTestModule{}, err
@@ -247,7 +246,6 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	port := newAccountSessions(identityAccess)
 	cfg.Sessions = port
 	cfg.Lifecycle = port
-	cfg.Resets = port
 	service, err = auth.NewService(repos, &cfg, db, logger)
 	return service, err
 }

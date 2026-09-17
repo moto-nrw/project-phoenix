@@ -43,8 +43,8 @@ type ServiceConfig struct {
 	// Sessions is the consumer-owned port over the Identity & Access
 	// account-authentication capability (#3251): login, refresh, switching,
 	// session validation, cleanup and revocation moved there. The retained
-	// flows (staff preview, password reset, account management, offboarding)
-	// and the AuthService session methods delegate to it.
+	// flows (staff preview, account management, offboarding) and the
+	// AuthService session methods delegate to it.
 	Sessions AccountSessions
 	// Lifecycle is the consumer-owned port over the Identity & Access
 	// account-lifecycle capability (#3225): staff preview, staff offboarding
@@ -53,10 +53,6 @@ type ServiceConfig struct {
 	// invitation flows provision identities and apply the school-role policy
 	// through it (#3314).
 	Lifecycle AccountLifecycle
-	// Resets is the consumer-owned port over the Identity & Access password
-	// reset capability (#2722). The mail, URL, expiry and rate-limit values
-	// above configure it in the composition root.
-	Resets PasswordResets
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -100,7 +96,6 @@ type Service struct {
 	tenantRuntime *tenant.UnitOfWork
 	sessions      AccountSessions
 	lifecycle     AccountLifecycle
-	resets        PasswordResets
 	// mfaService is optional. The Identity & Access login flows read it
 	// through CurrentMFAService at call time, so SetMFAService keeps its
 	// meaning: nil disables the gate and login behaves as a plain
@@ -164,7 +159,6 @@ func NewService(
 		audit:     config.Audit,
 		sessions:  config.Sessions,
 		lifecycle: config.Lifecycle,
-		resets:    config.Resets,
 	}, nil
 }
 
@@ -266,7 +260,6 @@ type AuthService interface {
 	RegistrationOperations
 	CredentialOperations
 	AccountAdministrationOperations
-	PasswordResetOperations
 	StaffPreviewOperations
 	ParentAccountOperations
 }

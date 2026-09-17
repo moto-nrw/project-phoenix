@@ -40,6 +40,16 @@ func (e *PasswordResetRateLimitError) Error() string { return ErrPasswordResetRa
 
 func (e *PasswordResetRateLimitError) Unwrap() error { return ErrPasswordResetRateLimited }
 
+// RetryAfterSeconds is the positive number of seconds until the address may
+// request again, or zero when it already may. The reset routes send it as
+// the Retry-After header the frontend countdown reads.
+func (e *PasswordResetRateLimitError) RetryAfterSeconds(now time.Time) int {
+	if e == nil || e.RetryAt.IsZero() || !e.RetryAt.After(now) {
+		return 0
+	}
+	return int(e.RetryAt.Sub(now).Seconds())
+}
+
 // PasswordResetLink is an issued reset link.
 type PasswordResetLink struct {
 	ID        int64

@@ -269,10 +269,16 @@ func (p lockoutPolicy) PINLockout(ctx context.Context) (int, time.Duration) {
 	return threshold, time.Duration(minutes) * time.Minute
 }
 
+// passwordPolicy binds the credential policy Security Runtime owns to the
+// module's password seam and reports the module's public sentinel, so every
+// flow that accepts a password answers with the same error text.
 type passwordPolicy struct{}
 
 func (passwordPolicy) ValidatePasswordStrength(password string) error {
-	return auth.ValidatePasswordStrength(password)
+	if err := auth.ValidatePasswordStrength(password); err != nil {
+		return identityaccess.ErrPasswordTooWeak
+	}
+	return nil
 }
 
 func (passwordPolicy) HashPassword(password string) (string, error) {

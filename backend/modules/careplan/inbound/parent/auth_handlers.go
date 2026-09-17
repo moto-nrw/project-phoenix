@@ -1,12 +1,9 @@
 package parent
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
@@ -139,17 +136,13 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if _, err := rs.AuthService.InitiateParentPasswordReset(r.Context(), req.Email); err != nil {
-		var rateErr *authService.RateLimitError
-		if errors.As(err, &rateErr) {
-			retryAfterSeconds := rateErr.RetryAfterSeconds(time.Now())
-			if retryAfterSeconds > 0 {
-				w.Header().Set("Retry-After", strconv.Itoa(retryAfterSeconds))
-			} else if !rateErr.RetryAt.IsZero() {
-				w.Header().Set("Retry-After", rateErr.RetryAt.UTC().Format(http.TimeFormat))
-			}
+	if !rs.Resets.complete() {
+		common.RenderError(w, r, common.ErrorInternalServer(ErrPasswordResetUnavailable))
+		return
+	}
 
-			common.RenderError(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded))
+	if err := rs.Resets.Initiate(r.Context(), req.Email); err != nil {
+		if rs.renderPasswordResetRateLimit(w, r, err) {
 			return
 		}
 
@@ -170,23 +163,24 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidToken),
-				errors.Is(authErr.Err, sql.ErrNoRows):
-				// 410 Gone: the token is invalid, already used, or expired.
-				// The parents reset page maps this status to the "request a
-				// new link" copy. Distinct from the 400 weak-password case
-				// below, which tells the user to fix the password itself —
-				// collapsing both into 400 sent the wrong remedy.
-				common.RenderError(w, r, common.ErrorGone(errors.New("invalid or expired reset token")))
-				return
-			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
-				return
-			}
+	if !rs.Resets.complete() {
+		common.RenderError(w, r, common.ErrorInternalServer(ErrPasswordResetUnavailable))
+		return
+	}
+
+	if err := rs.Resets.Reset(r.Context(), req.Token, req.NewPassword); err != nil {
+		switch {
+		case rs.Resets.LinkUnusable(err):
+			// 410 Gone: the token is invalid, already used, or expired.
+			// The parents reset page maps this status to the "request a
+			// new link" copy. Distinct from the 400 weak-password case
+			// below, which tells the user to fix the password itself —
+			// collapsing both into 400 sent the wrong remedy.
+			common.RenderError(w, r, common.ErrorGone(errors.New("invalid or expired reset token")))
+			return
+		case rs.Resets.TooWeak(err):
+			common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasswordTooWeak))
+			return
 		}
 
 		common.RenderError(w, r, common.ErrorInternalServer(err))

@@ -27,6 +27,8 @@ import (
 // Mock Services for Cleanup Jobs
 // =============================================================================
 
+// fakeAuthCleanup stands in for both the session token maintenance and the
+// Identity & Access password reset maintenance the scheduler runs (#3332).
 type fakeAuthCleanup struct {
 	mu              sync.Mutex
 	tokenCalls      int
@@ -47,14 +49,14 @@ func (f *fakeAuthCleanup) CleanupExpiredTokens(_ context.Context) (int, error) {
 	return f.tokenResult, f.tokenErr
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredPasswordResetTokens(_ context.Context) (int, error) {
+func (f *fakeAuthCleanup) DeleteSpentPasswordResetTokens(_ context.Context) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.passwordCalls++
 	return f.passwordResult, f.passwordErr
 }
 
-func (f *fakeAuthCleanup) CleanupExpiredRateLimits(_ context.Context) (int, error) {
+func (f *fakeAuthCleanup) DeleteStalePasswordResetWindows(_ context.Context) (int, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.rateLimitCalls++

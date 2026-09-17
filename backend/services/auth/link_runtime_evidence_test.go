@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -128,7 +129,7 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 		testpkg.CreateTestAccountWithPassword(t, db, resetAddress, invitationPassword)
 		var resetToken string
 		measure("password_reset_initiate", iteration, func() error {
-			link, resetErr := factory.Auth.InitiatePasswordReset(ctx, resetAddress)
+			link, resetErr := factory.AccountAuthentication().InitiatePasswordReset(ctx, resetAddress, identityaccess.PasswordResetScopeStaff)
 			if resetErr != nil {
 				return resetErr
 			}
@@ -139,9 +140,9 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 			return nil
 		})
 		measure("password_reset_complete", iteration, func() error {
-			return factory.Auth.ResetPassword(publicCtx, resetToken, "R3set!Evidence")
+			return factory.AccountAuthentication().ResetPassword(publicCtx, resetToken, "R3set!Evidence")
 		})
-		if replayErr := factory.Auth.ResetPassword(publicCtx, resetToken, "R3set!Again"); replayErr != nil {
+		if replayErr := factory.AccountAuthentication().ResetPassword(publicCtx, resetToken, "R3set!Again"); replayErr != nil {
 			replays["password_reset_replay_refused"]++
 		}
 		// --- guardian invitation: issue, preview, redeem once, resend.

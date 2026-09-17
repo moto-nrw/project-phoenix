@@ -55,7 +55,7 @@ type cleanupContext struct {
 type authCleanupService interface {
 	CountExpiredTokens(context.Context) (int, error)
 	CleanupExpiredTokens(context.Context) (int, error)
-	CleanupExpiredRateLimits(context.Context) (int, error)
+	DeleteStalePasswordResetWindows(context.Context) (int, error)
 }
 
 type invitationCleanupService interface {

@@ -826,42 +826,6 @@ func TestAuthService_CleanupExpiredTokens_Extended(t *testing.T) {
 	})
 }
 
-func TestAuthService_CleanupExpiredPasswordResetTokens_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns count of cleaned tokens", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredPasswordResetTokens(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
-
-func TestAuthService_CleanupExpiredRateLimits_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns count of cleaned rate limits", func(t *testing.T) {
-		// ACT
-		count, err := service.CleanupExpiredRateLimits(ctx)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
-	})
-}
-
 func TestAuthService_RevokeAllTokens_Extended(t *testing.T) {
 	t.Parallel()
 
@@ -1047,79 +1011,6 @@ func TestAuthService_ListParentAccounts_Extended(t *testing.T) {
 		for _, acc := range result {
 			assert.True(t, acc.Active)
 		}
-	})
-}
-
-// =============================================================================
-// Password Reset Extended Tests (password_reset.go)
-// =============================================================================
-
-func TestAuthService_ResetPassword_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns error for invalid token", func(t *testing.T) {
-		// ACT
-		err := service.ResetPassword(ctx, "invalid-token-12345", "NewPassword1%")
-
-		// ASSERT
-		require.Error(t, err)
-	})
-
-	t.Run("returns error for weak new password", func(t *testing.T) {
-		// ARRANGE
-		email := fmt.Sprintf("reset-weak-%d@test.local", time.Now().UnixNano())
-		_, err := service.Register(ctx, email, fmt.Sprintf("user-%d", time.Now().UnixNano()), "Test1234%", nil, 0)
-		require.NoError(t, err)
-
-		// Initiate password reset
-		resetToken, err := service.InitiatePasswordReset(ctx, email)
-		require.NoError(t, err)
-		require.NotNil(t, resetToken)
-
-		// ACT - Try with weak password
-		err = service.ResetPassword(ctx, resetToken.Token, "weak")
-
-		// ASSERT
-		require.Error(t, err)
-	})
-}
-
-func TestAuthService_InitiatePasswordReset_Extended(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupAuthServiceWithDB(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns nil for non-existent email (security)", func(t *testing.T) {
-		// ACT
-		result, err := service.InitiatePasswordReset(ctx, fmt.Sprintf("nonexistent-%d@test.local", time.Now().UnixNano()))
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.Nil(t, result) // Should not reveal email existence
-	})
-
-	t.Run("normalizes email case", func(t *testing.T) {
-		// ARRANGE
-		uniqueID := fmt.Sprintf("%d", time.Now().UnixNano())
-		email := fmt.Sprintf("reset-case-%s@test.local", uniqueID)
-		account, err := service.Register(ctx, email, fmt.Sprintf("user-%s", uniqueID), "Test1234%", nil, 0)
-		require.NoError(t, err)
-
-		// ACT - Use uppercase email
-		result, err := service.InitiatePasswordReset(ctx, fmt.Sprintf("RESET-CASE-%s@TEST.LOCAL", uniqueID))
-
-		// ASSERT
-		require.NoError(t, err)
-		require.NotNil(t, result)
-		assert.Equal(t, account.ID, result.AccountID)
 	})
 }
 

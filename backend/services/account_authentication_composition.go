@@ -801,6 +801,9 @@ var retainedSentinels = []retainedSentinel{
 	// the retained token sentinels the refresh flow already reports.
 	{identityaccess.ErrAccountSessionNotFound, auth.ErrTokenNotFound},
 	{identityaccess.ErrAccountSessionRotated, auth.ErrInvalidToken},
+	// The password policy seam answers with the owner's sentinel (#3332);
+	// the retained consumers still switch on this package's.
+	{identityaccess.ErrPasswordTooWeak, auth.ErrPasswordTooWeak},
 }
 
 // authServiceError translates the public contract into the retained

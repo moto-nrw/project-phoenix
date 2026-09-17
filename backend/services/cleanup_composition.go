@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
@@ -64,11 +65,34 @@ func NewCleanupAuditCommand(logger *slog.Logger) (AuditCommand, error) {
 // making the CLI import the Audit domain package directly.
 type AuditCommand = auditModels.Command
 
+// AuthMaintenance is the identity maintenance the cleanup CLI and the
+// scheduler run. Both halves are Identity & Access flows: the session sweep
+// still reaches the module through the retained service's port (#3251) while
+// the password reset maintenance is called on the module directly (#3332).
+type AuthMaintenance struct {
+	auth.AuthService
+	identityaccess.PasswordResets
+}
+
+// AuthMaintenanceRuntime is the maintenance the worker root schedules. It
+// pairs the retained session sweep with the module's reset maintenance, so
+// the worker keeps one identity dependency.
+func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
+	if f.Auth == nil {
+		return nil
+	}
+	resets := f.AccountAuthentication()
+	if resets == nil {
+		return nil
+	}
+	return &AuthMaintenance{AuthService: f.Auth, PasswordResets: resets}
+}
+
 // NewAuthCleanupService composes the token and rate-limit maintenance the
 // cleanup CLI runs. The expired session sweep and the revocation follow-ups
 // are Identity & Access flows (#3251); the module is composed with the
 // cleanup repositories and a signer the sweep never uses.
-func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*auth.Service, error) {
+func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.Logger, command AuditCommand) (*AuthMaintenance, error) {
 	repos := repositories.NewAuthCleanupRepositories(db, command)
 	tokenAuth, err := authjwt.NewTokenAuth()
 	if err != nil {
@@ -91,11 +115,10 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	sessions := newAccountSessions(identityAccess)
 	service = auth.NewCleanupService(auth.CleanupDependencies{
 		Sessions: sessions,
-		Resets:   sessions,
 		Audit:    command,
 		DB:       db, Logger: logger, TenantRuntime: runtime,
 	})
-	return service, nil
+	return &AuthMaintenance{AuthService: service, PasswordResets: identityAccess}, nil
 }
 
 // NewInvitationCleanupService composes the invitation maintenance the

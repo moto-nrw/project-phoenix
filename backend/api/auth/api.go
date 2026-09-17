@@ -30,11 +30,13 @@ const (
 
 // AccountSessions is the Identity & Access capability the login, refresh,
 // logout, tenant-switch, session-validation, MFA exchange and token routes
-// (#3251) and the role and permission routes (#3314) call directly.
+// (#3251), the role and permission routes (#3314) and the public password
+// reset routes (#3332) call directly.
 type AccountSessions interface {
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.RoleAdministration
+	identityaccess.PasswordResets
 }
 
 // Resource defines the auth resource
