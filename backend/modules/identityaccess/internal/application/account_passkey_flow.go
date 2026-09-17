@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -28,7 +27,6 @@ type AccountPasskeyFlows struct {
 	mfa      accountPasskeyGate
 	sessions accountPasskeySessions
 	runtime  ports.Runtime
-	logger   *slog.Logger
 	rpID     string
 	rpName   string
 	// tenantDomain is the base domain the school subdomains live under.
@@ -47,7 +45,6 @@ type AccountPasskeyFlowDependencies struct {
 	RPID         string
 	RPName       string
 	TenantDomain string
-	Logger       *slog.Logger
 }
 
 // accountPasskeyGate is the second factor a registration is gated by: the
@@ -83,14 +80,10 @@ func NewAccountPasskeyFlows(deps AccountPasskeyFlowDependencies) (*AccountPasske
 	if rpName == "" {
 		rpName = "moto"
 	}
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return &AccountPasskeyFlows{
 		accounts: deps.Accounts, records: deps.Records, mfa: deps.MFA, sessions: deps.Sessions,
-		runtime: deps.Runtime, logger: logger.With("component", "account-passkey"),
-		rpID: domain.HostWithoutPort(rpID), rpName: rpName,
+		runtime: deps.Runtime,
+		rpID:    domain.HostWithoutPort(rpID), rpName: rpName,
 		tenantDomain: domain.HostWithoutPort(tenantDomain), now: time.Now,
 	}, nil
 }

@@ -234,7 +234,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		mfa: &mfaWiring{
 			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides), tokenAuth: authConfig.TokenAuth,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
-			jwtSecret: mfaTestSecret, logger: logger, backoff: settingsOverrides.mfaBackoff,
+			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
 			decorate: settingsOverrides.mfaRecords, capability: newModuleAccountMFA(settingsOverrides.mfaCapability),
 			passkeys: &authTestRelyingParty,
 		},
@@ -312,7 +312,7 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 		mfa: &mfaWiring{
 			repos: repos, settings: cfg.Settings, tokenAuth: cfg.TokenAuth,
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
-			jwtSecret: mfaTestSecret, logger: logger,
+			jwtSecret: mfaTestSecret(), logger: logger,
 		},
 		lifecycle: &lifecycleWiring{
 			settings: cfg.Settings, audit: cfg.Audit,
@@ -351,10 +351,10 @@ type failingStaffDirectory struct {
 
 func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error { return d.err }
 
-// mfaTestSecret derives the trusted-device HMAC key for the service the
-// behaviour tests compose directly. The production root uses AUTH_JWT_SECRET;
-// these tests sign their own tokens and only need a stable non-empty key.
-const mfaTestSecret = "auth-test-mfa-secret"
+// mfaTestSecret is the signing secret the composed test module derives its
+// trusted-device HMAC key from: the process configuration, exactly as the
+// production root reads it, so no key is stored in source.
+func mfaTestSecret() string { return currentFactoryConfig().JWTSecret }
 
 // mfaSettingsService is the settings service the MFA gate resolves through:
 // the composed one, or the one a test supplied.

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"net"
 	"strings"
 	"time"
@@ -26,7 +25,6 @@ type OperatorPasskeyFlows struct {
 	mfa       operatorPasskeyGate
 	sessions  operatorPasskeySessions
 	runtime   ports.Runtime
-	logger    *slog.Logger
 	rpID      string
 	rpName    string
 	// originHost is the operator portal's host; a ceremony from any other
@@ -46,7 +44,6 @@ type OperatorPasskeyFlowDependencies struct {
 	RPName   string
 	// OperatorFrontendURL is the portal the ceremonies are pinned to.
 	OperatorFrontendURL string
-	Logger              *slog.Logger
 }
 
 // operatorPasskeyGate is the second factor an operator registration is gated
@@ -79,14 +76,10 @@ func NewOperatorPasskeyFlows(operators *Service, deps OperatorPasskeyFlowDepende
 	if rpName == "" {
 		rpName = "moto"
 	}
-	logger := deps.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
 	return &OperatorPasskeyFlows{
 		operators: operators, records: deps.Records, mfa: deps.MFA, sessions: deps.Sessions,
-		runtime: deps.Runtime, logger: logger.With("component", "operator-passkey"),
-		rpID: domain.HostWithoutPort(rpID), rpName: rpName, originHost: originHost, now: time.Now,
+		runtime: deps.Runtime,
+		rpID:    domain.HostWithoutPort(rpID), rpName: rpName, originHost: originHost, now: time.Now,
 	}, nil
 }
 

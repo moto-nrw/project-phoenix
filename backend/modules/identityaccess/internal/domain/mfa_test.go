@@ -187,6 +187,19 @@ func TestMFAPolicyRequiredFor(t *testing.T) {
 	assert.False(t, MFAPolicyForMode("something-else").RequiredFor([]string{AdminRoleName}))
 }
 
+// A school names its own roles. The retained gate matched the admin role
+// case-insensitively, and a case-sensitive compare would let a role a school
+// created as "Admin" log in without a second factor under required_admins.
+func TestMFAPolicyRequiredForMatchesTheAdminRoleCaseInsensitively(t *testing.T) {
+	t.Parallel()
+
+	admins := MFAPolicyForMode(MFAModeRequiredAdmins)
+	for _, name := range []string{"admin", "Admin", "ADMIN", "AdMiN"} {
+		assert.True(t, admins.RequiredFor([]string{name}), "%q is the admin role", name)
+	}
+	assert.False(t, admins.RequiredFor([]string{"administrator"}), "a different role is not the admin role")
+}
+
 // The permission gate honours the area and admin wildcards.
 func TestHasPermissionMatch(t *testing.T) {
 	t.Parallel()

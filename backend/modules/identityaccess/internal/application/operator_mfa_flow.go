@@ -401,7 +401,7 @@ func (f *OperatorMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, operato
 }
 
 func (f *OperatorMFAFlows) recordAudit(operatorID int64, action string, ip net.IP, resourceID *int64, evidence *domain.OperatorMFAEvidence) {
-	f.audit.RecordOperatorAction(domain.OperatorAuditEntry{
+	f.audit.RecordOperatorActionAsync(domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: action, ResourceType: domain.OperatorAuditResourceOperatorMFA,
 		ResourceID: resourceID, IPAddress: domain.AuditIPString(ip), MFA: evidence,
 	})

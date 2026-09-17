@@ -714,7 +714,12 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 	if f.runtime.HasTransaction(ctx) {
 		err = appendEvent(ctx)
 	} else {
-		err = f.runtime.WithTenantTx(ctx, event.TenantID, appendEvent)
+		// The event belongs to the school it names, which is not always the
+		// school the request runs under: an operator override audits at the
+		// target's school. Naming it on the context first keeps the write
+		// from being refused as a mismatched nesting and silently dropping
+		// the row.
+		err = f.runtime.WithTenantTx(f.runtime.WithTenantID(ctx, event.TenantID), event.TenantID, appendEvent)
 	}
 	if err != nil {
 		f.logger.Error("failed to audit mfa event",

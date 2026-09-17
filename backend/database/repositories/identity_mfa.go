@@ -31,7 +31,7 @@ type accountMFARecords struct{ repos *Factory }
 func (r accountMFARecords) FindAccountIdentity(ctx context.Context, accountID int64) (identityaccess.AccountMFAIdentity, bool, error) {
 	account, err := r.repos.Account.FindByID(ctx, accountID)
 	if err != nil {
-		if accountRowMissing(err) {
+		if authRepo.IsMissingRow(err) {
 			return identityaccess.AccountMFAIdentity{}, false, nil
 		}
 		return identityaccess.AccountMFAIdentity{}, false, err
@@ -236,10 +236,6 @@ func (r accountMFARecords) DeleteGlobalOverride(ctx context.Context, accountID i
 
 func (r accountMFARecords) DeleteTenantOverride(ctx context.Context, accountID, tenantID int64) error {
 	return r.repos.MFAOverride.DeleteTenant(ctx, accountID, tenantID)
-}
-
-func accountRowMissing(err error) bool {
-	return authRepo.IsMissingRow(err)
 }
 
 func accountMFAChallenge(row *authModels.MFAEmailChallenge) identityaccess.AccountMFAChallenge {

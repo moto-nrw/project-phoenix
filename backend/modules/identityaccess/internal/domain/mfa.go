@@ -160,7 +160,11 @@ func (p MFAPolicy) RequiredFor(roleNames []string) bool {
 		return true
 	case MFAModeRequiredAdmins:
 		for _, name := range roleNames {
-			if name == AdminRoleName {
+			// A school names its own roles, so the match is
+			// case-insensitive: "Admin" is the admin role too, and a
+			// case-sensitive compare would let it log in without a second
+			// factor.
+			if strings.EqualFold(name, AdminRoleName) {
 				return true
 			}
 		}

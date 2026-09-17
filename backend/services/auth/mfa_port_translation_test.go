@@ -135,3 +135,35 @@ func (r retainedFailingMFA) HasMFAEnrollment(context.Context, int64) (bool, erro
 func (r retainedFailingMFA) IssueTrustedDevice(context.Context, int64, int64, string, net.IP) (string, time.Time, error) {
 	return "", time.Time{}, r.err
 }
+
+// The sentinels are what the routes render, so their text is the response
+// body a client reads. It must stay the text the retained services produced.
+func TestRetainedSentinelsKeepTheirWireText(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "passkey origin is invalid", auth.ErrPasskeyOriginInvalid.Error())
+	assert.Equal(t, "passkey session is invalid", auth.ErrPasskeySessionInvalid.Error())
+	assert.Equal(t, "passkey not found", auth.ErrPasskeyNotFound.Error())
+	assert.Equal(t, "mfa status unavailable, please retry", auth.ErrMFAStatusUnavailable.Error())
+	assert.Equal(t, "invalid or expired code", auth.ErrMFACodeInvalid.Error())
+	assert.Equal(t, "invalid or expired challenge token", auth.ErrMFAChallengeTokenInvalid.Error())
+
+	// And the module's own identities carry the same text, so the
+	// translation never rewrites a body.
+	for _, pair := range []struct{ public, retained error }{
+		{identityaccess.ErrPasskeyOriginInvalid, auth.ErrPasskeyOriginInvalid},
+		{identityaccess.ErrPasskeySessionInvalid, auth.ErrPasskeySessionInvalid},
+		{identityaccess.ErrPasskeyNotFound, auth.ErrPasskeyNotFound},
+		{identityaccess.ErrMFACodeInvalid, auth.ErrMFACodeInvalid},
+		{identityaccess.ErrMFALocked, auth.ErrMFALocked},
+		{identityaccess.ErrMFARateLimited, auth.ErrMFARateLimited},
+		{identityaccess.ErrMFANotEnrolled, auth.ErrMFANotEnrolled},
+		{identityaccess.ErrMFAAlreadyEnrolled, auth.ErrMFAAlreadyEnrolled},
+		{identityaccess.ErrMFAPermissionDenied, auth.ErrMFAPermissionDenied},
+		{identityaccess.ErrMFAInvalidOverride, auth.ErrMFAInvalidOverride},
+		{identityaccess.ErrMFAUnsupportedScope, auth.ErrMFAUnsupportedScope},
+		{identityaccess.ErrMFAStatusUnavailable, auth.ErrMFAStatusUnavailable},
+	} {
+		assert.Equal(t, pair.public.Error(), pair.retained.Error())
+	}
+}

@@ -254,7 +254,7 @@ func (f *AccountMFAFlows) OperatorSetGlobalMFAOverride(ctx context.Context, oper
 	// this one goes to the operator action log instead — the same table the
 	// operator's own MFA actions use.
 	target := targetAccountID
-	f.audit.RecordOperatorAction(domain.OperatorAuditEntry{
+	f.audit.RecordOperatorActionAsync(domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: domain.OperatorAuditActionMFAAdminOverride,
 		ResourceType: domain.OperatorAuditResourceAccount, ResourceID: &target,
 		MFA: &domain.OperatorMFAEvidence{Override: &domain.OperatorMFAOverrideEvidence{

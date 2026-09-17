@@ -129,7 +129,7 @@ type MFAAuditTrail interface {
 	// join the caller's transaction when one is active and otherwise open
 	// the school's own transaction for the append.
 	RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error
-	// RecordOperatorAction appends to the operator action log outside the
+	// RecordOperatorActionAsync appends to the operator action log outside the
 	// caller's outcome, so the request never pays for the insert.
-	RecordOperatorAction(entry domain.OperatorAuditEntry)
+	RecordOperatorActionAsync(entry domain.OperatorAuditEntry)
 }

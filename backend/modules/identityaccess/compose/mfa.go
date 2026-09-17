@@ -180,7 +180,7 @@ func newMFACore(
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
 
 	account, err := application.NewAccountMFAFlows(application.AccountMFAFlowDependencies{
-		Records: accountMFARecords{source: deps.Records}, Settings: mfaSettings{deps.Settings},
+		Records: accountMFARecords{source: deps.Records}, Settings: deps.Settings,
 		Codec: mfaChallengeCodec{deps.Codec}, Codes: deps.Codes, Mail: mfaMail{deps.Mail},
 		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger,
 	})
@@ -225,7 +225,7 @@ func withPasskeyFlows(
 	accountFlows, err := application.NewAccountPasskeyFlows(application.AccountPasskeyFlowDependencies{
 		Accounts: accountMFARecords{source: deps.Records}, Records: accountPasskeys, MFA: flows.account,
 		Sessions: auth, Runtime: runtime, RPID: deps.Passkeys.RPID, RPName: deps.Passkeys.RPName,
-		TenantDomain: deps.Passkeys.TenantDomain, Logger: deps.Logger,
+		TenantDomain: deps.Passkeys.TenantDomain,
 	})
 	if err != nil {
 		return mfaFlows{}, err
@@ -233,7 +233,7 @@ func withPasskeyFlows(
 	operatorFlows, err := application.NewOperatorPasskeyFlows(service, application.OperatorPasskeyFlowDependencies{
 		Records: operatorPasskeys, MFA: flows.operator, Sessions: operatorAuth, Runtime: runtime,
 		RPID: deps.Passkeys.RPID, RPName: deps.Passkeys.RPName,
-		OperatorFrontendURL: deps.Passkeys.OperatorFrontendURL, Logger: deps.Logger,
+		OperatorFrontendURL: deps.Passkeys.OperatorFrontendURL,
 	})
 	if err != nil {
 		return mfaFlows{}, err
@@ -300,32 +300,6 @@ func (g operatorMFAGate) TrustedDeviceDays() int {
 
 // --- the seams the root fills ------------------------------------------------
 
-type mfaSettings struct{ source MFASettings }
-
-func (s mfaSettings) MFAMode(ctx context.Context, tenantID int64) (string, error) {
-	return s.source.MFAMode(ctx, tenantID)
-}
-
-func (s mfaSettings) MFAModeInTx(ctx context.Context, tenantID int64) (string, error) {
-	return s.source.MFAModeInTx(ctx, tenantID)
-}
-
-func (s mfaSettings) TrustedDeviceEnabled(ctx context.Context, tenantID int64) (bool, error) {
-	return s.source.TrustedDeviceEnabled(ctx, tenantID)
-}
-
-func (s mfaSettings) TrustedDeviceDays(ctx context.Context, tenantID int64) (int, error) {
-	return s.source.TrustedDeviceDays(ctx, tenantID)
-}
-
-func (s mfaSettings) LockoutThreshold(ctx context.Context, tenantID int64) (int, error) {
-	return s.source.LockoutThreshold(ctx, tenantID)
-}
-
-func (s mfaSettings) LockoutDuration(ctx context.Context, tenantID int64) (time.Duration, error) {
-	return s.source.LockoutDuration(ctx, tenantID)
-}
-
 type mfaChallengeCodec struct{ source MFAChallengeCodec }
 
 func (c mfaChallengeCodec) IssueChallengeToken(claims domain.MFAChallengeClaims, ttl time.Duration) (string, error) {
@@ -358,7 +332,7 @@ func (t mfaAuditTrail) RecordAuthEvent(ctx context.Context, event domain.AuthEve
 	return t.events.RecordAuthEvent(ctx, event)
 }
 
-func (t mfaAuditTrail) RecordOperatorAction(entry domain.OperatorAuditEntry) {
+func (t mfaAuditTrail) RecordOperatorActionAsync(entry domain.OperatorAuditEntry) {
 	t.operator.RecordOperatorActionAsync(publicOperatorAuditEntry(entry))
 }
 

@@ -69,7 +69,7 @@ var (
 	// refused with a 503 instead of silently degrading to "not required".
 	ErrMFAStatusUnavailable = errors.New("mfa status unavailable, please retry")
 
-	ErrPasskeyOriginInvalid  = errors.New("passkey origin is not allowed")
+	ErrPasskeyOriginInvalid  = errors.New("passkey origin is invalid")
 	ErrPasskeySessionInvalid = errors.New("passkey session is invalid")
 	ErrPasskeyNotFound       = errors.New("passkey not found")
 )

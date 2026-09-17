@@ -201,7 +201,7 @@ func (a *fakeMFAAudit) RecordAuthEvent(_ context.Context, event domain.AuthEvent
 	return nil
 }
 
-func (a *fakeMFAAudit) RecordOperatorAction(entry domain.OperatorAuditEntry) {
+func (a *fakeMFAAudit) RecordOperatorActionAsync(entry domain.OperatorAuditEntry) {
 	a.operators = append(a.operators, entry)
 }
 
