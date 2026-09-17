@@ -43,6 +43,11 @@ func (e engine) ListOpenPickupExtensions(ctx context.Context, studentID int64) (
 	return result, nil
 }
 
+func (e engine) FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error) {
+	studentID, err := e.service.FindPickupExtensionStudent(ctx, taskID)
+	return studentID, mapError(err)
+}
+
 func (e engine) ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (timetable.PickupExtensionResolution, error) {
 	value, err := e.service.ResolvePickupExtension(ctx, taskID, blockIDs)
 	if err != nil {

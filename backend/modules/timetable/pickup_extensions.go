@@ -93,6 +93,10 @@ type PickupExtensionRecorder interface {
 }
 
 type PickupExtensionQuery interface {
+	// FindPickupExtensionStudent returns the child affected by one task. It is
+	// used to authorize a resolve request before the command locks or changes
+	// the roster.
+	FindPickupExtensionStudent(context.Context, int64) (int64, error)
 	// ListOpenPickupExtensions returns open tasks, for one child when the
 	// student ID is positive, otherwise for the whole school.
 	ListOpenPickupExtensions(context.Context, int64) ([]PickupExtensionTask, error)
@@ -149,6 +153,13 @@ func (m *Module) ListOpenPickupExtensions(ctx context.Context, studentID int64) 
 		return nil, m.reject("list_open_pickup_extensions", ErrInvalidPickupExtension)
 	}
 	return m.engine.ListOpenPickupExtensions(ctx, studentID)
+}
+
+func (m *Module) FindPickupExtensionStudent(ctx context.Context, taskID int64) (int64, error) {
+	if taskID <= 0 {
+		return 0, m.reject("find_pickup_extension_student", ErrInvalidPickupExtension)
+	}
+	return m.engine.FindPickupExtensionStudent(ctx, taskID)
 }
 
 func (m *Module) ResolvePickupExtension(ctx context.Context, taskID int64, blockIDs []int64) (PickupExtensionResolution, error) {

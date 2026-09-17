@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,9 +184,20 @@ func TestPickupExtensions_UnreadableChildrenAreHidden(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 	assert.Empty(t, decodeTemplateData[pickupExtensionsResponse](t, w).Tasks)
 
+	counter := testpkg.CaptureQueries(t, s.db)
+	counter.Reset()
 	w = executeRequest(router, http.MethodPost, fmt.Sprintf("/pickup-extensions/%d/resolve", tasks[0].ID),
 		map[string]any{"block_ids": []int64{s.freePlay}})
 	assert.Equal(t, http.StatusNotFound, w.Code, "body=%s", w.Body.String())
+	taskQuerySeen := false
+	for _, query := range counter.Queries() {
+		normalized := strings.ToUpper(query)
+		if strings.Contains(normalized, "SCHEDULE.PICKUP_EXTENSION_TASKS") {
+			taskQuerySeen = true
+			assert.NotContains(t, normalized, "FOR UPDATE", "unreadable students must be rejected before resolve locks the task")
+		}
+	}
+	assert.True(t, taskQuerySeen, "the task must be read to authorize its student")
 	tasks, err = s.module.ListOpenPickupExtensions(s.ctx, childID)
 	require.NoError(t, err)
 	assert.Len(t, tasks, 1, "the refused resolve rolled back")

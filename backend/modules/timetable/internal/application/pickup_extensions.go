@@ -116,6 +116,25 @@ func (s *Service) ListOpenPickupExtensions(ctx context.Context, studentID int64)
 	return result, err
 }
 
+// FindPickupExtensionStudent reads the affected child before a caller starts
+// the resolve command. The command still locks and re-reads the task to keep
+// its write-side validation race-safe.
+func (s *Service) FindPickupExtensionStudent(ctx context.Context, taskID int64) (studentID int64, err error) {
+	err = s.run("find_pickup_extension_student", func(stats *domain.OperationStats) error {
+		task, found, queryStats, queryErr := s.store.FindPickupExtensionTask(ctx, taskID)
+		stats.Add(queryStats)
+		if queryErr != nil {
+			return queryErr
+		}
+		if !found {
+			return domain.ErrPickupExtensionNotFound
+		}
+		studentID = task.StudentID
+		return nil
+	})
+	return studentID, err
+}
+
 // PickupExtensionResolution is what ResolvePickupExtension changed.
 type PickupExtensionResolution struct {
 	Task        domain.PickupExtensionTask

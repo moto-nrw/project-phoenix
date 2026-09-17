@@ -131,6 +131,20 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	ctx := r.Context()
+	studentID, err := rs.PickupExtensions.FindPickupExtensionStudent(ctx, taskID)
+	if err != nil {
+		renderPickupExtensionError(w, r, err)
+		return
+	}
+	names, err := rs.readableStudentNames(r, []int64{studentID})
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load student failed", err))
+		return
+	}
+	if _, visible := names[studentID]; !visible {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("pickup extension not found"), pickupExtensionNotFoundCode))
+		return
+	}
 	if err := timetableplanning.LockTenantRecurrenceWrites(ctx, rs.DB); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("lock template recurrence failed", err))
 		return
@@ -139,17 +153,6 @@ func (rs *Resource) resolvePickupExtension(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		tenant.MarkRollback(ctx)
 		renderPickupExtensionError(w, r, err)
-		return
-	}
-	names, err := rs.readableStudentNames(r, []int64{result.StudentID})
-	if err != nil {
-		tenant.MarkRollback(ctx)
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load student failed", err))
-		return
-	}
-	if _, visible := names[result.StudentID]; !visible {
-		tenant.MarkRollback(ctx)
-		common.RenderError(w, r, common.ErrorNotFoundWithCode(errors.New("pickup extension not found"), pickupExtensionNotFoundCode))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, resolvePickupExtensionResponse{

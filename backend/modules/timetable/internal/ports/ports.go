@@ -161,6 +161,7 @@ type Store interface {
 	DeletePickupWeekdayExtensionTask(context.Context, int64, int) (domain.OperationStats, error)
 	DeletePastPickupExtensionTasks(context.Context, domain.Date) (domain.OperationStats, error)
 	ListPickupExtensionTasks(context.Context, int64, domain.Date) ([]domain.PickupExtensionTask, domain.OperationStats, error)
+	FindPickupExtensionTask(context.Context, int64) (domain.PickupExtensionTask, bool, domain.OperationStats, error)
 	FindPickupExtensionTaskForUpdate(context.Context, int64) (domain.PickupExtensionTask, bool, domain.OperationStats, error)
 	DeletePickupExtensionTask(context.Context, int64) (domain.OperationStats, error)
 	ListPickupExtensionDayBlocks(context.Context, []domain.PickupExtensionTask) ([]domain.PickupExtensionBlock, domain.OperationStats, error)

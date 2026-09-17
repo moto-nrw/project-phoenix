@@ -147,6 +147,28 @@ func (s *Store) ListPickupExtensionTasks(ctx context.Context, studentID int64, t
 	return result, stats, nil
 }
 
+func (s *Store) FindPickupExtensionTask(ctx context.Context, id int64) (domain.PickupExtensionTask, bool, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.PickupExtensionTask{}, false, domain.OperationStats{}, err
+	}
+	row := pickupExtensionTaskRow{}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewRaw(`SELECT `+pickupExtensionTaskColumns+`
+		FROM schedule.pickup_extension_tasks AS "task"
+		WHERE "task".tenant_id = ? AND "task".id = ?`, tenantID, id).Scan(ctx, &row)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.PickupExtensionTask{}, false, stats, nil
+	}
+	if err != nil {
+		return domain.PickupExtensionTask{}, false, stats, classifyWriteError("find pickup extension", err, &stats)
+	}
+	stats.Rows = 1
+	return row.toDomain(), true, stats, nil
+}
+
 func (s *Store) FindPickupExtensionTaskForUpdate(ctx context.Context, id int64) (domain.PickupExtensionTask, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
