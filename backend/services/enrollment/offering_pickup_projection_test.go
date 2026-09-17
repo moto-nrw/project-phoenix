@@ -248,7 +248,7 @@ func TestOfferingPickupResetClearsManualWeekdayExtension(t *testing.T) {
 	var clearedWeekday int
 	resetter := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		PickupScheduleRepo: env.repos.StudentPickupSchedule,
-		PickupBaselines: scheduletest.NewPickupBaselineService(
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
