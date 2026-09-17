@@ -89,7 +89,8 @@ a missing tool or failed command is not a passed check.
 
 ## Git and skills
 
-PRs target `development` (moto-balenaOS: `main`). Commit types: `feat`, `fix`,
+PRs target `development` (moto-balenaOS: `main`), or the branch of the PR below
+them when stacking; the `stacked-pr` skill owns that flow. Commit types: `feat`, `fix`,
 `refactor`, `chore`, `docs`, `test`, `style`. Use descriptive titles and names,
 without AI/tool branding or `Co-Authored-By: Claude`.
 
