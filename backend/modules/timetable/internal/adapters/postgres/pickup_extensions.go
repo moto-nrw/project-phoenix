@@ -262,6 +262,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 		FROM task
 		JOIN activities.schedules AS "schedule"
 			ON "schedule".tenant_id = ? AND "schedule".weekday = task.weekday
+			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= task.effective_from)
 			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > task.effective_from)
 		JOIN activities.groups AS "template"
 			ON "template".id = "schedule".activity_group_id AND "template".tenant_id = "schedule".tenant_id
@@ -275,7 +276,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 					AND "attendee".valid_from <= task.effective_from
 					AND ("attendee".valid_until IS NULL OR "attendee".valid_until > task.effective_from)
 					AND ("attendee".weekday IS NULL OR "attendee".weekday = task.weekday)))
-		ORDER BY task.task_id, "template".id, "schedule".valid_from ASC NULLS FIRST`,
+		ORDER BY task.task_id, "template".id, "schedule".valid_from DESC NULLS LAST`,
 		pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
 		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
 	).Scan(ctx, &rows)

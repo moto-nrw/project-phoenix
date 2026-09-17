@@ -34,12 +34,19 @@ func (emptyCarePlanDirectory) ListStudentStatusDays(context.Context, timetable.S
 }
 
 func buildPickupExtensionModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *timetable.Module {
+	return buildPickupExtensionModuleWithStudents(t, db, StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
+		return []TargetStudent{}, nil
+	}), observers...)
+}
+
+func buildPickupExtensionModuleWithStudents(
+	t *testing.T, db *bun.DB, students StudentDirectory, observers ...func(Observation),
+) *timetable.Module {
 	t.Helper()
 	observe := func(Observation) {}
 	if len(observers) > 0 {
 		observe = observers[0]
 	}
-	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
 	module, err := New(Dependencies{
 		DB: db, Students: students, Rooms: testRooms(), CareDays: testCareDays(), CarePlan: emptyCarePlanDirectory{},
 		LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe,
@@ -303,6 +310,91 @@ func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
 	}))
 	task := pickupExtensionTask(t, module, ctx, child.ID)
 	assert.Equal(t, []int64{freePlay.ID}, pickupExtensionBlockIDs(task.Blocks))
+}
+
+func TestModuleUsesEffectivePickupWeekdaySchedules(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+	category := createCategory(t, ctx, module, fmt.Sprintf("Pickup schedule versions %d", suffix))
+	child := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("Schedule-%d", suffix), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("Schedule-%d", suffix), "1a")
+
+	createTemplate := func(name string) timetable.Group {
+		t.Helper()
+		group, err := module.CreateGroup(ctx, timetable.GroupInput{
+			Name: fmt.Sprintf("%s %d", name, time.Now().UnixNano()), CategoryID: category.ID,
+			Type: timetable.GroupTypeCare, IsTemplate: true,
+		})
+		require.NoError(t, err)
+		return group
+	}
+	current := createTemplate("Freies Spiel")
+	future := createTemplate("Späteres Angebot")
+	oldFrame := createOwnedTimeframe(t, module, ctx, "14:45:00", "15:30:00", true, "Alte Zeit")
+	currentFrame := createOwnedTimeframe(t, module, ctx, "14:45:00", "17:00:00", true, "Neue Zeit")
+	futureFrame := createOwnedTimeframe(t, module, ctx, "14:45:00", "18:00:00", true, "Zukünftige Zeit")
+	oldFrom, currentFrom, futureFrom := "2099-01-01", "2099-03-01", "2099-03-10"
+	for _, input := range []timetable.ScheduleInput{
+		{ActivityGroupID: current.ID, Weekday: timetable.WeekdayTuesday, TimeframeID: &oldFrame.ID, ValidFrom: &oldFrom},
+		{ActivityGroupID: current.ID, Weekday: timetable.WeekdayTuesday, TimeframeID: &currentFrame.ID, ValidFrom: &currentFrom},
+		{ActivityGroupID: future.ID, Weekday: timetable.WeekdayTuesday, TimeframeID: &futureFrame.ID, ValidFrom: &futureFrom},
+	} {
+		_, err := module.CreateSchedule(ctx, input)
+		require.NoError(t, err)
+	}
+	for _, groupID := range []int64{current.ID, future.ID} {
+		_, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+			StudentID: other.ID, ActivityGroupID: groupID, ValidFrom: "2020-01-01",
+		})
+		require.NoError(t, err)
+	}
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: "2099-03-05",
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	require.Len(t, task.Blocks, 1)
+	assert.Equal(t, current.ID, task.Blocks[0].ID)
+	assert.Equal(t, "17:00", task.Blocks[0].EndTime)
+}
+
+func TestModuleMatchesPickupTargetsAtEffectiveDate(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	suffix := time.Now().UnixNano()
+	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Target-%d", suffix), "1a")
+	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) {
+		return []TargetStudent{{
+			ID: child.ID, SchoolClass: child.SchoolClass, EnrolledUntil: "2099-03-04",
+		}}, nil
+	})
+	module, ctx := buildPickupExtensionModuleWithStudents(t, db, students), testpkg.Ctx(t)
+	category := createCategory(t, ctx, module, fmt.Sprintf("Pickup target date %d", suffix))
+	class := "1a"
+	group, err := module.CreateGroup(ctx, timetable.GroupInput{
+		Name: fmt.Sprintf("Klassenangebot %d", suffix), CategoryID: category.ID,
+		Type: timetable.GroupTypeCare, IsTemplate: true,
+		TargetGroupType: timetable.TargetGroupTypeSchoolClass, TargetSchoolClass: &class,
+	})
+	require.NoError(t, err)
+	require.NoError(t, module.ReplaceGroupTargets(ctx, group.ID, []timetable.GroupTargetInput{{
+		TargetGroupType: timetable.TargetGroupTypeSchoolClass, TargetSchoolClass: &class,
+	}}))
+	frame := createOwnedTimeframe(t, module, ctx, "14:45:00", "16:00:00", true, "Klassenangebot")
+	_, err = module.CreateSchedule(ctx, timetable.ScheduleInput{
+		ActivityGroupID: group.ID, Weekday: timetable.WeekdayTuesday, TimeframeID: &frame.ID,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: "2099-03-05",
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	assert.Equal(t, []int64{group.ID}, pickupExtensionBlockIDs(task.Blocks))
 }
 
 func TestModuleRejectsInvalidPickupExtensions(t *testing.T) {

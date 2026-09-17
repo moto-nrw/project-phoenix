@@ -254,16 +254,16 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 	if err != nil {
 		return nil, err
 	}
-	targets, err := s.pickupExtensionTargets(ctx, blocks)
+	tasksByID := make(map[int64]domain.PickupExtensionTask, len(weekdayTasks))
+	for _, task := range weekdayTasks {
+		tasksByID[task.ID] = task
+	}
+	targets, err := s.pickupExtensionTargets(ctx, blocks, tasksByID, stats)
 	if err != nil {
 		return nil, err
 	}
-	studentByTask := make(map[int64]int64, len(weekdayTasks))
-	for _, task := range weekdayTasks {
-		studentByTask[task.ID] = task.StudentID
-	}
 	for _, block := range blocks {
-		if !block.Member && slices.Contains(targets[block.ID], studentByTask[block.TaskID]) {
+		if !block.Member && targets[block.TaskID][block.ID] {
 			block.Member = true
 		}
 		byTask[block.TaskID] = append(byTask[block.TaskID], block)
@@ -271,7 +271,12 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 	return byTask, nil
 }
 
-func (s *Service) pickupExtensionTargets(ctx context.Context, blocks []domain.PickupExtensionBlock) (map[int64][]int64, error) {
+func (s *Service) pickupExtensionTargets(
+	ctx context.Context,
+	blocks []domain.PickupExtensionBlock,
+	tasks map[int64]domain.PickupExtensionTask,
+	stats *domain.OperationStats,
+) (map[int64]map[int64]bool, error) {
 	templateIDs := make([]int64, 0, len(blocks))
 	for _, block := range blocks {
 		if !block.Member {
@@ -280,9 +285,33 @@ func (s *Service) pickupExtensionTargets(ctx context.Context, blocks []domain.Pi
 	}
 	templateIDs = uniquePositiveIDs(templateIDs)
 	if len(templateIDs) == 0 {
-		return map[int64][]int64{}, nil
+		return map[int64]map[int64]bool{}, nil
 	}
-	return s.ListTargetStudentIDs(ctx, templateIDs)
+	targetRules, students, err := s.loadTargetStudentCandidates(ctx, templateIDs, stats)
+	if err != nil {
+		return nil, err
+	}
+	targetsByDate := make(map[string]map[int64][]int64, len(tasks))
+	result := make(map[int64]map[int64]bool, len(tasks))
+	for _, block := range blocks {
+		if block.Member {
+			continue
+		}
+		task := tasks[block.TaskID]
+		targets, found := targetsByDate[task.EffectiveFrom]
+		if !found {
+			targets = matchTargetStudents(targetRules, students, task.EffectiveFrom)
+			targetsByDate[task.EffectiveFrom] = targets
+		}
+		if !slices.Contains(targets[block.ID], task.StudentID) {
+			continue
+		}
+		if result[block.TaskID] == nil {
+			result[block.TaskID] = make(map[int64]bool)
+		}
+		result[block.TaskID][block.ID] = true
+	}
+	return result, nil
 }
 
 func uniquePositiveIDs(values []int64) []int64 {

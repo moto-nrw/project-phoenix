@@ -192,10 +192,20 @@ func (s *PickupAutoExcusalSyncer) DetachForDate(ctx context.Context, studentID i
 	return s.DetachRow(ctx, row)
 }
 
-// DetachRow is DetachForDate for an already loaded row. Nil rows and rows
-// without an auto excusal are no-ops.
+// DetachRow is DetachForDate for an already loaded row. It first removes an
+// open later-pickup decision for the row's stored date, because a following
+// update may move that same exception to another date. Nil rows are no-ops.
 func (s *PickupAutoExcusalSyncer) DetachRow(ctx context.Context, row *scheduleModel.StudentPickupException) error {
-	if row == nil || !row.ExcusedAuto {
+	if row == nil {
+		return nil
+	}
+	if s.extensions != nil {
+		date := timezone.Date(row.ExceptionDate).String()
+		if err := s.extensions.ClearPickupDayExtension(ctx, row.StudentID, date); err != nil {
+			return fmt.Errorf("pickup extension: clear day %s: %w", date, err)
+		}
+	}
+	if !row.ExcusedAuto {
 		return nil
 	}
 	if _, err := s.slots.ReleasePartialAbsence(ctx, row.ID); err != nil {

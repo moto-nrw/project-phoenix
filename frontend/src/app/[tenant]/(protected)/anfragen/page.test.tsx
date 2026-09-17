@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import AnfragenPage from "./page";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
 import { resolveChangeRequestAccess } from "~/lib/change-request-access";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 
 const { mockUseSession, mockRedirect } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
@@ -28,6 +30,24 @@ vi.mock("~/lib/hooks/use-change-request-access", () => ({
 vi.mock("~/lib/tenant-path", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/tenant-path")>()),
   useTenantAwarePath: () => (path: string) => `/test-tenant${path}`,
+}));
+
+vi.mock("~/lib/tenant-context", () => ({
+  useTimetableEnabled: vi.fn(() => true),
+}));
+
+vi.mock("~/components/timetable/pickup-extension-access", () => ({
+  PickupExtensionAccessProvider: ({
+    value,
+    children,
+  }: {
+    value: boolean;
+    children: ReactNode;
+  }) => (
+    <div data-testid="pickup-extension-access" data-enabled={value}>
+      {children}
+    </div>
+  ),
 }));
 
 // Die aggregierte Liste ist separat getestet; hier zählt nur, mit welcher
@@ -80,6 +100,7 @@ class MockResizeObserver {
 vi.stubGlobal("ResizeObserver", MockResizeObserver);
 
 const mockUseChangeRequestAccess = vi.mocked(useChangeRequestAccess);
+const mockUseTimetableEnabled = vi.mocked(useTimetableEnabled);
 
 /** Sitzung mit den angegebenen Rechten, ohne Admin-Rolle. */
 function sessionWith(permissions: readonly string[]) {
@@ -118,6 +139,7 @@ function umschalten(label: "Offen" | "Historie") {
 describe("AnfragenPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUseTimetableEnabled.mockReturnValue(true);
     mockUseSession.mockReturnValue(sessionWith(["users:update"]));
     mockUseChangeRequestAccess.mockImplementation(
       () =>
@@ -130,6 +152,20 @@ describe("AnfragenPage", () => {
           error: undefined,
           refresh: vi.fn(),
         }) as ReturnType<typeof useChangeRequestAccess>,
+    );
+  });
+
+  it("deaktiviert die Terminauswahl ohne Betreuungsplan", () => {
+    mockUseSession.mockReturnValue(
+      sessionWith(["users:update", "schedules:manage"]),
+    );
+    mockUseTimetableEnabled.mockReturnValue(false);
+
+    render(<AnfragenPage />);
+
+    expect(screen.getByTestId("pickup-extension-access")).toHaveAttribute(
+      "data-enabled",
+      "false",
     );
   });
 

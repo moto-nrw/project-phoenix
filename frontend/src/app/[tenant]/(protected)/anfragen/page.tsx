@@ -28,6 +28,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { toISODate } from "~/lib/date-helpers";
 import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useTimetableEnabled } from "~/lib/tenant-context";
 
 type AnfragenTabId = "eltern" | "mitarbeitende";
 
@@ -499,9 +500,11 @@ function ElternTab({
   onCountChange: (count: number | null, hasMore: boolean) => void;
 }>) {
   const { data: session } = useSession();
+  const timetableEnabled = useTimetableEnabled();
   // Wer Termine im Betreuungsplan zuordnen darf, wird nach dem Freigeben
   // einer späteren Abholzeit direkt nach dem Termin gefragt (#3261).
-  const canPlanBlocks = hasPermission(session, "schedules:manage");
+  const canPlanBlocks =
+    timetableEnabled && hasPermission(session, "schedules:manage");
   return (
     <div className="w-full">
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die

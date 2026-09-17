@@ -115,6 +115,22 @@ func TestPickupExtension_LaterDayPickupOpensTask(t *testing.T) {
 	assert.Empty(t, h.rows(t))
 }
 
+func TestPickupExtension_MovingDayPickupRemovesOldTask(t *testing.T) {
+	t.Parallel()
+	h := setupPickupExtensionHarness(t)
+
+	row, err := h.svc.CreateOrReclaimException(h.ctx, h.student, h.monday, wallClockAt(16, 30), nil, h.staff, h.resolveStaff)
+	require.NoError(t, err)
+	require.Len(t, h.rows(t), 1)
+
+	nextMonday := h.monday.AddDays(7)
+	_, err = h.svc.UpdateException(h.ctx, row.ID, h.student, nextMonday, nil, wallClockAt(16, 30), false, h.resolveStaff)
+	require.NoError(t, err)
+	rows := h.rows(t)
+	require.Len(t, rows, 1)
+	assert.Equal(t, nextMonday.String(), rows[0].TaskDate)
+}
+
 func TestPickupExtension_DayWithoutWeeklyTimeOpensNothing(t *testing.T) {
 	t.Parallel()
 	h := setupPickupExtensionHarness(t)
