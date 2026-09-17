@@ -64,7 +64,7 @@ path-scoped rules automatically.
 | New/changed tenant feature flow or help content | [.claude/rules/help-guide-sync.md](.claude/rules/help-guide-sync.md); update guide and affected screenshots in the same PR (exemptions in the rule) |
 | Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend test clock](docs/agents/frontend-testing.md) for date- or timer-sensitive Vitest tests |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
-| Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md), [docs/agents/github-labels.md](docs/agents/github-labels.md) |
+| Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md) |
 | PR screenshots or service/test-DB commands | [docs/agents/operations.md](docs/agents/operations.md) |
 | Pushed fixes for a quorum review | [docs/agents/quorum-review-loop.md](docs/agents/quorum-review-loop.md); run `scripts/quorum-rerequest.sh` after the push |
 | Agent instructions, skills, hooks, or context maintenance | `writing-for-agents` skill and [.claude/README.md](.claude/README.md) |
