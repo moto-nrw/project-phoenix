@@ -27,26 +27,18 @@ type careWithdrawalCompletionRepository struct {
 
 var _ userModels.CareWithdrawalCompletionRepository = careWithdrawalCompletionRepository{}
 
-// NewCareWithdrawalCompletionRepository adapts fixed owner capabilities to
-// the legacy model contract.
-func NewCareWithdrawalCompletionRepository(carePlan careplan.Capability, students peopledirectory.StudentQuery) userModels.CareWithdrawalCompletionRepository {
+// newCareWithdrawalCompletionRepository adapts the owner capabilities to the
+// legacy model contract. Both are read on every call rather than captured, so
+// the factory may bind them after construction and a later BindCarePlan or
+// BindPeopleDirectory reaches this adapter without rewiring it. An unbound
+// capability fails the call in owners(); it is not a construction error.
+func newCareWithdrawalCompletionRepository(
+	carePlan func() careplan.Capability, students func() peopledirectory.StudentQuery,
+) userModels.CareWithdrawalCompletionRepository {
 	if carePlan == nil || students == nil {
-		panic("care withdrawal repository: Care Plan and People Directory capabilities are required")
+		panic("care withdrawal repository: Care Plan and People Directory bindings are required")
 	}
-	return careWithdrawalCompletionRepository{
-		carePlan: func() careplan.Capability { return carePlan },
-		students: func() peopledirectory.StudentQuery { return students },
-	}
-}
-
-// newBoundCareWithdrawalCompletionRepository reads the factory's current
-// bindings on every call, so a later BindCarePlan or BindPeopleDirectory
-// reaches this adapter without rewiring it.
-func newBoundCareWithdrawalCompletionRepository(f *Factory) userModels.CareWithdrawalCompletionRepository {
-	return careWithdrawalCompletionRepository{
-		carePlan: func() careplan.Capability { return f.carePlan },
-		students: func() peopledirectory.StudentQuery { return f.students },
-	}
+	return careWithdrawalCompletionRepository{carePlan: carePlan, students: students}
 }
 
 func (r careWithdrawalCompletionRepository) owners() (careplan.Capability, peopledirectory.StudentQuery, error) {
