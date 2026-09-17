@@ -2,7 +2,7 @@
 // the parent-OGS messaging feature: the central inbox, per-thread chats, and
 // staff replies / new conversations. A thread is one conversation between the
 // OGS and a single guardian about one child (email-like, identified by a
-// subject). The parent side lives in services/parent; both operate on the same
+// subject). The parent side lives in workflows/parentportal/legacy; both operate on the same
 // users.parent_message_* tables.
 //
 // All methods run inside the request's tenant transaction (routes are mounted

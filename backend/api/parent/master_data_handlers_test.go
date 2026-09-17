@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	parentService "github.com/moto-nrw/project-phoenix/services/parent"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
 func parentRequestWithStudentID(method, path, body, studentID string) *http.Request {

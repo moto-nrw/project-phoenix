@@ -197,7 +197,7 @@ type EnrollmentRequestSummary struct {
 	// plumbing only (json:"-"): the parent service uses it to redact
 	// admin-internal child status reasons before returning, and the API
 	// handler maps an explicit response struct, so it never reaches the
-	// wire. See services/parent ListEnrollmentsForAccount.
+	// wire. See workflows/parentportal/legacy ListEnrollmentsForAccount.
 	ShowStatusReasonToParent bool `json:"-"`
 
 	SchoolName string `json:"school_name"`
