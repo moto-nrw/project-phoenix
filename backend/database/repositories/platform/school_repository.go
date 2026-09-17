@@ -17,11 +17,28 @@ const schoolTableAlias = `platform.schools AS "school"`
 // SchoolRepository provides read access to school (tenant) records.
 type SchoolRepository struct {
 	db *bun.DB
+	// memberships is the Identity & Access active-membership query
+	// FindActiveByAccountID joins (#2721).
+	memberships ActiveMembershipQuery
 }
 
-// NewSchoolRepository creates a new school repository.
-func NewSchoolRepository(db *bun.DB) platform.SchoolRepository {
-	return &SchoolRepository{db: db}
+// NewSchoolRepository creates a new school repository. Without
+// WithSchoolMemberships FindActiveByAccountID fails closed.
+func NewSchoolRepository(db *bun.DB, options ...SchoolOption) platform.SchoolRepository {
+	repository := &SchoolRepository{db: db}
+	for _, option := range options {
+		option(repository)
+	}
+	return repository
+}
+
+// SchoolOption configures a SchoolRepository at construction.
+type SchoolOption func(*SchoolRepository)
+
+// WithSchoolMemberships installs the Identity & Access active-membership
+// query FindActiveByAccountID joins (#2721).
+func WithSchoolMemberships(query ActiveMembershipQuery) SchoolOption {
+	return func(r *SchoolRepository) { r.memberships = query }
 }
 
 func NewSchoolNotFoundError(operation string) error {
@@ -252,14 +269,17 @@ func (r *SchoolRepository) ListPublic(ctx context.Context) ([]platform.School, e
 
 // FindActiveByAccountID returns all active, non-deleted schools the given account has access to.
 func (r *SchoolRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]platform.School, error) {
+	memberships, err := activeMemberships(ctx, r.memberships)
+	if err != nil {
+		return nil, err
+	}
 	var schools []platform.School
-	err := base.GetDB(ctx, r.db).NewSelect().
+	err = base.GetDB(ctx, r.db).NewSelect().
 		Model(&schools).
 		ModelTableExpr(schoolTableAlias).
 		Relation("Organization").
-		Join(`INNER JOIN auth.account_tenants AS "at" ON "at".tenant_id = "school".id`).
+		Join(`INNER JOIN (?) AS "at" ON "at".tenant_id = "school".id`, memberships).
 		Where(`"at".account_id = ?`, accountID).
-		Where(`"at".status = ?`, "active").
 		Where(`"school".active = true`).
 		Where(`"school".deleted_at IS NULL`).
 		OrderExpr(`"school".name ASC`).

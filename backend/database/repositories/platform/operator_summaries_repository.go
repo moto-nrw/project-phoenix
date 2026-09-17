@@ -17,11 +17,28 @@ import (
 // compose them inside TxHandler.RunInTx without leaking tenant scope.
 type OperatorSummariesRepository struct {
 	db *bun.DB
+	// memberships is the Identity & Access active-membership query the
+	// konten counts aggregate over (#2721).
+	memberships ActiveMembershipQuery
+}
+
+// OperatorSummariesOption configures an OperatorSummariesRepository.
+type OperatorSummariesOption func(*OperatorSummariesRepository)
+
+// WithSummaryMemberships installs the Identity & Access active-membership
+// query the konten counts aggregate over (#2721).
+func WithSummaryMemberships(query ActiveMembershipQuery) OperatorSummariesOption {
+	return func(r *OperatorSummariesRepository) { r.memberships = query }
 }
 
 // NewOperatorSummariesRepository creates a new operator summaries repository.
-func NewOperatorSummariesRepository(db *bun.DB) platform.OperatorSummariesRepository {
-	return &OperatorSummariesRepository{db: db}
+// Without WithSummaryMemberships the account-counting reads fail closed.
+func NewOperatorSummariesRepository(db *bun.DB, options ...OperatorSummariesOption) platform.OperatorSummariesRepository {
+	repository := &OperatorSummariesRepository{db: db}
+	for _, option := range options {
+		option(repository)
+	}
+	return repository
 }
 
 // konten_count semantics: an account that is active in N schools counts ONCE
@@ -35,18 +52,21 @@ SELECT
 	(SELECT COUNT(*) FROM platform.schools WHERE deleted_at IS NULL) AS schulen_count,
 	(
 		SELECT COUNT(DISTINCT "at".account_id)
-		FROM auth.account_tenants AS "at"
+		FROM (?) AS "at"
 		INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
 		WHERE "s".deleted_at IS NULL
-			AND "at".status = 'active'
 	) AS konten_count,
 	0 AS geraete_count
 `
 
 // Stats returns platform-wide counts.
 func (r *OperatorSummariesRepository) Stats(ctx context.Context) (*platform.ProvisioningStats, error) {
+	memberships, err := activeMemberships(ctx, r.memberships)
+	if err != nil {
+		return nil, err
+	}
 	var result platform.ProvisioningStats
-	if err := base.GetDB(ctx, r.db).NewRaw(provisioningStatsQuery).Scan(ctx, &result); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(provisioningStatsQuery, memberships).Scan(ctx, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil
@@ -67,10 +87,9 @@ WITH school_agg AS (
 account_agg AS (
 	SELECT "s".organization_id,
 		COUNT(DISTINCT "at".account_id) AS konten_count
-	FROM auth.account_tenants AS "at"
+	FROM (?) AS "at"
 	INNER JOIN platform.schools AS "s" ON "s".id = "at".tenant_id
 	WHERE "s".deleted_at IS NULL
-		AND "at".status = 'active'
 	GROUP BY "s".organization_id
 )
 SELECT
@@ -97,8 +116,12 @@ ORDER BY "o".name ASC
 // entities. PersonenCount is attached by the composition layer through the
 // People Directory (#2661) and leaves here as zero.
 func (r *OperatorSummariesRepository) OrganizationSummaries(ctx context.Context) ([]*platform.OrganizationSummary, error) {
+	memberships, err := activeMemberships(ctx, r.memberships)
+	if err != nil {
+		return nil, err
+	}
 	var result []*platform.OrganizationSummary
-	if err := base.GetDB(ctx, r.db).NewRaw(organizationSummariesQuery).Scan(ctx, &result); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(organizationSummariesQuery, memberships).Scan(ctx, &result); err != nil {
 		return nil, err
 	}
 	if result == nil {
@@ -114,8 +137,7 @@ const schoolSummariesQueryGlobal = `
 WITH account_agg AS (
 	SELECT "at".tenant_id,
 		COUNT(DISTINCT "at".account_id) AS konten_count
-	FROM auth.account_tenants AS "at"
-	WHERE "at".status = 'active'
+	FROM (?) AS "at"
 	GROUP BY "at".tenant_id
 )
 SELECT
@@ -148,8 +170,12 @@ ORDER BY "o".name ASC, "s".name ASC
 // SchoolSummaries returns every school globally with per-row counts.
 // PersonenCount is attached by the composition layer (#2661).
 func (r *OperatorSummariesRepository) SchoolSummaries(ctx context.Context) ([]*platform.SchoolSummary, error) {
+	memberships, err := activeMemberships(ctx, r.memberships)
+	if err != nil {
+		return nil, err
+	}
 	var result []*platform.SchoolSummary
-	if err := base.GetDB(ctx, r.db).NewRaw(schoolSummariesQueryGlobal).Scan(ctx, &result); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(schoolSummariesQueryGlobal, memberships).Scan(ctx, &result); err != nil {
 		return nil, err
 	}
 	if result == nil {
@@ -182,9 +208,8 @@ SELECT
 	COALESCE("s".settings, '{}') AS settings,
 	COALESCE((
 		SELECT COUNT(DISTINCT "at".account_id)
-		FROM auth.account_tenants AS "at"
+		FROM (?) AS "at"
 		WHERE "at".tenant_id = "s".id
-			AND "at".status = 'active'
 	), 0) AS konten_count,
 	0 AS geraete_count,
 	0 AS personen_count
@@ -197,8 +222,12 @@ ORDER BY "s".name ASC
 // SchoolSummariesByOrganization returns schools for a single organization.
 // PersonenCount is attached by the composition layer (#2661).
 func (r *OperatorSummariesRepository) SchoolSummariesByOrganization(ctx context.Context, organizationID int64) ([]*platform.SchoolSummary, error) {
+	memberships, err := activeMemberships(ctx, r.memberships)
+	if err != nil {
+		return nil, err
+	}
 	var result []*platform.SchoolSummary
-	if err := base.GetDB(ctx, r.db).NewRaw(schoolSummariesQueryByOrg, organizationID).Scan(ctx, &result); err != nil {
+	if err := base.GetDB(ctx, r.db).NewRaw(schoolSummariesQueryByOrg, memberships, organizationID).Scan(ctx, &result); err != nil {
 		return nil, err
 	}
 	if result == nil {
