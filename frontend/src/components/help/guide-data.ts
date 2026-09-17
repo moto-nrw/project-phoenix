@@ -3178,7 +3178,7 @@ export const nfcChapters: readonly GuideChapter[] = [
         steps: [
           "Das Kind scannt sein Armband erneut - es erscheint `Wohin geht ...?`.",
           "`Raumwechsel`: das Kind wechselt in einen anderen Raum.",
-          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz.",
+          "`Schulhof`: das Kind geht nach draußen auf den Schulhof oder Spielplatz. Läuft dort ein Block, in dem das Kind eingeplant ist, kommt es in diesen Block. Sonst steht es auf dem Schulhof unter `Ohne Angebot`.",
           "`Toilette`: das Kind verlässt den Raum kurz für einen Toilettengang.",
         ],
         screenshot:

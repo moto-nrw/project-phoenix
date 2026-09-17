@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentProps } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { UserPlus } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -131,6 +131,25 @@ function SectionStudents({
   );
 }
 
+/**
+ * Frames a section's head card and the cards below it as one unit, so the
+ * children read as part of their section and not as the next one.
+ */
+function SectionGroup({
+  label,
+  children,
+}: Readonly<{ label: string; children: ReactNode }>) {
+  return (
+    <div
+      role="group"
+      aria-label={label}
+      className="space-y-3 rounded-2xl border border-gray-200 bg-gray-100/70 p-3"
+    >
+      {children}
+    </div>
+  );
+}
+
 function AddSupervisorButton({
   activeGroupId,
   onAddSupervisor,
@@ -233,7 +252,7 @@ function OpenRoomBlock({
   const currentRoster = roster.currentTimetableRoster;
   if (currentRoster) {
     return (
-      <div role="group" aria-label={title} className="space-y-4">
+      <SectionGroup label={title}>
         {actions.moveNotice ? (
           <Alert type="info" message={actions.moveNotice} />
         ) : null}
@@ -271,13 +290,13 @@ function OpenRoomBlock({
           onClose={() => actions.setShowCompleteConfirmation(false)}
           onConfirm={() => void actions.confirmCompleteTimetableInstance()}
         />
-      </div>
+      </SectionGroup>
     );
   }
 
   const isLoading = canViewRoster && !roster.hasRosterError;
   return (
-    <div role="group" aria-label={title} className="space-y-4">
+    <SectionGroup label={title}>
       {header}
       {isLoading ? (
         <ActiveSupervisionLoadingView withHeader={false} />
@@ -288,7 +307,7 @@ function OpenRoomBlock({
           grid={grid}
         />
       )}
-    </div>
+    </SectionGroup>
   );
 }
 
@@ -309,40 +328,43 @@ function OpenRoomOccupancy({
   const [collapsed, setCollapsed] = useState(
     !section.independent && !section.isOwn,
   );
-  return (
-    <div className="space-y-4">
-      <SectionCard
-        collapsible
-        collapsed={collapsed}
-        onCollapsedChange={setCollapsed}
-        title={section.independent ? "Ohne Angebot" : section.title}
-        titleBadge={
-          <StatusBadge
-            label={childCountLabel(section.studentCount)}
-            tone="gray"
-          />
-        }
-        description={
-          section.independent
-            ? "Diese Kinder nutzen nur den Raum."
-            : "Diese Aktivität läuft ohne Block aus dem Betreuungsplan."
-        }
-        actions={
-          section.assignableSessionId ? (
-            <AddSupervisorButton
-              activeGroupId={section.assignableSessionId}
-              onAddSupervisor={onAddSupervisor}
-            />
-          ) : undefined
-        }
-      />
-      {collapsed ? null : (
-        <SectionStudents
-          students={students}
-          filteredStudents={filteredStudents}
-          grid={grid}
+  const title = section.independent ? "Ohne Angebot" : section.title;
+  const header = (
+    <SectionCard
+      collapsible
+      collapsed={collapsed}
+      onCollapsedChange={setCollapsed}
+      title={title}
+      titleBadge={
+        <StatusBadge
+          label={childCountLabel(section.studentCount)}
+          tone="gray"
         />
-      )}
-    </div>
+      }
+      description={
+        section.independent
+          ? "Diese Kinder nutzen nur den Raum."
+          : "Diese Aktivität läuft ohne Block aus dem Betreuungsplan."
+      }
+      actions={
+        section.assignableSessionId ? (
+          <AddSupervisorButton
+            activeGroupId={section.assignableSessionId}
+            onAddSupervisor={onAddSupervisor}
+          />
+        ) : undefined
+      }
+    />
+  );
+  if (collapsed || students.length === 0) return header;
+  return (
+    <SectionGroup label={title}>
+      {header}
+      <SectionStudents
+        students={students}
+        filteredStudents={filteredStudents}
+        grid={grid}
+      />
+    </SectionGroup>
   );
 }

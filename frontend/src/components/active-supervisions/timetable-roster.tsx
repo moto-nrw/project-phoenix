@@ -1091,11 +1091,6 @@ export function TimetableRosterContent({
       />
       <TimetableRosterSection
         title="Kommt später"
-        description={
-          actionsEnabled
-            ? "Diese Kinder kommen laut Plan später. Bei „Erwartete bestätigen“ sind sie nicht dabei. Kommt ein Kind früher, checken Sie es hier einzeln ein."
-            : "Diese Kinder kommen laut Plan später."
-        }
         rows={arrivingLater}
         {...sectionProps}
       />
