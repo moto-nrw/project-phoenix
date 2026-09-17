@@ -49,6 +49,14 @@ func (transaction) RunAdmin(ctx context.Context, callback func(context.Context) 
 	return tenant.WithinAdmin(ctx, callback)
 }
 
+func (transaction) RunTenant(ctx context.Context, tenantID int64, callback func(context.Context) error) error {
+	id, err := tenant.NewTenantID(tenantID)
+	if err != nil {
+		return err
+	}
+	return tenant.WithinTenant(ctx, id, callback)
+}
+
 func (transaction) RunRead(ctx context.Context, callback func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
 		return callback(ctx)

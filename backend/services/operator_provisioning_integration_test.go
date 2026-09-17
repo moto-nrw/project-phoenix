@@ -687,12 +687,6 @@ func TestOperatorProvisioningIntegration_InviteSchoolAdmin_CreatesInvitation(t *
 
 func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain(t *testing.T) {
 	t.Parallel()
-	// CreateSchoolAccount registers the account through auth.Service.Register,
-	// which opens a tenant transaction inside the provisioning administrative
-	// transaction; the tenant runtime rejects that nesting with "ambient
-	// transaction has no matching tenant". The pre-#3253 service had the same
-	// nesting and fails identically.
-	t.Skip("blocked: operator CreateSchoolAccount fails in the real tenant runtime (nested tenant tx inside admin tx)")
 	db := testpkg.SetupTestDB(t)
 	factory := buildOperatorProvisioning(t, db)
 	service := factory.OperatorProvisioning
@@ -757,6 +751,44 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	}
 	assert.True(t, listed, "created account must be listed for the school")
 	assert.Equal(t, 1, countOperatorAudit(t, db, "create", "account", account.ID))
+}
+
+// A step failing after registration rolls the account back (#3313): blank
+// names pass registration and fail the school identity.
+func TestOperatorProvisioningIntegration_CreateSchoolAccount_FailedIdentityLeavesNoAccount(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	factory := buildOperatorProvisioning(t, db)
+	service := factory.OperatorProvisioning
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	ctx := provisioningContext(t, db)
+
+	_, schoolID := provisionTestSchool(t, db, factory, operatorID, "rollback")
+
+	input := schoolScopedInput(service.CreateSchoolAccount)
+	input.Email = fmt.Sprintf("rolled-back-%d@example.test", schoolID)
+	input.Password = "Provisioning-Test-9!"
+	input.FirstName = " "
+	input.LastName = " "
+	account, err := service.CreateSchoolAccount(ctx, schoolID, operatorID, provisioningTestClientIP, input)
+	requireProvisioningError(t, err, "InvalidProvisioningDataError")
+	assert.Nil(t, account)
+
+	accounts, err := db.NewSelect().
+		TableExpr("auth.accounts").
+		Where("email = ?", input.Email).
+		Count(testpkg.Ctx(t))
+	require.NoError(t, err)
+	assert.Zero(t, accounts, "the registered account must roll back")
+
+	var audited int
+	audited, err = db.NewSelect().
+		TableExpr("platform.operator_audit_log").
+		Where("operator_id = ?", operatorID).
+		Where("resource_type = ?", "account").
+		Count(testpkg.Ctx(t))
+	require.NoError(t, err)
+	assert.Zero(t, audited, "a failed creation is not audited")
 }
 
 func TestOperatorProvisioningIntegration_SoftDeleteAndRestoreSchool(t *testing.T) {
