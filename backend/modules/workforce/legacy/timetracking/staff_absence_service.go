@@ -24,7 +24,13 @@ var ErrManagerControlledAbsence = errors.New("absence type is manager-controlled
 // ErrAllowanceBookingOverlap keeps the entry date of every allowance booking
 // intact. A merge would make newly added days look as though they were entered
 // with the older booking, which could wrongly make expired carryover usable.
-var ErrAllowanceBookingOverlap = errors.New("Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein.")
+var ErrAllowanceBookingOverlap error = allowanceBookingOverlapError{}
+
+type allowanceBookingOverlapError struct{}
+
+func (allowanceBookingOverlapError) Error() string {
+	return "Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."
+}
 
 // ErrVacationQuotaInvalid marks invalid quota input supplied by a caller.
 var ErrVacationQuotaInvalid = errors.New("invalid vacation quota")
