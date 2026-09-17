@@ -262,6 +262,8 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 	require.NotNil(t, counts)
 	assert.Equal(t, 3, counts.Sick)
 	assert.Equal(t, 4, counts.Excused)
+	assert.Equal(t, []int64{cleared}, counts.UnaccountedIDs,
+		"only the active child in neither bucket is a home candidate (#3260)")
 
 	otherCounts, err := repo.CountEffectiveDashboardAbsences(ctxB, today)
 	require.NoError(t, err)

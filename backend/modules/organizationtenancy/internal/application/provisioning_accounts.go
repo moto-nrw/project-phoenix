@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"strings"
 
@@ -52,37 +53,62 @@ func (p *Provisioning) InviteSchoolAdmin(ctx context.Context, schoolID, operator
 
 // CreateSchoolAccount creates an account at an active school together with
 // its person, staff and, where requested, caregiver identity (#2222).
+//
+// The school and role are resolved in the administrative scope. The identity
+// chain then runs in one transaction of the school, so a failing step leaves
+// no partial account behind; the tenant runtime does not nest a school
+// transaction inside an administrative one (#3313). The operator audit entry
+// follows the commit.
 func (p *Provisioning) CreateSchoolAccount(ctx context.Context, schoolID, operatorID int64, clientIP net.IP, input organizationtenancy.SchoolAccountInput) (*organizationtenancy.CreatedAccount, error) {
-	return adminValue(ctx, p, func(adminCtx context.Context) (*organizationtenancy.CreatedAccount, error) {
+	type target struct {
+		school organizationtenancy.School
+		role   domain.Role
+	}
+	resolved, err := adminValue(ctx, p, func(adminCtx context.Context) (target, error) {
 		school, err := p.findInvitableSchool(adminCtx, schoolID)
 		if err != nil {
-			return nil, err
+			return target{}, err
 		}
 		role, err := p.accountRole(adminCtx, input)
-		if err != nil {
-			return nil, err
-		}
-		username := fmt.Sprintf("%s_%s_%s",
-			strings.ToLower(strings.TrimSpace(input.FirstName)),
-			strings.ToLower(strings.TrimSpace(input.LastName)),
-			p.secrets.UsernameSuffix(),
-		)
-		account, err := p.identity.RegisterSchoolAccount(adminCtx, domain.SchoolAccountRegistration{
+		return target{school: school, role: role}, err
+	})
+	if err != nil {
+		return nil, err
+	}
+	school, role := resolved.school, resolved.role
+	username := fmt.Sprintf("%s_%s_%s",
+		strings.ToLower(strings.TrimSpace(input.FirstName)),
+		strings.ToLower(strings.TrimSpace(input.LastName)),
+		p.secrets.UsernameSuffix(),
+	)
+	var account domain.CreatedAccount
+	err = p.inTenant(ctx, school.ID, func(tenantCtx context.Context) error {
+		registered, err := p.identity.RegisterSchoolAccount(tenantCtx, domain.SchoolAccountRegistration{
 			TenantID: school.ID, Email: input.Email, Username: username, Password: input.Password, RoleID: role.ID,
 		})
 		if err != nil {
-			return nil, err
+			return err
 		}
-		if err := p.ensureSchoolIdentity(adminCtx, account.ID, school.ID, role, input); err != nil {
-			return nil, err
-		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceAccount, &account.ID, clientIP, map[string]any{
+		account = registered
+		return p.ensureSchoolIdentity(tenantCtx, account.ID, school.ID, role, input)
+	})
+	if err != nil {
+		return nil, err
+	}
+	auditErr := p.inAdmin(ctx, func(adminCtx context.Context) error {
+		return p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceAccount, &account.ID, clientIP, map[string]any{
 			"schoolID": school.ID,
 			"email":    account.Email,
 		})
-		view := organizationtenancy.CreatedAccount(account)
-		return &view, nil
 	})
+	if auditErr != nil {
+		p.logger.Error("failed to create operator audit log",
+			slog.Any("error", auditErr),
+			slog.String("resource_type", domain.AuditResourceAccount),
+		)
+	}
+	view := organizationtenancy.CreatedAccount(account)
+	return &view, nil
 }
 
 // findInvitableSchool reads a school an account may be added to: it exists,

@@ -34,6 +34,7 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 		analytics.StudentsHome = calculateStudentsHome(
 			statusCounts.Total, analytics.StudentsPresent, statusCounts.Sick, statusCounts.Excused,
 		)
+		analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, baseData.studentsPresent)
 	} else {
 		s.getLogger().Warn("failed to count effective student absences for dashboard",
 			"error", err.Error(),
@@ -93,16 +94,30 @@ func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date timezo
 		return studentStatusCounts{}, nil
 	}
 	return studentStatusCounts{
-		Sick:    counts.Sick,
-		Excused: counts.Excused,
-		Total:   counts.Total,
+		Sick:           counts.Sick,
+		Excused:        counts.Excused,
+		Total:          counts.Total,
+		UnaccountedIDs: counts.UnaccountedIDs,
 	}, nil
 }
 
 type studentStatusCounts struct {
-	Sick    int
-	Excused int
-	Total   int
+	Sick           int
+	Excused        int
+	Total          int
+	UnaccountedIDs []int64
+}
+
+// homeCandidateIDs keeps the unaccounted students that are not present, in
+// the repository's order.
+func homeCandidateIDs(unaccounted []int64, present map[int64]bool) []int64 {
+	candidates := make([]int64, 0, len(unaccounted))
+	for _, id := range unaccounted {
+		if !present[id] {
+			candidates = append(candidates, id)
+		}
+	}
+	return candidates
 }
 
 // calculateStudentsHome derives the "Zuhause" figure as the remainder of the

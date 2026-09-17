@@ -25,6 +25,7 @@ var timeTrackingSentinels = []struct {
 	kind   error
 }{
 	{timetracking.ErrManagerControlledAbsence, workforce.ErrManagerControlledAbsence},
+	{timetracking.ErrAllowanceBookingOverlap, workforce.ErrAllowanceBookingOverlap},
 	{timetracking.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
 	{timetracking.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
 	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},

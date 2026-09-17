@@ -11,7 +11,9 @@ import {
   getLocationDisplay,
   canSeeDetailedLocation,
   isPresentLocation,
+  isAtSchoolLocation,
   isHomeLocation,
+  isNotCheckedInLocation,
   isSchoolyardLocation,
   isTransitLocation,
   type StudentLocationContext,
@@ -533,6 +535,46 @@ describe("location check helpers", () => {
     it("returns false for other statuses", () => {
       expect(isHomeLocation("Anwesend")).toBe(false);
       expect(isHomeLocation("Unterwegs")).toBe(false);
+    });
+  });
+
+  describe("isAtSchoolLocation (#3260)", () => {
+    it("recognises the backend's Schule label", () => {
+      expect(isAtSchoolLocation("Schule")).toBe(true);
+      expect(isAtSchoolLocation("schule")).toBe(true);
+    });
+
+    it("does not confuse Schule with home or the yard", () => {
+      expect(isAtSchoolLocation("Zuhause")).toBe(false);
+      expect(isAtSchoolLocation("Schulhof")).toBe(false);
+      expect(isHomeLocation("Schule")).toBe(false);
+    });
+
+    it("colours Schule in its own tone, not the home gray", () => {
+      expect(getLocationColor("Schule")).toBe(LOCATION_COLORS.AT_SCHOOL);
+      expect(LOCATION_COLORS.AT_SCHOOL).not.toBe(LOCATION_COLORS.HOME);
+      expect(getLocationBadgeTone(LOCATION_COLORS.AT_SCHOOL)).toEqual({
+        backgroundColor: MOTO_COLOR_PALETTE.petrol.soft,
+        textColor: MOTO_COLOR_PALETTE.petrol.strong,
+      });
+    });
+  });
+
+  describe("isNotCheckedInLocation (#3260)", () => {
+    it("is true at home, at school and without a location", () => {
+      expect(isNotCheckedInLocation("Zuhause")).toBe(true);
+      expect(isNotCheckedInLocation("Abwesend")).toBe(true);
+      expect(isNotCheckedInLocation("Schule")).toBe(true);
+      expect(isNotCheckedInLocation("")).toBe(true);
+      expect(isNotCheckedInLocation(null)).toBe(true);
+      expect(isNotCheckedInLocation(undefined)).toBe(true);
+    });
+
+    it("is false for every checked-in state", () => {
+      expect(isNotCheckedInLocation("Anwesend")).toBe(false);
+      expect(isNotCheckedInLocation("Anwesend - Raum 101")).toBe(false);
+      expect(isNotCheckedInLocation("Unterwegs")).toBe(false);
+      expect(isNotCheckedInLocation("Schulhof")).toBe(false);
     });
   });
 
