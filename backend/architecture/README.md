@@ -745,8 +745,8 @@ flows through the `OperatorDirectory` port the root binds to the public
 module. The public audit evidence is typed (`TenantAccessEvidence`,
 `OperatorAccessChange`); the root renders it into the ledger keys. The former
 `models/platform` operator and refresh-session repository contracts and
-their compatibility adapters are deleted; the operator invitation, e-mail
-change and passkey flows stay under #2722 and #2724. The operator MFA
+their compatibility adapters are deleted; the operator invitation and e-mail
+change flows stay under #2722. The operator MFA
 records (#2723): `platform.operator_mfa_credentials`,
 `platform.operator_mfa_email_challenges` and
 `platform.operator_mfa_trusted_devices` are read and written only through the
@@ -758,7 +758,28 @@ port the root binds to the public module; its disable cascade (enrollment
 delete, device revocation, lockout reset) stays one administrative
 transaction the module operations join. The `models/platform` MFA repository
 contracts and their `database/repositories/platform` adapters are deleted;
-the MFA models remain as the retained port's value types. The foreign
+the MFA models remain as the retained port's value types. The operator
+passkey records (#2724), `platform.operator_passkey_credentials` and
+`platform.operator_passkey_sessions`, follow the same shape through the
+public `OperatorPasskeyRecords` capability. The retained `services/platform`
+operator passkey service keeps the WebAuthn ceremonies, the origin check and
+the token exchange and reaches the rows through the `OperatorPasskeyRecords`
+port the root binds to the public module. A ceremony completes at most once,
+in one administrative transaction with the credential insert or use record
+the module operations join: a refused ceremony commits and stays spent, a
+failed read or write rolls back and leaves the ceremony open. Only the
+owner's not-found outcomes become an invalid session or a missing passkey,
+so store failures reach the caller as errors. The `models/platform`
+passkey repository contracts and their adapter are deleted; the passkey
+models remain as the retained port's value types. The school-portal passkeys
+(`auth.passkey_credentials`, `auth.passkey_sessions`) follow the same shape
+through `AccountPasskeyRecords`: the retained `services/auth` passkey service
+keeps the ceremonies, the tenant-origin check and the school-membership gate
+and reaches the rows through its own `PasskeyRecords` port. A credential
+belongs to the account and carries no school; the ceremony records the school
+whose portal started it, and login refuses a school the account has no access
+to. Their `models/auth` models and `database/repositories/auth` adapter are
+deleted; the port's value types live in `services/auth`. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
 account lookup and active-account subquery of `database/repositories/auth`
