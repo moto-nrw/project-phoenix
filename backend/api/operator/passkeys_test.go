@@ -262,6 +262,8 @@ func TestOperatorPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 		wantCode int
 	}{
 		{"login with a spent ceremony", &operatorPasskeyServiceStub{finishLoginErr: authSvc.ErrPasskeySessionInvalid}, loginVerify, http.StatusUnauthorized},
+		{"login with wrong credentials", &operatorPasskeyServiceStub{finishLoginErr: &platformSvc.InvalidCredentialsError{}}, loginVerify, http.StatusUnauthorized},
+		{"registration for an inactive operator", &operatorPasskeyServiceStub{finishRegistrationErr: &platformSvc.OperatorInactiveError{}}, registerVerify, http.StatusForbidden},
 		{"login with a store failure", &operatorPasskeyServiceStub{finishLoginErr: storeDown}, loginVerify, http.StatusInternalServerError},
 		{"registration with a spent ceremony", &operatorPasskeyServiceStub{finishRegistrationErr: authSvc.ErrPasskeySessionInvalid}, registerVerify, http.StatusUnauthorized},
 		{"registration with a store failure", &operatorPasskeyServiceStub{finishRegistrationErr: storeDown}, registerVerify, http.StatusInternalServerError},

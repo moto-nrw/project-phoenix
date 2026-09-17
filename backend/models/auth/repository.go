@@ -221,8 +221,8 @@ type MFATrustedDeviceRepository interface {
 
 // The school-portal passkey credentials and ceremony sessions are owned by
 // the Identity & Access module (#2724); the retained passkey flow in
-// services/auth reaches them through its own consumer-owned port. The
-// passkey models remain as that port's value types.
+// services/auth reaches them through its own consumer-owned port, whose
+// value types live there as well.
 
 // MFAOverrideRepository persists the per-(account, tenant) admin
 // overrides plus the optional platform-wide ("operator account-wide")

@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -260,10 +259,10 @@ func (s *passkeyService) BeginRegistration(ctx context.Context, req PasskeyRegis
 }
 
 // FinishRegistration consumes the ceremony and stores the credential in one
-// administrative transaction (see completeCeremony).
+// administrative transaction (see auth.CompleteCeremony).
 func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegistrationFinishRequest) (*PasskeyCredentialSummary, error) {
 	var summary *PasskeyCredentialSummary
-	err := s.completeCeremony(ctx, func(txCtx context.Context) error {
+	err := CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
 		row, err := s.verifyRegistration(txCtx, req)
 		if err != nil {
 			return err
@@ -288,16 +287,19 @@ func (s *passkeyService) verifyRegistration(ctx context.Context, req PasskeyRegi
 		return nil, &AuthError{Op: "consume passkey registration session", Err: err}
 	}
 	if sessionRow == nil || sessionRow.AccountID == nil || *sessionRow.AccountID != req.AccountID {
-		return nil, rejectCeremony(&AuthError{Op: "finish passkey registration", Err: ErrPasskeySessionInvalid})
+		return nil, RejectCeremony(&AuthError{Op: "finish passkey registration", Err: ErrPasskeySessionInvalid})
 	}
 
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return nil, rejectCeremony(&AuthError{Op: "unmarshal passkey session", Err: err})
+		return nil, RejectCeremony(&AuthError{Op: "unmarshal passkey session", Err: err})
 	}
 	account, err := s.repos.Account.FindByID(ctx, req.AccountID)
 	if err != nil {
-		return nil, rejectCeremony(&AuthError{Op: "finish passkey registration", Err: ErrAccountNotFound})
+		if !accountMissing(err) {
+			return nil, &AuthError{Op: "finish passkey registration", Err: err}
+		}
+		return nil, RejectCeremony(&AuthError{Op: "finish passkey registration", Err: ErrAccountNotFound})
 	}
 	user, err := s.passkeyUserForAccount(ctx, account, sessionData.UserID)
 	if err != nil {
@@ -305,15 +307,15 @@ func (s *passkeyService) verifyRegistration(ctx context.Context, req PasskeyRegi
 	}
 	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
 	if err != nil {
-		return nil, rejectCeremony(&AuthError{Op: "configure passkey registration finish", Err: err})
+		return nil, RejectCeremony(&AuthError{Op: "configure passkey registration finish", Err: err})
 	}
 	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
-		return nil, rejectCeremony(&AuthError{Op: "parse passkey registration response", Err: err})
+		return nil, RejectCeremony(&AuthError{Op: "parse passkey registration response", Err: err})
 	}
 	credential, err := webAuthn.FinishRegistration(user, sessionData, httpReq)
 	if err != nil {
-		return nil, rejectCeremony(&AuthError{Op: "finish passkey registration", Err: err})
+		return nil, RejectCeremony(&AuthError{Op: "finish passkey registration", Err: err})
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
@@ -373,11 +375,11 @@ func (s *passkeyService) BeginLogin(ctx context.Context, req PasskeyLoginStartRe
 }
 
 // FinishLogin consumes the ceremony and records the credential use in one
-// administrative transaction (see completeCeremony). The token pair is
+// administrative transaction (see auth.CompleteCeremony). The token pair is
 // issued after the commit.
 func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinishRequest) (*PasskeyLoginResult, error) {
 	var verified verifiedPasskeyLogin
-	err := s.completeCeremony(ctx, func(txCtx context.Context) error {
+	err := CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
 		result, err := s.verifyLogin(txCtx, req)
 		if err != nil {
 			return err
@@ -415,19 +417,19 @@ func (s *passkeyService) verifyLogin(ctx context.Context, req PasskeyLoginFinish
 		return verifiedPasskeyLogin{}, &AuthError{Op: "consume passkey login session", Err: err}
 	}
 	if sessionRow == nil || sessionRow.TenantID == nil {
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrPasskeySessionInvalid})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrPasskeySessionInvalid})
 	}
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "unmarshal passkey session", Err: err})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "unmarshal passkey session", Err: err})
 	}
 	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
 	if err != nil {
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "configure passkey login finish", Err: err})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "configure passkey login finish", Err: err})
 	}
 	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "parse passkey login response", Err: err})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "parse passkey login response", Err: err})
 	}
 
 	var matchedCredentialID int64
@@ -447,6 +449,9 @@ func (s *passkeyService) verifyLogin(ctx context.Context, req PasskeyLoginFinish
 		matchedCredentialID = row.ID
 		account, err := s.repos.Account.FindByID(ctx, row.AccountID)
 		if err != nil {
+			if !accountMissing(err) {
+				readErr = &AuthError{Op: "find passkey account", Err: err}
+			}
 			return nil, err
 		}
 		user, err := s.passkeyUserForAccount(ctx, account)
@@ -460,18 +465,21 @@ func (s *passkeyService) verifyLogin(ctx context.Context, req PasskeyLoginFinish
 		return verifiedPasskeyLogin{}, readErr
 	}
 	if err != nil {
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials})
 	}
 	passkeyUser, ok := user.(*WebAuthnUser)
 	if !ok {
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials})
 	}
 	tenantID := *sessionRow.TenantID
 	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.ID, tenantID)
-	if err != nil || !hasAccess {
+	if err != nil {
+		return verifiedPasskeyLogin{}, &AuthError{Op: "verify passkey tenant access", Err: err}
+	}
+	if !hasAccess {
 		// The school binding is decided per ceremony: a passkey of another
 		// school never mints a session here, and the ceremony is spent.
-		return verifiedPasskeyLogin{}, rejectCeremony(&AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied})
+		return verifiedPasskeyLogin{}, RejectCeremony(&AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied})
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
@@ -480,43 +488,6 @@ func (s *passkeyService) verifyLogin(ctx context.Context, req PasskeyLoginFinish
 	return verifiedPasskeyLogin{
 		accountID: passkeyUser.ID, tenantID: tenantID, credentialID: matchedCredentialID, credentialJSON: credentialJSON,
 	}, nil
-}
-
-// passkeyRejection marks a ceremony the verification refused.
-type passkeyRejection struct {
-	cause error
-}
-
-func (r passkeyRejection) Error() string { return r.cause.Error() }
-
-func (r passkeyRejection) Unwrap() error { return r.cause }
-
-func rejectCeremony(cause error) error {
-	return passkeyRejection{cause: cause}
-}
-
-// completeCeremony runs a ceremony completion in one administrative
-// transaction. A rejection commits: the consumed ceremony stays spent, so
-// the same challenge cannot be tried again, and the caller receives the
-// rejection's cause. Any other failure rolls back, so the ceremony can be
-// completed again after a failed read or write. The unit of work comes from
-// the request context, which the API root attaches to every route.
-func (s *passkeyService) completeCeremony(ctx context.Context, fn func(context.Context) error) error {
-	var rejected error
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		rejected = nil
-		err := fn(txCtx)
-		var rejection passkeyRejection
-		if errors.As(err, &rejection) {
-			rejected = rejection.cause
-			return nil
-		}
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	return rejected
 }
 
 func (s *passkeyService) ListCredentials(ctx context.Context, accountID int64) ([]PasskeyCredentialSummary, error) {

@@ -630,6 +630,17 @@ func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
 			committed: true,
 		},
 		{
+			name: "account read failure is not a missing account",
+			session: &PasskeySession{
+				AccountID:      &account.ID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
+			},
+			repos:   &repositories.Factory{Account: failingAccountRepository{err: errPasskeyStore}},
+			records: &passkeyRecordsStub{sessions: &passkeySessionRepoStub{}},
+			wantErr: errPasskeyStore,
+		},
+		{
 			name: "credential lookup failure",
 			session: &PasskeySession{
 				AccountID:      &account.ID,
@@ -821,6 +832,19 @@ func TestPasskeyFinishLoginCredentialLookup(t *testing.T) {
 			committed:   true,
 		},
 		{
+			name:        "account read failure",
+			credentials: &passkeyCredentialRepoStub{rows: []*PasskeyCredential{registered}},
+			repos:       &repositories.Factory{Account: failingAccountRepository{err: errPasskeyStore}},
+			wantErr:     errPasskeyStore,
+		},
+		{
+			name:        "account gone",
+			credentials: &passkeyCredentialRepoStub{rows: []*PasskeyCredential{registered}},
+			repos:       &repositories.Factory{Account: newStubAccountRepository()},
+			wantErr:     ErrInvalidCredentials,
+			committed:   true,
+		},
+		{
 			name:        "signature does not verify",
 			credentials: &passkeyCredentialRepoStub{rows: []*PasskeyCredential{registered}},
 			repos:       &repositories.Factory{Account: newStubAccountRepository(account)},
@@ -920,6 +944,17 @@ func TestPasskeyCredentialServiceErrors(t *testing.T) {
 }
 
 var errPasskeyStore = errors.New("passkey store down")
+
+// failingAccountRepository fails the account lookup like an unavailable
+// store; a missing account is sql.ErrNoRows, which this is not.
+type failingAccountRepository struct {
+	noopAccountRepository
+	err error
+}
+
+func (r failingAccountRepository) FindByID(context.Context, interface{}) (*authModel.Account, error) {
+	return nil, r.err
+}
 
 // passkeyCredentialRepoStub serves the credential half of the records port.
 type passkeyCredentialRepoStub struct {

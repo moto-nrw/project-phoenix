@@ -16,7 +16,6 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -207,10 +206,10 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 }
 
 // FinishRegistration consumes the ceremony and stores the credential in one
-// administrative transaction (see completeCeremony).
+// administrative transaction (see auth.CompleteCeremony).
 func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req OperatorPasskeyRegistrationFinishRequest) (*authService.PasskeyCredentialSummary, error) {
 	var summary *authService.PasskeyCredentialSummary
-	err := s.completeCeremony(ctx, func(txCtx context.Context) error {
+	err := authService.CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
 		row, err := s.verifyRegistration(txCtx, req)
 		if err != nil {
 			return err
@@ -235,11 +234,11 @@ func (s *operatorPasskeyService) verifyRegistration(ctx context.Context, req Ope
 		return nil, err
 	}
 	if sessionRow == nil || sessionRow.OperatorID == nil || *sessionRow.OperatorID != req.OperatorID {
-		return nil, rejectCeremony(authService.ErrPasskeySessionInvalid)
+		return nil, authService.RejectCeremony(authService.ErrPasskeySessionInvalid)
 	}
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return nil, rejectCeremony(err)
+		return nil, authService.RejectCeremony(err)
 	}
 	operator, err := s.findOperator(ctx, req.OperatorID)
 	if err != nil {
@@ -251,15 +250,15 @@ func (s *operatorPasskeyService) verifyRegistration(ctx context.Context, req Ope
 	}
 	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
 	if err != nil {
-		return nil, rejectCeremony(err)
+		return nil, authService.RejectCeremony(err)
 	}
 	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
-		return nil, rejectCeremony(err)
+		return nil, authService.RejectCeremony(err)
 	}
 	credential, err := webAuthn.FinishRegistration(user, sessionData, httpReq)
 	if err != nil {
-		return nil, rejectCeremony(err)
+		return nil, authService.RejectCeremony(err)
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
@@ -317,11 +316,11 @@ func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin 
 }
 
 // FinishLogin consumes the ceremony and records the credential use in one
-// administrative transaction (see completeCeremony). The token pair is
+// administrative transaction (see auth.CompleteCeremony). The token pair is
 // issued after the commit.
 func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPasskeyLoginFinishRequest) (*authService.PasskeyLoginResult, error) {
 	var operatorID int64
-	err := s.completeCeremony(ctx, func(txCtx context.Context) error {
+	err := authService.CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
 		verified, err := s.verifyLogin(txCtx, req)
 		if err != nil {
 			return err
@@ -356,19 +355,19 @@ func (s *operatorPasskeyService) verifyLogin(ctx context.Context, req OperatorPa
 		return verifiedOperatorPasskeyLogin{}, err
 	}
 	if sessionRow == nil {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(authService.ErrPasskeySessionInvalid)
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(authService.ErrPasskeySessionInvalid)
 	}
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(err)
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(err)
 	}
 	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
 	if err != nil {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(err)
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(err)
 	}
 	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(err)
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(err)
 	}
 	var matchedCredentialID int64
 	// The WebAuthn library reports every handler error as a failed
@@ -404,54 +403,17 @@ func (s *operatorPasskeyService) verifyLogin(ctx context.Context, req OperatorPa
 		return verifiedOperatorPasskeyLogin{}, readErr
 	}
 	if err != nil {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(&InvalidCredentialsError{})
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(&InvalidCredentialsError{})
 	}
 	passkeyUser, ok := user.(*authService.WebAuthnUser)
 	if !ok {
-		return verifiedOperatorPasskeyLogin{}, rejectCeremony(&InvalidCredentialsError{})
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(&InvalidCredentialsError{})
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
 		return verifiedOperatorPasskeyLogin{}, err
 	}
 	return verifiedOperatorPasskeyLogin{operatorID: passkeyUser.ID, credentialID: matchedCredentialID, credentialJSON: credentialJSON}, nil
-}
-
-// operatorPasskeyRejection marks a ceremony the verification refused.
-type operatorPasskeyRejection struct {
-	cause error
-}
-
-func (r operatorPasskeyRejection) Error() string { return r.cause.Error() }
-
-func (r operatorPasskeyRejection) Unwrap() error { return r.cause }
-
-func rejectCeremony(cause error) error {
-	return operatorPasskeyRejection{cause: cause}
-}
-
-// completeCeremony runs a ceremony completion in one administrative
-// transaction. A rejection commits: the consumed ceremony stays spent, so
-// the same challenge cannot be tried again, and the caller receives the
-// rejection's cause. Any other failure rolls back, so the ceremony can be
-// completed again after a failed read or write. The unit of work comes from
-// the request context, which the API root attaches to every route.
-func (s *operatorPasskeyService) completeCeremony(ctx context.Context, fn func(context.Context) error) error {
-	var rejected error
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
-		rejected = nil
-		err := fn(txCtx)
-		var rejection operatorPasskeyRejection
-		if errors.As(err, &rejection) {
-			rejected = rejection.cause
-			return nil
-		}
-		return err
-	})
-	if err != nil {
-		return err
-	}
-	return rejected
 }
 
 // findOperator resolves the operator a ceremony belongs to; a missing row
