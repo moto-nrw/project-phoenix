@@ -1671,6 +1671,7 @@ func newFactory(
 	}
 	passkeyService, err := auth.NewPasskeyService(auth.PasskeyServiceConfig{
 		Repos:        repos,
+		Records:      newAccountPasskeyRecords(identityAccess),
 		MFAService:   mfaService,
 		AuthService:  authService,
 		DB:           db,
@@ -1998,7 +1999,7 @@ func newFactory(
 	// the gate closure above, so /operator/auth/login returns challenge
 	// tokens from here on (MFA is mandatory for the platform scope).
 	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
-		Repos:               repos,
+		Records:             newOperatorPasskeyRecords(identityAccess),
 		Operators:           operatorDirectory,
 		MFAService:          operatorMFAService,
 		AuthService:         operatorAuthService,
