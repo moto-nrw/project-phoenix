@@ -23213,12 +23213,12 @@
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 49,
+          "line": 48,
           "declaration": "type PasskeyServiceConfig"
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 119,
+          "line": 118,
           "declaration": "type passkeyService"
         },
         {
