@@ -204,7 +204,7 @@ func TestFindOrCreateSession_SpecialRoomEndsStaleSessionBeforeCreate(t *testing.
 	h.rooms.toilet = &room
 	h.activities.byName[facilities.WCActivityName] = []ports.Activity{{ID: 300, Name: facilities.WCActivityName}}
 
-	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testDeviceID)
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100}, h.sessions.ended)
@@ -220,7 +220,7 @@ func TestFindOrCreateSession_RegularRoomReusesPreviousDaySession(t *testing.T) {
 	room := facilities.Room{ID: 42, Name: "Klassenraum 1a"}
 	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 
-	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testDeviceID)
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	require.NoError(t, err)
 	assert.Empty(t, h.sessions.ended, "regular rooms must not end sessions on scan")
@@ -237,7 +237,7 @@ func TestFindOrCreateSession_SpecialRoomEndsStaleSessionBeforeSelectingCurrent(t
 		{ID: 101, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour)},
 	}
 
-	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testDeviceID)
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	require.NoError(t, err)
 	assert.Equal(t, []int64{100}, h.sessions.ended)
@@ -251,7 +251,7 @@ func TestFindOrCreateSession_StaleSessionEndFailure(t *testing.T) {
 	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 	h.sessions.endErr = errBoom
 
-	_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testDeviceID)
+	_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageCreateSchulhofFailed)
 }
@@ -298,7 +298,7 @@ func TestDeactivatedSchulhofFollowsRegularRoomRules(t *testing.T) {
 	room := facilities.Room{ID: 42, Name: facilities.SchulhofRoomName}
 	h.sessions.open = []ports.Session{{ID: 100, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1)}}
 
-	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testDeviceID)
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	require.NoError(t, err)
 	assert.Empty(t, h.sessions.ended, "a deactivated Schulhof must not end sessions on scan any more")
@@ -312,7 +312,7 @@ func TestDeactivatedSchulhofDoesNotAutoCreateASession(t *testing.T) {
 	h.sessions.open = nil
 	h.activities.byName[facilities.SchulhofActivityName] = []ports.Activity{{ID: 300}}
 
-	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testDeviceID)
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
 
 	assert.Nil(t, selection)
 	requireFailure(t, err, devicescan.FailureNotFound, devicescan.MessageNoGroupsInRoom)
@@ -384,4 +384,238 @@ func TestCreateSpecialRoomSession_StartFailure(t *testing.T) {
 	_, err := h.service().createSpecialRoomSession(context.Background(), room)
 
 	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageCreateWCFailed)
+}
+
+// Yard scans while blocks run (ADR 0019, #3282): a child joins the running
+// block whose day roster lists it, the newest on several matches; any other
+// child gets an independent stay in the Freispiel session.
+
+const (
+	yardFreeplayActivityID = int64(310)
+	yardBlockAActivityID   = int64(320)
+	yardBlockBActivityID   = int64(321)
+	yardFreeplaySessionID  = int64(110)
+	yardBlockASessionID    = int64(111)
+	yardBlockBSessionID    = int64(112)
+)
+
+// yardHarness is a released canonical yard with a Freispiel session and
+// two running blocks, A started before B, and a roster lookup that lists
+// the scanned child nowhere.
+func yardHarness(t *testing.T) (*harness, facilities.Room) {
+	t.Helper()
+	h := newHarness(t)
+	room := facilities.Room{ID: testRoomID, Name: facilities.SchulhofRoomName, IsSystem: true, IsOpenRoom: true}
+	h.rooms.rooms[room.ID] = room
+	h.rooms.byName[room.Name] = room
+	freeplay := ports.Activity{ID: yardFreeplayActivityID, Name: facilities.SchulhofActivityName, MaxParticipants: 300, PlannedRoomID: ptr(room.ID), IsSystem: true, IsOpen: true}
+	h.activities.byID[freeplay.ID] = &freeplay
+	h.activities.byName[freeplay.Name] = []ports.Activity{freeplay}
+	h.activities.byID[yardBlockAActivityID] = &ports.Activity{ID: yardBlockAActivityID, Name: "Fußball"}
+	h.activities.byID[yardBlockBActivityID] = &ports.Activity{ID: yardBlockBActivityID, Name: "Seilspringen"}
+	h.sessions.open = []ports.Session{
+		{ID: yardFreeplaySessionID, RoomID: room.ID, StartTime: fixedNow.Add(-3 * time.Hour), TemplateID: ptr(yardFreeplayActivityID)},
+		{ID: yardBlockASessionID, RoomID: room.ID, StartTime: fixedNow.Add(-2 * time.Hour), TemplateID: ptr(yardBlockAActivityID)},
+		{ID: yardBlockBSessionID, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour), TemplateID: ptr(yardBlockBActivityID)},
+	}
+	h.rosters = &fakeRosters{rostered: map[int64]bool{}}
+	return h, room
+}
+
+func TestYardScan_RosteredChildJoinsOwnBlockRegardlessOfStartOrder(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.rosters.rostered[yardBlockASessionID] = true
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardBlockASessionID, selection.Session.ID, "block A, although block B started later")
+	assert.False(t, selection.created)
+	assert.False(t, selection.DeviceScoped)
+	require.NotNil(t, selection.Session.Activity, "the loaded activity feeds the capacity check")
+	assert.Equal(t, yardBlockAActivityID, selection.Session.Activity.ID)
+	assert.Equal(t, [][]int64{{yardBlockASessionID, yardBlockBSessionID}}, h.rosters.calls, "only blocks are looked up")
+	assert.Empty(t, h.sessions.started)
+}
+
+func TestYardScan_ChildInTwoBlocksJoinsTheNewest(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.rosters.rostered[yardBlockASessionID] = true
+	h.rosters.rostered[yardBlockBSessionID] = true
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardBlockBSessionID, selection.Session.ID)
+}
+
+func TestYardScan_RosteredChildJoinsDeviceLinkedBlockAsDeviceScoped(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open[1].DeviceID = ptr(testDeviceID)
+	h.rosters.rostered[yardBlockASessionID] = true
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardBlockASessionID, selection.Session.ID)
+	assert.True(t, selection.DeviceScoped)
+}
+
+func TestYardScan_UnrosteredChildStaysOutOfRunningBlocks(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	// Even the block this kiosk runs does not absorb a child it does not list.
+	h.sessions.open[2].DeviceID = ptr(testDeviceID)
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardFreeplaySessionID, selection.Session.ID)
+	assert.False(t, selection.DeviceScoped)
+	assert.Empty(t, h.sessions.started)
+	assert.Empty(t, h.sessions.ended, "running blocks stay untouched")
+}
+
+func TestYardScan_UnrosteredChildPrefersTheFreeplaySessionTheKioskTookOver(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open[0].DeviceID = ptr(testDeviceID)
+	h.sessions.open = append(h.sessions.open, ports.Session{
+		ID: 113, RoomID: room.ID, StartTime: fixedNow.Add(-30 * time.Minute), TemplateID: ptr(yardFreeplayActivityID),
+	})
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardFreeplaySessionID, selection.Session.ID)
+	assert.True(t, selection.DeviceScoped)
+}
+
+func TestYardScan_UnrosteredChildGetsAFreshDevicelessFreeplaySession(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	yesterday := ports.Session{ID: 109, RoomID: room.ID, StartTime: fixedNow.AddDate(0, 0, -1), TemplateID: ptr(yardFreeplayActivityID)}
+	h.sessions.open = append([]ports.Session{yesterday}, h.sessions.open[1:]...)
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{yesterday.ID}, h.sessions.ended, "the stale session is closed as before")
+	// The one-session-per-room start would refuse the occupied yard; the
+	// room session path of ADR 0018 opens the Freispiel session next to the
+	// blocks.
+	assert.Empty(t, h.sessions.started)
+	require.Len(t, h.sessions.ensured, 1)
+	assert.Equal(t, ports.NewSession{ActivityID: yardFreeplayActivityID, RoomID: room.ID}, h.sessions.ensured[0])
+	assert.Equal(t, int64(201), selection.Session.ID)
+	assert.False(t, selection.created, "a shared room session is never deleted on a refused visit")
+	assert.False(t, selection.DeviceScoped)
+}
+
+func TestYardScan_FreeplayCreationFailureNamesTheSchulhof(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open = h.sessions.open[1:]
+	h.sessions.startErr = errBoom
+
+	_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageCreateSchulhofFailed)
+}
+
+func TestYardScan_WithoutAnySessionStartsTheFreeplaySessionAsBefore(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open = nil
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Empty(t, h.sessions.ensured)
+	require.Len(t, h.sessions.started, 1)
+	assert.True(t, selection.created)
+}
+
+func TestYardScan_WithoutBlocksKeepsTheFormerChoice(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open = []ports.Session{
+		{ID: yardFreeplaySessionID, RoomID: room.ID, StartTime: fixedNow.Add(-3 * time.Hour), TemplateID: ptr(yardFreeplayActivityID), DeviceID: ptr(testDeviceID)},
+		{ID: 113, RoomID: room.ID, StartTime: fixedNow.Add(-time.Hour), TemplateID: ptr(yardFreeplayActivityID)},
+	}
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardFreeplaySessionID, selection.Session.ID, "the kiosk keeps the session it took over")
+	assert.True(t, selection.DeviceScoped)
+	assert.Empty(t, h.rosters.calls, "no block, no roster lookup")
+}
+
+func TestYardScan_SpontaneousBlockIsNeverAScanTarget(t *testing.T) {
+	t.Parallel()
+	h, room := yardHarness(t)
+	h.sessions.open = []ports.Session{
+		h.sessions.open[0],
+		{ID: 114, RoomID: room.ID, StartTime: fixedNow.Add(-time.Minute)},
+	}
+
+	selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+	require.NoError(t, err)
+	assert.Equal(t, yardFreeplaySessionID, selection.Session.ID)
+	assert.Empty(t, h.rosters.calls, "a template-less session cannot take a kiosk visit")
+}
+
+func TestYardScan_UnreleasedYardUsesTheRosterThenTheRoomRules(t *testing.T) {
+	t.Parallel()
+	t.Run("rostered child joins its block", func(t *testing.T) {
+		t.Parallel()
+		h, room := yardHarness(t)
+		room.IsOpenRoom = false
+		h.sessions.open = h.sessions.open[1:]
+		h.rosters.rostered[yardBlockASessionID] = true
+
+		selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, yardBlockASessionID, selection.Session.ID)
+	})
+	t.Run("other child follows the ordinary room rules", func(t *testing.T) {
+		t.Parallel()
+		h, room := yardHarness(t)
+		room.IsOpenRoom = false
+		h.sessions.open = h.sessions.open[1:]
+
+		selection, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, yardBlockBSessionID, selection.Session.ID, "newest session, as in any room")
+		assert.Empty(t, h.sessions.started, "no Freispiel session without release")
+	})
+}
+
+func TestYardScan_LookupFailuresStopTheScan(t *testing.T) {
+	t.Parallel()
+	t.Run("roster", func(t *testing.T) {
+		t.Parallel()
+		h, room := yardHarness(t)
+		h.rosters.err = errBoom
+
+		_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageFindActiveGroupsFailed)
+	})
+	t.Run("activity", func(t *testing.T) {
+		t.Parallel()
+		h, room := yardHarness(t)
+		h.activities.findErr = errBoom
+
+		_, err := h.service().findOrCreateSessionForRoom(context.Background(), room, testStudentID, testDeviceID)
+
+		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageGetActivityFailed)
+	})
 }

@@ -109,6 +109,22 @@ func CreateTestActivityGroupWithLimit(tb testing.TB, db *bun.DB, name string, ma
 	return group
 }
 
+// CreateTestRunningBlock starts a timetable block in a room: an activity, its
+// open session, and today's active instance with the given children in its
+// day roster. Blocks created later have the later start.
+func CreateTestRunningBlock(tb testing.TB, db *bun.DB, roomID int64, name string, rosterStudentIDs ...int64) *active.Group {
+	tb.Helper()
+	activity := CreateTestActivityGroup(tb, db, name)
+	session := CreateTestActiveGroup(tb, db, activity.ID, roomID)
+	instance := CreateTestActivityInstance(tb, db, timezone.TodayDate(), roomID, ActivityInstanceOpts{
+		Status: schedule.InstanceStatusActive, ActivityGroupID: &activity.ID, ActiveGroupID: &session.ID, Title: name,
+	})
+	for _, studentID := range rosterStudentIDs {
+		CreateTestInstanceStudent(tb, db, instance.ID, studentID, schedule.AttendanceStatusExpected)
+	}
+	return session
+}
+
 // CreateTestPickupNote inserts a date-specific pickup note.
 func CreateTestPickupNote(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, content string) *schedule.StudentPickupNote {
 	tb.Helper()
