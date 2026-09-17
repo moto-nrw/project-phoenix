@@ -285,6 +285,28 @@ jobs:
           src/lib/app-route-invariants.test.ts
           src/lib/analytics-routes.test.ts
 
+      # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
+      # The binary is cached per lockfile, OS libs install every run.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+
+      - name: Install Playwright Chromium
+        working-directory: frontend
+        run: |
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps chromium
+          fi
+
+      - name: Run browser layout tests
+        working-directory: frontend
+        run: pnpm run test:layout
+
       - name: Run changed frontend tests
         if: ${{ inputs.changed-scope && ! inputs.full-frontend-suite && inputs.base_ref != '' }}
         working-directory: frontend
