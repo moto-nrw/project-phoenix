@@ -36,6 +36,12 @@ var ResolveYardRoomColor = activeService.ResolveYardRoomColor
 // YardLocationLabel is the binary-mode label for a student on the schoolyard.
 const YardLocationLabel = activeService.YardLocationLabel
 
+// AbsentLocationLabel is the resolved location of a child without an open check-in.
+const AbsentLocationLabel = activeService.AbsentLocationLabel
+
+// AtSchoolLocationLabel is the location of an expected child before the first check-in (#3260).
+const AtSchoolLocationLabel = activeService.AtSchoolLocationLabel
+
 // LoadStudentLocationSnapshot batches all data needed to resolve student locations.
 // In binary-mode tenants it skips the visit/group queries as a perf win — those
 // fields become irrelevant because the resolver won't read them anyway.

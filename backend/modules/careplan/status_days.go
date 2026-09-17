@@ -41,6 +41,9 @@ type StudentStatusCounts struct {
 	Sick    int
 	Excused int
 	Total   int
+	// UnaccountedIDs are the counted active students in neither bucket: the
+	// children the dashboard splits into present, at school and at home.
+	UnaccountedIDs []int64
 }
 
 type StatusDaySummary struct {

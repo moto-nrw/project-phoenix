@@ -1060,6 +1060,8 @@ func exportStatusLabel(status string) string {
 		return "Entschuldigt"
 	case "abwesend":
 		return "Abwesend"
+	case "schule":
+		return "Schule"
 	case "unterwegs":
 		return "Unterwegs"
 	case "schulhof":
@@ -1102,8 +1104,13 @@ func exportStatus(student StudentResponse) string {
 		return "entschuldigt"
 	}
 	switch student.Location {
-	case "Zuhause", "":
+	// The resolver emits "Abwesend"; "Zuhause" and "" cover dated exports and
+	// older callers. Without the "Abwesend" case every child at home fell
+	// through to "anwesend".
+	case common.AbsentLocationLabel, "Zuhause", "":
 		return "abwesend"
+	case common.AtSchoolLocationLabel:
+		return "schule"
 	case "Unterwegs":
 		return "unterwegs"
 	case "Schulhof":

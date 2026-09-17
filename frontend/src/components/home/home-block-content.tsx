@@ -354,6 +354,13 @@ function StatBlock({
         "excused",
         studentSearchHref("/students/search?status=entschuldigt"),
       );
+    case "tile.students_at_school":
+      return tile(
+        "Schule",
+        analytics?.studentsAtSchool ?? 0,
+        "atSchool",
+        studentSearchHref("/students/search?status=schule"),
+      );
     case "tile.students_home":
       return tile(
         "Zuhause",

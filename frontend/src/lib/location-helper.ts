@@ -44,6 +44,9 @@ export interface StudentLocationContext {
 export const LOCATION_STATUSES = {
   PRESENT: "Anwesend",
   HOME: "Zuhause",
+  // Erwartetes Kind vor dem ersten Check-in des Tages (#3260): es sitzt noch
+  // im Unterricht, nicht zu Hause. Das Backend liefert den Wert selbst.
+  AT_SCHOOL: "Schule",
   SCHOOLYARD: "Schulhof",
   TRANSIT: "Unterwegs",
   UNKNOWN: "Unbekannt",
@@ -250,6 +253,10 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     backgroundColor: MOTO_COLOR_PALETTE.cyan.soft,
     textColor: MOTO_COLOR_PALETTE.cyan.strong,
   },
+  [MOTO_COLOR_PALETTE.petrol.base]: {
+    backgroundColor: MOTO_COLOR_PALETTE.petrol.soft,
+    textColor: MOTO_COLOR_PALETTE.petrol.strong,
+  },
   [MOTO_COLOR_PALETTE.stone.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.stone.soft,
     textColor: MOTO_COLOR_PALETTE.stone.strong,
@@ -332,6 +339,7 @@ export const LOCATION_COLORS = {
   EXCUSED: MOTO_COLOR_PALETTE.purple.base, // Purple - excused absence (kind is not attending today)
   CLASS_TRIP: MOTO_COLOR_PALETTE.cyan.base,
   NOT_ARRIVAL: MOTO_COLOR_PALETTE.navy.base,
+  AT_SCHOOL: MOTO_COLOR_PALETTE.petrol.base,
   DANGER: MOTO_COLOR_PALETTE.red.base,
   // Amber "needs attention, but nothing is wrong yet": a pending request, an
   // unstaffed slot, an open invitation. Exists because SICK used to be amber
@@ -519,6 +527,7 @@ const LEGACY_STATUS_MAP: Record<string, string> = {
   abwesend: LOCATION_STATUSES.HOME,
   zuhause: LOCATION_STATUSES.HOME,
   home: LOCATION_STATUSES.HOME,
+  schule: LOCATION_STATUSES.AT_SCHOOL,
   unbekannt: LOCATION_STATUSES.UNKNOWN,
   unknown: LOCATION_STATUSES.UNKNOWN,
   anwesend: LOCATION_STATUSES.PRESENT,
@@ -595,6 +604,7 @@ export function parseLocation(location?: string | null): ParsedLocation {
 // Status-based color lookup for simple cases
 const STATUS_COLOR_MAP: Record<string, string> = {
   [LOCATION_STATUSES.HOME]: LOCATION_COLORS.HOME,
+  [LOCATION_STATUSES.AT_SCHOOL]: LOCATION_COLORS.AT_SCHOOL,
   [LOCATION_STATUSES.SCHOOLYARD]: LOCATION_COLORS.SCHOOLYARD,
   [LOCATION_STATUSES.TRANSIT]: LOCATION_COLORS.TRANSIT,
 };
@@ -811,6 +821,23 @@ export function isPresentLocation(location?: string | null): boolean {
  */
 export function isHomeLocation(location?: string | null): boolean {
   return parseLocation(location).status === LOCATION_STATUSES.HOME;
+}
+
+/**
+ * Indicates whether an expected student has not checked in yet today (#3260).
+ */
+export function isAtSchoolLocation(location?: string | null): boolean {
+  return parseLocation(location).status === LOCATION_STATUSES.AT_SCHOOL;
+}
+
+/**
+ * Indicates whether the student has no open check-in: at home, still in class
+ * before the first check-in, or without any location. Use this, not
+ * isHomeLocation, wherever the question is "check in or check out?".
+ */
+export function isNotCheckedInLocation(location?: string | null): boolean {
+  if (!location?.trim()) return true;
+  return isHomeLocation(location) || isAtSchoolLocation(location);
 }
 
 /**

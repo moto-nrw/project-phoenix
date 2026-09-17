@@ -51,6 +51,10 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	if err := rs.enrichCurrentLocationWithDayPlanning(r.Context(), &response); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 
 	// Create location response structure
 	locationResponse := struct {
