@@ -55,7 +55,7 @@ same PR when required.
 
 ### Before/After Screenshots for UI Changes (MANDATORY)
 
-When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`frontend/.claude/skills/ui-before-after/SKILL.md`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and at the end tell the user the local file paths so they can attach the images to the PR manually (GitHub has no API for native attachment uploads; never host screenshots via releases, tags, or Gists — see `docs/agents/operations.md` PR screenshots and QA evidence). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
+When a change alters what a school user sees (new screen, migrated component, layout/styling change), produce paired before/after screenshots via the `ui-before-after` skill (`frontend/.claude/skills/ui-before-after/SKILL.md`): capture the identical interactions against the base ref and your branch, composite them into `pair-*.png` images, and post them on the PR as native attachments with `gh pr comment --attach` (see `docs/agents/operations.md` PR screenshots and QA evidence). Backend-only changes and pure refactors with zero visual delta are exempt, but a consolidation refactor that claims "no visual change" should prove it with a pair.
 
 ## Data contracts
 
