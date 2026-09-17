@@ -25,6 +25,7 @@ type studentDayPlanningTestResponse struct {
 	ID                int64  `json:"id"`
 	DayPlanningStatus string `json:"day_planning_status"`
 	DayPlanningReason string `json:"day_planning_reason"`
+	Location          string `json:"current_location"`
 }
 
 func decodeStudentsByID(t *testing.T, body []byte) map[int64]studentDayPlanningTestResponse {

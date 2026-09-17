@@ -76,6 +76,10 @@ func (p *Provisioning) inAdmin(ctx context.Context, fn func(context.Context) err
 	return p.tx.RunAdmin(ctx, fn)
 }
 
+func (p *Provisioning) inTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+	return p.tx.RunTenant(ctx, tenantID, fn)
+}
+
 // adminValue runs fn in the administrative transaction and returns its value.
 func adminValue[T any](ctx context.Context, p *Provisioning, fn func(context.Context) (T, error)) (T, error) {
 	var result T

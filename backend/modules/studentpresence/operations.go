@@ -177,6 +177,9 @@ type DashboardAnalytics struct {
 	StudentsSick         int
 	StudentsExcused      int
 	StudentsHome         int
+	// StudentsAtSchool are expected children before their first check-in
+	// (#3260); StudentsHome no longer counts them.
+	StudentsAtSchool int
 
 	ActiveActivities    int
 	FreeRooms           int

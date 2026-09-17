@@ -2,8 +2,6 @@ package postgres
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
@@ -11,26 +9,32 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) StaffAbsenceTypeEntitlement(ctx context.Context, staffID, absenceTypeID int64, year int) (float64, bool, domain.OperationStats, error) {
+// StaffAbsenceTypeEntitlements returns every yearly claim of one person for
+// one type, keyed by year. Carried-over rests need the older years too.
+func (s *Store) StaffAbsenceTypeEntitlements(ctx context.Context, staffID, absenceTypeID int64) (map[int]float64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return 0, false, domain.OperationStats{}, err
+		return nil, domain.OperationStats{}, err
 	}
-	var days float64
+	var rows []struct {
+		Year         int     `bun:"year"`
+		EntitledDays float64 `bun:"entitled_days"`
+	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	err = db.NewSelect().TableExpr("active.staff_absence_type_allowances").Column("entitled_days").
+	err = db.NewSelect().TableExpr("active.staff_absence_type_allowances").Column("year", "entitled_days").
 		Where("tenant_id = ?", tenantID).Where("staff_id = ?", staffID).
-		Where("absence_type_id = ?", absenceTypeID).Where("year = ?", year).Limit(1).Scan(ctx, &days)
+		Where("absence_type_id = ?", absenceTypeID).OrderExpr("year ASC").Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, false, stats, nil
-	}
 	if err != nil {
-		return 0, false, stats, err
+		return nil, stats, err
 	}
-	stats.Rows = 1
-	return days, true, stats, nil
+	result := make(map[int]float64, len(rows))
+	for _, row := range rows {
+		result[row.Year] = row.EntitledDays
+	}
+	stats.Rows = int64(len(rows))
+	return result, stats, nil
 }
 
 type staffAbsenceAllowanceRow struct {

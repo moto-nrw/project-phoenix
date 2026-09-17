@@ -9,7 +9,7 @@ import {
   getLocationBadgeTone,
   getLocationColor,
   getLocationDisplay,
-  isHomeLocation,
+  isNotCheckedInLocation,
   parseLocation,
 } from "@/lib/location-helper";
 
@@ -46,7 +46,7 @@ function getSickDisplayMode(
   if (!student.sick) return "none";
 
   // If at home and sick, replace the badge entirely
-  if (isHomeLocation(student.current_location)) {
+  if (isNotCheckedInLocation(student.current_location)) {
     return "replace";
   }
 
@@ -65,7 +65,7 @@ function getExcusedDisplayMode(
 ): "replace" | "additional" | "none" {
   if (!student.excused) return "none";
 
-  if (isHomeLocation(student.current_location)) {
+  if (isNotCheckedInLocation(student.current_location)) {
     return "replace";
   }
 
@@ -77,7 +77,7 @@ function getClassTripDisplayMode(
 ): "replace" | "additional" | "none" {
   if (!student.class_trip) return "none";
 
-  if (isHomeLocation(student.current_location)) {
+  if (isNotCheckedInLocation(student.current_location)) {
     return "replace";
   }
 
@@ -93,7 +93,7 @@ function getNotArrivalDisplayMode(
 ): "replace" | "additional" | "none" {
   if (!student.not_arrival_today) return "none";
 
-  if (isHomeLocation(student.current_location)) {
+  if (isNotCheckedInLocation(student.current_location)) {
     return "replace";
   }
 

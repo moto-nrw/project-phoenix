@@ -74,6 +74,9 @@ type StudentStatusCounts struct {
 	// counting it separately would let the two drift apart under a concurrent
 	// write.
 	Total int `bun:"total_count"`
+	// UnaccountedIDs are the active students counted in Total but in neither
+	// absence bucket.
+	UnaccountedIDs []int64 `bun:"-"`
 }
 
 // StudentStatusDayRepository persists broad day statuses (sick / excused /

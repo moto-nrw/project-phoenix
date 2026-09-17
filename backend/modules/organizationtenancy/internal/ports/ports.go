@@ -32,6 +32,8 @@ type Store interface {
 type Transaction interface {
 	RunAdmin(context.Context, func(context.Context) error) error
 	RunRead(context.Context, func(context.Context) error) error
+	// RunTenant runs fn in one transaction scoped to the school tenantID.
+	RunTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error
 }
 
 type Observation struct {

@@ -90,6 +90,25 @@ describe("LocationBadge", () => {
 
       expect(screen.getByText("Zuhause")).toBeInTheDocument();
     });
+
+    it("shows Schule for an expected child before the first check-in (#3260)", () => {
+      const student = createStudent({ current_location: "Schule" });
+      render(<LocationBadge student={student} displayMode="contextAware" />);
+
+      expect(screen.getByText("Schule")).toBeInTheDocument();
+      expect(screen.queryByText("Zuhause")).not.toBeInTheDocument();
+    });
+
+    it("lets not coming today replace Schule", () => {
+      const student = createStudent({
+        current_location: "Schule",
+        not_arrival_today: true,
+      });
+      render(<LocationBadge student={student} displayMode="contextAware" />);
+
+      expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+      expect(screen.queryByText("Schule")).not.toBeInTheDocument();
+    });
   });
 
   // ===========================================================================

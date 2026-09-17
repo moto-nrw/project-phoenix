@@ -198,6 +198,10 @@ type DashboardAnalytics struct {
 	StudentsSick         int // Students currently flagged as sick
 	StudentsExcused      int // Students currently flagged as excused
 	StudentsHome         int // Active students neither present nor sick/excused — see calculateStudentsHome
+	// HomeCandidateIDs are the students StudentsHome counts: active, not
+	// present, not sick or excused. The caller holding the day plan moves the
+	// ones still in class to "Schule" (#3260). Not serialized.
+	HomeCandidateIDs []int64
 
 	// Activities & Rooms
 	ActiveActivities    int
@@ -364,6 +368,12 @@ type AttendanceStatus struct {
 // IsCurrentlyPresent reports whether the attendance row represents a child
 // who is still on school premises. A completed attendance keeps its historical
 // check-in time but is no longer current presence.
+// HasRecordToday reports whether today's attendance holds any check-in,
+// including one that has been checked out since.
+func (s *AttendanceStatus) HasRecordToday() bool {
+	return s != nil && s.CheckInTime != nil
+}
+
 func (s *AttendanceStatus) IsCurrentlyPresent() bool {
 	return s != nil && s.CheckInTime != nil &&
 		(s.Status == "checked_in" || s.Status == "on_yard")
