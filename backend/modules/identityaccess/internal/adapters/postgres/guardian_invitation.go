@@ -109,8 +109,10 @@ func (s *Store) ListGuardianInvitationsByProfile(ctx context.Context, guardianPr
 	return guardianInvitations(rows), nil
 }
 
-// ListPendingGuardianApprovals returns the invitations of the school in
-// context that wait for a staff decision, oldest first.
+// ListPendingGuardianApprovals returns the requests of the school in context
+// that still wait for a staff decision, newest first. An expired or already
+// accepted request is not one of them: staff must not approve a stale row
+// that cleanup has yet to remove into a live child link.
 func (s *Store) ListPendingGuardianApprovals(ctx context.Context) ([]domain.GuardianInvitation, error) {
 	db, err := s.database(ctx)
 	if err != nil {
@@ -118,8 +120,10 @@ func (s *Store) ListPendingGuardianApprovals(ctx context.Context) ([]domain.Guar
 	}
 	var rows []guardianInvitationRow
 	err = guardianTenantFilter(s.scope(ctx), db.NewSelect().Model(&rows).
-		Where(`"guardian_invitation".approval_status = ?`, domain.GuardianInvitationApprovalPending)).
-		OrderExpr(`"guardian_invitation".created_at ASC`).
+		Where(`"guardian_invitation".approval_status = ?`, domain.GuardianInvitationApprovalPending).
+		Where(`"guardian_invitation".accepted_at IS NULL`).
+		Where(`"guardian_invitation".expires_at > ?`, time.Now())).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
 		Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("identity access postgres: list pending guardian approvals: %w", err)
