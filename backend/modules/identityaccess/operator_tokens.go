@@ -23,10 +23,6 @@ var (
 	// not exist, is expired or was already used. The loser of two concurrent
 	// confirmations receives it.
 	ErrOperatorEmailChangeNotFound = errors.New("operator email change not found")
-	// ErrOperatorEmailChangeActive reports a create that met the
-	// one-active-link-per-operator index: that operator already has a live
-	// link. The initiation flow answers its caller with the rate limit.
-	ErrOperatorEmailChangeActive = errors.New("an active email change link already exists")
 )
 
 // TokenDelivery is the recorded outcome of mailing a one-time link.

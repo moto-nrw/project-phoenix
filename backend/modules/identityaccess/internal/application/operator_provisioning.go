@@ -340,11 +340,6 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 			Expiry:     p.now().Add(p.expiry.EmailChange),
 		})
 		if createErr != nil {
-			// A request that raced past the counted limit meets the
-			// one-active-link index; the caller is told to wait either way.
-			if errors.Is(createErr, domain.ErrOperatorEmailChangeActive) {
-				return domain.ErrOperatorEmailChangeRateLimited
-			}
 			return createErr
 		}
 		change = created

@@ -466,8 +466,6 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorInvitationNotFound
 	case errors.Is(err, domain.ErrOperatorEmailChangeNotFound):
 		return identityaccess.ErrOperatorEmailChangeNotFound
-	case errors.Is(err, domain.ErrOperatorEmailChangeActive):
-		return identityaccess.ErrOperatorEmailChangeActive
 	case errors.Is(err, domain.ErrOperatorPasskeyNotFound):
 		return identityaccess.ErrOperatorPasskeyNotFound
 	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):

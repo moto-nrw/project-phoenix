@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -38,29 +37,6 @@ func NewInvitationTokenRepository(db *bun.DB) modelAuth.InvitationTokenRepositor
 	}
 }
 
-// FindValidByToken returns an invitation if it is not expired or used.
-func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token string, now time.Time) (*modelAuth.InvitationToken, error) {
-	entity := new(modelAuth.InvitationToken)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(entity).
-		ModelTableExpr(invitationTableAlias).
-		Where(`"invitation_token".token = ?`, token).
-		Where(`"invitation_token".expires_at > ?`, now).
-		Where(`"invitation_token".used_at IS NULL`)
-
-	query = base.WithTenantFilter(ctx, query, "invitation_token")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find valid invitation by token",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return entity, nil
-}
-
 // FindByEmail returns invitations associated with an email address.
 func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email string) ([]*modelAuth.InvitationToken, error) {
 	var tokens []*modelAuth.InvitationToken
@@ -79,59 +55,6 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 		}
 	}
 	return tokens, nil
-}
-
-// MarkAsUsed sets the used_at timestamp for a token.
-func (r *InvitationTokenRepository) MarkAsUsed(ctx context.Context, id int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(invitationTable).
-		Set(`used_at = NOW()`).
-		Where(`id = ?`, id).
-		Where(`used_at IS NULL`)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "mark invitation as used",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "mark invitation as used")
-}
-
-// InvalidateByEmail marks all invitations for an email as used.
-func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email string) (int, error) {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(invitationTable).
-		Set(`used_at = NOW()`).
-		Where(`LOWER(email) = LOWER(?)`, email).
-		Where(`used_at IS NULL`)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	res, err := query.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "invalidate invitations by email",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	count, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve affected rows for invalidate invitations: %w", err)
-	}
-
-	return int(count), nil
 }
 
 // DeleteExpired removes invitations that can no longer be used.
@@ -253,25 +176,4 @@ func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, valu
 		return query.Where(`"invitation_token".used_at IS NOT NULL`)
 	}
 	return query
-}
-
-// UpdateDeliveryResult updates the email delivery metadata for an invitation token.
-func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
-	if emailError != nil {
-		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
-		token.EmailError = &truncated
-	}
-
-	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count", "updated_at")
-	if err != nil {
-		return err
-	}
-	if n != 1 {
-		return &modelBase.DatabaseError{
-			Op:  "update invitation delivery result",
-			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
-		}
-	}
-	return nil
 }
