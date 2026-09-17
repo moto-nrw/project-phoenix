@@ -352,10 +352,17 @@ func TestGuardianInvitationBelongsToItsSchoolOnly(t *testing.T) {
 		assert.NotEqual(t, invitation.ID, view.InvitationID, "another school must not see this request")
 	}
 
-	// The accept page has no school in context and must still find the link.
+	// The accept page has no school in context and must still find the link,
+	// and it answers with that school's data only.
 	preview, err := env.service.Validate(context.Background(), invitation.Token)
 	require.NoError(t, err)
 	assert.Equal(t, *profile.Email, preview.Email)
+	assert.Equal(t, profile.FirstName, preview.FirstName)
+	assert.Equal(t, profile.LastName, preview.LastName)
+	school, err := env.repos.School.FindSchool(testpkg.Ctx(t), testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.Equal(t, school.Name, preview.SchoolName)
+	assert.Equal(t, school.Slug, preview.TenantSlug)
 }
 
 func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testing.T) {

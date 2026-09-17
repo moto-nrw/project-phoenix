@@ -3801,7 +3801,7 @@
       "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        755
+        762
       ],
       "tables": []
     },
