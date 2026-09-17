@@ -81,6 +81,10 @@ type TimetableOperationsService interface {
 	// windows, keyed by live session (active group), so the supervision UI
 	// can label session tabs "Aktivitätsname · Planzeit" (#2265).
 	ActiveSessions(ctx context.Context, date timezone.Date) ([]OperationActiveSession, error)
+	// SessionBlocks resolves, for the caller, the running blocks behind the
+	// given live sessions of a day (#3281); supervisorStaffIDs maps each
+	// session to its current supervisors.
+	SessionBlocks(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, supervisorStaffIDs map[int64][]int64) ([]OperationSessionBlock, error)
 	Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error)
 	// CreateAndStartSpontaneous creates a spontaneous instance and starts it as
 	// one atomic composition in the caller's request transaction.
@@ -1226,6 +1230,36 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	if err != nil {
 		return 0, err
 	}
+	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return 0, err
+	}
+	allowed, err := s.operatesLoadedBlock(ctx, inst, staffRows, staffID, func() (bool, error) {
+		supervisors, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID, true)
+		if err != nil {
+			return false, err
+		}
+		for _, sup := range supervisors {
+			if sup.StaffID == staffID {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	if !allowed {
+		return 0, ErrTimetableOperationForbidden
+	}
+	return staffID, nil
+}
+
+// operatesLoadedBlock is requireCanOperate's rule for a staff member once the
+// block and its plan are loaded, shared by the single check and the bulk read
+// (SessionBlocks). supervises is asked only when the plan does not decide and
+// the block runs in a live session.
+func (s *timetableOperationsService) operatesLoadedBlock(ctx context.Context, inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff, staffID int64, supervises func() (bool, error)) (bool, error) {
 	// An assignment-bound portal reaches TODAY and nothing else (#2527). Its
 	// list already answers only for today, but a detail route takes an id, and
 	// ids are guessable: without this clamp a Lehrkraft could pull the roster
@@ -1233,35 +1267,21 @@ func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx contex
 	// she is planned into next week or was planned into in March. Her access
 	// follows the day she stands in front of the children, so the day is part
 	// of the boundary, not just the assignment.
-	if isAssignmentBoundPortal(ctx) && timezone.Date(inst.Date) != s.today() {
-		return 0, ErrTimetableOperationForbidden
-	}
-	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
-	if err != nil {
-		return 0, err
-	}
-	if staffAssigned(staffRows, staffID) {
-		return staffID, nil
-	}
-	// The school portal's boundary is the concrete timetable assignment, not
-	// the active group's supervisor list. Starting a block adds its operator
-	// as a supervisor, so using that list here would preserve access after the
+	//
+	// The same portal's boundary is the concrete timetable assignment, not the
+	// active group's supervisor list. Starting a block adds its operator as a
+	// supervisor, so using that list here would preserve access after the
 	// assignment has been withdrawn.
 	if isAssignmentBoundPortal(ctx) {
-		return 0, ErrTimetableOperationForbidden
+		return timezone.Date(inst.Date) == s.today() && staffAssigned(staffRows, staffID), nil
 	}
-	if inst.ActiveGroupID != nil {
-		supervisors, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, *inst.ActiveGroupID, true)
-		if err != nil {
-			return 0, err
-		}
-		for _, sup := range supervisors {
-			if sup.StaffID == staffID {
-				return staffID, nil
-			}
-		}
+	if staffAssigned(staffRows, staffID) {
+		return true, nil
 	}
-	return 0, ErrTimetableOperationForbidden
+	if inst.ActiveGroupID == nil {
+		return false, nil
+	}
+	return supervises()
 }
 
 func isAssignmentBoundPortal(ctx context.Context) bool {

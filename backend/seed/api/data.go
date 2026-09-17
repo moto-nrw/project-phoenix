@@ -233,7 +233,8 @@ var DemoStudents = []DemoStudent{
 // room: that pairing is what makes the shared open-room view demonstrable
 // (#3065) — several offerings in one open room, each child listed once. Moving
 // either of them to a different room would quietly remove the only place in
-// the demo where that can be seen.
+// the demo where that can be seen. The full-day simulation also runs a planned
+// block there, which gives the room page its block sections (#3281).
 var DemoActivities = []DemoActivity{
 	{Name: "Hausaufgaben", DefaultRoom: "OGS-Raum 1", DurationMins: 60},
 	{Name: "Fußball", DefaultRoom: "Sporthalle", DurationMins: 90},

@@ -116,6 +116,11 @@ type mockOperationsService struct {
 	timetableplanning.TimetableOperationsService
 	plannedNowFn     func(timezone.Date, time.Time, timetableplanning.PlannedNowOptions) ([]timetableplanning.OperationPlannedInstance, error)
 	activeSessionsFn func(timezone.Date) ([]timetableplanning.OperationActiveSession, error)
+	sessionBlocksFn  func(int64, bool, timezone.Date, map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error)
+}
+
+func (m *mockOperationsService) SessionBlocks(_ context.Context, accountID int64, isAdmin bool, day timezone.Date, supervisors map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error) {
+	return m.sessionBlocksFn(accountID, isAdmin, day, supervisors)
 }
 
 func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, day timezone.Date, now time.Time, opts timetableplanning.PlannedNowOptions) ([]timetableplanning.OperationPlannedInstance, error) {
@@ -563,6 +568,13 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
 			return []timetableplanning.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, nil
 		},
+		sessionBlocksFn: func(accountID int64, isAdmin bool, day timezone.Date, supervisors map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error) {
+			assert.Equal(t, int64(70), accountID)
+			assert.True(t, isAdmin)
+			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
+			assert.Equal(t, map[int64][]int64{88: {7}}, supervisors)
+			return []timetableplanning.OperationSessionBlock{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00", IsAssigned: true, CanOperate: true}}, nil
+		},
 	}
 	s := schedule{operations: operations}
 
@@ -576,7 +588,13 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 	require.NoError(t, err)
 	assertSameJSON(t, []timetableplanning.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, sessions)
 
+	blocks, err := s.SessionBlocks(ctx, supervisiondashboard.SessionBlocksQuery{AccountID: 70, TokenAdmin: true, Date: "2026-08-19", Supervisors: map[int64][]int64{88: {7}}})
+	require.NoError(t, err)
+	assertSameJSON(t, []timetableplanning.OperationSessionBlock{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00", IsAssigned: true, CanOperate: true}}, blocks)
+
 	_, err = s.PlannedNow(ctx, supervisiondashboard.PlannedNowQuery{Date: "today"})
+	require.Error(t, err)
+	_, err = s.SessionBlocks(ctx, supervisiondashboard.SessionBlocksQuery{Date: "today"})
 	require.Error(t, err)
 }
 

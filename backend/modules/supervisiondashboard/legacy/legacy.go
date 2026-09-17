@@ -378,6 +378,28 @@ func (s schedule) ActiveSessions(ctx context.Context, date supervisiondashboard.
 	}), nil
 }
 
+func (s schedule) SessionBlocks(ctx context.Context, query supervisiondashboard.SessionBlocksQuery) ([]supervisiondashboard.SessionBlock, error) {
+	day, err := parseDay(query.Date)
+	if err != nil {
+		return nil, err
+	}
+	blocks, err := s.operations.SessionBlocks(ctx, query.AccountID, query.TokenAdmin, day, query.Supervisors)
+	if err != nil {
+		return nil, err
+	}
+	return mapSlice(blocks, func(block timetableplanning.OperationSessionBlock) supervisiondashboard.SessionBlock {
+		return supervisiondashboard.SessionBlock{
+			ActiveGroupID: block.ActiveGroupID,
+			InstanceID:    block.InstanceID,
+			Title:         block.Title,
+			StartTime:     block.StartTime,
+			EndTime:       block.EndTime,
+			IsAssigned:    block.IsAssigned,
+			CanOperate:    block.CanOperate,
+		}
+	}), nil
+}
+
 func plannedInstance(instance timetableplanning.OperationPlannedInstance) supervisiondashboard.PlannedInstance {
 	return supervisiondashboard.PlannedInstance{
 		ID:                    instance.ID,

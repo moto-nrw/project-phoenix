@@ -1365,6 +1365,12 @@ func (s *fakeOperationsService) EarliestPlannedBlockStartForClass(context.Contex
 	return "", s.err
 }
 
+// SessionBlocks serves the supervision projection (#3281); no handler in this
+// package calls it.
+func (s *fakeOperationsService) SessionBlocks(context.Context, int64, bool, timezone.Date, map[int64][]int64) ([]timetableplanning.OperationSessionBlock, error) {
+	return nil, s.err
+}
+
 func operationRouter(method, path string, handler http.HandlerFunc) chi.Router {
 	router := chi.NewRouter()
 	router.Use(render.SetContentType(render.ContentTypeJSON))

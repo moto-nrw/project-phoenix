@@ -386,6 +386,116 @@ describe("GET /api/active-supervision-dashboard", () => {
     });
   });
 
+  it("maps a released room's sessions with the block behind each (#3281)", async () => {
+    mockApiGet.mockResolvedValueOnce({
+      data: {
+        ...emptyWire,
+        open_rooms: [
+          {
+            room_id: "30",
+            name: "Schulhof",
+            is_user_supervising: true,
+            active_group_ids: ["41", "42", "43"],
+            has_occupying_session: true,
+            student_count: 2,
+            students: [],
+            sessions: [
+              {
+                active_group_id: "41",
+                title: "Fußball",
+                independent: false,
+                is_user_supervising: false,
+                can_assign: false,
+                student_count: 1,
+                block: {
+                  instance_id: "510",
+                  start_time: "13:00",
+                  end_time: "14:00",
+                  is_user_assigned: true,
+                  can_operate: true,
+                },
+              },
+              {
+                active_group_id: "42",
+                title: "Schulhof Freispiel",
+                independent: false,
+                is_user_supervising: true,
+                can_assign: true,
+                student_count: 0,
+                block: null,
+              },
+              {
+                active_group_id: "43",
+                title: "",
+                independent: true,
+                is_user_supervising: false,
+                can_assign: false,
+                student_count: 1,
+              },
+            ],
+          },
+          // An older backend ships no sessions at all.
+          {
+            room_id: "31",
+            name: "Sporthalle",
+            is_user_supervising: false,
+            active_group_ids: [],
+            student_count: 0,
+            students: [],
+          },
+        ],
+      },
+    });
+
+    const response = await GET(
+      createMockRequest("/api/active-supervision-dashboard"),
+      createMockContext(),
+    );
+    expect(response.status).toBe(200);
+    const json = await parseJsonResponse<
+      ApiResponse<{
+        openRooms: Array<{ roomId: string; sessions: unknown[] }>;
+      }>
+    >(response);
+
+    expect(json.data.openRooms[0]?.sessions).toEqual([
+      {
+        activeGroupId: "41",
+        title: "Fußball",
+        independent: false,
+        isUserSupervising: false,
+        canAssign: false,
+        studentCount: 1,
+        block: {
+          instanceId: "510",
+          startTime: "13:00",
+          endTime: "14:00",
+          isUserAssigned: true,
+          canOperate: true,
+        },
+      },
+      {
+        activeGroupId: "42",
+        title: "Schulhof Freispiel",
+        independent: false,
+        isUserSupervising: true,
+        canAssign: true,
+        studentCount: 0,
+        block: null,
+      },
+      {
+        activeGroupId: "43",
+        title: "",
+        independent: true,
+        isUserSupervising: false,
+        canAssign: false,
+        studentCount: 1,
+        block: null,
+      },
+    ]);
+    expect(json.data.openRooms[1]?.sessions).toEqual([]);
+  });
+
   it("propagates backend errors instead of degrading to empty sections", async () => {
     mockApiGet.mockRejectedValueOnce(new Error("API error (403): forbidden"));
 
