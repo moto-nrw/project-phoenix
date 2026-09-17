@@ -69,6 +69,173 @@ export interface OpenRoomView {
   readonly hasOccupyingSession?: boolean;
   readonly studentCount: number;
   readonly students: readonly VisitDisplayLike[];
+  /**
+   * Every session running in the room, in start order (#3281). A payload
+   * from an older backend carries none; the room then shows its children
+   * without sections.
+   */
+  readonly sessions?: readonly OpenRoomSessionView[];
+}
+
+/**
+ * One session running in a released room. Its children are the room's
+ * students with this `activeGroupId`; `studentCount` counts them.
+ */
+export interface OpenRoomSessionView {
+  readonly activeGroupId: string;
+  /** Empty for the room's own session of independent stays. */
+  readonly title: string;
+  readonly independent: boolean;
+  readonly isUserSupervising: boolean;
+  /** The caller may add supervisors to the session (#2806). */
+  readonly canAssign: boolean;
+  readonly studentCount: number;
+  /**
+   * The timetable block running in the session. Null for a kiosk session,
+   * the room's own session, and callers who may not read schedules.
+   */
+  readonly block: OpenRoomBlockView | null;
+}
+
+interface OpenRoomBlockView {
+  readonly instanceId: string;
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly isUserAssigned: boolean;
+  readonly canOperate: boolean;
+}
+
+interface OpenRoomSectionBase {
+  readonly key: string;
+  /** Own sections open expanded; the others start collapsed. */
+  readonly isOwn: boolean;
+  /** The session „Betreuer hinzufügen“ targets, when exactly one qualifies. */
+  readonly assignableSessionId: string | null;
+}
+
+/** A running block with its roster (#3281). */
+export interface OpenRoomBlockSection extends OpenRoomSectionBase {
+  readonly kind: "block";
+  readonly session: OpenRoomSessionView;
+  readonly block: OpenRoomBlockView;
+}
+
+/**
+ * Children in the room outside every block, read-only: one kiosk session,
+ * or all independent stays together („Ohne Angebot“).
+ */
+export interface OpenRoomOccupancySection extends OpenRoomSectionBase {
+  readonly kind: "occupancy";
+  readonly title: string;
+  readonly independent: boolean;
+  readonly activeGroupIds: readonly string[];
+  readonly studentCount: number;
+}
+
+export type OpenRoomSection = OpenRoomBlockSection | OpenRoomOccupancySection;
+
+/** The one session of `sessions` the caller may add supervisors to, if exactly one. */
+function onlyAssignableSession(
+  sessions: readonly OpenRoomSessionView[],
+): string | null {
+  const assignable = sessions.filter((session) => session.canAssign);
+  return assignable.length === 1
+    ? (assignable[0]?.activeGroupId ?? null)
+    : null;
+}
+
+/**
+ * The sections of a released room's page (ADR 0019, point 3): one per running
+ * block, the caller's own blocks first, then one per other session, then the
+ * independent stays. A block is the caller's own when they are planned on it
+ * or supervise it. Null when no block runs: the room then keeps its plain
+ * view of every child, which is what kiosk schools use.
+ */
+export function openRoomSections(
+  room: Pick<OpenRoomView, "sessions">,
+): OpenRoomSection[] | null {
+  const sessions = room.sessions ?? [];
+  if (!sessions.some((session) => session.block !== null)) return null;
+
+  const own: OpenRoomSection[] = [];
+  const foreign: OpenRoomSection[] = [];
+  const others: OpenRoomSection[] = [];
+  const stays: OpenRoomSessionView[] = [];
+  for (const session of sessions) {
+    if (session.block) {
+      const isOwn = session.isUserSupervising || session.block.isUserAssigned;
+      (isOwn ? own : foreign).push({
+        kind: "block",
+        key: `block:${session.activeGroupId}`,
+        session,
+        block: session.block,
+        isOwn,
+        assignableSessionId: session.canAssign ? session.activeGroupId : null,
+      });
+    } else if (session.independent) {
+      stays.push(session);
+    } else {
+      others.push({
+        kind: "occupancy",
+        key: `session:${session.activeGroupId}`,
+        title: session.title,
+        independent: false,
+        activeGroupIds: [session.activeGroupId],
+        studentCount: session.studentCount,
+        isOwn: session.isUserSupervising,
+        assignableSessionId: session.canAssign ? session.activeGroupId : null,
+      });
+    }
+  }
+
+  const stayCount = stays.reduce((sum, stay) => sum + stay.studentCount, 0);
+  const staySection: OpenRoomSection[] =
+    stayCount > 0
+      ? [
+          {
+            kind: "occupancy",
+            key: "independent",
+            title: "",
+            independent: true,
+            activeGroupIds: stays.map((stay) => stay.activeGroupId),
+            studentCount: stayCount,
+            isOwn: stays.some((stay) => stay.isUserSupervising),
+            assignableSessionId: onlyAssignableSession(stays),
+          },
+        ]
+      : [];
+  return [...own, ...foreign, ...others, ...staySection];
+}
+
+/** Whether one of the room page's blocks is the caller's own. */
+export function hasOwnBlock(
+  sections: readonly OpenRoomSection[] | null,
+): boolean {
+  return (
+    sections?.some((section) => section.kind === "block" && section.isOwn) ??
+    false
+  );
+}
+
+/**
+ * Whether the Schulhof head actions („Beaufsichtigen“, „Aufsicht abgeben“,
+ * #2161) may act on the session the Schulhof status names. They belong to
+ * the yard's own supervision (ADR 0019, point 3). The status names the
+ * caller's or the newest session in the yard, which can be a running block:
+ * that block has its own section with its own controls, and the head must
+ * neither claim nor release it.
+ */
+export function schulhofHeadActionsApply(
+  sections: readonly OpenRoomSection[] | null,
+  schulhofActiveGroupId: string | null,
+): boolean {
+  return !(
+    sections?.some(
+      (section) =>
+        section.kind === "block" &&
+        section.session.activeGroupId === schulhofActiveGroupId,
+    ) ?? false
+  );
 }
 
 export type SupervisionSelectionTarget =
@@ -239,81 +406,6 @@ export function occupiedRoomIdsForSpontaneousStart(options: {
   return ids;
 }
 
-/**
- * Selects the caller's session to retain while opening a shared room.
- *
- * A previously selected session is only meaningful in the target room. This
- * keeps the roster after starting that exact session, while preventing its
- * controls from leaking into another shared room.
- */
-export function openRoomSessionSelection(options: {
-  readonly roomId: string;
-  readonly preferredSessionId: string | undefined;
-  readonly selectedSessionId: string | null;
-  readonly rooms: readonly ActiveSupervisionRoom[];
-}): { sessionId: string | null; keepsTimetableInstance: boolean } {
-  const sessionId = options.preferredSessionId ?? options.selectedSessionId;
-  const sessionRunsInRoom =
-    sessionId !== null &&
-    options.rooms.some(
-      (room) => room.id === sessionId && room.room_id === options.roomId,
-    );
-
-  return {
-    sessionId: sessionRunsInRoom ? sessionId : null,
-    // A URL can name the session while an unrelated instance is still in
-    // memory. Only retain an instance that was already selected in this room.
-    keepsTimetableInstance:
-      sessionRunsInRoom && options.selectedSessionId === sessionId,
-  };
-}
-
-/**
- * The session whose roster stays actionable while a released room is
- * selected, without turning the room back into a session-keyed navigation
- * entry.
- *
- * The caller's own session wins. Schools run several timetable blocks side
- * by side in the released Schulhof, and the merged room occupancy carries no
- * check-in actions — so binding nothing there hid the block a caregiver had
- * just started and stopped every check-in. `rooms` is the dashboard's full
- * session list; `isCurrentUserSupervising` is the load-bearing filter, because
- * a caller with the school-wide overview sees foreign sessions in it too.
- * The own sessions are not intersected with `activeGroupIds`: the released
- * room payload can lag behind `supervisedGroups` for a block started a moment
- * ago, and that block is exactly the one to keep.
- *
- * Without an own session the room stays the identity: one offering is
- * unambiguous, several are not (#3065). With several own sessions an explicit
- * `?session=` / restored selection decides; otherwise the merged view stays.
- */
-export function openRoomRosterActiveGroupId(options: {
-  readonly currentOpenRoom: OpenRoomView | null;
-  readonly rooms: readonly ActiveSupervisionRoom[];
-  readonly selectedSessionId: string | null;
-}): string | null {
-  const { currentOpenRoom, rooms, selectedSessionId } = options;
-  if (!currentOpenRoom?.isUserSupervising) return null;
-
-  const own = rooms
-    .filter(
-      (room) =>
-        room.isCurrentUserSupervising === true &&
-        room.room_id === currentOpenRoom.roomId,
-    )
-    .map((room) => room.id);
-
-  if (own.length === 0) {
-    return currentOpenRoom.activeGroupIds.length === 1
-      ? (currentOpenRoom.activeGroupIds[0] ?? null)
-      : null;
-  }
-  if (selectedSessionId && own.includes(selectedSessionId)) {
-    return selectedSessionId;
-  }
-  return own.length === 1 ? (own[0] ?? null) : null;
-}
-
 export interface VisitDisplayLike {
   studentId: string;
   studentName?: string;
@@ -420,21 +512,22 @@ export function supervisionTabLabel(
 }
 
 /**
- * The session a further supervisor would be added to (#2806), or null when
- * there is no unambiguous one.
+ * The session the head action „Betreuer hinzufügen“ adds a supervisor to
+ * (#2806), or null when there is no unambiguous one.
  *
- * In a shared room that is the caller's own single session there. With several
- * sessions running, none of them is "the" supervision of the room, so the
- * screen offers nothing rather than picking one.
+ * A released room with blocks offers the action per section instead
+ * (#3281). Without blocks the head targets the one session there the caller
+ * may assign; with several, none of them is "the" supervision of the room, so
+ * the screen offers nothing rather than picking one.
  */
 export function additionalSupervisionTarget(options: {
   readonly currentRoom: ActiveSupervisionRoom | null;
   readonly currentOpenRoom: OpenRoomView | null;
 }): string | null {
-  if (options.currentOpenRoom) {
-    const { isUserSupervising, activeGroupIds } = options.currentOpenRoom;
-    if (!isUserSupervising || activeGroupIds.length !== 1) return null;
-    return activeGroupIds[0] ?? null;
+  const { currentOpenRoom } = options;
+  if (currentOpenRoom) {
+    if (openRoomSections(currentOpenRoom)) return null;
+    return onlyAssignableSession(currentOpenRoom.sessions ?? []);
   }
   return options.currentRoom?.canAssign ? options.currentRoom.id : null;
 }

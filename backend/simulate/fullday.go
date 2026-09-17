@@ -570,18 +570,8 @@ func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
 		return nil
 	}
 
-	// Children below the midday checkout range stay checked in; the first ones
-	// placed outside the Sporthalle are moved.
-	studentIDs := make([]int64, 0, independentRoomStayCount)
-	for i := 0; i < 75 && i < fullDayCheckinLimit && i < len(rt.State.Students); i++ {
-		if rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)] == sporthalle {
-			continue
-		}
-		studentIDs = append(studentIDs, rt.State.Students[i].ID)
-		if len(studentIDs) == independentRoomStayCount {
-			break
-		}
-	}
+	// The first children placed outside the Sporthalle are moved.
+	studentIDs := checkedInChildrenOutside(rt, sporthalle, 0, independentRoomStayCount)
 	if len(studentIDs) == 0 {
 		fmt.Println("  Skipped: every checked-in child is already in the Sporthalle")
 		return nil
@@ -597,6 +587,131 @@ func (independentRoomStaysAction) Run(_ context.Context, rt *Runtime) error {
 
 	fmt.Printf("  %d children stay in the Sporthalle without joining football\n", rt.Counts.IndependentStays)
 	return nil
+}
+
+// checkedInChildrenOutside lists, in check-in order, up to limit children who
+// stay checked in through the day and were placed outside roomID, after
+// skipping the first skip of them. Children below the midday checkout range
+// stay checked in.
+func checkedInChildrenOutside(rt *Runtime, roomID int64, skip, limit int) []int64 {
+	ids := make([]int64, 0, limit)
+	for i := 0; i < 75 && i < fullDayCheckinLimit && i < len(rt.State.Students) && len(rt.ActiveRoomIDs) > 0; i++ {
+		if rt.ActiveRoomIDs[i%len(rt.ActiveRoomIDs)] == roomID {
+			continue
+		}
+		if skip > 0 {
+			skip--
+			continue
+		}
+		ids = append(ids, rt.State.Students[i].ID)
+		if len(ids) == limit {
+			break
+		}
+	}
+	return ids
+}
+
+// openRoomBlockTitle names the timetable block the demo runs in the released
+// Sporthalle, and openRoomBlockChildren is how many children it checks in.
+const (
+	openRoomBlockTitle    = "Turnen"
+	openRoomBlockChildren = 2
+)
+
+type openRoomBlockAction struct{}
+
+func (openRoomBlockAction) Name() string { return "run a block in a released room" }
+
+// Run plans a block for today in the released Sporthalle, starts it, and
+// checks a few children into it. The Sporthalle already holds the football
+// session and the independent stays, so its room page shows a block section
+// beside them (#3281). The first caregiver is planned on the block. There is
+// no care on weekends, so the phase skips them.
+func (openRoomBlockAction) Run(_ context.Context, rt *Runtime) error {
+	fmt.Println("\nPhase 5c: A block in a released room...")
+
+	sporthalle := rt.State.Rooms["Sporthalle"]
+	betreuer := rt.State.Accounts.Betreuer
+	if sporthalle == 0 || len(betreuer) == 0 || betreuer[0].StaffID == 0 {
+		fmt.Println("  Skipped: no Sporthalle or no caregiver in this profile")
+		return nil
+	}
+	berlin, err := time.LoadLocation("Europe/Berlin")
+	if err != nil {
+		return fmt.Errorf("load Berlin time zone: %w", err)
+	}
+	today := rt.Options.now().In(berlin)
+	if today.Weekday() == time.Saturday || today.Weekday() == time.Sunday {
+		fmt.Println("  Skipped: no care day on weekends")
+		return nil
+	}
+	studentIDs := checkedInChildrenOutside(rt, sporthalle, independentRoomStayCount, openRoomBlockChildren)
+	if len(studentIDs) == 0 {
+		fmt.Println("  Skipped: no checked-in child left outside the Sporthalle")
+		return nil
+	}
+
+	created, err := rt.Client.Post("/api/timetable/instances", map[string]any{
+		"date":        today.Format(isoDate),
+		"start_time":  "14:00",
+		"end_time":    "15:30",
+		"title":       openRoomBlockTitle,
+		"room_id":     sporthalle,
+		"staff_ids":   []int64{betreuer[0].StaffID},
+		"student_ids": studentIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("plan the block in the released Sporthalle: %w", err)
+	}
+	instanceID, err := responseDataID(created)
+	if err != nil {
+		return fmt.Errorf("parse the planned block: %w", err)
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/start", instanceID), nil); err != nil {
+		return fmt.Errorf("start the block in the released Sporthalle: %w", err)
+	}
+	rt.OpenRoomBlockInstanceID = instanceID
+	for _, studentID := range studentIDs {
+		path := fmt.Sprintf("/api/timetable/operations/instances/%d/students/%d/check-in", instanceID, studentID)
+		if _, err := rt.Client.Post(path, nil); err != nil {
+			return fmt.Errorf("check student %d into the block: %w", studentID, err)
+		}
+		rt.Counts.OpenRoomBlockChildren++
+	}
+
+	fmt.Printf("  %s runs in the Sporthalle with %d children\n", openRoomBlockTitle, rt.Counts.OpenRoomBlockChildren)
+	return nil
+}
+
+// completeOpenRoomBlock ends the block the full-day run started, once its
+// children have gone home.
+func completeOpenRoomBlock(rt *Runtime) error {
+	if rt.OpenRoomBlockInstanceID == 0 {
+		return nil
+	}
+	if _, err := rt.Client.Post(fmt.Sprintf("/api/timetable/instances/%d/complete", rt.OpenRoomBlockInstanceID), nil); err != nil {
+		return fmt.Errorf("complete the block in the released Sporthalle: %w", err)
+	}
+	rt.OpenRoomBlockInstanceID = 0
+	return nil
+}
+
+// responseDataID reads data.id of an API envelope, which the API writes as a
+// number or a string.
+func responseDataID(raw []byte) (int64, error) {
+	var envelope struct {
+		Data struct {
+			ID json.Number `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return 0, err
+	}
+	id, err := envelope.Data.ID.Int64()
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("invalid id %q", envelope.Data.ID)
+	}
+	return id, nil
 }
 
 type endOfDayAction struct{}
@@ -649,6 +764,9 @@ func (endOfDayAction) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Printf("  %d daily checkouts, %d feedback submitted\n", rt.Counts.DailyCheckouts, rt.Counts.FeedbackSubmitted)
 
+	if err := completeOpenRoomBlock(rt); err != nil {
+		return err
+	}
 	if err := endActiveSessions(rt); err != nil {
 		return err
 	}
@@ -693,6 +811,7 @@ func (printSummaryAction) Run(_ context.Context, rt *Runtime) error {
 	fmt.Printf("  Students sick:       %d\n", rt.Counts.StudentsSick)
 	fmt.Printf("  Students checked out:%d\n", rt.Counts.StudentsCheckedOut)
 	fmt.Printf("  Independent stays:  %d\n", rt.Counts.IndependentStays)
+	fmt.Printf("  Open-room block:    %d children\n", rt.Counts.OpenRoomBlockChildren)
 	if rt.Options.Close {
 		fmt.Printf("  Feedback submitted:  %d\n", rt.Counts.FeedbackSubmitted)
 		fmt.Println("  End-of-day:          completed")
@@ -711,6 +830,7 @@ func fullDayScenario(close bool) Scenario {
 		recordAttendanceAction{},
 		middayActivityAction{},
 		independentRoomStaysAction{},
+		openRoomBlockAction{},
 	}
 	if close {
 		actions = append(actions, endOfDayAction{})
