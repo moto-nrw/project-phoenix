@@ -243,6 +243,102 @@ describe("RolePermissionsTab", () => {
     ).toBeInTheDocument();
   });
 
+  it("starts the draft at the saved state again after cancelling", async () => {
+    const { rerender } = render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    await screen.findByText("1 von 3 Berechtigungen ausgewählt.");
+
+    fireEvent.click(screen.getByLabelText("rooms:read"));
+    expect(
+      screen.getByText("2 von 3 Berechtigungen ausgewählt."),
+    ).toBeInTheDocument();
+
+    // Abbrechen: der Aufrufer beendet den Bearbeiten-Zustand.
+    rerender(
+      <RolePermissionsTab
+        role={role}
+        editing={false}
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    await screen.findByText("1 Berechtigungen zugewiesen.");
+
+    rerender(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    expect(
+      await screen.findByText("1 von 3 Berechtigungen ausgewählt."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("rooms:read")).not.toBeChecked();
+  });
+
+  it("keeps a click that lands while the permissions load commits", async () => {
+    let resolveAssigned: (permissions: Permission[]) => void = () => undefined;
+    mockGetRolePermissions.mockImplementationOnce(
+      () =>
+        new Promise<Permission[]>((resolve) => {
+          resolveAssigned = resolve;
+        }),
+    );
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+
+    // Ein MutationObserver feuert als Microtask direkt nach dem Commit, der
+    // die Liste einsetzt, also vor den passiven Effekten desselben Commits.
+    // Genau in diesem Fenster landete der Klick, den der Reset-Effekt auf CI
+    // verworfen hat (#3346).
+    const clicked = new Promise<void>((resolve) => {
+      const observer = new MutationObserver(() => {
+        const groupToggle = screen.queryByLabelText<HTMLInputElement>(
+          "Alle Berechtigungen für students auswählen",
+        );
+        if (!groupToggle) return;
+        observer.disconnect();
+        groupToggle.click();
+        resolve();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+    });
+
+    // Nur ausserhalb von act behält React diese Reihenfolge: act zieht Commit
+    // und passive Effekte zusammen, der Klick käme also nie dazwischen.
+    const actEnvironment = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
+    try {
+      resolveAssigned([allPermissions[0]!]);
+      await clicked;
+    } finally {
+      actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    }
+    // Zieht die passiven Effekte des Commits nach, die den Klick verworfen
+    // haben.
+    await act(async () => undefined);
+
+    expect(
+      screen.getByText("2 von 3 Berechtigungen ausgewählt."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("students:update")).toBeChecked();
+  });
+
   it("shows the save error in the alert and keeps the draft", async () => {
     mockReplaceRolePermissions.mockRejectedValueOnce(new Error("offline"));
     render(
