@@ -529,6 +529,58 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 		"approval must link the child")
 }
 
+// A request awaiting a staff decision holds a token nobody may spend: the
+// public preview and acceptance refuse it, and a resend never mails it out,
+// so staff approval stays the only way to hand that link over.
+func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *testing.T) {
+	t.Parallel()
+
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
+	})
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Frozen", "Token", "4g")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("frozen-token-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.Ctx(t)
+	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+	require.Empty(t, outbox.requests, "a queued request mails nothing before staff decide")
+
+	invitation, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
+	require.NoError(t, err)
+
+	_, err = env.service.Validate(context.Background(), invitation.Token)
+	require.ErrorIs(t, err, authService.ErrInvitationNotFound)
+
+	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+		Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+	})
+	require.ErrorIs(t, err, authService.ErrInvitationNotFound)
+
+	require.Error(t, env.service.Resend(ctx, invitation.ID, creatorID))
+	assert.Empty(t, outbox.requests, "the frozen token must not be mailed out by a resend")
+
+	// Staff approval is what releases it.
+	require.NoError(t, env.service.ApproveInvitation(ctx, invitation.ID, creatorID))
+	require.Len(t, outbox.requests, 1)
+	preview, err := env.service.Validate(context.Background(), invitation.Token)
+	require.NoError(t, err)
+	assert.Equal(t, email, preview.Email)
+}
+
 func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	t.Parallel()
 
