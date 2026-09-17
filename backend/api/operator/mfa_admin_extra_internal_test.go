@@ -64,8 +64,8 @@ func reqWithSchoolAccount(t *testing.T, method, schoolID, accountID string, body
 	return r.WithContext(ctx)
 }
 
-func provisioningResourceFor(mfa authSvc.MFAService) *ProvisioningResource {
-	return &ProvisioningResource{
+func provisioningResourceFor(mfa authSvc.MFAService) *SchoolAccountMFAResource {
+	return &SchoolAccountMFAResource{
 		TenantMFAService: mfa,
 	}
 }
