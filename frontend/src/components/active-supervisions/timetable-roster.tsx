@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { UserPlus } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
@@ -529,6 +529,8 @@ interface TimetableRosterHeaderProps {
     readonly unplanned: number;
   };
   readonly note?: string;
+  readonly extraActions?: ReactNode;
+  readonly toggle?: ReactNode;
   /** Öffnet den Dialog „Kind ungeplant hinzufügen“; fehlt ohne das Recht. */
   readonly onAddStudent?: () => void;
   readonly onComplete: () => Promise<void>;
@@ -546,6 +548,8 @@ function TimetableRosterHeader({
   showTimetableCounts,
   summary,
   note,
+  extraActions,
+  toggle,
   onAddStudent,
   onComplete,
   onConfirmExpected,
@@ -569,7 +573,10 @@ function TimetableRosterHeader({
 
   return (
     <div className="moto-content-surface overflow-hidden rounded-2xl border border-gray-200 shadow-sm backdrop-blur-md">
-      <div className="flex flex-col gap-3 border-b border-gray-100 p-4 sm:flex-row sm:items-center sm:justify-between">
+      {/* Auf dem Telefon steht der Einklapp-Pfeil neben dem Titel und die
+          Knöpfe darunter; ab sm steht der Pfeil hinter den Knöpfen, wie in
+          der eingeklappten Karte. */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-gray-100 p-4 sm:flex">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100">
             <MotoConceptIcon concept="present" size={18} />
@@ -597,7 +604,9 @@ function TimetableRosterHeader({
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2 sm:justify-end">
+        {toggle ? <div className="sm:order-last">{toggle}</div> : null}
+        <div className="col-span-2 flex flex-wrap gap-2 sm:ml-auto sm:justify-end">
+          {extraActions}
           {attendanceWebEnabled && onAddStudent ? (
             <Button
               type="button"
@@ -840,6 +849,13 @@ interface TimetableRosterContentProps {
    * zwischen den Karten liegt sonst auf dem nackten Seitenhintergrund.
    */
   readonly headerNote?: string;
+  /** Weitere Knöpfe vor den Aktionen der Kopfkarte, z. B. „Betreuer hinzufügen“. */
+  readonly headerActions?: ReactNode;
+  /**
+   * Einklapp-Pfeil der Kopfkarte, wenn die Liste ein Abschnitt einer Seite
+   * mit mehreren Blöcken ist (#3281).
+   */
+  readonly headerToggle?: ReactNode;
   readonly onAddStudent: (studentId: string) => Promise<boolean>;
   readonly onComplete: () => Promise<void>;
   readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
@@ -869,6 +885,8 @@ export function TimetableRosterContent({
   showTimetableCounts,
   canAddUnplanned = true,
   headerNote,
+  headerActions,
+  headerToggle,
   onAddStudent,
   onComplete,
   onConfirmExpected,
@@ -1016,6 +1034,8 @@ export function TimetableRosterContent({
         roster={roster}
         showTimetableCounts={showTimetableCounts}
         note={note}
+        extraActions={headerActions}
+        toggle={headerToggle}
         onAddStudent={
           canAddUnplanned ? () => setAddStudentOpen(true) : undefined
         }
