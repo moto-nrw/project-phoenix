@@ -248,7 +248,7 @@ func (s *decisionService) reconcileSourcedInstanceRosters(
 
 // SourcedInstanceRosterReconciler propagates sourced-roster changes onto
 // already-materialized future timetable occurrences (#2147 review).
-// Implemented by services/schedule.RosterReconciler; injected here to avoid
+// Implemented by timetableplanning.RosterReconciler; injected here to avoid
 // widening the decision service's repo surface. priorEnrollments is the
 // template's enrollment state before the caller's writes (nil = coverage is
 // being established from scratch); see the implementation's doc for how it

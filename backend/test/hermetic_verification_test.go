@@ -530,7 +530,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupOverviewAPI",               // api/staff overview/export tests (#1417) — wraps setupTestContext
 		"newTransitionFixture",           // services/education grade-transition workflow tests — wraps SetupTestDB
 		"buildLifecycle",                 // modules/timetable/legacy/timetableplanning instance-lifecycle tests — wraps SetupTestDB
-		"newCareFixture",                 // services/schedule care-request tests — wraps SetupTestDB
+		"newCareFixture",                 // modules/careplan/legacy/careschedule care-request tests — wraps SetupTestDB
 		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 	}
 
@@ -561,15 +561,15 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 
 		// Skip files that reference DB types but don't perform real DB operations
 		skipFiles := []string{
-			"http_middleware_test.go",                           // Uses nil *bun.DB for unit testing middleware
-			"parent_message_hooks_test.go",                      // Pure base.Model accessor unit test; no real DB
-			"parent_announcement_model_test.go",                 // Pure validator/derivation unit tests; no real DB
-			"role_management_internal_test.go",                  // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
-			"database/repositories/schedule/created_by_test.go", // Shared fixture helper; caller tests own DB setup
-			"test/architecture_ratchet_test.go",                 // Source-scanning ratchet; regex literals look like DB ops but no DB is used
-			"test/handler_layer_ratchet_test.go",                // Source-scanning ratchet (issue #584); same as above, no DB is used
-			"api/timetable/timetable_data_test_helpers_test.go", // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
-			"services/messaging/apply_export_internal_test.go",  // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
+			"http_middleware_test.go",                                      // Uses nil *bun.DB for unit testing middleware
+			"parent_message_hooks_test.go",                                 // Pure base.Model accessor unit test; no real DB
+			"parent_announcement_model_test.go",                            // Pure validator/derivation unit tests; no real DB
+			"role_management_internal_test.go",                             // Uses hand-rolled stub repos injected via repositories.Factory, no real DB
+			"modules/timetable/legacy/timetablesqltest/created_by_test.go", // Shared fixture helper; caller tests own DB setup
+			"test/architecture_ratchet_test.go",                            // Source-scanning ratchet; regex literals look like DB ops but no DB is used
+			"test/handler_layer_ratchet_test.go",                           // Source-scanning ratchet (issue #584); same as above, no DB is used
+			"api/timetable/timetable_data_test_helpers_test.go",            // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
+			"services/messaging/apply_export_internal_test.go",             // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
 		}
 		skip := false
 		for _, sf := range skipFiles {

@@ -27,6 +27,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
@@ -84,7 +85,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/services/platform"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -171,11 +171,11 @@ type Factory struct {
 	StaffScheduleOverview     shiftplanning.StaffScheduleOverviewGetter
 	ShiftTypes                shiftplanning.ShiftTypeService
 	PlanningTracks            timetableplanning.PlanningTrackService
-	PickupSchedule            schedule.PickupScheduleService
-	PartialAbsence            schedule.PartialAbsenceService
-	ArrivalSchedule           schedule.ArrivalScheduleService
+	PickupSchedule            careschedule.PickupScheduleService
+	PartialAbsence            careschedule.PartialAbsenceService
+	ArrivalSchedule           careschedule.ArrivalScheduleService
 	CalendarPeriod            timetableplanning.CalendarPeriodService
-	CareDay                   schedule.CareDayService
+	CareDay                   careschedule.CareDayService
 	TimetableBridge           *timetableplanning.TimetableBridgeService
 	Materialization           timetableplanning.MaterializationService
 	TemplateSplit             *timetableplanning.TemplateSplitService
@@ -232,7 +232,7 @@ type Factory struct {
 	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
-	CareRequests         schedule.CareScheduleRequestService
+	CareRequests         careschedule.CareScheduleRequestService
 	// OfferingChanges is the post-enrollment offering change-request lifecycle
 	// (#1665), shared by the parents portal and the staff review queue.
 	OfferingChanges   enrollment.OfferingChangeRequestService
@@ -1057,7 +1057,7 @@ func newFactory(
 		logger.With("service", "attendance-sync"),
 	)
 	approvedOfferingProjection := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
-	pickupBaselines := schedule.NewPickupBaselineServiceWithSettings(
+	pickupBaselines := careschedule.NewPickupBaselineServiceWithSettings(
 		repos.StudentPickupSchedule,
 		approvedOfferingProjection,
 		repos.CareOffering,
@@ -1067,7 +1067,7 @@ func newFactory(
 	// with enrollment.bookings_authoritative on, the approved bookings supply
 	// the care days (#2414, ADR 0005). The care-day resolver reads through it
 	// so a stale row on an unbooked weekday stops marking a child expected.
-	arrivalBaselines := schedule.NewArrivalBaselineService(
+	arrivalBaselines := careschedule.NewArrivalBaselineService(
 		repos.StudentArrivalSchedule,
 		repos.Student,
 		repos.ClassArrivalTime,
@@ -1082,7 +1082,7 @@ func newFactory(
 	// (instance lifecycle, operations roster, weekly planner, scheduler).
 	// Built here, ahead of the active service, because the timetable bridge
 	// below needs it and the active service needs the bridge.
-	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+	careDayService := careschedule.NewCareDayService(careschedule.CareDayDependencies{
 		ArrivalBaselines:  arrivalBaselines,
 		ArrivalSchedules:  repos.StudentArrivalSchedule,
 		ArrivalExceptions: repos.StudentArrivalException,
@@ -1315,7 +1315,7 @@ func newFactory(
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
 	// parent care-exception writers so both derive the same state.
-	pickupAutoExcusal := schedule.NewPickupAutoExcusalSyncer(
+	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
 		pickupBaselines,
 		repos.InstanceStudent,
@@ -1323,7 +1323,7 @@ func newFactory(
 	)
 
 	// Initialize pickup schedule service
-	pickupScheduleService := schedule.NewPickupScheduleServiceWithBulk(
+	pickupScheduleService := careschedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
@@ -1363,7 +1363,7 @@ func newFactory(
 	}
 	iotService := iot.NewService(deviceFleet)
 
-	partialAbsenceService := schedule.NewPartialAbsenceService(
+	partialAbsenceService := careschedule.NewPartialAbsenceService(
 		repos.StudentPickupException,
 		repos.StudentStatusDay,
 		repos.ExcusedAbsenceRequest,
@@ -1525,7 +1525,7 @@ func newFactory(
 	})
 	autoEndService := timetableplanning.NewAutoEndService(repos.ActivityInstance, instanceService)
 
-	arrivalScheduleService := schedule.NewArrivalScheduleServiceWithBaselines(
+	arrivalScheduleService := careschedule.NewArrivalScheduleServiceWithBaselines(
 		repos.StudentArrivalSchedule,
 		repos.StudentArrivalException,
 		repos.StudentArrivalNote,
@@ -1535,7 +1535,7 @@ func newFactory(
 		repos.ClassArrivalTime,
 		db,
 		logger.With("service", "arrival-schedule"),
-		schedule.WithClassArrivalExceptions(repos.ClassArrivalException),
+		careschedule.WithClassArrivalExceptions(repos.ClassArrivalException),
 	)
 
 	timetableOperationsService := timetableplanning.NewTimetableOperationsService(timetableplanning.TimetableOperationsDependencies{
@@ -2101,7 +2101,7 @@ func newFactory(
 		Logger: logger.With("service", "care_lifecycle"),
 	})
 	users.WirePersonCareParticipation(usersService, careLifecycleService)
-	schedule.WireCareParticipation(careDayService, careLifecycleService)
+	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
 		Requests:                  repos.Enrollment(),
@@ -2174,7 +2174,7 @@ func newFactory(
 		// the resync's tolerance.
 		LockPickupStudents: func(ctx context.Context, studentIDs []int64) error {
 			for _, studentID := range studentIDs {
-				if err := schedule.LockCareStudent(ctx, db, studentID); err != nil {
+				if err := careschedule.LockCareStudent(ctx, db, studentID); err != nil {
 					if errors.Is(err, sql.ErrNoRows) {
 						continue
 					}
@@ -2375,10 +2375,21 @@ func newFactory(
 	// the request rows themselves overwrite (#2267).
 	parentRequestEvents := users.NewParentRequestEventRecorder(repos.ParentRequestEvent)
 
+	// The sharing rules live in the parents domain, which is composed after the
+	// request services it serves, so the sharing port resolves that service
+	// lazily through requestShareVisibility (#2267, story 47).
+	var requestShareVisibility parentmessaging.ShareVisibilityResolver
+	requestShares := shareVisibilityFunc(func(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
+		if requestShareVisibility == nil {
+			return nil, nil
+		}
+		return requestShareVisibility.SharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
+	})
+
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := schedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequestService := careschedule.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CareScheduleChangeRequest,
 		repos.Student,
 		repos.Person,
@@ -2394,6 +2405,8 @@ func newFactory(
 		parentRequestEvents,
 		logger.With("service", "care-requests"),
 		studentAuditService,
+		careschedule.WithRequestShareVisibility(requestShares),
+		careschedule.WithCareRequestToday(today),
 	)
 
 	// Post-enrollment offering changes (#1665): the parents portal submits them,
@@ -2508,21 +2521,13 @@ func newFactory(
 	// badge and pill machinery as the care-schedule requests; on approval it
 	// writes the excused status days directly. The workflow is owned by Care
 	// Plan (#3093); this root adapts the legacy directories, the review policy,
-	// and the effect sinks. The sharing rules live in the parents domain, which
-	// is composed after the request services it serves, so the sharing port
-	// resolves that service lazily through requestShareVisibility.
-	var requestShareVisibility parentmessaging.ShareVisibilityResolver
+	// and the effect sinks. The sharing port is the lazy requestShares above.
 	excusedRequestService, err := newExcusedAbsenceRequests(excusedRequestWiring{
 		carePlan: repos.CarePlan(), students: repos.Student, persons: repos.Person,
 		scope:   parentRequestReviewScope(requestReviewPolicy),
 		emitter: pillEmitter, broadcaster: realtimeHub, events: parentRequestEvents,
 		notifier: absenceNotifier, observe: observeCarePlan,
-		shares: shareVisibilityFunc(func(ctx context.Context, studentID int64, requestType string, requestID int64) ([]int64, error) {
-			if requestShareVisibility == nil {
-				return nil, nil
-			}
-			return requestShareVisibility.SharedRecipientAccountIDs(ctx, studentID, requestType, requestID)
-		}),
+		shares: requestShares,
 		logger: logger.With("service", "excused-requests"),
 	})
 	if err != nil {
@@ -2959,14 +2964,14 @@ func newFactory(
 	// the parent explicitly shared the request with gets the full pill; every
 	// other guardian gets a neutral line with no reason and no author.
 	//
-	// Wired by setter, and deliberately AFTER all four services and
-	// parentService exist: the sharing rules live in the parents domain, and
-	// the four request domains must not import it just to ask who a request
-	// was shared with.
+	// Bound deliberately AFTER the request services and parentService exist:
+	// the sharing rules live in the parents domain, and the request domains
+	// must not import it just to ask who a request was shared with. The
+	// offering and master-data services take it by setter; the care and
+	// excused requests read it lazily through requestShares.
 	if resolver, ok := parentService.(parentmessaging.ShareVisibilityResolver); ok {
 		requestShareVisibility = resolver
 		for _, service := range []any{
-			careRequestService,
 			offeringChangeRequestService,
 			masterDataReviewService,
 		} {
@@ -3180,7 +3185,7 @@ func newFactory(
 	factory.TenantSettings = tenantSettings
 
 	// #1843 sick cascade: bound after assembly because the syncer
-	// (services/schedule) needs the schedule services while the absence
+	// (timetableplanning) needs the schedule services while the absence
 	// service is constructed long before them; the bridge resolves it per call.
 	shiftPlanSyncer = shiftplanning.NewShiftPlanSyncService(
 		staffShiftService,

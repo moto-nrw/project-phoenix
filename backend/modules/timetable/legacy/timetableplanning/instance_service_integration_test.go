@@ -39,7 +39,7 @@ import (
 )
 
 // newInstancePresence builds the Student Presence owner the instance
-// lifecycle drives (the services/schedule care tests keep their own copy).
+// lifecycle drives (the careschedule care tests keep their own copy).
 func newInstancePresence(t *testing.T, db *bun.DB) *studentpresence.Module {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})

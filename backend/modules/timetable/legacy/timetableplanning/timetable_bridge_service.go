@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 // TimetableBridgeDependencies wires the repositories behind
@@ -18,7 +18,7 @@ type TimetableBridgeDependencies struct {
 	InstanceStudents scheduleModel.InstanceStudentRepository
 	// CareDays is optional. Without it no child is spared the absent stamp,
 	// which is the behaviour that predates #1747 — never a silent skip.
-	CareDays scheduleSvc.CareDayService
+	CareDays careschedule.CareDayService
 }
 
 // TimetableBridgeService completes the schedule-side rows of active.groups that

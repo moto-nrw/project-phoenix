@@ -5,9 +5,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
@@ -42,9 +42,9 @@ func NewRemindersTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	baseline := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
-	pickup := schedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote,
-		r.Student, r.Person, schedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, baseline, r.InstanceStudent, db), baseline, db, slog.Default())
+	baseline := careschedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
+	pickup := careschedule.NewPickupScheduleServiceWithBulk(r.StudentPickupSchedule, r.StudentPickupException, r.StudentPickupNote,
+		r.Student, r.Person, careschedule.NewPickupAutoExcusalSyncer(r.StudentPickupException, baseline, r.InstanceStudent, db), baseline, db, slog.Default())
 	service := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 		Clock:        reminderClock(clocks...),
 		CurrentStaff: reminderStaffIdentity(groups.UserContext),

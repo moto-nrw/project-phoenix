@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 func TestHHMMLeavesMissingTimeEmpty(t *testing.T) {
@@ -24,13 +24,13 @@ func TestCareDayStatus(t *testing.T) {
 		hasArrival  bool
 		arrival     string
 		pickup      string
-		want        scheduleService.CareDayStatus
+		want        careschedule.CareDayStatus
 	}{
-		{name: "scheduled by arrival", hasArrival: true, arrival: "08:00", want: scheduleService.CareDayScheduled},
-		{name: "scheduled by care day without time", hasArrival: true, want: scheduleService.CareDayScheduled},
-		{name: "scheduled by pickup", pickup: "15:30", want: scheduleService.CareDayScheduled},
-		{name: "off day in existing plan", hasCarePlan: true, want: scheduleService.CareDayNotScheduled},
-		{name: "plan unknown", want: scheduleService.CareDayUnknown},
+		{name: "scheduled by arrival", hasArrival: true, arrival: "08:00", want: careschedule.CareDayScheduled},
+		{name: "scheduled by care day without time", hasArrival: true, want: careschedule.CareDayScheduled},
+		{name: "scheduled by pickup", pickup: "15:30", want: careschedule.CareDayScheduled},
+		{name: "off day in existing plan", hasCarePlan: true, want: careschedule.CareDayNotScheduled},
+		{name: "plan unknown", want: careschedule.CareDayUnknown},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

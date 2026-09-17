@@ -54,6 +54,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -122,7 +123,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 )
@@ -203,7 +203,7 @@ func NewCleanupTimetable(db *bun.DB) (timetableModule.Capability, error) {
 	if err != nil {
 		return nil, err
 	}
-	return repositories.NewTimetable(db, students, rooms, scheduleSvc.TimetableCareDayLocker(db))
+	return repositories.NewTimetable(db, students, rooms, careschedule.TimetableCareDayLocker(db))
 }
 
 func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logger, tenantRuntime apiCommon.TenantRuntime) (moduleServices, error) {
@@ -271,7 +271,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 			return err
 		},
 		CarePlan: careQueries,
-		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: scheduleSvc.TimetableCareDayLocker(db),
+		DB:       db, Students: timetableStudents(persons), Rooms: timetableRooms(rooms), CareDays: careschedule.TimetableCareDayLocker(db),
 		Observe: func(observation timetableCompose.Observation) {
 			observability.ObserveTimetableActivitiesOperation(
 				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,

@@ -7,12 +7,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -42,10 +42,10 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	pickup := schedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
-	arrival := schedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student,
+	pickup := careschedule.NewPickupBaselineServiceWithSettings(r.StudentPickupSchedule, approvedOfferings, r.CareOffering, settings.Settings)
+	arrival := careschedule.NewArrivalBaselineService(r.StudentArrivalSchedule, r.Student,
 		r.ClassArrivalTime, r.ClassArrivalException, approvedOfferings, r.CareOffering, settings.Settings)
-	careDay := schedule.NewCareDayService(schedule.CareDayDependencies{
+	careDay := careschedule.NewCareDayService(careschedule.CareDayDependencies{
 		ArrivalBaselines: arrival, ArrivalSchedules: r.StudentArrivalSchedule, ArrivalExceptions: r.StudentArrivalException,
 		PickupBaselines: pickup, PickupExceptions: r.StudentPickupException,
 	})
@@ -53,7 +53,7 @@ func NewTimetableTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	schedule.WireCareParticipation(careDay, care.CareLifecycle)
+	careschedule.WireCareParticipation(careDay, care.CareLifecycle)
 	bridge := timetableplanning.NewTimetableBridgeService(timetableplanning.TimetableBridgeDependencies{
 		Instances: r.ActivityInstance, InstanceStudents: r.InstanceStudent, CareDays: careDay,
 	})

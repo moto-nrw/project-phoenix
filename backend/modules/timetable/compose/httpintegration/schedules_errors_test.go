@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,9 +16,9 @@ import (
 func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "GetDateframe",
-		Err: scheduleSvc.ErrDateframeNotFound,
+		Err: careschedule.ErrDateframeNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -34,9 +34,9 @@ func TestSchedulesErrorRenderer_DateframeNotFound(t *testing.T) {
 func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "GetTimeframe",
-		Err: scheduleSvc.ErrTimeframeNotFound,
+		Err: careschedule.ErrTimeframeNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -52,9 +52,9 @@ func TestSchedulesErrorRenderer_TimeframeNotFound(t *testing.T) {
 func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "UpdateTimeframe",
-		Err: scheduleSvc.ErrTimeframeRequiredByCareOffering,
+		Err: careschedule.ErrTimeframeRequiredByCareOffering,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -69,9 +69,9 @@ func TestSchedulesErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
 func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "GetRecurrenceRule",
-		Err: scheduleSvc.ErrRecurrenceRuleNotFound,
+		Err: careschedule.ErrRecurrenceRuleNotFound,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -87,9 +87,9 @@ func TestSchedulesErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "ValidateDateRange",
-		Err: scheduleSvc.ErrInvalidDateRange,
+		Err: careschedule.ErrInvalidDateRange,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -105,9 +105,9 @@ func TestSchedulesErrorRenderer_InvalidDateRange(t *testing.T) {
 func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "ValidateTimeRange",
-		Err: scheduleSvc.ErrInvalidTimeRange,
+		Err: careschedule.ErrInvalidTimeRange,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -123,9 +123,9 @@ func TestSchedulesErrorRenderer_InvalidTimeRange(t *testing.T) {
 func TestSchedulesErrorRenderer_InvalidDuration(t *testing.T) {
 	t.Parallel()
 
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "ValidateDuration",
-		Err: scheduleSvc.ErrInvalidDuration,
+		Err: careschedule.ErrInvalidDuration,
 	}
 
 	renderer := schedulesAPI.SchedulesErrorRenderer(err)
@@ -154,7 +154,7 @@ func TestSchedulesErrorRenderer_UnknownScheduleError(t *testing.T) {
 
 	// ScheduleError with unknown underlying error should fall to default case
 	unknownErr := errors.New("unknown schedule error")
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "UnknownOperation",
 		Err: unknownErr,
 	}
@@ -189,7 +189,7 @@ func TestSchedulesErrorRenderer_ScheduleErrorNilUnwrap(t *testing.T) {
 	t.Parallel()
 
 	// ScheduleError with nil Err (Unwrap returns nil) should fall to default case
-	err := &scheduleSvc.ScheduleError{
+	err := &careschedule.ScheduleError{
 		Op:  "SomeOperation",
 		Err: nil,
 	}

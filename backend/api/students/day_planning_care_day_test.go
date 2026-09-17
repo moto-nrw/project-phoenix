@@ -9,20 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 // stubCareDayService returns a canned verdict per student and records the IDs
 // it was asked about.
 type stubCareDayService struct {
-	verdicts map[int64]scheduleService.CareDayStatus
+	verdicts map[int64]careschedule.CareDayStatus
 	err      error
 	askedFor []int64
 }
 
 func (s *stubCareDayService) ResolveForDate(
 	_ context.Context, studentIDs []int64, _ timezone.Date,
-) (map[int64]scheduleService.CareDayStatus, error) {
+) (map[int64]careschedule.CareDayStatus, error) {
 	s.askedFor = studentIDs
 	if s.err != nil {
 		return nil, s.err
@@ -32,7 +32,7 @@ func (s *stubCareDayService) ResolveForDate(
 
 func (s *stubCareDayService) ResolveForRange(
 	context.Context, []int64, timezone.Date, timezone.Date,
-) (map[int64]map[timezone.Date]scheduleService.CareDayStatus, error) {
+) (map[int64]map[timezone.Date]careschedule.CareDayStatus, error) {
 	panic("not used by the day-planning filter")
 }
 
@@ -50,9 +50,9 @@ func timetableSet(ids ...int64) map[int64]struct{} {
 func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
-		10: scheduleService.CareDayScheduled,
-		11: scheduleService.CareDayNotScheduled,
+	stub := &stubCareDayService{verdicts: map[int64]careschedule.CareDayStatus{
+		10: careschedule.CareDayScheduled,
+		11: careschedule.CareDayNotScheduled,
 	}}
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
@@ -71,8 +71,8 @@ func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
 func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
-		20: scheduleService.CareDayUnknown,
+	stub := &stubCareDayService{verdicts: map[int64]careschedule.CareDayStatus{
+		20: careschedule.CareDayUnknown,
 	}}
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
@@ -92,8 +92,8 @@ func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
 func TestFilterTimetableIDsByCareDayDropsCancelled(t *testing.T) {
 	t.Parallel()
 
-	stub := &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{
-		21: scheduleService.CareDayCancelled,
+	stub := &stubCareDayService{verdicts: map[int64]careschedule.CareDayStatus{
+		21: careschedule.CareDayCancelled,
 	}}
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
@@ -111,7 +111,7 @@ func TestFilterTimetableIDsByCareDayKeepsMissingVerdict(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{ResourceConfig: ResourceConfig{
-		CareDayService: &stubCareDayService{verdicts: map[int64]scheduleService.CareDayStatus{}},
+		CareDayService: &stubCareDayService{verdicts: map[int64]careschedule.CareDayStatus{}},
 	}}
 
 	got, err := rs.filterTimetableIDsByCareDay(

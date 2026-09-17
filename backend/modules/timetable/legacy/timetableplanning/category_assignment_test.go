@@ -8,7 +8,7 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -45,7 +45,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 			categoryID,
 			"test",
 		)
-		require.ErrorIs(t, err, scheduleSvc.ErrCategoryNotAssignable)
+		require.ErrorIs(t, err, careschedule.ErrCategoryNotAssignable)
 	})
 
 	t.Run("rejects an unknown tenant-scoped category", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestValidateAssignableCategory(t *testing.T) {
 			categoryID,
 			"test",
 		)
-		require.ErrorIs(t, err, scheduleSvc.ErrCategoryNotAssignable)
+		require.ErrorIs(t, err, careschedule.ErrCategoryNotAssignable)
 	})
 
 	t.Run("preserves repository failures", func(t *testing.T) {
@@ -67,6 +67,6 @@ func TestValidateAssignableCategory(t *testing.T) {
 			"test",
 		)
 		assert.ErrorIs(t, err, repoErr)
-		assert.NotErrorIs(t, err, scheduleSvc.ErrCategoryNotAssignable)
+		assert.NotErrorIs(t, err, careschedule.ErrCategoryNotAssignable)
 	})
 }

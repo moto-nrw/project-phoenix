@@ -51,13 +51,10 @@ type careRequestDetailBody struct {
 	} `json:"pickup_change"`
 }
 
-// pinCareRequestToday fixes the request window on a Berlin date so the
+// careRequestTodayClock fixes the request window on a Berlin date so the
 // fixture dates below never depend on the wall clock.
-func pinCareRequestToday(t *testing.T, tc *testContext) {
-	t.Helper()
-	setter, ok := tc.resource.CareRequestService.(interface{ SetTodayDate(func() timezone.Date) })
-	require.True(t, ok)
-	setter.SetTodayDate(func() timezone.Date { return timezone.NewDate(2026, 9, 9) })
+func careRequestTodayClock() time.Time {
+	return timezone.NewDate(2026, 9, 9).BerlinMidnight().Add(12 * time.Hour)
 }
 
 func getCareRequestDetail(t *testing.T, tc *testContext, requestID int64, claims jwt.AppClaims, perms []string) (int, careRequestDetailBody) {
@@ -77,11 +74,10 @@ func getCareRequestDetail(t *testing.T, tc *testContext, requestID int64, claims
 func TestCareRequestDetail_OpensPickupChangeBeforeAndAfterDecision(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, careRequestTodayClock)
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 	staff, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	pinCareRequestToday(t, tc)
 
 	// A pickup change for a school day within the request window, with a
 	// weekly pickup on that weekday so the request records the previous time.
@@ -144,11 +140,10 @@ func TestCareRequestDetail_OpensPickupChangeBeforeAndAfterDecision(t *testing.T)
 func TestCareRequestDetail_RefusesUnauthorizedReaders(t *testing.T) {
 	t.Parallel()
 
-	tc := setupStudentsRoute(t)
+	tc := setupStudentsRoute(t, careRequestTodayClock)
 	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	pinCareRequestToday(t, tc)
 
 	date := timezone.NewDate(2026, 9, 15)
 	pending, err := tc.resource.CareRequestService.CreatePickupChangeRequest(

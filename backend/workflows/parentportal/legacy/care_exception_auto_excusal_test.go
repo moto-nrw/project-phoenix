@@ -14,8 +14,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
@@ -35,9 +35,9 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		PickupAutoExcusal: scheduleSvc.NewPickupAutoExcusalSyncer(
+		PickupAutoExcusal: careschedule.NewPickupAutoExcusalSyncer(
 			repos.StudentPickupException,
-			scheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
+			carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 			repos.InstanceStudent,
 			db,
 		),

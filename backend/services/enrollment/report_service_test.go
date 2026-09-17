@@ -20,7 +20,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -1525,7 +1525,7 @@ func (r *fakeCareUsageRequestRepo) AdminRequests(_ context.Context, _ capability
 }
 
 type fakeCareUsagePickupScheduleSvc struct {
-	scheduleService.PickupScheduleService
+	careschedule.PickupScheduleService
 	rows       []*scheduleModels.StudentPickupSchedule
 	err        error
 	studentIDs []int64

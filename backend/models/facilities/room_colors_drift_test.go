@@ -167,6 +167,7 @@ func exposedReservedHexes(t *testing.T) map[string]struct{} {
 		"#7C3AED",
 		"#0891B2",
 		"#365D83",
+		"#217A78",
 		"#EAB308",
 	}
 

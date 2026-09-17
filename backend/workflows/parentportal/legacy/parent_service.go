@@ -26,6 +26,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
@@ -34,7 +35,6 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -502,14 +502,14 @@ type ServiceConfig struct {
 	// PickupAutoExcusal couples pulled-forward day pickup times with the
 	// per-block partial-absence mechanics (#2360). Optional in tests; nil
 	// skips the coupling.
-	PickupAutoExcusal *scheduleSvc.PickupAutoExcusalSyncer
+	PickupAutoExcusal *careschedule.PickupAutoExcusalSyncer
 	Settings          configService.SettingsService
 	Broadcaster       realtime.Broadcaster
 
 	// Weekly care plan read view + change requests (#1803).
-	ArrivalSchedules scheduleSvc.ArrivalScheduleService
-	PickupSchedules  scheduleSvc.PickupScheduleService
-	CareRequests     scheduleSvc.CareScheduleRequestService
+	ArrivalSchedules careschedule.ArrivalScheduleService
+	PickupSchedules  careschedule.PickupScheduleService
+	CareRequests     careschedule.CareScheduleRequestService
 	// ExcusedRequests is the legacy-named office-approval store for parent sick
 	// and excused absences. When the matching setting is on, a submission becomes
 	// a pending request here instead of a direct status day.

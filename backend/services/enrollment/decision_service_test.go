@@ -26,9 +26,9 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -168,7 +168,7 @@ func newDecisionServiceForTestWithDependencies(
 		GuardianProfileRepo:    repoFactory.GuardianProfile,
 		GuardianPhoneRepo:      repoFactory.GuardianPhoneNumber,
 		PickupScheduleRepo:     repoFactory.StudentPickupSchedule,
-		PickupBaselines: scheduletest.NewPickupBaselineService(
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
 			repoFactory.StudentPickupSchedule,
 			approvedOfferingTestProjection(repoFactory),
 			repoFactory.CareOffering,

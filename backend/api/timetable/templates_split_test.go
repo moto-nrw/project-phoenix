@@ -20,12 +20,12 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -50,7 +50,7 @@ func attachSplitServiceWithValidator(
 		ScheduleRepo:               s.schedules,
 		EnrollmentRepo:             s.enrollments,
 		SupervisorRepo:             s.supervisors,
-		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
+		InstanceRepo:               timetablesqltest.NewActivityInstanceRepository(s.db),
 		TimeframeRepo:              ownedTimeframeRepository(panicTestTB{}, s.db),
 		Materialization:            mat,
 		InstanceService:            s.res.InstanceService,

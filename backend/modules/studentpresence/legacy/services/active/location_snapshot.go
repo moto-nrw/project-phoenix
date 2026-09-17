@@ -42,7 +42,7 @@ const AbsentLocationLabel = "Abwesend"
 // AtSchoolLocationLabel replaces AbsentLocationLabel for a child the day plan
 // expects who has not checked in yet, so the morning reads "Schule" instead of
 // "Zuhause" (#3260). The resolver here never emits it: only the callers that
-// hold the day plan can decide it (schedule.IsAtSchoolBeforeCheckIn).
+// hold the day plan can decide it (careschedule.IsAtSchoolBeforeCheckIn).
 const AtSchoolLocationLabel = "Schule"
 
 // StudentLocationSnapshot caches attendance, visit, and group data for a set of students.

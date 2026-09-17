@@ -13,10 +13,10 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/services"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -56,7 +56,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
-		ArrivalSchedules: scheduleSvc.NewArrivalScheduleServiceWithBaselines(
+		ArrivalSchedules: careschedule.NewArrivalScheduleServiceWithBaselines(
 			repos.StudentArrivalSchedule,
 			repos.StudentArrivalException,
 			repos.StudentArrivalNote,
@@ -67,7 +67,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 			db,
 			slog.Default(),
 		),
-		PickupSchedules: scheduleSvc.NewPickupScheduleServiceWithBulk(
+		PickupSchedules: careschedule.NewPickupScheduleServiceWithBulk(
 			repos.StudentPickupSchedule,
 			repos.StudentPickupException,
 			repos.StudentPickupNote,
@@ -75,7 +75,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 			repos.Person,
 			// Auto-excusal (#2360) is not what these cases assert.
 			nil,
-			scheduletest.NewPickupBaselineService(
+			carescheduletest.NewPickupBaselineService(
 				repos.StudentPickupSchedule,
 				approvedOfferingProjection(t),
 				repos.CareOffering,
