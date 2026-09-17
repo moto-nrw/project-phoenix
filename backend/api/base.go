@@ -71,6 +71,7 @@ import (
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -1581,7 +1582,22 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
-	// Initialize operator dashboard resources
+	// Initialize operator dashboard resources. The Device Fleet review of
+	// unregistered RFID scans answers in the operator surface's format (#3232).
+	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
+		Scans:     api.Services.IoT.Fleet(),
+		Directory: tagScanSchoolDirectory{schools: api.Services.Schools},
+		Surface: tagScanOperatorAPI.Surface{
+			InvalidRequest:  operatorAPI.ErrInvalidRequest,
+			Internal:        operatorAPI.ErrInternal,
+			ResolveFallback: operatorAPI.UnregisteredTagScanResolveError,
+			RenderError:     apiCommon.RenderError,
+			Respond:         apiCommon.Respond,
+			OperatorID: func(ctx context.Context) int64 {
+				return int64(projectJWT.ClaimsFromCtx(ctx).ID)
+			},
+		},
+	})
 	api.Operator = operatorAPI.NewResource(operatorAPI.ResourceConfig{
 		AppEnv:                     viper.GetString("app_env"),
 		AuthService:                api.Services.OperatorAuth,
@@ -1592,20 +1608,20 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ProvisioningService:        api.Services.OperatorProvisioning,
 		CaregiverCapabilityService: api.Services.CaregiverCapability,
 		AnnouncementsService:       api.Services.Announcement,
-		UnregisteredTagScanService: api.Services.UnregisteredTagScans,
+		UnregisteredTagScans:       tagScanReview.Router(),
 		SettingsService:            api.Services.Settings,
 		Broadcaster:                api.Services.RealtimeHub,
 		SchoolService:              api.Services.Schools,
 		ActiveService:              api.Services.Active,
 		CareLifecycle:              api.Services.CareLifecycle,
-		TenantMFAService:           api.Services.MFA,
-		TokenAuth:                  nil, // Created internally by operator API
-		DB:                         db,
+		// Mirror the tenant-side OnValueSet hook so operator writes also
+		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
+		// the corresponding checkout toggle flips on).
+		SettingValueSet:  api.Services.SettingsSideEffects.Dispatch,
+		TenantMFAService: api.Services.MFA,
+		TokenAuth:        nil, // Created internally by operator API
+		DB:               db,
 	})
-	// Mirror the tenant-side OnValueSet hook so operator writes also trigger
-	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
-	// corresponding checkout toggle flips on).
-	api.Operator.OnSettingValueSet(api.Services.SettingsSideEffects.Dispatch)
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:                  api.Services.Auth,
 		Parent:                api.Services.Parent,
