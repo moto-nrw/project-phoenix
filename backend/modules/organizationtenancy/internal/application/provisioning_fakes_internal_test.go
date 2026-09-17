@@ -43,21 +43,14 @@ func tenantOf(ctx context.Context) (int64, bool) {
 	return tenantID, ok
 }
 
-// adminGuard records port calls made outside a transaction, and audit calls
-// made outside the administrative transaction.
+// adminGuard records port calls made outside the transaction they belong to:
+// the administrative one unless a call is checked for a school.
 type adminGuard struct {
 	mu         sync.Mutex
 	violations []string
 }
 
 func (g *adminGuard) check(ctx context.Context, call string) {
-	if _, inTenant := tenantOf(ctx); isAdmin(ctx) || inTenant {
-		return
-	}
-	g.record(call)
-}
-
-func (g *adminGuard) checkAdmin(ctx context.Context, call string) {
 	if isAdmin(ctx) {
 		return
 	}
@@ -562,6 +555,16 @@ type fakeIdentity struct {
 
 func (f *fakeIdentity) call(ctx context.Context, name string) error {
 	f.guard.check(ctx, "Identity."+name)
+	return f.record(name)
+}
+
+// schoolCall is a call that belongs in the transaction of tenantID.
+func (f *fakeIdentity) schoolCall(ctx context.Context, name string, tenantID int64) error {
+	f.guard.checkTenant(ctx, "Identity."+name, tenantID)
+	return f.record(name)
+}
+
+func (f *fakeIdentity) record(name string) error {
 	f.calls = append(f.calls, name)
 	return f.fail[name]
 }
@@ -580,7 +583,13 @@ func (f *fakeIdentity) ListSystemRoles(ctx context.Context) ([]domain.Role, erro
 }
 
 func (f *fakeIdentity) FindSystemRole(ctx context.Context, name string) (domain.Role, bool, error) {
-	if err := f.call(ctx, "FindSystemRole"); err != nil {
+	// The caregiver upgrade reads the user role inside the school's
+	// transaction; every other lookup is administrative.
+	call := f.call
+	if tenantID, inTenant := tenantOf(ctx); inTenant {
+		call = func(ctx context.Context, name string) error { return f.schoolCall(ctx, name, tenantID) }
+	}
+	if err := call(ctx, "FindSystemRole"); err != nil {
 		return domain.Role{}, false, err
 	}
 	for _, role := range f.roles {
@@ -626,8 +635,7 @@ func (f *fakeIdentity) InviteSchoolAdmin(ctx context.Context, request domain.Sch
 }
 
 func (f *fakeIdentity) RegisterSchoolAccount(ctx context.Context, registration domain.SchoolAccountRegistration) (domain.CreatedAccount, error) {
-	f.guard.checkTenant(ctx, "Identity.RegisterSchoolAccount", registration.TenantID)
-	if err := f.call(ctx, "RegisterSchoolAccount"); err != nil {
+	if err := f.schoolCall(ctx, "RegisterSchoolAccount", registration.TenantID); err != nil {
 		return domain.CreatedAccount{}, err
 	}
 	f.registrations = append(f.registrations, registration)
@@ -639,8 +647,7 @@ func (f *fakeIdentity) RegisterSchoolAccount(ctx context.Context, registration d
 }
 
 func (f *fakeIdentity) EnsureSchoolIdentity(ctx context.Context, request domain.SchoolIdentityRequest) error {
-	f.guard.checkTenant(ctx, "Identity.EnsureSchoolIdentity", request.TenantID)
-	if err := f.call(ctx, "EnsureSchoolIdentity"); err != nil {
+	if err := f.schoolCall(ctx, "EnsureSchoolIdentity", request.TenantID); err != nil {
 		return err
 	}
 	f.identities = append(f.identities, request)
@@ -648,8 +655,7 @@ func (f *fakeIdentity) EnsureSchoolIdentity(ctx context.Context, request domain.
 }
 
 func (f *fakeIdentity) AssignRole(ctx context.Context, tenantID, accountID, roleID int64) error {
-	f.guard.checkTenant(ctx, "Identity.AssignRole", tenantID)
-	if err := f.call(ctx, "AssignRole"); err != nil {
+	if err := f.schoolCall(ctx, "AssignRole", tenantID); err != nil {
 		return err
 	}
 	f.assigned = append(f.assigned, [3]int64{tenantID, accountID, roleID})
@@ -979,7 +985,7 @@ type fakeAudit struct {
 }
 
 func (f *fakeAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
-	f.guard.checkAdmin(ctx, "Audit.RecordOperatorAction")
+	f.guard.check(ctx, "Audit.RecordOperatorAction")
 	if f.err != nil {
 		return f.err
 	}

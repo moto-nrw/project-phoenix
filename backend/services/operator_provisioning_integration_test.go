@@ -753,6 +753,46 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	assert.Equal(t, 1, countOperatorAudit(t, db, "create", "account", account.ID))
 }
 
+// The caregiver upgrade of an admin account reads and assigns the platform
+// user role inside the school's transaction (#3313).
+func TestOperatorProvisioningIntegration_CreateSchoolAccount_CaregiverUpgradeAssignsUserRole(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	factory := buildOperatorProvisioning(t, db)
+	service := factory.OperatorProvisioning
+	operatorID := testpkg.CreateTestOperator(t, db).ID
+	ctx := provisioningContext(t, db)
+
+	_, schoolID := provisionTestSchool(t, db, factory, operatorID, "caregiver")
+
+	input := schoolScopedInput(service.CreateSchoolAccount)
+	input.Email = fmt.Sprintf("caregiver-admin-%d@example.test", schoolID)
+	input.Password = "Provisioning-Test-9!"
+	input.FirstName = "Clara"
+	input.LastName = "Betreuung"
+	input.CaregiverEnabled = true
+	account, err := service.CreateSchoolAccount(ctx, schoolID, operatorID, provisioningTestClientIP, input)
+	require.NoError(t, err)
+	require.NotNil(t, account)
+	t.Cleanup(func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
+	})
+
+	accounts, err := service.ListSchoolAccounts(ctx, schoolID)
+	require.NoError(t, err)
+	var listed bool
+	for _, listedAccount := range accounts {
+		if listedAccount.AccountID == account.ID {
+			listed = true
+			assert.True(t, listedAccount.HasAdminRole, "the requested admin role stays")
+			assert.True(t, listedAccount.HasUserRole, "the caregiver upgrade hands out the user role")
+			assert.True(t, listedAccount.HasCaregiverProfile, "the caregiver upgrade creates the profile")
+		}
+	}
+	assert.True(t, listed, "created account must be listed for the school")
+	assert.Equal(t, 1, countOperatorAudit(t, db, "create", "account", account.ID))
+}
+
 // A step failing after registration rolls the account back (#3313): blank
 // names pass registration and fail the school identity.
 func TestOperatorProvisioningIntegration_CreateSchoolAccount_FailedIdentityLeavesNoAccount(t *testing.T) {

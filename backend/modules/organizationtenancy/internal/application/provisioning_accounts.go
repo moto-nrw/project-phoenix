@@ -96,11 +96,10 @@ func (p *Provisioning) CreateSchoolAccount(ctx context.Context, schoolID, operat
 		return nil, err
 	}
 	auditErr := p.inAdmin(ctx, func(adminCtx context.Context) error {
-		p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceAccount, &account.ID, clientIP, map[string]any{
+		return p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceAccount, &account.ID, clientIP, map[string]any{
 			"schoolID": school.ID,
 			"email":    account.Email,
 		})
-		return nil
 	})
 	if auditErr != nil {
 		p.logger.Error("failed to create operator audit log",
