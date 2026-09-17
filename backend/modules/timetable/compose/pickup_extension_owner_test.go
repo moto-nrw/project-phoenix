@@ -208,15 +208,11 @@ func TestModuleOwnsPickupWeekdayExtension(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
-		StudentID: child.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2100-01-01",
-	})
-	require.NoError(t, err)
-	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
 		StudentID: other.ID, ActivityGroupID: office.ID, ValidFrom: "2100-01-01",
 	})
 	require.NoError(t, err)
-	// Future membership neither puts the child on Freies Spiel nor makes the
-	// otherwise empty Teamsitzung a selectable block at the effective date.
+	// Future attendance does not make the otherwise empty Teamsitzung a
+	// selectable block at the effective date.
 	fixture := ownedActivityInstanceFixture{roomID: room.ID, groupID: freePlay.ID}
 	tuesday := pickupExtensionInstance(t, module, ctx, fixture, "2099-03-10", "14:45:00", "16:00:00", "Freies Spiel")
 	earlierTuesday := pickupExtensionInstance(t, module, ctx, fixture, "2099-03-03", "14:45:00", "16:00:00", "Freies Spiel")
@@ -278,6 +274,35 @@ func TestModuleOwnsPickupWeekdayExtension(t *testing.T) {
 
 	require.NoError(t, module.ClearPickupWeekdayExtension(ctx, child.ID, timetable.WeekdayTuesday))
 	assert.Zero(t, countPickupExtensionRows(t, db, child.ID))
+}
+
+func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+	category := createCategory(t, ctx, module, fmt.Sprintf("Future pickup enrollment %d", suffix))
+	child := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("Future pickup-%d", suffix), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Ida", fmt.Sprintf("Future pickup-%d", suffix), "1a")
+	freePlay := pickupExtensionTemplate(t, module, ctx, category.ID, "Freies Spiel", "14:45:00", "16:00:00", timetable.WeekdayTuesday)
+
+	_, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: other.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2020-01-01",
+	})
+	require.NoError(t, err)
+	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: child.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2100-01-01",
+	})
+	require.NoError(t, err)
+
+	// The child's enrollment starts after the changed pickup time, so it must
+	// not make the child appear to be on the otherwise suitable template.
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: "2099-03-05",
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	assert.Equal(t, []int64{freePlay.ID}, pickupExtensionBlockIDs(task.Blocks))
 }
 
 func TestModuleRejectsInvalidPickupExtensions(t *testing.T) {
