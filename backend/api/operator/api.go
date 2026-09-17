@@ -61,7 +61,7 @@ type ResourceConfig struct {
 	// SchoolRepo lets the SettingsResource emit `school_slug` in set/reset
 	// responses so the frontend operator proxy can bust the slug-keyed
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
-	SchoolService platformSvc.SchoolService
+	SchoolService SchoolLookup
 	ActiveService activeSvc.Service
 	CareLifecycle usersSvc.CareLifecycleService
 	// TenantMFAService is the tenant-side MFA service (auth package).

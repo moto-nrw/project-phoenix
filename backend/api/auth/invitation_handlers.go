@@ -116,7 +116,7 @@ func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitatio
 	}
 	if rs.SchoolService != nil {
 		tenantID := tenant.FromContext(r.Context())
-		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
+		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && !school.Deleted {
 			invitationReq.SchoolName = school.Name
 		}
 	}

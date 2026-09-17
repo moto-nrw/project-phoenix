@@ -1756,6 +1756,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/delivery/application/emailoutbox",
+      "owner": "delivery-platform",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/emergencysnapshot",
       "owner": "emergency-snapshot",
       "role": "public",

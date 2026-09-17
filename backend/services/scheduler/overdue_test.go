@@ -113,7 +113,7 @@ func setStatus(t *testing.T, s *overdueSetup, id int64, status string) {
 
 // The tests call runOverdueForTenant directly with the same tenant ctx used
 // to seed fixtures (testpkg.Ctx(t)). checkAndRunOverdue's tenant-
-// iteration relies on a SchoolRepo + SettingsService stack we'd otherwise
+// iteration relies on a tenant directory + SettingsService stack we'd otherwise
 // need to stand up; the per-tenant helper is the real unit of behaviour
 // and is what the iteration delegates to in production.
 

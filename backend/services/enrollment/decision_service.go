@@ -403,7 +403,7 @@ type DecisionServiceConfig struct {
 	DataAccessLogRepo         auditModels.DataAccessLogRepository // append-only GDPR audit row written on phase export
 	OfferingAdjustmentRepo    auditModels.EnrollmentOfferingAdjustmentRepository
 	RestorationAuditRepo      auditModels.EnrollmentRestorationRepository // append-only trail for RestoreWithdrawn (#2157)
-	SchoolRepo                platformModels.SchoolRepository
+	SchoolRepo                SchoolDirectory
 	PersonRepo                users.PersonRepository
 	StaffRepo                 users.StaffRepository
 	StudentRepo               users.StudentRepository

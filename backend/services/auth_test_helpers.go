@@ -10,11 +10,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -28,9 +29,30 @@ type AuthTestModule struct {
 	StaffPINAuth          StaffPINAuthenticator
 	Invitation            auth.InvitationService
 	GuardianInvitation    auth.GuardianInvitationService
-	Schools               platform.SchoolService
+	Schools               organizationtenancy.Capability
 	Settings              config.SettingsService
 	MFA                   auth.MFAService
+}
+
+// InvitationSchoolsForTests binds the invitation school seam to the
+// Organisation & Tenancy capability the way the factory does. Every read runs
+// under runtime, as the serving root's request middleware provides it; the
+// behaviour tests call the services without that middleware.
+func InvitationSchoolsForTests(schools organizationtenancy.Query, runtime tenant.UnitOfWork) auth.SchoolDirectory {
+	return runtimeInvitationSchools{directory: invitationSchoolDirectory{schools: schools}, runtime: runtime}
+}
+
+type runtimeInvitationSchools struct {
+	directory invitationSchoolDirectory
+	runtime   tenant.UnitOfWork
+}
+
+func (d runtimeInvitationSchools) FindSchool(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
+	return d.directory.FindSchool(tenant.WithUnitOfWork(ctx, d.runtime), id)
+}
+
+func (d runtimeInvitationSchools) FindSchoolForShare(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
+	return d.directory.FindSchoolForShare(tenant.WithUnitOfWork(ctx, d.runtime), id)
 }
 
 type InvitationTestModule struct {
@@ -54,7 +76,7 @@ func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTest
 	service := auth.NewInvitationService(auth.InvitationServiceConfig{
 		TokenAuth: signer, InvitationRepo: repos.InvitationToken, AccountRepo: repos.Account,
 		AccountTenantRepo: repos.AccountTenant, RoleRepo: repos.Role, PermissionRepo: repos.Permission,
-		AccountRoleRepo: repos.AccountRole, SchoolIdentity: schoolIdentity, SchoolRepo: repos.School, DB: db,
+		AccountRoleRepo: repos.AccountRole, SchoolIdentity: schoolIdentity, SchoolRepo: invitationSchoolDirectory{schools: repos.School}, DB: db,
 	})
 	service.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	return InvitationTestModule{Persistence: repos, Invitation: service}, nil
@@ -112,7 +134,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	var service *auth.Service
 	var guardian auth.GuardianInvitationService
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(r), tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
+		repos: sessionRepositoriesOf(r, r.School), tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{
@@ -144,13 +166,13 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	}
 	mfa.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	service.SetMFAService(mfa)
-	identity := platform.NewTenantMailIdentityService(r.School, func(ctx context.Context, tenantID int64) (string, error) {
+	identity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: r.School}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
 	invitation := auth.NewInvitationService(auth.InvitationServiceConfig{
 		TokenAuth:      authConfig.TokenAuth,
 		InvitationRepo: r.InvitationToken, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
-		RoleRepo: r.Role, PermissionRepo: r.Permission, AccountRoleRepo: r.AccountRole, SchoolRepo: r.School,
+		RoleRepo: r.Role, PermissionRepo: r.Permission, AccountRoleRepo: r.AccountRole, SchoolRepo: invitationSchoolDirectory{schools: r.School},
 		Mailer: mailer, Dispatcher: dispatcher, FrontendURL: frontendURL, SchoolURL: schoolURL,
 		DefaultFrom: defaultFrom, InvitationExpiry: time.Duration(inviteHours) * time.Hour, MailIdentity: identity,
 		SchoolIdentity: accountSessionsPort, DB: db, Logger: logger,
@@ -163,13 +185,13 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork) (AuthTestModule, erro
 	guardian = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo: r.GuardianInvitation, AccountRepo: r.Account, AccountTenantRepo: r.AccountTenant,
 		AccountRoleRepo: r.AccountRole, RoleRepo: r.Role, PersonRepo: r.Person, GuardianProfileRepo: r.GuardianProfile,
-		StudentGuardianRepo: r.StudentGuardian, Audit: command, StudentRepo: r.Student, SchoolRepo: r.School,
-		EnrollmentBackfiller: r.ParentEnrollmentRequest, RelativeAccess: accountSessionsPort, SettingsResolver: settings.Settings, OutboxEnqueuer: delivery.EmailOutbox,
+		StudentGuardianRepo: r.StudentGuardian, Audit: command, StudentRepo: r.Student, SchoolRepo: invitationSchoolDirectory{schools: r.School},
+		EnrollmentBackfiller: r.ParentEnrollmentRequest, RelativeAccess: accountSessionsPort, SettingsResolver: settings.Settings, OutboxEnqueuer: outboxEnqueuer{outbox: delivery.EmailOutbox},
 		FrontendURL: parentsURL, FallbackExpiry: time.Duration(inviteHours) * time.Hour, DB: db, Logger: logger,
 	})
 	guardian.(tenantRuntimeSetter).SetTenantRuntime(unit)
 	return AuthTestModule{Auth: service, AccountAuthentication: identityAccess, StaffPINAuth: NewStaffPINAuthenticator(identityAccess), MFA: mfa, Invitation: invitation, GuardianInvitation: guardian,
-		Schools: platform.NewSchoolService(r.School), Settings: settings.Settings}, nil
+		Schools: r.School, Settings: settings.Settings}, nil
 }
 
 // NewAuthServiceForTests composes the retained auth service over the given
@@ -190,7 +212,7 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	}
 	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos), tokenAuth: cfg.TokenAuth, settings: cfg.Settings, audit: cfg.Audit, logger: logger,
+		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: cfg.TokenAuth, settings: cfg.Settings, audit: cfg.Audit, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		mfa:           func() auth.MFAService { return service.CurrentMFAService() },
 		lifecycle: &lifecycleWiring{

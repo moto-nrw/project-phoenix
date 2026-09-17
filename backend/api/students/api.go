@@ -27,7 +27,6 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -58,7 +57,7 @@ type ResourceConfig struct {
 	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
 	// what bare test Resources rely on.
 	CareDayService  scheduleService.CareDayService
-	SchoolService   platformSvc.SchoolService
+	SchoolService   SchoolDirectory
 	SettingsService configService.SettingsService
 	StudentService  userService.StudentService
 	// ClassListEntryService supplies the class-list-only entries (#2382) the

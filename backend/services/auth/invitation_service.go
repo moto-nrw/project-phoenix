@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -60,7 +59,7 @@ type InvitationServiceConfig struct {
 	RoleRepo          authModels.RoleRepository
 	PermissionRepo    authModels.PermissionRepository
 	AccountRoleRepo   authModels.AccountRoleRepository
-	SchoolRepo        platformModels.SchoolRepository
+	SchoolRepo        SchoolDirectory
 	Mailer            email.Mailer
 	Dispatcher        *email.Dispatcher
 	FrontendURL       string
@@ -91,7 +90,7 @@ type invitationService struct {
 	roleRepo          authModels.RoleRepository
 	permissionRepo    authModels.PermissionRepository
 	accountRoleRepo   authModels.AccountRoleRepository
-	schoolRepo        platformModels.SchoolRepository
+	schoolRepo        SchoolDirectory
 	dispatcher        *email.Dispatcher
 	frontendURL       string
 	schoolURL         string
@@ -377,11 +376,11 @@ func (s *invitationService) AcceptInvitation(ctx context.Context, token string, 
 		// SoftDeleteSchool commits the deletion before the account is created.
 		// The lock is held until this admin transaction commits.
 		if invitation.TenantID > 0 && s.schoolRepo != nil {
-			school, schoolErr := s.schoolRepo.FindByIDForShare(adminCtx, invitation.TenantID)
+			school, schoolErr := s.schoolRepo.FindSchoolForShare(adminCtx, invitation.TenantID)
 			if schoolErr != nil {
 				return &AuthError{Op: opAcceptInvitation, Err: schoolErr}
 			}
-			if school == nil || school.IsDeleted() {
+			if school == nil || school.Deleted {
 				return &AuthError{Op: opAcceptInvitation, Err: ErrInvitationTenantDeleted}
 			}
 		}
@@ -918,14 +917,14 @@ func (s *invitationService) lookupSchoolName(ctx context.Context, tenantID int64
 	if tenantID == 0 || s.schoolRepo == nil {
 		return ""
 	}
-	school, err := s.schoolRepo.FindByID(ctx, tenantID)
+	school, err := s.schoolRepo.FindSchool(ctx, tenantID)
 	if err != nil {
 		s.getLogger().Warn("failed to lookup school name for invitation email",
 			slog.Int64("tenant_id", tenantID),
 			slog.String("error", err.Error()))
 		return ""
 	}
-	if school == nil || school.IsDeleted() {
+	if school == nil || school.Deleted {
 		return ""
 	}
 	return school.Name
@@ -1093,11 +1092,11 @@ func (s *invitationService) GetTenantSubdomainForToken(ctx context.Context, toke
 		if invitation == nil {
 			return nil
 		}
-		school, err := s.schoolRepo.FindByID(txCtx, invitation.TenantID)
+		school, err := s.schoolRepo.FindSchool(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
 		}
-		if school == nil || school.IsDeleted() {
+		if school == nil || school.Deleted {
 			return nil
 		}
 		subdomain = school.Subdomain

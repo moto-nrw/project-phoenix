@@ -14,11 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -50,7 +48,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	}
 	t.Cleanup(cleanup)
 
-	schoolService := platformSvc.NewSchoolService(platformRepo.NewSchoolRepository(db))
+	schoolService := authRoute.SchoolService
 	request := func(t *testing.T, settings configSvc.SettingsService) resolveCareOfferingsResponse {
 		t.Helper()
 		resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, schoolService, authRoute.Sessions, db)

@@ -1,4 +1,4 @@
-package platform
+package emailoutbox
 
 import (
 	"context"
@@ -7,19 +7,20 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	"github.com/moto-nrw/project-phoenix/test"
 )
 
 const mailIdentityTenantID int64 = 4711
 
-func schoolRepoReturning(school *platformModels.School, err error) *test.SchoolRepoMock {
-	return &test.SchoolRepoMock{
-		FindByIDFn: func(_ context.Context, _ int64) (*platformModels.School, error) {
-			return school, err
-		},
-	}
+type schoolContactsFunc func(context.Context, int64) (*SchoolContact, error)
+
+func (f schoolContactsFunc) FindSchoolContact(ctx context.Context, tenantID int64) (*SchoolContact, error) {
+	return f(ctx, tenantID)
+}
+
+func schoolRepoReturning(school *SchoolContact, err error) SchoolContacts {
+	return schoolContactsFunc(func(context.Context, int64) (*SchoolContact, error) {
+		return school, err
+	})
 }
 
 func settingsReturning(value string, err error) func(context.Context, int64) (string, error) {
@@ -31,8 +32,8 @@ func settingsReturning(value string, err error) func(context.Context, int64) (st
 func TestResolveTenantMailIdentity_SettingWinsOverSchoolContact(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS Am Berg", Email: "buero@schule.example"}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg", Email: "buero@schule.example"}, nil),
 		settingsReturning("eltern@schule.example", nil),
 		nil,
 	)
@@ -49,8 +50,8 @@ func TestResolveTenantMailIdentity_SettingWinsOverSchoolContact(t *testing.T) {
 func TestResolveTenantMailIdentity_FallsBackToSchoolContact(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS Am Berg", Email: "buero@schule.example"}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg", Email: "buero@schule.example"}, nil),
 		settingsReturning("", nil),
 		nil,
 	)
@@ -65,8 +66,8 @@ func TestResolveTenantMailIdentity_FallsBackToSchoolContact(t *testing.T) {
 func TestResolveTenantMailIdentity_NothingConfigured_IsZero(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS Am Berg"}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS Am Berg"}, nil),
 		settingsReturning("", nil),
 		nil,
 	)
@@ -81,8 +82,8 @@ func TestResolveTenantMailIdentity_NothingConfigured_IsZero(t *testing.T) {
 func TestResolveTenantMailIdentity_BlankSettingFallsThrough(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS", Email: "  buero@schule.example  "}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "  buero@schule.example  "}, nil),
 		settingsReturning("   ", nil),
 		nil,
 	)
@@ -97,8 +98,8 @@ func TestResolveTenantMailIdentity_BlankSettingFallsThrough(t *testing.T) {
 func TestResolveTenantMailIdentity_InvalidSchoolEmailIsIgnored(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS", Email: "not an email"}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "not an email"}, nil),
 		settingsReturning("", nil),
 		nil,
 	)
@@ -113,8 +114,8 @@ func TestResolveTenantMailIdentity_InvalidSchoolEmailIsIgnored(t *testing.T) {
 func TestResolveTenantMailIdentity_SettingsErrorFallsBackToSchool(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS", Email: "buero@schule.example"}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "buero@schule.example"}, nil),
 		settingsReturning("", errors.New("settings unavailable")),
 		nil,
 	)
@@ -128,7 +129,7 @@ func TestResolveTenantMailIdentity_SettingsErrorFallsBackToSchool(t *testing.T) 
 func TestResolveTenantMailIdentity_SchoolErrorDegradesToNoReplyTo(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
+	svc := NewTenantMailIdentity(
 		schoolRepoReturning(nil, errors.New("school lookup failed")),
 		settingsReturning("", nil),
 		nil,
@@ -144,8 +145,8 @@ func TestResolveTenantMailIdentity_SchoolErrorDegradesToNoReplyTo(t *testing.T) 
 func TestResolveTenantMailIdentity_NoTenant_IsZero(t *testing.T) {
 	t.Parallel()
 
-	svc := NewTenantMailIdentityService(
-		schoolRepoReturning(&platformModels.School{Name: "OGS", Email: "buero@schule.example"}, nil),
+	svc := NewTenantMailIdentity(
+		schoolRepoReturning(&SchoolContact{Name: "OGS", Email: "buero@schule.example"}, nil),
 		settingsReturning("eltern@schule.example", nil),
 		nil,
 	)

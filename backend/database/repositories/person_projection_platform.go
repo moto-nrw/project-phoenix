@@ -7,6 +7,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/uptrace/bun"
@@ -17,7 +18,7 @@ import (
 type personOperatorSummariesRepository struct {
 	platformModels.OperatorSummariesRepository
 	persons    peopledirectory.Query
-	schools    func() platformModels.SchoolRepository
+	schools    func() organizationtenancy.Query
 	accounts   func() authModels.AccountRepository
 	membership func() schoolmembership.Capability
 	db         *bun.DB
@@ -32,7 +33,7 @@ func (r personOperatorSummariesRepository) OrganizationSummaries(ctx context.Con
 	if err != nil {
 		return nil, fmt.Errorf("count persons for organization summaries: %w", err)
 	}
-	schools, err := r.schools().ListNonDeleted(ctx)
+	schools, err := r.schools().ListNonDeletedSchools(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load schools for organization summaries: %w", err)
 	}

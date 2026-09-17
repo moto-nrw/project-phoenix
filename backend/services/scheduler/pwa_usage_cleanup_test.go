@@ -8,7 +8,6 @@ import (
 	"time"
 
 	repoFactory "github.com/moto-nrw/project-phoenix/database/repositories"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
@@ -62,7 +61,7 @@ func TestPWAUsageCleanup_SweepsStaleRows(t *testing.T) {
 	)
 	s := unitScheduler(&Scheduler{
 		db:              db,
-		schoolRepo:      platformRepo.NewSchoolRepository(db),
+		schoolRepo:      dbTenantDirectory{db: db},
 		pwaUsageCleanup: cleanup,
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{

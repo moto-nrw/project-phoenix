@@ -76,7 +76,7 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
-			schools: repos.School, persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
+			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
 		tokenAuth: tokenAuth, audit: command, logger: logger,
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },

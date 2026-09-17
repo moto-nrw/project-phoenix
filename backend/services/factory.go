@@ -33,6 +33,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -222,7 +223,7 @@ type Factory struct {
 	OperatorInvitation   platform.OperatorInvitationService
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         communication.Capability
-	Schools              platform.SchoolService
+	Schools              organizationtenancy.Capability
 	Students             users.StudentService
 	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      *studentdeletion.Workflow
@@ -254,12 +255,10 @@ type Factory struct {
 	OperatorPasskey         platform.OperatorPasskeyService
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
 
-	// Delivery owns the leased email and push outboxes. EmailOutbox keeps the
-	// legacy producer API while EmailOutboxWorker drains both transports.
-	EmailOutbox           *platform.OutboxService
-	EmailOutboxWorker     *deliveryModule.Worker
-	EmailTemplateRegistry *platform.TemplateRegistry
-	Delivery              *deliveryModule.Module
+	// Delivery owns the leased email and push outboxes; EmailOutboxWorker
+	// drains both transports.
+	EmailOutboxWorker *deliveryModule.Worker
+	Delivery          *deliveryModule.Module
 
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema      enrollment.FormSchemaService
@@ -853,7 +852,7 @@ func newFactory(
 	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
 	// Built once here and shared: the outbox worker covers every queued kind,
 	// the guardian service covers its own synchronous invitation send.
-	tenantMailIdentity := platform.NewTenantMailIdentityService(repos.School, func(ctx context.Context, tenantID int64) (string, error) {
+	tenantMailIdentity := emailoutbox.NewTenantMailIdentity(schoolContactDirectory{schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settingsService.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 	}, logger)
 
@@ -952,7 +951,7 @@ func newFactory(
 			Settings:    PresenceSettings(settingsService),
 			Dispatcher:  absenceEmailDispatcher{dispatcher: dispatcher, from: defaultFrom, identity: tenantMailIdentity, logger: activeLogger},
 			StaffRepo:   absenceEmailStaffDirectory{source: repos.Staff},
-			SchoolRepo:  absenceEmailSchoolDirectory{schools: repos.School},
+			SchoolRepo:  absenceEmailSchoolDirectory{schools: organizations},
 			FrontendURL: frontendURL,
 			Logger:      activeLogger,
 		}),
@@ -1343,7 +1342,7 @@ func newFactory(
 			PickupSchedule: pickupScheduleService,
 		}),
 		Tenants: devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-			Schools:  repos.School,
+			Schools:  displaySchoolDirectory{schools: organizations},
 			Settings: settingsService,
 		}),
 		Now:          timezone.Now,
@@ -1589,7 +1588,7 @@ func newFactory(
 	}
 	var guardianInvitationService auth.GuardianInvitationService
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos:     sessionRepositoriesOf(repos),
+		repos:     sessionRepositoriesOf(repos, organizations),
 		tokenAuth: authConfig.TokenAuth,
 		settings:  settingsService,
 		audit:     auditCommand,
@@ -1673,7 +1672,7 @@ func newFactory(
 		RoleRepo:          repos.Role,
 		PermissionRepo:    repos.Permission,
 		AccountRoleRepo:   repos.AccountRole,
-		SchoolRepo:        repos.School,
+		SchoolRepo:        invitationSchoolDirectory{schools: organizations},
 		Mailer:            mailer,
 		Dispatcher:        dispatcher,
 		FrontendURL:       frontendURL,
@@ -1688,7 +1687,44 @@ func newFactory(
 
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.
-	emailTemplateRegistry := platform.NewTemplateRegistry()
+	// Every outbox kind's renderer is known at startup, so the registry is
+	// complete before the worker can claim anything. Enrollment keeps one
+	// renderer per kind so subjects + templates stay independent; the
+	// rollover pair reuses the submission template as a placeholder until
+	// proper branded copy lands. Calendar appointments share one renderer
+	// for all four kinds.
+	enrollmentRendererCfg := enrollment.EmailRendererConfig{DefaultFrom: defaultFrom}
+	appointmentRenderer := emailoutbox.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
+		DefaultFrom: defaultFrom,
+		DB:          db,
+		Guardians:   repos.StudentGuardian,
+	}))
+	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(map[string]emailoutbox.Renderer{
+		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+			DefaultFrom: defaultFrom,
+		})),
+		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
+			DefaultFrom: defaultFrom,
+		})),
+		platformModels.EmailKindParentMessage:                      emailoutbox.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
+		platformModels.EmailKindAppointmentPublished:               appointmentRenderer,
+		platformModels.EmailKindAppointmentUpdated:                 appointmentRenderer,
+		platformModels.EmailKindAppointmentCancelled:               appointmentRenderer,
+		platformModels.EmailKindAppointmentReminder:                appointmentRenderer,
+		platformModels.EmailKindEnrollmentSubmitted:                emailoutbox.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentAdminNotify:              emailoutbox.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentApproved:                 emailoutbox.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentWaitlisted:               emailoutbox.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentRejected:                 emailoutbox.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentDecisionDigest:           emailoutbox.RendererFunc(enrollment.NewEnrollmentDecisionDigestRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentChangeRequestQuestion:    emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentChangeRequestParentReply: emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentChangeRequestApproved:    emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentChangeRequestRejected:    emailoutbox.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentRolloverOptIn:            emailoutbox.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollmentRendererCfg)),
+		platformModels.EmailKindEnrollmentRolloverOptOut:           emailoutbox.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollmentRendererCfg)),
+	})
 	vapidConfig := notifications.VAPIDConfig{
 		PublicKey: strings.TrimSpace(cfg.VAPIDPublicKey), PrivateKey: strings.TrimSpace(cfg.VAPIDPrivateKey),
 		Subscriber: strings.TrimSpace(cfg.VAPIDSubscriber),
@@ -1715,7 +1751,7 @@ func newFactory(
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
 	emailOutboxWorker := deliveryRuntime.Worker
-	emailOutboxService := platform.NewOutboxService(durableEmailAdapter{module: deliveryRuntime.Module})
+	emailOutboxService := emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
 	guardianInvitationService = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
 		InvitationRepo:       repos.GuardianInvitation,
@@ -1728,8 +1764,8 @@ func newFactory(
 		StudentGuardianRepo:  repos.StudentGuardian,
 		Audit:                auditCommand,
 		StudentRepo:          repos.Student,
-		SchoolRepo:           repos.School,
-		OutboxEnqueuer:       emailOutboxService,
+		SchoolRepo:           invitationSchoolDirectory{schools: organizations},
+		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
 		RelativeAccess:       accountSessionsPort,
 		SettingsResolver:     settingsService,
@@ -1738,64 +1774,6 @@ func newFactory(
 		DB:                   db,
 		Logger:               authLogger.With("flow", "guardian_invitation"),
 	})
-
-	// Register the guardian_invitation renderer at startup so the outbox
-	// worker can dispatch enqueued rows. PR 7 adds enrollment_submitted +
-	// enrollment_admin_notification renderers below; PR 8 will add the
-	// decision-digest renderer alongside its service wiring.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindGuardianInvitation,
-		platform.RendererFunc(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindParentAnnouncement,
-		platform.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindParentMessage,
-		platform.RendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom})),
-	)
-	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
-	appointmentRenderer := platform.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
-		DefaultFrom: defaultFrom,
-		DB:          db,
-		Guardians:   repos.StudentGuardian,
-	}))
-	for _, kind := range []string{
-		platformModels.EmailKindAppointmentPublished,
-		platformModels.EmailKindAppointmentUpdated,
-		platformModels.EmailKindAppointmentCancelled,
-		platformModels.EmailKindAppointmentReminder,
-	} {
-		emailTemplateRegistry.Register(kind, appointmentRenderer)
-	}
-	// Enrollment outbox renderers, one per EmailKind sharing the same config.
-	// Per-status decision emails (PR 8 slice 2) keep one renderer per kind so
-	// subjects + templates stay independent and copy updates stay contained.
-	// The rollover (annual phase renewal) pair reuses the submission template
-	// as a placeholder until proper branded copy lands in a follow-up PR.
-	enrollmentRendererCfg := enrollment.EmailRendererConfig{DefaultFrom: defaultFrom}
-	for kind, newRenderer := range map[string]func(enrollment.EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error){
-		platformModels.EmailKindEnrollmentSubmitted:                enrollment.NewEnrollmentSubmittedRenderer,
-		platformModels.EmailKindEnrollmentAdminNotify:              enrollment.NewEnrollmentAdminNotificationRenderer,
-		platformModels.EmailKindEnrollmentApproved:                 enrollment.NewEnrollmentApprovedRenderer,
-		platformModels.EmailKindEnrollmentWaitlisted:               enrollment.NewEnrollmentWaitlistedRenderer,
-		platformModels.EmailKindEnrollmentRejected:                 enrollment.NewEnrollmentRejectedRenderer,
-		platformModels.EmailKindEnrollmentDecisionDigest:           enrollment.NewEnrollmentDecisionDigestRenderer,
-		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   enrollment.NewEnrollmentChangeRequestSubmittedRenderer,
-		platformModels.EmailKindEnrollmentChangeRequestQuestion:    enrollment.NewEnrollmentChangeRequestQuestionRenderer,
-		platformModels.EmailKindEnrollmentChangeRequestParentReply: enrollment.NewEnrollmentChangeRequestParentReplyRenderer,
-		platformModels.EmailKindEnrollmentChangeRequestApproved:    enrollment.NewEnrollmentChangeRequestApprovedRenderer,
-		platformModels.EmailKindEnrollmentChangeRequestRejected:    enrollment.NewEnrollmentChangeRequestRejectedRenderer,
-		platformModels.EmailKindEnrollmentRolloverOptIn:            enrollment.NewEnrollmentRolloverOptInRenderer,
-		platformModels.EmailKindEnrollmentRolloverOptOut:           enrollment.NewEnrollmentRolloverOptOutRenderer,
-	} {
-		emailTemplateRegistry.Register(kind, platform.RendererFunc(newRenderer(enrollmentRendererCfg)))
-	}
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -2117,7 +2095,7 @@ func newFactory(
 		DataAccessLogRepo:         repos.DataAccessLog,
 		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
 		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
-		SchoolRepo:                repos.School,
+		SchoolRepo:                enrollmentSchoolDirectory{schools: organizations},
 		PersonRepo:                repos.Person,
 		StaffRepo:                 repos.Staff,
 		StudentRepo:               repos.Student,
@@ -2138,7 +2116,7 @@ func newFactory(
 		TimeframeRepo:             repos.Timeframe,
 		ActivityExceptionRepo:     repos.ActivityException,
 		GuardianAccess:            guardianAccess,
-		OutboxEnqueuer:            emailOutboxService,
+		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
 		StudentAudit:              studentAuditService,
 		StudentConsents:           studentConsentService,
 		CareWithdrawal:            careLifecycleService,
@@ -2255,11 +2233,11 @@ func newFactory(
 		LateInviteRepo:     repos.Enrollment(),
 		CareOfferingRepo:   repos.CareOffering,
 		Catalog:            repos.Enrollment(),
-		SchoolRepo:         repos.School,
+		SchoolRepo:         enrollmentSchoolDirectory{schools: organizations},
 		StudentRepo:        repos.Student,
 		GuardianAuthorizer: repos.StudentGuardian,
 		RateLimitRepo:      repos.Enrollment(),
-		OutboxEnqueuer:     emailOutboxService,
+		OutboxEnqueuer:     outboxEnqueuer{outbox: emailOutboxService},
 		Settings:           settingsService,
 		ManualDecider:      enrollmentDecisionService,
 		FrontendURL:        frontendURL, // admin notification email
@@ -2331,7 +2309,7 @@ func newFactory(
 		LateInviteRepo:       repos.Enrollment(),
 		CareOfferingRepo:     repos.CareOffering,
 		Catalog:              repos.Enrollment(),
-		SchoolRepo:           repos.School,
+		SchoolRepo:           enrollmentSchoolDirectory{schools: organizations},
 		GuardianProfileRepo:  repos.GuardianProfile,
 		GuardianPhoneRepo:    repos.GuardianPhoneNumber,
 		PersonRepo:           repos.Person,
@@ -2340,7 +2318,7 @@ func newFactory(
 		DecisionService:      enrollmentDecisionApplier,
 		CompanionGraphLocker: studentService,
 		Settings:             settingsService,
-		OutboxEnqueuer:       emailOutboxService,
+		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
 		FrontendURL:          frontendURL,
 		ParentsURL:           parentsURL,
 		DB:                   db,
@@ -2359,8 +2337,8 @@ func newFactory(
 		Requests:              repos.Enrollment(),
 		Children:              repos.Enrollment(),
 		OfferingCatalogCloner: enrollmentRolloverCatalogCloner,
-		SchoolRepo:            repos.School,
-		OutboxEnqueuer:        emailOutboxService,
+		SchoolRepo:            enrollmentSchoolDirectory{schools: organizations},
+		OutboxEnqueuer:        outboxEnqueuer{outbox: emailOutboxService},
 		Settings:              settingsService,
 		DecisionService:       enrollmentDecisionService,
 		ParentsURL:            parentsURL,
@@ -2547,9 +2525,9 @@ func newFactory(
 		Preferences: notificationPreferencesService,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307): der
 		// Rueckfall fuer alle, die Push nicht eingerichtet haben.
-		Outbox:           emailOutboxService,
+		Outbox:           outboxEnqueuer{outbox: emailOutboxService},
 		GuardianProfiles: repos.GuardianProfile,
-		Schools:          repos.School,
+		Schools:          schoolNameDirectory{schools: organizations},
 		LoginImages:      settingsService,
 		ParentsURL:       parentsURL,
 		Observe:          observeCommunication,
@@ -2585,7 +2563,7 @@ func newFactory(
 			RoomRepo:             repos.Room,
 			StaffShiftRepo:       repos.StaffShift,
 			ShiftTypeRepo:        repos.ShiftType,
-			SchoolRepo:           repos.School,
+			SchoolRepo:           organizations,
 			AccountRepo:          repos.Account,
 			StaffFeedRepo:        repos.StaffCalendarFeedToken,
 			PersonRepo:           repos.Person,
@@ -2716,7 +2694,7 @@ func newFactory(
 
 	operatorProvisioningService := platform.NewOperatorProvisioningService(platform.OperatorProvisioningServiceConfig{
 		Organizations:       organizations,
-		SchoolRepo:          repos.School,
+		SchoolRepo:          repositories.NewSchoolCapabilityAdapter(organizations, repos.AccountTenant),
 		SummariesRepo:       repos.OperatorSummaries,
 		CategoryRepo:        repos.ActivityCategory,
 		DeviceRepo:          repos.Device,
@@ -3092,7 +3070,7 @@ func newFactory(
 		OperatorInvitation:   operatorAuthService,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
-		Schools:              platform.NewSchoolService(repos.School),
+		Schools:              organizations,
 		Students:             studentService,
 		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		CareLifecycle:        careLifecycleService,
@@ -3133,10 +3111,8 @@ func newFactory(
 		OperatorPasskey:         operatorPasskeyService,
 		UnregisteredTagScans:    unregisteredTagScanService,
 
-		EmailOutbox:           emailOutboxService,
-		EmailOutboxWorker:     emailOutboxWorker,
-		EmailTemplateRegistry: emailTemplateRegistry,
-		Delivery:              deliveryRuntime.Module,
+		EmailOutboxWorker: emailOutboxWorker,
+		Delivery:          deliveryRuntime.Module,
 
 		EnrollmentFormSchema:      enrollmentFormSchemaService,
 		EnrollmentCareOffering:    enrollmentCareOfferingService,

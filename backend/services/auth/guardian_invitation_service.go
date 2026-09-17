@@ -71,7 +71,7 @@ type GuardianInvitationServiceConfig struct {
 	StudentGuardianRepo userModels.StudentGuardianRepository
 	Audit               auditModels.Command
 	StudentRepo         userModels.StudentRepository
-	SchoolRepo          platformModels.SchoolRepository
+	SchoolRepo          SchoolDirectory
 	OutboxEnqueuer      platformModels.OutboxEnqueuer
 	// EnrollmentBackfiller stamps guardian_account_id onto every
 	// pre-account enrollment.requests row matching the guardian's
@@ -321,8 +321,8 @@ func (s *guardianInvitationService) applySchoolBranding(ctx context.Context, ten
 	if tenantID <= 0 || s.SchoolRepo == nil || result == nil {
 		return
 	}
-	school, err := s.SchoolRepo.FindByID(ctx, tenantID)
-	if err != nil || school == nil || school.IsDeleted() {
+	school, err := s.SchoolRepo.FindSchool(ctx, tenantID)
+	if err != nil || school == nil || school.Deleted {
 		return
 	}
 	result.SchoolName = strings.TrimSpace(school.Name)
@@ -397,11 +397,11 @@ func validateGuardianAcceptPassword(data GuardianInvitationAcceptData) error {
 
 func (s *guardianInvitationService) guardianAcceptTarget(ctx context.Context, invitation *authModels.GuardianInvitation) (*userModels.GuardianProfile, string, error) {
 	if invitation.TenantID > 0 && s.SchoolRepo != nil {
-		school, err := s.SchoolRepo.FindByIDForShare(ctx, invitation.TenantID)
+		school, err := s.SchoolRepo.FindSchoolForShare(ctx, invitation.TenantID)
 		if err != nil {
 			return nil, "", &AuthError{Op: opGuardianInviteAccept, Err: err}
 		}
-		if school == nil || school.IsDeleted() {
+		if school == nil || school.Deleted {
 			return nil, "", &AuthError{Op: opGuardianInviteAccept, Err: ErrInvitationTenantDeleted}
 		}
 	}
@@ -616,8 +616,8 @@ func (s *guardianInvitationService) lookupSchoolName(ctx context.Context, tenant
 	if tenantID == 0 || s.SchoolRepo == nil {
 		return ""
 	}
-	school, err := s.SchoolRepo.FindByID(ctx, tenantID)
-	if err != nil || school == nil || school.IsDeleted() {
+	school, err := s.SchoolRepo.FindSchool(ctx, tenantID)
+	if err != nil || school == nil || school.Deleted {
 		return ""
 	}
 	return school.Name
@@ -699,11 +699,11 @@ func (s *guardianInvitationService) GetTenantSlugForToken(ctx context.Context, t
 		if invitation == nil {
 			return nil
 		}
-		school, err := s.SchoolRepo.FindByID(txCtx, invitation.TenantID)
+		school, err := s.SchoolRepo.FindSchool(txCtx, invitation.TenantID)
 		if err != nil {
 			return err
 		}
-		if school == nil || school.IsDeleted() {
+		if school == nil || school.Deleted {
 			return nil
 		}
 		slug = school.Slug

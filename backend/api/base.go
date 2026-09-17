@@ -1306,14 +1306,26 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	workforce := modules.workforce
 	// One device authentication composition serves every kiosk route group,
 	// so the IoT and students resources share its last-seen debouncer.
+	accountTenants := repoFactory.AccountTenant
+	authSchools := authSchoolDirectory{schools: api.Services.Schools, memberships: func(ctx context.Context, accountID int64) ([]int64, error) {
+		memberships, err := accountTenants.FindActiveByAccountID(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(memberships))
+		for _, membership := range memberships {
+			ids = append(ids, membership.TenantID)
+		}
+		return ids, nil
+	}}
 	deviceAuth := deviceauth.New(deviceauth.Dependencies{
 		Devices:     api.Services.IoT.Fleet(),
-		Schools:     api.Services.Schools,
+		Schools:     deviceSchoolDirectory{schools: api.Services.Schools},
 		StaffPIN:    deviceauth.StaffPIN(api.Services.StaffPINAuth.AuthenticateStaffPIN),
 		Settings:    api.Services.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
-	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, api.Services.Schools, api.Services.AccountAuthentication(), db)
+	api.Auth = authAPI.NewResource(api.Services.Auth, api.Services.Invitation, authSchools, api.Services.AccountAuthentication(), db)
 	api.Auth.CaregiverCapabilityService = api.Services.CaregiverCapability
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
@@ -1362,7 +1374,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ArrivalScheduleService:       api.Services.ArrivalSchedule,
 		InstanceService:              api.Services.Instance,
 		CareDayService:               api.Services.CareDay,
-		SchoolService:                api.Services.Schools,
+		SchoolService:                studentSchoolDirectory{schools: api.Services.Schools},
 		SettingsService:              api.Services.Settings,
 		MasterDataReviewService:      api.Services.MasterDataReview,
 		CareRequestService:           api.Services.CareRequests,
@@ -1439,7 +1451,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentDeletion,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
-		api.Services.Schools,
+		enrollmentSchoolDirectory{schools: api.Services.Schools},
 		db,
 		repoFactory.Enrollment(),
 	)
@@ -1508,13 +1520,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		SchoolName: devicescanCompose.NewSchoolName(func(ctx context.Context, id int64) (string, error) {
-			school, err := api.Services.Schools.GetSchoolByID(ctx, id)
-			if err != nil {
-				return "", err
-			}
-			return school.Name, nil
-		}),
+		SchoolName:              devicescanCompose.NewSchoolName(schoolName(api.Services.Schools)),
 		SessionEnd:              sessionEnd,
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(api.Services.Active, devicescanCompose.NewSupervisionQuery(presence), api.Services.Users, api.Services.IoT, devicescanCompose.NewSessionMirror(api.Services.TimetableData, api.Services.Activities, services.KioskMirrorPublisher(api.Services.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
@@ -1597,7 +1603,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.Parent,
 		api.Services.EnrollmentRequest,
 		api.Services.GuardianProfileLoader,
-		api.Services.Schools,
+		parentSchoolDirectory{schools: api.Services.Schools},
 		db,
 	)
 	api.Parent.SetCalendarService(api.Services.Calendar)

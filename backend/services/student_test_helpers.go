@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -27,7 +28,6 @@ import (
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,7 +39,7 @@ type StudentTestModule struct {
 	GradeTransitionTestModule
 	PeopleDirectory    peopledirectory.Capability
 	Audit              auditModels.Command
-	Schools            platform.SchoolService
+	Schools            organizationtenancy.Capability
 	CareLifecycle      users.CareLifecycleService
 	StudentAudit       users.StudentAuditService
 	PartialAbsence     schedule.PartialAbsenceService
@@ -171,7 +171,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		DataAccessLogRepo:         repos.DataAccessLog,
 		OfferingAdjustmentRepo:    repos.EnrollmentOfferingAdjustment,
 		RestorationAuditRepo:      repos.EnrollmentRestorationAudit,
-		SchoolRepo:                repos.School,
+		SchoolRepo:                enrollmentSchoolDirectory{schools: repos.School},
 		PersonRepo:                repos.Person,
 		StaffRepo:                 repos.Staff,
 		StudentRepo:               repos.Student,
@@ -192,7 +192,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		StudentEnrollment:         persons,
 		DepartureCompanions:       repos.StudentCompanion,
 		DeleteDepartureCompanions: repos.CarePlan.DeleteCompanionEdges,
-		OutboxEnqueuer:            emailOutboxService,
+		OutboxEnqueuer:            outboxEnqueuer{outbox: emailOutboxService},
 		StudentAudit:              studentAuditService,
 		StudentConsents:           studentConsentService,
 		CareWithdrawal:            careLifecycleService,
@@ -376,7 +376,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	}
 	return StudentTestModule{
 		ActiveTestModule: live, GradeTransitionTestModule: grade, PeopleDirectory: persons, Audit: auditCommand,
-		Schools: platform.NewSchoolService(repos.School), CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
+		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
 		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
 		OfferingChanges: offeringChangeRequestService, PickupAdjustments: pickupAdjustmentService, ExcusedRequests: excusedRequestService,
 		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, FamilyProtection: familyProtectionService, OGSGroupLive: ogsGroupLiveService,

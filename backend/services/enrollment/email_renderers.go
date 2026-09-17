@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // Payload keys used by the enrollment outbox rows. Every field needed
@@ -37,8 +37,11 @@ type EmailRendererConfig struct {
 // NewEnrollmentSubmittedRenderer builds the renderer for the parent
 // confirmation email. Register at startup with kind
 // platform.EmailKindEnrollmentSubmitted.
-func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+// outboxIntent is the claimed Delivery e-mail intent the renderers read.
+type outboxIntent = emailoutbox.Intent
+
+func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		recipient, _ := row.Payload[EnrollmentPayloadRecipientEmail].(string)
 		if recipient == "" {
 			return nil, fmt.Errorf("enrollment submitted payload missing recipient_email")
@@ -82,8 +85,8 @@ func NewEnrollmentSubmittedRenderer(cfg EmailRendererConfig) func(context.Contex
 // admin notification email. Each admin in the
 // `enrollment.notification_emails` setting gets one row; the worker
 // dispatches them independently.
-func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentAdminNotificationRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		recipient, _ := row.Payload[EnrollmentPayloadRecipientEmail].(string)
 		if recipient == "" {
 			return nil, fmt.Errorf("admin notification payload missing recipient_email")
@@ -137,7 +140,7 @@ const (
 // "please confirm next year's enrollment" email. Sent when an admin
 // triggers an opt_in rollover; the parent must click through and
 // confirm before the deadline or their child is dropped.
-func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentRolloverOptInRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
 	return newRolloverRenderer(cfg, rolloverRendererSpec{
 		errLabel:         "opt_in",
 		template:         "enrollment-rollover-opt-in.html",
@@ -158,8 +161,8 @@ type rolloverRendererSpec struct {
 	phaseFullSubject string // fmt with phase + school name
 }
 
-func newRolloverRenderer(cfg EmailRendererConfig, spec rolloverRendererSpec) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
-	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+func newRolloverRenderer(cfg EmailRendererConfig, spec rolloverRendererSpec) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		recipient, _ := row.Payload[EnrollmentPayloadRecipientEmail].(string)
 		if recipient == "" {
 			return nil, fmt.Errorf("rollover %s payload missing recipient_email", spec.errLabel)
@@ -209,7 +212,7 @@ func newRolloverRenderer(cfg EmailRendererConfig, spec rolloverRendererSpec) fun
 // NewEnrollmentRolloverOptOutRenderer builds the renderer for the
 // "we have pre-registered you" email. Sent when an admin triggers an
 // opt_out rollover; the parent only acts if they want to decline.
-func NewEnrollmentRolloverOptOutRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+func NewEnrollmentRolloverOptOutRenderer(cfg EmailRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
 	return newRolloverRenderer(cfg, rolloverRendererSpec{
 		errLabel:         "opt_out",
 		template:         "enrollment-rollover-opt-out.html",

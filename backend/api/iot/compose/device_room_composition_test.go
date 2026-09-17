@@ -20,7 +20,7 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	_, feedback := testutil.SetupFeedbackModule(t)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
-	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), auth.Schools, auth.StaffPINAuth.AuthenticateStaffPIN, auth.Settings, "1234")
+	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), testutil.DeviceSchools(db), auth.StaffPINAuth.AuthenticateStaffPIN, auth.Settings, "1234")
 	resource := NewResource(ServiceDependencies{
 		Administration:           devicefleet.NewAdministration(data.IoT.Fleet()),
 		Configuration:            data.Configuration,

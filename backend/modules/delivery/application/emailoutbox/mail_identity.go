@@ -1,4 +1,4 @@
-package platform
+package emailoutbox
 
 import (
 	"context"
@@ -7,8 +7,20 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 )
+
+// SchoolContact is the part of a school the reply address is resolved from.
+type SchoolContact struct {
+	Name  string
+	Email string
+}
+
+// SchoolContacts reads the contact data of the sending school. Organisation
+// & Tenancy owns the row; the root binds this port to its capability. A
+// school that does not exist is (nil, nil).
+type SchoolContacts interface {
+	FindSchoolContact(ctx context.Context, tenantID int64) (*SchoolContact, error)
+}
 
 // tenantMailIdentityService resolves the reply address of one school (#1936).
 //
@@ -22,17 +34,17 @@ import (
 // that never open the setting, which is the whole point: the reported failure
 // (17.07.2026) was that answers to Eltern-Einladungen landed at moto.
 type tenantMailIdentityService struct {
-	schoolRepo        platformModels.SchoolRepository
+	schools           SchoolContacts
 	configuredAddress func(context.Context, int64) (string, error)
 	logger            *slog.Logger
 }
 
-// NewTenantMailIdentityService builds the resolver. Both dependencies are
+// NewTenantMailIdentity builds the resolver. Both dependencies are
 // optional at the seams the callers actually have: without a settings service
 // it resolves from the school record alone, which is the correct degraded
 // behaviour rather than an error.
-func NewTenantMailIdentityService(
-	schoolRepo platformModels.SchoolRepository,
+func NewTenantMailIdentity(
+	schools SchoolContacts,
 	configuredAddress func(context.Context, int64) (string, error),
 	logger *slog.Logger,
 ) email.ReplyToResolver {
@@ -40,7 +52,7 @@ func NewTenantMailIdentityService(
 		logger = slog.Default()
 	}
 	return &tenantMailIdentityService{
-		schoolRepo:        schoolRepo,
+		schools:           schools,
 		configuredAddress: configuredAddress,
 		logger:            logger.With("component", "tenant_mail_identity"),
 	}
@@ -85,11 +97,11 @@ func (s *tenantMailIdentityService) ResolveReplyTo(
 func (s *tenantMailIdentityService) resolveSchool(
 	ctx context.Context,
 	tenantID int64,
-) (*platformModels.School, error) {
-	if s.schoolRepo == nil {
+) (*SchoolContact, error) {
+	if s.schools == nil {
 		return nil, nil
 	}
-	return s.schoolRepo.FindByID(ctx, tenantID)
+	return s.schools.FindSchoolContact(ctx, tenantID)
 }
 
 // resolveConfiguredAddress reads the explicit setting. ResolveStringForTenant
