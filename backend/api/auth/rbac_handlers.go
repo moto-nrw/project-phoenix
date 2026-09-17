@@ -11,13 +11,15 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// toRoleResponse maps a domain Role to its API response representation.
-func toRoleResponse(role *authModel.Role) *RoleResponse {
+// The role and permission routes call the Identity & Access role
+// administration directly (#3314).
+
+// toRoleResponse maps a role to its API response representation.
+func toRoleResponse(role identityaccess.Role) *RoleResponse {
 	return &RoleResponse{
 		ID:          role.ID,
 		Name:        role.Name,
@@ -29,7 +31,26 @@ func toRoleResponse(role *authModel.Role) *RoleResponse {
 	}
 }
 
-// Permission Management Request/Response Types
+// toPermissionResponse maps a permission to its API response representation.
+func toPermissionResponse(permission identityaccess.Permission) *PermissionResponse {
+	return &PermissionResponse{
+		ID:          permission.ID,
+		Name:        permission.Name,
+		Description: permission.Description,
+		Resource:    permission.Resource,
+		Action:      permission.Action,
+		CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func toPermissionResponses(permissions []identityaccess.Permission) []*PermissionResponse {
+	responses := make([]*PermissionResponse, 0, len(permissions))
+	for _, permission := range permissions {
+		responses = append(responses, toPermissionResponse(permission))
+	}
+	return responses
+}
 
 // createRole handles creating a new role
 func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
@@ -39,7 +60,7 @@ func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := rs.AuthService.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
+	role, err := rs.Sessions.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -55,17 +76,17 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
+	role, err := rs.Sessions.GetRole(r.Context(), int64(id))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
 	// Get permissions for the role
-	permissions, _ := rs.AuthService.GetRolePermissions(r.Context(), id)
+	permissions, _ := rs.Sessions.GetRolePermissions(r.Context(), int64(id))
 	permissionNames := make([]string, 0, len(permissions))
 	for _, perm := range permissions {
-		permissionNames = append(permissionNames, perm.GetFullName())
+		permissionNames = append(permissionNames, perm.FullName())
 	}
 
 	resp := toRoleResponse(role)
@@ -87,7 +108,7 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
+	role, err := rs.Sessions.GetRole(r.Context(), int64(id))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
 		return
@@ -101,7 +122,7 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 		role.BaseRole = req.BaseRole
 	}
 
-	if err := rs.AuthService.UpdateRole(r.Context(), role); err != nil {
+	if err := rs.Sessions.UpdateRole(r.Context(), role); err != nil {
 		common.RenderError(w, r, renderRoleMutationError(err))
 		return
 	}
@@ -116,7 +137,7 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := rs.AuthService.DeleteRole(r.Context(), id); err != nil {
+	if err := rs.Sessions.DeleteRole(r.Context(), int64(id)); err != nil {
 		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen"))
 			return
@@ -128,37 +149,40 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
-// renderRoleMutationError maps service-layer role errors to appropriate HTTP responses.
+// renderRoleMutationError maps role administration errors to appropriate HTTP responses.
 func renderRoleMutationError(err error) render.Renderer {
-	var authErr *authService.AuthError
-	if errors.As(err, &authErr) {
-		if errors.Is(authErr.Err, authService.ErrSystemRoleImmutable) {
-			return common.ErrorForbidden(authErr.Err)
+	var roleErr *identityaccess.AuthenticationError
+	if errors.As(err, &roleErr) {
+		if errors.Is(roleErr.Err, identityaccess.ErrSystemRoleImmutable) {
+			return common.ErrorForbidden(roleErr.Err)
 		}
-		if errors.Is(authErr.Err, authService.ErrRoleNotFound) {
-			return common.ErrorNotFound(authErr.Err)
+		if errors.Is(roleErr.Err, identityaccess.ErrRoleNotFound) {
+			return common.ErrorNotFound(roleErr.Err)
 		}
-		if errors.Is(authErr.Err, authService.ErrPermissionNotFound) {
-			return common.ErrorNotFound(authErr.Err)
+		if errors.Is(roleErr.Err, identityaccess.ErrPermissionNotFound) {
+			return common.ErrorNotFound(roleErr.Err)
 		}
 	}
-	// FindByID failures (sql.ErrNoRows wrapped in DatabaseError) → 404
+	// Store failures that carry sql.ErrNoRows (an update that matched no
+	// tenant-owned row) → 404
 	if errors.Is(err, sql.ErrNoRows) {
 		return common.ErrorNotFound(errors.New("role not found"))
 	}
 	return common.ErrorInternalServer(err)
 }
 
+// accountRoleErrorRenderer renders the account reads and grants of the role
+// administration: an unknown or unmanageable account is 404.
+var accountRoleErrorRenderer = common.UnwrapRenderer[*identityaccess.AuthenticationError](
+	[]common.ErrorRule{
+		{Target: identityaccess.ErrAccountNotFound, Render: common.ErrorNotFound},
+	},
+	common.ErrorInternalServer,
+)
+
 // listRoles handles listing roles
 func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters for filtering
-	filters := make(map[string]interface{})
-
-	if name := r.URL.Query().Get("name"); name != "" {
-		filters["name"] = name
-	}
-
-	roles, err := rs.AuthService.ListRoles(r.Context(), filters)
+	roles, err := rs.Sessions.ListRoles(r.Context(), identityaccess.RoleFilter{Name: r.URL.Query().Get("name")})
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -179,9 +203,9 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	roles, err := rs.AuthService.GetAccountRoles(r.Context(), accountID)
+	roles, err := rs.Sessions.GetAccountRoles(r.Context(), int64(accountID))
 	if err != nil {
-		common.RenderError(w, r, accountManagementErrorRenderer(err))
+		common.RenderError(w, r, accountRoleErrorRenderer(err))
 		return
 	}
 
@@ -213,7 +237,7 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, int(*approvedRoleID)); err != nil {
+	if err := rs.Sessions.AssignRoleToAccount(r.Context(), int64(accountID), *approvedRoleID); err != nil {
 		rs.renderAccountRoleMutationError(w, r, err)
 		return
 	}
@@ -222,8 +246,8 @@ func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) 
 }
 
 // replaceAccountRole makes one approved target role the account's only staff
-// role at this school; guardian access stays. The service executes assignment
-// and removals in the request transaction.
+// role at this school; guardian access stays. The role administration
+// executes assignment and removals in the request transaction.
 func (rs *Resource) replaceAccountRole(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
 	if !ok {
@@ -240,7 +264,7 @@ func (rs *Resource) replaceAccountRole(w http.ResponseWriter, r *http.Request) {
 	if abort {
 		return
 	}
-	if err := rs.AuthService.ReplaceAccountRole(r.Context(), accountID, int(*approvedRoleID)); err != nil {
+	if err := rs.Sessions.ReplaceAccountRole(r.Context(), int64(accountID), *approvedRoleID); err != nil {
 		rs.renderAccountRoleMutationError(w, r, err)
 		return
 	}
@@ -253,20 +277,47 @@ func (rs *Resource) renderAccountRoleMutationError(w http.ResponseWriter, r *htt
 	// fails. The request transaction otherwise commits every non-5xx response.
 	tenant.MarkRollback(r.Context())
 	for _, policyErr := range []error{
-		authService.ErrRoleLehrkraftCaregiverProfile,
-		authService.ErrRoleCaregiverNeedsProfile,
-		authService.ErrLehrkraftRoleImmutable,
+		identityaccess.ErrRoleLehrkraftCaregiverProfile,
+		identityaccess.ErrRoleCaregiverNeedsProfile,
+		identityaccess.ErrLehrkraftRoleImmutable,
 	} {
 		if errors.Is(err, policyErr) {
 			common.RenderError(w, r, common.ErrorConflict(policyErr))
 			return
 		}
 	}
-	if authService.IsSchoolIdentityRequestError(err) {
+	if identityaccess.IsSchoolIdentityRequestError(err) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	common.RenderError(w, r, accountManagementErrorRenderer(err))
+	common.RenderError(w, r, accountRoleErrorRenderer(err))
+}
+
+// The pass-through account and role mutations read the capability at request
+// time, so a resource composed without it still builds its router.
+
+func (rs *Resource) removeRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
+	return rs.Sessions.RemoveRoleFromAccount(ctx, accountID, roleID)
+}
+
+func (rs *Resource) grantPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
+	return rs.Sessions.GrantPermissionToAccount(ctx, accountID, permissionID)
+}
+
+func (rs *Resource) denyPermissionToAccount(ctx context.Context, accountID, permissionID int64) error {
+	return rs.Sessions.DenyPermissionToAccount(ctx, accountID, permissionID)
+}
+
+func (rs *Resource) removePermissionFromAccount(ctx context.Context, accountID, permissionID int64) error {
+	return rs.Sessions.RemovePermissionFromAccount(ctx, accountID, permissionID)
+}
+
+func (rs *Resource) assignPermissionToRole(ctx context.Context, roleID, permissionID int64) error {
+	return rs.Sessions.AssignPermissionToRole(ctx, roleID, permissionID)
+}
+
+func (rs *Resource) removePermissionFromRole(ctx context.Context, roleID, permissionID int64) error {
+	return rs.Sessions.RemovePermissionFromRole(ctx, roleID, permissionID)
 }
 
 // createPermission handles creating a new permission
@@ -277,10 +328,10 @@ func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var permission *authModel.Permission
+	var permission identityaccess.Permission
 	err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
 		var createErr error
-		permission, createErr = rs.AuthService.CreatePermission(ctx, req.Name, req.Description, req.Resource, req.Action)
+		permission, createErr = rs.Sessions.CreatePermission(ctx, req.Name, req.Description, req.Resource, req.Action)
 		return createErr
 	})
 	if err != nil {
@@ -288,17 +339,7 @@ func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := &PermissionResponse{
-		ID:          permission.ID,
-		Name:        permission.Name,
-		Description: permission.Description,
-		Resource:    permission.Resource,
-		Action:      permission.Action,
-		CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
-	}
-
-	common.Respond(w, r, http.StatusCreated, resp, "Permission created successfully")
+	common.Respond(w, r, http.StatusCreated, toPermissionResponse(permission), "Permission created successfully")
 }
 
 // getPermissionByID handles getting a permission by ID
@@ -308,23 +349,13 @@ func (rs *Resource) getPermissionByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
+	permission, err := rs.Sessions.GetPermission(r.Context(), int64(id))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
-	resp := &PermissionResponse{
-		ID:          permission.ID,
-		Name:        permission.Name,
-		Description: permission.Description,
-		Resource:    permission.Resource,
-		Action:      permission.Action,
-		CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
-	}
-
-	common.Respond(w, r, http.StatusOK, resp, "Permission retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toPermissionResponse(permission), "Permission retrieved successfully")
 }
 
 // updatePermission handles updating a permission
@@ -340,7 +371,7 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
+	permission, err := rs.Sessions.GetPermission(r.Context(), int64(id))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("permission not found")))
 		return
@@ -352,7 +383,7 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	permission.Action = req.Action
 
 	if err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
-		return rs.AuthService.UpdatePermission(ctx, permission)
+		return rs.Sessions.UpdatePermission(ctx, permission)
 	}); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -369,7 +400,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := tenant.WithAdminTx(r.Context(), rs.db, func(ctx context.Context, _ bun.Tx) error {
-		return rs.AuthService.DeletePermission(ctx, id)
+		return rs.Sessions.DeletePermission(ctx, int64(id))
 	}); err != nil {
 		if common.IsConstraintViolation(err) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
@@ -384,38 +415,18 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 
 // listPermissions handles listing permissions
 func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters for filtering
-	filters := make(map[string]interface{})
-
-	if resource := r.URL.Query().Get("resource"); resource != "" {
-		filters["resource"] = resource
+	filter := identityaccess.PermissionFilter{
+		Resource: r.URL.Query().Get("resource"),
+		Action:   r.URL.Query().Get("action"),
 	}
 
-	if action := r.URL.Query().Get("action"); action != "" {
-		filters["action"] = action
-	}
-
-	permissions, err := rs.AuthService.ListPermissions(r.Context(), filters)
+	permissions, err := rs.Sessions.ListPermissions(r.Context(), filter)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	responses := make([]*PermissionResponse, 0, len(permissions))
-	for _, permission := range permissions {
-		resp := &PermissionResponse{
-			ID:          permission.ID,
-			Name:        permission.Name,
-			Description: permission.Description,
-			Resource:    permission.Resource,
-			Action:      permission.Action,
-			CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
-		}
-		responses = append(responses, resp)
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Permissions retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Permissions retrieved successfully")
 }
 
 // getAccountPermissions handles getting permissions for an account
@@ -425,27 +436,13 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	permissions, err := rs.AuthService.GetAccountPermissions(r.Context(), accountID)
+	permissions, err := rs.Sessions.GetAccountPermissions(r.Context(), int64(accountID))
 	if err != nil {
-		common.RenderError(w, r, accountManagementErrorRenderer(err))
+		common.RenderError(w, r, accountRoleErrorRenderer(err))
 		return
 	}
 
-	responses := make([]*PermissionResponse, 0, len(permissions))
-	for _, permission := range permissions {
-		resp := &PermissionResponse{
-			ID:          permission.ID,
-			Name:        permission.Name,
-			Description: permission.Description,
-			Resource:    permission.Resource,
-			Action:      permission.Action,
-			CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
-		}
-		responses = append(responses, resp)
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Account permissions retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Account permissions retrieved successfully")
 }
 
 // getAccountDirectPermissions handles getting only direct permissions for an account (not role-based)
@@ -455,27 +452,13 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
+	permissions, err := rs.Sessions.GetAccountDirectPermissions(r.Context(), int64(accountID))
 	if err != nil {
-		common.RenderError(w, r, accountManagementErrorRenderer(err))
+		common.RenderError(w, r, accountRoleErrorRenderer(err))
 		return
 	}
 
-	responses := make([]*PermissionResponse, 0, len(permissions))
-	for _, permission := range permissions {
-		resp := &PermissionResponse{
-			ID:          permission.ID,
-			Name:        permission.Name,
-			Description: permission.Description,
-			Resource:    permission.Resource,
-			Action:      permission.Action,
-			CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
-		}
-		responses = append(responses, resp)
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Account direct permissions retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Account direct permissions retrieved successfully")
 }
 
 // getRolePermissions handles getting permissions for a role
@@ -485,27 +468,13 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	permissions, err := rs.AuthService.GetRolePermissions(r.Context(), roleID)
+	permissions, err := rs.Sessions.GetRolePermissions(r.Context(), int64(roleID))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	responses := make([]*PermissionResponse, 0, len(permissions))
-	for _, permission := range permissions {
-		resp := &PermissionResponse{
-			ID:          permission.ID,
-			Name:        permission.Name,
-			Description: permission.Description,
-			Resource:    permission.Resource,
-			Action:      permission.Action,
-			CreatedAt:   permission.CreatedAt.Format(time.RFC3339),
-			UpdatedAt:   permission.UpdatedAt.Format(time.RFC3339),
-		}
-		responses = append(responses, resp)
-	}
-
-	common.Respond(w, r, http.StatusOK, responses, "Role permissions retrieved successfully")
+	common.Respond(w, r, http.StatusOK, toPermissionResponses(permissions), "Role permissions retrieved successfully")
 }
 
 // replaceRolePermissions applies a complete permission selection atomically.
@@ -523,7 +492,7 @@ func (rs *Resource) replaceRolePermissions(w http.ResponseWriter, r *http.Reques
 	for i, permissionID := range req.PermissionIDs {
 		permissionIDs[i] = permissionID.Int64()
 	}
-	if err := rs.AuthService.ReplaceRolePermissions(r.Context(), roleID, permissionIDs); err != nil {
+	if err := rs.Sessions.ReplaceRolePermissions(r.Context(), int64(roleID), permissionIDs); err != nil {
 		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, renderRoleMutationError(err))
 		return
@@ -531,5 +500,3 @@ func (rs *Resource) replaceRolePermissions(w http.ResponseWriter, r *http.Reques
 
 	common.RespondNoContent(w, r)
 }
-
-// Account Management Extension Endpoints

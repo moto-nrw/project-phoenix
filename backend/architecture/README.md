@@ -644,9 +644,10 @@ public `OperatorAuthentication` and `OperatorAccountAccess` capabilities
 (#3252). The facts those flows need from other owners (the operator MFA
 service, the operator audit ledger, the pending e-mail change links, the
 password policy, schools and organisations, the People Directory and School
-Membership identity chain a school access provisions, the retained role
-assignment rules) are bound at the serving root through public-typed seams
-(`compose.OperatorDependencies`). The login, refresh, profile, password and
+Membership identity chain a school access provisions) are bound at the
+serving root through public-typed seams (`compose.OperatorDependencies`);
+the role assignment rules are the module's own since #3314. The login,
+refresh, profile, password and
 school-access handlers live in `modules/identityaccess/inbound/operator`,
 the owner's HTTP adapter, and call the public contract there. `api/operator`
 keeps the operator router with its middleware chain and rate limiters,
@@ -707,6 +708,31 @@ because no target rule lets those inbound packages import the identity-access
 public package. The legacy `auth.accounts_parents` model, repository and its
 six `/auth/parent-accounts` routes stay unchanged; the table has no target
 owner and that conflict stays open under #2720.
+
+The role and permission administration (#3314) lives in the module's
+application layer as the public `RoleAdministration` capability
+(`RoleQuery`, `RoleCommand`, `PermissionQuery`, `PermissionCommand`): role
+and permission CRUD, account role assignment with the school identity it
+owes, direct account grants, role-permission selections and the default
+staff permission. `auth.roles`, `auth.permissions`, `auth.role_permissions`,
+`auth.account_roles`, `auth.account_permissions` and the account and
+membership locks the mutations serialize on are still read and written
+through the retained `database/repositories/auth` repositories:
+`database/repositories/identity_roles.go` serves the module's
+`compose.RoleDirectory` seam over them, without changing a statement or the
+lock order, until #3226 moves the stores into the module. The school-role
+assignment policy (`ValidateAssignableSchoolRole` and the Lehrkraft and
+guardian-tier classification) is a public function of the module; the
+operator school access binds it inside the module, and the retained
+registration, linking and invitation flows of `services/auth` reach it and
+the caregiver-profile fact through their `SchoolIdentityProvisioning` port.
+`api/auth`, the staff membership runtime, operator provisioning and the data
+import call the public contract; the caregiver capability and the person
+service of `services/users` reach it through consumer-owned ports the root
+binds. Classifying and promoting a stored `users.students_guardians` role
+applies the security-runtime guardian presets, which neither the module nor
+the root may import, so it moved to its write owner, the People Directory
+(`services/users`).
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its

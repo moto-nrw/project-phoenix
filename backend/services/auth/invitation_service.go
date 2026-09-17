@@ -187,7 +187,7 @@ func (s *invitationService) CreateInvitation(ctx context.Context, req Invitation
 	}
 	// A school-portal invitation must link to the school portal, not the
 	// staff frontend — decided here, before the send is queued (#2207).
-	schoolPortal := IsLehrkraftSystemRole(role)
+	schoolPortal := isLehrkraftRole(s.schoolIdentity, role)
 	// Queue the email until the surrounding tenant transaction commits: the
 	// staff import creates invitations mid-transaction, and a rolled-back
 	// token must never reach an inbox as a dead link. Outside a tenant tx
@@ -214,7 +214,7 @@ func (s *invitationService) ensureRoleAssignable(ctx context.Context, req Invita
 		tenantID = tenant.FromContext(ctx)
 	}
 
-	role, err := ValidateAssignableSchoolRole(ctx, s.roleRepo, req.RoleID, tenantID)
+	role, err := validateAssignableSchoolRole(ctx, s.roleRepo, s.schoolIdentity, req.RoleID, tenantID)
 	if err != nil {
 		return &AuthError{Op: opCreateInvitation, Err: err}
 	}
@@ -223,7 +223,7 @@ func (s *invitationService) ensureRoleAssignable(ctx context.Context, req Invita
 	// caregiver profile — refuse the combination at creation, before any
 	// token exists (#1772). Checked before the OperatorGrant early-return:
 	// the invariant holds for operator-created invitations too.
-	if req.CaregiverEnabled && IsLehrkraftSystemRole(role) {
+	if req.CaregiverEnabled && isLehrkraftRole(s.schoolIdentity, role) {
 		return &AuthError{Op: opCreateInvitation, Err: ErrLehrkraftNoCaregiver}
 	}
 
@@ -348,7 +348,7 @@ func (s *invitationService) ValidateInvitation(ctx context.Context, token string
 			CaregiverEnabled:     invitation.CaregiverEnabled,
 			ExpiresAt:            invitation.ExpiresAt,
 		}
-		if IsLehrkraftSystemRole(role) {
+		if isLehrkraftRole(s.schoolIdentity, role) {
 			result.TargetPortal = "school"
 		}
 		return nil
@@ -675,7 +675,7 @@ func (s *invitationService) assignCaregiverRoleIfRequested(ctx context.Context, 
 	}
 	// Defense in depth for tokens minted before the creation-side check
 	// existed: a Lehrkraft invitation never receives the user role (#1772).
-	if IsLehrkraftSystemRole(role) {
+	if isLehrkraftRole(s.schoolIdentity, role) {
 		return nil
 	}
 
@@ -757,7 +757,7 @@ func (s *invitationService) provisionSchoolIdentity(
 		PersonID: invitation.PersonID,
 		// A Lehrkraft never gets a caregiver profile, caregiver_enabled or not —
 		// same invariant as assignCaregiverRoleIfRequested (#1772).
-		CaregiverUpgrade: invitation.CaregiverEnabled && !IsLehrkraftSystemRole(role),
+		CaregiverUpgrade: invitation.CaregiverEnabled && !isLehrkraftRole(s.schoolIdentity, role),
 		CreatePerson:     true,
 	})
 	if err != nil {
@@ -801,7 +801,7 @@ func (s *invitationService) ResendInvitation(ctx context.Context, invitationID i
 		slog.Int64("actor_account_id", actorAccountID))
 
 	schoolName := s.lookupSchoolName(ctx, invitation.TenantID)
-	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, IsLehrkraftSystemRole(role))
+	s.sendInvitationEmail(ctx, invitation, role.Name, schoolName, isLehrkraftRole(s.schoolIdentity, role))
 	return nil
 }
 

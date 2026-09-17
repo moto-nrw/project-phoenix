@@ -30,10 +30,11 @@ const (
 
 // AccountSessions is the Identity & Access capability the login, refresh,
 // logout, tenant-switch, session-validation, MFA exchange and token routes
-// call directly (#3251).
+// (#3251) and the role and permission routes (#3314) call directly.
 type AccountSessions interface {
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
+	identityaccess.RoleAdministration
 }
 
 // Resource defines the auth resource
@@ -83,7 +84,7 @@ func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitat
 }
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
-// account-authentication capability the session routes call (#3251).
+// capability the session routes (#3251) and the RBAC routes (#3314) call.
 func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
 	return &Resource{
 		AuthService:       authService,
@@ -292,16 +293,16 @@ func (rs *Resource) Router() chi.Router {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
 						r.With(common.RequiresPermission(permUsersManage)).Put("/", rs.replaceAccountRole)
 						r.With(common.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Delete("/{roleId}", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.removeRoleFromAccount, accountRoleErrorRenderer))
 					})
 
 					// Permission assignments
 					r.Route(pathPermissions, func(r chi.Router) {
 						r.With(common.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
 						r.With(common.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.GrantPermissionToAccount, accountManagementErrorRenderer))
-						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.DenyPermissionToAccount, accountManagementErrorRenderer))
-						r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromAccount, accountManagementErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.grantPermissionToAccount, accountRoleErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.denyPermissionToAccount, accountRoleErrorRenderer))
+						r.With(common.RequiresPermission(permUsersManage)).Delete(pathPermissionID, common.TwoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromAccount, accountRoleErrorRenderer))
 					})
 
 					// Token management
@@ -325,8 +326,8 @@ func (rs *Resource) Router() chi.Router {
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(common.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
 				r.With(common.RequiresPermission(permRolesManage)).Put("/", rs.replaceRolePermissions)
-				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
-				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
+				r.With(common.RequiresPermission(permRolesManage)).Post(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.assignPermissionToRole, renderRoleMutationError))
+				r.With(common.RequiresPermission(permRolesManage)).Delete(pathPermissionID, common.TwoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.removePermissionFromRole, renderRoleMutationError))
 			})
 
 			// Token cleanup

@@ -195,7 +195,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
-	roles, err := sc.authSvc.GetAccountRoles(sc.ctx, int(account.ID))
+	roles, err := sc.repos.Role.FindByAccountID(sc.ctx, account.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, roles)
 	active, err := sc.authSvc.VerifyAccountTenantMembership(sc.ctx, account.ID, testpkg.Tenant(t))

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/services/auth"
@@ -25,6 +26,7 @@ type operatorProvisioningSources struct {
 	authService    *auth.Service
 	invitations    auth.InvitationService
 	schoolIdentity auth.SchoolIdentityProvisioning
+	roles          identityaccess.RoleCommand
 	settings       config.SettingsService
 	logger         *slog.Logger
 }
@@ -35,6 +37,7 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 		Identity: provisioningIdentity{
 			repos: sources.repos, authService: sources.authService,
 			invitations: sources.invitations, schoolIdentity: sources.schoolIdentity,
+			roles: sources.roles,
 		},
 		Devices:           sources.adapters.Devices,
 		People:            sources.adapters.People,
@@ -48,12 +51,14 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 }
 
 // provisioningIdentity binds the Identity & Access part of provisioning to
-// the retained auth services and repositories.
+// the public role administration and the retained auth services and
+// repositories.
 type provisioningIdentity struct {
 	repos          *repositories.Factory
 	authService    *auth.Service
 	invitations    auth.InvitationService
 	schoolIdentity auth.SchoolIdentityProvisioning
+	roles          identityaccess.RoleCommand
 }
 
 var _ organizationCompose.ProvisioningIdentity = provisioningIdentity{}
@@ -66,7 +71,7 @@ func (p provisioningIdentity) ListSystemRoles(ctx context.Context) ([]organizati
 	result := make([]organizationCompose.ProvisioningRole, 0, len(roles))
 	for _, role := range roles {
 		if role != nil {
-			result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole, auth.IsLehrkraftSystemRole(role)))
+			result = append(result, p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole))
 		}
 	}
 	return result, nil
@@ -77,7 +82,7 @@ func (p provisioningIdentity) FindSystemRole(ctx context.Context, name string) (
 	if err != nil || role == nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
-	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole, auth.IsLehrkraftSystemRole(role)), true, nil
+	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole), true, nil
 }
 
 func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizationCompose.ProvisioningRole, bool, error) {
@@ -85,14 +90,14 @@ func (p provisioningIdentity) FindRole(ctx context.Context, id int64) (organizat
 	if err != nil || role == nil {
 		return organizationCompose.ProvisioningRole{}, false, err
 	}
-	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole, auth.IsLehrkraftSystemRole(role)), true, nil
+	return p.role(role.ID, role.Name, role.IsSystem, role.TenantID, role.BaseRole), true, nil
 }
 
-func (p provisioningIdentity) role(id int64, name string, system bool, tenantID *int64, baseRole *string, lehrkraft bool) organizationCompose.ProvisioningRole {
+func (p provisioningIdentity) role(id int64, name string, system bool, tenantID *int64, baseRole *string) organizationCompose.ProvisioningRole {
 	facts := &auth.RoleFacts{ID: id, TenantID: tenantID, Name: name, IsSystem: system, BaseRole: baseRole}
 	return organizationCompose.ProvisioningRole{
 		ID: id, Name: name, IsSystem: system, TenantID: tenantID, BaseRole: baseRole,
-		Lehrkraft:            lehrkraft,
+		Lehrkraft:            p.schoolIdentity.IsLehrkraftSystemRole(facts),
 		CaregiverPermissions: p.schoolIdentity.IsPlatformCaregiverRole(facts),
 	}
 }
@@ -160,7 +165,7 @@ func (p provisioningIdentity) EnsureSchoolIdentity(ctx context.Context, request 
 }
 
 func (p provisioningIdentity) AssignRole(ctx context.Context, tenantID, accountID, roleID int64) error {
-	return p.authService.AssignRoleToAccount(tenant.WithTenantID(ctx, tenantID), int(accountID), int(roleID))
+	return authServiceError(p.roles.AssignRoleToAccount(tenant.WithTenantID(ctx, tenantID), accountID, roleID))
 }
 
 func (p provisioningIdentity) ListSchoolAccounts(ctx context.Context, tenantID int64) ([]organizationCompose.SchoolAccount, error) {
