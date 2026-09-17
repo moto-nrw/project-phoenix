@@ -35,6 +35,7 @@ import {
 } from "~/lib/care-request-review-api";
 import {
   fetchPickupExtensions,
+  PickupExtensionApiError,
   resolvePickupExtension,
 } from "~/lib/pickup-extension-api";
 import { CareRequestReviewItem } from "./care-request-review-item";
@@ -147,6 +148,45 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
       expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull(),
     );
     expect(mockResolve).not.toHaveBeenCalled();
+  });
+
+  it("lädt die Auswahl nach einer gleichzeitig geänderten Terminliste neu", async () => {
+    const changedTask: PickupExtension = {
+      ...task,
+      blocks: [
+        {
+          id: "31",
+          title: "Spätdienst",
+          startTime: "15:00",
+          endTime: "16:00",
+        },
+      ],
+    };
+    mockFetch
+      .mockResolvedValueOnce([task])
+      .mockResolvedValueOnce([changedTask]);
+    mockResolve
+      .mockRejectedValueOnce(
+        new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
+      )
+      .mockResolvedValueOnce(undefined);
+    render(
+      <PickupExtensionAccessProvider value>
+        <CareRequestReviewItem row={laterPickupRow()} onDecided={vi.fn()} />
+      </PickupExtensionAccessProvider>,
+    );
+
+    approve();
+    await screen.findByText("Längere Betreuung eintragen");
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    expect(await screen.findByText("Spätdienst")).toBeInTheDocument();
+    expect(mockFetch).toHaveBeenLastCalledWith("42");
+    fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
+
+    await waitFor(() =>
+      expect(mockResolve).toHaveBeenLastCalledWith("7", ["31"]),
+    );
   });
 
   it("geht ohne offene Frage weiter wie bisher", async () => {

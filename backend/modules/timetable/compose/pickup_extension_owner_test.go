@@ -207,6 +207,16 @@ func TestModuleOwnsPickupWeekdayExtension(t *testing.T) {
 		StudentID: other.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2020-01-01",
 	})
 	require.NoError(t, err)
+	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: child.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2100-01-01",
+	})
+	require.NoError(t, err)
+	_, err = module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: other.ID, ActivityGroupID: office.ID, ValidFrom: "2100-01-01",
+	})
+	require.NoError(t, err)
+	// Future membership neither puts the child on Freies Spiel nor makes the
+	// otherwise empty Teamsitzung a selectable block at the effective date.
 	fixture := ownedActivityInstanceFixture{roomID: room.ID, groupID: freePlay.ID}
 	tuesday := pickupExtensionInstance(t, module, ctx, fixture, "2099-03-10", "14:45:00", "16:00:00", "Freies Spiel")
 	earlierTuesday := pickupExtensionInstance(t, module, ctx, fixture, "2099-03-03", "14:45:00", "16:00:00", "Freies Spiel")

@@ -49,6 +49,7 @@ function weekdayTask(): PickupExtension {
     studentName: "Mia Beispiel",
     kind: "weekday",
     weekday: 2,
+    effectiveFrom: "2026-09-15",
     previousPickupTime: "14:45",
     pickupTime: "16:00",
     blocks: [
@@ -121,7 +122,7 @@ describe("PickupExtensionDialog (#3261)", () => {
     );
 
     expect(
-      screen.getByText(/wird ab jetzt jeden Dienstag erst um 16:00 Uhr/),
+      screen.getByText(/wird ab Dienstag, 15\.09\.2026 erst um 16:00 Uhr/),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Gilt für alle kommenden Dienstage\./),
@@ -164,13 +165,13 @@ describe("PickupExtensionDialog (#3261)", () => {
       new PickupExtensionApiError("gone", 409, "pickup_extension_block_gone"),
     );
     const onClose = vi.fn();
-    const onChanged = vi.fn();
+    const onStale = vi.fn();
     render(
       <PickupExtensionDialog
         tasks={[dayTask()]}
         isOpen
         onClose={onClose}
-        onChanged={onChanged}
+        onStale={onStale}
       />,
     );
 
@@ -182,8 +183,8 @@ describe("PickupExtensionDialog (#3261)", () => {
       ),
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
-    expect(onChanged).toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "Eintragen" })).toBeEnabled();
+    expect(onStale).toHaveBeenCalledWith(dayTask());
+    expect(screen.getByRole("button", { name: "Eintragen" })).toBeDisabled();
   });
 
   it("zeigt nichts ohne offene Frage", () => {

@@ -253,6 +253,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 				SELECT 1 FROM activities.student_enrollments AS "own"
 				WHERE "own".tenant_id = "template".tenant_id AND "own".activity_group_id = "template".id
 					AND "own".student_id = task.student_id
+					AND "own".valid_from <= task.effective_from
 					AND ("own".valid_until IS NULL OR "own".valid_until > task.effective_from)
 					AND ("own".weekday IS NULL OR "own".weekday = task.weekday)
 					AND (COALESCE(jsonb_array_length("own".selected_weekdays), 0) = 0
@@ -271,6 +272,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 			AND ("template".target_group_type <> 'none' OR EXISTS (
 				SELECT 1 FROM activities.student_enrollments AS "attendee"
 				WHERE "attendee".tenant_id = "template".tenant_id AND "attendee".activity_group_id = "template".id
+					AND "attendee".valid_from <= task.effective_from
 					AND ("attendee".valid_until IS NULL OR "attendee".valid_until > task.effective_from)
 					AND ("attendee".weekday IS NULL OR "attendee".weekday = task.weekday)))
 		ORDER BY task.task_id, "template".id, "schedule".valid_from ASC NULLS FIRST`,

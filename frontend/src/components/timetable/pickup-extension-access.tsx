@@ -1,10 +1,22 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 
 import { PickupExtensionDialog } from "~/components/timetable/pickup-extension-dialog";
-import type { PickupExtension } from "~/lib/pickup-extension-api";
+import { createLogger } from "~/lib/logger";
+import {
+  fetchPickupExtensions,
+  type PickupExtension,
+} from "~/lib/pickup-extension-api";
+
+const logger = createLogger({ component: "PickupExtensionAccessProvider" });
 
 interface PickupExtensionPrompt {
   /** Darf die Person Kinder Terminen zuordnen (schedules:manage)? */
@@ -28,6 +40,17 @@ export function PickupExtensionAccessProvider({
   children,
 }: Readonly<{ value: boolean; children: ReactNode }>) {
   const [open, setOpen] = useState<readonly PickupExtension[]>([]);
+  const reloadOpenTask = useCallback((task: PickupExtension) => {
+    void fetchPickupExtensions(task.studentId)
+      .then(setOpen)
+      .catch((err: unknown) => {
+        logger.warn("pickup_extension_reload_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          task_id: task.id,
+        });
+        setOpen([]);
+      });
+  }, []);
   const context = useMemo(() => ({ enabled: value, prompt: setOpen }), [value]);
   return (
     <PickupExtensionPromptContext.Provider value={context}>
@@ -36,6 +59,7 @@ export function PickupExtensionAccessProvider({
         tasks={open}
         isOpen={open.length > 0}
         onClose={() => setOpen([])}
+        onStale={reloadOpenTask}
       />
     </PickupExtensionPromptContext.Provider>
   );

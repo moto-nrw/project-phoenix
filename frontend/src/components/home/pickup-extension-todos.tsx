@@ -65,6 +65,9 @@ export function PickupExtensionTodos({
         isOpen={open.length > 0}
         onClose={() => setOpen([])}
         onChanged={() => void refresh()}
+        onStale={() => {
+          void refresh().finally(() => setOpen([]));
+        }}
       />
     </>
   );

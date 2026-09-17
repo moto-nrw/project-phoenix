@@ -5,7 +5,6 @@ import (
 	"errors"
 	"regexp"
 	"slices"
-	"time"
 )
 
 // Pickup extensions (#3261) are the mirror of the automatic partial absence
@@ -115,15 +114,8 @@ type PickupExtensionCapability interface {
 
 func validPickupClock(value string) bool { return pickupClockPattern.MatchString(value) }
 
-// validCalendarDate checks the YYYY-MM-DD shape only; the value is never
-// turned into an instant.
-func validCalendarDate(value string) bool {
-	parsed, err := time.Parse(time.DateOnly, value)
-	return err == nil && parsed.Format(time.DateOnly) == value
-}
-
 func (m *Module) RecordPickupDayExtension(ctx context.Context, input PickupDayExtension) error {
-	if input.StudentID <= 0 || input.PickupExceptionID <= 0 || !validCalendarDate(input.Date) ||
+	if input.StudentID <= 0 || input.PickupExceptionID <= 0 || !validDate(input.Date) ||
 		!validPickupClock(input.PreviousPickup) || !validPickupClock(input.Pickup) || input.Pickup <= input.PreviousPickup {
 		return m.reject("record_pickup_day_extension", ErrInvalidPickupExtension)
 	}
@@ -131,14 +123,14 @@ func (m *Module) RecordPickupDayExtension(ctx context.Context, input PickupDayEx
 }
 
 func (m *Module) ClearPickupDayExtension(ctx context.Context, studentID int64, date string) error {
-	if studentID <= 0 || !validCalendarDate(date) {
+	if studentID <= 0 || !validDate(date) {
 		return m.reject("clear_pickup_day_extension", ErrInvalidPickupExtension)
 	}
 	return m.engine.ClearPickupDayExtension(ctx, studentID, date)
 }
 
 func (m *Module) RecordPickupWeekdayExtension(ctx context.Context, input PickupWeekdayExtension) error {
-	if input.StudentID <= 0 || input.Weekday < 1 || input.Weekday > 5 || !validCalendarDate(input.EffectiveFrom) ||
+	if input.StudentID <= 0 || input.Weekday < 1 || input.Weekday > 5 || !validDate(input.EffectiveFrom) ||
 		!validPickupClock(input.PreviousPickup) || !validPickupClock(input.Pickup) || input.Pickup == input.PreviousPickup {
 		return m.reject("record_pickup_weekday_extension", ErrInvalidPickupExtension)
 	}

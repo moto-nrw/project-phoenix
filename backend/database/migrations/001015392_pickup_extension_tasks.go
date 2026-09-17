@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -47,8 +47,11 @@ func pickupExtensionTasksUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
+			slog.Warn("migration rollback failed",
+				"migration", pickupExtensionTasksVersion,
+				"error", rollbackErr,
+			)
 		}
 	}()
 

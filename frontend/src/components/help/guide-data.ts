@@ -637,7 +637,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Startseite der Leitung mit Begrüßung, der Zeile mit Uhrzeit, der Lage der Schule und den Knöpfen `Aufsicht starten` und `Alle Kinder`, darunter die Bausteine und oben rechts der Knopf `Anpassen`.",
+          "Startseite der Leitung mit dem festen Hinweis `Längere Betreuung eintragen`, Begrüßung, der Zeile mit Uhrzeit, der Lage der Schule und den Knöpfen `Aufsicht starten` und `Alle Kinder`, darunter die Bausteine und oben rechts der Knopf `Anpassen`.",
         image: "/help/screens/startseite.webp",
       },
       {

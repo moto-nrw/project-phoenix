@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -18,11 +18,12 @@ import { getWeekdayLabel } from "~/lib/pickup-schedule-helpers";
 
 const logger = createLogger({ component: "PickupExtensionDialog" });
 
-/** "am Freitag, 18.09.2026" oder "ab jetzt jeden Donnerstag". */
+/** "am Freitag, 18.09.2026" oder "ab Donnerstag, 18.09.2026". */
 export function pickupExtensionWhen(task: PickupExtension): string {
   if (task.kind === "day" && task.date) {
     return `am ${formatStatusDate(task.date)}`;
   }
+  if (task.effectiveFrom) return `ab ${formatStatusDate(task.effectiveFrom)}`;
   return `ab jetzt jeden ${getWeekdayLabel(task.weekday ?? 0)}`;
 }
 
@@ -38,6 +39,14 @@ function resolveErrorMessage(err: unknown): string {
   return "Das hat leider nicht geklappt. Bitte versuchen Sie es noch einmal.";
 }
 
+function selectedPickupExtensionBlocks(
+  task: PickupExtension,
+): ReadonlySet<string> {
+  return task.blocks.length === 1 && task.blocks[0]
+    ? new Set([task.blocks[0].id])
+    : new Set<string>();
+}
+
 /**
  * Fragt nach, in welchem Termin ein Kind die zusätzliche Zeit verbringt, wenn
  * es später abgeholt wird als bisher (#3261). Mehrere offene Fragen (etwa
@@ -49,12 +58,15 @@ export function PickupExtensionDialog({
   isOpen,
   onClose,
   onChanged,
+  onStale,
 }: Readonly<{
   tasks: readonly PickupExtension[];
   isOpen: boolean;
   onClose: () => void;
   /** Nach jeder gespeicherten Entscheidung, zum Neuladen der Listen. */
   onChanged?: () => void;
+  /** Lädt eine Aufgabe nach einer gleichzeitig geänderten Terminliste neu. */
+  onStale?: (task: PickupExtension) => void;
 }>) {
   const [index, setIndex] = useState(0);
   const task = tasks[index];
@@ -76,12 +88,12 @@ export function PickupExtensionDialog({
 
   return (
     <PickupExtensionStep
-      key={task.id}
+      key={`${task.id}:${task.blocks.map((block) => block.id).join(",")}`}
       task={task}
       position={tasks.length > 1 ? `${index + 1} von ${tasks.length}` : null}
       onDone={advance}
       onClose={close}
-      onStale={() => onChanged?.()}
+      onStale={() => onStale?.(task)}
     />
   );
 }
@@ -102,12 +114,20 @@ function PickupExtensionStep({
   const toast = useToast();
   // Gibt es nur einen passenden Termin, ist er schon gewählt: ein Tipp genügt.
   const [selected, setSelected] = useState<ReadonlySet<string>>(() =>
-    task.blocks.length === 1 && task.blocks[0]
-      ? new Set([task.blocks[0].id])
-      : new Set(),
+    selectedPickupExtensionBlocks(task),
   );
   const [busy, setBusy] = useState<"assign" | "none" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
+
+  // A stale response can retain the task and template IDs but change its
+  // selectable details. Start over whenever the caller replaces the task.
+  useEffect(() => {
+    setSelected(selectedPickupExtensionBlocks(task));
+    setBusy(null);
+    setError(null);
+    setStale(false);
+  }, [task]);
 
   const toggle = (blockId: string, checked: boolean) => {
     setSelected((current) => {
@@ -137,9 +157,18 @@ function PickupExtensionStep({
         error: err instanceof Error ? err.message : String(err),
         task_id: task.id,
       });
+      if (
+        err instanceof PickupExtensionApiError &&
+        err.code === "pickup_extension_block_gone"
+      ) {
+        setError(resolveErrorMessage(err));
+        setStale(true);
+        setBusy(null);
+        onStale();
+        return;
+      }
       setError(resolveErrorMessage(err));
       setBusy(null);
-      onStale();
     }
   };
 
@@ -160,7 +189,7 @@ function PickupExtensionStep({
             type="button"
             variant="secondary"
             size="md"
-            disabled={busy !== null}
+            disabled={busy !== null || stale}
             isLoading={busy === "none"}
             loadingText="Wird gespeichert …"
             onClick={() => void decide([])}
@@ -171,7 +200,7 @@ function PickupExtensionStep({
             type="button"
             variant="primary"
             size="md"
-            disabled={busy !== null || selected.size === 0}
+            disabled={busy !== null || stale || selected.size === 0}
             isLoading={busy === "assign"}
             loadingText="Wird eingetragen …"
             onClick={() => void decide([...selected])}

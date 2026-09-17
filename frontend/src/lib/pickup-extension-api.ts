@@ -25,6 +25,8 @@ export interface PickupExtension {
   readonly date?: string;
   /** ISO weekday 1-5, weekday tasks only. */
   readonly weekday?: number;
+  /** YYYY-MM-DD, weekday tasks only. */
+  readonly effectiveFrom?: string;
   /** HH:MM */
   readonly previousPickupTime: string;
   /** HH:MM */
@@ -46,6 +48,7 @@ interface BackendPickupExtension {
   kind: PickupExtensionKind;
   date?: string;
   weekday?: number;
+  effective_from?: string;
   previous_pickup_time: string;
   pickup_time: string;
   blocks: BackendPickupExtensionBlock[] | null;
@@ -87,6 +90,7 @@ function mapPickupExtension(raw: BackendPickupExtension): PickupExtension {
     kind: raw.kind,
     ...(raw.date ? { date: raw.date } : {}),
     ...(raw.weekday ? { weekday: raw.weekday } : {}),
+    ...(raw.effective_from ? { effectiveFrom: raw.effective_from } : {}),
     previousPickupTime: raw.previous_pickup_time,
     pickupTime: raw.pickup_time,
     blocks: (raw.blocks ?? []).map((block) => ({
