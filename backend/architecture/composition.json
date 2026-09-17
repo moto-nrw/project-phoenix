@@ -22870,7 +22870,7 @@
         },
         {
           "file": "services/auth/service.go",
-          "line": 141,
+          "line": 133,
           "declaration": "NewService"
         }
       ]
