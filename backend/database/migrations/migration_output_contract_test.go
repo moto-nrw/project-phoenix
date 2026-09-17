@@ -13,10 +13,26 @@ import (
 	"testing"
 )
 
-// migrationSourceFiles returns the migration files in this directory — the
-// numerically prefixed ones bun registers, excluding tests and the runner's own
-// files (00_migrations.go, main.go, reset.go), which are allowed to write CLI
-// output because a person asked for it.
+// runnerOwnedFiles are the files in this package that legitimately write to a
+// stream: a person ran `migrate status` or `migrate validate` and is waiting for
+// the answer on stdout, and the runner's own lines are the ones this whole
+// contract exists to make room for.
+//
+// Everything else in the package is migration code, whether or not bun
+// registers it directly — a helper a migration calls prints into the same run as
+// the migration itself, so an exclusion list rather than a `000`/`001` filename
+// filter is what keeps `migration_helpers.go` and the backfills inside the
+// contract.
+var runnerOwnedFiles = map[string]bool{
+	"00_migrations.go":     true, // PrintMigrationPlanTo, the collision scanner
+	"main.go":              true, // MigrateStatus prints the plan a person asked for
+	"reset.go":             true,
+	"runner_logging.go":    true,
+	"migration_logging.go": true,
+}
+
+// migrationSourceFiles returns every non-test Go file in this directory that is
+// migration code rather than runner code.
 func migrationSourceFiles(t *testing.T) []string {
 	t.Helper()
 
@@ -31,7 +47,7 @@ func migrationSourceFiles(t *testing.T) []string {
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
+		if runnerOwnedFiles[name] {
 			continue
 		}
 		names = append(names, name)
@@ -54,10 +70,10 @@ func migrationSourceFiles(t *testing.T) []string {
 // It goes through slog with fields, which this test permits and fmt/log cannot
 // express.
 //
-// This replaces TestMigrationLogOutputMatchesRegisteredVersion (#3299), which
-// checked that a migration's self-announcement named the version it registers.
-// Forbidding the announcement outright is strictly stronger: a line that cannot
-// exist cannot drift from the registered version.
+// It works alongside TestMigrationLogOutputMatchesRegisteredVersion (#3299),
+// which stays: that test reads every string literal, so it still catches a
+// hardcoded version drifting inside an error message, which is not a log line
+// and therefore not this test's subject.
 func TestMigrationsDoNotPrintTheirOwnProgress(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +90,15 @@ func TestMigrationsDoNotPrintTheirOwnProgress(t *testing.T) {
 			if !ok {
 				return true
 			}
+
+			// The builtin, which needs no package qualifier.
+			if ident, ok := call.Fun.(*ast.Ident); ok && (ident.Name == "println" || ident.Name == "print") {
+				t.Errorf("%s:%d: the %s builtin writes to stderr.\n"+
+					"Route content through migrationLog(); delete a pure progress line.",
+					name, fset.Position(call.Pos()).Line, ident.Name)
+				return true
+			}
+
 			selector, ok := call.Fun.(*ast.SelectorExpr)
 			if !ok {
 				return true
@@ -82,9 +107,21 @@ func TestMigrationsDoNotPrintTheirOwnProgress(t *testing.T) {
 			if !ok {
 				return true
 			}
-			// fmt.Errorf and fmt.Sprintf build values; only the Print family
-			// writes to a stream.
+			// fmt.Errorf and fmt.Sprintf build values; the Print family writes
+			// to a stream, and so does the Fprint family whenever its writer is
+			// a standard stream rather than a buffer.
 			if pkg.Name != "fmt" && pkg.Name != "log" {
+				return true
+			}
+			if strings.HasPrefix(selector.Sel.Name, "Fprint") && len(call.Args) > 0 {
+				if writer, ok := call.Args[0].(*ast.SelectorExpr); ok {
+					if base, ok := writer.X.(*ast.Ident); ok && base.Name == "os" &&
+						(writer.Sel.Name == "Stdout" || writer.Sel.Name == "Stderr") {
+						t.Errorf("%s:%d: %s.%s writes to os.%s.\n"+
+							"Route content through migrationLog(); delete a pure progress line.",
+							name, fset.Position(call.Pos()).Line, pkg.Name, selector.Sel.Name, writer.Sel.Name)
+					}
+				}
 				return true
 			}
 			if !strings.HasPrefix(selector.Sel.Name, "Print") {
@@ -167,9 +204,17 @@ func TestMigrationsDoNotRestateTheRunnersLine(t *testing.T) {
 					name, line, msg)
 			}
 
-			// Keys sit at even offsets after the message.
-			for i := 1; i < len(args); i += 2 {
-				key, ok := stringLiteral(args[i])
+			// A field is written either as a loose key/value pair, where keys
+			// sit at even offsets after the message, or as an attr —
+			// slog.String("migration", v) — whose key is its first argument.
+			// Reading only the loose form is how the pre-cleanup shape of
+			// 001015340_push_subscriptions_school_portal.go would have slipped
+			// through this test.
+			for i, arg := range args[1:] {
+				key, ok := attrKey(arg)
+				if !ok && i%2 == 0 {
+					key, ok = stringLiteral(arg)
+				}
 				if ok && runnerOwnedKeys[strings.ToLower(key)] {
 					t.Errorf("%s:%d: log field %q repeats what the runner's line already carries.\n"+
 						"A second copy of the version is a second thing to keep in sync (#3299).",
@@ -179,6 +224,24 @@ func TestMigrationsDoNotRestateTheRunnersLine(t *testing.T) {
 			return true
 		})
 	}
+}
+
+// attrKey returns the key of a slog attr constructor — slog.String("migration",
+// v), slog.Int64("rows", n) — which carries its key as a call argument rather
+// than as a loose element of the variadic list.
+func attrKey(expr ast.Expr) (string, bool) {
+	call, ok := expr.(*ast.CallExpr)
+	if !ok || len(call.Args) == 0 {
+		return "", false
+	}
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok {
+		return "", false
+	}
+	if pkg, ok := selector.X.(*ast.Ident); !ok || pkg.Name != "slog" {
+		return "", false
+	}
+	return stringLiteral(call.Args[0])
 }
 
 // stringLiteral unquotes an interpreted string literal argument.

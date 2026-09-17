@@ -65,8 +65,13 @@ func migrateActivitiesGroupsCreatedBy(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("error checking nullable status: %w", err)
 		}
 		if isNullable == "NO" {
+			migrationLog().DebugContext(ctx, "activities.groups.created_by already migrated, nothing to do")
 			return nil
 		}
+		// The column exists but is still nullable, so a previous run of this
+		// migration stopped between the two steps. Worth a line: it says the
+		// backfill below is repair work, not first-time work.
+		migrationLog().WarnContext(ctx, "activities.groups.created_by was partially migrated, resuming")
 	}
 
 	// Step 1: Add created_by column as NULLABLE first (skip if already exists from partial run)

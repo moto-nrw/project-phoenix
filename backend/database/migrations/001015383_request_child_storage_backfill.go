@@ -30,11 +30,14 @@ func requestChildStorageBackfillUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("backfill request child storage: %w", err)
 	}
-	// duration_ms is deliberately absent: the runner's line already times the
-	// migration, and this backfill is the whole of it.
+	// duration_ms here is the backfill's own, which is not the runner's: the
+	// runner times the whole migration, checkpoint DDL included, and this is
+	// also the number `phoenix backfill` reports when the same code runs from
+	// the CLI.
 	migrationLog().InfoContext(ctx, "request child storage backfill finished",
 		"tenants", len(report.Tenants),
 		"database_deadlocks", report.DatabaseDeadlocks,
+		"duration_ms", report.Duration.Milliseconds(),
 	)
 	// Deployments migrate with the application stopped, so a residual
 	// mismatch is a copy defect, not concurrent traffic. Fail loudly instead

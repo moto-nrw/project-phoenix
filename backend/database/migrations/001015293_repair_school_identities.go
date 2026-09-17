@@ -329,7 +329,7 @@ func reportUnrepairableSchoolIdentities(ctx context.Context, tx bun.Tx) error {
 			"account_id", row.AccountID,
 			"reason", row.Reason,
 		)
-		log.DebugContext(ctx, "school identity needs manual repair",
+		log.DebugContext(ctx, "school identity needing manual repair, with contact address",
 			"account_id", row.AccountID,
 			"email", row.Email,
 		)

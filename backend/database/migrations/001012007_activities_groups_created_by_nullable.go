@@ -42,6 +42,7 @@ func makeActivitiesGroupsCreatedByNullable(ctx context.Context, db *bun.DB) erro
 		return fmt.Errorf("error checking created_by nullable status: %w", err)
 	}
 	if isNullable == "YES" {
+		migrationLog().DebugContext(ctx, "activities.groups.created_by is already nullable, nothing to do")
 		return nil
 	}
 

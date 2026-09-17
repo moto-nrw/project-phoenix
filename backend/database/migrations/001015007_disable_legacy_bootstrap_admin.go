@@ -54,6 +54,7 @@ func disableLegacyBootstrapAdmin(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to verify bootstrap admin account: %w", err)
 	}
 	if bootstrapAccountID <= 0 {
+		migrationLog().InfoContext(ctx, "legacy bootstrap admin account not present, nothing to disable")
 		return tx.Commit()
 	}
 
@@ -81,6 +82,13 @@ func disableLegacyBootstrapAdmin(ctx context.Context, db *bun.DB) error {
 	if _, err = tx.ExecContext(ctx, `DELETE FROM auth.account_tenants WHERE account_id = ?;`, bootstrapAccountID); err != nil {
 		return fmt.Errorf("failed to delete bootstrap admin tenant mappings: %w", err)
 	}
+
+	// Which of the two outcomes happened is worth knowing for an account that
+	// used to hold admin: "already gone" and "deactivated it just now" are
+	// different facts about the environment, not progress.
+	migrationLog().InfoContext(ctx, "legacy bootstrap admin account disabled",
+		"account_id", bootstrapAccountID,
+	)
 
 	return tx.Commit()
 }

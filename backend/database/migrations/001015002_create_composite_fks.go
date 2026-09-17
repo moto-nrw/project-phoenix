@@ -271,7 +271,6 @@ func createCompositeFKs(ctx context.Context, db *bun.DB) error {
 			return fmt.Errorf("failed to create composite FK %s on %s(%s) → %s: %w",
 				spec.newFKName, spec.sourceTable, spec.sourceColumn, spec.targetTable, err)
 		}
-
 	}
 
 	migrationLog().InfoContext(ctx, "foreign keys converted to composite form",
