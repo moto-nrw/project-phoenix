@@ -38,6 +38,7 @@ import {
   fetchGuardianDeletePreview,
   GuardianApiError,
 } from "@/lib/guardian-api";
+import type { InviteGuardianResult } from "@/lib/guardian-api";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
@@ -46,6 +47,29 @@ import { StudentPaymentCard } from "./student-payment-card";
 import { hasPermission } from "~/lib/auth-utils";
 
 const logger = createLogger({ component: "StudentGuardianManager" });
+
+// Toast after "Einladen". An existing account gets no registration link,
+// only a mail that points to the parents portal login (#3320).
+function inviteSuccessMessage(
+  outcome: InviteGuardianResult["outcome"],
+  name: string,
+  email: string,
+  confirmRoleUpgrade: boolean,
+): string {
+  switch (outcome) {
+    case "invited":
+      return `Einladung an ${email} gesendet`;
+    case "pending_approval":
+      return `Anfrage für ${name} wartet auf Freigabe`;
+    case "already_linked":
+    case "linked_existing_account":
+      return confirmRoleUpgrade
+        ? `${name} hat jetzt vollen Zugriff`
+        : `${name} hat schon ein Konto. Hinweis zum Elternportal an ${email} gesendet`;
+    default:
+      return `${name} wurde gespeichert`;
+  }
+}
 
 interface StudentGuardianManagerProps {
   readonly studentId: string;
@@ -384,16 +408,14 @@ export default function StudentGuardianManager({
       }
       await loadGuardians();
       onUpdate?.();
-      const name = getGuardianFullName(guardian);
-      const message =
-        result.outcome === "invited"
-          ? `Einladung an ${guardian.email} gesendet`
-          : result.outcome === "already_linked"
-            ? confirmRoleUpgrade
-              ? `${name} hat jetzt vollen Zugriff`
-              : `${name} ist bereits verbunden`
-            : `${name} wurde mit dem vorhandenen Konto verbunden`;
-      toastSuccess(message);
+      toastSuccess(
+        inviteSuccessMessage(
+          result.outcome,
+          getGuardianFullName(guardian),
+          guardian.email ?? "",
+          confirmRoleUpgrade,
+        ),
+      );
     } catch (err) {
       logger.error("guardian_invite_failed", {
         error: err instanceof Error ? err.message : String(err),

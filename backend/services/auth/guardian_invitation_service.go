@@ -16,6 +16,7 @@ import (
 	"github.com/gofrs/uuid"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -149,6 +150,7 @@ type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
 	EnqueueInvitationEmail(ctx context.Context, invitation GuardianInvitationRecord, recipient GuardianInvitationRecipient, schoolName string)
+	EnqueueExistingAccountEmail(ctx context.Context, recipient GuardianInvitationRecipient, schoolName string)
 }
 
 func (s *guardianInvitationService) InvitationExpiry(ctx context.Context) time.Duration {
@@ -164,6 +166,46 @@ func (s *guardianInvitationService) EnqueueInvitationEmail(ctx context.Context, 
 	s.enqueueEmail(ctx, guardianInvitationRow(invitation), &userModels.GuardianProfile{
 		FirstName: recipient.FirstName, LastName: recipient.LastName, Email: &email,
 	}, schoolName)
+}
+
+// EnqueueExistingAccountEmail queues the invitation mail variant for an
+// address that already owns an account (#3320): no registration and no
+// token, just the parents portal login and a hint to use the existing
+// credentials.
+func (s *guardianInvitationService) EnqueueExistingAccountEmail(ctx context.Context, recipient GuardianInvitationRecipient, schoolName string) {
+	recipientEmail := strings.TrimSpace(recipient.Email)
+	if recipientEmail == "" {
+		return
+	}
+	if s.OutboxEnqueuer == nil {
+		s.getLogger().Warn("guardian portal access email: outbox enqueuer not configured, email skipped")
+		return
+	}
+	payload := s.guardianMailPayload(GuardianInvitationRecipient{
+		FirstName: recipient.FirstName, LastName: recipient.LastName, Email: recipientEmail,
+	}, "/login", schoolName)
+	payload[guardianPayloadExistingAccount] = true
+	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
+		Kind:    platformModels.EmailKindGuardianInvitation,
+		Payload: payload,
+	}); err != nil {
+		s.getLogger().Error("guardian portal access email: outbox enqueue failed",
+			slog.String("error", err.Error()))
+	}
+}
+
+// guardianMailPayload builds the outbox payload fields both guardian mail
+// variants share. linkPath is appended to the parents portal origin.
+func (s *guardianInvitationService) guardianMailPayload(recipient GuardianInvitationRecipient, linkPath, schoolName string) map[string]any {
+	frontend := cmp.Or(s.FrontendURL, "http://localhost:3000")
+	return map[string]any{
+		guardianPayloadRecipientEmail: strings.TrimSpace(recipient.Email),
+		guardianPayloadFirstName:      strings.TrimSpace(recipient.FirstName),
+		guardianPayloadLastName:       strings.TrimSpace(recipient.LastName),
+		guardianPayloadInvitationURL:  frontend + linkPath,
+		guardianPayloadLogoURL:        frontend + "/images/moto-logo-mit-schriftzug.png",
+		guardianPayloadSchoolName:     schoolName,
+	}
 }
 
 func (s *guardianInvitationService) relativeAccess(op string) (GuardianRelativeAccess, error) {
@@ -643,37 +685,17 @@ func (s *guardianInvitationService) enqueueEmail(ctx context.Context, invitation
 // outbox. The renderer (services/auth/guardian_invitation_renderer.go)
 // turns the payload into an email.Message at dispatch time.
 func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invitation *authModels.GuardianInvitation, profile *userModels.GuardianProfile, schoolName string) {
-	frontend := s.FrontendURL
-	if frontend == "" {
-		frontend = "http://localhost:3000"
-	}
-	invitationURL := fmt.Sprintf("%s/accept-guardian-invite/%s", frontend, invitation.Token)
-	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend)
 	expiryHours := int(time.Until(invitation.ExpiresAt) / time.Hour)
 	if expiryHours < 1 {
 		expiryHours = 1
 	}
 
-	recipientEmail := ""
-	firstName := ""
-	lastName := ""
+	var recipient GuardianInvitationRecipient
 	if profile != nil {
-		if profile.Email != nil {
-			recipientEmail = strings.TrimSpace(*profile.Email)
-		}
-		firstName = strings.TrimSpace(profile.FirstName)
-		lastName = strings.TrimSpace(profile.LastName)
+		recipient = GuardianInvitationRecipient{FirstName: profile.FirstName, LastName: profile.LastName, Email: base.Deref(profile.Email)}
 	}
-
-	payload := map[string]any{
-		guardianPayloadRecipientEmail: recipientEmail,
-		guardianPayloadFirstName:      firstName,
-		guardianPayloadLastName:       lastName,
-		guardianPayloadInvitationURL:  invitationURL,
-		guardianPayloadLogoURL:        logoURL,
-		guardianPayloadSchoolName:     schoolName,
-		guardianPayloadExpiryHours:    expiryHours,
-	}
+	payload := s.guardianMailPayload(recipient, "/accept-guardian-invite/"+invitation.Token, schoolName)
+	payload[guardianPayloadExpiryHours] = expiryHours
 
 	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindGuardianInvitation,

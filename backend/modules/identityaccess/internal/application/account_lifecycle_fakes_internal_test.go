@@ -825,13 +825,17 @@ func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invit
 }
 
 type lifecycleDelivery struct {
-	emails []domain.GuardianInvitation
+	emails       []domain.GuardianInvitation
+	accessEmails []domain.GuardianProfile
 }
 
 func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string       { return "OGS Musterschule" }
 func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) {
 	d.emails = append(d.emails, invitation)
+}
+func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) {
+	d.accessEmails = append(d.accessEmails, profile)
 }
 
 type lifecycleFinancial struct {

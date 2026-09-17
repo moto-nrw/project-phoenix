@@ -575,6 +575,16 @@ func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, 
 	}, schoolName)
 }
 
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile identityaccessCompose.GuardianProfile, schoolName string) {
+	delivery := d.current()
+	if delivery == nil {
+		return
+	}
+	delivery.EnqueueExistingAccountEmail(ctx, auth.GuardianInvitationRecipient{
+		FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email,
+	}, schoolName)
+}
+
 type financialAudit struct{ command auditModels.Command }
 
 func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileID, studentID, actorAccountID int64) error {

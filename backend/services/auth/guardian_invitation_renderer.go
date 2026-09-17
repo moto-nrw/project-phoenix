@@ -17,6 +17,10 @@ const (
 	guardianPayloadLogoURL        = "logo_url"
 	guardianPayloadSchoolName     = "school_name"
 	guardianPayloadExpiryHours    = "expiry_hours"
+	// guardianPayloadExistingAccount marks the variant for an address that
+	// already owns an account: invitation_url is then the parents portal
+	// login, and the mail asks for the existing credentials (#3320).
+	guardianPayloadExistingAccount = "existing_account"
 )
 
 // GuardianInvitationRendererConfig is the closure-state for the
@@ -49,9 +53,14 @@ func NewGuardianInvitationRenderer(cfg GuardianInvitationRendererConfig) func(co
 			expiryHours = 48
 		}
 
+		existingAccount, _ := payload[guardianPayloadExistingAccount].(bool)
+
 		subject := "Einladung zum Eltern-Portal"
+		if existingAccount {
+			subject = "Ihr Zugang zum Eltern-Portal"
+		}
 		if schoolName != "" {
-			subject = fmt.Sprintf("Einladung zum Eltern-Portal – %s", schoolName)
+			subject = fmt.Sprintf("%s – %s", subject, schoolName)
 		}
 
 		msg := &email.Message{
@@ -60,12 +69,13 @@ func NewGuardianInvitationRenderer(cfg GuardianInvitationRendererConfig) func(co
 			Subject:  subject,
 			Template: "guardian-invitation.html",
 			Content: map[string]any{
-				"InvitationURL": invitationURL,
-				"FirstName":     firstName,
-				"LastName":      lastName,
-				"ExpiryHours":   expiryHours,
-				"LogoURL":       logoURL,
-				"SchoolName":    schoolName,
+				"InvitationURL":   invitationURL,
+				"FirstName":       firstName,
+				"LastName":        lastName,
+				"ExpiryHours":     expiryHours,
+				"LogoURL":         logoURL,
+				"SchoolName":      schoolName,
+				"ExistingAccount": existingAccount,
 			},
 		}
 		return msg, nil

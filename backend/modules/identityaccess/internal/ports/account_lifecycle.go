@@ -167,10 +167,13 @@ type GuardianInvitationStore interface {
 // GuardianInvitationDelivery is the consumer-owned port over the retained
 // guardian invitation service's delivery seams (#2722): the token expiry the
 // tenant configured, the school name for the mail and the outbox enqueue.
+// EnqueueExistingAccountEmail tells an account holder who got access without
+// a token invitation to sign in to the parents portal with their credentials.
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
 	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string)
+	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string)
 }
 
 // FinancialAudit is the consumer-owned port over the Audit platform's
