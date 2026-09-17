@@ -34,7 +34,6 @@ import (
 	groupsAPI "github.com/moto-nrw/project-phoenix/api/groups"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
-	parentAPI "github.com/moto-nrw/project-phoenix/api/parent"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	shifttypesAPI "github.com/moto-nrw/project-phoenix/api/shift-types"
@@ -53,6 +52,7 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/birthdays/http"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
@@ -1605,18 +1605,18 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// side effects (e.g. auto-creating the Schulhof/WC rooms when the
 	// corresponding checkout toggle flips on).
 	api.Operator.OnSettingValueSet(api.Services.SettingsSideEffects.Dispatch)
-	api.Parent = parentAPI.NewResource(
-		api.Services.Auth,
-		api.Services.Parent,
-		api.Services.EnrollmentRequest,
-		api.Services.GuardianProfileLoader,
-		parentSchoolDirectory{schools: api.Services.Schools},
-		db,
-	)
-	api.Parent.SetCalendarService(api.Services.Calendar)
-	api.Parent.SetPushService(api.Services.PushSubscriptions)
-	api.Parent.SetPWAUsageService(api.Services.PWAUsage)
-	api.Parent.SetPreferenceService(api.Services.NotificationPreferences)
+	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
+		Auth:                  api.Services.Auth,
+		Parent:                api.Services.Parent,
+		Calendar:              api.Services.Calendar,
+		Requests:              api.Services.EnrollmentRequest,
+		GuardianProfileLoader: api.Services.GuardianProfileLoader,
+		Schools:               parentSchoolDirectory{schools: api.Services.Schools},
+		Push:                  api.Services.PushSubscriptions,
+		Preferences:           api.Services.NotificationPreferences,
+		PWAUsage:              api.Services.PWAUsage,
+		DB:                    db,
+	})
 	api.Platform = platformAPI.NewResource(platformAPI.ResourceConfig{
 		AnnouncementsService: api.Services.Announcement,
 		TokenAuth:            nil, // Uses tenant auth middleware
@@ -1810,10 +1810,11 @@ func (a *API) registerPortalRoutes(limiters authRateLimiters) {
 	// /parent/* routes (the protected ones get added in commit 5).
 	// Reuse the shared authRateLimiter so guardian login gets the same
 	// brute-force protection as tenant and operator login.
+	var parentAuthRateLimiter func(http.Handler) http.Handler
 	if limiters.auth != nil {
-		a.Parent.SetAuthRateLimiter(limiters.auth.Middleware())
+		parentAuthRateLimiter = limiters.auth.Middleware()
 	}
-	a.Router.Mount("/parent", a.Parent.Router())
+	a.Router.Mount("/parent", a.Parent.RouterWithAuthRateLimiter(parentAuthRateLimiter))
 
 	// School portal ("moto schule", #2207). Mounted at the root level like
 	// /parent. Public /school/auth/* (login + school-scope MFA exchange)

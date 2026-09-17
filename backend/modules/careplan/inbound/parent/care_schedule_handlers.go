@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
 
@@ -75,7 +74,7 @@ type CareScheduleRequestBody struct {
 	Payload map[string]any `json:"payload"`
 }
 
-func toCareRequestDiffResponses(entries []careschedule.RequestDiffEntry) []CareRequestDiffResponse {
+func toCareRequestDiffResponses(entries []parentService.CareRequestDiffEntry) []CareRequestDiffResponse {
 	out := make([]CareRequestDiffResponse, 0, len(entries))
 	for _, e := range entries {
 		out = append(out, CareRequestDiffResponse{
