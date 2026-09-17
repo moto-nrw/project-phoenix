@@ -51,8 +51,10 @@ export function renderThreadFrame(parts: TeamChatThreadParts) {
         ref={parts.containerRef}
         className="flex min-h-[20rem] w-full flex-col overflow-hidden"
       >
+        {/* `moto-scroll-surface`: die Höhe setzt `useChatViewportLock`, nicht
+            die Wachs-Regel des Seitenrumpfs; nur die Liste scrollt (#3328). */}
         <SectionCard
-          className="flex min-h-0 flex-1 flex-col"
+          className="moto-scroll-surface flex min-h-0 flex-1 flex-col"
           bodyClassName="flex min-h-0 flex-1 flex-col"
         >
           {parts.body}
