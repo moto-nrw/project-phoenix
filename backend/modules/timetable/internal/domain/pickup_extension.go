@@ -44,6 +44,7 @@ type PickupExtensionBlock struct {
 	Member           bool
 	CalendarPeriodID *int64
 	ValidFrom        Date
+	ValidUntil       *Date
 }
 
 // PickupExtensionInstance is an already planned block of a template on the

@@ -39,14 +39,15 @@ func (row pickupExtensionTaskRow) toDomain() domain.PickupExtensionTask {
 }
 
 type pickupExtensionBlockRow struct {
-	TaskID           int64       `bun:"task_id"`
-	ID               int64       `bun:"id"`
-	Title            string      `bun:"title"`
-	StartTime        string      `bun:"start_time"`
-	EndTime          string      `bun:"end_time"`
-	Member           bool        `bun:"member"`
-	CalendarPeriodID *int64      `bun:"calendar_period_id"`
-	ValidFrom        domain.Date `bun:"valid_from"`
+	TaskID           int64        `bun:"task_id"`
+	ID               int64        `bun:"id"`
+	Title            string       `bun:"title"`
+	StartTime        string       `bun:"start_time"`
+	EndTime          string       `bun:"end_time"`
+	Member           bool         `bun:"member"`
+	CalendarPeriodID *int64       `bun:"calendar_period_id"`
+	ValidFrom        domain.Date  `bun:"valid_from"`
+	ValidUntil       *domain.Date `bun:"valid_until"`
 }
 
 // UpsertPickupExtensionTask writes a day or weekday task. Each kind has its
@@ -225,7 +226,7 @@ func (s *Store) ListPickupExtensionDayBlocks(ctx context.Context, tasks []domain
 // running on that weekday that overlap the extra time and have children:
 // a target group or at least one child on the weekday roster. Member covers
 // the stored roster only; target groups are matched by the caller.
-func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []domain.PickupExtensionTask) ([]domain.PickupExtensionBlock, domain.OperationStats, error) {
+func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []domain.PickupExtensionTask, today domain.Date) ([]domain.PickupExtensionBlock, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -250,6 +251,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 			to_char("timeframe".end_time, 'HH24:MI') AS end_time,
 			COALESCE("schedule".calendar_period_id, "template".calendar_period_id) AS calendar_period_id,
 			GREATEST(task.effective_from, COALESCE("schedule".valid_from, task.effective_from))::text AS valid_from,
+			"schedule".valid_until::text AS valid_until,
 			EXISTS (
 				SELECT 1 FROM activities.student_enrollments AS "own"
 				WHERE "own".tenant_id = "template".tenant_id AND "own".activity_group_id = "template".id
@@ -263,8 +265,8 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 		FROM task
 		JOIN activities.schedules AS "schedule"
 			ON "schedule".tenant_id = ? AND "schedule".weekday = task.weekday
-			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= task.effective_from)
-			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > task.effective_from)
+			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= ?::date)
+			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > ?::date)
 		JOIN activities.groups AS "template"
 			ON "template".id = "schedule".activity_group_id AND "template".tenant_id = "schedule".tenant_id
 			AND "template".is_template AND "template".archived_at IS NULL
@@ -281,7 +283,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 						OR "attendee".selected_weekdays @> to_jsonb(ARRAY[task.weekday]))))
 		ORDER BY task.task_id, "template".id, "schedule".valid_from DESC NULLS LAST`,
 		pgdialect.Array(taskIDs), pgdialect.Array(studentIDs), pgdialect.Array(weekdays),
-		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID,
+		pgdialect.Array(effective), pgdialect.Array(froms), pgdialect.Array(tos), tenantID, today, today,
 	).Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -293,7 +295,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 
 // ListPickupExtensionTemplateInstances returns the planned blocks of one
 // template on the weekday from the given date on that do not list the child.
-func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templateID, studentID int64, weekday int, from domain.Date) ([]domain.PickupExtensionInstance, domain.OperationStats, error) {
+func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templateID, studentID int64, weekday int, from domain.Date, calendarPeriodID *int64, validUntil *domain.Date) ([]domain.PickupExtensionInstance, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -310,8 +312,16 @@ func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templa
 		Where(`NOT EXISTS (
 			SELECT 1 FROM schedule.instance_students AS "own"
 			WHERE "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id
-				AND "own".student_id = ?)`, studentID).
+			AND "own".student_id = ?)`, studentID).
 		OrderExpr(`"instance".date ASC, "instance".id ASC`)
+	if calendarPeriodID == nil {
+		query = query.Where(`"instance".calendar_period_id IS NULL`)
+	} else {
+		query = query.Where(`"instance".calendar_period_id = ?`, *calendarPeriodID)
+	}
+	if validUntil != nil {
+		query = query.Where(`"instance".date < ?::date`, *validUntil)
+	}
 	stats, err := scanAllInto(ctx, query, &rows, "list pickup extension template instances")
 	if err != nil {
 		return nil, stats, err

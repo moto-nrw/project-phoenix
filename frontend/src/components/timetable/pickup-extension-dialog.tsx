@@ -234,7 +234,7 @@ function PickupExtensionStep({
             />
           ))}
         </fieldset>
-        <p className="text-xs text-gray-500">
+        <p className="text-sm text-gray-500">
           {task.kind === "weekday"
             ? `Gilt für alle kommenden ${getWeekdayLabel(task.weekday ?? 0)}e. `
             : ""}

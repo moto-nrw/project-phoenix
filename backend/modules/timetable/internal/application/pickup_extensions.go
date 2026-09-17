@@ -182,7 +182,7 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 	// The generator only fills new blocks. Blocks already planned for this
 	// weekday get the child here, without re-planning the week, so edits made
 	// to single dates stay untouched.
-	instances, listStats, err := s.store.ListPickupExtensionTemplateInstances(ctx, block.ID, task.StudentID, task.Weekday, validFrom)
+	instances, listStats, err := s.store.ListPickupExtensionTemplateInstances(ctx, block.ID, task.StudentID, task.Weekday, validFrom, block.CalendarPeriodID, block.ValidUntil)
 	stats.Add(listStats)
 	if err != nil {
 		return nil, err
@@ -262,7 +262,7 @@ func samePickupExtensionPeriod(a, b *int64) bool {
 // addPlannedStudent adds the child as expected, like the generator does, and
 // re-applies sick days and partial absences of that date.
 func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID int64, date domain.Date, stats *domain.OperationStats) error {
-	_, createStats, err := s.store.CreateInstanceStudent(ctx, domain.InstanceStudentFields{
+	_, createStats, err := s.store.CreateInstanceStudentIfAbsent(ctx, domain.InstanceStudentFields{
 		InstanceID: instanceID,
 		StudentID:  studentID,
 		Status:     expectedAttendanceStatus,
@@ -305,7 +305,7 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 	if len(weekdayTasks) == 0 {
 		return byTask, nil
 	}
-	blocks, queryStats, err := s.store.ListPickupExtensionWeekdayBlocks(ctx, weekdayTasks)
+	blocks, queryStats, err := s.store.ListPickupExtensionWeekdayBlocks(ctx, weekdayTasks, s.pickupExtensionToday())
 	stats.Add(queryStats)
 	if err != nil {
 		return nil, err

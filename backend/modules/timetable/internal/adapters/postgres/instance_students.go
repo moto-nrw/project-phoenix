@@ -223,6 +223,28 @@ func (s *Store) CreateInstanceStudent(ctx context.Context, fields domain.Instanc
 	return instanceStudentToDomain(row), stats, nil
 }
 
+func (s *Store) CreateInstanceStudentIfAbsent(ctx context.Context, fields domain.InstanceStudentFields) (bool, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	row := newInstanceStudentRow(tenantID, fields)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	result, err := db.NewInsert().Model(&row).ModelTableExpr(`schedule.instance_students`).
+		On(`CONFLICT (instance_id, student_id) DO NOTHING`).Exec(ctx)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return false, stats, classifyWriteError("create instance student if absent", err, &stats)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return false, stats, classifyWriteError("count created instance students", err, &stats)
+	}
+	stats.Rows = rows
+	return rows > 0, stats, nil
+}
+
 func (s *Store) UpdateInstanceStudent(ctx context.Context, id int64, fields domain.InstanceStudentFields) (domain.InstanceStudent, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
