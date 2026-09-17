@@ -2218,6 +2218,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetable/legacy/timetableplanning",
+      "owner": "inbound-timetable",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/workforce",
       "owner": "workforce",
       "role": "public",
@@ -2337,13 +2344,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/parent",
-      "owner": "care-plan",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "services/parentmessaging",
       "owner": "communication",
       "role": "application",
@@ -2454,6 +2454,13 @@
       "role": "application",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/parentportal/legacy",
+      "owner": "parent-portal",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "workflows/reminderdelivery/compose",
@@ -4811,17 +4818,6 @@
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "domain"
-    },
-    {
-      "id": "workforce.contracttest.timetable-activities.application",
-      "description": "The new test-only Workforce contract root exercises retained adapter inputs and outputs; it grants no runtime or existing test package new imports.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "e2e-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
     },
     {
       "id": "workforce.contracttest.school-structure.application",
@@ -15740,17 +15736,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "care-plan.application.parent-portal",
-      "description": "services/parent delegates the relocated parent-portal flows until #3228 deletes the package (#3227).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "application",
-      "target_owner": "parent-portal",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.integration-test.subject",
       "description": "The relocated parent-portal tests drive the care coordinator they moved with; compatibility permission until the package exists at a base SHA (#3227).",
       "scopes": [
@@ -15997,6 +15982,560 @@
       "source_role": "workflow-integration-test",
       "target_owner": "delivery-platform",
       "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.security-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian permission checks (auth/authorize); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.legacy-shared-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the calendar-date, wall-clock and string helpers (internal/timezone, internal/strutil); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.delivery-adapter",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the portal locale normalization (localization); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "parent-portal.adapter.delivery-public",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the student-updated broadcast (realtime); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.adapter.delivery-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the absence and parent-message notifiers (modules/delivery/application/notifications); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.audit-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian-change and consent audit rows (models/audit); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.identity-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian invitation store (models/auth); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.identity-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian invitation service (services/auth); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.transaction-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the pointer and unique-violation helpers (models/base); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.settings-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the school setting keys (models/config); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.settings-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the settings service (services/config); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.enrollment-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the offering-change request rows (models/enrollment); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.enrollment-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the care-period readers and offering-change request service (services/enrollment); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.care-plan-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the parent child, enrollable-phase and enrollment-request repositories (models/parent); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.care-plan-public",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the excused-absence request contract (modules/careplan); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.adapter.people-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the student, guardian, master-data and messaging rows (models/users); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.people-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the student audit, consent, photo and request-ledger services (services/users); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.timetable-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the care exception and weekly-plan request rows (models/schedule); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.timetable-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the arrival, pickup, weekly-plan request and pickup auto-excusal services (services/schedule); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.communication-application",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the parent event emitter (services/parentmessaging); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter.meal-plan-public",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the meal plan capability (modules/mealplan); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "meal-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.adapter.student-presence-public",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the attendance reader (modules/studentpresence); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.adapter.student-presence-domain",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the status-day and excused-request rows (modules/studentpresence/legacy/models/active); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter.tenant-runtime",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the tenant and admin transactions (tenant); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "parent-portal.adapter.orm-sql",
+      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the database handle and transaction (github.com/uptrace/bun); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "parent-portal.adapter.application",
+      "description": "The retained parent-portal services delegate the care and messaging flows that #3227 moved into workflows/parentportal/care and workflows/parentportal/messaging (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.subject",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) drive the retained services they moved with; compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "same_owner": true,
+      "target_role": "adapter"
+    },
+    {
+      "id": "parent-portal.adapter-test.legacy-composition",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the legacy repository and service graph they exercise (database/repositories, services); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.adapter-test.identity-adapter",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) mint the guardian claims the flows expect (auth/jwt); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "parent-portal.adapter-test.identity-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) read the guardian invitation rows they script (models/auth); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.identity-application",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the guardian invitation service (services/auth); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.security-application",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) grant guardian permissions by name (auth/authorize); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.legacy-shared-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) pin calendar-day expectations with the shared helpers; compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.audit-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) assert the guardian-change and consent audit rows (models/audit); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.transaction-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) use the shared pointer helpers (models/base); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.settings-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) name the school settings they script (models/config); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.settings-application",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) stub the settings service (services/config); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.care-plan-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) read the parent child summaries (models/parent); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.people-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) assert the student, guardian and request rows (models/users); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.people-application",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the student audit, consent and photo services (services/users); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.timetable-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) assert the care exception and weekly-plan request rows (models/schedule); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.timetable-application",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the schedule services the flows call (services/schedule); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.communication-support",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the shared parent conversation core from the Communication test support; compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "communication",
+      "target_role": "test-support"
+    },
+    {
+      "id": "parent-portal.adapter-test.delivery-application",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) record the absence notifications (modules/delivery/application/notifications); compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "parent-portal.adapter-test.student-presence-compose",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the attendance reader from the Student Presence composition; compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "parent-portal.adapter-test.student-presence-domain",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) assert the status-day and excused-request rows; compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "parent-portal.adapter-test.student-presence-adapter",
+      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) drive the retained presence services the absence flows interact with; compatibility permission until the package exists at a base SHA (#3228).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "parent-portal",
+      "source_role": "adapter-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.http.parent-portal-adapter",
+      "description": "The guardian portal HTTP adapter (api/parent) serves the retained parent-portal services contract until #3229 moves it onto the workflow (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "http",
+      "target_owner": "parent-portal",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-parent.adapter-test.parent-portal-adapter",
+      "description": "The guardian portal HTTP adapter tests stub and build the retained parent-portal services contract until #3229 moves them onto the workflow (#3228).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "inbound-parent",
+      "source_role": "adapter-test",
+      "target_owner": "parent-portal",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.compose.parent-portal-adapter",
+      "description": "The legacy service factory builds the retained parent-portal services it used to build from services/parent (#3228).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "parent-portal",
+      "target_role": "adapter"
     },
     {
       "id": "workforce.http.public",
@@ -21337,17 +21876,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "student-presence.e2e-test.timetable-activities-application",
-      "description": "The retained Presence behaviour tests build the retained attendance sync service (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "e2e-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
       "id": "student-presence.e2e-test.people-directory-application",
       "description": "The retained Presence behaviour tests build the retained person service the staff names resolve through (#3214). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22703,17 +23231,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-staff-shifts.adapter.timetable-activities-application",
-      "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning still reach the retained timetable services in services/schedule: the instance engine and deviation inputs, the timetable data reads, the holiday reader, the week-pattern rule and the shared shift-coverage interval vocabulary (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "adapter",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
       "id": "inbound-staff-shifts.adapter.tenant-runtime-public",
       "description": "The retained staff-shift services in modules/workforce/legacy/shiftplanning scope their locks, after-commit hooks and broadcasts through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22877,17 +23394,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-staff-shifts.module-internal-test.timetable-activities-application",
-      "description": "The retained Dienstplan overview unit tests build the retained holiday reader and coverage interval vocabulary from services/schedule (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-internal-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
       "id": "inbound-staff-shifts.module-internal-test.tenant-runtime-public",
       "description": "The retained staff-shift unit tests scope contexts and after-commit hooks through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23020,17 +23526,6 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-staff-shifts.module-behavior-test.timetable-activities-application",
-      "description": "The retained staff-shift behaviour tests build the retained timetable services their subjects depend on (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "module-behavior-test",
-      "target_owner": "timetable-activities",
-      "target_role": "application"
-    },
-    {
       "id": "inbound-staff-shifts.module-behavior-test.tenant-runtime-public",
       "description": "The retained staff-shift behaviour tests scope contexts through the tenant runtime (#3219). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -23129,6 +23624,1048 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
+    },
+    {
+      "id": "enrollment.module-behavior-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.module-behavior-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/legacy/shiftplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.adapter-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api/students. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.audit-platform-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/audit as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.audit-platform-postgres",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import database/repositories/audit as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.communication-public",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/communication as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.delivery-platform-public",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import realtime as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.enrollment-application",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import services/enrollment as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.enrollment-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/enrollment as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.enrollment-public",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/enrollment as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.facilities-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/facilities as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.subject",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning drive the compatibility package they moved with (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.legacy-composition-compose",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import database/repositories, services as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.legacy-shared-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import internal/timezone as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.people-directory-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.school-structure-application",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import services/education as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "school-structure",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.school-structure-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import internal/schoolclass as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.settings-platform-application",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import services/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.settings-platform-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.student-presence-adapter",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/services/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.student-presence-compose",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/compose as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.student-presence-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/models/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.student-presence-public",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.tenant-runtime-public",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import tenant as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.timetable-activities-application",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import services/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.timetable-activities-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/activities, models/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.timetable-activities-postgres",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import database/repositories/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-timetable.module-behavior-test.transaction-runtime-domain",
+      "description": "The retained timetable and instance behaviour tests in modules/timetable/legacy/timetableplanning still import models/base as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-behavior-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "people-directory.module-behavior-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "school-structure.module-behavior-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/education. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "student-presence.e2e-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/studentpresence/legacy/services/active. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.module-behavior-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by database/repositories/schedule, services/schedule. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.workflow-integration-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/timetable/compose/httpintegration. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "workforce.e2e-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/contracttest. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-view.adapter-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "document-rendering.adapter-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/planexport/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.module-internal-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/legacy/shiftplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "module-internal-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.adapter-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.audit-platform-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/audit as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.delivery-platform-public",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import realtime as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.facilities-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/facilities as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.legacy-shared-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import constants, internal/timezone as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.people-directory-application",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import services/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.people-directory-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.school-structure-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import internal/schoolclass, models/education as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.settings-platform-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.student-presence-adapter",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/services/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.student-presence-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/models/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.student-presence-public",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import modules/studentpresence as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.tenant-runtime-public",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import tenant as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.timetable-activities-application",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import services/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.timetable-activities-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/activities, models/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.module-internal-test.transaction-runtime-domain",
+      "description": "The retained timetable and instance unit tests in modules/timetable/legacy/timetableplanning still import models/base as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "module-internal-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "scheduler-runtime.module-internal-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/scheduler. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "module-internal-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "test-support.e2e-test.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by test/e2e/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "calendar-view.adapter.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/supervisiondashboard/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "adapter",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "document-rendering.adapter.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/planexport/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "document-rendering",
+      "source_role": "adapter",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.application.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/enrollment. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/grouplive/legacy. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-staff-shifts.adapter.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/workforce/legacy/shiftplanning. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-staff-shifts",
+      "source_role": "adapter",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.http.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api/students. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.adapter.crypto",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import crypto/sha256 as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_class": "crypto"
+    },
+    {
+      "id": "inbound-timetable.adapter.orm-sql",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import database/sql, github.com/uptrace/bun as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-timetable.adapter.test",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import cmp as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_class": "test"
+    },
+    {
+      "id": "inbound-timetable.adapter.audit-platform-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/audit as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.communication-public",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import modules/communication as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.adapter.delivery-platform-public",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import realtime as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.adapter.device-fleet-adapter",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import auth/device as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.adapter.enrollment-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/enrollment as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.facilities-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/facilities as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "facilities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.identity-access-adapter",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import auth/jwt as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.adapter.legacy-shared-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import internal/sliceutil, internal/timezone as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.people-directory-application",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import services/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.adapter.people-directory-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/users as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.school-structure-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import internal/schoolclass, models/education as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "school-structure",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.security-runtime-application",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import auth/authorize as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.adapter.settings-platform-application",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import services/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.adapter.settings-platform-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/config as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.student-presence-adapter",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/services/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-timetable.adapter.student-presence-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import modules/studentpresence/legacy/models/active as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.student-presence-public",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import modules/studentpresence as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.adapter.tenant-runtime-public",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import tenant as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.adapter.timetable-activities-application",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import services/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-timetable.adapter.timetable-activities-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/activities, models/schedule as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.timetable-activities-public",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import modules/timetable as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-timetable.adapter.transaction-runtime-domain",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import models/base as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-timetable.adapter.transaction-runtime-postgres",
+      "description": "The retained timetable and instance services in modules/timetable/legacy/timetableplanning still import database/repositories/base as services/schedule did (#3218). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-timetable.http.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api/timetable. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-timetable",
+      "source_role": "http",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "legacy-composition.compose.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "process-device-scan.compose.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/devicescan/compose. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "process-device-scan",
+      "source_role": "compose",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.cli.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by cmd. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.compose.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by api. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "scheduler-runtime.application.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/scheduler. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "application",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "test-support.test-support.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by services/schedule/scheduletest. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "timetable-activities.compose.inbound-timetable-adapter",
+      "description": "The retained timetable and instance services that moved from services/schedule to modules/timetable/legacy/timetableplanning (#3218) are still consumed by modules/timetable/compose/httpadapter. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
     }
   ]
 }

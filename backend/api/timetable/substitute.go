@@ -2,7 +2,7 @@
 //
 // The former POST /api/timetable/substitute endpoint was consolidated into
 // POST /instances/{id}/deviations (#1886), and the plan/classify/write logic
-// moved into services/schedule (InstanceService.ApplyDeviations, #1840). What
+// moved into modules/timetable/legacy/timetableplanning (InstanceService.ApplyDeviations, #1840). What
 // remains here is the wire response row (AffectedInstance), the shared reason
 // normalizer, and the post-save SSE broadcast helpers the handlers drive.
 package timetable

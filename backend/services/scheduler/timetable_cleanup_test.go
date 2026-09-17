@@ -17,7 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,11 +26,11 @@ import (
 type fakeTimetableCleanup struct {
 	mu           sync.Mutex
 	cleanupCalls int
-	result       *scheduleSvc.TimetableCleanupResult
+	result       *timetableplanning.TimetableCleanupResult
 	err          error
 }
 
-func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*scheduleSvc.TimetableCleanupResult, error) {
+func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*timetableplanning.TimetableCleanupResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cleanupCalls++
@@ -40,14 +40,14 @@ func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*
 	if f.result != nil {
 		return f.result, nil
 	}
-	return &scheduleSvc.TimetableCleanupResult{Success: true}, nil
+	return &timetableplanning.TimetableCleanupResult{Success: true}, nil
 }
 
-func (f *fakeTimetableCleanup) PreviewExpiredTimetableData(_ context.Context) (*scheduleSvc.TimetableCleanupPreview, error) {
+func (f *fakeTimetableCleanup) PreviewExpiredTimetableData(_ context.Context) (*timetableplanning.TimetableCleanupPreview, error) {
 	return nil, nil
 }
 
-func (f *fakeTimetableCleanup) GetStats(_ context.Context) (*scheduleSvc.TimetableCleanupStats, error) {
+func (f *fakeTimetableCleanup) GetStats(_ context.Context) (*timetableplanning.TimetableCleanupStats, error) {
 	return nil, nil
 }
 
@@ -258,7 +258,7 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 	now := time.Now().Format("15:04")
 
 	svc := &fakeTimetableCleanup{
-		result: &scheduleSvc.TimetableCleanupResult{
+		result: &timetableplanning.TimetableCleanupResult{
 			Success:           true,
 			InstancesDeleted:  5,
 			ExceptionsDeleted: 2,
@@ -333,7 +333,7 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 	now := time.Now().Format("15:04")
 
 	svc := &fakeTimetableCleanup{
-		result: &scheduleSvc.TimetableCleanupResult{
+		result: &timetableplanning.TimetableCleanupResult{
 			Success:           true,
 			InstancesDeleted:  0,
 			ExceptionsDeleted: 0,

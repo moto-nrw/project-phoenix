@@ -13,8 +13,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -62,7 +62,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				} else {
 					settingsErr = injected
 				}
-				syncer := scheduleService.NewAttendanceSyncService(instances, rows, slog.Default())
+				syncer := timetableplanning.NewAttendanceSyncService(instances, rows, slog.Default())
 				svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
 				activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 				presenceMode := "binary"

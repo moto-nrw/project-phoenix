@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -156,7 +156,7 @@ func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
 
 	// Service refuses a terminal-status instance → 409 via the shared lifecycle
 	// error mapper.
-	mock := &mockInstanceService{ackErr: scheduleSvc.ErrInvalidInstanceTransition}
+	mock := &mockInstanceService{ackErr: timetableplanning.ErrInvalidInstanceTransition}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 
@@ -167,7 +167,7 @@ func TestAcknowledgeUnderstaffed_CompletedRejected(t *testing.T) {
 func TestAcknowledgeUnderstaffed_NotFound(t *testing.T) {
 	t.Parallel()
 
-	mock := &mockInstanceService{ackErr: scheduleSvc.ErrInstanceNotFound}
+	mock := &mockInstanceService{ackErr: timetableplanning.ErrInstanceNotFound}
 	rs := NewResource(Dependencies{InstanceService: mock})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
 

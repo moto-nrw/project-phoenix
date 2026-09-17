@@ -14,7 +14,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -104,7 +104,7 @@ type PhaseServiceConfig struct {
 	// CalendarPeriods validates phase→calendar-period links on
 	// Create/Update. Optional: when nil (unit tests with mocks), the
 	// link is accepted unvalidated and the FK constraint still holds.
-	CalendarPeriods                 scheduleService.CalendarPeriodService
+	CalendarPeriods                 timetableplanning.CalendarPeriodService
 	LockTemplateRecurrence          func(context.Context) error
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
 	// Settings resolves the concrete-class collection toggles used to
@@ -122,7 +122,7 @@ type PhaseServiceConfig struct {
 type phaseService struct {
 	owner                           PhaseOwner
 	careOfferingRepo                enrollmentModels.CareOfferingRepository
-	calendarPeriods                 scheduleService.CalendarPeriodService
+	calendarPeriods                 timetableplanning.CalendarPeriodService
 	lockTemplateRecurrence          func(context.Context) error
 	validateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
 	// sourcedTemplateResyncer re-reconciles templates sourcing this phase's
@@ -572,7 +572,7 @@ func (s *phaseService) resyncPhaseSourcedTemplates(ctx context.Context, phaseID 
 			continue
 		}
 		if err := s.sourcedTemplateResyncer.ResyncTemplatesSourcedFromOffering(ctx, offering.ID, today); err != nil {
-			if errors.Is(err, scheduleService.ErrOfferingSourceInvalid) {
+			if errors.Is(err, timetableplanning.ErrOfferingSourceInvalid) {
 				// TenantTxMiddleware commits ordinary 4xx responses. Mark the
 				// ambient transaction so the already-written phase update is
 				// discarded together with the rejection.

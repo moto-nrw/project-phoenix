@@ -19,6 +19,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -569,7 +570,7 @@ func TestListInstances_IncludesWindowConflictWarnings(t *testing.T) {
 	warningsB := byTitle["Window-Conflict-B"].ConflictWarnings
 	require.Len(t, warningsA, 1)
 	require.Len(t, warningsB, 1)
-	assert.Equal(t, scheduleSvc.ConflictKindStudent, warningsA[0].Kind)
+	assert.Equal(t, timetableplanning.ConflictKindStudent, warningsA[0].Kind)
 	assert.Equal(t, student.ID, warningsA[0].ResourceID)
 	assert.True(t, warningsA[0].CanOverride)
 	assert.Equal(t, instB.ID, warningsA[0].ConflictingInstanceID)
@@ -630,7 +631,7 @@ func TestEnforcePlannedEndPropagatesResolveError(t *testing.T) {
 		},
 	})
 	_, err := res.enforcePlannedEnd(context.Background())
-	require.ErrorIs(t, err, scheduleSvc.ErrLifecycleSettings)
+	require.ErrorIs(t, err, timetableplanning.ErrLifecycleSettings)
 }
 
 func TestListInstances_IsLive(t *testing.T) {

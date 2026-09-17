@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -101,7 +101,7 @@ func TestUpdateInstance_Validation(t *testing.T) {
 		{name: "missing time", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "" }, want: http.StatusBadRequest},
 		{name: "missing room", path: "/instances/50", mutate: func(b map[string]any) { b["room_id"] = 0 }, want: http.StatusBadRequest},
 		{name: "invalid date", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "tomorrow" }, want: http.StatusBadRequest},
-		{name: "weekend date on unknown instance", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }, updateErr: scheduleSvc.ErrInstanceNotFound, want: http.StatusNotFound},
+		{name: "weekend date on unknown instance", path: "/instances/50", mutate: func(b map[string]any) { b["date"] = "2026-05-09" }, updateErr: timetableplanning.ErrInstanceNotFound, want: http.StatusNotFound},
 		{name: "invalid start", path: "/instances/50", mutate: func(b map[string]any) { b["start_time"] = "soon" }, want: http.StatusBadRequest},
 		{name: "invalid end", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "later" }, want: http.StatusBadRequest},
 		{name: "end before start", path: "/instances/50", mutate: func(b map[string]any) { b["end_time"] = "10:30" }, want: http.StatusBadRequest},
@@ -136,16 +136,16 @@ func TestUpdateInstance_ServiceErrors(t *testing.T) {
 		"room_id":    s.roomID,
 	}
 
-	s.mock.updateErr = scheduleSvc.ErrInstanceNotFound
+	s.mock.updateErr = timetableplanning.ErrInstanceNotFound
 	notFound := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusNotFound, notFound.Code)
 
-	s.mock.updateErr = &wrappedErr{inner: scheduleSvc.ErrInvalidInstanceTransition}
+	s.mock.updateErr = &wrappedErr{inner: timetableplanning.ErrInvalidInstanceTransition}
 	conflict := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusConflict, conflict.Code)
 	assert.Contains(t, conflict.Body.String(), "invalid_transition")
 
-	s.mock.updateErr = fmt.Errorf("wrapped: %w", scheduleSvc.ErrInvalidInstanceReference)
+	s.mock.updateErr = fmt.Errorf("wrapped: %w", timetableplanning.ErrInvalidInstanceReference)
 	badReference := doTemplateJSON(t, router, http.MethodPut, "/instances/50", body)
 	assert.Equal(t, http.StatusBadRequest, badReference.Code)
 

@@ -9,7 +9,7 @@
 // day before Phase B writes a row), same DeviationError wire mapping.
 //
 // All business rules live in InstanceService.ApplyBulkSubstitution
-// (services/schedule/bulk_substitution.go). The handler parses the body,
+// (modules/timetable/legacy/timetableplanning/bulk_substitution.go). The handler parses the body,
 // calls the service once, and fires the post-save SSE signals.
 //
 // Permission: SchedulesManage. Same tenant tx as the other /instances routes.
@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // bulkSubstitutionRequest is the POST body. substitute_staff_id omitted/null
@@ -38,9 +38,9 @@ type bulkSubstitutionRequest struct {
 
 // BulkSubstitutionDayResponse is the per-day slice of the 200 body.
 type BulkSubstitutionDayResponse struct {
-	Date              string                               `json:"date"`
-	AffectedInstances []AffectedInstance                   `json:"affected_instances"`
-	Warnings          []scheduleSvc.SubstituteTimeConflict `json:"warnings"`
+	Date              string                                     `json:"date"`
+	AffectedInstances []AffectedInstance                         `json:"affected_instances"`
+	Warnings          []timetableplanning.SubstituteTimeConflict `json:"warnings"`
 }
 
 // BulkSubstitutionResponse is the 200 body.
@@ -74,7 +74,7 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 		dates = append(dates, date)
 	}
 
-	result, err := rs.InstanceService.ApplyBulkSubstitution(ctx, scheduleSvc.BulkSubstitutionInput{
+	result, err := rs.InstanceService.ApplyBulkSubstitution(ctx, timetableplanning.BulkSubstitutionInput{
 		AbsentStaffID:     req.AbsentStaffID,
 		SubstituteStaffID: req.SubstituteStaffID,
 		Dates:             dates,
@@ -99,7 +99,7 @@ func (rs *Resource) applyBulkSubstitution(w http.ResponseWriter, r *http.Request
 
 // bulkSubstitutionResponseOf shapes the service result into the wire response,
 // defaulting nil slices to empty ones so the JSON always carries arrays.
-func bulkSubstitutionResponseOf(result *scheduleSvc.BulkSubstitutionResult) BulkSubstitutionResponse {
+func bulkSubstitutionResponseOf(result *timetableplanning.BulkSubstitutionResult) BulkSubstitutionResponse {
 	days := make([]BulkSubstitutionDayResponse, 0, len(result.Days))
 	for _, day := range result.Days {
 		affected := make([]AffectedInstance, 0, len(day.Affected))
@@ -113,7 +113,7 @@ func bulkSubstitutionResponseOf(result *scheduleSvc.BulkSubstitutionResult) Bulk
 		}
 		warnings := day.Warnings
 		if warnings == nil {
-			warnings = []scheduleSvc.SubstituteTimeConflict{}
+			warnings = []timetableplanning.SubstituteTimeConflict{}
 		}
 		days = append(days, BulkSubstitutionDayResponse{
 			Date:              day.Date.String(),

@@ -153,5 +153,5 @@ func TestAttendanceFieldPatch_HasChanges(t *testing.T) {
 	}
 }
 
-// TestValidateAttendancePatch_* moved to services/schedule/attendance_patch_validation_test.go
+// TestValidateAttendancePatch_* moved to modules/timetable/legacy/timetableplanning/attendance_patch_validation_test.go
 // when the cross-field attendance invariant moved out of the model (#586, Rule 12).

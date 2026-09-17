@@ -110,6 +110,7 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	worktimemodelsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
@@ -442,7 +443,7 @@ func composeFacilities(db *bun.DB, legacyFacilities *interface {
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB: db,
 		DeletionLock: func(ctx context.Context) error {
-			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		DeletionGuard: func(ctx context.Context, roomID int64) error {
 			if *legacyFacilities == nil {
@@ -1383,7 +1384,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		EnrollmentFormSchema:         api.Services.EnrollmentFormSchema,
 		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence: func(ctx context.Context) error {
-			return scheduleSvc.LockTenantRecurrenceWrites(ctx, db)
+			return timetableplanning.LockTenantRecurrenceWrites(ctx, db)
 		},
 		Broadcaster:            api.Services.RealtimeHub,
 		ParentEventEmitter:     api.Services.ParentEventEmitter,

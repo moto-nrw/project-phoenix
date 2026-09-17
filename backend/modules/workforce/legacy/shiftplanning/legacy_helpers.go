@@ -15,9 +15,9 @@ import (
 )
 
 // The package-private helpers the moved services shared with the retained
-// timetable services. services/schedule keeps its own copies for the
-// instance, deviation and materialization paths; these go with the services
-// that use them (#3219).
+// timetable services. modules/timetable/legacy/timetableplanning (#3218) keeps
+// its own copies for the instance, deviation and materialization paths; these
+// go with the services that use them (#3219).
 
 // isoWeekday returns the ISO 8601 weekday number for d (1=Mon … 7=Sun),
 // matching the storage convention of activities.schedules.weekday.

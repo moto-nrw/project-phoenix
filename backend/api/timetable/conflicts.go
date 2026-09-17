@@ -23,15 +23,15 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 )
 
 // PlannedConflictsResponse is the 200 body for GET /conflicts.
 type PlannedConflictsResponse struct {
-	Date      string                               `json:"date"`
-	StartTime string                               `json:"start_time"`
-	EndTime   string                               `json:"end_time"`
-	Warnings  []scheduleSvc.PlannedConflictWarning `json:"warnings"`
+	Date      string                                     `json:"date"`
+	StartTime string                                     `json:"start_time"`
+	EndTime   string                                     `json:"end_time"`
+	Warnings  []timetableplanning.PlannedConflictWarning `json:"warnings"`
 }
 
 // plannedConflictParams is the parsed query string of GET /conflicts.
@@ -57,7 +57,7 @@ func (rs *Resource) getPlannedConflicts(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	warnings := rs.TimetableData.DetectPlannedConflicts(r.Context(), scheduleSvc.PlannedConflictQuery{
+	warnings := rs.TimetableData.DetectPlannedConflicts(r.Context(), timetableplanning.PlannedConflictQuery{
 		Date:              params.date,
 		StartTime:         params.startTime,
 		EndTime:           params.endTime,
