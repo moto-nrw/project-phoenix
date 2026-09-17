@@ -81,9 +81,9 @@ type OpenPickupExtension struct {
 	Blocks []domain.PickupExtensionBlock
 }
 
-// ListOpenPickupExtensions returns tasks that still have a choice. Openness
-// is derived from the current plan, so a child added by hand, a cancelled
-// block or a past date simply drops the task from the list.
+// ListOpenPickupExtensions returns unresolved tasks with their available
+// choices. A task without a matching block remains resolvable with "no
+// block"; only a child already covered until pickup drops the task.
 func (s *Service) ListOpenPickupExtensions(ctx context.Context, studentID int64) (result []OpenPickupExtension, err error) {
 	err = s.run("list_open_pickup_extensions", func(stats *domain.OperationStats) error {
 		tasks, queryStats, listErr := s.store.ListPickupExtensionTasks(ctx, studentID, s.pickupExtensionToday())
@@ -98,7 +98,7 @@ func (s *Service) ListOpenPickupExtensions(ctx context.Context, studentID int64)
 		result = make([]OpenPickupExtension, 0, len(tasks))
 		for _, task := range tasks {
 			open := domain.OpenPickupExtensionBlocks(blocks[task.ID], task.Pickup)
-			if len(open) > 0 {
+			if open != nil {
 				result = append(result, OpenPickupExtension{Task: task, Blocks: open})
 			}
 		}

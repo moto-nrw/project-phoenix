@@ -240,6 +240,9 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 	rows := make([]pickupExtensionBlockRow, 0)
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
+	// A future pickup change needs the schedule that will apply then. A delayed
+	// decision must not revive a schedule that has already expired, so schedules
+	// are evaluated at the later of the task's effective date and today.
 	err = db.NewRaw(`
 		WITH task AS (
 			SELECT * FROM unnest(?::BIGINT[], ?::BIGINT[], ?::INT[], ?::DATE[], ?::TIME[], ?::TIME[])
@@ -265,8 +268,8 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 		FROM task
 		JOIN activities.schedules AS "schedule"
 			ON "schedule".tenant_id = ? AND "schedule".weekday = task.weekday
-			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= ?::date)
-			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > ?::date)
+			AND ("schedule".valid_from IS NULL OR "schedule".valid_from <= GREATEST(task.effective_from, ?::date))
+			AND ("schedule".valid_until IS NULL OR "schedule".valid_until > GREATEST(task.effective_from, ?::date))
 		JOIN activities.groups AS "template"
 			ON "template".id = "schedule".activity_group_id AND "template".tenant_id = "schedule".tenant_id
 			AND "template".is_template AND "template".archived_at IS NULL

@@ -370,7 +370,7 @@ func TestModulePreservesBoundedPickupWeekdayEnrollment(t *testing.T) {
 	assert.ElementsMatch(t, []int{timetable.WeekdayTuesday, timetable.WeekdayWednesday}, enrollments[0].SelectedWeekdays)
 }
 
-func TestModuleIgnoresPickupWeekdayEnrollmentsOutsideWeekday(t *testing.T) {
+func TestModuleReturnsPickupWeekdayTaskWithoutMatchingBlock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
@@ -395,7 +395,13 @@ func TestModuleIgnoresPickupWeekdayEnrollmentsOutsideWeekday(t *testing.T) {
 	}))
 	tasks, err := module.ListOpenPickupExtensions(ctx, child.ID)
 	require.NoError(t, err)
-	assert.Empty(t, tasks, "a roster restricted to Wednesday offers no Tuesday block")
+	require.Len(t, tasks, 1)
+	assert.Empty(t, tasks[0].Blocks, "a roster restricted to Wednesday offers no Tuesday block")
+	_, err = module.ResolvePickupExtension(ctx, tasks[0].ID, nil)
+	require.NoError(t, err)
+	tasks, err = module.ListOpenPickupExtensions(ctx, child.ID)
+	require.NoError(t, err)
+	assert.Empty(t, tasks)
 }
 
 func TestModuleUsesEffectivePickupWeekdaySchedules(t *testing.T) {
@@ -442,9 +448,8 @@ func TestModuleUsesEffectivePickupWeekdaySchedules(t *testing.T) {
 		PreviousPickup: "14:45", Pickup: "16:00",
 	}))
 	task := pickupExtensionTask(t, module, ctx, child.ID)
-	require.Len(t, task.Blocks, 1)
-	assert.Equal(t, current.ID, task.Blocks[0].ID)
-	assert.Equal(t, "17:00", task.Blocks[0].EndTime)
+	require.Len(t, task.Blocks, 2)
+	assert.ElementsMatch(t, []int64{current.ID, future.ID}, pickupExtensionBlockIDs(task.Blocks))
 }
 
 func TestModuleUsesCurrentPickupWeekdaySchedules(t *testing.T) {
