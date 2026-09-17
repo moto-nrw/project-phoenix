@@ -198,6 +198,16 @@ type StaffAbsenceAudit struct {
 	ActorID    int64
 	Note       string
 	ChangedAt  time.Time
+	// TypeChange is set when the Leitung rebooked the absence (#3258).
+	TypeChange *AbsenceTypeChange
+}
+
+// AbsenceTypeChange is the old and new type of a rebooked absence.
+type AbsenceTypeChange struct {
+	FromType   string
+	FromTypeID *int64
+	ToType     string
+	ToTypeID   *int64
 }
 
 // AbsenceQuery reads staff absences, absence types and the audit trail.
@@ -233,6 +243,10 @@ type AbsenceTypeQuery interface {
 	// LockStaffAbsenceType holds the type against retirement during a booking.
 	LockStaffAbsenceType(context.Context, int64) (StaffAbsenceType, error)
 	PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]AbsenceTypeAllowanceSummary, error)
+	// PreviewAllowanceRebooking checks stored absences of the staff member
+	// against the allowance of absenceTypeID (#3258). With
+	// ErrAbsenceTypeAllowanceExceeded the previews are still set.
+	PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]AbsenceTypeAllowanceSummary, error)
 }
 
 // AbsenceCommand writes staff absences, absence types and the audit trail.
@@ -351,6 +365,10 @@ func (m *Module) AllowanceSummary(ctx context.Context, staffID, absenceTypeID in
 
 func (m *Module) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]AbsenceTypeAllowanceSummary, error) {
 	return m.engine.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, start, end, halfDay)
+}
+
+func (m *Module) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]AbsenceTypeAllowanceSummary, error) {
+	return m.engine.PreviewAllowanceRebooking(ctx, staffID, absenceTypeID, absenceIDs)
 }
 
 func (m *Module) CreateAbsenceType(ctx context.Context, input CreateAbsenceType) (StaffAbsenceType, error) {

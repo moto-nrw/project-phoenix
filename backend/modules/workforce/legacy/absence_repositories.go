@@ -354,6 +354,7 @@ func (r staffAbsenceAuditRepository) Create(ctx context.Context, audit *activeMo
 	recorded, err := r.workforce.RecordStaffAbsenceAudit(ctx, workforce.StaffAbsenceAudit{
 		TenantID: audit.TenantID, AbsenceID: audit.AbsenceID, FromStatus: audit.FromStatus, ToStatus: audit.ToStatus,
 		ActorID: audit.ActorID, Note: audit.Note, ChangedAt: audit.ChangedAt,
+		TypeChange: (*workforce.AbsenceTypeChange)(audit.TypeChange),
 	})
 	if err != nil {
 		return writeError("create staff absence audit", err)

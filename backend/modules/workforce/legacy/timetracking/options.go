@@ -72,6 +72,12 @@ func WithAbsenceTypes(reader AbsenceTypeReader) StaffAbsenceOption {
 	return func(s *staffAbsenceService) { s.absenceTypes = reader }
 }
 
+// WithAbsenceMonthSnapshots supplies the frozen-month reader (#1417) that
+// blocks a rebooking inside a closed month (#3258).
+func WithAbsenceMonthSnapshots(reader adjustmentFreezeReader) StaffAbsenceOption {
+	return func(s *staffAbsenceService) { s.snapshotRepo = reader }
+}
+
 // WithAbsenceDeletionAudit supplies the deletion tombstone writer (#1417).
 // Without it every delete path fails.
 func WithAbsenceDeletionAudit(audit TimeTrackingDeletionAudit) StaffAbsenceOption {

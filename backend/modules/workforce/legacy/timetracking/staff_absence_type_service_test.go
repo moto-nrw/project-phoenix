@@ -50,6 +50,10 @@ func (m *absTypeReaderMock) PreviewAllowanceBooking(context.Context, int64, int6
 	return nil, m.previewAllowanceBookingError
 }
 
+func (m *absTypeReaderMock) PreviewAllowanceRebooking(context.Context, int64, int64, []int64) ([]*AbsenceTypeAllowanceSummary, error) {
+	return nil, m.previewAllowanceBookingError
+}
+
 func TestStampAbsenceTypeLabelsFillsOnlyCustomRows(t *testing.T) {
 	t.Parallel()
 	typ := &StaffAbsenceType{Name: "Regenerationstag"}

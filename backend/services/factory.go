@@ -957,6 +957,9 @@ func newFactory(
 			Logger:      activeLogger,
 		}),
 		timetracking.WithAbsenceShiftPlanSyncer(ShiftPlanSyncBridge(func() shiftplanning.ShiftPlanSyncer { return shiftPlanSyncer })),
+		// A rebooking inside a closed month (#3258) could not move its frozen
+		// closing balance, so the service rejects it.
+		timetracking.WithAbsenceMonthSnapshots(MonthSnapshotCapability(repos.StaffMonthSnapshot)),
 	)
 
 	// Stundenkonto lifecycle transactions (#1420): payout, comp-time grants,

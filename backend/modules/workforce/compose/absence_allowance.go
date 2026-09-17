@@ -70,6 +70,14 @@ func (e engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTyp
 	values, err := e.service.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, domain.StaffAbsence{
 		DateStart: start, DateEnd: end, HalfDay: halfDay, StartHalfDay: halfDay, EndHalfDay: halfDay,
 	}, from.Year(), to.Year())
+	return allowancePreviewsToPublic(values, err)
+}
+
+func (e engine) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]workforce.AbsenceTypeAllowanceSummary, error) {
+	return allowancePreviewsToPublic(e.service.PreviewAllowanceRebooking(ctx, staffID, absenceTypeID, absenceIDs))
+}
+
+func allowancePreviewsToPublic(values []domain.AbsenceTypeAllowanceSummary, err error) ([]workforce.AbsenceTypeAllowanceSummary, error) {
 	if values == nil {
 		return nil, mapError(err)
 	}

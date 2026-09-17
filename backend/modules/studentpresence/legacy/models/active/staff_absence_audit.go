@@ -15,6 +15,16 @@ type StaffAbsenceAudit struct {
 	ActorID    int64     `json:"actor_id"`
 	Note       string    `json:"note,omitempty"`
 	ChangedAt  time.Time `json:"changed_at"`
+	// TypeChange is set when the Leitung rebooked the absence (#3258).
+	TypeChange *StaffAbsenceTypeChange `json:"type_change,omitempty"`
+}
+
+// StaffAbsenceTypeChange is the old and new type of a rebooked absence.
+type StaffAbsenceTypeChange struct {
+	FromType   string `json:"from_type"`
+	FromTypeID *int64 `json:"from_type_id,omitempty"`
+	ToType     string `json:"to_type"`
+	ToTypeID   *int64 `json:"to_type_id,omitempty"`
 }
 
 func (a *StaffAbsenceAudit) Validate() error {
