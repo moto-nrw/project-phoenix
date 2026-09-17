@@ -78,7 +78,9 @@ func TestFormerModelGetterExceptionsHaveHonestShapes(t *testing.T) {
 		{name: "deviation event", model: (*audit.DeviationEvent)(nil), timestampField: "OccurredAt", timestampBun: "occurred_at,notnull,default:now()"},
 		{name: "enrollment offering adjustment", model: (*audit.EnrollmentOfferingAdjustment)(nil), timestampField: "ChangedAt", timestampBun: "changed_at,notnull,default:now()"},
 		{name: "guardian change", model: (*audit.GuardianChange)(nil), timestampField: "ChangedAt", timestampBun: "changed_at,notnull,default:now()"},
-		{name: "passkey session", model: (*auth.PasskeySession)(nil), expectsStringIDModelWithoutNullZero: true},
+		// The school-portal passkey models moved into the Identity & Access
+		// module with #2724; the operator ones remain as the retained
+		// services/platform port's value types.
 		{name: "operator passkey session", model: (*platform.OperatorPasskeySession)(nil), expectsStringIDModelWithoutNullZero: true},
 	}
 

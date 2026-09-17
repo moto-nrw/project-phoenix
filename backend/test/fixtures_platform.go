@@ -90,6 +90,17 @@ func OwnTestOperatorPasskeySession(tb testing.TB, db *bun.DB, sessionID string) 
 	})
 }
 
+// OwnTestAccountPasskeySession removes a school-portal passkey ceremony
+// when the test ends. A discoverable login names no account, so its session
+// does not cascade with an account fixture.
+func OwnTestAccountPasskeySession(tb testing.TB, db *bun.DB, sessionID string) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM auth.passkey_sessions WHERE id = ?`, sessionID)
+		require.NoError(tb, err)
+	})
+}
+
 // cleanupOperator removes an operator and its audit-log rows. All other
 // operator-scoped tables (tokens, MFA, passkeys) cascade on delete; rows in
 // domain tables referencing the operator (announcements)

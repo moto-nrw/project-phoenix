@@ -82,7 +82,7 @@ func (p *OperatorPasskey) FindActiveCredential(ctx context.Context, credentialID
 func (p *OperatorPasskey) RecordUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {
 	return p.run(ctx, "record_operator_passkey_use", func(txCtx context.Context, stats *domain.OperationStats) error {
 		if !json.Valid(credentialJSON) {
-			return domain.ErrOperatorPasskeyJSONInvalid
+			return domain.ErrPasskeyJSONInvalid
 		}
 		changed, queryStats, err := p.store.UpdateOperatorPasskeyAfterUse(txCtx, id, credentialJSON, usedAt)
 		stats.Add(queryStats)

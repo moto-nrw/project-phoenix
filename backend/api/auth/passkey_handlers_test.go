@@ -375,6 +375,51 @@ func TestPasskeyHandlerErrors(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 }
 
+// TestPasskeyStoreFailuresAreNotClientErrors pins the wire outcome of the
+// school-portal passkey completions (#2724): a refused ceremony or a missing
+// passkey stays a client error, a store failure behind them is a server
+// error.
+func TestPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
+	t.Parallel()
+
+	storeDown := &authService.AuthError{Op: "consume passkey login session", Err: errors.New("connection reset")}
+	claims := jwt.AppClaims{ID: 11, TenantID: 7}
+	loginVerify := func(rs *Resource, w http.ResponseWriter) {
+		req := passkeyJSONRequest("/passkeys/login/verify", `{"session_id":"s","response":{"id":"a"}}`)
+		rs.passkeyLoginVerify(w, req)
+	}
+	registerVerify := func(rs *Resource, w http.ResponseWriter) {
+		req := passkeyJSONRequest("/passkeys/register/verify", `{"session_id":"s","response":{"id":"a"}}`)
+		rs.passkeyRegisterVerify(w, withPasskeyClaims(req, claims))
+	}
+	revoke := func(rs *Resource, w http.ResponseWriter) {
+		req := withPasskeyClaims(httptest.NewRequest(http.MethodDelete, "/passkeys/7", nil), claims)
+		rs.passkeyRevoke(w, withPasskeyRouteParam(req, "passkeyId", "7"))
+	}
+	tests := []struct {
+		name     string
+		svc      *passkeyServiceStub
+		call     func(*Resource, http.ResponseWriter)
+		wantCode int
+	}{
+		{"login with a spent ceremony", &passkeyServiceStub{finishLoginErr: authService.ErrPasskeySessionInvalid}, loginVerify, http.StatusUnauthorized},
+		{"login without access to the school", &passkeyServiceStub{finishLoginErr: authService.ErrTenantAccessDenied}, loginVerify, http.StatusUnauthorized},
+		{"login with a store failure", &passkeyServiceStub{finishLoginErr: storeDown}, loginVerify, http.StatusInternalServerError},
+		{"registration with a spent ceremony", &passkeyServiceStub{finishRegistrationErr: authService.ErrPasskeySessionInvalid}, registerVerify, http.StatusUnauthorized},
+		{"registration with a store failure", &passkeyServiceStub{finishRegistrationErr: storeDown}, registerVerify, http.StatusInternalServerError},
+		{"revoke of a missing passkey", &passkeyServiceStub{revokeErr: authService.ErrPasskeyNotFound}, revoke, http.StatusNotFound},
+		{"revoke with a store failure", &passkeyServiceStub{revokeErr: storeDown}, revoke, http.StatusInternalServerError},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			tt.call(&Resource{PasskeyService: tt.svc}, w)
+			assert.Equal(t, tt.wantCode, w.Code)
+			assert.NotContains(t, w.Body.String(), "connection reset", "store details stay out of the response")
+		})
+	}
+}
+
 func passkeyJSONRequest(path, body string) *http.Request {
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewBufferString(body))
 	req.Header.Set("Content-Type", "application/json")

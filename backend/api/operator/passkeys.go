@@ -196,6 +196,8 @@ func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) 
 	case errors.Is(err, authSvc.ErrPasskeyNotFound):
 		common.RenderError(w, r, ErrNotFound("Passkey not found"))
 	default:
-		common.RenderError(w, r, AuthErrorRenderer(err))
+		// A failed read or write of the passkey records reaches this branch
+		// since #2724; the cause is logged, never returned.
+		common.RenderError(w, r, common.ErrorInternalServerWrap("passkey request failed", err))
 	}
 }

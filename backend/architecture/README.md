@@ -739,8 +739,15 @@ failed read or write rolls back and leaves the ceremony open. Only the
 owner's not-found outcomes become an invalid session or a missing passkey,
 so store failures reach the caller as errors. The `models/platform`
 passkey repository contracts and their adapter are deleted; the passkey
-models remain as the retained port's value types. The tenant portal
-passkeys (`auth.passkey_*`) stay with `services/auth` under #2725. The foreign
+models remain as the retained port's value types. The school-portal passkeys
+(`auth.passkey_credentials`, `auth.passkey_sessions`) follow the same shape
+through `AccountPasskeyRecords`: the retained `services/auth` passkey service
+keeps the ceremonies, the tenant-origin check and the school-membership gate
+and reaches the rows through its own `PasskeyRecords` port. A credential
+belongs to the account and carries no school; the ceremony records the school
+whose portal started it, and login refuses a school the account has no access
+to. Their `models/auth` models and `database/repositories/auth` adapter are
+deleted; the port's value types live in `services/auth`. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
 account lookup and active-account subquery of `database/repositories/auth`

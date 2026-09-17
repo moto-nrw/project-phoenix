@@ -133,21 +133,21 @@ func TestOperatorPasskeySessionIsConsumedOnce(t *testing.T) {
 	invalid := newOperatorPasskeySession(t, db, &operator.ID, "recovery", time.Now().Add(time.Hour))
 	_, err := records.CreateOperatorPasskeySession(ctx, invalid)
 	require.EqualError(t, err, "identity access: create operator passkey session: unsupported operator passkey session purpose")
-	invalid = newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Time{})
+	invalid = newOperatorPasskeySession(t, db, &operator.ID, identityaccess.PasskeySessionPurposeLogin, time.Time{})
 	_, err = records.CreateOperatorPasskeySession(ctx, invalid)
 	require.EqualError(t, err, "identity access: create operator passkey session: expires_at is required")
 
 	registration, err := records.CreateOperatorPasskeySession(ctx,
-		newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
+		newOperatorPasskeySession(t, db, &operator.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 	require.NotZero(t, registration.CreatedAt)
 	_, err = records.CreateOperatorPasskeySession(ctx, registration)
 	require.Error(t, err, "a session ID is used once")
 
-	_, err = records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.PasskeySessionPurposeLogin, time.Now())
 	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeySessionNotFound, "a registration ceremony cannot complete a login")
 	consumedAt := time.Now().Truncate(time.Microsecond)
-	consumed, err := records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, consumedAt)
+	consumed, err := records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.PasskeySessionPurposeRegistration, consumedAt)
 	require.NoError(t, err)
 	require.NotNil(t, consumed.OperatorID)
 	assert.Equal(t, operator.ID, *consumed.OperatorID)
@@ -156,22 +156,22 @@ func TestOperatorPasskeySessionIsConsumedOnce(t *testing.T) {
 	assert.JSONEq(t, `{"challenge":"abc"}`, string(consumed.SessionJSON))
 	require.NotNil(t, consumed.ConsumedAt)
 	assert.True(t, consumedAt.Equal(*consumed.ConsumedAt))
-	_, err = records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now())
 	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeySessionNotFound, "a replayed completion is refused")
 
 	login, err := records.CreateOperatorPasskeySession(ctx,
-		newOperatorPasskeySession(t, db, nil, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now().Add(time.Hour)))
+		newOperatorPasskeySession(t, db, nil, identityaccess.PasskeySessionPurposeLogin, time.Now().Add(time.Hour)))
 	require.NoError(t, err)
-	consumed, err = records.ConsumeOperatorPasskeySession(ctx, login.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now())
+	consumed, err = records.ConsumeOperatorPasskeySession(ctx, login.ID, identityaccess.PasskeySessionPurposeLogin, time.Now())
 	require.NoError(t, err)
 	assert.Nil(t, consumed.OperatorID, "a discoverable login names no operator")
 
 	expired, err := records.CreateOperatorPasskeySession(ctx,
-		newOperatorPasskeySession(t, db, nil, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now().Add(-time.Minute)))
+		newOperatorPasskeySession(t, db, nil, identityaccess.PasskeySessionPurposeLogin, time.Now().Add(-time.Minute)))
 	require.NoError(t, err)
-	_, err = records.ConsumeOperatorPasskeySession(ctx, expired.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(ctx, expired.ID, identityaccess.PasskeySessionPurposeLogin, time.Now())
 	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeySessionNotFound, "an expired ceremony is refused")
-	_, err = records.ConsumeOperatorPasskeySession(ctx, "unknown-"+expired.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(ctx, "unknown-"+expired.ID, identityaccess.PasskeySessionPurposeLogin, time.Now())
 	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeySessionNotFound)
 }
 
@@ -202,15 +202,15 @@ func TestOperatorPasskeyRecordsAreVisibleFromEveryTenantContext(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, credential.ID, found.ID)
 			started, err := records.CreateOperatorPasskeySession(ctx,
-				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
+				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
 			require.NoError(t, err)
-			_, err = records.ConsumeOperatorPasskeySession(tenantCtx, started.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+			_, err = records.ConsumeOperatorPasskeySession(tenantCtx, started.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now())
 			require.NoError(t, err, "a ceremony started without this tenant completes within it")
 			created, err := records.CreateOperatorPasskeySession(tenantCtx,
-				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
+				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
 			require.NoError(t, err)
 			_, err = records.ConsumeOperatorPasskeySession(testpkg.TenantContext(second+first-tenantID), created.ID,
-				identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+				identityaccess.PasskeySessionPurposeRegistration, time.Now())
 			require.NoError(t, err, "a ceremony started in one tenant completes in the other")
 		})
 	}
@@ -228,13 +228,13 @@ func TestOperatorPasskeyRegistrationRollsBackAfterEachWrite(t *testing.T) {
 	ctx := testpkg.WithTenantRuntime(t, plain, db)
 	handle := []byte("handle-" + uuid.Must(uuid.NewV4()).String())
 	session, err := records.CreateOperatorPasskeySession(plain,
-		newOperatorPasskeySession(t, db, &operator.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
+		newOperatorPasskeySession(t, db, &operator.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now().Add(time.Hour)))
 	require.NoError(t, err)
 	credential := newOperatorPasskey(operator.ID, handle)
 
 	writes := []func(context.Context) error{
 		func(txCtx context.Context) error {
-			_, err := records.ConsumeOperatorPasskeySession(txCtx, session.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+			_, err := records.ConsumeOperatorPasskeySession(txCtx, session.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now())
 			return err
 		},
 		func(txCtx context.Context) error {
@@ -269,7 +269,7 @@ func TestOperatorPasskeyRegistrationRollsBackAfterEachWrite(t *testing.T) {
 	listed, err := records.ListActiveOperatorPasskeys(plain, operator.ID)
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
-	_, err = records.ConsumeOperatorPasskeySession(plain, session.ID, identityaccess.OperatorPasskeySessionPurposeRegistration, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(plain, session.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now())
 	require.ErrorIs(t, err, identityaccess.ErrOperatorPasskeySessionNotFound, "the committed ceremony is spent")
 }
 
@@ -292,11 +292,11 @@ func TestOperatorPasskeyObservationsUseStableOperations(t *testing.T) {
 	require.NoError(t, records.RevokeOperatorPasskey(ctx, operator.ID, credential.ID, time.Now()))
 	require.Error(t, records.RevokeOperatorPasskey(ctx, operator.ID, credential.ID, time.Now()))
 	session, err := records.CreateOperatorPasskeySession(ctx,
-		newOperatorPasskeySession(t, db, nil, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now().Add(time.Hour)))
+		newOperatorPasskeySession(t, db, nil, identityaccess.PasskeySessionPurposeLogin, time.Now().Add(time.Hour)))
 	require.NoError(t, err)
-	_, err = records.ConsumeOperatorPasskeySession(ctx, session.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(ctx, session.ID, identityaccess.PasskeySessionPurposeLogin, time.Now())
 	require.NoError(t, err)
-	_, err = records.ConsumeOperatorPasskeySession(ctx, session.ID, identityaccess.OperatorPasskeySessionPurposeLogin, time.Now())
+	_, err = records.ConsumeOperatorPasskeySession(ctx, session.ID, identityaccess.PasskeySessionPurposeLogin, time.Now())
 	require.Error(t, err)
 
 	require.Len(t, observations, 7)

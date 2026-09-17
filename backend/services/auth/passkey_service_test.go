@@ -2,10 +2,9 @@ package auth
 
 import (
 	"context"
-	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,8 +138,8 @@ func TestPasskeySummaryAndUser(t *testing.T) {
 
 	now := time.Now().UTC()
 	lastUsedAt := now.Add(time.Minute)
-	row := &authModel.PasskeyCredential{
-		Model:      base.Model{ID: 44, CreatedAt: now},
+	row := &PasskeyCredential{
+		ID: 44, CreatedAt: now,
 		Name:       "Laptop",
 		LastUsedAt: &lastUsedAt,
 	}
@@ -167,6 +167,7 @@ func TestNewPasskeyServiceValidation(t *testing.T) {
 
 	baseCfg := PasskeyServiceConfig{
 		Repos:        &repositories.Factory{},
+		Records:      &passkeyRecordsStub{},
 		MFAService:   &MFAStub{},
 		AuthService:  &Service{},
 		DB:           &bun.DB{},
@@ -180,6 +181,7 @@ func TestNewPasskeyServiceValidation(t *testing.T) {
 		mutate func(*PasskeyServiceConfig)
 	}{
 		{name: "missing repos", mutate: func(cfg *PasskeyServiceConfig) { cfg.Repos = nil }},
+		{name: "missing records", mutate: func(cfg *PasskeyServiceConfig) { cfg.Records = nil }},
 		{name: "missing mfa", mutate: func(cfg *PasskeyServiceConfig) { cfg.MFAService = nil }},
 		{name: "missing auth", mutate: func(cfg *PasskeyServiceConfig) { cfg.AuthService = nil }},
 		{name: "missing db", mutate: func(cfg *PasskeyServiceConfig) { cfg.DB = nil }},
@@ -260,6 +262,85 @@ func TestPasskeyEnrollmentChallengeErrors(t *testing.T) {
 	}
 }
 
+// passkeyRecordsStub serves the records port from a credential and a
+// session stub.
+type passkeyRecordsStub struct {
+	credentials *passkeyCredentialRepoStub
+	sessions    *passkeySessionRepoStub
+}
+
+func (r *passkeyRecordsStub) CreateCredential(ctx context.Context, credential *PasskeyCredential) error {
+	return r.credentials.create(ctx, credential)
+}
+
+func (r *passkeyRecordsStub) ListActiveCredentials(ctx context.Context, accountID int64) ([]*PasskeyCredential, error) {
+	return r.credentials.listActive(ctx, accountID)
+}
+
+func (r *passkeyRecordsStub) FindActiveCredential(ctx context.Context, credentialID, userHandle []byte) (*PasskeyCredential, error) {
+	return r.credentials.findActive(ctx, credentialID, userHandle)
+}
+
+func (r *passkeyRecordsStub) RecordCredentialUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error {
+	return r.credentials.recordUse(ctx, id, credentialJSON, usedAt)
+}
+
+func (r *passkeyRecordsStub) RevokeCredential(ctx context.Context, accountID, id int64, revokedAt time.Time) (bool, error) {
+	return r.credentials.revoke(ctx, accountID, id, revokedAt)
+}
+
+func (r *passkeyRecordsStub) CreateSession(ctx context.Context, session *PasskeySession) error {
+	return r.sessions.create(ctx, session)
+}
+
+func (r *passkeyRecordsStub) ConsumeSession(ctx context.Context, id, purpose string, consumedAt time.Time) (*PasskeySession, error) {
+	return r.sessions.consume(ctx, id, purpose, consumedAt)
+}
+
+// passkeyTransactions is a unit of work without a database that counts how
+// the ceremony completions ended.
+type passkeyTransactions struct {
+	commits   int
+	rollbacks int
+}
+
+// ctx carries the counting unit of work the way the API root attaches the
+// real one.
+func (l *passkeyTransactions) ctx(t *testing.T) context.Context {
+	t.Helper()
+	runtime, err := tenant.NewUnitOfWork(
+		func(context.Context, int64, func(context.Context, any) error) error {
+			t.Fatal("ceremony completions never open a tenant transaction")
+			return nil
+		},
+		func(ctx context.Context, fn func(context.Context, any) error) error {
+			err := fn(ctx, bun.Tx{})
+			if err != nil {
+				l.rollbacks++
+			} else {
+				l.commits++
+			}
+			return err
+		},
+		func(context.Context, tenant.SavepointAction) error { return nil },
+		func(error) bool { return false },
+	)
+	require.NoError(t, err)
+	return tenant.WithUnitOfWork(context.Background(), runtime)
+}
+
+// assertOutcome checks that the completion ran in exactly one transaction
+// that committed (a rejected ceremony stays spent) or rolled back (a failed
+// read or write leaves the ceremony open).
+func (l *passkeyTransactions) assertOutcome(t *testing.T, committed bool) {
+	t.Helper()
+	if committed {
+		assert.Equal(t, passkeyTransactions{commits: 1}, *l, "a rejected ceremony stays spent")
+		return
+	}
+	assert.Equal(t, passkeyTransactions{rollbacks: 1}, *l, "a failed read or write rolls the consumption back")
+}
+
 func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	t.Parallel()
 
@@ -267,11 +348,8 @@ func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	sessions := &passkeySessionRepoStub{}
 	mfa := &MFAStub{}
 	svc := &passkeyService{
-		repos: &repositories.Factory{
-			Account:           newStubAccountRepository(account),
-			PasskeyCredential: &passkeyCredentialRepoStub{},
-			PasskeySession:    sessions,
-		},
+		repos:        &repositories.Factory{Account: newStubAccountRepository(account)},
+		records:      &passkeyRecordsStub{credentials: &passkeyCredentialRepoStub{}, sessions: sessions},
 		mfaService:   mfa,
 		rpID:         "localhost",
 		rpName:       "moto",
@@ -294,7 +372,7 @@ func TestPasskeyBeginRegistrationStoresSession(t *testing.T) {
 	require.NotNil(t, sessions.created.TenantID)
 	assert.Equal(t, account.ID, *sessions.created.AccountID)
 	assert.Equal(t, int64(44), *sessions.created.TenantID)
-	assert.Equal(t, authModel.PasskeySessionPurposeRegistration, sessions.created.Purpose)
+	assert.Equal(t, PasskeySessionPurposeRegistration, sessions.created.Purpose)
 	assert.Equal(t, "school.localhost", sessions.created.RPID)
 	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
 	assert.False(t, sessions.created.ExpiresAt.IsZero())
@@ -314,6 +392,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 		name    string
 		req     PasskeyRegistrationStartRequest
 		repos   *repositories.Factory
+		records *passkeyRecordsStub
 		mfa     *MFAStub
 		wantErr error
 	}{
@@ -324,6 +403,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://other.localhost:3000",
 			},
 			repos:   &repositories.Factory{Account: newStubAccountRepository(account)},
+			records: &passkeyRecordsStub{},
 			mfa:     &MFAStub{},
 			wantErr: ErrPasskeyOriginInvalid,
 		},
@@ -334,8 +414,9 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://localhost:3000",
 				Code:           "000000",
 			},
-			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
-			mfa:   &MFAStub{VerifyErr: wantErr},
+			repos:   &repositories.Factory{Account: newStubAccountRepository(account)},
+			records: &passkeyRecordsStub{},
+			mfa:     &MFAStub{VerifyErr: wantErr},
 		},
 		{
 			name: "unknown account",
@@ -344,6 +425,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://localhost:3000",
 			},
 			repos:   &repositories.Factory{Account: newStubAccountRepository()},
+			records: &passkeyRecordsStub{},
 			mfa:     &MFAStub{},
 			wantErr: ErrAccountNotFound,
 		},
@@ -354,6 +436,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				ExpectedOrigin: "http://localhost:3000",
 			},
 			repos:   &repositories.Factory{Account: newStubAccountRepository(inactive)},
+			records: &passkeyRecordsStub{},
 			mfa:     &MFAStub{},
 			wantErr: ErrAccountInactive,
 		},
@@ -363,11 +446,9 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				AccountID:      account.ID,
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos: &repositories.Factory{
-				Account:           newStubAccountRepository(account),
-				PasskeyCredential: &passkeyCredentialRepoStub{err: wantErr},
-			},
-			mfa: &MFAStub{},
+			repos:   &repositories.Factory{Account: newStubAccountRepository(account)},
+			records: &passkeyRecordsStub{credentials: &passkeyCredentialRepoStub{err: wantErr}},
+			mfa:     &MFAStub{},
 		},
 		{
 			name: "session create fails",
@@ -375,10 +456,10 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 				AccountID:      account.ID,
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos: &repositories.Factory{
-				Account:           newStubAccountRepository(account),
-				PasskeyCredential: &passkeyCredentialRepoStub{},
-				PasskeySession:    &passkeySessionRepoStub{createErr: wantErr},
+			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
+			records: &passkeyRecordsStub{
+				credentials: &passkeyCredentialRepoStub{},
+				sessions:    &passkeySessionRepoStub{createErr: wantErr},
 			},
 			mfa: &MFAStub{},
 		},
@@ -388,6 +469,7 @@ func TestPasskeyBeginRegistrationErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &passkeyService{
 				repos:        tt.repos,
+				records:      tt.records,
 				mfaService:   tt.mfa,
 				rpID:         "localhost",
 				rpName:       "moto",
@@ -408,7 +490,7 @@ func TestPasskeyBeginLoginStoresSession(t *testing.T) {
 
 	sessions := &passkeySessionRepoStub{}
 	svc := &passkeyService{
-		repos:        &repositories.Factory{PasskeySession: sessions},
+		records:      &passkeyRecordsStub{sessions: sessions},
 		rpID:         "localhost",
 		rpName:       "moto",
 		tenantDomain: "localhost",
@@ -425,7 +507,7 @@ func TestPasskeyBeginLoginStoresSession(t *testing.T) {
 	require.NotNil(t, sessions.created)
 	require.NotNil(t, sessions.created.TenantID)
 	assert.Equal(t, int64(45), *sessions.created.TenantID)
-	assert.Equal(t, authModel.PasskeySessionPurposeLogin, sessions.created.Purpose)
+	assert.Equal(t, PasskeySessionPurposeLogin, sessions.created.Purpose)
 	assert.Equal(t, "school.localhost", sessions.created.RPID)
 	assert.Equal(t, "http://school.localhost:3000", sessions.created.ExpectedOrigin)
 	assert.False(t, sessions.created.ExpiresAt.IsZero())
@@ -464,7 +546,7 @@ func TestPasskeyBeginLoginErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &passkeyService{
-				repos:        &repositories.Factory{PasskeySession: tt.session},
+				records:      &passkeyRecordsStub{sessions: tt.session},
 				rpID:         "localhost",
 				rpName:       "moto",
 				tenantDomain: "localhost",
@@ -486,85 +568,109 @@ func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
 	otherAccountID := account.ID + 1
 
 	tests := []struct {
-		name    string
-		session *authModel.PasskeySession
-		repos   *repositories.Factory
-		wantErr error
+		name      string
+		session   *PasskeySession
+		repos     *repositories.Factory
+		records   *passkeyRecordsStub
+		wantErr   error
+		committed bool
 	}{
 		{
-			name: "consume fails",
-			repos: &repositories.Factory{
-				PasskeySession: &passkeySessionRepoStub{consumeErr: sql.ErrNoRows},
-			},
-			wantErr: ErrPasskeySessionInvalid,
+			name:      "no pending ceremony",
+			records:   &passkeyRecordsStub{sessions: &passkeySessionRepoStub{}},
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
+		},
+		{
+			name:    "consume store failure is not an invalid session",
+			records: &passkeyRecordsStub{sessions: &passkeySessionRepoStub{consumeErr: errPasskeyStore}},
+			wantErr: errPasskeyStore,
 		},
 		{
 			name: "missing account id",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos:   &repositories.Factory{PasskeySession: &passkeySessionRepoStub{}},
-			wantErr: ErrPasskeySessionInvalid,
+			records:   &passkeyRecordsStub{sessions: &passkeySessionRepoStub{}},
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
 		},
 		{
 			name: "wrong account id",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				AccountID:      &otherAccountID,
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos:   &repositories.Factory{PasskeySession: &passkeySessionRepoStub{}},
-			wantErr: ErrPasskeySessionInvalid,
+			records:   &passkeyRecordsStub{sessions: &passkeySessionRepoStub{}},
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
 		},
 		{
 			name: "invalid session json",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				AccountID:      &account.ID,
 				SessionJSON:    json.RawMessage(`{`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos: &repositories.Factory{PasskeySession: &passkeySessionRepoStub{}},
+			records:   &passkeyRecordsStub{sessions: &passkeySessionRepoStub{}},
+			committed: true,
 		},
 		{
 			name: "unknown account",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				AccountID:      &account.ID,
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos: &repositories.Factory{
-				Account:        newStubAccountRepository(),
-				PasskeySession: &passkeySessionRepoStub{},
+			repos:     &repositories.Factory{Account: newStubAccountRepository()},
+			records:   &passkeyRecordsStub{sessions: &passkeySessionRepoStub{}},
+			wantErr:   ErrAccountNotFound,
+			committed: true,
+		},
+		{
+			name: "credential lookup failure",
+			session: &PasskeySession{
+				AccountID:      &account.ID,
+				SessionJSON:    json.RawMessage(`{}`),
+				ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr: ErrAccountNotFound,
+			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
+			records: &passkeyRecordsStub{
+				credentials: &passkeyCredentialRepoStub{err: errPasskeyStore},
+				sessions:    &passkeySessionRepoStub{},
+			},
+			wantErr: errPasskeyStore,
 		},
 		{
 			name: "invalid response json",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				AccountID:      &account.ID,
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			repos: &repositories.Factory{
-				Account:           newStubAccountRepository(account),
-				PasskeyCredential: &passkeyCredentialRepoStub{},
-				PasskeySession:    &passkeySessionRepoStub{},
+			repos: &repositories.Factory{Account: newStubAccountRepository(account)},
+			records: &passkeyRecordsStub{
+				credentials: &passkeyCredentialRepoStub{},
+				sessions:    &passkeySessionRepoStub{},
 			},
-			wantErr: ErrPasskeySessionInvalid,
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sessionRepo := tt.repos.PasskeySession.(*passkeySessionRepoStub)
-			sessionRepo.consumed = tt.session
-			svc := &passkeyService{repos: tt.repos, rpID: "localhost", rpName: "moto"}
-			_, err := svc.FinishRegistration(context.Background(), PasskeyRegistrationFinishRequest{
+			tt.records.sessions.consumed = tt.session
+			var transactions passkeyTransactions
+			svc := &passkeyService{repos: tt.repos, records: tt.records, rpID: "localhost", rpName: "moto"}
+			_, err := svc.FinishRegistration(transactions.ctx(t), PasskeyRegistrationFinishRequest{
 				AccountID:          account.ID,
 				SessionID:          "session-id",
 				CredentialResponse: json.RawMessage(`{`),
 			})
+			transactions.assertOutcome(t, tt.committed)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
@@ -574,69 +680,175 @@ func TestPasskeyFinishRegistrationRejectsInvalidSessionState(t *testing.T) {
 	}
 }
 
+// TestPasskeyCompletionRequiresTenantRuntime pins the fail-closed wiring:
+// without a unit of work nothing is consumed.
+func TestPasskeyCompletionRequiresTenantRuntime(t *testing.T) {
+	t.Parallel()
+
+	sessions := &passkeySessionRepoStub{consumeErr: errPasskeyStore}
+	svc := &passkeyService{records: &passkeyRecordsStub{sessions: sessions}}
+
+	_, err := svc.FinishLogin(context.Background(), PasskeyLoginFinishRequest{SessionID: "session-id"})
+	require.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+	_, err = svc.FinishRegistration(context.Background(), PasskeyRegistrationFinishRequest{SessionID: "session-id"})
+	require.ErrorIs(t, err, tenant.ErrRuntimeRequired)
+}
+
 func TestPasskeyFinishLoginRejectsInvalidSessionState(t *testing.T) {
 	t.Parallel()
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 
 	tests := []struct {
-		name    string
-		session *authModel.PasskeySession
-		wantErr error
+		name       string
+		session    *PasskeySession
+		consumeErr error
+		wantErr    error
+		committed  bool
 	}{
 		{
-			name:    "consume fails",
-			wantErr: ErrPasskeySessionInvalid,
+			name:      "no pending ceremony",
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
+		},
+		{
+			name:       "consume store failure is not an invalid session",
+			consumeErr: errPasskeyStore,
+			wantErr:    errPasskeyStore,
 		},
 		{
 			name: "missing tenant id",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr: ErrPasskeySessionInvalid,
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
 		},
 		{
 			name: "invalid session json",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				TenantID:       &tenantID,
 				SessionJSON:    json.RawMessage(`{`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
+			committed: true,
 		},
 		{
 			name: "invalid response json",
-			session: &authModel.PasskeySession{
+			session: &PasskeySession{
 				TenantID:       &tenantID,
 				SessionJSON:    json.RawMessage(`{}`),
 				ExpectedOrigin: "http://localhost:3000",
 			},
-			wantErr: ErrPasskeySessionInvalid,
+			wantErr:   ErrPasskeySessionInvalid,
+			committed: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sessionRepo := &passkeySessionRepoStub{consumed: tt.session}
-			if tt.session == nil {
-				sessionRepo.consumeErr = sql.ErrNoRows
-			}
+			sessionRepo := &passkeySessionRepoStub{consumed: tt.session, consumeErr: tt.consumeErr}
+			var transactions passkeyTransactions
 			svc := &passkeyService{
-				repos: &repositories.Factory{
-					PasskeySession: sessionRepo,
-				},
-				rpID:   "localhost",
-				rpName: "moto",
+				records: &passkeyRecordsStub{sessions: sessionRepo},
+				rpID:    "localhost",
+				rpName:  "moto",
 			}
-			_, err := svc.FinishLogin(context.Background(), PasskeyLoginFinishRequest{
+			_, err := svc.FinishLogin(transactions.ctx(t), PasskeyLoginFinishRequest{
 				SessionID:          "session-id",
 				CredentialResponse: json.RawMessage(`{`),
 			})
+			transactions.assertOutcome(t, tt.committed)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
 			require.Error(t, err)
+		})
+	}
+}
+
+// NewPasskeyAssertionForTests returns a parseable discoverable-login
+// response for credentialID and userHandle. The WebAuthn library resolves
+// the credential from it before checking the signature, so it drives
+// FinishLogin to the credential lookup and fails verification afterwards.
+func NewPasskeyAssertionForTests(t *testing.T, credentialID, userHandle []byte) json.RawMessage {
+	t.Helper()
+	encode := base64.RawURLEncoding.EncodeToString
+	clientData := `{"type":"webauthn.get","challenge":"Y2hhbGxlbmdl","origin":"http://school.localhost:3000"}`
+	raw, err := json.Marshal(map[string]any{
+		"id": encode(credentialID), "rawId": encode(credentialID), "type": "public-key",
+		"response": map[string]string{
+			"clientDataJSON":    encode([]byte(clientData)),
+			"authenticatorData": encode(make([]byte, 37)),
+			"signature":         encode([]byte("signature")),
+			"userHandle":        encode(userHandle),
+		},
+	})
+	require.NoError(t, err)
+	return raw
+}
+
+// Every read failure behind the credential resolution must surface as the
+// store error and roll the consumption back; an unknown credential, an
+// account without access to the school and a failed signature read as a
+// client error and spend the ceremony.
+func TestPasskeyFinishLoginCredentialLookup(t *testing.T) {
+	t.Parallel()
+
+	tenantID := testpkg.UniqueTestTenantID(t)
+	account := &authModel.Account{Model: base.Model{ID: 41}, Email: "teacher@example.test", Active: true}
+	registered := &PasskeyCredential{
+		ID: 42, AccountID: account.ID, UserHandle: []byte("user-handle"), CredentialJSON: json.RawMessage(`{}`),
+	}
+	tests := []struct {
+		name        string
+		credentials *passkeyCredentialRepoStub
+		repos       *repositories.Factory
+		wantErr     error
+		committed   bool
+	}{
+		{
+			name:        "credential lookup failure",
+			credentials: &passkeyCredentialRepoStub{err: errPasskeyStore},
+			wantErr:     errPasskeyStore,
+		},
+		{
+			name:        "unknown credential",
+			credentials: &passkeyCredentialRepoStub{},
+			wantErr:     ErrInvalidCredentials,
+			committed:   true,
+		},
+		{
+			name:        "signature does not verify",
+			credentials: &passkeyCredentialRepoStub{rows: []*PasskeyCredential{registered}},
+			repos:       &repositories.Factory{Account: newStubAccountRepository(account)},
+			wantErr:     ErrInvalidCredentials,
+			committed:   true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sessions := &passkeySessionRepoStub{consumed: &PasskeySession{
+				TenantID:       &tenantID,
+				SessionJSON:    json.RawMessage(`{"challenge":"Y2hhbGxlbmdl"}`),
+				ExpectedOrigin: "http://school.localhost:3000",
+			}}
+			var transactions passkeyTransactions
+			svc := &passkeyService{
+				repos:        tt.repos,
+				records:      &passkeyRecordsStub{credentials: tt.credentials, sessions: sessions},
+				rpID:         "localhost",
+				rpName:       "moto",
+				tenantDomain: "localhost",
+			}
+			_, err := svc.FinishLogin(transactions.ctx(t), PasskeyLoginFinishRequest{
+				SessionID:          "session-id",
+				CredentialResponse: NewPasskeyAssertionForTests(t, []byte("credential-id"), registered.UserHandle),
+			})
+			require.ErrorIs(t, err, tt.wantErr)
+			transactions.assertOutcome(t, tt.committed)
 		})
 	}
 }
@@ -646,15 +858,16 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 
 	now := time.Now().UTC()
 	account := &authModel.Account{Model: base.Model{ID: 91}, Email: "teacher@example.test"}
-	row := &authModel.PasskeyCredential{
-		Model:          base.Model{ID: 92, CreatedAt: now},
+	row := &PasskeyCredential{
+		ID:             92,
+		CreatedAt:      now,
 		AccountID:      account.ID,
 		UserHandle:     []byte("user-handle"),
 		CredentialJSON: json.RawMessage(`{}`),
 		Name:           "Laptop",
 	}
-	repo := &passkeyCredentialRepoStub{rows: []*authModel.PasskeyCredential{row}}
-	svc := &passkeyService{repos: &repositories.Factory{PasskeyCredential: repo}}
+	repo := &passkeyCredentialRepoStub{rows: []*PasskeyCredential{row}}
+	svc := &passkeyService{records: &passkeyRecordsStub{credentials: repo}}
 
 	list, err := svc.ListCredentials(context.Background(), account.ID)
 	require.NoError(t, err)
@@ -680,7 +893,7 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []byte("session-handle"), user.WebAuthnID())
 
-	repo.rows = []*authModel.PasskeyCredential{{CredentialJSON: json.RawMessage(`{`)}}
+	repo.rows = []*PasskeyCredential{{CredentialJSON: json.RawMessage(`{`)}}
 	_, err = svc.passkeyUserForAccount(context.Background(), account)
 	require.Error(t, err)
 }
@@ -688,181 +901,86 @@ func TestPasskeyCredentialServiceMethods(t *testing.T) {
 func TestPasskeyCredentialServiceErrors(t *testing.T) {
 	t.Parallel()
 
-	wantErr := errors.New("repo down")
-	repo := &passkeyCredentialRepoStub{err: wantErr}
-	svc := &passkeyService{repos: &repositories.Factory{PasskeyCredential: repo}}
+	repo := &passkeyCredentialRepoStub{err: errPasskeyStore}
+	svc := &passkeyService{records: &passkeyRecordsStub{credentials: repo}}
 
 	_, err := svc.ListCredentials(context.Background(), 1)
-	require.ErrorIs(t, err, wantErr)
+	require.ErrorIs(t, err, errPasskeyStore)
 
 	err = svc.RevokeCredential(context.Background(), 1, 2)
-	require.ErrorIs(t, err, ErrPasskeyNotFound)
+	require.ErrorIs(t, err, errPasskeyStore, "a store failure is not a missing passkey")
+	require.NotErrorIs(t, err, ErrPasskeyNotFound)
 
 	_, err = svc.passkeyUserForAccount(context.Background(), &authModel.Account{Email: "teacher@example.test"})
-	require.ErrorIs(t, err, wantErr)
+	require.ErrorIs(t, err, errPasskeyStore)
+
+	missing := &passkeyService{records: &passkeyRecordsStub{credentials: &passkeyCredentialRepoStub{alreadyGone: true}}}
+	err = missing.RevokeCredential(context.Background(), 1, 2)
+	require.ErrorIs(t, err, ErrPasskeyNotFound, "a passkey that is gone, revoked or foreign is not found")
 }
 
+var errPasskeyStore = errors.New("passkey store down")
+
+// passkeyCredentialRepoStub serves the credential half of the records port.
 type passkeyCredentialRepoStub struct {
-	rows                []*authModel.PasskeyCredential
+	rows                []*PasskeyCredential
 	err                 error
+	alreadyGone         bool
 	revokedAccountID    int64
 	revokedCredentialID int64
 }
 
-func (r *passkeyCredentialRepoStub) Create(context.Context, *authModel.PasskeyCredential) error {
+func (r *passkeyCredentialRepoStub) create(context.Context, *PasskeyCredential) error {
 	return r.err
 }
 
-func (r *passkeyCredentialRepoStub) FindActiveByAccountID(context.Context, int64) ([]*authModel.PasskeyCredential, error) {
+func (r *passkeyCredentialRepoStub) listActive(context.Context, int64) ([]*PasskeyCredential, error) {
 	return r.rows, r.err
 }
 
-func (r *passkeyCredentialRepoStub) FindActiveByCredentialIDAndUserHandle(context.Context, []byte, []byte) (*authModel.PasskeyCredential, error) {
-	if len(r.rows) == 0 {
+// findActive follows the port contract: a missing row is (nil, nil).
+func (r *passkeyCredentialRepoStub) findActive(context.Context, []byte, []byte) (*PasskeyCredential, error) {
+	if r.err != nil {
 		return nil, r.err
 	}
-	return r.rows[0], r.err
+	if len(r.rows) == 0 {
+		return nil, nil
+	}
+	return r.rows[0], nil
 }
 
-func (r *passkeyCredentialRepoStub) UpdateAfterUse(context.Context, int64, []byte, time.Time) error {
+func (r *passkeyCredentialRepoStub) recordUse(context.Context, int64, []byte, time.Time) error {
 	return r.err
 }
 
-func (r *passkeyCredentialRepoStub) Revoke(_ context.Context, accountID, id int64, _ time.Time) error {
+func (r *passkeyCredentialRepoStub) revoke(_ context.Context, accountID, id int64, _ time.Time) (bool, error) {
 	r.revokedAccountID = accountID
 	r.revokedCredentialID = id
-	return r.err
+	if r.err != nil {
+		return false, r.err
+	}
+	return !r.alreadyGone, nil
 }
 
+// passkeySessionRepoStub serves the ceremony half of the records port.
 type passkeySessionRepoStub struct {
-	created    *authModel.PasskeySession
-	consumed   *authModel.PasskeySession
+	created    *PasskeySession
+	consumed   *PasskeySession
 	createErr  error
 	consumeErr error
 }
 
-func (r *passkeySessionRepoStub) Create(_ context.Context, session *authModel.PasskeySession) error {
+func (r *passkeySessionRepoStub) create(_ context.Context, session *PasskeySession) error {
 	r.created = session
 	return r.createErr
 }
 
-func (r *passkeySessionRepoStub) Consume(_ context.Context, _, _ string, _ time.Time) (*authModel.PasskeySession, error) {
+// consume follows the port contract: no pending ceremony is (nil, nil).
+func (r *passkeySessionRepoStub) consume(context.Context, string, string, time.Time) (*PasskeySession, error) {
 	if r.consumeErr != nil {
 		return nil, r.consumeErr
-	}
-	if r.consumed == nil {
-		return nil, sql.ErrNoRows
 	}
 	return r.consumed, nil
 }
 
-func (r *passkeySessionRepoStub) DeleteExpired(context.Context, time.Time) (int, error) {
-	return 0, nil
-}
-
 // MFAStub is defined in mfa_stub_test.go (shared with auth_login_mfa_infra_test.go).
-
-func TestPasskeyRepositories(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-	requirePasskeyTables(t, db, "auth.passkey_credentials", "auth.passkey_sessions")
-	scope := testpkg.NewTenantScope(t, db)
-
-	ctx := context.Background()
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
-
-	account := &authModel.Account{
-		Email:  fmt.Sprintf("passkey-%s@example.test", suffix),
-		Active: true,
-	}
-	require.NoError(t, repos.Account.Create(ctx, account))
-	t.Cleanup(func() {
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.passkey_sessions WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.passkey_credentials WHERE account_id = ?`, account.ID)
-		_, _ = db.ExecContext(ctx, `DELETE FROM auth.accounts WHERE id = ?`, account.ID)
-	})
-
-	credentialID := []byte("credential-" + suffix)
-	userHandle := []byte("user-handle-" + suffix)
-	credential := &authModel.PasskeyCredential{
-		AccountID:      account.ID,
-		UserHandle:     userHandle,
-		CredentialID:   credentialID,
-		CredentialJSON: json.RawMessage(`{"id":"credential"}`),
-		Name:           "Laptop",
-	}
-	require.NoError(t, repos.PasskeyCredential.Create(ctx, credential))
-	require.NotZero(t, credential.ID)
-
-	active, err := repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
-	require.NoError(t, err)
-	require.Len(t, active, 1)
-	assert.Equal(t, "Laptop", active[0].Name)
-
-	byHandle, err := repos.PasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
-	require.NoError(t, err)
-	assert.Equal(t, credential.ID, byHandle.ID)
-
-	usedAt := time.Now().UTC().Truncate(time.Microsecond)
-	require.NoError(t, repos.PasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"updated"}`), usedAt))
-	updated, err := repos.PasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
-	require.NoError(t, err)
-	require.NotNil(t, updated.LastUsedAt)
-	assert.JSONEq(t, `{"id":"updated"}`, string(updated.CredentialJSON))
-
-	require.NoError(t, repos.PasskeyCredential.Revoke(ctx, account.ID, credential.ID, time.Now()))
-	active, err = repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
-	require.NoError(t, err)
-	assert.Empty(t, active)
-	require.Error(t, repos.PasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"revoked"}`), time.Now()))
-
-	sessionID := "test-passkey-session-" + suffix
-	session := &authModel.PasskeySession{
-		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: sessionID},
-		AccountID:                    &account.ID,
-		TenantID:                     &scope.TenantID,
-		Purpose:                      authModel.PasskeySessionPurposeRegistration,
-		RPID:                         "localhost",
-		ExpectedOrigin:               "http://localhost:3000",
-		SessionJSON:                  json.RawMessage(`{"challenge":"abc"}`),
-		ExpiresAt:                    time.Now().Add(time.Hour),
-	}
-	require.NoError(t, repos.PasskeySession.Create(ctx, session))
-
-	consumed, err := repos.PasskeySession.Consume(ctx, sessionID, authModel.PasskeySessionPurposeRegistration, time.Now())
-	require.NoError(t, err)
-	require.NotNil(t, consumed.ConsumedAt)
-	_, err = repos.PasskeySession.Consume(ctx, sessionID, authModel.PasskeySessionPurposeRegistration, time.Now())
-	require.Error(t, err)
-
-	expiredID := "test-passkey-expired-" + suffix
-	require.NoError(t, repos.PasskeySession.Create(ctx, &authModel.PasskeySession{
-		StringIDModelWithoutNullZero: base.StringIDModelWithoutNullZero{ID: expiredID},
-		AccountID:                    &account.ID,
-		TenantID:                     &scope.TenantID,
-		Purpose:                      authModel.PasskeySessionPurposeLogin,
-		RPID:                         "localhost",
-		ExpectedOrigin:               "http://localhost:3000",
-		SessionJSON:                  json.RawMessage(`{"challenge":"expired"}`),
-		ExpiresAt:                    time.Now().Add(-time.Hour),
-	}))
-	deleted, err := repos.PasskeySession.DeleteExpired(ctx, time.Now())
-	require.NoError(t, err)
-	assert.Positive(t, deleted)
-}
-
-func requirePasskeyTables(t *testing.T, db *bun.DB, tables ...string) {
-	t.Helper()
-
-	ctx := context.Background()
-	for _, table := range tables {
-		var regclass sql.NullString
-		err := db.QueryRowContext(ctx, `SELECT to_regclass(?)`, table).Scan(&regclass)
-		require.NoError(t, err)
-		if !regclass.Valid {
-			t.Skipf("%s is missing; run backend migrations before repository passkey tests", table)
-		}
-	}
-}

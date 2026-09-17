@@ -104,8 +104,6 @@ type Factory struct {
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
 	MFAOverride            authModels.MFAOverrideRepository
-	PasskeyCredential      authModels.PasskeyCredentialRepository
-	PasskeySession         authModels.PasskeySessionRepository
 
 	// Users domain
 	Person              userModels.PersonRepository
@@ -553,8 +551,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
 		MFAOverride:            auth.NewMFAOverrideRepository(db),
-		PasskeyCredential:      auth.NewPasskeyCredentialRepository(db),
-		PasskeySession:         auth.NewPasskeySessionRepository(db),
 
 		// Users repositories
 		Person:              personRepo,

@@ -4259,17 +4259,13 @@
     },
     {
       "scope": "test",
-      "file": "services/auth/passkey_service_test.go",
-      "declaration": "TestPasskeyRepositories",
+      "file": "services/auth/passkey_records_test.go",
+      "declaration": "TestPasskeyService_LoginCompletionTransaction",
       "target": "database/repositories.NewFactory",
       "lines": [
-        773
+        145
       ],
-      "tables": [
-        "auth.accounts",
-        "auth.passkey_credentials",
-        "auth.passkey_sessions"
-      ]
+      "tables": []
     },
     {
       "scope": "test",
@@ -23222,7 +23218,7 @@
         },
         {
           "file": "services/auth/passkey_service.go",
-          "line": 116,
+          "line": 119,
           "declaration": "type passkeyService"
         },
         {

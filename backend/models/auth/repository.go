@@ -219,21 +219,10 @@ type MFATrustedDeviceRepository interface {
 	DeleteExpired(ctx context.Context) (int, error)
 }
 
-// PasskeyCredentialRepository persists WebAuthn credentials for tenant-portal accounts.
-type PasskeyCredentialRepository interface {
-	Create(ctx context.Context, credential *PasskeyCredential) error
-	FindActiveByAccountID(ctx context.Context, accountID int64) ([]*PasskeyCredential, error)
-	FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*PasskeyCredential, error)
-	UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error
-	Revoke(ctx context.Context, accountID, id int64, revokedAt time.Time) error
-}
-
-// PasskeySessionRepository persists server-side WebAuthn ceremony state.
-type PasskeySessionRepository interface {
-	Create(ctx context.Context, session *PasskeySession) error
-	Consume(ctx context.Context, id, purpose string, now time.Time) (*PasskeySession, error)
-	DeleteExpired(ctx context.Context, now time.Time) (int, error)
-}
+// The school-portal passkey credentials and ceremony sessions are owned by
+// the Identity & Access module (#2724); the retained passkey flow in
+// services/auth reaches them through its own consumer-owned port. The
+// passkey models remain as that port's value types.
 
 // MFAOverrideRepository persists the per-(account, tenant) admin
 // overrides plus the optional platform-wide ("operator account-wide")

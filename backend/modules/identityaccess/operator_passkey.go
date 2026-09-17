@@ -23,10 +23,10 @@ var (
 	ErrOperatorPasskeySessionNotFound = errors.New("operator passkey session not found")
 )
 
-// The ceremony purposes an operator passkey session is bound to.
+// The ceremony purposes a passkey session is bound to, in both portals.
 const (
-	OperatorPasskeySessionPurposeRegistration = "registration"
-	OperatorPasskeySessionPurposeLogin        = "login"
+	PasskeySessionPurposeRegistration = "registration"
+	PasskeySessionPurposeLogin        = "login"
 )
 
 // OperatorPasskeyCredential is one registered WebAuthn credential.

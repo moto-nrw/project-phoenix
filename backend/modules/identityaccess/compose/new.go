@@ -93,7 +93,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	}
 	e := engine{
 		service: service, mfa: application.NewOperatorMFA(service, store), passkeys: application.NewOperatorPasskey(service, store),
-		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
+		accountPasskeys: application.NewAccountPasskey(service, store),
+		auth:            auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 	}
 	if dependencies.Sessions != nil {
 		e.runtime = dependencies.Sessions.TenantRuntime
@@ -131,9 +132,10 @@ func (transaction) RunPlatform(ctx context.Context, callback func(context.Contex
 }
 
 type engine struct {
-	service  *application.Service
-	mfa      *application.OperatorMFA
-	passkeys *application.OperatorPasskey
+	service         *application.Service
+	mfa             *application.OperatorMFA
+	passkeys        *application.OperatorPasskey
+	accountPasskeys *application.AccountPasskey
 	// auth is nil when the module was composed without session dependencies.
 	auth *application.AccountAuthentication
 	// operatorAuth and accountAccess are nil when the module was composed
@@ -410,6 +412,10 @@ func mapError(err error) error {
 		return identityaccess.ErrOperatorPasskeyNotFound
 	case errors.Is(err, domain.ErrOperatorPasskeySessionNotFound):
 		return identityaccess.ErrOperatorPasskeySessionNotFound
+	case errors.Is(err, domain.ErrAccountPasskeyNotFound):
+		return identityaccess.ErrAccountPasskeyNotFound
+	case errors.Is(err, domain.ErrAccountPasskeySessionNotFound):
+		return identityaccess.ErrAccountPasskeySessionNotFound
 	default:
 		return err
 	}

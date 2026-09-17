@@ -16,19 +16,20 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// TestOperatorPasskeyRuntimeEvidence records the runtime evidence for the
-// operator passkey records cutover (#2724): statement counts, latency,
+// TestAccountPasskeyRuntimeEvidence records the runtime evidence for the
+// school-portal passkey records cutover (#2724): statement counts, latency,
 // affected rows, pool waits, unit-of-work outcomes (including the rollback of
 // an injected registration failure), deadlocks and the duplicate-prevention
 // conflicts per operation on an isolated clone. It mirrors the sequences the
-// operator passkey service runs over the public capability; the raw JSON is
+// retained passkey service runs over the public capability; the raw JSON is
 // logged for the migration ticket.
-func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
+func TestAccountPasskeyRuntimeEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	records, err := identityCompose.New(identityCompose.Dependencies{DB: db, Observe: func(identityCompose.Observation) {}})
 	require.NoError(t, err)
-	operator := testpkg.CreateTestOperator(t, db)
+	account := testpkg.CreateTestAccount(t, db, "passkey-"+uuid.Must(uuid.NewV4()).String()+"@example.test")
+	tenantID := testpkg.Tenant(t)
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	testpkg.AttachLockWaitEvidence(db)
 	ctx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(testpkg.WithTenantRuntime(t, testpkg.Ctx(t), db)))
@@ -72,28 +73,28 @@ func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
 		samples[operation] = append(samples[operation], sample)
 	}
 	handle := []byte("handle-" + uuid.Must(uuid.NewV4()).String())
-	register := func(txCtx context.Context, sessionID string, credential identityaccess.OperatorPasskeyCredential) error {
-		if _, err := records.ConsumeOperatorPasskeySession(txCtx, sessionID, identityaccess.PasskeySessionPurposeRegistration, time.Now()); err != nil {
+	register := func(txCtx context.Context, sessionID string, credential identityaccess.AccountPasskeyCredential) error {
+		if _, err := records.ConsumeAccountPasskeySession(txCtx, sessionID, identityaccess.PasskeySessionPurposeRegistration, time.Now()); err != nil {
 			return err
 		}
-		_, err := records.CreateOperatorPasskey(txCtx, credential)
+		_, err := records.CreateAccountPasskey(txCtx, credential)
 		return err
 	}
 
 	for iteration := range 35 {
 		// Registration options: existing credentials build the WebAuthn user,
 		// then the ceremony is stored.
-		var registration identityaccess.OperatorPasskeySession
+		var registration identityaccess.AccountPasskeySession
 		measure("begin_registration", iteration, func() error {
-			if _, err := records.ListActiveOperatorPasskeys(ctx, operator.ID); err != nil {
+			if _, err := records.ListActiveAccountPasskeys(ctx, account.ID); err != nil {
 				return err
 			}
 			var err error
-			registration, err = records.CreateOperatorPasskeySession(ctx,
-				newOperatorPasskeySession(t, db, &operator.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now().Add(5*time.Minute)))
+			registration, err = records.CreateAccountPasskeySession(ctx,
+				newAccountPasskeySession(t, db, &account.ID, &tenantID, identityaccess.PasskeySessionPurposeRegistration, time.Now().Add(5*time.Minute)))
 			return err
 		})
-		credential := newOperatorPasskey(operator.ID, handle)
+		credential := newAccountPasskey(account.ID, handle)
 		// Registration with an injected failure after both writes rolls back.
 		measure("finish_registration_rolled_back", iteration, func() error {
 			err := testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
@@ -114,49 +115,49 @@ func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
 			})
 		})
 		// A replayed completion is refused.
-		if _, err := records.ConsumeOperatorPasskeySession(ctx, registration.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now()); errors.Is(err, identityaccess.ErrOperatorPasskeySessionNotFound) {
+		if _, err := records.ConsumeAccountPasskeySession(ctx, registration.ID, identityaccess.PasskeySessionPurposeRegistration, time.Now()); errors.Is(err, identityaccess.ErrAccountPasskeySessionNotFound) {
 			conflicts["replayed_ceremony"]++
 		}
 		// A second registration of the same authenticator is refused.
-		if _, err := records.CreateOperatorPasskey(ctx, credential); err != nil &&
-			strings.Contains(err.Error(), "uniq_operator_passkey_credentials_credential_id") {
+		if _, err := records.CreateAccountPasskey(ctx, credential); err != nil &&
+			strings.Contains(err.Error(), "uniq_passkey_credentials_credential_id") {
 			conflicts["duplicate_credential"]++
 		}
-		var login identityaccess.OperatorPasskeySession
+		var login identityaccess.AccountPasskeySession
 		measure("begin_login", iteration, func() error {
 			var err error
-			login, err = records.CreateOperatorPasskeySession(ctx,
-				newOperatorPasskeySession(t, db, nil, identityaccess.PasskeySessionPurposeLogin, time.Now().Add(5*time.Minute)))
+			login, err = records.CreateAccountPasskeySession(ctx,
+				newAccountPasskeySession(t, db, nil, &tenantID, identityaccess.PasskeySessionPurposeLogin, time.Now().Add(5*time.Minute)))
 			return err
 		})
 		// Login, in the administrative transaction the service opens: consume
-		// the ceremony, resolve the credential and the operator's other
+		// the ceremony, resolve the credential and the account's other
 		// credentials, store the new signature state.
 		measure("finish_login", iteration, func() error {
 			return testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-				if _, err := records.ConsumeOperatorPasskeySession(txCtx, login.ID, identityaccess.PasskeySessionPurposeLogin, time.Now()); err != nil {
+				if _, err := records.ConsumeAccountPasskeySession(txCtx, login.ID, identityaccess.PasskeySessionPurposeLogin, time.Now()); err != nil {
 					return err
 				}
-				found, err := records.FindActiveOperatorPasskey(txCtx, credential.CredentialID, handle)
+				found, err := records.FindActiveAccountPasskey(txCtx, credential.CredentialID, handle)
 				if err != nil {
 					return err
 				}
-				if _, err := records.ListActiveOperatorPasskeys(txCtx, operator.ID); err != nil {
+				if _, err := records.ListActiveAccountPasskeys(txCtx, account.ID); err != nil {
 					return err
 				}
-				return records.RecordOperatorPasskeyUse(txCtx, found.ID, json.RawMessage(`{"id":"used"}`), time.Now())
+				return records.RecordAccountPasskeyUse(txCtx, found.ID, json.RawMessage(`{"id":"used"}`), time.Now())
 			})
 		})
 		measure("list_passkeys", iteration, func() error {
-			_, err := records.ListActiveOperatorPasskeys(ctx, operator.ID)
+			_, err := records.ListActiveAccountPasskeys(ctx, account.ID)
 			return err
 		})
 		measure("revoke_passkey", iteration, func() error {
-			found, err := records.FindActiveOperatorPasskey(ctx, credential.CredentialID, handle)
+			found, err := records.FindActiveAccountPasskey(ctx, credential.CredentialID, handle)
 			if err != nil {
 				return err
 			}
-			return records.RevokeOperatorPasskey(ctx, operator.ID, found.ID, time.Now())
+			return records.RevokeAccountPasskey(ctx, account.ID, found.ID, time.Now())
 		})
 	}
 	raw, err := json.Marshal(map[string]any{
@@ -165,7 +166,7 @@ func TestOperatorPasskeyRuntimeEvidence(t *testing.T) {
 		"duplicate_prevention_conflicts_including_warmup": conflicts,
 	})
 	require.NoError(t, err)
-	t.Logf("operator-passkey-runtime %s", raw)
+	t.Logf("account-passkey-runtime %s", raw)
 	require.Empty(t, failures, "every measured sample must succeed")
 	require.Equal(t, 35, conflicts["replayed_ceremony"], "every replay must be refused")
 	require.Equal(t, 35, conflicts["duplicate_credential"], "every duplicate registration must be refused")

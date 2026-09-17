@@ -7,28 +7,21 @@ import (
 )
 
 var (
-	// ErrOperatorPasskeyNotFound reports a lookup that matched no active
+	// ErrAccountPasskeyNotFound reports a lookup that matched no active
 	// credential, or a use or revocation that found no active credential of
-	// that operator.
-	ErrOperatorPasskeyNotFound = errors.New("operator passkey not found")
-	// ErrOperatorPasskeySessionNotFound reports a consumption that found no
+	// that account.
+	ErrAccountPasskeyNotFound = errors.New("account passkey not found")
+	// ErrAccountPasskeySessionNotFound reports a consumption that found no
 	// unconsumed, unexpired ceremony with that ID and purpose.
-	ErrOperatorPasskeySessionNotFound = errors.New("operator passkey session not found")
-	// ErrPasskeyJSONInvalid rejects credential state the WebAuthn
-	// library could not read back.
-	ErrPasskeyJSONInvalid = errors.New("credential_json must be valid JSON")
+	ErrAccountPasskeySessionNotFound = errors.New("account passkey session not found")
 )
 
-const (
-	PasskeySessionPurposeRegistration = "registration"
-	PasskeySessionPurposeLogin        = "login"
-)
-
-// OperatorPasskeyCredential is one WebAuthn credential an operator
-// registered. Only unrevoked credentials verify assertions.
-type OperatorPasskeyCredential struct {
+// AccountPasskeyCredential is one WebAuthn credential a school-portal
+// account registered. Credentials belong to the account, not to a school;
+// only unrevoked credentials verify assertions.
+type AccountPasskeyCredential struct {
 	ID             int64
-	OperatorID     int64
+	AccountID      int64
 	UserHandle     []byte
 	CredentialID   []byte
 	CredentialJSON json.RawMessage
@@ -40,10 +33,10 @@ type OperatorPasskeyCredential struct {
 }
 
 // Validate rejects a credential that cannot be stored.
-func (c *OperatorPasskeyCredential) Validate() error {
+func (c *AccountPasskeyCredential) Validate() error {
 	switch {
-	case c.OperatorID <= 0:
-		return errors.New("operator_id is required")
+	case c.AccountID <= 0:
+		return errors.New("account_id is required")
 	case len(c.UserHandle) == 0:
 		return errors.New("user_handle is required")
 	case len(c.CredentialID) == 0:
@@ -54,12 +47,13 @@ func (c *OperatorPasskeyCredential) Validate() error {
 	return nil
 }
 
-// OperatorPasskeySession is the server-side state of one operator passkey
-// ceremony. It completes at most once, for its own purpose, before it
-// expires.
-type OperatorPasskeySession struct {
+// AccountPasskeySession is the server-side state of one school-portal
+// ceremony. TenantID names the school whose portal started it; AccountID is
+// nil for a discoverable login, which learns the account from the assertion.
+type AccountPasskeySession struct {
 	ID             string
-	OperatorID     *int64
+	AccountID      *int64
+	TenantID       *int64
 	Purpose        string
 	RPID           string
 	ExpectedOrigin string
@@ -71,12 +65,12 @@ type OperatorPasskeySession struct {
 }
 
 // Validate rejects a session that cannot be stored.
-func (s *OperatorPasskeySession) Validate() error {
+func (s *AccountPasskeySession) Validate() error {
 	switch {
 	case s.ID == "":
 		return errors.New("id is required")
 	case s.Purpose != PasskeySessionPurposeRegistration && s.Purpose != PasskeySessionPurposeLogin:
-		return errors.New("unsupported operator passkey session purpose")
+		return errors.New("unsupported passkey session purpose")
 	case s.RPID == "":
 		return errors.New("rp_id is required")
 	case s.ExpectedOrigin == "":

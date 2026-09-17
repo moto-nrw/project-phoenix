@@ -1671,6 +1671,7 @@ func newFactory(
 	}
 	passkeyService, err := auth.NewPasskeyService(auth.PasskeyServiceConfig{
 		Repos:        repos,
+		Records:      newAccountPasskeyRecords(identityAccess),
 		MFAService:   mfaService,
 		AuthService:  authService,
 		DB:           db,
