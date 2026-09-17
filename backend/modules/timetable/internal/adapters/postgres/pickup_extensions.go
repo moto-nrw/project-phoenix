@@ -20,14 +20,14 @@ const pickupExtensionTaskColumns = `
 	to_char("task".pickup_time, 'HH24:MI') AS pickup`
 
 type pickupExtensionTaskRow struct {
-	ID                int64  `bun:"id"`
-	StudentID         int64  `bun:"student_id"`
-	PickupExceptionID *int64 `bun:"pickup_exception_id"`
-	TaskDate          string `bun:"task_date"`
-	Weekday           int    `bun:"weekday"`
-	EffectiveFrom     string `bun:"effective_from"`
-	PreviousPickup    string `bun:"previous_pickup"`
-	Pickup            string `bun:"pickup"`
+	ID                int64       `bun:"id"`
+	StudentID         int64       `bun:"student_id"`
+	PickupExceptionID *int64      `bun:"pickup_exception_id"`
+	TaskDate          domain.Date `bun:"task_date"`
+	Weekday           int         `bun:"weekday"`
+	EffectiveFrom     domain.Date `bun:"effective_from"`
+	PreviousPickup    string      `bun:"previous_pickup"`
+	Pickup            string      `bun:"pickup"`
 }
 
 func (row pickupExtensionTaskRow) toDomain() domain.PickupExtensionTask {
@@ -39,14 +39,14 @@ func (row pickupExtensionTaskRow) toDomain() domain.PickupExtensionTask {
 }
 
 type pickupExtensionBlockRow struct {
-	TaskID           int64  `bun:"task_id"`
-	ID               int64  `bun:"id"`
-	Title            string `bun:"title"`
-	StartTime        string `bun:"start_time"`
-	EndTime          string `bun:"end_time"`
-	Member           bool   `bun:"member"`
-	CalendarPeriodID *int64 `bun:"calendar_period_id"`
-	ValidFrom        string `bun:"valid_from"`
+	TaskID           int64       `bun:"task_id"`
+	ID               int64       `bun:"id"`
+	Title            string      `bun:"title"`
+	StartTime        string      `bun:"start_time"`
+	EndTime          string      `bun:"end_time"`
+	Member           bool        `bun:"member"`
+	CalendarPeriodID *int64      `bun:"calendar_period_id"`
+	ValidFrom        domain.Date `bun:"valid_from"`
 }
 
 // UpsertPickupExtensionTask writes a day or weekday task. Each kind has its
@@ -80,7 +80,7 @@ func (s *Store) UpsertPickupExtensionTask(ctx context.Context, task domain.Picku
 	), "upsert pickup weekday extension")
 }
 
-func (s *Store) DeletePickupDayExtensionTask(ctx context.Context, studentID int64, date string) (domain.OperationStats, error) {
+func (s *Store) DeletePickupDayExtensionTask(ctx context.Context, studentID int64, date domain.Date) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -100,7 +100,7 @@ func (s *Store) DeletePickupWeekdayExtensionTask(ctx context.Context, studentID 
 		Where("weekday = ?", weekday), "delete pickup weekday extension")
 }
 
-func (s *Store) DeletePastPickupExtensionTasks(ctx context.Context, today string) (domain.OperationStats, error) {
+func (s *Store) DeletePastPickupExtensionTasks(ctx context.Context, today domain.Date) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
@@ -120,7 +120,7 @@ func (s *Store) DeletePickupExtensionTask(ctx context.Context, id int64) (domain
 
 // ListPickupExtensionTasks returns the school's tasks, or one child's when
 // studentID is positive. Day tasks before today are left out.
-func (s *Store) ListPickupExtensionTasks(ctx context.Context, studentID int64, today string) ([]domain.PickupExtensionTask, domain.OperationStats, error) {
+func (s *Store) ListPickupExtensionTasks(ctx context.Context, studentID int64, today domain.Date) ([]domain.PickupExtensionTask, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -178,7 +178,7 @@ func (s *Store) ListPickupExtensionDayBlocks(ctx context.Context, tasks []domain
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
-	taskIDs, studentIDs, dates, froms, tos := make([]int64, 0, len(tasks)), make([]int64, 0, len(tasks)), make([]string, 0, len(tasks)), make([]string, 0, len(tasks)), make([]string, 0, len(tasks))
+	taskIDs, studentIDs, dates, froms, tos := make([]int64, 0, len(tasks)), make([]int64, 0, len(tasks)), make([]domain.Date, 0, len(tasks)), make([]string, 0, len(tasks)), make([]string, 0, len(tasks))
 	for _, task := range tasks {
 		taskIDs, studentIDs, dates = append(taskIDs, task.ID), append(studentIDs, task.StudentID), append(dates, task.Date)
 		froms, tos = append(froms, task.PreviousPickup), append(tos, task.Pickup)
@@ -231,7 +231,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 		return nil, domain.OperationStats{}, err
 	}
 	taskIDs, studentIDs, weekdays, froms, tos := make([]int64, 0, len(tasks)), make([]int64, 0, len(tasks)), make([]int64, 0, len(tasks)), make([]string, 0, len(tasks)), make([]string, 0, len(tasks))
-	effective := make([]string, 0, len(tasks))
+	effective := make([]domain.Date, 0, len(tasks))
 	for _, task := range tasks {
 		taskIDs, studentIDs, weekdays = append(taskIDs, task.ID), append(studentIDs, task.StudentID), append(weekdays, int64(task.Weekday))
 		effective, froms, tos = append(effective, task.EffectiveFrom), append(froms, task.PreviousPickup), append(tos, task.Pickup)
@@ -293,7 +293,7 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 
 // ListPickupExtensionTemplateInstances returns the planned blocks of one
 // template on the weekday from the given date on that do not list the child.
-func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templateID, studentID int64, weekday int, from string) ([]domain.PickupExtensionInstance, domain.OperationStats, error) {
+func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templateID, studentID int64, weekday int, from domain.Date) ([]domain.PickupExtensionInstance, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err

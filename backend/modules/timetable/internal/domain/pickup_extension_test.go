@@ -1,10 +1,20 @@
 package domain
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestPickupExtensionCalendarDatesAreTyped(t *testing.T) {
+	t.Parallel()
+
+	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionTask{}.Date).Name())
+	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionTask{}.EffectiveFrom).Name())
+	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionBlock{}.ValidFrom).Name())
+	assert.NotEqual(t, "string", reflect.TypeOf(PickupExtensionInstance{}.Date).Name())
+}
 
 func TestOpenPickupExtensionBlocks(t *testing.T) {
 	t.Parallel()

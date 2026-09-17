@@ -2,6 +2,15 @@ package domain
 
 import "errors"
 
+// Date is a calendar day in the Timetable domain. The module's public
+// capability owns string API boundaries and cannot import internal/timezone
+// under the architecture policy, so composition converts validated ISO dates
+// into this distinct domain value.
+type Date string
+
+func (d Date) IsZero() bool   { return d == "" }
+func (d Date) String() string { return string(d) }
+
 var (
 	ErrPickupExtensionNotFound  = errors.New("pickup extension task not found")
 	ErrPickupExtensionBlockGone = errors.New("pickup extension block is no longer available")
@@ -14,14 +23,14 @@ type PickupExtensionTask struct {
 	ID                int64
 	StudentID         int64
 	PickupExceptionID *int64
-	Date              string
+	Date              Date
 	Weekday           int
-	EffectiveFrom     string
+	EffectiveFrom     Date
 	PreviousPickup    string
 	Pickup            string
 }
 
-func (t PickupExtensionTask) IsDay() bool { return t.Date != "" }
+func (t PickupExtensionTask) IsDay() bool { return !t.Date.IsZero() }
 
 // PickupExtensionBlock is a block with children that overlaps the extra time
 // of one task. Member reports whether the child is already on it. For day
@@ -34,14 +43,14 @@ type PickupExtensionBlock struct {
 	EndTime          string
 	Member           bool
 	CalendarPeriodID *int64
-	ValidFrom        string
+	ValidFrom        Date
 }
 
 // PickupExtensionInstance is an already planned block of a template on the
 // task's weekday that does not list the child yet.
 type PickupExtensionInstance struct {
 	ID   int64
-	Date string
+	Date Date
 }
 
 // OpenPickupExtensionBlocks decides which blocks the Leitung can still pick.

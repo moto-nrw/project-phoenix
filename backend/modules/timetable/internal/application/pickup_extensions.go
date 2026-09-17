@@ -9,12 +9,14 @@ import (
 
 const expectedAttendanceStatus = "expected"
 
+func (s *Service) pickupExtensionToday() domain.Date { return domain.Date(s.today()) }
+
 // RecordPickupDayExtension stores the later day pickup. Past days never open
 // a task; the call also prunes past day tasks of the school, so stale rows
 // cannot pile up.
 func (s *Service) RecordPickupDayExtension(ctx context.Context, task domain.PickupExtensionTask) error {
 	return s.runWrite(ctx, "record_pickup_day_extension", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		today := s.today()
+		today := s.pickupExtensionToday()
 		pruneStats, err := s.store.DeletePastPickupExtensionTasks(txCtx, today)
 		stats.Add(pruneStats)
 		if err != nil {
@@ -29,7 +31,7 @@ func (s *Service) RecordPickupDayExtension(ctx context.Context, task domain.Pick
 	})
 }
 
-func (s *Service) ClearPickupDayExtension(ctx context.Context, studentID int64, date string) error {
+func (s *Service) ClearPickupDayExtension(ctx context.Context, studentID int64, date domain.Date) error {
 	return s.runWrite(ctx, "clear_pickup_day_extension", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.store.DeletePickupDayExtensionTask(txCtx, studentID, date)
 		stats.Add(queryStats)
@@ -43,7 +45,7 @@ func (s *Service) ClearPickupDayExtension(ctx context.Context, studentID int64, 
 // closes the task.
 func (s *Service) RecordPickupWeekdayExtension(ctx context.Context, task domain.PickupExtensionTask) error {
 	return s.runWrite(ctx, "record_pickup_weekday_extension", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		tasks, listStats, err := s.store.ListPickupExtensionTasks(txCtx, task.StudentID, s.today())
+		tasks, listStats, err := s.store.ListPickupExtensionTasks(txCtx, task.StudentID, s.pickupExtensionToday())
 		stats.Add(listStats)
 		if err != nil {
 			return err
@@ -84,7 +86,7 @@ type OpenPickupExtension struct {
 // block or a past date simply drops the task from the list.
 func (s *Service) ListOpenPickupExtensions(ctx context.Context, studentID int64) (result []OpenPickupExtension, err error) {
 	err = s.run("list_open_pickup_extensions", func(stats *domain.OperationStats) error {
-		tasks, queryStats, listErr := s.store.ListPickupExtensionTasks(ctx, studentID, s.today())
+		tasks, queryStats, listErr := s.store.ListPickupExtensionTasks(ctx, studentID, s.pickupExtensionToday())
 		stats.Add(queryStats)
 		if listErr != nil {
 			return listErr
@@ -122,7 +124,7 @@ func (s *Service) ResolvePickupExtension(ctx context.Context, taskID int64, bloc
 		if findErr != nil {
 			return findErr
 		}
-		if !found || (task.IsDay() && task.Date < s.today()) {
+		if !found || (task.IsDay() && task.Date < s.pickupExtensionToday()) {
 			return domain.ErrPickupExtensionNotFound
 		}
 		result.Task = task
@@ -172,7 +174,7 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 		}
 		return []int64{block.ID}, nil
 	}
-	validFrom := max(task.EffectiveFrom, s.today(), block.ValidFrom)
+	validFrom := max(task.EffectiveFrom, s.pickupExtensionToday(), block.ValidFrom)
 	weekday := task.Weekday
 	if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, block, weekday, validFrom, stats); err != nil {
 		return nil, err
@@ -200,7 +202,7 @@ func (s *Service) ensurePickupWeekdayEnrollment(
 	studentID int64,
 	block domain.PickupExtensionBlock,
 	weekday int,
-	validFrom string,
+	validFrom domain.Date,
 	stats *domain.OperationStats,
 ) error {
 	enrollments, listStats, err := s.store.ListStudentEnrollments(ctx, domain.StudentEnrollmentFilter{
@@ -211,14 +213,14 @@ func (s *Service) ensurePickupWeekdayEnrollment(
 		return err
 	}
 	for _, enrollment := range enrollments {
-		if (enrollment.ValidUntil != nil && *enrollment.ValidUntil <= validFrom) || enrollment.Weekday == nil || *enrollment.Weekday != weekday ||
+		if (enrollment.ValidUntil != nil && *enrollment.ValidUntil <= validFrom.String()) || enrollment.Weekday == nil || *enrollment.Weekday != weekday ||
 			!samePickupExtensionPeriod(enrollment.CalendarPeriodID, block.CalendarPeriodID) {
 			continue
 		}
 		fields := domain.StudentEnrollmentFields{
 			StudentID:                enrollment.StudentID,
 			ActivityGroupID:          enrollment.ActivityGroupID,
-			ValidFrom:                min(enrollment.ValidFrom, validFrom),
+			ValidFrom:                min(enrollment.ValidFrom, validFrom.String()),
 			ValidUntil:               enrollment.ValidUntil,
 			CalendarPeriodID:         enrollment.CalendarPeriodID,
 			EnrollmentRequestChildID: enrollment.EnrollmentRequestChildID,
@@ -242,7 +244,7 @@ func (s *Service) ensurePickupWeekdayEnrollment(
 	_, enrollStats, err := s.store.CreateStudentEnrollment(ctx, domain.StudentEnrollmentFields{
 		StudentID:        studentID,
 		ActivityGroupID:  block.ID,
-		ValidFrom:        validFrom,
+		ValidFrom:        validFrom.String(),
 		CalendarPeriodID: block.CalendarPeriodID,
 		Weekday:          &weekday,
 	})
@@ -259,7 +261,7 @@ func samePickupExtensionPeriod(a, b *int64) bool {
 
 // addPlannedStudent adds the child as expected, like the generator does, and
 // re-applies sick days and partial absences of that date.
-func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID int64, date string, stats *domain.OperationStats) error {
+func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID int64, date domain.Date, stats *domain.OperationStats) error {
 	_, createStats, err := s.store.CreateInstanceStudent(ctx, domain.InstanceStudentFields{
 		InstanceID: instanceID,
 		StudentID:  studentID,
@@ -269,10 +271,10 @@ func (s *Service) addPlannedStudent(ctx context.Context, instanceID, studentID i
 	if err != nil {
 		return err
 	}
-	if _, err := s.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+	if _, err := s.ApplyActiveStatusDaysForInstance(ctx, instanceID, date.String()); err != nil {
 		return err
 	}
-	_, err = s.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date)
+	_, err = s.ApplyActivePartialAbsencesForInstance(ctx, instanceID, date.String())
 	return err
 }
 
@@ -345,7 +347,7 @@ func (s *Service) pickupExtensionTargets(
 	if err != nil {
 		return nil, err
 	}
-	targetsByDate := make(map[string]map[int64][]int64, len(tasks))
+	targetsByDate := make(map[domain.Date]map[int64][]int64, len(tasks))
 	result := make(map[int64]map[int64]bool, len(tasks))
 	for _, block := range blocks {
 		if block.Member {
@@ -354,7 +356,7 @@ func (s *Service) pickupExtensionTargets(
 		task := tasks[block.TaskID]
 		targets, found := targetsByDate[task.EffectiveFrom]
 		if !found {
-			targets = matchTargetStudents(targetRules, students, task.EffectiveFrom)
+			targets = matchTargetStudents(targetRules, students, task.EffectiveFrom.String())
 			targetsByDate[task.EffectiveFrom] = targets
 		}
 		if !slices.Contains(targets[block.ID], task.StudentID) {

@@ -11,18 +11,18 @@ import (
 func (e engine) RecordPickupDayExtension(ctx context.Context, input timetable.PickupDayExtension) error {
 	exceptionID := input.PickupExceptionID
 	return mapError(e.service.RecordPickupDayExtension(ctx, domain.PickupExtensionTask{
-		StudentID: input.StudentID, PickupExceptionID: &exceptionID, Date: input.Date,
+		StudentID: input.StudentID, PickupExceptionID: &exceptionID, Date: domain.Date(input.Date),
 		PreviousPickup: input.PreviousPickup, Pickup: input.Pickup,
 	}))
 }
 
 func (e engine) ClearPickupDayExtension(ctx context.Context, studentID int64, date string) error {
-	return mapError(e.service.ClearPickupDayExtension(ctx, studentID, date))
+	return mapError(e.service.ClearPickupDayExtension(ctx, studentID, domain.Date(date)))
 }
 
 func (e engine) RecordPickupWeekdayExtension(ctx context.Context, input timetable.PickupWeekdayExtension) error {
 	return mapError(e.service.RecordPickupWeekdayExtension(ctx, domain.PickupExtensionTask{
-		StudentID: input.StudentID, Weekday: input.Weekday, EffectiveFrom: input.EffectiveFrom,
+		StudentID: input.StudentID, Weekday: input.Weekday, EffectiveFrom: domain.Date(input.EffectiveFrom),
 		PreviousPickup: input.PreviousPickup, Pickup: input.Pickup,
 	}))
 }
@@ -61,9 +61,9 @@ func pickupExtensionTaskToPublic(value application.OpenPickupExtension) timetabl
 		ID:             value.Task.ID,
 		StudentID:      value.Task.StudentID,
 		Kind:           pickupExtensionKind(value.Task),
-		Date:           value.Task.Date,
+		Date:           value.Task.Date.String(),
 		Weekday:        value.Task.Weekday,
-		EffectiveFrom:  value.Task.EffectiveFrom,
+		EffectiveFrom:  value.Task.EffectiveFrom.String(),
 		PreviousPickup: value.Task.PreviousPickup,
 		Pickup:         value.Task.Pickup,
 		Blocks:         pickupExtensionBlocksToPublic(value.Blocks),
