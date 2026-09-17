@@ -33,8 +33,6 @@ func init() {
 }
 
 func addUsersAbsencePermissionUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.294: Adding users:absence permission and granting to user role...")
-
 	// Mirrors 1.15.49 (users:checkin): auth.permissions requires resource+action
 	// and is unique on both (resource, action) and name. Admin wildcards
 	// (admin:*) match any permission, so admins need no grant.
@@ -68,8 +66,6 @@ func addUsersAbsencePermissionUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addUsersAbsencePermissionDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.294: Removing users:absence permission...")
-
 	// role_permissions rows cascade on permission delete.
 	_, err := db.NewRaw(`DELETE FROM auth.permissions WHERE name = 'users:absence';`).Exec(ctx)
 	if err != nil {

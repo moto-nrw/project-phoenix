@@ -32,8 +32,6 @@ func init() {
 }
 
 func guardianInvitationsParentInitiatedUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.134: Extending auth.guardian_invitations for parent-initiated invites...")
-
 	// New columns:
 	//   student_id              — which child the invite grants access to. Lets
 	//                             the accept flow link an existing account to an
@@ -88,8 +86,6 @@ func guardianInvitationsParentInitiatedUp(ctx context.Context, db *bun.DB) error
 }
 
 func guardianInvitationsParentInitiatedDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.134: dropping parent-initiated columns...")
-
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS auth.idx_guardian_invitations_pending_approval;
 		DROP INDEX IF EXISTS auth.idx_guardian_invitations_student_id;

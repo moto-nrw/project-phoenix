@@ -22,8 +22,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.88: Deleting orphaned setting rows for security.mfa_email_resend_cooldown_seconds...")
-
 			// Drop tenant overrides first so the audit row reflects the final
 			// state. Both queries use the superuser connection, which bypasses
 			// RLS on config.setting_values + config.setting_audit.
@@ -40,14 +38,12 @@ func init() {
 				return fmt.Errorf("delete setting_audit: %w", err)
 			}
 
-			fmt.Println("Migration 1.15.88: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
 			// Irreversible: the registry definition is gone, so there's
 			// nothing meaningful to restore. The down migration is a no-op so
 			// `migrate reset` still works.
-			fmt.Println("Rolling back migration 1.15.88: no-op (orphaned rows cannot be restored)")
 			return nil
 		},
 	)

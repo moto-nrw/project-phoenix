@@ -30,8 +30,6 @@ func init() {
 }
 
 func addActivePathPartialIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.12.8: Adding hot-path partial indexes concurrently...")
-
 	statements := []string{
 		`CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_active_visits_student_active_only
 			ON active.visits(student_id)
@@ -48,13 +46,10 @@ func addActivePathPartialIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating hot-path partial indexes: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.8 completed: hot-path partial indexes created")
 	return nil
 }
 
 func rollbackActivePathPartialIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.12.8: Dropping hot-path partial indexes concurrently...")
-
 	statements := []string{
 		`DROP INDEX CONCURRENTLY IF EXISTS active.idx_active_visits_student_active_only`,
 		`DROP INDEX CONCURRENTLY IF EXISTS active.idx_active_visits_group_active_only`,
@@ -65,7 +60,6 @@ func rollbackActivePathPartialIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping hot-path partial indexes: %w", err)
 	}
 
-	fmt.Println("Rollback 1.12.8 completed: hot-path partial indexes dropped")
 	return nil
 }
 

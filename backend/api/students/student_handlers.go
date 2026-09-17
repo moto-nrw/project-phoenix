@@ -482,10 +482,10 @@ func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 // children are all list entries must still be selectable for class lists.
 // Dedupe uses the LOWER(TRIM(...)) identity every class comparison uses.
 func (rs *Resource) appendClassListEntryClasses(ctx context.Context, classes []string) ([]string, error) {
-	if rs.ClassListEntryService == nil {
+	if rs.ClassListEntries == nil {
 		return classes, nil
 	}
-	entries, err := rs.ClassListEntryService.ListAll(ctx)
+	entries, err := rs.ClassListEntries.ListClassListEntriesInDisplayOrder(ctx)
 	if err != nil {
 		return nil, err
 	}

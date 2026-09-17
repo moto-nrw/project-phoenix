@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -41,7 +40,6 @@ var parentRequestDoneStatusValues = []struct {
 }
 
 func parentRequestDoneUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", slog.String("migration", parentRequestDoneVersion))
 	for _, target := range parentRequestDoneStatusValues {
 		if err := widenStatusCheck(ctx, db, target.Schema, target.Table,
 			append(target.Existing, parentRequestDoneStatus)); err != nil {

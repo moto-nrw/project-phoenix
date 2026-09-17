@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.145: Rebuilding idx_guardian_profiles_tenant_email as a case-insensitive (LOWER(email)) unique index...")
 			// The old index was UNIQUE(tenant_id, email) — case-sensitive — so two
 			// rows could hold Oma@x.de and oma@x.de in the same tenant even though
 			// every guardian email lookup (FindByEmail, invite/account matching)
@@ -44,7 +43,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.145: Restoring case-sensitive idx_guardian_profiles_tenant_email...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS users.idx_guardian_profiles_tenant_email;
 				CREATE UNIQUE INDEX idx_guardian_profiles_tenant_email

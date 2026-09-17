@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -24,18 +23,13 @@ func init() {
 }
 
 func mealParticipationUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", "migration", mealParticipationVersion)
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			slog.Warn(
-				"migration rollback failed",
-				"migration", mealParticipationVersion,
-				"error", rollbackErr,
-			)
+			logRollbackFailure(ctx, rollbackErr)
 		}
 	}()
 
@@ -230,7 +224,6 @@ func mealParticipationUp(ctx context.Context, db *bun.DB) error {
 }
 
 func mealParticipationDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rollback starting", "migration", mealParticipationVersion)
 	_, err := db.NewRaw(`
 		DROP TRIGGER IF EXISTS invalidate_meal_participation_permission_grant
 			ON users.students_guardians;

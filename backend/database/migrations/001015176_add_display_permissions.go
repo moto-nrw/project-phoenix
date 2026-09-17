@@ -32,8 +32,6 @@ func init() {
 }
 
 func addDisplayPermissionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.176: Adding display:read and display:manage permissions...")
-
 	// No role grants: display management is admin territory and admins match
 	// via the admin:* wildcard. The catalog rows exist so schools can grant
 	// display:read to non-admin roles later without another migration.
@@ -52,8 +50,6 @@ func addDisplayPermissionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addDisplayPermissionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.176: Removing display permissions...")
-
 	// role_permissions rows cascade on permission delete.
 	_, err := db.NewRaw(`DELETE FROM auth.permissions WHERE name IN ('display:read', 'display:manage');`).Exec(ctx)
 	if err != nil {

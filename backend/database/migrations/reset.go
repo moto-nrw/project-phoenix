@@ -3,22 +3,60 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
 
-// ResetDatabase drops all schemas and recreates them to start fresh
-func ResetDatabase(ctx context.Context, db *bun.DB) error {
+// publicSchema is the one schema a reset sweeps for leftover types. Everything
+// else is dropped wholesale in step 1, so only public survives to be swept.
+const publicSchema = "public"
+
+// droppablePublicTypesQuery lists the types in the public schema that a reset may
+// drop. It excludes the groups that PostgreSQL either refuses to drop or drops
+// on its own:
+//
+//   - types owned by an extension (pg_depend.deptype = 'e'), such as the
+//     gbtreekey* types of btree_gist or the row type of pg_stat_statements.
+//     DROP TYPE on those fails with SQLSTATE 2BP01.
+//   - types another object owns internally (deptype = 'i'), which are dropped
+//     with their owner. Today that is only array and row types, both also
+//     matched below; the predicate keeps a future range type's multirange from
+//     turning a reset into an error.
+//   - array types, which PostgreSQL drops together with their element type.
+//   - row types of tables, views and other relations, which are dropped with
+//     the relation itself. Standalone composite types (relkind 'c') stay in the
+//     list because only DROP TYPE removes them.
+const droppablePublicTypesQuery = `
+	SELECT t.typname
+	FROM pg_type t
+	JOIN pg_namespace n ON n.oid = t.typnamespace
+	WHERE n.nspname = 'public'
+	  AND (t.typrelid = 0 OR (SELECT c.relkind FROM pg_class c WHERE c.oid = t.typrelid) = 'c')
+	  AND NOT EXISTS (
+	    SELECT 1 FROM pg_type el WHERE el.oid = t.typelem AND el.typarray = t.oid
+	  )
+	  AND NOT EXISTS (
+	    SELECT 1 FROM pg_depend d
+	    WHERE d.classid = 'pg_type'::regclass AND d.objid = t.oid AND d.deptype IN ('e', 'i')
+	  )
+	ORDER BY t.typname
+`
+
+// resetDatabase drops all schemas and recreates them to start fresh.
+//
+// The reset only issues DDL. DROP does not fire row triggers, and the schema
+// carries no event triggers, so there is nothing for session_replication_role
+// to disable here. Setting it over the pool was also unsound: the value applies
+// to a single pooled connection, so the reset to 'origin' could land on a
+// different connection than the switch to 'replica' and leave a connection in
+// replica mode for the migrations that run next — with foreign keys unenforced.
+func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	if db == nil {
 		return fmt.Errorf("migration database is required")
 	}
-	fmt.Println("Resetting database: Dropping and recreating all schemas...")
-
-	// First disable all triggers
-	_, err := db.ExecContext(ctx, "SET session_replication_role = 'replica'")
-	if err != nil {
-		return fmt.Errorf("failed to disable triggers: %w", err)
-	}
+	logger = migrationLogger(logger)
+	logger.InfoContext(ctx, "dropping and recreating all schemas")
 
 	// List of schemas to drop and recreate.
 	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
@@ -50,72 +88,58 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them
 	for _, schema := range schemas {
-		fmt.Printf("Dropping schema %s...\n", schema)
-		_, err := db.ExecContext(ctx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", schema))
+		logger.DebugContext(ctx, "dropping schema", "schema", schema)
+		_, err := db.ExecContext(ctx, "DROP SCHEMA IF EXISTS ? CASCADE", bun.Ident(schema))
 		if err != nil {
 			return fmt.Errorf("failed to drop schema %s: %w", schema, err)
 		}
 	}
 
 	// First drop the bun migration tables in the public schema
-	_, err = db.ExecContext(ctx, `
+	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS bun_migrations CASCADE;
 		DROP TABLE IF EXISTS bun_migration_locks CASCADE;
 	`)
 	if err != nil {
-		fmt.Printf("Warning: Failed to drop bun migration tables: %v\n", err)
-		// Continue anyway
+		// Continue anyway: a reset that cannot drop the bookkeeping tables still
+		// recreates the schemas, and migrator.Init recreates these two.
+		logger.WarnContext(ctx, "failed to drop bun migration tables", "error", err)
 	}
 
-	// 2. Look for and drop all custom types
-	rows, err := db.QueryContext(ctx, `
-		SELECT typname FROM pg_type t 
-		JOIN pg_catalog.pg_namespace n ON n.oid = t.typnamespace 
-		WHERE n.nspname = 'public'
-	`)
+	// 2. Drop the custom types left in the public schema. Collect the names
+	// first so no rows stay open while the DROP statements run.
+	typeNames, err := droppablePublicTypes(ctx, db)
 	if err != nil {
-		fmt.Printf("Warning: Failed to query custom types: %v\n", err)
-	} else {
-		defer func() { _ = rows.Close() }()
-
-		// Process each custom type
-		for rows.Next() {
-			var typeName string
-			if err := rows.Scan(&typeName); err != nil {
-				fmt.Printf("Warning: Failed to scan type name: %v\n", err)
-				continue
-			}
-
-			// Skip standard PostgreSQL types
-			if typeName == "bool" || typeName == "int" || typeName == "text" {
-				continue
-			}
-
-			fmt.Printf("Dropping custom type %s...\n", typeName)
-			_, err := db.ExecContext(ctx, fmt.Sprintf("DROP TYPE IF EXISTS %s CASCADE", typeName))
-			if err != nil {
-				fmt.Printf("Warning: Failed to drop type %s: %v\n", typeName, err)
-			}
+		return fmt.Errorf("failed to query custom types: %w", err)
+	}
+	for _, typeName := range typeNames {
+		logger.DebugContext(ctx, "dropping custom type", "type", typeName)
+		// Qualify the name. The query only ever returns types in public, while
+		// an unqualified DROP TYPE resolves through search_path, so under a
+		// non-default search_path the two could disagree: the drop would target
+		// another schema's type or, with IF EXISTS, quietly do nothing and
+		// leave the public type behind for the next CREATE TYPE to collide with.
+		_, err := db.ExecContext(ctx, "DROP TYPE IF EXISTS ?.? CASCADE",
+			bun.Ident(publicSchema), bun.Ident(typeName))
+		if err != nil {
+			return fmt.Errorf("failed to drop type %s.%s: %w", publicSchema, typeName, err)
 		}
 	}
 
-	// 3. Drop specific known types that might be in any schema
-	_, err = db.ExecContext(ctx, `
-		DROP TYPE IF EXISTS occupancy_status CASCADE;
-		DROP TYPE IF EXISTS device_status CASCADE;
-		
-		-- Drop extensions
-		DROP EXTENSION IF EXISTS "uuid-ossp";
-	`)
+	// 3. Drop the extensions. The named types this step used to drop as well
+	// (occupancy_status, device_status) are created unqualified, so they land
+	// in public and step 2 has already removed them.
+	_, err = db.ExecContext(ctx, `DROP EXTENSION IF EXISTS "uuid-ossp"`)
 	if err != nil {
-		fmt.Printf("Warning: Failed to drop specific types and extensions: %v\n", err)
-		// Continue anyway, this is not critical
+		// Continue anyway, this is not critical: the migration that installs the
+		// extension uses IF NOT EXISTS.
+		logger.WarnContext(ctx, "failed to drop extensions", "error", err)
 	}
 
-	// 3. Recreate the schemas (this will be skipped when migrations run)
+	// 4. Recreate the schemas (this will be skipped when migrations run)
 	for _, schema := range schemas {
-		fmt.Printf("Recreating schema %s...\n", schema)
-		_, err := db.ExecContext(ctx, fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schema))
+		logger.DebugContext(ctx, "recreating schema", "schema", schema)
+		_, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS ?", bun.Ident(schema))
 		if err != nil {
 			return fmt.Errorf("failed to create schema %s: %w", schema, err)
 		}
@@ -123,12 +147,29 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 
 	// We already dropped the bun_migrations tables earlier
 
-	// Re-enable triggers
-	_, err = db.ExecContext(ctx, "SET session_replication_role = 'origin'")
-	if err != nil {
-		return fmt.Errorf("failed to re-enable triggers: %w", err)
-	}
-
-	fmt.Println("Database reset complete - all schemas dropped and recreated")
+	logger.InfoContext(ctx, "schemas dropped and recreated", "count", len(schemas))
 	return nil
+}
+
+// droppablePublicTypes returns the names of the types in the public schema that
+// a reset may drop. See droppablePublicTypesQuery for what is filtered out.
+func droppablePublicTypes(ctx context.Context, db *bun.DB) ([]string, error) {
+	rows, err := db.QueryContext(ctx, droppablePublicTypesQuery)
+	if err != nil {
+		return nil, fmt.Errorf("query droppable public types: %w", err)
+	}
+	defer func() { _ = rows.Close() }()
+
+	var typeNames []string
+	for rows.Next() {
+		var typeName string
+		if err := rows.Scan(&typeName); err != nil {
+			return nil, fmt.Errorf("scan droppable public type: %w", err)
+		}
+		typeNames = append(typeNames, typeName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate droppable public types: %w", err)
+	}
+	return typeNames, nil
 }

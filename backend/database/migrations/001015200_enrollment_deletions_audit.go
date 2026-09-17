@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.200: Creating audit.enrollment_deletions...")
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS audit.enrollment_deletions (
 					id BIGSERIAL PRIMARY KEY,
@@ -71,7 +70,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.200: Dropping audit.enrollment_deletions...")
 			if _, err := db.NewRaw(`DROP TABLE IF EXISTS audit.enrollment_deletions CASCADE`).Exec(ctx); err != nil {
 				return fmt.Errorf("drop audit.enrollment_deletions: %w", err)
 			}

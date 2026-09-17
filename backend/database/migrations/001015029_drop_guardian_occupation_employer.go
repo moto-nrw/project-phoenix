@@ -31,8 +31,6 @@ func init() {
 }
 
 func dropGuardianOccupationEmployer(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.29: Dropping occupation and employer from users.guardian_profiles (DSGVO Datenminimierung)...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -52,7 +50,9 @@ func dropGuardianOccupationEmployer(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to check existing data: %w", err)
 	}
 	if count > 0 {
-		fmt.Printf("  WARNING: %d rows have non-null occupation/employer values that will be lost\n", count)
+		migrationLog().WarnContext(ctx, "guardian occupation/employer values dropped without a backup",
+			"rows", count,
+		)
 	}
 
 	_, err = tx.ExecContext(ctx, `
@@ -64,13 +64,10 @@ func dropGuardianOccupationEmployer(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to drop columns: %w", err)
 	}
 
-	fmt.Println("  Dropped occupation and employer columns successfully")
 	return tx.Commit()
 }
 
 func restoreGuardianOccupationEmployer(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rollback 1.15.29: Restoring occupation and employer to users.guardian_profiles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -90,6 +87,5 @@ func restoreGuardianOccupationEmployer(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to restore columns: %w", err)
 	}
 
-	fmt.Println("  Restored occupation and employer columns successfully")
 	return tx.Commit()
 }

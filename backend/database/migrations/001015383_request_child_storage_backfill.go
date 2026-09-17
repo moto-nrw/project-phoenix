@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -27,17 +26,19 @@ func requestChildStorageBackfillUp(ctx context.Context, db *bun.DB) error {
 	if err := createRequestChildStorageCheckpoints(ctx, db); err != nil {
 		return err
 	}
-	slog.Info("migration starting",
-		"migration", requestChildStorageBackfillVersion)
 	report, err := RunRequestChildStorageBackfill(ctx, db, RequestChildStorageBackfillOptions{})
 	if err != nil {
 		return fmt.Errorf("backfill request child storage: %w", err)
 	}
-	slog.Info("migration finished",
-		"migration", requestChildStorageBackfillVersion,
+	// duration_ms here is the backfill's own, which is not the runner's: the
+	// runner times the whole migration, checkpoint DDL included, and this is
+	// also the number `phoenix backfill` reports when the same code runs from
+	// the CLI.
+	migrationLog().InfoContext(ctx, "request child storage backfill finished",
 		"tenants", len(report.Tenants),
 		"database_deadlocks", report.DatabaseDeadlocks,
-		"duration_ms", report.Duration.Milliseconds())
+		"duration_ms", report.Duration.Milliseconds(),
+	)
 	// Deployments migrate with the application stopped, so a residual
 	// mismatch is a copy defect, not concurrent traffic. Fail loudly instead
 	// of leaving Cutover an incomplete checkpoint.

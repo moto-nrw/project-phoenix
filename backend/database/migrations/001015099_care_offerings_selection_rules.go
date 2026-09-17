@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.99: Adding selection_group + selection_rule to enrollment.care_offerings...")
 			// selection_group is a free-text group name (NULL = ungrouped).
 			// selection_rule constrains how many offerings in the group a
 			// parent must pick. Existing rows default to 'optional' (today's
@@ -37,7 +36,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.99: dropping selection columns on enrollment.care_offerings...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.care_offerings
 					DROP COLUMN IF EXISTS selection_rule,

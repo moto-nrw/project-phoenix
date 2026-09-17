@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addPlannedEndTimeColumn(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.10.6: Adding planned_end_time column to active.work_session_breaks...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -64,20 +61,17 @@ func addPlannedEndTimeColumn(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating planned_end_time index: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.6: Successfully added planned_end_time column and index")
 	return tx.Commit()
 }
 
 func dropPlannedEndTimeColumn(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.6: Dropping planned_end_time column...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -98,6 +92,5 @@ func dropPlannedEndTimeColumn(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping planned_end_time column: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.6: Successfully rolled back")
 	return tx.Commit()
 }

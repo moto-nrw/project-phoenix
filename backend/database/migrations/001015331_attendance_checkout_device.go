@@ -26,8 +26,6 @@ func init() {
 }
 
 func attendanceCheckoutDeviceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.331: Adding attendance checkout device attribution...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE active.attendance
 			ADD COLUMN checked_out_device_id BIGINT,
@@ -47,8 +45,6 @@ func attendanceCheckoutDeviceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func attendanceCheckoutDeviceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.331: Removing attendance checkout device attribution...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS active.idx_attendance_checked_out_device_id;
 		ALTER TABLE active.attendance

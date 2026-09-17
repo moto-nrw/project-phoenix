@@ -39,11 +39,16 @@ var seedCoverageExemptions = map[string]string{
 	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
-	"active.combined_groups":                    "empty in prod too",
-	"active.group_mappings":                     "empty in prod too",
-	"active.scheduled_checkouts":                "empty in prod too",
-	"active.staff_month_balance_snapshots":      "empty in prod too",
-	"active.staff_vacation_openings":            "empty in prod too",
+	// Expand #2717 explicitly requires empty targets and forbids dual writes.
+	// Remove these exemptions when the student Cutover switches the real seed/API callers.
+	"users.student_profiles":               "empty Expand target (#2717); users.students remains authoritative until Cutover",
+	"users.student_school_memberships":     "empty Expand target (#2717); users.students remains authoritative until Cutover",
+	"users.student_care_profiles":          "empty Expand target (#2717); users.students remains authoritative until Cutover",
+	"active.combined_groups":               "empty in prod too",
+	"active.group_mappings":                "empty in prod too",
+	"active.scheduled_checkouts":           "empty in prod too",
+	"active.staff_month_balance_snapshots": "empty in prod too",
+	"active.staff_vacation_openings":       "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
 	"audit.enrollment_restorations":     "empty in prod too",

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // addStudentExtendedFieldsUp adds notes fields to students
 func addStudentExtendedFieldsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.10: Adding extended fields to students...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func addStudentExtendedFieldsUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -76,8 +73,6 @@ func addStudentExtendedFieldsUp(ctx context.Context, db *bun.DB) error {
 
 // addStudentExtendedFieldsDown removes the added fields
 func addStudentExtendedFieldsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.10: Removing extended fields from students...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -85,7 +80,7 @@ func addStudentExtendedFieldsDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

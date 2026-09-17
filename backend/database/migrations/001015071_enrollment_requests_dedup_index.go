@@ -24,7 +24,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.71: Adding dedup support index on enrollment.requests...")
 			_, err := db.NewRaw(`
 				CREATE INDEX IF NOT EXISTS idx_enrollment_requests_phase_email_lc
 				ON enrollment.requests (phase_id, LOWER(TRIM(guardian_email)));

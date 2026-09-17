@@ -32,8 +32,6 @@ func init() {
 }
 
 func phaseSchoolClassColumnsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.171: Adding concrete-class config columns to enrollment.phases...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		ADD COLUMN IF NOT EXISTS available_school_classes JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -50,8 +48,6 @@ func phaseSchoolClassColumnsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseSchoolClassColumnsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.171: Removing concrete-class config columns from enrollment.phases...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.phases
 		DROP COLUMN IF EXISTS require_school_class,

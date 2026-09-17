@@ -2688,6 +2688,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolmembership/internal/adapters/displayorder",
+      "owner": "school-membership",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolmembership/internal/application",
       "owner": "school-membership",
       "role": "application",
@@ -4214,6 +4221,18 @@
     {
       "name": "auth.guardian_student_access",
       "write_owner": "identity-access"
+    },
+    {
+      "name": "users.student_profiles",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.student_care_profiles",
+      "write_owner": "care-plan"
     },
     {
       "name": "users.teachers",

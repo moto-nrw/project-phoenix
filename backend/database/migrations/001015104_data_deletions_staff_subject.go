@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -43,15 +42,13 @@ func init() {
 // the check constraint accepts as the student-subject path. New consumers
 // (modules/workforce/legacy/timetracking.TimeTrackingCleanupService) populate staff_id only.
 func addDataDeletionsStaffSubject(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.104: extending audit.data_deletions for staff subjects...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -82,20 +79,17 @@ func addDataDeletionsStaffSubject(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error extending audit.data_deletions: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.104: audit.data_deletions extended for staff subjects")
 	return tx.Commit()
 }
 
 func removeDataDeletionsStaffSubject(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.104: audit.data_deletions staff subject...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -131,6 +125,5 @@ func removeDataDeletionsStaffSubject(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error reverting audit.data_deletions: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.104: rolled back")
 	return tx.Commit()
 }

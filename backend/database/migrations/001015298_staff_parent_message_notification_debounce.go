@@ -22,7 +22,6 @@ func init() {
 }
 
 func staffParentMessageNotificationDebounceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.298: Adding the staff parent-message notification debounce claim...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.parent_message_threads
 			ADD COLUMN IF NOT EXISTS last_staff_message_notification_at TIMESTAMPTZ;
@@ -34,7 +33,6 @@ func staffParentMessageNotificationDebounceUp(ctx context.Context, db *bun.DB) e
 }
 
 func staffParentMessageNotificationDebounceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.298: Removing the staff parent-message notification debounce claim...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.parent_message_threads
 			DROP COLUMN IF EXISTS last_staff_message_notification_at;

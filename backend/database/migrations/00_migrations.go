@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,6 +24,8 @@ var Migrations = migrate.NewMigrations()
 type SafeMigrationMap map[string]*Migration
 
 // Register adds a migration to the registry, panicking if the version already exists.
+// It also indexes the migration under the name bun derives for it, which is only
+// knowable here: at the call site, in the migration's own file.
 func (m SafeMigrationMap) Register(migration *Migration) {
 	if existing, ok := m[migration.Version]; ok {
 		panic(fmt.Sprintf(
@@ -32,6 +35,67 @@ func (m SafeMigrationMap) Register(migration *Migration) {
 		))
 	}
 	m[migration.Version] = migration
+	if name, ok := callerBunName(); ok {
+		migrationsByBunName[name] = migration
+	}
+}
+
+// migrationsByBunName indexes registered migrations by the name bun knows them
+// under. bun names a Go migration after the numeric prefix of the file that
+// registers it and carries that name in bun_migrations rows, in `migrate status`
+// and in the migrator's per-migration hooks, while MigrationRegistry is keyed by
+// semantic version. Neither name can be derived from the other:
+// 0010060171_add_position_to_invitation_tokens.go registers version 1.6.17.1,
+// four segments packed into one prefix. So the pairing is recorded where both
+// are in scope — at registration — rather than reconstructed afterwards.
+var migrationsByBunName = make(map[string]*Migration)
+
+// MigrationByBunName returns the registered migration bun knows under name.
+//
+// Three historical migrations (001006006, 001015025, 001015044) call
+// Migrations.MustRegister without a MigrationRegistry entry, so a miss is a
+// normal outcome and callers must handle it.
+func MigrationByBunName(name string) (*Migration, bool) {
+	migration, ok := migrationsByBunName[name]
+	return migration, ok
+}
+
+// bunFileNamePattern mirrors bun's own migration filename rule (migrate.fnameRE)
+// restricted to Go files: a numeric prefix, then the description that becomes
+// the migration's comment.
+var bunFileNamePattern = regexp.MustCompile(`^(\d{1,14})_[0-9a-z_\-]+\.go$`)
+
+// registryFile is the path of this file, resolved once before any migration's
+// init runs. The walk below skips its frames: "00_migrations.go" satisfies bun's
+// migration filename rule as well ("00" + "_migrations"), so without this the
+// walk stops at Register's own frame and names every migration "00".
+var registryFile = func() string {
+	_, file, _, _ := runtime.Caller(0)
+	return file
+}()
+
+// callerBunName walks the stack for the migration file that reached Register and
+// returns the name bun derives from it. bun resolves its own name from the same
+// stack in Migrations.Register; walking rather than counting frames keeps the two
+// in agreement no matter how Register is reached.
+func callerBunName() (string, bool) {
+	const depth = 32
+	var pcs [depth]uintptr
+	// Skip runtime.Callers and callerBunName itself.
+	n := runtime.Callers(2, pcs[:])
+	frames := runtime.CallersFrames(pcs[:n])
+
+	for {
+		frame, more := frames.Next()
+		if frame.File != registryFile {
+			if match := bunFileNamePattern.FindStringSubmatch(filepath.Base(frame.File)); match != nil {
+				return match[1], true
+			}
+		}
+		if !more {
+			return "", false
+		}
+	}
 }
 
 // MigrationRegistry keeps track of all registered migrations with their metadata.
@@ -144,12 +208,9 @@ func ValidateMigrations() error {
 	return nil
 }
 
-// PrintMigrationPlan prints the full migration plan.
-func PrintMigrationPlan() error {
-	return PrintMigrationPlanTo(os.Stdout)
-}
-
 // PrintMigrationPlanTo writes the full migration plan to output.
+// Only `migrate validate` prints the full plan — running migrations logs the
+// pending ones instead (#3300).
 func PrintMigrationPlanTo(output io.Writer) error {
 	migrations := RegisteredMigrations()
 

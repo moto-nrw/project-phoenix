@@ -30,8 +30,6 @@ func init() {
 }
 
 func addGlobalAccountAvatarUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.24: Adding global avatar to auth.accounts...")
-
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE auth.accounts
 		ADD COLUMN IF NOT EXISTS avatar TEXT;
@@ -62,8 +60,6 @@ func addGlobalAccountAvatarUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addGlobalAccountAvatarDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.24: Removing global avatar from auth.accounts...")
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE auth.accounts
 		DROP COLUMN IF EXISTS avatar;

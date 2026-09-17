@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createPlatformOperatorInvitationTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.27: Creating platform.operator_invitation_tokens table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in operator invitation tokens migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -115,15 +112,13 @@ func createPlatformOperatorInvitationTokensTable(ctx context.Context, db *bun.DB
 }
 
 func dropPlatformOperatorInvitationTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.27: Removing platform.operator_invitation_tokens table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in operator invitation tokens down migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

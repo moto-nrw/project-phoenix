@@ -22,7 +22,6 @@ func init() {
 }
 
 func groupTargetsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.265: Creating activities.group_targets...")
 	_, err := db.NewRaw(`
 		CREATE TABLE activities.group_targets (
 			id                  BIGSERIAL PRIMARY KEY,
@@ -108,7 +107,6 @@ func groupTargetsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func groupTargetsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.265: Dropping activities.group_targets...")
 	if _, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_students_tenant_school_class_normalized;
 		DROP TABLE IF EXISTS activities.group_targets CASCADE;

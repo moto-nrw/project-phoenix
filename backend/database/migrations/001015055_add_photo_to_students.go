@@ -32,8 +32,6 @@ func init() {
 }
 
 func addPhotoToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.55: Adding photo_path + consent metadata columns to users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		ADD COLUMN IF NOT EXISTS photo_path TEXT,
@@ -58,8 +56,6 @@ func addPhotoToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addPhotoToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.55: Removing photo_path + consent metadata columns from users.students...")
-
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS users.idx_students_photo_consent;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping photo consent index: %w", err)

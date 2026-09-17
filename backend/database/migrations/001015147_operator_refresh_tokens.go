@@ -23,7 +23,6 @@ func init() {
 }
 
 func upOperatorRefreshTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.147: Creating platform.operator_refresh_tokens...")
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS platform.operator_refresh_tokens (
 			id BIGSERIAL PRIMARY KEY,
@@ -59,7 +58,6 @@ func upOperatorRefreshTokens(ctx context.Context, db *bun.DB) error {
 }
 
 func downOperatorRefreshTokens(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.147: Dropping platform.operator_refresh_tokens...")
 	if _, err := db.NewRaw(`
 		DROP TRIGGER IF EXISTS update_operator_refresh_tokens_updated_at
 			ON platform.operator_refresh_tokens;

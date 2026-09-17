@@ -34,8 +34,6 @@ func init() {
 }
 
 func createCareOfferingsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.63: Creating enrollment.care_offerings table...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS enrollment.care_offerings (
 			id                       BIGSERIAL PRIMARY KEY,
@@ -108,7 +106,6 @@ func createCareOfferingsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createCareOfferingsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.63: Dropping enrollment.care_offerings...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS enrollment.care_offerings CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping enrollment.care_offerings: %w", err)
 	}

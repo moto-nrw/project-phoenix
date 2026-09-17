@@ -30,8 +30,6 @@ func init() {
 }
 
 func timetableListKindUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.218: Adding timetable list_kind columns...")
-
 	statements := []string{
 		`ALTER TABLE activities.groups ADD COLUMN IF NOT EXISTS list_kind TEXT`,
 		`ALTER TABLE schedule.activity_instances ADD COLUMN IF NOT EXISTS list_kind TEXT`,
@@ -61,8 +59,6 @@ func timetableListKindUp(ctx context.Context, db *bun.DB) error {
 }
 
 func timetableListKindDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.218: Removing timetable list_kind columns...")
-
 	statements := []string{
 		`DROP INDEX IF EXISTS activities.idx_activity_groups_tenant_list_kind`,
 		`DROP INDEX IF EXISTS schedule.idx_activity_instances_tenant_date_list_kind`,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -37,24 +36,13 @@ var staffMessagingTables = []string{
 }
 
 func staffMessagingUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting",
-		slog.String("migration", staffMessagingVersion),
-		slog.String("detail", "creating staff messaging tables"),
-	)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			// slog, not log.Printf: the repository is slog-only (backend/CLAUDE.md).
-			// Much of this package still predates that rule; new files do not add to
-			// the backlog.
-			slog.Error("rollback failed",
-				slog.String("migration", staffMessagingVersion),
-				slog.String("error", err.Error()),
-			)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -224,19 +212,10 @@ func staffMessagingUp(ctx context.Context, db *bun.DB) error {
 		return err
 	}
 
-	slog.Info("migration completed",
-		slog.String("migration", staffMessagingVersion),
-		slog.String("detail", "staff messaging tables created"),
-	)
 	return nil
 }
 
 func staffMessagingDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rolling back",
-		slog.String("migration", staffMessagingVersion),
-		slog.String("detail", "dropping staff messaging tables"),
-	)
-
 	_, err := db.NewRaw(`
 		DROP TABLE IF EXISTS users.staff_message_reads;
 		DROP TABLE IF EXISTS users.staff_messages;

@@ -34,8 +34,6 @@ func init() {
 }
 
 func createEnrollmentRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.60: Creating enrollment.requests table...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS enrollment.requests (
 			id                   BIGSERIAL PRIMARY KEY,
@@ -87,7 +85,6 @@ func createEnrollmentRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createEnrollmentRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.60: Dropping enrollment.requests...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS enrollment.requests CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping enrollment.requests: %w", err)
 	}
