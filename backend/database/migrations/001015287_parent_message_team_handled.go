@@ -22,7 +22,6 @@ func init() {
 }
 
 func parentMessageTeamHandledUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.287: Adding the parent-message team handled cursor...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.parent_message_threads
 			ADD COLUMN IF NOT EXISTS staff_handled_up_to_at TIMESTAMPTZ,
@@ -44,7 +43,6 @@ func parentMessageTeamHandledUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentMessageTeamHandledDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.287: Removing the parent-message team handled cursor...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE users.parent_message_threads
 			DROP CONSTRAINT IF EXISTS chk_parent_message_threads_staff_handled_cursor,

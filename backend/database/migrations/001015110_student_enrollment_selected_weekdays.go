@@ -33,8 +33,6 @@ func init() {
 }
 
 func studentEnrollmentSelectedWeekdaysUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.110: Adding selected_weekdays to activities.student_enrollments...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
 			ADD COLUMN IF NOT EXISTS selected_weekdays JSONB;
@@ -59,8 +57,6 @@ func studentEnrollmentSelectedWeekdaysUp(ctx context.Context, db *bun.DB) error 
 }
 
 func studentEnrollmentSelectedWeekdaysDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.110: Removing selected_weekdays from activities.student_enrollments...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE activities.student_enrollments
 			DROP CONSTRAINT IF EXISTS check_student_enrollments_selected_weekdays,

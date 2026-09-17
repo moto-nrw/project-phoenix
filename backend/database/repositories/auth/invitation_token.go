@@ -16,6 +16,10 @@ import (
 const (
 	invitationTable      = "auth.invitation_tokens"
 	invitationTableAlias = `auth.invitation_tokens AS "invitation_token"`
+
+	// maxEmailErrorLength caps the persisted email_error column before a
+	// delivery failure message is stored.
+	maxEmailErrorLength = 1024
 )
 
 // InvitationTokenRepository provides persistence for invitation tokens.
@@ -32,70 +36,6 @@ func NewInvitationTokenRepository(db *bun.DB) modelAuth.InvitationTokenRepositor
 		Repository: repo,
 		db:         db,
 	}
-}
-
-// FindByToken fetches an invitation by its token value.
-func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token string) (*modelAuth.InvitationToken, error) {
-	entity := new(modelAuth.InvitationToken)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(entity).
-		ModelTableExpr(invitationTableAlias).
-		Where(`"invitation_token".token = ?`, token)
-
-	query = base.WithTenantFilter(ctx, query, "invitation_token")
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find invitation by token",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return entity, nil
-}
-
-// FindByID retrieves an invitation token by primary key.
-func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}) (*modelAuth.InvitationToken, error) {
-	entity := new(modelAuth.InvitationToken)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(entity).
-		ModelTableExpr(invitationTableAlias).
-		Where(`"invitation_token".id = ?`, id)
-
-	query = base.WithTenantFilter(ctx, query, "invitation_token")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find invitation by id",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return entity, nil
-}
-
-// Update persists changes to an invitation token.
-func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth.InvitationToken) error {
-	if token == nil {
-		return fmt.Errorf("invitation token cannot be nil")
-	}
-
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model(token).
-		ModelTableExpr(invitationTableAlias).
-		WherePK()
-
-	query = base.WithTenantFilter(ctx, query, "invitation_token")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update invitation",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update invitation")
 }
 
 // FindValidByToken returns an invitation if it is not expired or used.
@@ -191,29 +131,6 @@ func (r *InvitationTokenRepository) InvalidateByEmail(ctx context.Context, email
 		return 0, fmt.Errorf("failed to retrieve affected rows for invalidate invitations: %w", err)
 	}
 
-	return int(count), nil
-}
-
-// InvalidateByTenantID marks all pending invitations for a tenant as used.
-// Used during soft-delete to prevent redemption of invitations for deleted schools.
-func (r *InvitationTokenRepository) InvalidateByTenantID(ctx context.Context, tenantID int64) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(invitationTable).
-		Set(`used_at = NOW()`).
-		Where(`tenant_id = ?`, tenantID).
-		Where(`used_at IS NULL`).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "invalidate invitations by tenant ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	count, err := res.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve affected rows for invalidate invitations by tenant: %w", err)
-	}
 	return int(count), nil
 }
 

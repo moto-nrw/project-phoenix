@@ -32,8 +32,6 @@ func init() {
 }
 
 func addAddressToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.162: Adding child address columns to users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		ADD COLUMN IF NOT EXISTS address_street TEXT,
@@ -52,8 +50,6 @@ func addAddressToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addAddressToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.162: Removing child address columns from users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		DROP COLUMN IF EXISTS address_postal_code,

@@ -42,7 +42,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.150: Repairing enrollment.change_requests tables (idempotent)...")
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS enrollment.change_requests (
 					id BIGSERIAL PRIMARY KEY,
@@ -136,7 +135,6 @@ func init() {
 			// them. Dropping them here too would double-drop on a full reverse
 			// migration and would destroy tables this migration may only have
 			// found (not created) on a fresh DB.
-			fmt.Println("Rolling back migration 1.15.150: no-op (enrollment change-request tables are owned by 1.15.148)")
 			return nil
 		},
 	)

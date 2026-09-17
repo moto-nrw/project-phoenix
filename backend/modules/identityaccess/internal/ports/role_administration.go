@@ -23,6 +23,9 @@ type RoleStore interface {
 	// system role (tenant_id NULL) stays resolvable inside a tenant
 	// transaction.
 	FindRoleIgnoringTenant(ctx context.Context, id int64) (domain.ManagedRole, bool, error)
+	// FindSystemRoleByName resolves the platform system role with that name,
+	// matched case-insensitively; a school's own role never matches.
+	FindSystemRoleByName(ctx context.Context, name string) (domain.ManagedRole, bool, error)
 	// FindRoleForUpdate locks the role row with the visibility FindRole has.
 	FindRoleForUpdate(ctx context.Context, id int64) (domain.ManagedRole, bool, error)
 	UpdateRole(ctx context.Context, role domain.ManagedRole) error
@@ -77,6 +80,9 @@ type RoleStore interface {
 type RoleAssignmentPolicy interface {
 	IsLehrkraftSystemRole(role *domain.RoleFacts) bool
 	IsGuardianTierRole(role *domain.RoleFacts) bool
+	// IsPlatformCaregiverRole reports whether the role already is the
+	// platform caregiver role, so the caregiver upgrade adds nothing.
+	IsPlatformCaregiverRole(role *domain.RoleFacts) bool
 	// ValidateAssignableSchoolRole returns the public policy sentinel that
 	// refuses the role for tenantID, or nil.
 	ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID int64) error

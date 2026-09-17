@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // assignGuestPermissions assigns basic read permissions to the guest role
 func assignGuestPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.0: Assigning permissions to guest role...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func assignGuestPermissions(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in guest permissions migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -77,16 +74,12 @@ func assignGuestPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error assigning permissions to guest role: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.0: Successfully assigned guest role permissions (users, rooms, activities)")
-
 	// Commit the transaction
 	return tx.Commit()
 }
 
 // removeGuestPermissions removes the permission assignments from the guest role
 func removeGuestPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.0: Removing permissions from guest role...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -94,7 +87,7 @@ func removeGuestPermissions(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in guest permissions migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -112,8 +105,6 @@ func removeGuestPermissions(ctx context.Context, db *bun.DB) error {
 
 	// Note: We don't delete the permissions themselves
 	// because they may be used by other roles or created by seed data
-
-	fmt.Println("Migration 1.7.0: Successfully removed guest role permissions")
 
 	// Commit the transaction
 	return tx.Commit()

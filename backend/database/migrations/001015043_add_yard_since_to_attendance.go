@@ -32,8 +32,6 @@ func init() {
 }
 
 func addYardSinceToAttendanceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.43: Adding yard_since column to active.attendance...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE active.attendance
 		ADD COLUMN IF NOT EXISTS yard_since TIMESTAMPTZ;
@@ -55,8 +53,6 @@ func addYardSinceToAttendanceUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addYardSinceToAttendanceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.43: Removing yard_since column from active.attendance...")
-
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS active.idx_attendance_yard_since;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping index idx_attendance_yard_since: %w", err)

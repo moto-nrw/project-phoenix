@@ -27,6 +27,32 @@ import (
 // invitation service, so tests can assert on delegation (mode → RequireApproval,
 // ByParent) without standing up the full invite machinery. Embeds the interface
 // so the un-overridden methods exist but panic if unexpectedly called.
+// guardianInvitationReads reads the owner's invitations straight from the
+// table, which is what the serving root's port does through the Identity &
+// Access capability.
+type guardianInvitationReads struct{ db *bun.DB }
+
+func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentService.GuardianInvitationRecord, error) {
+	var invitations []*authModels.GuardianInvitation
+	err := r.db.NewSelect().
+		Model(&invitations).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Where(`"guardian_invitation".guardian_profile_id = ?`, guardianProfileID).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]parentService.GuardianInvitationRecord, 0, len(invitations))
+	for _, invitation := range invitations {
+		records = append(records, parentService.GuardianInvitationRecord{
+			ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, StudentID: invitation.StudentID,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, ApprovalStatus: invitation.ApprovalStatus,
+		})
+	}
+	return records, nil
+}
+
 type stubInvites struct {
 	authService.GuardianInvitationService
 	lastInvite *authService.InviteToStudentRequest
@@ -61,7 +87,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (paren
 		},
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
-		GuardianInviteRepo:  repos.GuardianInvitation,
+		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -151,7 +177,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -200,7 +226,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -391,7 +417,6 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 		Settings:            settings,
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
-		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -466,7 +491,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
 		},
 		GuardianInvites:     invites,
-		GuardianInviteRepo:  repos.GuardianInvitation,
+		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -583,7 +608,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		RoleUpgrade:       true,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)

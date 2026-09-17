@@ -31,8 +31,6 @@ func init() {
 }
 
 func addRolesBaseRole(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.31: Adding base_role column to auth.roles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -72,13 +70,10 @@ func addRolesBaseRole(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to create index: %w", err)
 	}
 
-	fmt.Println("  Added base_role column with check constraint and partial index")
 	return tx.Commit()
 }
 
 func rollbackRolesBaseRole(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rollback 1.15.31: Removing base_role column from auth.roles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -97,6 +92,5 @@ func rollbackRolesBaseRole(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to drop base_role column: %w", err)
 	}
 
-	fmt.Println("  Removed base_role column successfully")
 	return tx.Commit()
 }

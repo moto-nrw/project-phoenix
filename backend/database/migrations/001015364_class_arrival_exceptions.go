@@ -30,8 +30,6 @@ func init() {
 //
 // The class is matched via LOWER(BTRIM(...)) like education.class_arrival_times.
 func classArrivalExceptionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.364: Class arrival exceptions...")
-
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS education.class_arrival_exceptions (
 			id            BIGSERIAL PRIMARY KEY,
@@ -72,8 +70,6 @@ func classArrivalExceptionsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classArrivalExceptionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.364: Dropping education.class_arrival_exceptions...")
-
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS education.class_arrival_exceptions;`)
 	if err != nil {
 		return fmt.Errorf("error dropping education.class_arrival_exceptions: %w", err)

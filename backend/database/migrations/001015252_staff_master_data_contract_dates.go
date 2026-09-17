@@ -2,7 +2,6 @@ package migrations
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/uptrace/bun"
 )
@@ -22,7 +21,6 @@ func init() {
 }
 
 func staffMasterDataContractDatesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.252: Enforcing staff contract date ordering...")
 	_, err := db.NewRaw(`
 		ALTER TABLE users.staff_master_data
 			ADD CONSTRAINT chk_staff_master_data_contract_dates

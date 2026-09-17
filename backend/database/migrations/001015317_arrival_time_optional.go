@@ -37,8 +37,6 @@ func init() {
 // class. There is never a time on a day without care — that combination is
 // what left two deregistered children "expected" at OGS am Berg on 19.08.
 func arrivalTimeOptionalUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.317: Optional arrival time (class timetable becomes the source)...")
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE schedule.student_arrival_schedules
 			ALTER COLUMN expected_arrival DROP NOT NULL;
@@ -56,8 +54,6 @@ func arrivalTimeOptionalUp(ctx context.Context, db *bun.DB) error {
 }
 
 func arrivalTimeOptionalDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.317: expected_arrival becomes mandatory again...")
-
 	// A row that inherits its time from the class has no representation once
 	// the column is mandatory again, so the rollback drops those rows. The
 	// care days they carried are recoverable from the class timetable and the

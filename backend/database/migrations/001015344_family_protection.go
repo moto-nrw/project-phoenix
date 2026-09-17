@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -22,7 +21,6 @@ func init() {
 }
 
 func familyProtectionUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", slog.String("migration", familyProtectionVersion))
 	_, err := db.NewRaw(`
 		CREATE TABLE users.student_family_protection_events (
 			id BIGSERIAL PRIMARY KEY,

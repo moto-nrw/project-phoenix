@@ -26,8 +26,6 @@ func init() {
 }
 
 func roomsOpenReleaseUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.372: Adding is_open_room release flag to facilities.rooms...")
-
 	// An "offener Raum" is a place the OGS administration permanently releases
 	// for use (#3062). The release belongs to the room, needs no daily opening,
 	// and asserts neither that somebody supervises it nor that children may be
@@ -68,15 +66,15 @@ func roomsOpenReleaseUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed releasing canonical Schulhof rooms: %w", err)
 	}
 	if affected, affErr := res.RowsAffected(); affErr == nil {
-		fmt.Printf("Migration 1.15.372: released %d canonical Schulhof room(s)\n", affected)
+		migrationLog().InfoContext(ctx, "canonical Schulhof rooms released as open rooms",
+			"rows", affected,
+		)
 	}
 
 	return nil
 }
 
 func roomsOpenReleaseDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.372...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE facilities.rooms
 		DROP COLUMN IF EXISTS is_open_room;

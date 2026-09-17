@@ -23,7 +23,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.76: Adding updated_at to enrollment.submission_rate_limits...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.submission_rate_limits
 				ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
@@ -33,7 +32,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.76...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.submission_rate_limits
 				DROP COLUMN IF EXISTS updated_at;

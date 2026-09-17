@@ -269,28 +269,6 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 // Update Operations
 // ============================================================================
 
-func TestAccountRepository_UpdatePassword(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Account
-	ctx := testpkg.Ctx(t)
-
-	t.Run("updates password hash", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "password")
-
-		newHash := "$argon2id$v=19$m=65536,t=3,p=4$newpasswordhash"
-		err := repo.UpdatePassword(ctx, account.ID, newHash)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, account.ID)
-		require.NoError(t, err)
-		require.NotNil(t, found.PasswordHash)
-		assert.Equal(t, newHash, *found.PasswordHash)
-	})
-}
-
 func TestAccountRepository_UpdateAvatar(t *testing.T) {
 	t.Parallel()
 

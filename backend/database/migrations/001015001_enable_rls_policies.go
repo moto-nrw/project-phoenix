@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/uptrace/bun"
@@ -33,8 +32,6 @@ func init() {
 }
 
 func enableRLSPolicies(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.1: Enabling Row Level Security on tenant-scoped tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -42,7 +39,7 @@ func enableRLSPolicies(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -74,8 +71,6 @@ func enableRLSPolicies(ctx context.Context, db *bun.DB) error {
 		if err != nil {
 			return fmt.Errorf("failed to create policy on %s: %w", table, err)
 		}
-
-		fmt.Printf("  ✓ %s.%s — RLS enabled + policy created\n", schema, tableName)
 	}
 
 	// Special case: auth.roles (nullable tenant_id)
@@ -101,15 +96,14 @@ func enableRLSPolicies(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to create policy on auth.roles: %w", err)
 	}
-	fmt.Println("  ✓ auth.roles — RLS enabled + policy created (nullable tenant_id)")
 
-	fmt.Printf("Migration 1.15.1: Successfully enabled RLS on %d tables\n", len(tablesWithNotNullTenantID)+1)
+	migrationLog().InfoContext(ctx, "row level security enabled with tenant isolation policies",
+		"tables", len(tablesWithNotNullTenantID)+1,
+	)
 	return tx.Commit()
 }
 
 func rollbackRLSPolicies(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.1: Disabling Row Level Security...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -117,7 +111,7 @@ func rollbackRLSPolicies(ctx context.Context, db *bun.DB) error {
 	defer func() {
 		if err := tx.Rollback(); err != nil &&
 			err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -135,6 +129,5 @@ func rollbackRLSPolicies(ctx context.Context, db *bun.DB) error {
 	_, _ = tx.ExecContext(ctx, `DROP POLICY IF EXISTS tenant_isolation_auth_roles ON auth.roles`)
 	_, _ = tx.ExecContext(ctx, `ALTER TABLE auth.roles DISABLE ROW LEVEL SECURITY`)
 
-	fmt.Println("Migration 1.15.1: Successfully rolled back RLS")
 	return tx.Commit()
 }

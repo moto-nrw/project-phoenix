@@ -670,7 +670,9 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 		SendInvitation: func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error) {
 			var summary GuardianInvitationSummary
 			err := tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-				invitation, err := f.Guardian.SendInvitation(txCtx, usersSvc.GuardianInvitationRequest{GuardianProfileID: guardianID, CreatedBy: actorAccountID}) //nolint:staticcheck // deprecated twin stays until audit A-13 deletes the whole flow
+				invitation, err := f.GuardianInvitation.Create(txCtx, authSvc.GuardianInvitationCreateRequest{
+					GuardianProfileID: guardianID, CreatedBy: actorAccountID,
+				})
 				if err != nil {
 					return err
 				}

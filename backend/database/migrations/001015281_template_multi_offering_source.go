@@ -32,8 +32,6 @@ func init() {
 }
 
 func templateMultiOfferingSourceUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.281: Converting activities.groups offering source to a jsonb id array...")
-
 	// A Regeltermin may now union SEVERAL care offerings as its roster source
 	// (customer request on top of #2137): a block that holds the children of
 	// "Betreuung bis 14:30" AND "bis 16:00" AND "montags Musikunterricht" at
@@ -120,13 +118,10 @@ func templateMultiOfferingSourceUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating activities.groups source offerings index: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.281: Completed successfully")
 	return nil
 }
 
 func templateMultiOfferingSourceDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.281: Restoring single source_care_offering_id column...")
-
 	// Multi-source templates collapse to their first STILL-EXISTING source on
 	// rollback; the remaining ids cannot be represented in the single-FK
 	// shape. The existence filter is load-bearing: the jsonb array carries no

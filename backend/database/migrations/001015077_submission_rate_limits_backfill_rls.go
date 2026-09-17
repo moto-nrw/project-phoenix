@@ -23,8 +23,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.77: Backfilling RLS policy on enrollment.submission_rate_limits...")
-
 			// ENABLE / FORCE ROW LEVEL SECURITY are idempotent: re-running
 			// them on a table that already has RLS active is a no-op.
 			// DROP POLICY IF EXISTS + CREATE POLICY guarantees the policy
@@ -53,7 +51,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.77: dropping tenant_isolation_submission_rate_limits policy...")
 			// Best-effort rollback: drop the policy but leave RLS enabled
 			// (other migrations may rely on the FORCE flag).
 			if _, err := db.NewRaw(`

@@ -32,8 +32,6 @@ func init() {
 }
 
 func addUniqueGroupTransfersConstraintUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.20: Adding unique constraint for group transfers...")
-
 	// Add unique constraint to prevent duplicate transfers
 	// A transfer is identified by: group_id + substitute_staff_id + start_date
 	// Only applies to transfers (regular_staff_id IS NULL)
@@ -46,13 +44,10 @@ func addUniqueGroupTransfersConstraintUp(ctx context.Context, db *bun.DB) error 
 		return fmt.Errorf("failed creating unique index for group transfers: %w", err)
 	}
 
-	fmt.Println("Migration 1.6.20: Successfully added unique constraint for group transfers")
 	return nil
 }
 
 func addUniqueGroupTransfersConstraintDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.20: Removing unique constraint for group transfers...")
-
 	// Drop the unique index
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS education.idx_no_duplicate_group_transfers;
@@ -61,6 +56,5 @@ func addUniqueGroupTransfersConstraintDown(ctx context.Context, db *bun.DB) erro
 		return fmt.Errorf("failed dropping unique index for group transfers: %w", err)
 	}
 
-	fmt.Println("Rolling back migration 1.6.20: Successfully removed unique constraint")
 	return nil
 }

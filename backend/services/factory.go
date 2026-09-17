@@ -867,7 +867,7 @@ func newFactory(
 		GuardianProfileRepo:     repos.GuardianProfile,
 		GuardianPhoneNumberRepo: repos.GuardianPhoneNumber,
 		StudentGuardianRepo:     repos.StudentGuardian,
-		GuardianInvitationRepo:  repos.GuardianInvitation,
+		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
 		AccountRepo:             repos.Account,
 		AccountTenantRepo:       repos.AccountTenant,
 		AccountRoleRepo:         repos.AccountRole,
@@ -1607,7 +1607,9 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
-	var guardianInvitationService auth.GuardianInvitationService
+	// The delivery module is composed after the identity module, so the
+	// guardian mail reads its outbox at call time.
+	var emailOutboxService *emailoutbox.Service
 	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos, organizations),
 		tokenAuth: authConfig.TokenAuth,
@@ -1620,15 +1622,28 @@ func newFactory(
 		},
 		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
 		operators: operatorDependencies,
-		// The lifecycle flows (#3225) read the retained role management and
-		// the guardian invitation delivery back at call time; both are
-		// composed below.
+		resets: &passwordResetWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
+			expiry: passwordResetTokenExpiry, rateLimitEnabled: cfg.RateLimitEnabled,
+		},
+		invitations: &invitationWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
+			mailIdentity: tenantMailIdentity, tokenAuth: authConfig.TokenAuth, expiry: invitationTokenExpiry,
+		},
+		// The lifecycle flows (#3225) read the retained role management back
+		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
 			admin: func() *auth.Service { return authService },
-			delivery: func() auth.GuardianInvitationDelivery {
-				delivery, _ := guardianInvitationService.(auth.GuardianInvitationDelivery)
-				return delivery
+			guardianMail: &guardianInvitationWiring{
+				settings: settingsService, schools: organizations,
+				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
+				enrollments: repos.ParentEnrollmentRequest,
+				// The accept and login links go to the parents portal, never
+				// to the staff frontend.
+				parentsURL: parentsURL, fallbackExpiry: invitationTokenExpiry,
+				logger: authLogger.With("flow", "guardian_invitation"),
 			},
 		},
 	})
@@ -1638,6 +1653,7 @@ func newFactory(
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
+	authConfig.Resets = accountSessionsPort
 	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
@@ -1686,26 +1702,7 @@ func newFactory(
 		return nil, fmt.Errorf("init passkey service: %w", err)
 	}
 
-	invitationService := auth.NewInvitationService(auth.InvitationServiceConfig{
-		TokenAuth:         authConfig.TokenAuth,
-		InvitationRepo:    repos.InvitationToken,
-		AccountRepo:       repos.Account,
-		AccountTenantRepo: repos.AccountTenant,
-		RoleRepo:          repos.Role,
-		PermissionRepo:    repos.Permission,
-		AccountRoleRepo:   repos.AccountRole,
-		SchoolRepo:        invitationSchoolDirectory{schools: organizations},
-		Mailer:            mailer,
-		Dispatcher:        dispatcher,
-		FrontendURL:       frontendURL,
-		SchoolURL:         schoolURL,
-		DefaultFrom:       defaultFrom,
-		InvitationExpiry:  invitationTokenExpiry,
-		MailIdentity:      tenantMailIdentity,
-		SchoolIdentity:    accountSessionsPort,
-		DB:                db,
-		Logger:            authLogger,
-	})
+	invitationService := NewInvitationService(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.
@@ -1773,29 +1770,9 @@ func newFactory(
 		return nil, fmt.Errorf("initialize delivery module: %w", err)
 	}
 	emailOutboxWorker := deliveryRuntime.Worker
-	emailOutboxService := emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
+	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService = auth.NewGuardianInvitationService(auth.GuardianInvitationServiceConfig{
-		InvitationRepo:       repos.GuardianInvitation,
-		AccountRepo:          repos.Account,
-		AccountTenantRepo:    repos.AccountTenant,
-		AccountRoleRepo:      repos.AccountRole,
-		RoleRepo:             repos.Role,
-		PersonRepo:           repos.Person,
-		GuardianProfileRepo:  repos.GuardianProfile,
-		StudentGuardianRepo:  repos.StudentGuardian,
-		Audit:                auditCommand,
-		StudentRepo:          repos.Student,
-		SchoolRepo:           invitationSchoolDirectory{schools: organizations},
-		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
-		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
-		RelativeAccess:       accountSessionsPort,
-		SettingsResolver:     settingsService,
-		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		FallbackExpiry:       invitationTokenExpiry,
-		DB:                   db,
-		Logger:               authLogger.With("flow", "guardian_invitation"),
-	})
+	guardianInvitationService := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -1960,8 +1937,8 @@ func newFactory(
 		OperatorRepo:         operatorDirectory,
 		Sessions:             newOperatorSessions(identityAccess),
 		AuditLogRepo:         repos.OperatorAuditLog,
-		EmailChangeTokenRepo: repos.OperatorEmailChangeToken,
-		InvitationTokenRepo:  repos.OperatorInvitationToken,
+		EmailChangeTokenRepo: newOperatorEmailChangeTokens(identityAccess),
+		InvitationTokenRepo:  newOperatorInvitationTokens(identityAccess),
 		DB:                   db,
 		Logger:               platformLogger,
 		Dispatcher:           dispatcher,
@@ -2655,7 +2632,7 @@ func newFactory(
 		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
 		GuardianInvites:         guardianInvitationService,
-		GuardianInviteRepo:      repos.GuardianInvitation,
+		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
 		GuardianChangeAuditRepo: repos.GuardianChange,

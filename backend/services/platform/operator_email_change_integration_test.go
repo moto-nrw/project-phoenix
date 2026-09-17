@@ -13,7 +13,6 @@ import (
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/services"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -118,7 +117,7 @@ func TestIntegration_EmailChange_RateLimitCounting(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("ratelimit-%d@test.local", time.Now().UnixNano())
@@ -144,7 +143,7 @@ func TestIntegration_EmailChange_RateLimitIgnoresOldTokens(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("ratelimit-old-%d@test.local", time.Now().UnixNano())
@@ -178,7 +177,7 @@ func TestIntegration_EmailChange_ConsumeToken_Success(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("consume-%d@test.local", time.Now().UnixNano())
@@ -218,7 +217,7 @@ func TestIntegration_EmailChange_ConsumeToken_Expired(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("expired-%d@test.local", time.Now().UnixNano())
@@ -247,7 +246,7 @@ func TestIntegration_EmailChange_ConsumeToken_InvalidToken(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	consumed, err := repo.ConsumeByToken(ctx, "nonexistent-token-uuid")
@@ -264,7 +263,7 @@ func TestIntegration_EmailChange_UniqueIndex_OneActivePerOperator(t *testing.T) 
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("unique-%d@test.local", time.Now().UnixNano())
@@ -301,7 +300,7 @@ func TestIntegration_EmailChange_UniqueIndex_AllowsAfterInvalidation(t *testing.
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("invalidate-%d@test.local", time.Now().UnixNano())
@@ -346,7 +345,7 @@ func TestIntegration_EmailChange_Cleanup_InvalidateExpired(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("cleanup-exp-%d@test.local", time.Now().UnixNano())
@@ -386,7 +385,7 @@ func TestIntegration_EmailChange_Cleanup_DeleteStaleTokens(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("cleanup-stale-%d@test.local", time.Now().UnixNano())
@@ -421,7 +420,7 @@ func TestIntegration_EmailChange_Cleanup_PreservesRecentTokens(t *testing.T) {
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
 
-	repo := platformRepo.NewOperatorEmailChangeTokenRepository(db)
+	repo := newOperatorEmailChangeTokens(t, db)
 	ctx := context.Background()
 
 	email := fmt.Sprintf("cleanup-recent-%d@test.local", time.Now().UnixNano())

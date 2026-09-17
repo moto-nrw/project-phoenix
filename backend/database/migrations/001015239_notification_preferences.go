@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -53,7 +52,6 @@ func init() {
 // records a deliberate opt-out, which a future change of defaults must not
 // silently overwrite.
 func notificationPreferencesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.239: Creating users.notification_preferences...")
 	return ensureNotificationPreferences(ctx, db)
 }
 
@@ -64,7 +62,7 @@ func ensureNotificationPreferences(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -122,7 +120,6 @@ func ensureNotificationPreferences(ctx context.Context, db *bun.DB) error {
 // no-op, the data here is a user's own choice that they can re-enter, and
 // nothing else references the rows.
 func notificationPreferencesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.239: Dropping users.notification_preferences...")
 	_, err := db.ExecContext(ctx, `DROP TABLE IF EXISTS users.notification_preferences;`)
 	if err != nil {
 		return fmt.Errorf("error dropping users.notification_preferences: %w", err)

@@ -55,7 +55,8 @@ func ErrorCode(err error) string {
 		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
 		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound),
 		errors.Is(err, ErrOperatorMFACredentialNotFound), errors.Is(err, ErrOperatorMFAChallengeNotFound),
-		errors.Is(err, ErrOperatorTrustedDeviceNotFound), errors.Is(err, ErrOperatorPasskeyNotFound),
+		errors.Is(err, ErrOperatorTrustedDeviceNotFound), errors.Is(err, ErrOperatorInvitationNotFound),
+		errors.Is(err, ErrOperatorEmailChangeNotFound), errors.Is(err, ErrOperatorPasskeyNotFound),
 		errors.Is(err, ErrOperatorPasskeySessionNotFound), errors.Is(err, ErrAccountPasskeyNotFound),
 		errors.Is(err, ErrAccountPasskeySessionNotFound):
 		return "not_found"
@@ -325,8 +326,11 @@ type Engine interface {
 	GuardianAccess
 	OperatorAccess
 	OperatorMFARecords
+	OperatorTokens
 	OperatorPasskeyRecords
 	AccountPasskeyRecords
+	PasswordResets
+	SchoolInvitations
 	AccountSessionAccess
 	RFIDQuery
 	SchoolAccountQuery

@@ -22,7 +22,6 @@ func init() {
 }
 
 func careRequestDecisionSnapshotUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.307: Adding the care-request decision snapshot column...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE schedule.care_schedule_change_requests
 			ADD COLUMN IF NOT EXISTS decision_snapshot JSONB;
@@ -34,7 +33,6 @@ func careRequestDecisionSnapshotUp(ctx context.Context, db *bun.DB) error {
 }
 
 func careRequestDecisionSnapshotDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.307: Removing the care-request decision snapshot column...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE schedule.care_schedule_change_requests
 			DROP COLUMN IF EXISTS decision_snapshot;

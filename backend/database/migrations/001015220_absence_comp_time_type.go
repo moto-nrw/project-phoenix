@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -36,15 +35,13 @@ func init() {
 // credited by the Monatskarte, so the Stundenkonto drops by the day's
 // contractual target when the absence is approved.
 func absenceCompTimeTypeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.220: Adding 'comp_time' to staff_absences type check...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -69,15 +66,13 @@ func absenceCompTimeTypeUp(ctx context.Context, db *bun.DB) error {
 }
 
 func absenceCompTimeTypeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.220: Removing 'comp_time' from staff_absences type check...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

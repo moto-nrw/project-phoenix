@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.203: Adding rotation_anchor_date to config.staff_work_schedules (#1842)...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE config.staff_work_schedules
 					ADD COLUMN IF NOT EXISTS rotation_anchor_date DATE;
@@ -76,7 +75,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.203...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE config.staff_work_schedules
 					DROP COLUMN IF EXISTS rotation_anchor_date;

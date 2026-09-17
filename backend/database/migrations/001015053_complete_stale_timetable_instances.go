@@ -32,8 +32,6 @@ func init() {
 }
 
 func completeStaleTimetableInstancesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.53: Completing stale timetable instances linked to ended active sessions...")
-
 	_, err := db.NewRaw(`
 		WITH stale_instances AS (
 			SELECT ai.id, ag.end_time
@@ -68,6 +66,5 @@ func completeStaleTimetableInstancesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func completeStaleTimetableInstancesDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.53: no-op for stale timetable completion repair")
 	return nil
 }

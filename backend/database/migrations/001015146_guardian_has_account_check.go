@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.146: Enforcing has_account = (account_id IS NOT NULL) on users.guardian_profiles...")
 			// has_account and account_id encode the same fact redundantly. The two
 			// columns are kept in sync by hand (LinkAccount/UnlinkAccount set both in
 			// one UPDATE), but nothing enforced it, so a bad import, a manual fix, or
@@ -58,7 +57,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.146: Dropping has_account/account_id consistency check...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE users.guardian_profiles
 				DROP CONSTRAINT IF EXISTS chk_guardian_has_account_matches_account_id;

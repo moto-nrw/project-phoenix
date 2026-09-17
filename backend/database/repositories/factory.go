@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	"github.com/moto-nrw/project-phoenix/database/repositories/pwausage"
 	"github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
@@ -97,10 +96,7 @@ type Factory struct {
 	RolePermission         authModels.RolePermissionRepository
 	AccountRole            authModels.AccountRoleRepository
 	AccountPermission      authModels.AccountPermissionRepository
-	PasswordResetToken     authModels.PasswordResetTokenRepository
-	PasswordResetRateLimit authModels.PasswordResetRateLimitRepository
 	InvitationToken        authModels.InvitationTokenRepository
-	GuardianInvitation     authModels.GuardianInvitationRepository
 	MFACredential          authModels.MFACredentialRepository
 	MFAEmailChallenge      authModels.MFAEmailChallengeRepository
 	MFATrustedDevice       authModels.MFATrustedDeviceRepository
@@ -243,9 +239,9 @@ type Factory struct {
 	BookingConsistency           auditModels.BookingConsistencyRepository
 
 	// Platform domain (operator dashboard)
-	OperatorAuditLog         platformModels.OperatorAuditLogRepository
-	OperatorEmailChangeToken platformModels.OperatorEmailChangeTokenRepository
-	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
+	// The operator invitation and e-mail change links are owned by Identity
+	// & Access (#2722).
+	OperatorAuditLog platformModels.OperatorAuditLogRepository
 	// School is the Organisation & Tenancy capability that owns
 	// platform.schools (#3253); BindOrganizationTenancy replaces the
 	// unobserved default with the serving root's module.
@@ -544,10 +540,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		RolePermission:         auth.NewRolePermissionRepository(db),
 		AccountRole:            auth.NewAccountRoleRepository(db),
 		AccountPermission:      auth.NewAccountPermissionRepository(db),
-		PasswordResetToken:     auth.NewPasswordResetTokenRepository(db),
-		PasswordResetRateLimit: auth.NewPasswordResetRateLimitRepository(db),
 		InvitationToken:        auth.NewInvitationTokenRepository(db),
-		GuardianInvitation:     auth.NewGuardianInvitationRepository(db),
 		MFACredential:          auth.NewMFACredentialRepository(db),
 		MFAEmailChallenge:      auth.NewMFAEmailChallengeRepository(db),
 		MFATrustedDevice:       auth.NewMFATrustedDeviceRepository(db),
@@ -686,10 +679,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		// Platform repositories. Operators and their refresh sessions are
 		// served by the public Identity & Access capability the service root
 		// binds (#3252); the operator audit ledger belongs to Audit (#2720).
-		OperatorAuditLog:         newOperatorAuditLog(auditRepositoryRuntime),
-		OperatorEmailChangeToken: platformRepo.NewOperatorEmailChangeTokenRepository(db),
-		OperatorInvitationToken:  platformRepo.NewOperatorInvitationTokenRepository(db),
-		School:                   mustNewOrganizationTenancy(db),
+		OperatorAuditLog: newOperatorAuditLog(auditRepositoryRuntime),
+		School:           mustNewOrganizationTenancy(db),
 
 		// Enrollment repositories
 		SubmissionRateLimit: enrollmentModule,

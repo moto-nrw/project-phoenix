@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -37,11 +36,6 @@ func init() {
 // Lehrkraft signing out of "moto schule" must not silently unregister the
 // OGS devices of the same account.
 func pushSubscriptionsSchoolPortalUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting",
-		slog.String("migration", pushSubscriptionsSchoolPortalVersion),
-		slog.String("detail", "allowing portal 'school' on iot.push_subscriptions"),
-	)
-
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE iot.push_subscriptions
 			DROP CONSTRAINT IF EXISTS chk_push_subscriptions_portal,
@@ -55,10 +49,6 @@ func pushSubscriptionsSchoolPortalUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("widening push subscription portal check: %w", err)
 	}
 
-	slog.Info("migration completed",
-		slog.String("migration", pushSubscriptionsSchoolPortalVersion),
-		slog.String("detail", "portal 'school' allowed on iot.push_subscriptions"),
-	)
 	return nil
 }
 
@@ -71,11 +61,6 @@ func pushSubscriptionsSchoolPortalUp(ctx context.Context, db *bun.DB) error {
 // touched registration survives. Registrations lost this way come back the
 // next time the browser subscribes.
 func pushSubscriptionsSchoolPortalDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rolling back",
-		slog.String("migration", pushSubscriptionsSchoolPortalVersion),
-		slog.String("detail", "removing portal 'school' from iot.push_subscriptions"),
-	)
-
 	if _, err := db.ExecContext(ctx, `
 		DELETE FROM iot.push_subscriptions WHERE portal = 'school'
 	`); err != nil {
@@ -93,9 +78,8 @@ func pushSubscriptionsSchoolPortalDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("reconciling duplicate push subscriptions: %w", err)
 	}
 	if removed, err := res.RowsAffected(); err == nil && removed > 0 {
-		slog.Warn("migration dropped duplicate push subscriptions",
-			slog.String("migration", pushSubscriptionsSchoolPortalVersion),
-			slog.Int64("rows", removed),
+		migrationLog().WarnContext(ctx, "duplicate push subscriptions dropped",
+			"rows", removed,
 		)
 	}
 
@@ -111,9 +95,5 @@ func pushSubscriptionsSchoolPortalDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("restoring push subscription portal check: %w", err)
 	}
 
-	slog.Info("migration rolled back",
-		slog.String("migration", pushSubscriptionsSchoolPortalVersion),
-		slog.String("detail", "portal 'school' removed from iot.push_subscriptions"),
-	)
 	return nil
 }

@@ -61,12 +61,3 @@ type GuardianInvitationService interface {
 	// schools (issue #584: moved verbatim out of api/auth).
 	GetTenantSlugForToken(ctx context.Context, token string) string
 }
-
-// GuardianSettingsResolver is the narrow contract the guardian invitation
-// service needs from the settings service. Defined locally so the auth
-// package does not import the full config service. Pass nil to fall back to
-// env-var → default expiry.
-type GuardianSettingsResolver interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-}

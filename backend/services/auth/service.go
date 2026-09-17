@@ -20,20 +20,13 @@ import (
 )
 
 const (
-	passwordResetRateLimitThreshold = 3
-	opCreateService                 = "create service"
-	opHashPassword                  = "hash password"
-	opGetAccount                    = "get account"
-	opUpdateAccount                 = "update account"
-	opValidateToken                 = "validate token"
-	opCreateParentAccount           = "create parent account"
+	opCreateService       = "create service"
+	opHashPassword        = "hash password"
+	opGetAccount          = "get account"
+	opUpdateAccount       = "update account"
+	opValidateToken       = "validate token"
+	opCreateParentAccount = "create parent account"
 )
-
-var passwordResetEmailBackoff = []time.Duration{
-	time.Second,
-	5 * time.Second,
-	15 * time.Second,
-}
 
 // ServiceConfig holds configuration for the auth service
 type ServiceConfig struct {
@@ -60,6 +53,10 @@ type ServiceConfig struct {
 	// invitation flows provision identities and apply the school-role policy
 	// through it (#3314).
 	Lifecycle AccountLifecycle
+	// Resets is the consumer-owned port over the Identity & Access password
+	// reset capability (#2722). The mail, URL, expiry and rate-limit values
+	// above configure it in the composition root.
+	Resets PasswordResets
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -93,23 +90,17 @@ func NewServiceConfig(
 // revocation are served by Identity & Access through the Sessions port
 // (#3251); role and permission management moved there with #3314.
 type Service struct {
-	repos               *repositories.Factory
-	tokenAuth           *jwt.TokenAuth
-	dispatcher          *email.Dispatcher
-	defaultFrom         email.Email
-	frontendURL         string
-	parentsURL          string
-	schoolURL           string
-	passwordResetExpiry time.Duration
-	rateLimitEnabled    bool
-	txHandler           *tenant.TransactionRunner
-	db                  *bun.DB
-	logger              *slog.Logger
-	settings            configSvc.SettingsService
-	audit               auditModels.Command
-	tenantRuntime       *tenant.UnitOfWork
-	sessions            AccountSessions
-	lifecycle           AccountLifecycle
+	repos         *repositories.Factory
+	tokenAuth     *jwt.TokenAuth
+	txHandler     *tenant.TransactionRunner
+	db            *bun.DB
+	logger        *slog.Logger
+	settings      configSvc.SettingsService
+	audit         auditModels.Command
+	tenantRuntime *tenant.UnitOfWork
+	sessions      AccountSessions
+	lifecycle     AccountLifecycle
+	resets        PasswordResets
 	// mfaService is optional. The Identity & Access login flows read it
 	// through CurrentMFAService at call time, so SetMFAService keeps its
 	// meaning: nil disables the gate and login behaves as a plain
@@ -130,14 +121,6 @@ func (s *Service) withTenantRuntime(ctx context.Context) context.Context {
 // under it.
 func (s *Service) WithTenantRuntime(ctx context.Context) context.Context {
 	return s.withTenantRuntime(ctx)
-}
-
-// detachedTenantContext preserves tenant/runtime values while isolating
-// asynchronous work from the request transaction and its commit hooks.
-func detachedTenantContext(ctx context.Context) context.Context {
-	ctx = context.WithoutCancel(ctx)
-	ctx = tenant.ContextWithoutTransaction(ctx)
-	return tenant.ContextWithoutAfterCommitHooks(ctx)
 }
 
 func (s *Service) SetTenantRuntime(runtime tenant.UnitOfWork) {
@@ -172,22 +155,16 @@ func NewService(
 	}
 
 	return &Service{
-		repos:               repos,
-		tokenAuth:           tokenAuth,
-		dispatcher:          config.Dispatcher,
-		defaultFrom:         config.DefaultFrom,
-		frontendURL:         config.FrontendURL,
-		parentsURL:          config.ParentsURL,
-		schoolURL:           config.SchoolURL,
-		passwordResetExpiry: config.PasswordResetExpiry,
-		rateLimitEnabled:    config.RateLimitEnabled,
-		txHandler:           tenant.NewTransactionRunner(),
-		db:                  db,
-		logger:              logger,
-		settings:            config.Settings,
-		audit:               config.Audit,
-		sessions:            config.Sessions,
-		lifecycle:           config.Lifecycle,
+		repos:     repos,
+		tokenAuth: tokenAuth,
+		txHandler: tenant.NewTransactionRunner(),
+		db:        db,
+		logger:    logger,
+		settings:  config.Settings,
+		audit:     config.Audit,
+		sessions:  config.Sessions,
+		lifecycle: config.Lifecycle,
+		resets:    config.Resets,
 	}, nil
 }
 

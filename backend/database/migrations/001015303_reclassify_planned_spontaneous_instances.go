@@ -30,7 +30,6 @@ func init() {
 // so the lifecycle time guards apply. Started/completed/cancelled rows keep
 // their flag: their origin is ambiguous and no start guard applies to them.
 func reclassifyPlannedSpontaneousInstancesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.303: Reclassifying planned spontaneous activity instances as planned blocks...")
 	res, err := db.NewRaw(`
 		UPDATE schedule.activity_instances
 		SET is_spontaneous = FALSE
@@ -41,12 +40,13 @@ func reclassifyPlannedSpontaneousInstancesUp(ctx context.Context, db *bun.DB) er
 		return fmt.Errorf("reclassify planned spontaneous instances: %w", err)
 	}
 	if rows, err := res.RowsAffected(); err == nil {
-		fmt.Printf("Migration 1.15.303: reclassified %d instance(s)\n", rows)
+		migrationLog().InfoContext(ctx, "planned spontaneous activity instances reclassified",
+			"rows", rows,
+		)
 	}
 	return nil
 }
 
 func reclassifyPlannedSpontaneousInstancesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.303: nothing to restore (the pre-#2299 flag values are not recoverable)")
 	return nil
 }

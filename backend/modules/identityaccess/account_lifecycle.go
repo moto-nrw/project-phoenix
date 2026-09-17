@@ -412,6 +412,7 @@ type AccountLifecycle interface {
 	SchoolIdentityProvisioning
 	ParentAccountAccess
 	GuardianRelativeAccess
+	GuardianInvitations
 }
 
 func (m *Module) AuthenticateStaffPIN(ctx context.Context, tenantID, staffID int64, pin string) (AuthenticatedStaff, error) {

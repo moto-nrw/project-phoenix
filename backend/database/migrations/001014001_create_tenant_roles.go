@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/uptrace/bun"
@@ -33,15 +32,13 @@ func init() {
 }
 
 func createTenantRoles(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.14.1: Creating PostgreSQL roles for multi-tenancy...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -198,7 +195,6 @@ func createTenantRoles(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error setting default privileges for phoenix_admin: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.1: Successfully created PostgreSQL roles for multi-tenancy")
 	return tx.Commit()
 }
 
@@ -218,15 +214,13 @@ func quoteLiteral(s string) string {
 }
 
 func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.14.1: Dropping tenant PostgreSQL roles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -305,6 +299,5 @@ func rollbackTenantRoles(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping roles: %w", err)
 	}
 
-	fmt.Println("Migration 1.14.1: Successfully rolled back tenant PostgreSQL roles")
 	return tx.Commit()
 }

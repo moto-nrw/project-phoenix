@@ -22,7 +22,6 @@ func init() {
 }
 
 func pickupChangeRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.302: Adding pickup change request type...")
 	// Two pending-uniqueness rules, not one: a weekly-schedule request stays
 	// one-per-student (the old rule, now scoped to its kind), while pickup
 	// changes are one-per-student-AND-DAY — a Tuesday request must not block

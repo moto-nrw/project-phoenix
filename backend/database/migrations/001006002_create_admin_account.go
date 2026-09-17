@@ -35,8 +35,6 @@ func init() {
 
 // createAdminAccount creates the default admin account
 func createAdminAccount(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.2: Creating default admin account...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -52,15 +50,16 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 	adminEmail := os.Getenv("ADMIN_EMAIL")
 	if adminEmail == "" {
 		adminEmail = "admin@example.com" // Fallback default
-		fmt.Printf("WARNING: ADMIN_EMAIL environment variable not set, using default: %s\n", adminEmail)
+		migrationLog().WarnContext(ctx, "ADMIN_EMAIL not set, using the default address",
+			"email", adminEmail,
+		)
 	}
 
 	adminUsername := "admin"
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
-	if adminPassword == "" {
+	usingDefaultPassword := adminPassword == ""
+	if usingDefaultPassword {
 		adminPassword = "Test1234%" // Fallback default
-		fmt.Printf("WARNING: ADMIN_PASSWORD environment variable not set, using default password!\n")
-		fmt.Printf("WARNING: Please set ADMIN_PASSWORD environment variable for security!\n")
 	}
 
 	// Hash the password
@@ -119,30 +118,24 @@ func createAdminAccount(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Log admin account creation securely
-	fmt.Printf("\n=== Admin Account Created ===\n")
-	fmt.Printf("Username: %s\n", adminUsername)
-	fmt.Printf("Email: %s\n", adminEmail)
-
-	// Only show password if using default fallback
-	if adminPassword == "Test1234%" {
-		fmt.Printf("Password: %s (DEFAULT - CHANGE IMMEDIATELY!)\n", adminPassword)
-		fmt.Printf("WARNING: Using default password! Set ADMIN_PASSWORD environment variable!\n")
-	} else {
-		fmt.Printf("Password: Set via ADMIN_PASSWORD environment variable\n")
-		fmt.Printf("Please ensure you have recorded the password securely.\n")
+	log := migrationLog()
+	log.InfoContext(ctx, "admin account created; change the password after the first login",
+		"username", adminUsername,
+		"email", adminEmail,
+	)
+	// The password itself is never logged. It used to be printed whenever it was
+	// the built-in fallback, which put a working credential into stdout and,
+	// once the migrate command logs through applog (#3300), would put it into
+	// Loki as well. Naming the environment variable is enough to act on.
+	if usingDefaultPassword {
+		log.WarnContext(ctx, "admin account uses the built-in default password; set ADMIN_PASSWORD")
 	}
-
-	fmt.Printf("Please change this password after first login!\n")
-	fmt.Printf("===========================\n\n")
 
 	return nil
 }
 
 // dropAdminAccount removes the default admin account
 func dropAdminAccount(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.2: Removing default admin account...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {

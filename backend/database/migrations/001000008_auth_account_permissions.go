@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createAuthAccountPermissionsTable creates the auth.account_permissions table
 func createAuthAccountPermissionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.0.8: Creating auth.account_permissions table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createAuthAccountPermissionsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -219,8 +216,6 @@ func createAuthAccountPermissionsTable(ctx context.Context, db *bun.DB) error {
 
 // dropAuthAccountPermissionsTable drops the auth.account_permissions table
 func dropAuthAccountPermissionsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.0.8: Removing auth.account_permissions table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -228,7 +223,7 @@ func dropAuthAccountPermissionsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

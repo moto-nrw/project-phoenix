@@ -37,7 +37,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.94: restricting auth.mfa_overrides WITH CHECK to tenant-scoped writes...")
 			_, err := db.ExecContext(ctx, `
 				DROP POLICY IF EXISTS mfa_overrides_tenant_isolation ON auth.mfa_overrides;
 				CREATE POLICY mfa_overrides_tenant_isolation ON auth.mfa_overrides
@@ -61,7 +60,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.94: restoring permissive WITH CHECK (tenant_id IS NULL allowed)...")
 			_, err := db.ExecContext(ctx, `
 				DROP POLICY IF EXISTS mfa_overrides_tenant_isolation ON auth.mfa_overrides;
 				CREATE POLICY mfa_overrides_tenant_isolation ON auth.mfa_overrides

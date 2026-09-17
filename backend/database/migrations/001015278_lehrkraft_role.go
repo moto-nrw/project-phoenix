@@ -51,8 +51,6 @@ func init() {
 // migration 1.14.3 the uniqueness of system role names is a partial index
 // (WHERE tenant_id IS NULL), which a bare ON CONFLICT (name) cannot target.
 func lehrkraftRoleUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.278: Lehrkraft system role with class_day:read...")
-
 	if _, err := db.ExecContext(ctx, `
 		INSERT INTO auth.roles (name, description, is_system, base_role, tenant_id)
 		SELECT 'lehrkraft',
@@ -76,8 +74,6 @@ func lehrkraftRoleUp(ctx context.Context, db *bun.DB) error {
 }
 
 func lehrkraftRoleDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.278: Removing lehrkraft role and class_day:read...")
-
 	if err := dropPermission(ctx, db, "class_day:read"); err != nil {
 		return err
 	}

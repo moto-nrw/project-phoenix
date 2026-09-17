@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func consolidateRolesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.9.4: Consolidating roles — expanding user permissions, removing teacher/staff roles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -122,20 +119,17 @@ func consolidateRolesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error deleting teacher/staff roles: %w", err)
 	}
 
-	fmt.Println("Migration 1.9.4: Successfully consolidated roles")
 	return tx.Commit()
 }
 
 func consolidateRolesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.1: Restoring teacher/staff roles...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -238,6 +232,5 @@ func consolidateRolesDown(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing extra user permissions: %w", err)
 	}
 
-	fmt.Println("Migration 1.9.4: Successfully restored teacher/staff roles")
 	return tx.Commit()
 }

@@ -44,8 +44,6 @@ func init() {
 // without this rewrite, any school that already added the "Abholregelung"
 // field to its enrollment form would fail validation on the next load/save.
 func formSchemasPickupWeekdayBooleanUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.117: Converting pickup_status form fields to weekday_boolean...")
-
 	if _, err := db.NewRaw(`
 		UPDATE enrollment.form_schemas
 		SET fields = (

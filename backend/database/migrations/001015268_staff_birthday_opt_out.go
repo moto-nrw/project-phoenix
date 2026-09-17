@@ -43,8 +43,6 @@ func init() {
 // operations.birthday_display_include_staff, which is off by default. Both
 // have to be on for a name to show.
 func staffBirthdayOptOutUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.268: Adding birthday_display_opt_out to users.staff...")
-
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE users.staff
 			ADD COLUMN IF NOT EXISTS birthday_display_opt_out BOOLEAN NOT NULL DEFAULT FALSE;
@@ -52,13 +50,10 @@ func staffBirthdayOptOutUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("add users.staff.birthday_display_opt_out: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.268: Completed successfully")
 	return nil
 }
 
 func staffBirthdayOptOutDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.268: Dropping users.staff.birthday_display_opt_out...")
-
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE users.staff
 			DROP COLUMN IF EXISTS birthday_display_opt_out;

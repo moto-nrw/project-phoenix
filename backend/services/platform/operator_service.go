@@ -77,8 +77,8 @@ type OperatorAuthServiceConfig struct {
 	OperatorRepo         OperatorDirectory
 	Sessions             OperatorSessions
 	AuditLogRepo         platform.OperatorAuditLogRepository
-	EmailChangeTokenRepo platform.OperatorEmailChangeTokenRepository
-	InvitationTokenRepo  platform.OperatorInvitationTokenRepository
+	EmailChangeTokenRepo OperatorEmailChangeTokens
+	InvitationTokenRepo  OperatorInvitationTokens
 	DB                   *bun.DB
 	Logger               *slog.Logger
 	Dispatcher           *emailpkg.Dispatcher
