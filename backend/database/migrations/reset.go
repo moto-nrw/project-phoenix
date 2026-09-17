@@ -3,6 +3,7 @@ package migrations
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -42,7 +43,7 @@ const droppablePublicTypesQuery = `
 	ORDER BY t.typname
 `
 
-// ResetDatabase drops all schemas and recreates them to start fresh.
+// resetDatabase drops all schemas and recreates them to start fresh.
 //
 // The reset only issues DDL. DROP does not fire row triggers, and the schema
 // carries no event triggers, so there is nothing for session_replication_role
@@ -50,11 +51,12 @@ const droppablePublicTypesQuery = `
 // to a single pooled connection, so the reset to 'origin' could land on a
 // different connection than the switch to 'replica' and leave a connection in
 // replica mode for the migrations that run next — with foreign keys unenforced.
-func ResetDatabase(ctx context.Context, db *bun.DB) error {
+func resetDatabase(ctx context.Context, db *bun.DB, logger *slog.Logger) error {
 	if db == nil {
 		return fmt.Errorf("migration database is required")
 	}
-	fmt.Println("Resetting database: Dropping and recreating all schemas...")
+	logger = migrationLogger(logger)
+	logger.InfoContext(ctx, "dropping and recreating all schemas")
 
 	// List of schemas to drop and recreate.
 	// NOTE: keep in sync with all CREATE SCHEMA calls across migrations,
@@ -86,7 +88,7 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 
 	// 1. Drop all schemas with CASCADE to remove all objects inside them
 	for _, schema := range schemas {
-		fmt.Printf("Dropping schema %s...\n", schema)
+		logger.DebugContext(ctx, "dropping schema", "schema", schema)
 		_, err := db.ExecContext(ctx, "DROP SCHEMA IF EXISTS ? CASCADE", bun.Ident(schema))
 		if err != nil {
 			return fmt.Errorf("failed to drop schema %s: %w", schema, err)
@@ -99,8 +101,9 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 		DROP TABLE IF EXISTS bun_migration_locks CASCADE;
 	`)
 	if err != nil {
-		fmt.Printf("Warning: Failed to drop bun migration tables: %v\n", err)
-		// Continue anyway
+		// Continue anyway: a reset that cannot drop the bookkeeping tables still
+		// recreates the schemas, and migrator.Init recreates these two.
+		logger.WarnContext(ctx, "failed to drop bun migration tables", "error", err)
 	}
 
 	// 2. Drop the custom types left in the public schema. Collect the names
@@ -110,7 +113,7 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to query custom types: %w", err)
 	}
 	for _, typeName := range typeNames {
-		fmt.Printf("Dropping custom type %s...\n", typeName)
+		logger.DebugContext(ctx, "dropping custom type", "type", typeName)
 		// Qualify the name. The query only ever returns types in public, while
 		// an unqualified DROP TYPE resolves through search_path, so under a
 		// non-default search_path the two could disagree: the drop would target
@@ -128,13 +131,14 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 	// in public and step 2 has already removed them.
 	_, err = db.ExecContext(ctx, `DROP EXTENSION IF EXISTS "uuid-ossp"`)
 	if err != nil {
-		fmt.Printf("Warning: Failed to drop extensions: %v\n", err)
-		// Continue anyway, this is not critical
+		// Continue anyway, this is not critical: the migration that installs the
+		// extension uses IF NOT EXISTS.
+		logger.WarnContext(ctx, "failed to drop extensions", "error", err)
 	}
 
 	// 4. Recreate the schemas (this will be skipped when migrations run)
 	for _, schema := range schemas {
-		fmt.Printf("Recreating schema %s...\n", schema)
+		logger.DebugContext(ctx, "recreating schema", "schema", schema)
 		_, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS ?", bun.Ident(schema))
 		if err != nil {
 			return fmt.Errorf("failed to create schema %s: %w", schema, err)
@@ -143,7 +147,7 @@ func ResetDatabase(ctx context.Context, db *bun.DB) error {
 
 	// We already dropped the bun_migrations tables earlier
 
-	fmt.Println("Database reset complete - all schemas dropped and recreated")
+	logger.InfoContext(ctx, "schemas dropped and recreated", "count", len(schemas))
 	return nil
 }
 

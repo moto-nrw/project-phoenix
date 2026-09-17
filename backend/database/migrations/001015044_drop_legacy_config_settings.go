@@ -14,11 +14,11 @@ const (
 )
 
 func init() {
-	MigrationRegistry[dropLegacyConfigSettingsVersion] = &Migration{
+	MigrationRegistry.Register(&Migration{
 		Version:     dropLegacyConfigSettingsVersion,
 		Description: dropLegacyConfigSettingsDescription,
 		DependsOn:   []string{"1.15.25"}, // depends on new tables existing
-	}
+	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error { return dropLegacyConfigSettings(ctx, db) },

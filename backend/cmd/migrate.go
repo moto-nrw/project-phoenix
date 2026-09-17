@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/moto-nrw/project-phoenix/applog"
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/uptrace/bun"
 )
 
@@ -38,7 +40,26 @@ func (root migrateRoot) runCommand(ctx context.Context, command string) error {
 	if err != nil {
 		return err
 	}
+	configureMigrationLogger()
 	return root.run(ctx, operation)
+}
+
+// configureMigrationLogger installs the application logger for migration
+// commands, the way serve does for the server (#3300). Without it the runner's
+// per-migration lines would go out in slog's unconfigured default format, so
+// deployed runs would not produce the JSON that Loki indexes. It also captures
+// the standard-library log.Printf calls that the older migrations still make,
+// which otherwise bypass the handler and go straight to stderr.
+func configureMigrationLogger() {
+	format := "json"
+	if viper.GetBool("log_textlogging") {
+		format = "text"
+	}
+	applog.ConfigureDefault(applog.New(applog.Config{
+		Level:  viper.GetString("log_level"),
+		Format: format,
+		Env:    viper.GetString("app_env"),
+	}))
 }
 
 func (root migrateRoot) run(ctx context.Context, operation migrationOperation) error {
