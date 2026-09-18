@@ -29,6 +29,147 @@ func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
 	assert.Nil(t, update.AbsenceTypeID)
 }
 
+func TestLoadRebookedAbsencesOnlyMapsMissingRowsToNotFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		findErr          error
+		wantErr          string
+		preservesFindErr bool
+	}{
+		{
+			name:    "missing absence",
+			findErr: ErrNotFound,
+			wantErr: "absence not found",
+		},
+		{
+			name:             "repository failure",
+			findErr:          errors.New("database unavailable"),
+			wantErr:          "database unavailable",
+			preservesFindErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc, repo, _ := absSetupService()
+			repo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
+				return nil, tt.findErr
+			}
+
+			_, err := svc.loadRebookedAbsences(context.Background(), 7, []int64{71}, AbsenceTypeOther, nil)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tt.wantErr)
+			if tt.preservesFindErr {
+				assert.ErrorIs(t, err, tt.findErr)
+			}
+		})
+	}
+}
+
+func TestLoadRebookedAbsencesRejectsEntriesThatHaveNotEnded(t *testing.T) {
+	t.Parallel()
+
+	today := NewDate(2026, time.September, 18)
+	for _, tt := range []struct {
+		name  string
+		start Date
+		end   Date
+	}{
+		{
+			name:  "ends today",
+			start: today.AddDays(-2),
+			end:   today,
+		},
+		{
+			name:  "ends in the future",
+			start: today,
+			end:   today.AddDays(1),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc, repo, _ := absSetupService()
+			svc.todayFunc = func() Date { return today }
+			repo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
+				return &StaffAbsence{
+					StaffID:     7,
+					AbsenceType: AbsenceTypeCompTime,
+					DateStart:   tt.start,
+					DateEnd:     tt.end,
+					Status:      AbsenceStatusReported,
+				}, nil
+			}
+
+			_, err := svc.loadRebookedAbsences(context.Background(), 7, []int64{71}, AbsenceTypeOther, nil)
+			require.ErrorIs(t, err, ErrAbsenceRebookingBlocked)
+			assert.ErrorContains(t, err, "noch nicht vorbei")
+		})
+	}
+}
+
+func TestValidateRebookedAbsenceOverlapsRejectsBlockingRows(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.September, 17)
+	entry := rebookedAbsence{after: &StaffAbsence{
+		Model: Model{ID: 71}, StaffID: 7,
+		AbsenceType: AbsenceTypeOther, DateStart: day, DateEnd: day,
+		Status: AbsenceStatusReported,
+	}}
+	err := validateRebookedAbsenceOverlaps([]*StaffAbsence{
+		entry.after,
+		{
+			Model: Model{ID: 72}, StaffID: 7,
+			AbsenceType: AbsenceTypeTraining, DateStart: day, DateEnd: day,
+			Status: AbsenceStatusReported,
+		},
+	}, []rebookedAbsence{entry})
+
+	require.ErrorIs(t, err, ErrAbsenceRebookingBlocked)
+	assert.ErrorContains(t, err, "überschneidet sich")
+}
+
+type rebookingMonthServiceMock struct {
+	WorkTimeMonthService
+	targets []DailyTarget
+}
+
+func (m *rebookingMonthServiceMock) GetDailyTargets(context.Context, int64, Date, Date) ([]DailyTarget, error) {
+	return m.targets, nil
+}
+
+func TestRebookingBalanceDeltaUsesCompleteAbsenceSet(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.September, 17)
+	before := StaffAbsence{
+		Model: Model{ID: 72}, StaffID: 7,
+		AbsenceType: AbsenceTypeCompTime, DateStart: day, DateEnd: day,
+		Status: AbsenceStatusReported,
+	}
+	after := before
+	after.AbsenceType = AbsenceTypeOther
+	svc, _, _ := absSetupService()
+	svc.monthService = &rebookingMonthServiceMock{targets: []DailyTarget{{Date: day, TargetMinutes: 480}}}
+
+	delta, err := svc.rebookingBalanceDelta(context.Background(), []*StaffAbsence{
+		{
+			Model: Model{ID: 71}, StaffID: 7,
+			AbsenceType: AbsenceTypeOther, DateStart: day, DateEnd: day,
+			Status: AbsenceStatusReported,
+		},
+		&before,
+	}, []rebookedAbsence{{before: before, after: &after}})
+
+	require.NoError(t, err)
+	assert.Zero(t, delta, "the lower-ID absence keeps the day in both versions")
+}
+
 func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
 	t.Parallel()
 

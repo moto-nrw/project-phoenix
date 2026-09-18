@@ -231,6 +231,9 @@ type StaffAbsenceService interface {
 	// DeleteAbsenceFor is DeleteAbsence with an explicit actor (admin delete,
 	// #1843): deleting a sick report reverses its plan cascade first.
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	// RebookAbsences changes the type of stored absences with a reason
+	// (#3258); DryRun only reports the effects.
+	RebookAbsences(ctx context.Context, req RebookAbsencesRequest) (*AbsenceRebookingResult, error)
 	// PreviewCompTimeBalance projects the Stundenkonto effect of a planned
 	// Freizeitausgleich before the Leitung confirms it (#2873) — informative
 	// only, an overdraft no longer blocks the create.
@@ -341,6 +344,10 @@ type staffAbsenceService struct {
 	// by WithAbsenceTypes; nil in bare-constructed
 	// unit fixtures, where every absence is a plain standard type.
 	absenceTypes AbsenceTypeReader
+	// snapshotRepo reads closed months (#1417); a rebooking inside one is
+	// blocked (#3258). Supplied by WithAbsenceMonthSnapshots; nil means no
+	// month counts as closed.
+	snapshotRepo adjustmentFreezeReader
 	// logger is supplied by the factory (WithAbsenceLogger); nil falls back to
 	// slog.Default() via getLogger, like the other active services.
 	logger    *slog.Logger
