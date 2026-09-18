@@ -91,7 +91,7 @@ func (p *Policy) validateRelocations() error {
 //   - owner, production role, internal-test role and external-test role are
 //     identical on both sides;
 //   - the target holds exactly the Go files the source held at the immutable
-//     base commit, so the move is a rename of the package, not a rewrite of it.
+//     base commit (names, not contents — see requireRelocatedFiles).
 func relocatedPackages(project, ref string, base, candidate *Policy) (map[string]string, error) {
 	var active []Relocation
 	basePackages := packagesByPath(base)
@@ -108,8 +108,21 @@ func relocatedPackages(project, ref string, base, candidate *Policy) (map[string
 	if candidate.PolicyEpoch <= base.PolicyEpoch {
 		return nil, fmt.Errorf("relocation of %s requires a reviewed policy epoch above %d", active[0].From, base.PolicyEpoch)
 	}
+	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
+	if err != nil {
+		return nil, fmt.Errorf("resolve repository root for relocation: %w", err)
+	}
+	root = strings.TrimSpace(root)
+	sha, err := resolveBaseCommit(root, ref)
+	if err != nil {
+		return nil, err
+	}
 	moves := make(map[string]string, len(active))
 	for _, relocation := range active {
+		// LoadPolicy already rejects an unclassified target, so this repeats a
+		// validated invariant. It stays because a base policy is decoded from a
+		// Git blob and this function is the last gate before the baseline is
+		// rewritten; the cost is a map lookup.
 		if _, classified := candidatePackages[relocation.To]; !classified {
 			return nil, fmt.Errorf("relocation target %s has no owner or role", relocation.To)
 		}
@@ -119,7 +132,7 @@ func relocatedPackages(project, ref string, base, candidate *Policy) (map[string
 		if problem := relocationClassificationChange(basePackages[relocation.From], candidatePackages[relocation.To]); problem != "" {
 			return nil, fmt.Errorf("relocation %s -> %s %s", relocation.From, relocation.To, problem)
 		}
-		if err := requireRelocatedFiles(project, ref, relocation); err != nil {
+		if err := requireRelocatedFiles(project, root, sha, relocation); err != nil {
 			return nil, err
 		}
 		moves[base.absolutePackage(relocation.From)] = candidate.absolutePackage(relocation.To)
@@ -149,35 +162,28 @@ func relocationClassificationChange(from, to Package) string {
 	return ""
 }
 
-// requireRelocatedFiles proves the rename from Git rather than from the
-// declaration. The Go files the source directory held at the immutable base
-// commit must be exactly the Go files the target directory holds now. A
-// relocation that adds, drops or renames a file is not a relocation; make that
-// change in its own commit, where the ordinary guards see it.
-func requireRelocatedFiles(project, ref string, relocation Relocation) error {
-	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
-	if err != nil {
-		return fmt.Errorf("resolve repository root for relocation: %w", err)
-	}
-	root = strings.TrimSpace(root)
-	sha, err := resolveBaseCommit(root, ref)
-	if err != nil {
-		return err
-	}
+// requireRelocatedFiles checks the declaration against Git: the Go files the
+// source directory held at the immutable base commit must be exactly the Go
+// files the target directory holds now. A move that adds, drops or renames a
+// file is not a relocation; make that change in its own commit, where the
+// ordinary guards see it.
+//
+// This compares file names, not contents, and it cannot compare contents: a
+// relocation must rewrite the import paths and may rename the package clause,
+// so the bytes necessarily differ. A wholesale rewrite that kept every file
+// name would pass here. It is a sanity gate on the declaration, not the
+// mechanism's safety property — that one is the unchanged violation-key set,
+// which holds whatever the files contain: an import the target has beyond the
+// renamed base entries is still a new violation, and a renamed base entry the
+// target no longer earns is still stale.
+func requireRelocatedFiles(project, root, sha string, relocation Relocation) error {
 	source, err := repositoryRelativePath(root, project, filepath.FromSlash(relocation.From))
 	if err != nil {
 		return err
 	}
-	names, err := gitOutput(root, "ls-tree", "-r", "--name-only", "-z", sha, "--", filepath.ToSlash(source))
+	before, err := baseGoFileNames(root, sha, source)
 	if err != nil {
 		return fmt.Errorf("list base files of %s: %w", relocation.From, err)
-	}
-	before := make(map[string]struct{})
-	for _, name := range strings.Split(names, "\x00") {
-		if filepath.Ext(name) != ".go" || filepath.Clean(filepath.Dir(name)) != filepath.Clean(source) {
-			continue
-		}
-		before[filepath.Base(name)] = struct{}{}
 	}
 	after, err := goFileNames(filepath.Join(project, filepath.FromSlash(relocation.To)))
 	if err != nil {
@@ -187,6 +193,23 @@ func requireRelocatedFiles(project, ref string, relocation Relocation) error {
 		return fmt.Errorf("relocation %s -> %s is not a rename: %s", relocation.From, relocation.To, problem)
 	}
 	return nil
+}
+
+// baseGoFileNames lists the Go files one directory held at an immutable commit,
+// excluding subdirectories, which are their own packages.
+func baseGoFileNames(root, sha, dir string) (map[string]struct{}, error) {
+	names, err := gitOutput(root, "ls-tree", "-r", "--name-only", "-z", sha, "--", filepath.ToSlash(dir))
+	if err != nil {
+		return nil, err
+	}
+	files := make(map[string]struct{})
+	for _, name := range strings.Split(names, "\x00") {
+		if filepath.Ext(name) != ".go" || filepath.Clean(filepath.Dir(name)) != filepath.Clean(dir) {
+			continue
+		}
+		files[filepath.Base(name)] = struct{}{}
+	}
+	return files, nil
 }
 
 func goFileNames(dir string) (map[string]struct{}, error) {
@@ -244,6 +267,10 @@ func relocateManifest(base *LegacyManifest, moves map[string]string) (*LegacyMan
 		if moved, exists := moves[entry.Target]; exists {
 			entry.Target = moved
 		}
+		// Unreachable for a validated policy: the rewrite is injective, because
+		// every from and every to is unique and a to is absent from the base
+		// policy, while an imports.forbidden source is always classified there.
+		// It stays as a guard on that reasoning rather than on the input.
 		if _, exists := relocated.byKey[entry.Key()]; exists {
 			return nil, fmt.Errorf("relocation collapses two base entries onto %s", entry.Key())
 		}

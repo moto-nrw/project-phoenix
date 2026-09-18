@@ -67,9 +67,16 @@ active declaration must prove all of:
 - `to` holds exactly the Go files `from` held at the immutable base commit,
   read from Git rather than from the declaration.
 
-The last condition is what makes this a rename and not an escape hatch. A move
-that adds, drops or renames a file is a rewrite and belongs in its own commit,
-where the ordinary guards see it.
+The last condition compares file *names*, and it cannot compare contents: a
+relocation must rewrite the import paths and may rename the package clause, so
+the bytes necessarily differ. A wholesale rewrite that kept every file name
+would pass it. It is a sanity gate on the declaration, not the safety property.
+
+The safety property is the unchanged violation-key set, and it holds whatever
+the files contain: an import the target has beyond the renamed base entries is
+still a new violation, and a renamed base entry the target no longer earns is
+still stale. A declaration can therefore rename keys onto a package, but it can
+never give that package a dependency it did not earn.
 
 ## What it cannot do
 
@@ -105,5 +112,11 @@ keys.
 - Declarations accumulate in `policy.json` as the record of which path became
   which. A new package may not reoccupy a relocated path while its declaration
   stands; validation rejects that.
+- A branch whose base predates a relocation still has `from` classified in its
+  base policy, so the declaration stays active for it and the file-set check
+  runs against that branch's own tree. Merging `development` into the branch
+  settles it, because the merge-base then contains the relocation and the
+  declaration goes inert. The failure, if one is ever reached, is loud and
+  fails closed.
 
 This decision was authorized in the implementation session on 2026-09-18.

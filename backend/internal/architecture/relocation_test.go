@@ -219,6 +219,37 @@ func TestRelocationRequiresTheSameFiles(t *testing.T) {
 	}
 }
 
+// A relocation may only land on a path the candidate creates. Pointing one at a
+// package that already existed at the base would let a declaration hand one
+// package another's recorded debt.
+func TestRelocationRejectsATargetThatExistedAtTheBase(t *testing.T) {
+	t.Parallel()
+	repo, baseRef := ratchetRepository(t, legacyRecord(2743))
+	if err := os.RemoveAll(filepath.Join(repo, "target")); err != nil {
+		t.Fatalf("remove source package: %v", err)
+	}
+	writeFile(t, filepath.Join(repo, "source", "source.go"), "package source\n")
+	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), mutatePolicy(t, readFile(t, filepath.Join(repo, "architecture", "policy.json")), func(document map[string]any) {
+		document["policy_epoch"] = float64(2)
+		kept := []any{}
+		for _, value := range document["packages"].([]any) {
+			if value.(map[string]any)["path"] != "target" {
+				kept = append(kept, value)
+			}
+		}
+		document["packages"] = kept
+		document["relocations"] = []any{map[string]any{
+			"from": "target", "to": "linuxonly", "issue": relocationIssue,
+		}}
+	}))
+	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), "")
+	runGit(t, repo, "add", "-A")
+	output, err := runRepositoryCheck(t, repo, baseRef)
+	if err == nil || !strings.Contains(output, "relocation target linuxonly already existed at the base commit") {
+		t.Fatalf("relocation landed on a pre-existing package: %v\n%s", err, output)
+	}
+}
+
 // A declaration whose source path is already gone at the base is history. It
 // must not re-apply, or a later epoch could replay an old rename over entries
 // that have nothing to do with it.
@@ -266,6 +297,32 @@ func TestPolicyRejectsInvalidRelocations(t *testing.T) {
 		{
 			name: "issue", want: "must be an exact https://github.com",
 			relocations: []any{map[string]any{"from": "target", "to": movedTargetPath, "issue": "3226"}},
+		},
+		{
+			name: "duplicate from", want: `relocation from path "target" is declared more than once`,
+			relocations: []any{
+				map[string]any{"from": "target", "to": movedTargetPath, "issue": relocationIssue},
+				map[string]any{"from": "target", "to": "moved/elsewhere", "issue": relocationIssue},
+			},
+		},
+		{
+			name: "duplicate to", want: `relocation to path "moved/target" is declared more than once`,
+			relocations: []any{
+				map[string]any{"from": "alpha", "to": movedTargetPath, "issue": relocationIssue},
+				map[string]any{"from": "target", "to": movedTargetPath, "issue": relocationIssue},
+			},
+		},
+		{
+			name: "absolute path", want: `relocation from path "/target" must be relative to module_path`,
+			relocations: []any{map[string]any{"from": "/target", "to": movedTargetPath, "issue": relocationIssue}},
+		},
+		{
+			name: "traversal", want: `relocation to path "../escape" must be relative to module_path`,
+			relocations: []any{map[string]any{"from": "target", "to": "../escape", "issue": relocationIssue}},
+		},
+		{
+			name: "empty path", want: `relocation from path "" must be relative to module_path`,
+			relocations: []any{map[string]any{"from": "", "to": movedTargetPath, "issue": relocationIssue}},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
