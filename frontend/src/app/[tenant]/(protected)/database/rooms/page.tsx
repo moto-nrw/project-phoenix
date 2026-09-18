@@ -304,6 +304,7 @@ function RoomsPageContent() {
                   <DatabaseCreateAction
                     label="Raum"
                     ariaLabel="Raum erstellen"
+                    showMobileFab={false}
                     onClick={() => setShowCreateModal(true)}
                   />
                 ),

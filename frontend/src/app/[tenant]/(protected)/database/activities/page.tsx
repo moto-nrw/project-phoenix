@@ -355,6 +355,7 @@ function ActivitiesPageContent() {
                   <DatabaseCreateAction
                     label="Aktivität"
                     ariaLabel="Aktivität erstellen"
+                    showMobileFab={false}
                     onClick={() => setShowCreateModal(true)}
                   />
                 ),

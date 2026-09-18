@@ -575,6 +575,7 @@ export function CatalogPage<T extends CatalogItem>({
                     label={config.singular}
                     ariaLabel={`${config.singular} anlegen`}
                     disabled={createDisabled}
+                    showMobileFab={false}
                     onClick={() => setCreateOpen(true)}
                   />
                 ),

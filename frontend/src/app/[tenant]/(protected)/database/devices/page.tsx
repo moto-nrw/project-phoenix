@@ -361,6 +361,7 @@ function DevicesPageContent() {
                 <DatabaseCreateAction
                   label="Gerät"
                   ariaLabel="Gerät registrieren"
+                  showMobileFab={false}
                   onClick={() => setShowCreateModal(true)}
                 />
               ),
