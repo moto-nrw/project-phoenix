@@ -19,8 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -565,7 +563,7 @@ func TestProvisioningResource_InviteSchoolAdmin_ServiceValidationError(t *testin
 
 	resource := NewProvisioningResource(ProvisioningConfig{Service: &mockProvisioningService{
 		inviteSchoolAdminFn: func(context.Context, int64, int64, net.IP, organizationtenancy.SchoolAdminInvitationInput) (*organizationtenancy.SchoolAdminInvitation, error) {
-			return nil, &authSvc.AuthError{Op: "create invitation", Err: errors.New("invalid email")}
+			return nil, &organizationtenancy.ProvisioningIdentityError{Op: "create invitation", Err: errors.New("invalid email")}
 		},
 	}})
 
@@ -614,7 +612,7 @@ func TestProvisioningErrorRenderer_NotFoundAndFallbacks(t *testing.T) {
 	}{
 		{err: &organizationtenancy.OrganizationNotFoundError{OrganizationID: 1}, statusCode: http.StatusNotFound},
 		{err: &organizationtenancy.SchoolNotFoundError{SchoolID: 1}, statusCode: http.StatusNotFound},
-		{err: &platformSvc.InvalidDataError{Err: errors.New("bad")}, statusCode: http.StatusBadRequest},
+		{err: &organizationtenancy.InvalidProvisioningDataError{Err: errors.New("bad")}, statusCode: http.StatusBadRequest},
 		{err: &organizationtenancy.InvalidProvisioningDataError{Err: errors.New("bad")}, statusCode: http.StatusBadRequest},
 		{err: errors.New("plain"), statusCode: http.StatusInternalServerError},
 	}
@@ -719,7 +717,7 @@ func TestProvisioningResource_UpdateOrganization_Conflict(t *testing.T) {
 
 	resource := NewProvisioningResource(ProvisioningConfig{Service: &mockProvisioningService{
 		updateOrganizationFn: func(context.Context, int64, organizationtenancy.OrganizationChanges, int64, net.IP) (*organizationtenancy.Organization, error) {
-			return nil, &platformSvc.ConflictError{Err: errors.New("slug taken")}
+			return nil, &organizationtenancy.ProvisioningConflictError{Err: errors.New("slug taken")}
 		},
 	}})
 
@@ -903,7 +901,7 @@ func TestProvisioningResource_UpdateSchool_Conflict(t *testing.T) {
 
 	resource := NewProvisioningResource(ProvisioningConfig{Service: &mockProvisioningService{
 		updateSchoolFn: func(context.Context, int64, organizationtenancy.SchoolChanges, int64, net.IP) (*organizationtenancy.School, error) {
-			return nil, &platformSvc.ConflictError{Err: errors.New("subdomain taken")}
+			return nil, &organizationtenancy.ProvisioningConflictError{Err: errors.New("subdomain taken")}
 		},
 	}})
 
@@ -1475,7 +1473,7 @@ func TestProvisioningResource_CreateDevice_Conflict(t *testing.T) {
 
 	resource := NewProvisioningResource(ProvisioningConfig{Service: &mockProvisioningService{
 		createDeviceFn: func(_ context.Context, _ int64, _, _ string, _, _ *string, _ int64, _ net.IP) (*organizationtenancy.OperatorDevice, error) {
-			return nil, &platformSvc.ConflictError{Err: errors.New("api_key already exists")}
+			return nil, &organizationtenancy.ProvisioningConflictError{Err: errors.New("api_key already exists")}
 		},
 	}})
 
@@ -1760,7 +1758,7 @@ func TestProvisioningResource_CreateSchoolAccount_ServiceError(t *testing.T) {
 
 	resource := NewProvisioningResource(ProvisioningConfig{Service: &mockProvisioningService{
 		createSchoolAccountFn: func(context.Context, int64, int64, net.IP, organizationtenancy.SchoolAccountInput) (*organizationtenancy.CreatedAccount, error) {
-			return nil, &authSvc.AuthError{Op: "create account", Err: authSvc.ErrEmailAlreadyExists}
+			return nil, &organizationtenancy.ProvisioningIdentityError{Op: "create account", Err: organizationtenancy.ErrAccountEmailExists}
 		},
 	}})
 
@@ -1902,7 +1900,7 @@ func TestProvisioningErrorRenderer_DeviceNotFound(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthEmailAlreadyExists(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrEmailAlreadyExists})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrAccountEmailExists})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
@@ -1911,7 +1909,7 @@ func TestProvisioningErrorRenderer_AuthEmailAlreadyExists(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthUsernameAlreadyExists(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrUsernameAlreadyExists})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrAccountUsernameExists})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
@@ -1920,7 +1918,7 @@ func TestProvisioningErrorRenderer_AuthUsernameAlreadyExists(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthPasswordMismatch(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrPasswordMismatch})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrPasswordMismatch})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
@@ -1929,7 +1927,7 @@ func TestProvisioningErrorRenderer_AuthPasswordMismatch(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthPasswordTooWeak(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create", Err: authSvc.ErrPasswordTooWeak})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create", Err: organizationtenancy.ErrPasswordTooWeak})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
@@ -1938,7 +1936,7 @@ func TestProvisioningErrorRenderer_AuthPasswordTooWeak(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthInvitationNameRequired(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create invitation", Err: authSvc.ErrInvitationNameRequired})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create invitation", Err: organizationtenancy.ErrInvitationNameRequired})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
@@ -1947,7 +1945,7 @@ func TestProvisioningErrorRenderer_AuthInvitationNameRequired(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthGenericInvitationError(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "create invitation", Err: errors.New("some validation error")})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "create invitation", Err: errors.New("some validation error")})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
@@ -1956,7 +1954,7 @@ func TestProvisioningErrorRenderer_AuthGenericInvitationError(t *testing.T) {
 func TestProvisioningErrorRenderer_AuthDefaultError(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{Op: "some op", Err: errors.New("db error")})
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{Op: "some op", Err: errors.New("db error")})
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
@@ -2566,7 +2564,7 @@ func TestCaregiverCapabilityProvisioningErrorRenderer(t *testing.T) {
 	})
 
 	t.Run("maps invalid data to bad request", func(t *testing.T) {
-		renderer := caregiverCapabilityProvisioningErrorRenderer(&platformSvc.InvalidDataError{
+		renderer := caregiverCapabilityProvisioningErrorRenderer(&organizationtenancy.InvalidProvisioningDataError{
 			Err: errors.New("invalid caregiver input"),
 		})
 

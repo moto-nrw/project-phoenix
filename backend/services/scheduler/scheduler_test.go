@@ -2352,7 +2352,7 @@ type fakeEmailChangeCleaner struct {
 	called bool
 }
 
-func (f *fakeEmailChangeCleaner) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
+func (f *fakeEmailChangeCleaner) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	f.called = true
 	return f.result, f.err
 }

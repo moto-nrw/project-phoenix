@@ -20,15 +20,42 @@ import (
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/uptrace/bun"
 )
 
+// StaffOffboardingPreview is the access snapshot the workflow decides on. It
+// contains no credential material: the revision is an exact encoding of the
+// access decisions, not an authorization credential.
+type StaffOffboardingPreview struct {
+	AccountID         int64
+	ActiveMembership  bool
+	RoleIDs           []int64
+	Permissions       int64
+	Tokens            int64
+	PreserveGuardian  bool
+	DeactivateAccount bool
+	Revision          string
+}
+
+// StaffOffboardingResult is what the revocation actually removed.
+type StaffOffboardingResult struct {
+	RolesRevoked            int64
+	PermissionsRevoked      int64
+	TokensRevoked           int64
+	GuardianAccessPreserved bool
+	AccountDeactivated      bool
+}
+
+// Access is the consumer-owned port over the Identity & Access offboarding
+// capability: the preview snapshots roles, permissions, sessions and
+// membership at the school in context, the execution revokes them against
+// that snapshot on the workflow's transaction. The composition root binds it
+// (#3364).
 type Access interface {
-	PreviewStaffOffboarding(context.Context, int64) (authSvc.StaffOffboardingPreview, error)
-	ExecuteStaffOffboarding(context.Context, int64, string) (authSvc.StaffOffboardingResult, error)
+	PreviewStaffOffboarding(context.Context, int64) (StaffOffboardingPreview, error)
+	ExecuteStaffOffboarding(context.Context, int64, string) (StaffOffboardingResult, error)
 }
 
 type Dependencies struct {

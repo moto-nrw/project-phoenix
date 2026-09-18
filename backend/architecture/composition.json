@@ -3595,135 +3595,6 @@
     },
     {
       "scope": "test",
-      "file": "services/auth/auth_core_test.go",
-      "declaration": "setupAuthFactory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        87
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/factory_operator_mfa_config_test.go",
-      "declaration": "TestFactoryOperatorMFARefusesChallengeWithoutSMTP",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        32
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/guardian_invitation_service_test.go",
-      "declaration": "TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransaction",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        762
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/guardian_invitation_service_test.go",
-      "declaration": "setupGuardianInvitationTest",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        62
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/guardian_related_accounts_test.go",
-      "declaration": "TestRevokeAccess_PayerStaysWithoutFinancialPermission",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        303
-      ],
-      "tables": [
-        "users.guardian_profiles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/link_runtime_evidence_test.go",
-      "declaration": "TestLinkRuntimeEvidence",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        28
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/operator_authentication_integration_test.go",
-      "declaration": "buildOperatorIdentity",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        244
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/refactored_modules_test.go",
-      "declaration": "setupAuthServiceWithDB",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/role_assignment_resolve_test.go",
-      "declaration": "createPlatformRole",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        140
-      ],
-      "tables": [
-        "auth.roles"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/session_validation_test.go",
-      "declaration": "TestValidateSessionTokens",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        26
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/token_revocation_audit_test.go",
-      "declaration": "TestLogoutRevokesTokensWhenAuditFails",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        78
-      ],
-      "tables": [
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "services/auth/token_revocation_audit_test.go",
-      "declaration": "TestRevocationAuditFailureRollsBackAndRetryIsIdempotent",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        108
-      ],
-      "tables": [
-        "audit.auth_events",
-        "auth.tokens"
-      ]
-    },
-    {
-      "scope": "test",
       "file": "services/education/class_teacher_service_test.go",
       "declaration": "setupClassTeacherService",
       "target": "database/repositories.NewFactory",
@@ -5156,16 +5027,6 @@
     },
     {
       "scope": "test",
-      "file": "services/platform/operator_email_change_integration_test.go",
-      "declaration": "buildServiceFactory",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        39
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/scheduler/overdue_test.go",
       "declaration": "buildOverdue",
       "target": "database/repositories.NewFactory",
@@ -5941,7 +5802,7 @@
       "declaration": "newOffboardingScenario",
       "target": "database/repositories.NewFactory",
       "lines": [
-        56
+        62
       ],
       "tables": []
     },
@@ -22506,21 +22367,6 @@
       ]
     },
     {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services/auth|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
-      "locations": [
-        {
-          "file": "services/auth/service.go",
-          "line": 88,
-          "declaration": "type Service"
-        },
-        {
-          "file": "services/auth/service.go",
-          "line": 121,
-          "declaration": "NewService"
-        }
-      ]
-    },
-    {
       "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/database/repositories.Factory",
       "locations": [
         {
@@ -22530,27 +22376,27 @@
         },
         {
           "file": "services/account_authentication_composition.go",
-          "line": 178,
+          "line": 164,
           "declaration": "newSchoolDirectory"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 47,
+          "line": 46,
           "declaration": "type AuthTestModule"
         },
         {
           "file": "services/auth_test_helpers.go",
-          "line": 294,
-          "declaration": "NewAuthServiceForTests"
+          "line": 281,
+          "declaration": "IdentityAccessForTests"
         },
         {
           "file": "services/factory.go",
-          "line": 457,
+          "line": 461,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 507,
+          "line": 511,
           "declaration": "newFactory"
         },
         {
@@ -22570,7 +22416,7 @@
         },
         {
           "file": "services/operator_authentication_composition.go",
-          "line": 53,
+          "line": 51,
           "declaration": "operatorRepositoriesOf"
         },
         {

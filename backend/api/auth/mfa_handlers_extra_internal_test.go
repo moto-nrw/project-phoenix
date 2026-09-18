@@ -11,22 +11,21 @@ import (
 	"strings"
 	"testing"
 
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // stubMFAService is a configurable MFAService for handler-level tests. It
-// wraps the shared authtest.MFAServiceMock; construct it via
+// wraps the shared MFAServiceMock; construct it via
 // newStubMFAService and mutate the Fn fields a test needs to override.
 type stubMFAService struct {
-	*authtest.MFAServiceMock
+	*MFAServiceMock
 }
 
 // newStubMFAService returns a stubMFAService pre-seeded with the "safe
@@ -35,15 +34,15 @@ type stubMFAService struct {
 // true, trusted devices being enabled). Tests mutate the returned Fn
 // fields directly before handing the stub to a Resource.
 func newStubMFAService() *stubMFAService {
-	return &stubMFAService{MFAServiceMock: &authtest.MFAServiceMock{
+	return &stubMFAService{MFAServiceMock: &MFAServiceMock{
 		AccountBelongsToSchoolFn: func(context.Context, int64, int64) (bool, error) {
 			return true, nil
 		},
 		StartMFAChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
 			return "challenge", nil
 		},
-		VerifyMFAChallengeFn: func(context.Context, string, string) (authService.VerifiedMFAChallenge, error) {
-			return authService.VerifiedMFAChallenge{}, errors.New("not implemented")
+		VerifyMFAChallengeFn: func(context.Context, string, string) (identityaccess.VerifiedMFAChallenge, error) {
+			return identityaccess.VerifiedMFAChallenge{}, errors.New("not implemented")
 		},
 		ResendMFAChallengeFn: func(context.Context, string, net.IP) (string, error) {
 			return "renewed-token", nil
@@ -51,17 +50,17 @@ func newStubMFAService() *stubMFAService {
 		IsTrustedDeviceEnabledFn: func(context.Context, int64) bool { return true },
 		TrustedDeviceDaysFn:      func(context.Context, int64) int { return 90 },
 		GetTenantMFAOverrideFn: func(context.Context, int64, int64) (string, error) {
-			return authService.MFAAdminOverrideNone, nil
+			return identityaccess.MFAAdminOverrideNone, nil
 		},
 		GetGlobalMFAOverrideFn: func(context.Context, int64) (string, error) {
-			return authService.MFAAdminOverrideNone, nil
+			return identityaccess.MFAAdminOverrideNone, nil
 		},
 	}}
 }
 
-// Sanity: stubMFAService must satisfy authService.MFAService at compile
+// Sanity: stubMFAService must satisfy identityaccess.AccountMFA at compile
 // time, otherwise the embedded handler can't take it.
-var _ authService.MFAService = (*stubMFAService)(nil)
+var _ identityaccess.AccountMFA = (*stubMFAService)(nil)
 
 // --- helpers -----------------------------------------------------------
 
@@ -132,8 +131,8 @@ func TestMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.VerifyMFAChallengeFn = func(context.Context, string, string) (authService.VerifiedMFAChallenge, error) {
-		return authService.VerifiedMFAChallenge{}, authService.ErrMFACodeInvalid
+	svc.VerifyMFAChallengeFn = func(context.Context, string, string) (identityaccess.VerifiedMFAChallenge, error) {
+		return identityaccess.VerifiedMFAChallenge{}, identityaccess.ErrMFACodeInvalid
 	}
 	rs := &Resource{MFAService: svc}
 
@@ -151,8 +150,8 @@ func TestMFAVerify_ServiceErrorMapsTo429ForLockout(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.VerifyMFAChallengeFn = func(context.Context, string, string) (authService.VerifiedMFAChallenge, error) {
-		return authService.VerifiedMFAChallenge{}, authService.ErrMFALocked
+	svc.VerifyMFAChallengeFn = func(context.Context, string, string) (identityaccess.VerifiedMFAChallenge, error) {
+		return identityaccess.VerifiedMFAChallenge{}, identityaccess.ErrMFALocked
 	}
 	rs := &Resource{MFAService: svc}
 
@@ -205,7 +204,7 @@ func TestMFAResend_ServiceErrorPropagates(t *testing.T) {
 
 	svc := newStubMFAService()
 	svc.ResendMFAChallengeFn = func(context.Context, string, net.IP) (string, error) {
-		return "", authService.ErrMFARateLimited
+		return "", identityaccess.ErrMFARateLimited
 	}
 	rs := &Resource{MFAService: svc}
 
@@ -252,7 +251,7 @@ func TestMFAEnrollStart_StartChallengeErrorMapped(t *testing.T) {
 	// must propagate as 429.
 	svc := newStubMFAService()
 	svc.StartMFAChallengeFn = func(context.Context, int64, int64, string, net.IP) (string, error) {
-		return "", authService.ErrMFARateLimited
+		return "", identityaccess.ErrMFARateLimited
 	}
 	rs := &Resource{MFAService: svc}
 
@@ -274,7 +273,7 @@ func TestMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	// token-pair branch instead of bubbling up.
 	svc := newStubMFAService()
 	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return nil }
-	svc.EnrollMFAFn = func(context.Context, int64) error { return authService.ErrMFAAlreadyEnrolled }
+	svc.EnrollMFAFn = func(context.Context, int64) error { return identityaccess.ErrMFAAlreadyEnrolled }
 	rs := &Resource{
 		MFAService: svc,
 		Sessions:   &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"},
@@ -465,7 +464,7 @@ func TestMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return authService.ErrMFACodeInvalid }
+	svc.VerifyMFACodeForAccountFn = func(context.Context, int64, int64, string, string) error { return identityaccess.ErrMFACodeInvalid }
 	rs := &Resource{MFAService: svc}
 
 	r := withEnrollmentClaims(jsonReq(t, http.MethodPost, "/mfa/enroll/confirm",
@@ -481,8 +480,8 @@ func TestMFAListTrustedDevices_EmptyOK(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]authService.AccountTrustedDevice, error) {
-		return []authService.AccountTrustedDevice{}, nil
+	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
+		return []identityaccess.AccountTrustedDevice{}, nil
 	}
 	rs := &Resource{MFAService: svc}
 
@@ -512,7 +511,7 @@ func TestMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
 	t.Parallel()
 
 	svc := newStubMFAService()
-	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]authService.AccountTrustedDevice, error) {
+	svc.ListTrustedDevicesFn = func(context.Context, int64, int64) ([]identityaccess.AccountTrustedDevice, error) {
 		return nil, errors.New("db down")
 	}
 	rs := &Resource{MFAService: svc}

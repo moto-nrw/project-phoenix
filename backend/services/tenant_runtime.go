@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -70,6 +71,14 @@ type tenantRuntimeSetter interface {
 	SetTenantRuntime(tenant.UnitOfWork)
 }
 
+// tenantRuntimeBinder is the shape a composed module exposes when its own
+// contract must not name the runtime package: it takes the unit of work as
+// an opaque value and reports a value it cannot bind. The root owns the
+// runtime, so the type check belongs here and fails at startup (#3364).
+type tenantRuntimeBinder interface {
+	SetTenantRuntime(any) error
+}
+
 // SetTenantRuntime wires the runtime into every composed service that accepts
 // one. Fields are discovered by reflection so a new service with a
 // SetTenantRuntime method cannot be forgotten in a hand-maintained list.
@@ -83,8 +92,13 @@ func (f *Factory) SetTenantRuntime(runtime tenant.UnitOfWork) error {
 		if !field.CanInterface() || isNilValue(field) {
 			continue
 		}
-		if setter, ok := field.Interface().(tenantRuntimeSetter); ok {
+		switch setter := field.Interface().(type) {
+		case tenantRuntimeSetter:
 			setter.SetTenantRuntime(runtime)
+		case tenantRuntimeBinder:
+			if err := setter.SetTenantRuntime(runtime); err != nil {
+				return fmt.Errorf("bind tenant runtime into %s: %w", fields.Type().Field(i).Name, err)
+			}
 		}
 	}
 	return nil

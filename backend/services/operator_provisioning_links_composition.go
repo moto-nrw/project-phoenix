@@ -2,18 +2,15 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // Identity & Access owns the operator invitation and e-mail change flows
@@ -258,146 +255,4 @@ func operatorTokenDelivery(baseRetry int, result email.DeliveryResult) identitya
 		delivery.Error = &message
 	}
 	return delivery
-}
-
-// --- the retained envelope the operator routes read -----------------------
-
-// operatorProvisioningFlows serves the retained invitation and e-mail
-// change contracts over the public module and translates the public
-// outcomes into the error shapes the operator handlers classify on.
-type operatorProvisioningFlows struct {
-	module identityaccess.OperatorProvisioning
-}
-
-func newOperatorProvisioningFlows(module identityaccess.OperatorProvisioning) operatorProvisioningFlows {
-	return operatorProvisioningFlows{module: module}
-}
-
-var (
-	_ platform.OperatorInvitationFlows  = operatorProvisioningFlows{}
-	_ platform.OperatorEmailChangeFlows = operatorProvisioningFlows{}
-)
-
-func (f operatorProvisioningFlows) Invite(ctx context.Context, address string, displayName *string, createdByID int64, clientIP string) error {
-	return operatorLinkError(f.module.InviteOperator(ctx, identityaccess.OperatorInvitationRequest{
-		Email: address, DisplayName: displayName, CreatedBy: createdByID, IPAddress: clientIP,
-	}), createdByID)
-}
-
-func (f operatorProvisioningFlows) ValidateInvitation(ctx context.Context, token string) (*platformModels.OperatorInvitationToken, error) {
-	preview, err := f.module.ValidateOperatorInvitation(ctx, token)
-	if err != nil {
-		return nil, operatorLinkError(err, 0)
-	}
-	return &platformModels.OperatorInvitationToken{
-		Email: preview.Email, DisplayName: preview.DisplayName, ExpiresAt: preview.ExpiresAt, Token: token,
-	}, nil
-}
-
-func (f operatorProvisioningFlows) AcceptInvitation(ctx context.Context, token, displayName, password, clientIP string) (*platformModels.Operator, error) {
-	operator, err := f.module.AcceptOperatorInvitation(ctx, identityaccess.OperatorInvitationAcceptance{
-		Token: token, DisplayName: displayName, Password: password, IPAddress: clientIP,
-	})
-	if err != nil {
-		return nil, operatorLinkError(err, 0)
-	}
-	return retainedOperator(operator), nil
-}
-
-func (f operatorProvisioningFlows) ListPendingInvitations(ctx context.Context) ([]*platformModels.OperatorInvitationToken, error) {
-	invitations, err := f.module.ListPendingOperatorInvitations(ctx)
-	if err != nil {
-		return nil, operatorLinkError(err, 0)
-	}
-	pending := make([]*platformModels.OperatorInvitationToken, 0, len(invitations))
-	for _, invitation := range invitations {
-		row := &platformModels.OperatorInvitationToken{
-			Email: invitation.Email, Token: invitation.Token, ExpiresAt: invitation.ExpiresAt,
-			UsedAt: invitation.UsedAt, CreatedBy: invitation.CreatedBy, DisplayName: invitation.DisplayName,
-			EmailSentAt: invitation.Delivery.SentAt, EmailError: invitation.Delivery.Error,
-			EmailRetryCount: invitation.Delivery.RetryCount,
-		}
-		row.ID = invitation.ID
-		row.CreatedAt = invitation.CreatedAt
-		row.UpdatedAt = invitation.UpdatedAt
-		pending = append(pending, row)
-	}
-	return pending, nil
-}
-
-func (f operatorProvisioningFlows) RevokeInvitation(ctx context.Context, invitationID, actorID int64, clientIP string) error {
-	return operatorLinkError(f.module.RevokeOperatorInvitationByActor(ctx, invitationID, actorID, clientIP), actorID)
-}
-
-func (f operatorProvisioningFlows) ResendInvitation(ctx context.Context, invitationID, actorID int64, clientIP string) error {
-	return operatorLinkError(f.module.ResendOperatorInvitationByActor(ctx, invitationID, actorID, clientIP), actorID)
-}
-
-func (f operatorProvisioningFlows) InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword, clientIP string) error {
-	return operatorLinkError(f.module.InitiateOperatorEmailChange(ctx, identityaccess.OperatorEmailChangeRequest{
-		OperatorID: operatorID, NewEmail: newEmail, CurrentPassword: currentPassword, IPAddress: clientIP,
-	}), operatorID)
-}
-
-func (f operatorProvisioningFlows) ConfirmEmailChange(ctx context.Context, token, clientIP string) (string, error) {
-	result, err := f.module.ConfirmOperatorEmailChange(ctx, token, clientIP)
-	if err != nil {
-		return "", operatorLinkError(err, result.OperatorID)
-	}
-	return result.NewEmail, nil
-}
-
-func (f operatorProvisioningFlows) CleanupEmailChangeTokens(ctx context.Context) (int, error) {
-	cleaned, err := f.module.CleanupOperatorEmailChanges(ctx)
-	return cleaned, operatorLinkError(err, 0)
-}
-
-func retainedOperator(operator identityaccess.Operator) *platformModels.Operator {
-	row := &platformModels.Operator{
-		Email: operator.Email, DisplayName: operator.DisplayName, PasswordHash: operator.PasswordHash,
-		Active: operator.Active, LastLogin: operator.LastLogin,
-		MFAAttempts: operator.MFAAttempts, MFALockedUntil: operator.MFALockedUntil,
-	}
-	row.ID = operator.ID
-	row.CreatedAt = operator.CreatedAt
-	row.UpdatedAt = operator.UpdatedAt
-	return row
-}
-
-// operatorLinkError translates the public contract into the retained error
-// shapes the operator invitation and profile handlers classify on.
-// operatorID names the operator a not-found or inactive outcome is about.
-func operatorLinkError(err error, operatorID int64) error {
-	if err == nil {
-		return nil
-	}
-	var invalid *identityaccess.InvalidInputError
-	switch {
-	case errors.As(err, &invalid):
-		// The message is what the operator surface maps to German, so it
-		// travels unchanged.
-		return &platform.InvalidDataError{Err: errors.New(invalid.Err.Error())}
-	case errors.Is(err, identityaccess.ErrOperatorEmailExists):
-		return &platform.OperatorInvitationEmailExistsError{}
-	case errors.Is(err, identityaccess.ErrOperatorInvitationRateLimited):
-		return &platform.OperatorInvitationRateLimitError{}
-	case errors.Is(err, identityaccess.ErrOperatorInvitationNotFound):
-		return &platform.OperatorInvitationNotFoundError{}
-	case errors.Is(err, identityaccess.ErrOperatorEmailChangeRateLimited):
-		return &platform.EmailChangeRateLimitError{}
-	case errors.Is(err, identityaccess.ErrOperatorEmailChangeSameEmail):
-		return &platform.EmailChangeSameEmailError{}
-	case errors.Is(err, identityaccess.ErrOperatorEmailInUse):
-		return &platform.EmailAlreadyInUseError{}
-	case errors.Is(err, identityaccess.ErrOperatorEmailChangeNotFound):
-		return &platform.EmailChangeTokenInvalidError{}
-	case errors.Is(err, identityaccess.ErrOperatorPasswordMismatch):
-		return &platform.PasswordMismatchError{}
-	case errors.Is(err, identityaccess.ErrOperatorInactive):
-		return &platform.OperatorInactiveError{OperatorID: operatorID}
-	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return &platform.OperatorNotFoundError{OperatorID: operatorID}
-	default:
-		return err
-	}
 }

@@ -93,6 +93,17 @@ const (
 	MFAAdminOverrideForceOn  = "force_on"
 )
 
+// IsValidMFAAdminOverride is the allow list the admin surfaces check before
+// they hand a value to the capability, so the database CHECK constraint is
+// never the first line of defence.
+func IsValidMFAAdminOverride(value string) bool {
+	switch value {
+	case MFAAdminOverrideNone, MFAAdminOverrideForceOff, MFAAdminOverrideForceOn:
+		return true
+	}
+	return false
+}
+
 // MFAAdminState is the read the admin "Manage MFA" modal shows. Override is
 // "none" when the school set none.
 type MFAAdminState struct {

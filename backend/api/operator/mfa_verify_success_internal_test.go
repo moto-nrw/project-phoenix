@@ -11,20 +11,20 @@ import (
 	"testing"
 	"time"
 
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
-// completeOperatorMFAAuthStub satisfies platformSvc.OperatorAuthService via
+// completeOperatorMFAAuthStub satisfies OperatorAccess via
 // interface-embedding — only IssueTokensForAuthenticatedOperator is
 // implemented; any other call path panics so accidental drift in MFAResource
 // surfaces loudly. Distinct from the existing operator-auth login stubs so
 // it can be tuned independently without touching the no-test-modifications
 // boundary.
 type completeOperatorMFAAuthStub struct {
-	platformSvc.OperatorAuthService
+	OperatorAccess
 	access  string
 	refresh string
 	err     error
@@ -34,7 +34,7 @@ type completeOperatorMFAAuthStub struct {
 	gotUA         string
 }
 
-var _ platformSvc.OperatorAuthService = (*completeOperatorMFAAuthStub)(nil)
+var _ OperatorAccess = (*completeOperatorMFAAuthStub)(nil)
 
 func (s *completeOperatorMFAAuthStub) IssueTokensForAuthenticatedOperator(
 	_ context.Context,
@@ -76,7 +76,7 @@ func (s *operatorTrustedDeviceStub) IssueOperatorTrustedDevice(_ context.Context
 
 func (s *operatorTrustedDeviceStub) OperatorTrustedDeviceDays() int { return 90 }
 
-var _ platformSvc.OperatorMFAService = (*operatorTrustedDeviceStub)(nil)
+var _ identityoperator.OperatorMFA = (*operatorTrustedDeviceStub)(nil)
 
 func opVerifyRequest(t *testing.T, body MFAVerifyRequest) *http.Request {
 	t.Helper()
@@ -175,7 +175,7 @@ func TestOperatorMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) 
 func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeOperatorMFAAuthStub{err: &platformSvc.OperatorInactiveError{}}
+	auth := &completeOperatorMFAAuthStub{err: identityoperator.ErrOperatorInactive}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}
@@ -194,7 +194,7 @@ func TestOperatorMFAVerify_InactiveOperatorReturns403(t *testing.T) {
 func TestOperatorMFAVerify_NotFoundReturns401(t *testing.T) {
 	t.Parallel()
 
-	auth := &completeOperatorMFAAuthStub{err: &platformSvc.OperatorNotFoundError{}}
+	auth := &completeOperatorMFAAuthStub{err: identityoperator.ErrOperatorNotFound}
 	mfa := &operatorTrustedDeviceStub{
 		verifyResult: 1,
 	}

@@ -12,8 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 const headerOperatorFrontendOrigin = "X-Moto-Frontend-Origin"
@@ -37,7 +35,7 @@ func (rs *Resource) PasskeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	origin := operatorPasskeyExpectedOrigin(r)
 	if origin == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(authSvc.ErrPasskeyOriginInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityoperator.ErrPasskeyOriginInvalid))
 		return
 	}
 	options, err := rs.passkeyService.BeginOperatorPasskeyLogin(r.Context(), origin)
@@ -62,7 +60,7 @@ func (rs *Resource) PasskeyLoginVerify(w http.ResponseWriter, r *http.Request) {
 	if ip != nil {
 		ipString = ip.String()
 	}
-	result, err := rs.passkeyService.FinishOperatorPasskeyLogin(r.Context(), platformSvc.OperatorPasskeyLoginFinish{
+	result, err := rs.passkeyService.FinishOperatorPasskeyLogin(r.Context(), identityoperator.OperatorPasskeyLoginFinish{
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
 		IPAddress:          ipString,
@@ -103,11 +101,11 @@ func (rs *Resource) PasskeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 	}
 	origin := operatorPasskeyExpectedOrigin(r)
 	if origin == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(authSvc.ErrPasskeyOriginInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityoperator.ErrPasskeyOriginInvalid))
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	options, err := rs.passkeyService.BeginOperatorPasskeyRegistration(r.Context(), platformSvc.OperatorPasskeyRegistrationStart{
+	options, err := rs.passkeyService.BeginOperatorPasskeyRegistration(r.Context(), identityoperator.OperatorPasskeyRegistrationStart{
 		OperatorID:     int64(claims.ID),
 		ExpectedOrigin: origin,
 		Code:           req.Code,
@@ -130,7 +128,7 @@ func (rs *Resource) PasskeyRegisterVerify(w http.ResponseWriter, r *http.Request
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	credential, err := rs.passkeyService.FinishOperatorPasskeyRegistration(r.Context(), platformSvc.OperatorPasskeyRegistrationFinish{
+	credential, err := rs.passkeyService.FinishOperatorPasskeyRegistration(r.Context(), identityoperator.OperatorPasskeyRegistrationFinish{
 		OperatorID:         int64(claims.ID),
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
@@ -183,17 +181,17 @@ func operatorPasskeyExpectedOrigin(r *http.Request) string {
 
 func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, authSvc.ErrInvalidCredentials),
-		errors.Is(err, authSvc.ErrPasskeySessionInvalid):
+	case errors.Is(err, identityoperator.ErrOperatorInvalidCredentials),
+		errors.Is(err, identityoperator.ErrPasskeySessionInvalid):
 		common.RenderError(w, r, ErrInvalidCredentials())
-	case errors.Is(err, authSvc.ErrPasskeyOriginInvalid):
+	case errors.Is(err, identityoperator.ErrPasskeyOriginInvalid):
 		common.RenderError(w, r, ErrForbidden("Passkey origin is not allowed"))
-	case errors.Is(err, authSvc.ErrMFACodeInvalid):
+	case errors.Is(err, identityoperator.ErrMFACodeInvalid):
 		common.RenderError(w, r, ErrInvalidCredentials())
-	case errors.Is(err, authSvc.ErrMFARateLimited),
-		errors.Is(err, authSvc.ErrMFALocked):
+	case errors.Is(err, identityoperator.ErrMFARateLimited),
+		errors.Is(err, identityoperator.ErrMFALocked):
 		common.RenderError(w, r, ErrTooManyRequests("Too many code requests, please wait"))
-	case errors.Is(err, authSvc.ErrPasskeyNotFound):
+	case errors.Is(err, identityoperator.ErrPasskeyNotFound):
 		common.RenderError(w, r, ErrNotFound("Passkey not found"))
 	default:
 		// AuthErrorRenderer keeps the typed operator errors (invalid

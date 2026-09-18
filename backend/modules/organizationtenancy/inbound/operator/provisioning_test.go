@@ -7,29 +7,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/require"
 )
 
 func TestProvisioningErrorRendererMapsInvitationValidationErrors(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "create invitation",
-		Err: authSvc.ErrEmailAlreadyExists,
+		Err: organizationtenancy.ErrAccountEmailExists,
 	})
 
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 409, resp.HTTPStatusCode)
-	require.Equal(t, authSvc.ErrEmailAlreadyExists.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrAccountEmailExists.Error(), resp.ErrorText)
 }
 
 func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "create invitation",
 		Err: errors.New("invalid email address"),
 	})
@@ -43,49 +41,49 @@ func TestProvisioningErrorRendererMapsInvalidInvitationInputErrors(t *testing.T)
 func TestProvisioningErrorRendererMapsInvitationNameRequired(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "create invitation",
-		Err: authSvc.ErrInvitationNameRequired,
+		Err: organizationtenancy.ErrInvitationNameRequired,
 	})
 
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, authSvc.ErrInvitationNameRequired.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrInvitationNameRequired.Error(), resp.ErrorText)
 }
 
 func TestProvisioningErrorRendererMapsPasswordMismatch(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "accept invitation",
-		Err: authSvc.ErrPasswordMismatch,
+		Err: organizationtenancy.ErrPasswordMismatch,
 	})
 
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, authSvc.ErrPasswordMismatch.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrPasswordMismatch.Error(), resp.ErrorText)
 }
 
 func TestProvisioningErrorRendererMapsPasswordTooWeak(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "accept invitation",
-		Err: authSvc.ErrPasswordTooWeak,
+		Err: organizationtenancy.ErrPasswordTooWeak,
 	})
 
 	resp, ok := renderer.(*common.OperatorErrResponse)
 	require.True(t, ok)
 	require.Equal(t, 400, resp.HTTPStatusCode)
-	require.Equal(t, authSvc.ErrPasswordTooWeak.Error(), resp.ErrorText)
+	require.Equal(t, organizationtenancy.ErrPasswordTooWeak.Error(), resp.ErrorText)
 }
 
 func TestProvisioningErrorRendererMapsAuthErrorWithNilErr(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "create invitation",
 		Err: nil,
 	})
@@ -100,7 +98,7 @@ func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
 	t.Parallel()
 
 	// An AuthError with a DatabaseError inner error should hit the default branch
-	renderer := ProvisioningErrorRenderer(&authSvc.AuthError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningIdentityError{
 		Op:  "create invitation",
 		Err: &modelBase.DatabaseError{Op: "insert", Err: errors.New("db fail")},
 	})
@@ -114,7 +112,7 @@ func TestProvisioningErrorRendererMapsAuthErrorDefault(t *testing.T) {
 func TestProvisioningErrorRendererMapsConflictErrors(t *testing.T) {
 	t.Parallel()
 
-	renderer := ProvisioningErrorRenderer(&platformSvc.ConflictError{
+	renderer := ProvisioningErrorRenderer(&organizationtenancy.ProvisioningConflictError{
 		Err: errors.New("school subdomain already exists"),
 	})
 

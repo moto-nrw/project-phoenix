@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -117,17 +116,17 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// switches on to point the user at moto schule.
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(
 				identityaccess.ErrMustUseSchoolPortal, "use_school_portal"))
-		case errors.Is(err, authService.ErrMFARateLimited):
+		case errors.Is(err, identityaccess.ErrMFARateLimited):
 			// MFA challenge initiation tripped the 3/15min sliding-window
 			// cap. Surface as 429 so the frontend shows the dedicated "too
 			// many code requests" message instead of a generic 5xx.
 			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
-		case errors.Is(err, authService.ErrMFALocked):
+		case errors.Is(err, identityaccess.ErrMFALocked):
 			// Account hit the failed-attempt lockout threshold while we were
 			// preparing the next challenge. Same HTTP status as rate limit,
 			// distinct message body — handled separately on the frontend.
 			common.RenderError(w, r, common.ErrorTooManyRequests(authErr.Err))
-		case errors.Is(err, authService.ErrMFAStatusUnavailable):
+		case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 			// MFA gate couldn't determine required/enrolled status (settings
 			// or credentials lookup failed with a non-not-found error).
 			// Refuse this login rather than fail-open. 503 lets the client
@@ -302,7 +301,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 			"account_id", claims.ID,
 			"tenant_id", claims.TenantID,
 		)
-		common.RenderError(w, r, common.ErrorForbidden(authService.ErrRoleGrantNotPermitted))
+		common.RenderError(w, r, common.ErrorForbidden(identityaccess.ErrRoleGrantNotPermitted))
 		return nil, 0, true
 	}
 
