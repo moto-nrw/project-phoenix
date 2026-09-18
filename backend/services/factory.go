@@ -1995,10 +1995,7 @@ func newFactory(
 		repos.Enrollment(),
 	))
 
-	studentAuditService := users.NewStudentAuditService(
-		repos.StudentFieldEdit,
-		logger.With("service", "student_audit"),
-	)
+	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
 	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
 		StudentRepo:    repos.Student,
 		PersonRepo:     repos.Person,

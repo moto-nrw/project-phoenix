@@ -34,6 +34,25 @@ func (e *recordingEngine) SetFamilyProtection(context.Context, peopledirectory.S
 	return false, nil
 }
 
+func (e *recordingEngine) ListStudentChangeHistory(context.Context, int64) ([]peopledirectory.StudentFieldEdit, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) RecordStudentChanges(
+	context.Context, peopledirectory.StudentAuditSnapshot, peopledirectory.StudentAuditSnapshot, int64, string,
+) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) RecordStudentPickupPlan(
+	context.Context, int64, string, string, string, string, int64, string,
+) error {
+	e.calls++
+	return nil
+}
+
 func (e *recordingEngine) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
 	e.calls++
 	return map[int64]map[string][]string{}, nil

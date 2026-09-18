@@ -60,7 +60,7 @@ func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool)
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
-		AuditService:          usersService.NewStudentAuditService(env.repos.StudentFieldEdit, slog.Default()),
+		AuditService:          usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 		BookingsAuthoritative: func(context.Context) (bool, error) { return authoritative, nil },
 		DB:                    env.db, Logger: slog.Default(),
 	})

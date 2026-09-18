@@ -60,7 +60,7 @@ func newCareLifecycleServiceWithLockAt(
 		CleanupRepo:           repos.CareExitCleanup,
 		WithdrawalRepo:        repos.CareWithdrawal,
 		TagReleaser:           repos.StudentTagReleaser(),
-		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+		AuditService:          userService.NewStudentAuditService(repositories.NewStudentAudit(db)),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		DB:                    db,

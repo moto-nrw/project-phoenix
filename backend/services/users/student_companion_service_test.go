@@ -2,7 +2,6 @@ package users_test
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -214,7 +213,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 		LastName:  "Confirm",
 	})
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := usersService.NewStudentAuditService(factory.StudentFieldEdit, slog.Default())
+	audit := usersService.NewStudentAuditService(repositories.NewStudentAudit(db))
 	service := usersService.NewStudentService(
 		factory.Student,
 		factory.StudentCompanion,

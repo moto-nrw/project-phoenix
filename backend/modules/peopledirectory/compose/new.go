@@ -21,6 +21,11 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// StudentFieldAudit is the Audit Platform seam behind the per-child
+	// change history. Optional: without it the change-history capability
+	// reports that it is not configured, which is what graphs that never
+	// touch it (CLI roots, repository tests) need.
+	StudentFieldAudit StudentFieldAuditLog
 }
 
 func New(dependencies Dependencies) (*peopledirectory.Module, error) {
@@ -45,7 +50,15 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 	service := application.New(postgres.New(database), transaction{}, observe)
 	students := application.NewStudents(postgres.NewStudentStore(database), transaction{}, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database), transaction{}, observe)
-	return peopledirectory.NewModule(engine{service: service, students: students, guardians: guardians, observe: observe}), nil
+	var auditLog ports.StudentFieldAuditLog
+	if dependencies.StudentFieldAudit != nil {
+		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
+	}
+	studentAudit := application.NewStudentAudit(auditLog, observe)
+	return peopledirectory.NewModule(engine{
+		service: service, students: students, guardians: guardians,
+		studentAudit: studentAudit, observe: observe,
+	}), nil
 }
 
 type transaction struct{}
@@ -79,10 +92,11 @@ func (transaction) RunAdminRead(ctx context.Context, callback func(context.Conte
 }
 
 type engine struct {
-	service   *application.Service
-	students  *application.StudentService
-	guardians *application.GuardianService
-	observe   func(Observation)
+	service      *application.Service
+	students     *application.StudentService
+	guardians    *application.GuardianService
+	studentAudit *application.StudentAuditService
+	observe      func(Observation)
 }
 
 func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {

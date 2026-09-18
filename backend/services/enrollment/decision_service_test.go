@@ -144,7 +144,7 @@ func newDecisionServiceForTestWithDependencies(
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
 			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),
-			AuditService:          usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+			AuditService:          usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 			BookingsAuthoritative: testBookingsAuthority(settings),
 			DB:                    env.db, Logger: slog.Default(),
 		})
@@ -185,7 +185,7 @@ func newDecisionServiceForTestWithDependencies(
 		DepartureCompanions:       repoFactory.StudentCompanion,
 		DeleteDepartureCompanions: repoFactory.CarePlan().DeleteCompanionEdges,
 		OutboxEnqueuer:            outbox,
-		StudentAudit:              usersService.NewStudentAuditService(repoFactory.StudentFieldEdit, slog.Default()),
+		StudentAudit:              usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 		StudentConsents:           studentConsents,
 		CareWithdrawal:            careWithdrawal,
 		FrontendURL:               "http://localhost:3000",
