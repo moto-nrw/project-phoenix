@@ -20,8 +20,6 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -627,8 +625,6 @@ func (rs *ProvisioningResource) ListAllAccounts(w http.ResponseWriter, r *http.R
 
 // ProvisioningErrorRenderer maps provisioning errors to HTTP responses.
 func ProvisioningErrorRenderer(err error) render.Renderer {
-	var invalidData *platformSvc.InvalidDataError
-	var conflictErr *platformSvc.ConflictError
 	var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
 	var provisioningConflict *organizationtenancy.ProvisioningConflictError
 	var organizationNotFound *organizationtenancy.OrganizationNotFoundError
@@ -649,30 +645,28 @@ func ProvisioningErrorRenderer(err error) render.Renderer {
 	var deviceTransferSameSchool *organizationtenancy.DeviceTransferSameSchoolError
 	var personNotFound *organizationtenancy.PersonNotFoundError
 	var personActiveSupervisors *organizationtenancy.PersonHasActiveSupervisionsError
-	var authErr *authSvc.AuthError
+	var identityErr *organizationtenancy.ProvisioningIdentityError
 
-	if errors.As(err, &authErr) && authErr.Err != nil {
+	if errors.As(err, &identityErr) && identityErr.Err != nil {
 		var dbErr *modelBase.DatabaseError
 		switch {
-		case errors.Is(authErr.Err, authSvc.ErrEmailAlreadyExists):
-			return common.OperatorConflict(authSvc.ErrEmailAlreadyExists.Error())
-		case errors.Is(authErr.Err, authSvc.ErrUsernameAlreadyExists):
-			return common.OperatorConflict(authSvc.ErrUsernameAlreadyExists.Error())
-		case errors.Is(authErr.Err, authSvc.ErrInvitationNameRequired),
-			errors.Is(authErr.Err, authSvc.ErrPasswordMismatch),
-			errors.Is(authErr.Err, authSvc.ErrPasswordTooWeak),
-			authErr.Op == "create invitation" && !errors.As(authErr.Err, &dbErr):
-			return common.OperatorInvalidRequest(authErr.Err)
+		case errors.Is(identityErr.Err, organizationtenancy.ErrAccountEmailExists):
+			return common.OperatorConflict(organizationtenancy.ErrAccountEmailExists.Error())
+		case errors.Is(identityErr.Err, organizationtenancy.ErrAccountUsernameExists):
+			return common.OperatorConflict(organizationtenancy.ErrAccountUsernameExists.Error())
+		case errors.Is(identityErr.Err, organizationtenancy.ErrInvitationNameRequired),
+			errors.Is(identityErr.Err, organizationtenancy.ErrPasswordMismatch),
+			errors.Is(identityErr.Err, organizationtenancy.ErrPasswordTooWeak),
+			identityErr.Op == organizationtenancy.OpCreateInvitation && !errors.As(identityErr.Err, &dbErr):
+			return common.OperatorInvalidRequest(identityErr.Err)
 		default:
 			return common.OperatorInternal(internalErrorMessage)
 		}
 	}
 
 	switch {
-	case errors.As(err, &invalidData), errors.As(err, &invalidProvisioningData):
+	case errors.As(err, &invalidProvisioningData):
 		return common.OperatorInvalidRequest(errors.New("invalid input data"))
-	case errors.As(err, &conflictErr):
-		return common.OperatorConflict(conflictErr.Err.Error())
 	case errors.As(err, &provisioningConflict):
 		return common.OperatorConflict(provisioningConflict.Err.Error())
 	case errors.As(err, &organizationNotFound):
@@ -734,13 +728,11 @@ func caregiverCapabilityProvisioningErrorRenderer(err error) render.Renderer {
 			blockedErr.Error(),
 			blockedErr.Reasons,
 		)
-	case errors.Is(err, authSvc.ErrAccountNotFound), errors.As(err, &accountTenantErr):
+	case errors.Is(err, organizationtenancy.ErrAccountNotFound),
+		errors.Is(err, usersSvc.ErrAccountNotFound),
+		errors.As(err, &accountTenantErr):
 		return common.OperatorNotFound("Account not found")
 	default:
-		var invalidData *platformSvc.InvalidDataError
-		if errors.As(err, &invalidData) {
-			return common.OperatorInvalidRequest(invalidData.Err)
-		}
 		var invalidProvisioningData *organizationtenancy.InvalidProvisioningDataError
 		if errors.As(err, &invalidProvisioningData) {
 			return common.OperatorInvalidRequest(invalidProvisioningData.Err)

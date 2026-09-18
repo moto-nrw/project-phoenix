@@ -39,11 +39,13 @@ var seedCoverageExemptions = map[string]string{
 	"users.student_guardian_relationships":      "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"users.student_guardian_pickup_permissions": "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
 	"auth.guardian_student_access":              "empty Expand target (#2716); users.students_guardians remains authoritative until Cutover",
-	// Expand #2717 explicitly requires empty targets and forbids dual writes.
-	// Remove these exemptions when the student Cutover switches the real seed/API callers.
-	"users.student_profiles":               "empty Expand target (#2717); users.students remains authoritative until Cutover",
-	"users.student_school_memberships":     "empty Expand target (#2717); users.students remains authoritative until Cutover",
-	"users.student_care_profiles":          "empty Expand target (#2717); users.students remains authoritative until Cutover",
+	// Expand #2717 creates these targets empty and forbids dual writes; the
+	// Backfill #2758 copy runs during `migrate`, before the seeder creates any
+	// student, so a seeded stack still finds them empty. Remove these
+	// exemptions when the student Cutover switches the real seed/API callers.
+	"users.student_profiles":               "Backfill #2758 copies only what `migrate` already found; users.students remains authoritative until Cutover",
+	"users.student_school_memberships":     "Backfill #2758 copies only what `migrate` already found; users.students remains authoritative until Cutover",
+	"users.student_care_profiles":          "Backfill #2758 copies only what `migrate` already found; users.students remains authoritative until Cutover",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",

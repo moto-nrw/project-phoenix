@@ -482,6 +482,43 @@ imports of the two packages, and the 25 rules that only those imports used
 (for example `parent-portal.adapter.timetable-application` and
 `inbound-timetable.adapter.timetable-activities-application`) were deleted.
 
+`services/auth`, `services/auth/authtest` and `services/platform` no longer
+exist (#3364). What they held last were the retained consumer ports over
+Identity & Access: the capability interfaces, value types and error sentinels
+the HTTP surfaces consumed because the policy does not let them name the
+module. Every consumer now either calls `modules/identityaccess` directly
+(`api/auth`), reaches the owner's own seam (`api/operator` through
+`modules/identityaccess/inbound/operator`), or consumes a plain-typed runtime
+the composition root binds (the school and parents portals, the staff
+offboarding workflow), so no status code, error string or wire shape moved.
+The credential primitives the compositions hand the module — the Argon2id
+hash, the password policy and the entropy source — are Security Runtime's
+(`auth/authorize/credentials.go`, served through `modules/securityruntime`);
+the school-role lookup is `models/auth.ResolveSystemRoleByName`; the
+"no row" classification is `models/users.RowMissing`. The module binds the
+unit of work it opens its own transactions under through
+`identityaccess.Module.SetTenantRuntime`, which the legacy factory's existing
+runtime wiring calls. The facade does not name the runtime package for it:
+`identityaccess.TenantRuntimeBinding` takes the unit of work as an opaque
+value, `modules/identityaccess/compose` supplies the `tenant.RuntimeRef`
+behind it and the root supplies the runtime, each naming `tenant` where it
+already may. The type check therefore sits in the root, which owns the
+runtime, and a value it cannot bind fails the server's startup. The binding
+replaced the retained service's own runtime field and setter, so the
+composition surface shrank by two and the cutover needs no production rule.
+
+The behaviour suites of both packages moved with their subject into
+`modules/identityaccess/behavior` (`identity-access`/`test-support`,
+`e2e-test` in both test scopes), retargeted to the module's contract. The
+point is deliberately one no other Identity & Access package occupies, so the
+`identity-access.behaviour.*` rules widen nothing else; they exist only
+because the suites drive the composed service root, and they go when the
+suites drive the module without the legacy factory. The school-portal router
+suites bind their runtimes through `modules/schoolportal/portaltest`
+(`inbound-school`/`test-support`), the owner's own test support, instead of
+naming the legacy composition from the suite; its three rules are anchored to
+that new point for the same reason.
+
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
 under the same compatibility permissions (#2690). It replaced

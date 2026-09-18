@@ -7,24 +7,34 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 type operatorLookupStub struct {
 	getOperatorFn func(context.Context, int64) (*platformModels.Operator, error)
 }
 
-func (s operatorLookupStub) GetOperator(ctx context.Context, id int64) (*platformModels.Operator, error) {
+func (s operatorLookupStub) FindOperator(ctx context.Context, id int64) (identityoperator.Operator, error) {
 	if s.getOperatorFn != nil {
-		return s.getOperatorFn(ctx, id)
+		row, err := s.getOperatorFn(ctx, id)
+		if row == nil {
+			if err == nil {
+				err = identityoperator.ErrOperatorNotFound
+			}
+			return identityoperator.Operator{}, err
+		}
+		return identityoperator.Operator{
+			ID: row.ID, Email: row.Email, DisplayName: row.DisplayName, Active: row.Active,
+		}, err
 	}
-	return nil, nil
+	return identityoperator.Operator{}, identityoperator.ErrOperatorNotFound
 }
 
 func TestRequiresOperatorScope_ValidOperatorToken(t *testing.T) {
@@ -197,7 +207,7 @@ func TestRequiresActiveOperator_OperatorNotFound(t *testing.T) {
 	nextCalled := false
 	handler := operator.RequiresActiveOperator(operatorLookupStub{
 		getOperatorFn: func(context.Context, int64) (*platformModels.Operator, error) {
-			return nil, &platformSvc.OperatorNotFoundError{OperatorID: 42}
+			return nil, identityoperator.ErrOperatorNotFound
 		},
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true

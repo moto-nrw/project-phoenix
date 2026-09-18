@@ -15,7 +15,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -194,11 +194,11 @@ func (c mfaChallengeCodec) ParseChallengeToken(token string) (identityaccess.MFA
 type shortCodeHasher struct{}
 
 func (shortCodeHasher) HashShortCode(plain string) (string, error) {
-	return auth.HashPassword(plain)
+	return securityruntime.HashPassword(plain)
 }
 
 func (shortCodeHasher) VerifyShortCode(plain, encodedHash string) (bool, error) {
-	return auth.VerifyPassword(plain, encodedHash)
+	return securityruntime.VerifyPassword(plain, encodedHash)
 }
 
 // --- the two mails -----------------------------------------------------------
@@ -311,7 +311,7 @@ func (l operatorActionLog) RecordOperatorActionAsync(entry identityaccess.Operat
 	}
 	row := &platformModels.OperatorAuditLog{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
-		ResourceID: entry.ResourceID, RequestIP: auth.ParseClientIP(entry.IPAddress), CreatedAt: time.Now(),
+		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress), CreatedAt: time.Now(),
 	}
 	if changes := operatorMFAChanges(entry.MFA); len(changes) > 0 {
 		// A marshal failure falls through with empty changes: losing the

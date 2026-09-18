@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -36,32 +35,32 @@ func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
 // Anything unrecognised falls through to a 500.
 func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, authService.ErrMFAChallengeTokenInvalid):
+	case errors.Is(err, identityaccess.ErrMFAChallengeTokenInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
-	case errors.Is(err, authService.ErrMFACodeInvalid):
+	case errors.Is(err, identityaccess.ErrMFACodeInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
-	case errors.Is(err, authService.ErrMFAUnsupportedScope):
+	case errors.Is(err, identityaccess.ErrMFAUnsupportedScope):
 		// A challenge token from another portal presented here — same
 		// treatment as an invalid token, never a 500.
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
-	case errors.Is(err, authService.ErrMFALocked):
+	case errors.Is(err, identityaccess.ErrMFALocked):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
-	case errors.Is(err, authService.ErrMFARateLimited):
+	case errors.Is(err, identityaccess.ErrMFARateLimited):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
-	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 		// The service fails closed when it cannot read the MFA status or the
 		// rate-limit counter — a transient database problem, not a client
 		// error. 503 tells the frontend to retry; the 500 this used to
 		// produce reads as "resend is broken, stop trying". Same mapping the
 		// login path already uses (session_handlers.go).
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
-	case errors.Is(err, authService.ErrMFANotEnrolled):
+	case errors.Is(err, identityaccess.ErrMFANotEnrolled):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, authService.ErrMFAAlreadyEnrolled):
+	case errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled):
 		common.RenderError(w, r, common.ErrorConflict(err))
-	case errors.Is(err, authService.ErrMFAPermissionDenied):
+	case errors.Is(err, identityaccess.ErrMFAPermissionDenied):
 		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, authService.ErrMFAInvalidOverride):
+	case errors.Is(err, identityaccess.ErrMFAInvalidOverride):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -122,7 +121,7 @@ func (rs *Resource) mfaResend(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	renewed, err := rs.MFAService.ResendMFAChallengeForScope(r.Context(), req.ChallengeToken, parseClientIP(r), authService.MFAChallengeScopeTenant)
+	renewed, err := rs.MFAService.ResendMFAChallengeForScope(r.Context(), req.ChallengeToken, parseClientIP(r), identityaccess.MFAChallengeScopeTenant)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -153,7 +152,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	_, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, authService.MFAChallengeScopeTenant, parseClientIP(r))
+	_, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, parseClientIP(r))
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -203,7 +202,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// id to verify against, so without the scope the account's newest active
 	// code answers — and since #2207 that can be a school-portal login
 	// challenge, which would mint a tenant session off a school code.
-	if err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, authService.MFAChallengeScopeTenant); err != nil {
+	if err := rs.MFAService.VerifyMFACodeForAccount(ctx, accountID, claims.TenantID, req.Code, identityaccess.MFAChallengeScopeTenant); err != nil {
 		mapMFAError(w, r, err)
 		return
 	}
@@ -211,7 +210,7 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		// Already enrolled is fine — a retried request must still produce a
 		// valid session. The pre-enrollment check at login means we should
 		// rarely hit this branch in practice.
-		if !errors.Is(err, authService.ErrMFAAlreadyEnrolled) {
+		if !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 			mapMFAError(w, r, err)
 			return
 		}
@@ -250,7 +249,7 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 		mapMFAError(w, r, err)
 		return
 	}
-	render.JSON(w, r, common.MapTrustedDevices(devices, func(d authService.AccountTrustedDevice) common.TrustedDeviceRow {
+	render.JSON(w, r, common.MapTrustedDevices(devices, func(d identityaccess.AccountTrustedDevice) common.TrustedDeviceRow {
 		return common.TrustedDeviceRow{
 			ID:         d.ID,
 			UserAgent:  d.UserAgent,

@@ -61,8 +61,11 @@ func (seedPlanningDemoStep) Run(_ context.Context, rt *Runtime) error {
 	if err := seedPlanningException(rt); err != nil {
 		return err
 	}
+	if err := seedPickupExtensionDemo(rt, roomID, categoryID, trackID, studentIDs, staffIDs); err != nil {
+		return err
+	}
 
-	fmt.Printf("  %d phone numbers, %d arrival plans and 3 recurring plans created\n", phoneCount, arrivalCount)
+	fmt.Printf("  %d phone numbers, %d arrival plans and 5 recurring plans created\n", phoneCount, arrivalCount)
 	return nil
 }
 

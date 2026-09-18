@@ -7,12 +7,10 @@ import (
 
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +35,7 @@ type GuardianInvitationTestConfig struct {
 // lifecycleTestModule composes the Identity & Access module with the account
 // lifecycle and the guardian invitation flows bound (#2722/#3225), the way
 // the factory does it.
-func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (*identityaccess.Module, *accountSessions, error) {
+func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (*identityaccess.Module, error) {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -46,17 +44,17 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if audit == nil {
 		command, err := auditSvc.NewCommand(repositories.NewTestAuditStore(db), func(auditSvc.AppendObservation) {})
 		if err != nil {
-			return nil, nil, err
+			return nil, err
 		}
 		audit = command
 	}
 	repos, err := repositories.NewAuthTestRepositories(db, audit)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	signer, err := authjwt.NewTokenAuth()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	expiry := cfg.Expiry
 	if expiry <= 0 {
@@ -70,10 +68,8 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	if cfg.Enrollments != nil {
 		claims = cfg.Enrollments
 	}
-	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, audit: audit, logger: logger,
-		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		lifecycle: &lifecycleWiring{
 			audit: audit,
 			guardianMail: &guardianInvitationWiring{
@@ -85,23 +81,12 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	port := newAccountSessions(identityAccess)
-	serviceConfig, err := auth.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
-	if err != nil {
-		return nil, nil, err
+	if err := identityAccess.SetTenantRuntime(unit); err != nil {
+		return nil, err
 	}
-	serviceConfig.TokenAuth = signer
-	serviceConfig.Audit = audit
-	serviceConfig.Sessions = port
-	serviceConfig.Lifecycle = port
-	service, err = auth.NewService(repos, serviceConfig, db, logger)
-	if err != nil {
-		return nil, nil, err
-	}
-	service.SetTenantRuntime(unit)
-	return identityAccess, port, nil
+	return identityAccess, nil
 }
 
 // unclaimedEnrollments stands in for the enrollment claim where a test has
@@ -124,9 +109,8 @@ func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqu
 // NewSchoolIdentityForTests returns the Identity & Access school identity
 // provisioning over the test database, for tests that compose a retained
 // flow (staff invitation, registration) without the whole factory.
-func NewSchoolIdentityForTests(db *bun.DB, unit tenant.UnitOfWork) (auth.SchoolIdentityProvisioning, error) {
-	_, port, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{})
-	return port, err
+func NewSchoolIdentityForTests(db *bun.DB, unit tenant.UnitOfWork) (identityaccess.SchoolIdentityProvisioning, error) {
+	return lifecycleTestModule(db, unit, GuardianInvitationTestConfig{})
 }
 
 // NewGuardianInvitationServiceForTests composes the retained guardian
@@ -134,7 +118,7 @@ func NewSchoolIdentityForTests(db *bun.DB, unit tenant.UnitOfWork) (auth.SchoolI
 // invitation flows, the related-accounts flows and the mail all run against
 // the test database and the outbox the config names.
 func NewGuardianInvitationServiceForTests(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (GuardianInvitationCapability, error) {
-	module, _, err := lifecycleTestModule(db, unit, cfg)
+	module, err := lifecycleTestModule(db, unit, cfg)
 	if err != nil {
 		return nil, err
 	}

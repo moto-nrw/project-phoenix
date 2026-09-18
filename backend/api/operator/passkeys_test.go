@@ -11,21 +11,20 @@ import (
 	"testing"
 	"time"
 
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type operatorPasskeyServiceStub struct {
 	beginLoginOrigin      string
-	finishLoginReq        platformSvc.OperatorPasskeyLoginFinish
+	finishLoginReq        identityoperator.OperatorPasskeyLoginFinish
 	enrollmentOperatorID  int64
-	beginRegistrationReq  platformSvc.OperatorPasskeyRegistrationStart
-	finishRegistrationReq platformSvc.OperatorPasskeyRegistrationFinish
+	beginRegistrationReq  identityoperator.OperatorPasskeyRegistrationStart
+	finishRegistrationReq identityoperator.OperatorPasskeyRegistrationFinish
 	listOperatorID        int64
 	revokeOperatorID      int64
 	revokeCredentialID    int64
@@ -38,52 +37,52 @@ type operatorPasskeyServiceStub struct {
 	revokeErr             error
 }
 
-func (s *operatorPasskeyServiceStub) StartOperatorPasskeyEnrollment(_ context.Context, operatorID int64, _ net.IP) (authSvc.PasskeyEnrollmentChallenge, error) {
+func (s *operatorPasskeyServiceStub) StartOperatorPasskeyEnrollment(_ context.Context, operatorID int64, _ net.IP) (identityoperator.PasskeyEnrollmentChallenge, error) {
 	s.enrollmentOperatorID = operatorID
 	if s.startEnrollmentErr != nil {
-		return authSvc.PasskeyEnrollmentChallenge{}, s.startEnrollmentErr
+		return identityoperator.PasskeyEnrollmentChallenge{}, s.startEnrollmentErr
 	}
-	return authSvc.PasskeyEnrollmentChallenge{ChallengeToken: "operator-challenge-token", MaskedEmail: "o***@example.test"}, nil
+	return identityoperator.PasskeyEnrollmentChallenge{ChallengeToken: "operator-challenge-token", MaskedEmail: "o***@example.test"}, nil
 }
 
-func (s *operatorPasskeyServiceStub) BeginOperatorPasskeyRegistration(_ context.Context, req platformSvc.OperatorPasskeyRegistrationStart) (authSvc.PasskeyCeremonyOptions, error) {
+func (s *operatorPasskeyServiceStub) BeginOperatorPasskeyRegistration(_ context.Context, req identityoperator.OperatorPasskeyRegistrationStart) (identityoperator.PasskeyCeremonyOptions, error) {
 	s.beginRegistrationReq = req
 	if s.beginRegistrationErr != nil {
-		return authSvc.PasskeyCeremonyOptions{}, s.beginRegistrationErr
+		return identityoperator.PasskeyCeremonyOptions{}, s.beginRegistrationErr
 	}
-	return authSvc.PasskeyCeremonyOptions{SessionID: "operator-registration", Options: map[string]string{"challenge": "register"}}, nil
+	return identityoperator.PasskeyCeremonyOptions{SessionID: "operator-registration", Options: map[string]string{"challenge": "register"}}, nil
 }
 
-func (s *operatorPasskeyServiceStub) FinishOperatorPasskeyRegistration(_ context.Context, req platformSvc.OperatorPasskeyRegistrationFinish) (authSvc.PasskeyCredentialSummary, error) {
+func (s *operatorPasskeyServiceStub) FinishOperatorPasskeyRegistration(_ context.Context, req identityoperator.OperatorPasskeyRegistrationFinish) (identityoperator.PasskeyCredentialSummary, error) {
 	s.finishRegistrationReq = req
 	if s.finishRegistrationErr != nil {
-		return authSvc.PasskeyCredentialSummary{}, s.finishRegistrationErr
+		return identityoperator.PasskeyCredentialSummary{}, s.finishRegistrationErr
 	}
-	return authSvc.PasskeyCredentialSummary{ID: "9", Name: "Admin laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
+	return identityoperator.PasskeyCredentialSummary{ID: "9", Name: "Admin laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
 }
 
-func (s *operatorPasskeyServiceStub) BeginOperatorPasskeyLogin(_ context.Context, expectedOrigin string) (authSvc.PasskeyCeremonyOptions, error) {
+func (s *operatorPasskeyServiceStub) BeginOperatorPasskeyLogin(_ context.Context, expectedOrigin string) (identityoperator.PasskeyCeremonyOptions, error) {
 	s.beginLoginOrigin = expectedOrigin
 	if s.beginLoginErr != nil {
-		return authSvc.PasskeyCeremonyOptions{}, s.beginLoginErr
+		return identityoperator.PasskeyCeremonyOptions{}, s.beginLoginErr
 	}
-	return authSvc.PasskeyCeremonyOptions{SessionID: "operator-login", Options: map[string]string{"challenge": "login"}}, nil
+	return identityoperator.PasskeyCeremonyOptions{SessionID: "operator-login", Options: map[string]string{"challenge": "login"}}, nil
 }
 
-func (s *operatorPasskeyServiceStub) FinishOperatorPasskeyLogin(_ context.Context, req platformSvc.OperatorPasskeyLoginFinish) (authSvc.PasskeyLoginResult, error) {
+func (s *operatorPasskeyServiceStub) FinishOperatorPasskeyLogin(_ context.Context, req identityoperator.OperatorPasskeyLoginFinish) (identityoperator.PasskeyLoginResult, error) {
 	s.finishLoginReq = req
 	if s.finishLoginErr != nil {
-		return authSvc.PasskeyLoginResult{}, s.finishLoginErr
+		return identityoperator.PasskeyLoginResult{}, s.finishLoginErr
 	}
-	return authSvc.PasskeyLoginResult{AccessToken: "operator-access", RefreshToken: "operator-refresh"}, nil
+	return identityoperator.PasskeyLoginResult{AccessToken: "operator-access", RefreshToken: "operator-refresh"}, nil
 }
 
-func (s *operatorPasskeyServiceStub) ListOperatorPasskeyCredentials(_ context.Context, operatorID int64) ([]authSvc.PasskeyCredentialSummary, error) {
+func (s *operatorPasskeyServiceStub) ListOperatorPasskeyCredentials(_ context.Context, operatorID int64) ([]identityoperator.PasskeyCredentialSummary, error) {
 	s.listOperatorID = operatorID
 	if s.listErr != nil {
 		return nil, s.listErr
 	}
-	return []authSvc.PasskeyCredentialSummary{{ID: "10", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
+	return []identityoperator.PasskeyCredentialSummary{{ID: "10", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
 }
 
 func (s *operatorPasskeyServiceStub) RevokeOperatorPasskeyCredential(_ context.Context, operatorID, credentialID int64) error {
@@ -228,7 +227,7 @@ func TestOperatorPasskeyHandlerErrors(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
 	w = httptest.NewRecorder()
-	mapOperatorPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), authSvc.ErrPasskeyNotFound)
+	mapOperatorPasskeyError(w, httptest.NewRequest(http.MethodPost, "/", nil), identityoperator.ErrPasskeyNotFound)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	w = httptest.NewRecorder()
@@ -262,13 +261,13 @@ func TestOperatorPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 		call     func(*Resource, http.ResponseWriter)
 		wantCode int
 	}{
-		{"login with a spent ceremony", &operatorPasskeyServiceStub{finishLoginErr: authSvc.ErrPasskeySessionInvalid}, loginVerify, http.StatusUnauthorized},
-		{"login with wrong credentials", &operatorPasskeyServiceStub{finishLoginErr: &platformSvc.InvalidCredentialsError{}}, loginVerify, http.StatusUnauthorized},
-		{"registration for an inactive operator", &operatorPasskeyServiceStub{finishRegistrationErr: &platformSvc.OperatorInactiveError{}}, registerVerify, http.StatusForbidden},
+		{"login with a spent ceremony", &operatorPasskeyServiceStub{finishLoginErr: identityoperator.ErrPasskeySessionInvalid}, loginVerify, http.StatusUnauthorized},
+		{"login with wrong credentials", &operatorPasskeyServiceStub{finishLoginErr: identityoperator.ErrOperatorInvalidCredentials}, loginVerify, http.StatusUnauthorized},
+		{"registration for an inactive operator", &operatorPasskeyServiceStub{finishRegistrationErr: identityoperator.ErrOperatorInactive}, registerVerify, http.StatusForbidden},
 		{"login with a store failure", &operatorPasskeyServiceStub{finishLoginErr: storeDown}, loginVerify, http.StatusInternalServerError},
-		{"registration with a spent ceremony", &operatorPasskeyServiceStub{finishRegistrationErr: authSvc.ErrPasskeySessionInvalid}, registerVerify, http.StatusUnauthorized},
+		{"registration with a spent ceremony", &operatorPasskeyServiceStub{finishRegistrationErr: identityoperator.ErrPasskeySessionInvalid}, registerVerify, http.StatusUnauthorized},
 		{"registration with a store failure", &operatorPasskeyServiceStub{finishRegistrationErr: storeDown}, registerVerify, http.StatusInternalServerError},
-		{"revoke of a missing passkey", &operatorPasskeyServiceStub{revokeErr: authSvc.ErrPasskeyNotFound}, revoke, http.StatusNotFound},
+		{"revoke of a missing passkey", &operatorPasskeyServiceStub{revokeErr: identityoperator.ErrPasskeyNotFound}, revoke, http.StatusNotFound},
 		{"revoke with a store failure", &operatorPasskeyServiceStub{revokeErr: storeDown}, revoke, http.StatusInternalServerError},
 	}
 	for _, tt := range tests {

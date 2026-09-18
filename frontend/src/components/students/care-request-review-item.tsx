@@ -6,6 +6,7 @@ import {
   RequestReviewCard,
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
+import { usePickupExtensionPrompt } from "~/components/timetable/pickup-extension-access";
 import { createLogger } from "~/lib/logger";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -14,6 +15,10 @@ import {
   decideCareScheduleChangeRequest,
 } from "~/lib/care-request-review-api";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
+import {
+  fetchPickupExtensions,
+  type PickupExtension,
+} from "~/lib/pickup-extension-api";
 
 const logger = createLogger({ component: "CareRequestReviewItem" });
 
@@ -148,12 +153,34 @@ export function CareRequestReviewItem({
   );
 }
 
+/**
+ * Nach dem Freigeben einer späteren Abholzeit fragt moto direkt, in welchem
+ * Termin das Kind die zusätzliche Zeit verbringt (#3261). Ohne Recht am
+ * Betreuungsplan oder ohne offene Frage geht es wie bisher weiter.
+ */
+async function openExtensionsAfterApproval(
+  row: StaffCareRequest,
+  canPlanBlocks: boolean,
+): Promise<PickupExtension[]> {
+  if (!canPlanBlocks || row.request_kind !== "pickup_change") return [];
+  try {
+    return await fetchPickupExtensions(row.student_id);
+  } catch (err) {
+    logger.warn("care_request_review_extensions_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      request_id: row.id,
+    });
+    return [];
+  }
+}
+
 function useCareRequestDecision(
   row: StaffCareRequest,
   onDecided: (notice: string) => void,
   expectedVersion?: string,
 ) {
   const toast = useToast();
+  const extensions = usePickupExtensionPrompt();
   const [reason, setReason] = useState("");
   const [reasonError, setReasonError] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -175,10 +202,16 @@ function useCareRequestDecision(
         // Nur mitschicken, wenn die Liste eine Fassung kennt.
         ...(expectedVersion ? ([expectedVersion] as const) : ([] as const)),
       );
-      onDecided(decisionNotice(row, approve));
     } catch (err) {
       handleDecisionError(err, row.id, showError, setBusy);
+      return;
     }
+    const open = approve
+      ? await openExtensionsAfterApproval(row, extensions.enabled)
+      : [];
+    onDecided(decisionNotice(row, approve));
+    // Die Auswahl liegt auf Seitenebene und überlebt das Entfernen der Zeile.
+    if (open.length > 0) extensions.prompt(open);
   };
   return {
     reason,

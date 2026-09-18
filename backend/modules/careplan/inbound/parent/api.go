@@ -29,7 +29,6 @@ import (
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
@@ -37,7 +36,9 @@ import (
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService authService.AuthService
+	// Auth is the login runtime the composition root binds to Identity &
+	// Access (#3364); the zero value leaves the login route answering 500.
+	Auth LoginRuntime
 	// Resets is the reset runtime the composition root binds to Identity &
 	// Access (#3332); the zero value leaves the reset routes answering 500.
 	Resets                PasswordResetRuntime
@@ -57,7 +58,8 @@ type Resource struct {
 // supplies all of them at construction; tests set only the ones their routes
 // reach.
 type ResourceConfig struct {
-	Auth authService.AuthService
+	// Auth is the login runtime the composition root binds (#3364).
+	Auth LoginRuntime
 	// Resets is the reset runtime the composition root binds (#3332).
 	Resets                PasswordResetRuntime
 	Parent                parentService.Service
@@ -85,7 +87,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		}
 	}
 	return &Resource{
-		AuthService:           cfg.Auth,
+		Auth:                  cfg.Auth,
 		Resets:                cfg.Resets,
 		ParentService:         cfg.Parent,
 		RequestSharing:        sharing,

@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -20,8 +19,9 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	t.Parallel()
 	db, module := testutil.SetupInvitationModule(t)
 	repos, service := module.Persistence, module.Invitation
-	// Unrelated route registrations capture method values but never call this auth service.
-	resource := authAPI.NewResource(&authService.Service{}, service, nil, nil, db)
+	// Unrelated route registrations capture method values but never call this
+	// account-lifecycle capability.
+	resource := authAPI.NewResource(module.Auth, service, nil, nil, db)
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router())
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("http-owner-%d@example.com", testpkg.Tenant(t)), "OwnerPass123!")

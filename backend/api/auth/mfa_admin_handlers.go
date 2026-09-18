@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // MFAAdminOverrideRequest is the body for the admin-override endpoint —
@@ -78,7 +78,7 @@ func (rs *Resource) resolveAdminOverrideContext(w http.ResponseWriter, r *http.R
 }
 
 // MFAAdminOverrideSetRequest is the body for PUT /auth/accounts/{id}/mfa/override.
-// The override allow-list mirrors authService.IsValidMFAAdminOverride.
+// The override allow-list mirrors identityaccess.IsValidMFAAdminOverride.
 type MFAAdminOverrideSetRequest struct {
 	Override string `json:"override"`
 	Reason   string `json:"reason"`
@@ -90,7 +90,7 @@ type MFAAdminOverrideSetRequest struct {
 func (req *MFAAdminOverrideSetRequest) Bind(_ *http.Request) error {
 	req.Override = strings.TrimSpace(req.Override)
 	req.Reason = strings.TrimSpace(req.Reason)
-	if !authService.IsValidMFAAdminOverride(req.Override) {
+	if !identityaccess.IsValidMFAAdminOverride(req.Override) {
 		return errors.New("override must be one of: none, force_off, force_on")
 	}
 	return validation.ValidateStruct(req,

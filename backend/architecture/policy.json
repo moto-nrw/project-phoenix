@@ -945,6 +945,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/schoolportal/portaltest",
+      "owner": "inbound-school",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "api/shift-types",
       "owner": "inbound-shift-types",
       "role": "http",
@@ -1701,20 +1708,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services/auth",
-      "owner": "identity-access",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/auth/authtest",
-      "owner": "test-support",
-      "role": "test-support",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "services/config",
       "owner": "settings-platform",
       "role": "application",
@@ -2384,13 +2377,6 @@
       "owner": "document-rendering",
       "role": "adapter",
       "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "services/platform",
-      "owner": "organization-tenancy",
-      "role": "application",
-      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -3141,6 +3127,13 @@
       "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/identityaccess/behavior",
+      "owner": "identity-access",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
     },
     {
       "path": "modules/identityaccess/inbound/operator",
@@ -3973,6 +3966,10 @@
     {
       "name": "schedule.meal_sickness_status_history",
       "write_owner": "meal-plan"
+    },
+    {
+      "name": "schedule.pickup_extension_tasks",
+      "write_owner": "timetable-activities"
     },
     {
       "name": "schedule.planning_tracks",
@@ -12567,17 +12564,6 @@
       "target_role": "domain"
     },
     {
-      "id": "identity-access.behavior-test.delivery-domain",
-      "description": "Identity-access behavior tests verify subscription cleanup through Delivery's typed rows.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "module-behavior-test",
-      "target_owner": "delivery-platform",
-      "target_role": "domain"
-    },
-    {
       "id": "delivery.application.same-owner-adapter",
       "description": "Delivery applications delegate localization and provider details to owned adapters.",
       "scopes": [
@@ -15401,17 +15387,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "identity-access.behavior-test.enrollment-public",
-      "description": "Guardian invitation integration fixtures create Enrollment requests through public owner values.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "source_role": "module-behavior-test",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.behavior-test.enrollment-public",
       "description": "Sourced-template integration fixtures create Enrollment phases through public owner values.",
       "scopes": [
@@ -16196,17 +16171,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.adapter.identity-application",
-      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian invitation service (services/auth); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.adapter.transaction-domain",
       "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the pointer and unique-violation helpers (models/base); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
       "scopes": [
@@ -16435,17 +16399,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.adapter-test.identity-application",
-      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the guardian invitation service (services/auth); compatibility permission until the package exists at a base SHA (#3228).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "application"
     },
     {
       "id": "parent-portal.adapter-test.security-application",
@@ -17758,17 +17711,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "inbound-school.identity-application",
-      "description": "Compatibility permission (#2701): school-portal login, MFA and password reset call the retained auth services until Identity & Access exposes them publicly.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
       "id": "inbound-school.tenant-runtime",
       "description": "School-portal MFA enrollment pins the tenant of the enrollment claims for the audit trail (#2701).",
       "scopes": [
@@ -17865,17 +17807,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-school.adapter-test.identity-application",
-      "description": "School-portal handler tests stub the retained MFA service and read its error contract (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "application"
     },
     {
       "id": "inbound-school.adapter-test.calendar-date",
@@ -19741,17 +19672,6 @@
       "source_role": "compose",
       "target_owner": "delivery-platform",
       "target_role": "public"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.identity-access.application",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "application"
     },
     {
       "id": "staff-offboarding.compose.offboarding.tenant-runtime.public",
@@ -22262,17 +22182,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "inbound-parent.http.identity-access-application",
-      "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) calls the retained parent login and password-reset flows and maps the auth, related-account and invitation errors (#2725). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
       "id": "inbound-parent.http.legacy-shared-domain",
       "description": "The guardian portal HTTP composition (modules/careplan/inbound/parent, #3229) parses and renders calendar dates while the date type migrates. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -22393,18 +22302,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "adapter"
-    },
-    {
-      "id": "inbound-parent.adapter-test.identity-access-application",
-      "description": "The guardian portal HTTP tests (#3229) stub the retained parent login and password-reset flows. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "application"
     },
     {
       "id": "inbound-parent.adapter-test.identity-access-domain",
@@ -24089,17 +23986,6 @@
       "target_role": "application"
     },
     {
-      "id": "organization-tenancy.http.identity-application",
-      "description": "The provisioning error mapping recognizes the retained auth service errors (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
       "id": "organization-tenancy.http.application",
       "description": "The provisioning error mapping recognizes the retained platform service errors (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
       "scopes": [
@@ -24195,17 +24081,6 @@
       "source_owner": "organization-tenancy",
       "source_role": "adapter-test",
       "target_owner": "people-directory",
-      "target_role": "application"
-    },
-    {
-      "id": "organization-tenancy.adapter-test.identity-application",
-      "description": "The provisioning error mapping tests build the retained auth service errors (#3232). Compatibility permission (#2736): convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
       "target_role": "application"
     },
     {
@@ -26571,6 +26446,248 @@
       "source_role": "adapter",
       "target_owner": "inbound-schedules",
       "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.behaviour.identity-public",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.behaviour.identity-adapter",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.behaviour.identity-application",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "application"
+    },
+    {
+      "id": "identity-access.behaviour.identity-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.security-application",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "identity-access.behaviour.security-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.security-public",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.behaviour.delivery-adapter",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "adapter"
+    },
+    {
+      "id": "identity-access.behaviour.audit-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.transaction-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.settings-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.settings-application",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "identity-access.behaviour.enrollment-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.enrollment-public",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.behaviour.care-plan-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.organization-tenancy-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.people-directory-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.delivery-domain",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "delivery-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "identity-access.behaviour.tenant-runtime-public",
+      "description": "The Identity & Access behaviour suites in modules/identityaccess/behavior drive the composed module over the retained rows and the service root. Compatibility permission of #3364: the suites moved with the retained ports they used to drive; convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-school.test-support.legacy-composition",
+      "description": "The school-portal test support (modules/schoolportal/portaltest) maps the portal runtimes the service root composes, so a router suite exercises the production scope binding (#3364).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "test-support",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-school.test-support.portal-http",
+      "description": "The school-portal test support builds the portal runtime types it maps onto (#3364).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "test-support",
+      "target_owner": "inbound-school",
+      "target_role": "http"
+    },
+    {
+      "id": "inbound-school.adapter-test.portal-test-support",
+      "description": "The school-portal router suites bind their runtimes through the portal test support (#3364).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-school",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-school",
+      "target_role": "test-support"
     }
   ]
 }

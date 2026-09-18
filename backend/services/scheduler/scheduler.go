@@ -104,14 +104,17 @@ type AutoCheckouter interface {
 	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
 }
 
-// EmailChangeTokenCleaner exposes the cleanup routine for email change tokens.
+// EmailChangeTokenCleaner exposes the cleanup routine for operator e-mail
+// change links: expired links are spent so their operator can request a new
+// one, then the rows nobody counts any more are deleted.
 type EmailChangeTokenCleaner interface {
-	CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error)
+	CleanupOperatorEmailChanges(ctx context.Context) (int, error)
 }
 
-// OperatorInvitationCleaner exposes the cleanup routine for operator invitation tokens.
+// OperatorInvitationCleaner exposes the cleanup routine for operator
+// invitation links.
 type OperatorInvitationCleaner interface {
-	CleanupExpiredOperatorInvitations(ctx context.Context) (int, error)
+	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
 }
 
 type CalendarFeedCleaner interface {
@@ -1158,7 +1161,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Email change token cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return emailChangeCleaner.CleanupExpiredEmailChangeTokens(ctx)
+				return emailChangeCleaner.CleanupOperatorEmailChanges(ctx)
 			},
 		})
 	}
@@ -1167,7 +1170,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Operator invitation token cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return operatorInvitationCleaner.CleanupExpiredOperatorInvitations(ctx)
+				return operatorInvitationCleaner.DeleteExpiredOperatorInvitations(ctx)
 			},
 		})
 	}

@@ -73,7 +73,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	auditService "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
@@ -86,7 +85,6 @@ import (
 	staffclock "github.com/moto-nrw/project-phoenix/services/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -133,13 +131,16 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 // Factory provides access to all services
 type Factory struct {
 	settingsRuntimeDB *bun.DB
-	Auth              auth.AuthService
-	Audit             auditModels.Command
-	StaffPINAuth      StaffPINAuthenticator
+	// Auth is the composed Identity & Access module: the sessions, the
+	// account lifecycle, the role administration, the invitations and the
+	// operator flows the surfaces consume (#3364).
+	Auth         *identityaccess.Module
+	Audit        auditModels.Command
+	StaffPINAuth StaffPINAuthenticator
 	// MFA and Passkey are the Identity & Access second factor and the
 	// school-portal WebAuthn ceremonies (#3331).
-	MFA                  auth.MFAService
-	Passkey              auth.PasskeyService
+	MFA                  identityaccess.AccountMFA
+	Passkey              identityaccess.AccountPasskeyFlows
 	Active               active.Service
 	ActiveCleanup        active.CleanupService
 	WorkSession          timetracking.WorkSessionService
@@ -225,8 +226,11 @@ type Factory struct {
 	PasswordResetTokenExpiry  time.Duration
 
 	// Platform domain (operator dashboard)
-	OperatorAuth         platform.OperatorAuthService
-	OperatorInvitation   platform.OperatorInvitationService
+	// OperatorAuth and OperatorInvitation are the Identity & Access
+	// operator directory, token mint and provisioning flows the operator
+	// dashboard consumes (#3364).
+	OperatorAuth         *identityaccess.Module
+	OperatorInvitation   *identityaccess.Module
 	OperatorProvisioning organizationtenancy.Provisioning
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
@@ -255,8 +259,8 @@ type Factory struct {
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           *timetableplanning.TimetableDataService
 	InstanceSeriesConverter timetableplanning.InstanceSeriesConverter
-	OperatorMFA             platform.OperatorMFAService
-	OperatorPasskey         platform.OperatorPasskeyService
+	OperatorMFA             identityaccess.OperatorMFAFlows
+	OperatorPasskey         identityaccess.OperatorPasskeyFlows
 	UnregisteredTagScans    auditService.UnregisteredTagScanService
 
 	// Delivery owns the leased email and push outboxes; EmailOutboxWorker
@@ -1322,11 +1326,13 @@ func newFactory(
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
 	// parent care-exception writers so both derive the same state.
+	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
 		pickupBaselines,
 		repos.InstanceStudent,
 		db,
+		careschedule.WithPickupExtensions(timetableCapability),
 	)
 
 	// Initialize pickup schedule service
@@ -1601,33 +1607,17 @@ func newFactory(
 		return nil, fmt.Errorf("init mfa token auth: %w", err)
 	}
 
-	// Initialize auth service with validated config
-	authConfig, err := auth.NewServiceConfig(
-		dispatcher,
-		defaultFrom,
-		frontendURL,
-		passwordResetTokenExpiry,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("invalid auth service config: %w", err)
-	}
-	authConfig.ParentsURL = parentsURL
-	authConfig.SchoolURL = schoolURL
-	authConfig.RateLimitEnabled = cfg.RateLimitEnabled
-	authConfig.Settings = settingsService
-	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	sessionTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
-	authConfig.Audit = auditCommand
 
 	// Identity & Access serves tenant, parent and school login, refresh,
-	// switching, logout, session validation, cleanup and revocation (#3251).
-	// The auth service delegates its session methods to the module through
-	// its consumer-owned port; the module reads the MFA gate and the tenant
-	// runtime back from the auth service at call time, so SetMFAService and
-	// SetTenantRuntime keep their meaning.
-	var authService *auth.Service
+	// switching, logout, session validation, cleanup and revocation (#3251),
+	// the account lifecycle (#3225), the second factor and both portals'
+	// passkey ceremonies (#3331) and the operator flows (#3252, #3332). The
+	// module reads the tenant runtime back at call time, so SetTenantRuntime
+	// keeps its meaning after composition.
 	operatorDependencies, err := newOperatorDependencies(operatorAuthenticationWiring{
 		repos:         operatorRepositoriesOf(repos),
 		organizations: organizations,
@@ -1657,14 +1647,11 @@ func newFactory(
 	var emailOutboxService *emailoutbox.Service
 	identityAccess, err = newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos:     sessionRepositoriesOf(repos, organizations),
-		tokenAuth: authConfig.TokenAuth,
+		tokenAuth: sessionTokenAuth,
 		settings:  settingsService,
 		audit:     auditCommand,
 		logger:    authLogger,
 		observe:   observeIdentityAccess,
-		tenantRuntime: func(ctx context.Context) context.Context {
-			return authService.WithTenantRuntime(ctx)
-		},
 		mfa: &mfaWiring{
 			repos: repos, settings: settingsService, tokenAuth: mfaTokenAuth,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
@@ -1688,7 +1675,7 @@ func newFactory(
 		},
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
-			mailIdentity: tenantMailIdentity, tokenAuth: authConfig.TokenAuth, expiry: invitationTokenExpiry,
+			mailIdentity: tenantMailIdentity, tokenAuth: sessionTokenAuth, expiry: invitationTokenExpiry,
 		},
 		// The lifecycle flows (#3225) read the retained role management back
 		// at call time; it is composed below.
@@ -1708,14 +1695,6 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
-	accountSessionsPort := newAccountSessions(identityAccess)
-	authConfig.Sessions = accountSessionsPort
-	authConfig.Lifecycle = accountSessionsPort
-	authService, err = auth.NewService(repos, authConfig, db, authLogger)
-	if err != nil {
-		return nil, err
-	}
-
 	invitationService := InvitationCapability(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
@@ -1912,30 +1891,6 @@ func newFactory(
 		},
 	})
 
-	// Initialize platform services (operator dashboard)
-	operatorDirectory := newOperatorDirectory(identityAccess)
-	// The invitation and e-mail change flows are the owner's since #3332;
-	// the retained endpoints reach them through their consumer-owned ports,
-	// and the root translates the outcomes into the envelope they render.
-	operatorProvisioningFlows := newOperatorProvisioningFlows(identityAccess)
-	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:        operatorDirectory,
-		Sessions:            newOperatorSessions(identityAccess),
-		Invitations:         operatorProvisioningFlows,
-		EmailChanges:        operatorProvisioningFlows,
-		AuditLogRepo:        repos.OperatorAuditLog,
-		InvitationTokenRepo: newOperatorInvitationTokens(identityAccess),
-		DB:                  db,
-		Logger:              platformLogger,
-		Dispatcher:          dispatcher,
-		DefaultFrom:         defaultFrom,
-		FrontendURL:         frontendURL,
-		OperatorFrontendURL: operatorFrontendURL,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
-	}
-
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
 		Owner:    repos.Enrollment(),
 		Settings: settingsService,
@@ -2081,6 +2036,13 @@ func newFactory(
 				return nil
 			})
 		},
+		SnapshotPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
+			return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
+		},
+		RecordPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
+			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+		},
+		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
 		// The reconciler takes these BEFORE writing weekly rows — the same
 		// student → schedule-row → care-day lock order the staff weekly
 		// editors use, so the two weekly writers cannot deadlock against
@@ -2661,11 +2623,11 @@ func newFactory(
 		repos:          repos,
 		organizations:  organizations,
 		adapters:       provisioningAdapters,
-		authService:    authService,
+		sessions:       identityAccess,
 		invitations:    invitationService,
 		provisioning:   identityAccess,
 		administration: identityAccess,
-		schoolIdentity: accountSessionsPort,
+		schoolIdentity: identityAccess,
 		roles:          identityAccess,
 		settings:       settingsService,
 		logger:         platformLogger,
@@ -2920,11 +2882,11 @@ func newFactory(
 
 	factory = &Factory{
 		settingsRuntimeDB:       db,
-		Auth:                    authService,
+		Auth:                    identityAccess,
 		Audit:                   auditCommand,
 		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
-		MFA:                     newAccountMFAPort(identityAccess),
-		Passkey:                 newAccountPasskeyPort(identityAccess),
+		MFA:                     identityAccess,
+		Passkey:                 identityAccess,
 		Active:                  activeService,
 		ActiveCleanup:           activeCleanupService,
 		WorkSession:             workSessionService,
@@ -3012,13 +2974,12 @@ func newFactory(
 		InvitationTokenExpiry:    invitationTokenExpiry,
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
-		// Platform services - OperatorAuth and OperatorInvitation both point
-		// at the same concrete operatorAuthService struct, exposed through
-		// two narrower interfaces so that each handler depends only on the
-		// methods it actually calls. NewOperatorAuthService returns the
-		// combined interface, so both fields can be assigned directly.
-		OperatorAuth:         operatorAuthService,
-		OperatorInvitation:   operatorAuthService,
+		// The operator dashboard reads the directory and drives the
+		// invitation and e-mail change flows through the same composed
+		// Identity & Access module; the two fields name the two roles the
+		// operator routes depend on (#3364).
+		OperatorAuth:         identityAccess,
+		OperatorInvitation:   identityAccess,
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              organizations,
@@ -3056,8 +3017,8 @@ func newFactory(
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		OperatorMFA:             newOperatorMFAPort(identityAccess),
-		OperatorPasskey:         newOperatorPasskeyPort(identityAccess),
+		OperatorMFA:             identityAccess,
+		OperatorPasskey:         identityAccess,
 		UnregisteredTagScans:    unregisteredTagScanService,
 
 		EmailOutboxWorker: emailOutboxWorker,

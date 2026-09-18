@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -131,9 +130,9 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 			blockedErr.Error(),
 			blockedErr.Reasons,
 		)
-	// The caregiver capability is People Directory's and reports the
-	// retained sentinel; the account administration reports the owner's.
-	case errors.Is(err, authService.ErrAccountNotFound),
+	// The caregiver capability is People Directory's and reports its own
+	// sentinel; the account administration reports Identity & Access's.
+	case errors.Is(err, usersService.ErrAccountNotFound),
 		errors.Is(err, identityaccess.ErrAccountNotFound),
 		errors.As(err, &accountTenantErr):
 		return common.ErrorNotFound(errors.New("account not found"))

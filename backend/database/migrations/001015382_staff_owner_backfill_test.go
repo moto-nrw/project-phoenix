@@ -813,16 +813,18 @@ func TestStaffOwnerBackfillResetAndRollback(t *testing.T) {
 	cp := requireStaffOwnerTenantEqual(t, db, report, tenantID)
 	require.EqualValues(t, 3, cp.RowsCopied, "reset restarts from zero")
 
-	// The checkpoint table is shared with later backfills: rolling back this
-	// one keeps their progress and drops the table only once it is empty.
+	// The checkpoint table is shared with the other backfills: rolling back
+	// this one keeps their progress and drops the table only once it is empty.
 	_, err = db.ExecContext(ctx, `INSERT INTO platform.storage_backfill_checkpoints (backfill, tenant_id) VALUES ('other-backfill', ?)`, tenantID)
 	require.NoError(t, err)
 	require.NoError(t, staffOwnerBackfillDown(ctx, db))
 	requireStaffOwnerTargetsEmpty(t, db)
 	var remaining []string
-	require.NoError(t, db.NewRaw(`SELECT backfill FROM platform.storage_backfill_checkpoints`).Scan(ctx, &remaining))
-	require.Equal(t, []string{"other-backfill"}, remaining)
-	_, err = db.ExecContext(ctx, `DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'other-backfill'`)
+	require.NoError(t, db.NewRaw(`SELECT DISTINCT backfill FROM platform.storage_backfill_checkpoints`).Scan(ctx, &remaining))
+	require.ElementsMatch(t, []string{"other-backfill", StudentOwnerBackfillName}, remaining,
+		"this rollback removes exactly its own rows and leaves every other backfill's progress")
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.storage_backfill_checkpoints WHERE backfill IN (?, ?)`,
+		"other-backfill", StudentOwnerBackfillName)
 	require.NoError(t, err)
 	require.NoError(t, staffOwnerBackfillDown(ctx, db))
 	var checkpointsAbsent bool

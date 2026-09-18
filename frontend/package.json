@@ -24,6 +24,7 @@
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
+    "vitest": "vitest",
     "typecheck": "node --max-old-space-size=4096 ./node_modules/typescript/bin/tsc --noEmit",
     "validate:build-env": "node scripts/validate-build-env.mjs",
     "knip": "knip",
