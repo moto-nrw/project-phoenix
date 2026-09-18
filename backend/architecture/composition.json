@@ -2839,7 +2839,7 @@
       "declaration": "TestStudentRepository_CompanionNoteSchemaCompatibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        432
+        437
       ],
       "tables": [
         "users.students"
@@ -2861,7 +2861,7 @@
       "declaration": "TestStudentRepository_StaleDeparturePlanIsRebased",
       "target": "database/repositories.NewFactory",
       "lines": [
-        512
+        517
       ],
       "tables": []
     },

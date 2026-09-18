@@ -247,6 +247,63 @@ func studentProfileJSON(t *testing.T, db *testpkg.DB, id int64) string {
 	return row
 }
 
+// users.expired_privacy_consents is the one database view over users.students.
+// It would have followed the rename onto the archive and stopped seeing every
+// child enrolled after the switch, so the cutover redefines it over the owner
+// storage — with the same columns, for the same rows.
+func TestStudentOwnerCutoverKeepsTheExpiredConsentView(t *testing.T) {
+	t.Parallel()
+	db := setupStudentStorageBeforeCutover(t)
+	tenantID, ids := studentOwnerCutoverFixture(t, db, 2)
+	ctx := t.Context()
+	expireConsent := func(studentID int64) {
+		t.Helper()
+		// created_at is backdated too: the table only accepts an expiry that
+		// lies after the row was written.
+		_, err := db.NewRaw(`INSERT INTO users.privacy_consents
+			(tenant_id, student_id, policy_version, accepted, accepted_at, created_at, expires_at, renewal_required, data_retention_days)
+			VALUES (?, ?, 'v1', true, now() - interval '400 days', now() - interval '400 days',
+				now() - interval '1 day', true, 30)`,
+			tenantID, studentID).Exec(ctx)
+		require.NoError(t, err)
+	}
+	expireConsent(ids[0])
+	before := expiredConsentStudentIDs(t, db, tenantID)
+	require.Equal(t, []int64{ids[0]}, before)
+
+	require.NoError(t, finalizeStudentOwnerStorage(ctx, db, installStudentOwnerCompatibility))
+	require.Equal(t, before, expiredConsentStudentIDs(t, db, tenantID),
+		"the redefined view must report the same children")
+
+	// A child enrolled after the switch has no archive row, so its legacy
+	// guardian columns read NULL — but the child itself must still be found.
+	person := testpkg.CreateTestPersonForTenant(t, db, tenantID, "Consent", "Aftercut")
+	var created int64
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_profiles (tenant_id, person_id) VALUES (?, ?) RETURNING id`,
+		tenantID, person.ID).Scan(ctx, &created))
+	var membershipID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO users.student_school_memberships (tenant_id, student_profile_id, school_class)
+		VALUES (?, ?, '1a') RETURNING id`, tenantID, created).Scan(ctx, &membershipID))
+	_, err := db.NewRaw(`INSERT INTO users.student_care_profiles (membership_id, tenant_id) VALUES (?, ?)`,
+		membershipID, tenantID).Exec(ctx)
+	require.NoError(t, err)
+	expireConsent(created)
+	require.Equal(t, []int64{ids[0], created}, expiredConsentStudentIDs(t, db, tenantID))
+
+	var guardianName *string
+	require.NoError(t, db.NewRaw(`SELECT guardian_name FROM users.expired_privacy_consents WHERE student_id = ?`, created).
+		Scan(ctx, &guardianName))
+	require.Nil(t, guardianName, "a child without an archive row carries no legacy contact")
+}
+
+func expiredConsentStudentIDs(t *testing.T, db *testpkg.DB, tenantID int64) []int64 {
+	t.Helper()
+	var ids []int64
+	require.NoError(t, db.NewRaw(`SELECT student_id FROM users.expired_privacy_consents
+		WHERE tenant_id = ? ORDER BY student_id`, tenantID).Scan(t.Context(), &ids))
+	return ids
+}
+
 func TestStudentOwnerCutoverRepointsAndValidatesForeignKeys(t *testing.T) {
 	t.Parallel()
 	db := setupStudentStorageBeforeCutover(t)

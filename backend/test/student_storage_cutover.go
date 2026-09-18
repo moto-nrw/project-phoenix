@@ -56,7 +56,12 @@ func RestoreStudentStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 					'REFERENCES users.student_profiles(', 'REFERENCES users.students(');
 				EXECUTE format('ALTER TABLE %s DROP CONSTRAINT %I',
 					constraint_row.child, constraint_row.conname);
-				EXECUTE format('ALTER TABLE %s ADD CONSTRAINT %I %s',
+				-- NOT VALID keeps the restore off every dependent table's
+				-- rows. The referential actions the historical contracts rely
+				-- on — the delete cascades above all — are installed either
+				-- way; only the scan of rows that already exist is skipped,
+				-- and the clone is emptied of students right below.
+				EXECUTE format('ALTER TABLE %s ADD CONSTRAINT %I %s NOT VALID',
 					constraint_row.child, constraint_row.conname, definition);
 			END LOOP;
 			PERFORM set_config('search_path', previous_path, true);
