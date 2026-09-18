@@ -27,9 +27,19 @@ func TestBackfillCommandMetadata(t *testing.T) {
 	assert.Equal(t, "status", backfillStaffOwnerStatusCmd.Use)
 	assert.Equal(t, "reset", backfillStaffOwnerResetCmd.Use)
 	assert.Contains(t, backfillStaffOwnerResetCmd.Long, "users.staff is never modified")
+	assert.Equal(t, "student-owner", backfillStudentOwnerCmd.Use)
+	assert.NotNil(t, backfillStudentOwnerCmd.RunE)
+	assert.NotNil(t, backfillStudentOwnerCmd.Flags().Lookup(flagBackfillBatchSize))
+	assert.NotNil(t, backfillStudentOwnerCmd.Flags().Lookup(flagBackfillMaxPasses))
+	assert.Equal(t, "status", backfillStudentOwnerStatusCmd.Use)
+	assert.Equal(t, "reset", backfillStudentOwnerResetCmd.Use)
+	assert.Contains(t, backfillStudentOwnerResetCmd.Long, "users.students is never\nmodified")
 	require.True(t, backfillCmd.HasSubCommands())
 	for _, sub := range []*cobra.Command{backfillStaffOwnerStatusCmd, backfillStaffOwnerResetCmd} {
 		assert.Equal(t, backfillStaffOwnerCmd, sub.Parent())
+	}
+	for _, sub := range []*cobra.Command{backfillStudentOwnerStatusCmd, backfillStudentOwnerResetCmd} {
+		assert.Equal(t, backfillStudentOwnerCmd, sub.Parent())
 	}
 	assert.Equal(t, RootCmd, backfillCmd.Parent())
 }
@@ -167,3 +177,84 @@ func TestBackfillStaffOwnerReportsPartialFailure(t *testing.T) {
 type backfillFailingWriter struct{ err error }
 
 func (w backfillFailingWriter) Write([]byte) (int, error) { return 0, w.err }
+
+// The backfill visits every school in the database, so the test owns an
+// isolated clone instead of the package's shared one.
+func TestBackfillStudentOwnerCommands(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	tenantID := testpkg.Tenant(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Backfill", "Command", "3a")
+	released := 0
+	root := backfillRoot{openDatabase: func() (*testpkg.DB, func(), error) {
+		return db, func() { released++ }, nil
+	}}
+	newCommand := func() (*cobra.Command, *bytes.Buffer) {
+		var out bytes.Buffer
+		cmd := &cobra.Command{}
+		cmd.SetContext(ctx)
+		cmd.SetOut(&out)
+		return cmd, &out
+	}
+
+	cmd, out := newCommand()
+	require.NoError(t, root.studentOwnerRun(cmd, migrations.StudentOwnerBackfillOptions{BatchSize: 1}))
+	require.Equal(t, 1, released, "the database is released after every command")
+	require.Contains(t, out.String(), "student owner backfill stable")
+	report := decodeStudentOwnerReport(t, out.String())
+	require.True(t, report.Stable())
+	var found bool
+	for _, tenant := range report.Tenants {
+		if tenant.TenantID == tenantID {
+			found = true
+			require.EqualValues(t, 1, tenant.RowsCopied)
+			require.EqualValues(t, 1, tenant.SourceCount)
+		}
+	}
+	require.True(t, found)
+
+	cmd, out = newCommand()
+	require.NoError(t, root.studentOwnerStatus(cmd))
+	require.Equal(t, 2, released)
+	require.Equal(t, len(report.Tenants), len(decodeStudentOwnerReport(t, out.String()).Tenants))
+
+	// A legacy guardian e-mail that no linked guardian carries has no target
+	// column. The command prints the evidence and still fails so scripts
+	// cannot proceed to Cutover with a contact value about to be dropped.
+	_, err := db.ExecContext(ctx, `UPDATE users.students SET guardian_email = 'nobody@example.test' WHERE id = ?`, student.ID)
+	require.NoError(t, err)
+	cmd, out = newCommand()
+	err = root.studentOwnerRun(cmd, migrations.StudentOwnerBackfillOptions{MaxPasses: 1})
+	require.ErrorContains(t, err, "not stable")
+	require.ErrorContains(t, err, "guardian_mismatch_count")
+	require.Contains(t, out.String(), `"guardian_mismatch_count": 1`)
+	cmd, _ = newCommand()
+	require.ErrorContains(t, root.studentOwnerStatus(cmd), "not stable")
+
+	cmd, out = newCommand()
+	require.NoError(t, root.studentOwnerReset(cmd))
+	require.Contains(t, out.String(), "users.students untouched")
+	var profiles int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_profiles`).Scan(ctx, &profiles))
+	require.Zero(t, profiles)
+	cmd, out = newCommand()
+	require.ErrorContains(t, root.studentOwnerStatus(cmd), "not stable", "unvisited schools block Cutover")
+	report = decodeStudentOwnerReport(t, out.String())
+	require.Empty(t, report.Tenants)
+	require.Contains(t, report.MissingTenants, tenantID)
+	var sourceRows int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.students WHERE id = ?`, student.ID).Scan(ctx, &sourceRows))
+	require.Equal(t, 1, sourceRows)
+}
+
+func decodeStudentOwnerReport(t *testing.T, output string) migrations.StudentOwnerBackfillReport {
+	t.Helper()
+	// The JSON document ends at the first line that is not part of it.
+	end := strings.Index(output, "\n}\n")
+	require.GreaterOrEqual(t, end, 0, "report output must be a JSON object: %s", output)
+	var report migrations.StudentOwnerBackfillReport
+	require.NoError(t, json.Unmarshal([]byte(output[:end+2]), &report))
+	return report
+}
