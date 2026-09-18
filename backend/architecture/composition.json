@@ -2331,17 +2331,17 @@
       "declaration": "TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySlice",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        52
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "database/repositories/users/list_behavior_test.go",
-      "declaration": "TestStudentRepositoryListWithOptionsPreservesHydrationOrderAndEmptySlice",
+      "declaration": "TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty",
       "target": "database/repositories.NewFactory",
       "lines": [
-        18
+        22
       ],
       "tables": []
     },
@@ -3267,10 +3267,32 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
+      "declaration": "TestStudentRepository_ClassRoster",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        506
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_repository_test.go",
+      "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        532
+      ],
+      "tables": [
+        "users.students"
+      ]
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_repository_test.go",
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        568
+        584
       ],
       "tables": []
     },
@@ -3332,7 +3354,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        875
+        891
       ],
       "tables": []
     },
@@ -3364,7 +3386,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        714
+        730
       ],
       "tables": [
         "users.students"
@@ -3376,7 +3398,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        802
+        818
       ],
       "tables": [
         "users.students"
@@ -3385,22 +3407,14 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_List",
+      "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        503
+        555
       ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_ListWithOptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        531
-      ],
-      "tables": []
+      "tables": [
+        "users.students"
+      ]
     },
     {
       "scope": "test",
@@ -3430,7 +3444,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        599
+        615
       ],
       "tables": []
     },

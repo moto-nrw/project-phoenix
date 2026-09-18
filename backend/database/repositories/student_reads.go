@@ -74,19 +74,50 @@ func (r *StudentReads) FindReadScopeByIDs(ctx context.Context, ids []int64) (map
 
 func (r *StudentReads) FindByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
 	return r.listRecords(ctx, "find by group id", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByGroup(ctx, []int64{groupID})
+		return r.directory.ListStudentRecordsByGroup(ctx, []int64{groupID}, peopleModule.StudentScopeEnrolled)
 	})
+}
+
+// ListByGroupIDsIncludingAlumni backs the care-participation candidate set,
+// which decides per child whether a graduate still counts and therefore must
+// see them.
+func (r *StudentReads) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	return r.listRecords(ctx, "list by group ids including alumni", func() ([]peopleModule.StudentRecord, error) {
+		return r.directory.ListStudentRecordsByGroup(ctx, groupIDs, peopleModule.StudentScopeAll)
+	})
+}
+
+// ListClassRoster is the class-roster report's candidate set: one class, or
+// every child when the report spans all of them. Graduates are included
+// because the shared participation rule filters the set afterwards.
+func (r *StudentReads) ListClassRoster(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
+	return r.listRecords(ctx, "list class roster", func() ([]peopleModule.StudentRecord, error) {
+		if schoolClass == "" {
+			return r.directory.ListStudentRecords(ctx, peopleModule.StudentScopeAll)
+		}
+		return r.directory.ListStudentRecordsByClass(ctx, []string{schoolClass}, peopleModule.StudentScopeAll)
+	})
+}
+
+// CountEnrolled is the platform statistic: how many children a school has,
+// graduates excluded.
+func (r *StudentReads) CountEnrolled(ctx context.Context) (int, error) {
+	ids, err := r.directory.ListStudentDirectoryIDs(ctx)
+	if err != nil {
+		return 0, translateStudentReadError("count enrolled students", err)
+	}
+	return len(ids), nil
 }
 
 func (r *StudentReads) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
 	return r.listRecords(ctx, "find by group ids", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByGroup(ctx, groupIDs)
+		return r.directory.ListStudentRecordsByGroup(ctx, groupIDs, peopleModule.StudentScopeEnrolled)
 	})
 }
 
 func (r *StudentReads) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
 	return r.listRecords(ctx, "find by school class", func() ([]peopleModule.StudentRecord, error) {
-		return r.directory.ListStudentRecordsByClass(ctx, []string{schoolClass})
+		return r.directory.ListStudentRecordsByClass(ctx, []string{schoolClass}, peopleModule.StudentScopeEnrolled)
 	})
 }
 
@@ -229,6 +260,11 @@ func (r *StudentReads) listRecords(
 	records, err := read()
 	if err != nil {
 		return nil, translateStudentReadError(operation, err)
+	}
+	// nil, not an empty slice: the retained contract distinguishes them, and a
+	// caller that ranges over the result sees no difference either way.
+	if len(records) == 0 {
+		return nil, nil
 	}
 	result := make([]*userModels.Student, 0, len(records))
 	for _, record := range records {

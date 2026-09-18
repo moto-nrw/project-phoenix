@@ -112,7 +112,14 @@ type StudentRepository interface {
 	FindBirthdaysOn(ctx context.Context, days []MonthDay) ([]BirthdayEntry, error)
 
 	// ListWithOptions retrieves students with query options
-	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Student, error)
+	// ListByGroupIDsIncludingAlumni is the care-participation candidate set:
+	// the rule that follows decides per child whether a graduate still counts.
+	ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*Student, error)
+	// ListClassRoster is the class-roster report's candidate set — one class,
+	// or every child when the report spans all of them.
+	ListClassRoster(ctx context.Context, schoolClass string) ([]*Student, error)
+	// CountEnrolled counts the children of the school, graduates excluded.
+	CountEnrolled(ctx context.Context) (int, error)
 
 	// CountWithOptions counts students matching the query options
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)

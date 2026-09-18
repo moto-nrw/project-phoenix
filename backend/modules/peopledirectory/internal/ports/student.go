@@ -37,9 +37,11 @@ type StudentStore interface {
 	// ListRecordsByPersonIDs resolves the children of the given identities.
 	ListRecordsByPersonIDs(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListRecordsByGroups returns the non-alumni children of the groups.
-	ListRecordsByGroups(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)
+	ListRecordsByGroups(context.Context, []int64, string) ([]domain.StudentRecord, domain.OperationStats, error)
+	// ListRecords returns every child of the tenant in scope.
+	ListRecords(context.Context, string) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListRecordsByClasses returns the non-alumni children of the classes.
-	ListRecordsByClasses(context.Context, []string) ([]domain.StudentRecord, domain.OperationStats, error)
+	ListRecordsByClasses(context.Context, []string, string) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListRecordsByGuardianContact finds children by a retained guardian column.
 	ListRecordsByGuardianContact(context.Context, string, string) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListRecordsDueForStatus returns the children a lifecycle tick is due to move.

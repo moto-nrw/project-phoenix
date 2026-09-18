@@ -16,6 +16,16 @@ const (
 	StudentCareStatusAll     = "all"
 )
 
+// StudentScope says whether a lookup counts graduates. A roster read does not:
+// a graduate's row survives only so a grade transition can be reverted. An
+// administrative or statistical read may, and says so.
+type StudentScope string
+
+const (
+	StudentScopeEnrolled StudentScope = "enrolled"
+	StudentScopeAll      StudentScope = "all"
+)
+
 // StudentRecord is the whole child row as its owner holds it. Student stays
 // the narrow projection other owners read; this is what the directory's own
 // staff surfaces carry, so they keep every field they render without a second
@@ -123,10 +133,14 @@ type StudentDirectoryQuery interface {
 	// ListStudentRecordsByPerson resolves the children of the given identities,
 	// alumni included.
 	ListStudentRecordsByPerson(context.Context, []int64) ([]StudentRecord, error)
-	// ListStudentRecordsByGroup returns the non-alumni children of the groups.
-	ListStudentRecordsByGroup(context.Context, []int64) ([]StudentRecord, error)
-	// ListStudentRecordsByClass returns the non-alumni children of the classes.
-	ListStudentRecordsByClass(context.Context, []string) ([]StudentRecord, error)
+	// ListStudentRecordsByGroup returns the children of the groups in scope.
+	ListStudentRecordsByGroup(context.Context, []int64, StudentScope) ([]StudentRecord, error)
+	// ListStudentRecordsByClass returns the children of the classes in scope.
+	ListStudentRecordsByClass(context.Context, []string, StudentScope) ([]StudentRecord, error)
+	// ListStudentRecords returns every child of the tenant in scope, ordered
+	// by id. It backs the whole-school reads: the class roster over every
+	// class, and the platform statistics.
+	ListStudentRecords(context.Context, StudentScope) ([]StudentRecord, error)
 	// ListStudentRecordsByGuardianContact finds children by one of the two
 	// retained guardian columns; the guardian tables stay authoritative.
 	ListStudentRecordsByGuardianContact(context.Context, string, string) ([]StudentRecord, error)
@@ -248,20 +262,32 @@ func (m *Module) ListStudentRecordsByPerson(ctx context.Context, personIDs []int
 	return m.engine.ListStudentRecordsByPerson(ctx, personIDs)
 }
 
-func (m *Module) ListStudentRecordsByGroup(ctx context.Context, groupIDs []int64) ([]StudentRecord, error) {
+func (m *Module) ListStudentRecordsByGroup(
+	ctx context.Context,
+	groupIDs []int64,
+	scope StudentScope,
+) ([]StudentRecord, error) {
 	groupIDs = uniquePositive(groupIDs)
 	if len(groupIDs) == 0 {
 		return []StudentRecord{}, nil
 	}
-	return m.engine.ListStudentRecordsByGroup(ctx, groupIDs)
+	return m.engine.ListStudentRecordsByGroup(ctx, groupIDs, scope)
 }
 
-func (m *Module) ListStudentRecordsByClass(ctx context.Context, classes []string) ([]StudentRecord, error) {
+func (m *Module) ListStudentRecords(ctx context.Context, scope StudentScope) ([]StudentRecord, error) {
+	return m.engine.ListStudentRecords(ctx, scope)
+}
+
+func (m *Module) ListStudentRecordsByClass(
+	ctx context.Context,
+	classes []string,
+	scope StudentScope,
+) ([]StudentRecord, error) {
 	classes = uniqueClasses(classes)
 	if len(classes) == 0 {
 		return []StudentRecord{}, nil
 	}
-	return m.engine.ListStudentRecordsByClass(ctx, classes)
+	return m.engine.ListStudentRecordsByClass(ctx, classes, scope)
 }
 
 func (m *Module) ListStudentRecordsByGuardianContact(ctx context.Context, email, phone string) ([]StudentRecord, error) {

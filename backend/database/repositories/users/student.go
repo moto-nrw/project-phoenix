@@ -97,87 +97,8 @@ func (r *StudentRepository) VerifyCompanionStrandingBatch(context.Context) error
 	return errStudentWritesMoved
 }
 
-// Legacy method to maintain compatibility with old interface
-func (r *StudentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Student, error) {
-	options := modelBase.NewQueryOptions()
-	filter := modelBase.NewFilter()
-
-	for field, value := range filters {
-		if value != nil {
-			applyStudentFilter(filter, field, value)
-		}
-	}
-
-	// Exclude soft-deleted alumni by default so unscoped reads (e.g. database
-	// statistics counting Student.List(ctx, nil)) never count graduates. A
-	// caller that filters on status explicitly (pending / active / alumnus) is
-	// respected and gets exactly what it asked for.
-	if _, ok := filters["status"]; !ok {
-		filter.NotIn("status", string(users.StudentStatusAlumnus))
-	}
-
-	options.Filter = filter
-	return r.ListWithOptions(ctx, options)
-}
-
-// applyStudentFilter applies a single filter based on field name
-func applyStudentFilter(filter *modelBase.Filter, field string, value interface{}) {
-	switch field {
-	case "school_class_like":
-		applyStudentStringLikeFilter(filter, "school_class", value)
-	case "guardian_name_like":
-		applyStudentStringLikeFilter(filter, "guardian_name", value)
-	case "has_group":
-		applyNullableFieldFilter(filter, "group_id", value)
-	default:
-		filter.Equal(field, value)
-	}
-}
-
-// applyStudentStringLikeFilter applies LIKE filter for string fields
-func applyStudentStringLikeFilter(filter *modelBase.Filter, column string, value interface{}) {
-	if strValue, ok := value.(string); ok {
-		filter.ILike(column, "%"+strValue+"%")
-	}
-}
-
-// ListWithOptions provides a type-safe way to list students with query options
-func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Student, error) {
-	// Without an ORDER BY, PostgreSQL is free to return the same rows in a
-	// different order for every execution, so two LIMIT/OFFSET requests over the
-	// same selection can hand back the same child twice and never mention
-	// another one at all (#2218 review). Anything walking this list page by page
-	// — the Kindersuche does, once a selection exceeds one page — depends on a
-	// total order, so fall back to the primary key when the caller did not ask
-	// for a specific one. An explicit Sorting wins: it is then the caller's job
-	// to make it total.
-	listOptions := &modelBase.QueryOptions{}
-	if options != nil {
-		*listOptions = *options
-	}
-	if options == nil || options.Sorting == nil {
-		listOptions.Sorting = &modelBase.Sorting{Fields: []modelBase.SortField{{
-			Field:     "id",
-			Direction: modelBase.SortAsc,
-		}}}
-	}
-
-	students, err := r.Repository.ListWithOptions(ctx, listOptions)
-	if err != nil {
-		return nil, err
-	}
-	if len(students) == 0 {
-		return nil, nil
-	}
-
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
-	}
-
-	return students, nil
-}
-
-// studentWithPersonAndGroup is the scan target for queries that join students, persons, and groups.
+// studentWithPersonAndGroup is the joined row the group-info reads scan: the
+// child, the identity it renders under and the name of the group it sits in.
 type studentWithPersonAndGroup struct {
 	Student   *users.Student `bun:"student"`
 	Person    *users.Person  `bun:"person"`
@@ -476,6 +397,21 @@ func (r *StudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context,
 		return nil, fmt.Errorf("find students overlapping date: %w", err)
 	}
 	return r.FindOverlappingWithGroups(ctx, date, date, timezone.DateFromTime(now))
+}
+
+// The scoped roster reads that replaced the generic filter surface are the
+// owner's: which children a lookup counts is its decision, not a filter the
+// caller assembles.
+func (r *StudentRepository) ListByGroupIDsIncludingAlumni(context.Context, []int64) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) ListClassRoster(context.Context, string) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) CountEnrolled(context.Context) (int, error) {
+	return 0, errStudentWritesMoved
 }
 
 // The locked reads and the per-tenant class-writes gate are the owner's too:

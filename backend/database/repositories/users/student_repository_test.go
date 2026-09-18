@@ -495,69 +495,85 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	})
 }
 
-func TestStudentRepository_List(t *testing.T) {
+// The generic filter surface was replaced in #3349 by reads that name the
+// children they count. These pin what the old ones did: the roster of one
+// class, the whole-school roster, and the enrolled count that leaves graduates
+// out.
+func TestStudentRepository_ClassRoster(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
-	t.Run("lists students with filters", func(t *testing.T) {
-		testpkg.CreateTestStudent(t, db, "ListFilter", "Test", "FilterClass")
+	t.Run("one class", func(t *testing.T) {
+		class := fmt.Sprintf("RosterClass%d", time.Now().UnixNano())
+		student := testpkg.CreateTestStudent(t, db, "Roster", "Test", class)
 
-		// Filter by school_class_like
-		students, err := repo.List(ctx, map[string]interface{}{
-			"school_class_like": "Filter",
-		})
+		students, err := repo.ListClassRoster(ctx, class)
 		require.NoError(t, err)
-		assert.NotEmpty(t, students)
+		require.Len(t, students, 1)
+		assert.Equal(t, student.ID, students[0].ID)
 	})
 
-	t.Run("lists all students with no filters", func(t *testing.T) {
-		testpkg.CreateTestStudent(t, db, "ListAll", "Test", "1a")
+	t.Run("every class", func(t *testing.T) {
+		testpkg.CreateTestStudent(t, db, "RosterAll", "Test", "1a")
 
-		students, err := repo.List(ctx, nil)
+		students, err := repo.ListClassRoster(ctx, "")
 		require.NoError(t, err)
-		assert.NotEmpty(t, students)
+		assert.NotEmpty(t, students, "an empty class name spans the whole school")
 	})
 }
 
-func TestStudentRepository_ListWithOptions(t *testing.T) {
+func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
-	t.Run("lists with pagination", func(t *testing.T) {
-		// Create several students
-		testpkg.CreateTestStudent(t, db, "Page1", "Test", "1a")
-		testpkg.CreateTestStudent(t, db, "Page2", "Test", "1b")
-		testpkg.CreateTestStudent(t, db, "Page3", "Test", "1c")
+	student := testpkg.CreateTestStudent(t, db, "Counted", "Test", "1a")
+	before, err := repo.CountEnrolled(ctx)
+	require.NoError(t, err)
+	require.Positive(t, before)
 
-		options := modelBase.NewQueryOptions()
-		options.WithPagination(1, 2) // Page 1, limit 2
+	_, err = db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", users.StudentStatusAlumnus).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 
-		students, err := repo.ListWithOptions(ctx, options)
-		require.NoError(t, err)
-		assert.LessOrEqual(t, len(students), 2)
-	})
+	after, err := repo.CountEnrolled(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, before-1, after, "a graduate stops counting")
+}
 
-	t.Run("lists with filter", func(t *testing.T) {
-		uniqueClass := fmt.Sprintf("FilterClass%d", time.Now().UnixNano())
-		testpkg.CreateTestStudent(t, db, "FilterOpt", "Test", uniqueClass)
+func TestStudentRepository_ListByGroupIDsIncludingAlumni(t *testing.T) {
+	t.Parallel()
 
-		options := modelBase.NewQueryOptions()
-		filter := modelBase.NewFilter()
-		filter.ILike("school_class", "%"+uniqueClass+"%")
-		options.Filter = filter
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	ctx := testpkg.Ctx(t)
 
-		students, err := repo.ListWithOptions(ctx, options)
-		require.NoError(t, err)
-		assert.Len(t, students, 1)
-	})
+	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("CandidateGroup%d", time.Now().UnixNano()))
+	student := testpkg.CreateTestStudent(t, db, "Candidate", "Test", "1a")
+	_, err := db.NewUpdate().TableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Set("status = ?", users.StudentStatusAlumnus).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// The participation rule that follows decides per child whether a graduate
+	// still counts, so the candidate set has to contain them.
+	students, err := repo.ListByGroupIDsIncludingAlumni(ctx, []int64{group.ID})
+	require.NoError(t, err)
+	require.Len(t, students, 1)
+	assert.Equal(t, student.ID, students[0].ID)
+
+	enrolled, err := repo.FindByGroupIDs(ctx, []int64{group.ID})
+	require.NoError(t, err)
+	assert.Empty(t, enrolled, "the roster read still leaves the graduate out")
 }
 
 func TestStudentRepository_CountWithOptions(t *testing.T) {

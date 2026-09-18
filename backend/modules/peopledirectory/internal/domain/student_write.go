@@ -188,3 +188,7 @@ const (
 
 // StudentStatusPending is a child enrolled for a start day still ahead.
 const StudentStatusPending = "pending"
+
+// StudentScopeAll is the lookup that counts graduates too; anything else is the
+// roster scope, which leaves them out.
+const StudentScopeAll = "all"

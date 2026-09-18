@@ -183,13 +183,29 @@ func (e engine) ListStudentRecordsByPerson(ctx context.Context, personIDs []int6
 	return toPublicStudentRecords(values), mapError(err)
 }
 
-func (e engine) ListStudentRecordsByGroup(ctx context.Context, groupIDs []int64) ([]peopledirectory.StudentRecord, error) {
-	values, err := e.students.ListRecordsByGroups(ctx, groupIDs)
+func (e engine) ListStudentRecordsByGroup(
+	ctx context.Context,
+	groupIDs []int64,
+	scope peopledirectory.StudentScope,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByGroups(ctx, groupIDs, string(scope))
 	return toPublicStudentRecords(values), mapError(err)
 }
 
-func (e engine) ListStudentRecordsByClass(ctx context.Context, classes []string) ([]peopledirectory.StudentRecord, error) {
-	values, err := e.students.ListRecordsByClasses(ctx, classes)
+func (e engine) ListStudentRecords(
+	ctx context.Context,
+	scope peopledirectory.StudentScope,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecords(ctx, string(scope))
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByClass(
+	ctx context.Context,
+	classes []string,
+	scope peopledirectory.StudentScope,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByClasses(ctx, classes, string(scope))
 	return toPublicStudentRecords(values), mapError(err)
 }
 

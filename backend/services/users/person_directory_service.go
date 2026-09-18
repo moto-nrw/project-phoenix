@@ -511,13 +511,7 @@ func (s *personService) GetParticipationCandidatesByGroupIDs(ctx context.Context
 	if len(groupIDs) == 0 {
 		return []*userModels.Student{}, nil
 	}
-	values := make([]interface{}, len(groupIDs))
-	for i, groupID := range groupIDs {
-		values[i] = groupID
-	}
-	options := base.NewQueryOptions()
-	options.Filter.In("group_id", values...)
-	return s.StudentRepo.ListWithOptions(ctx, options)
+	return s.StudentRepo.ListByGroupIDsIncludingAlumni(ctx, groupIDs)
 }
 
 // GetEligibleStudentsByGroupIDsOnDate retrieves group students whose

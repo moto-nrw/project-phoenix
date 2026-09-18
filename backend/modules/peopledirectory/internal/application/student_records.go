@@ -28,15 +28,21 @@ func (s *StudentService) ListRecordsByPersonIDs(ctx context.Context, personIDs [
 	})
 }
 
-func (s *StudentService) ListRecordsByGroups(ctx context.Context, groupIDs []int64) ([]domain.StudentRecord, error) {
+func (s *StudentService) ListRecordsByGroups(ctx context.Context, groupIDs []int64, scope string) ([]domain.StudentRecord, error) {
 	return s.readRecords(ctx, "list_student_records_by_group", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {
-		return s.store.ListRecordsByGroups(txCtx, groupIDs)
+		return s.store.ListRecordsByGroups(txCtx, groupIDs, scope)
 	})
 }
 
-func (s *StudentService) ListRecordsByClasses(ctx context.Context, classes []string) ([]domain.StudentRecord, error) {
+func (s *StudentService) ListRecords(ctx context.Context, scope string) ([]domain.StudentRecord, error) {
+	return s.readRecords(ctx, "list_student_records", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {
+		return s.store.ListRecords(txCtx, scope)
+	})
+}
+
+func (s *StudentService) ListRecordsByClasses(ctx context.Context, classes []string, scope string) ([]domain.StudentRecord, error) {
 	return s.readRecords(ctx, "list_student_records_by_class", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {
-		return s.store.ListRecordsByClasses(txCtx, classes)
+		return s.store.ListRecordsByClasses(txCtx, classes, scope)
 	})
 }
 

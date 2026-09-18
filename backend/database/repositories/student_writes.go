@@ -382,6 +382,18 @@ func (r studentRepositoryWithOwnerWrites) ListIDs(ctx context.Context) ([]int64,
 	return r.reads.ListIDs(ctx)
 }
 
+func (r studentRepositoryWithOwnerWrites) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	return r.reads.ListByGroupIDsIncludingAlumni(ctx, groupIDs)
+}
+
+func (r studentRepositoryWithOwnerWrites) ListClassRoster(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
+	return r.reads.ListClassRoster(ctx, schoolClass)
+}
+
+func (r studentRepositoryWithOwnerWrites) CountEnrolled(ctx context.Context) (int, error) {
+	return r.reads.CountEnrolled(ctx)
+}
+
 func (r studentRepositoryWithOwnerWrites) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
 	return r.reads.FindByIDForUpdate(ctx, id)
 }

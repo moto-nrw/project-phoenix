@@ -329,13 +329,13 @@ func (e *recordingEngine) ListStudentRecordsByPerson(_ context.Context, ids []in
 	return nil, nil
 }
 
-func (e *recordingEngine) ListStudentRecordsByGroup(_ context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+func (e *recordingEngine) ListStudentRecordsByGroup(_ context.Context, ids []int64, _ peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {
 	e.calls++
 	e.recordIDs = ids
 	return nil, nil
 }
 
-func (e *recordingEngine) ListStudentRecordsByClass(_ context.Context, classes []string) ([]peopledirectory.StudentRecord, error) {
+func (e *recordingEngine) ListStudentRecordsByClass(_ context.Context, classes []string, _ peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {
 	e.calls++
 	e.student.classes = classes
 	return nil, nil
@@ -379,4 +379,9 @@ func (e *recordingEngine) FindStudentRecordForMutationNoWait(
 	e.calls++
 	e.lockedRecord = id
 	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) ListStudentRecords(context.Context, peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	return nil, nil
 }

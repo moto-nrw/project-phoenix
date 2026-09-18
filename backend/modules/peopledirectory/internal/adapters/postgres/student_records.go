@@ -43,10 +43,13 @@ func (s *StudentStore) selectStudentRecords(
 	return result, stats, nil
 }
 
-// notAlumni is the roster guard every staff-facing lookup carries: a graduate's
-// row survives only so a grade transition can be reverted, never to be written
-// to or counted.
-func notAlumni(query *bun.SelectQuery) *bun.SelectQuery {
+// inScope applies the roster guard unless the caller asked for every child: a
+// graduate's row survives only so a grade transition can be reverted, never to
+// be written to or counted by a staff-facing read.
+func inScope(query *bun.SelectQuery, scope string) *bun.SelectQuery {
+	if scope == domain.StudentScopeAll {
+		return query
+	}
 	return query.Where(`"student".status <> ?`, domain.StudentStatusAlumnus)
 }
 
@@ -64,21 +67,33 @@ func (s *StudentStore) ListRecordsByPersonIDs(
 func (s *StudentStore) ListRecordsByGroups(
 	ctx context.Context,
 	groupIDs []int64,
+	scope string,
 ) ([]domain.StudentRecord, domain.OperationStats, error) {
 	return s.selectStudentRecords(ctx, "list student records by group", func(query *bun.SelectQuery) *bun.SelectQuery {
-		return notAlumni(query.Where(`"student".group_id IN (?)`, bun.List(groupIDs)))
+		return inScope(query.Where(`"student".group_id IN (?)`, bun.List(groupIDs)), scope)
+	})
+}
+
+// ListRecords returns every child of the tenant in scope.
+func (s *StudentStore) ListRecords(
+	ctx context.Context,
+	scope string,
+) ([]domain.StudentRecord, domain.OperationStats, error) {
+	return s.selectStudentRecords(ctx, "list student records", func(query *bun.SelectQuery) *bun.SelectQuery {
+		return inScope(query, scope)
 	})
 }
 
 func (s *StudentStore) ListRecordsByClasses(
 	ctx context.Context,
 	classes []string,
+	scope string,
 ) ([]domain.StudentRecord, domain.OperationStats, error) {
 	return s.selectStudentRecords(ctx, "list student records by class", func(query *bun.SelectQuery) *bun.SelectQuery {
 		// Trimmed and case-insensitive, like the directory page: the column is
 		// free text a school typed, so " 2a " and "2A" are the same class.
-		return notAlumni(query.Where(
-			`LOWER(TRIM("student".school_class)) IN (?)`, bun.List(lowerTrimmed(classes))))
+		return inScope(query.Where(
+			`LOWER(TRIM("student".school_class)) IN (?)`, bun.List(lowerTrimmed(classes))), scope)
 	})
 }
 

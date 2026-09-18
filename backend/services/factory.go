@@ -1851,8 +1851,7 @@ func newFactory(
 	// Initialize database stats service
 	databaseService := database.NewService(database.StatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
-			rows, err := repos.Student.List(ctx, nil)
-			return len(rows), err
+			return repos.Student.CountEnrolled(ctx)
 		},
 		Teachers: func(ctx context.Context) (int, error) { rows, err := repos.Staff.List(ctx, nil); return len(rows), err },
 		Rooms:    func(ctx context.Context) (int, error) { rows, err := repos.Room.List(ctx, nil); return len(rows), err },
