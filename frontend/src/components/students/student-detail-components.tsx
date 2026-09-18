@@ -924,7 +924,7 @@ export function PersonalInfoReadOnly({
           <DataField label="Gesundheitsinformationen" fullWidth>
             <div className="flex items-start gap-1.5">
               <div className="min-w-0 flex-1">
-                <div className="inline-flex min-w-0 items-start gap-1.5">
+                <div className="inline-flex w-full max-w-full min-w-0 items-start gap-1.5">
                   <span className="min-w-0 break-words">
                     {student.health_info}
                   </span>

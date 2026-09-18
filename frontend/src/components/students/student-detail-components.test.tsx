@@ -844,7 +844,12 @@ describe("PersonalInfoReadOnly", () => {
 
     const healthValue = screen.getByText(healthInfo);
     expect(healthValue).toHaveClass("min-w-0", "break-words");
-    expect(healthValue.parentElement).toHaveClass("inline-flex", "min-w-0");
+    expect(healthValue.parentElement).toHaveClass(
+      "inline-flex",
+      "w-full",
+      "max-w-full",
+      "min-w-0",
+    );
     expect(
       within(healthValue.parentElement as HTMLElement)
         .getByText("Für Eltern sichtbar")
