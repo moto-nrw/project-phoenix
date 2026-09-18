@@ -30,7 +30,6 @@ import (
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -551,8 +550,9 @@ type ServiceConfig struct {
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
 
 	// Related-accounts management (invite/remove further guardians from the
-	// parents portal). The invitation service runs the shared resolve logic.
-	GuardianInvites authService.GuardianInvitationService
+	// parents portal). The owner runs the shared resolve logic behind the
+	// consumer-owned GuardianAccess port.
+	GuardianInvites GuardianAccess
 	// GuardianInvitations is the consumer-owned port over the Identity &
 	// Access guardian invitations (#2722): a contact with an open invitation
 	// shows as pending instead of "no account".

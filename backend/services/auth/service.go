@@ -2,7 +2,6 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -43,20 +42,15 @@ type ServiceConfig struct {
 	// Sessions is the consumer-owned port over the Identity & Access
 	// account-authentication capability (#3251): login, refresh, switching,
 	// session validation, cleanup and revocation moved there. The retained
-	// flows (staff preview, password reset, account management, offboarding)
-	// and the AuthService session methods delegate to it.
+	// flows (staff preview, account management, offboarding) and the
+	// AuthService session methods delegate to it.
 	Sessions AccountSessions
 	// Lifecycle is the consumer-owned port over the Identity & Access
 	// account-lifecycle capability (#3225): staff preview, staff offboarding
 	// access, the school identity chain, parent accounts and guardian
-	// relative access moved there. The retained registration, linking and
-	// invitation flows provision identities and apply the school-role policy
-	// through it (#3314).
+	// relative access moved there. The retained account management flows
+	// apply the school-role policy through it (#3314).
 	Lifecycle AccountLifecycle
-	// Resets is the consumer-owned port over the Identity & Access password
-	// reset capability (#2722). The mail, URL, expiry and rate-limit values
-	// above configure it in the composition root.
-	Resets PasswordResets
 }
 
 // NewServiceConfig creates and validates a new ServiceConfig
@@ -84,11 +78,12 @@ func NewServiceConfig(
 }
 
 // Service provides the retained authentication and user management
-// functionality: registration and school linking, password change and
-// reset, account lifecycle, staff preview and offboarding. Tenant, parent and
-// school login, refresh, switching, logout, session validation, cleanup and
-// revocation are served by Identity & Access through the Sessions port
-// (#3251); role and permission management moved there with #3314.
+// functionality: password change, account administration, staff preview and
+// offboarding. Tenant, parent and school login, refresh, switching, logout,
+// session validation, cleanup and revocation are served by Identity & Access
+// through the Sessions port (#3251); role and permission management moved
+// there with #3314, the password reset, the invitations and the account
+// registration and school linking with #3332.
 type Service struct {
 	repos         *repositories.Factory
 	tokenAuth     *jwt.TokenAuth
@@ -100,7 +95,6 @@ type Service struct {
 	tenantRuntime *tenant.UnitOfWork
 	sessions      AccountSessions
 	lifecycle     AccountLifecycle
-	resets        PasswordResets
 	// mfaService is optional. The Identity & Access login flows read it
 	// through CurrentMFAService at call time, so SetMFAService keeps its
 	// meaning: nil disables the gate and login behaves as a plain
@@ -164,13 +158,7 @@ func NewService(
 		audit:     config.Audit,
 		sessions:  config.Sessions,
 		lifecycle: config.Lifecycle,
-		resets:    config.Resets,
 	}, nil
-}
-
-// getLogger returns the service's logger, falling back to slog.Default() if nil.
-func (s *Service) getLogger() *slog.Logger {
-	return cmp.Or(s.logger, slog.Default())
 }
 
 // SetMFAService wires the optional MFA service post-construction. Idempotent
@@ -197,31 +185,9 @@ func (s *Service) AccountLifecycle() AccountLifecycle {
 	return s.lifecycle
 }
 
-func (s *Service) runInTx(
-	ctx context.Context,
-	fn func(txCtx context.Context) error,
-) error {
-	ctx = s.withTenantRuntime(ctx)
-	if s.txHandler == nil {
-		return fn(ctx)
-	}
-
-	if tenant.FromContext(ctx) == 0 && tenant.ScopeFromContext(ctx) != "" {
-		return tenant.WithinAdmin(ctx, fn)
-	}
-
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
-		return fn(txCtx)
-	})
-}
-
 func hasAmbientTx(ctx context.Context) bool {
 	_, ok := tenant.TransactionFromContext(ctx)
 	return ok
-}
-
-func (s *Service) independentCleanupCtx(ctx context.Context) context.Context {
-	return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTenant(tenant.ContextWithoutTransaction(ctx)))
 }
 
 // VerifyPassword checks a plain-text password against its Argon2id hash. It
@@ -263,10 +229,6 @@ type MFAGateConfiguration interface {
 type AuthService interface {
 	SessionOperations
 	MFAGateConfiguration
-	RegistrationOperations
-	CredentialOperations
-	AccountAdministrationOperations
-	PasswordResetOperations
 	StaffPreviewOperations
 	ParentAccountOperations
 }

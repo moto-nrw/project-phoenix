@@ -3,11 +3,12 @@ package auth_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,16 +16,16 @@ import (
 )
 
 // The password reset flows live in Identity & Access (#2722); the tests
-// below drive them through the retained auth service the way the reset
-// routes do, against a real database.
+// below drive the public capability the way the reset routes of the three
+// portals do (#3332), against a real database.
 
 const resetPassword = "Str0ngP@ssword!" //nolint:gosec // test-only value, never a real credential
 
-func newResetService(t *testing.T, db *bun.DB, options ...services.AuthTestOption) authService.AuthService {
+func newResetCapability(t *testing.T, db *bun.DB, options ...services.AuthTestOption) identityaccess.PasswordResets {
 	t.Helper()
 	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db), options...)
 	require.NoError(t, err)
-	return module.Auth
+	return module.AccountAuthentication
 }
 
 func resetAccount(t *testing.T, db *bun.DB, name string) string {
@@ -62,39 +63,39 @@ func storedResetToken(t *testing.T, db *bun.DB, id int64) (used bool, expiry tim
 func TestInitiatePasswordResetIssuesARedeemableLink(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := newResetService(t, db)
+	resets := newResetCapability(t, db)
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-flow")
 
-	unknown, err := service.InitiatePasswordReset(ctx, "does-not-exist@test.local")
+	unknown, err := resets.InitiatePasswordReset(ctx, "does-not-exist@test.local", identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err, "an unknown address answers like a known one")
 	assert.Nil(t, unknown)
 
-	token, err := service.InitiatePasswordReset(ctx, email)
+	token, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 	require.NotNil(t, token)
 	assert.NotEmpty(t, token.Token)
 	assert.True(t, token.Expiry.After(time.Now()), "a link is never issued already expired")
 
-	require.NoError(t, service.ResetPassword(ctx, token.Token, resetPassword))
+	require.NoError(t, resets.ResetPassword(ctx, token.Token, resetPassword))
 	used, _ := storedResetToken(t, db, token.ID)
 	assert.True(t, used)
 
-	err = service.ResetPassword(ctx, token.Token, resetPassword)
-	require.ErrorIs(t, err, authService.ErrInvalidToken, "a spent link cannot set a second password")
-	require.ErrorIs(t, service.ResetPassword(ctx, "unknown-token", resetPassword), authService.ErrInvalidToken)
+	err = resets.ResetPassword(ctx, token.Token, resetPassword)
+	require.ErrorIs(t, err, identityaccess.ErrInvalidToken, "a spent link cannot set a second password")
+	require.ErrorIs(t, resets.ResetPassword(ctx, "unknown-token", resetPassword), identityaccess.ErrInvalidToken)
 
-	weak, err := service.InitiatePasswordReset(ctx, email)
+	weak, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
-	require.ErrorIs(t, service.ResetPassword(ctx, weak.Token, "weak"), authService.ErrPasswordTooWeak)
+	require.ErrorIs(t, resets.ResetPassword(ctx, weak.Token, "weak"), identityaccess.ErrPasswordTooWeak)
 	used, _ = storedResetToken(t, db, weak.ID)
 	assert.False(t, used, "a refused password leaves the link redeemable")
 
-	expired, err := service.InitiatePasswordReset(ctx, email)
+	expired, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE auth.password_reset_tokens SET expiry = NOW() - INTERVAL '1 minute' WHERE id = ?`, expired.ID).Exec(ctx)
 	require.NoError(t, err)
-	require.ErrorIs(t, service.ResetPassword(ctx, expired.Token, resetPassword), authService.ErrInvalidToken,
+	require.ErrorIs(t, resets.ResetPassword(ctx, expired.Token, resetPassword), identityaccess.ErrInvalidToken,
 		"an expired link is refused")
 }
 
@@ -103,17 +104,17 @@ func TestInitiatePasswordResetIssuesARedeemableLink(t *testing.T) {
 func TestInitiatePasswordResetInvalidatesThePreviousLink(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := newResetService(t, db)
+	resets := newResetCapability(t, db)
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-previous")
 
-	first, err := service.InitiatePasswordReset(ctx, email)
+	first, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
-	second, err := service.InitiatePasswordReset(ctx, email)
+	second, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 
-	require.ErrorIs(t, service.ResetPassword(ctx, first.Token, resetPassword), authService.ErrInvalidToken)
-	require.NoError(t, service.ResetPassword(ctx, second.Token, resetPassword))
+	require.ErrorIs(t, resets.ResetPassword(ctx, first.Token, resetPassword), identityaccess.ErrInvalidToken)
+	require.NoError(t, resets.ResetPassword(ctx, second.Token, resetPassword))
 }
 
 // The parents and school portals serve only accounts that hold a role of
@@ -121,7 +122,7 @@ func TestInitiatePasswordResetInvalidatesThePreviousLink(t *testing.T) {
 func TestPasswordResetScopesServeTheirPortalOnly(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := newResetService(t, db)
+	resets := newResetCapability(t, db)
 	ctx := testpkg.Ctx(t)
 	staff := resetAccount(t, db, "reset-scope-staff")
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
@@ -129,23 +130,23 @@ func TestPasswordResetScopesServeTheirPortalOnly(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, teacher.ID, testpkg.Tenant(t))
 	testpkg.AssignLehrkraftSystemRole(t, db, teacher.ID, testpkg.Tenant(t))
 
-	parentLink, err := service.InitiateParentPasswordReset(ctx, parent.Email)
+	parentLink, err := resets.InitiatePasswordReset(ctx, parent.Email, identityaccess.PasswordResetScopeParent)
 	require.NoError(t, err)
 	assert.NotNil(t, parentLink, "a guardian resets on the parents portal")
 
-	staffOnParents, err := service.InitiateParentPasswordReset(ctx, staff)
+	staffOnParents, err := resets.InitiatePasswordReset(ctx, staff, identityaccess.PasswordResetScopeParent)
 	require.NoError(t, err, "an ineligible account answers like an eligible one")
 	assert.Nil(t, staffOnParents)
 
-	schoolLink, err := service.InitiateSchoolPasswordReset(ctx, teacher.Email)
+	schoolLink, err := resets.InitiatePasswordReset(ctx, teacher.Email, identityaccess.PasswordResetScopeSchool)
 	require.NoError(t, err)
 	assert.NotNil(t, schoolLink, "a Lehrkraft resets on the school portal")
 
-	staffOnSchool, err := service.InitiateSchoolPasswordReset(ctx, staff)
+	staffOnSchool, err := resets.InitiatePasswordReset(ctx, staff, identityaccess.PasswordResetScopeSchool)
 	require.NoError(t, err)
 	assert.Nil(t, staffOnSchool)
 
-	staffLink, err := service.InitiatePasswordReset(ctx, staff)
+	staffLink, err := resets.InitiatePasswordReset(ctx, staff, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 	assert.NotNil(t, staffLink)
 }
@@ -155,29 +156,29 @@ func TestPasswordResetScopesServeTheirPortalOnly(t *testing.T) {
 func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := newResetService(t, db, services.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, services.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-rate-limit")
 
 	for attempt := 1; attempt <= 3; attempt++ {
-		link, err := service.InitiatePasswordReset(ctx, email)
+		link, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 		require.NoError(t, err, "attempt %d is within the window", attempt)
 		require.NotNil(t, link)
 	}
 
-	_, err := service.InitiatePasswordReset(ctx, email)
+	_, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.Error(t, err)
-	var authErr *authService.AuthError
+	var authErr *identityaccess.AuthenticationError
 	require.True(t, errors.As(err, &authErr))
-	require.ErrorIs(t, authErr.Err, authService.ErrRateLimitExceeded)
-	var limited *authService.RateLimitError
+	require.ErrorIs(t, authErr.Err, identityaccess.ErrPasswordResetRateLimited)
+	var limited *identityaccess.PasswordResetRateLimitError
 	require.True(t, errors.As(authErr.Err, &limited))
 	assert.Equal(t, 3, limited.Attempts)
 	assert.True(t, limited.RetryAt.After(time.Now()))
 	assert.Positive(t, limited.RetryAfterSeconds(time.Now()))
 
 	other := resetAccount(t, db, "reset-rate-limit-other")
-	link, err := service.InitiatePasswordReset(ctx, other)
+	link, err := resets.InitiatePasswordReset(ctx, other, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err, "the window is per address")
 	require.NotNil(t, link)
 }
@@ -187,13 +188,13 @@ func TestPasswordResetRateLimitBlocksAfterThreeAttempts(t *testing.T) {
 func TestPasswordResetRateLimitCountsOnlyActionableRequests(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := newResetService(t, db, services.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, services.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	unknown := "reset-unknown@test.local"
 	forgetResetWindow(t, db, unknown)
 
 	for range 5 {
-		_, err := service.InitiatePasswordReset(ctx, unknown)
+		_, err := resets.InitiatePasswordReset(ctx, unknown, identityaccess.PasswordResetScopeStaff)
 		require.NoError(t, err)
 	}
 
@@ -207,17 +208,17 @@ func TestPasswordResetRateLimitCountsOnlyActionableRequests(t *testing.T) {
 func TestPasswordResetCleanupKeepsLiveLinksAndTheWindow(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	service := newResetService(t, db, services.WithAuthTestPasswordResetRateLimit(true))
+	resets := newResetCapability(t, db, services.WithAuthTestPasswordResetRateLimit(true))
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-cleanup")
 
-	spent, err := service.InitiatePasswordReset(ctx, email)
+	spent, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
-	require.NoError(t, service.ResetPassword(ctx, spent.Token, resetPassword))
-	live, err := service.InitiatePasswordReset(ctx, email)
+	require.NoError(t, resets.ResetPassword(ctx, spent.Token, resetPassword))
+	live, err := resets.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 
-	deleted, err := service.CleanupExpiredPasswordResetTokens(ctx)
+	deleted, err := resets.DeleteSpentPasswordResetTokens(ctx)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, deleted, 1)
 	var remaining []int64
@@ -227,13 +228,51 @@ func TestPasswordResetCleanupKeepsLiveLinksAndTheWindow(t *testing.T) {
 	_, err = db.NewRaw(`UPDATE auth.password_reset_rate_limits SET window_start = NOW() - INTERVAL '25 hours' WHERE email = ?`, email).Exec(ctx)
 	require.NoError(t, err)
 	recent := resetAccount(t, db, "reset-cleanup-recent")
-	_, err = service.InitiatePasswordReset(ctx, recent)
+	_, err = resets.InitiatePasswordReset(ctx, recent, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 
-	deleted, err = service.CleanupExpiredRateLimits(ctx)
+	deleted, err = resets.DeleteStalePasswordResetWindows(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, deleted)
 	var windows []string
 	require.NoError(t, db.NewRaw(`SELECT email FROM auth.password_reset_rate_limits WHERE email IN (?, ?)`, email, recent).Scan(ctx, &windows))
 	assert.Equal(t, []string{recent}, windows, "a window inside the day the cleanup keeps stays")
+}
+
+// The address is matched case-insensitively: an account registered in lower
+// case is reachable from the capitalised address a mail client hands back.
+func TestInitiatePasswordResetNormalisesTheAddress(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	resets := newResetCapability(t, db)
+	ctx := testpkg.Ctx(t)
+	account := testpkg.CreateTestAccount(t, db, "reset-case")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+	forgetResetWindow(t, db, account.Email)
+
+	link, err := resets.InitiatePasswordReset(ctx, strings.ToUpper(account.Email), identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err)
+	require.NotNil(t, link)
+	assert.Equal(t, account.ID, link.AccountID)
+}
+
+// A redeemed link leaves the new password as the account's credential, not
+// just a spent row: the account signs in with it afterwards.
+func TestResetPasswordReplacesTheAccountCredential(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := services.NewAuthTestModule(db, testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+	email := resetAccount(t, db, "reset-credential")
+
+	link, err := module.AccountAuthentication.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err)
+	require.NotNil(t, link)
+	require.NoError(t, module.AccountAuthentication.ResetPassword(ctx, link.Token, resetPassword))
+
+	accessToken, refreshToken, err := module.Auth.Login(ctx, email, resetPassword)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, refreshToken)
 }

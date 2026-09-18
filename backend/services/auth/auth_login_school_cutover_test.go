@@ -63,7 +63,7 @@ func removeSchoolSystemRole(t *testing.T, db *bun.DB, accountID, tenantID int64,
 
 // registerAccountAtTenant creates an account mapped to a fresh tenant and
 // returns its credentials plus the tenant it belongs to.
-func registerAccountAtTenant(t *testing.T, db *bun.DB, service auth.AuthService, prefix string) (email string, accountID, tenantID int64, slug string) {
+func registerAccountAtTenant(t *testing.T, db *bun.DB, service testAuthService, prefix string) (email string, accountID, tenantID int64, slug string) {
 	t.Helper()
 
 	tenantID = testpkg.UniqueTestTenantID(t)

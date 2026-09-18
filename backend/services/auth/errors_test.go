@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -27,7 +26,6 @@ func TestErrorVariables(t *testing.T) {
 		{"ErrTokenNotFound", ErrTokenNotFound, "token not found"},
 		{"ErrPasswordTooWeak", ErrPasswordTooWeak, "password doesn't meet complexity requirements"},
 		{"ErrPasswordMismatch", ErrPasswordMismatch, "passwords don't match"},
-		{"ErrRateLimitExceeded", ErrRateLimitExceeded, "too many password reset requests"},
 		{"ErrParentAccountNotFound", ErrParentAccountNotFound, "parent account not found"},
 		{"ErrInvitationNotFound", ErrInvitationNotFound, "invitation not found"},
 		{"ErrInvitationExpired", ErrInvitationExpired, "invitation has expired"},
@@ -58,7 +56,6 @@ func TestErrorVariablesAreDistinct(t *testing.T) {
 		ErrTokenNotFound,
 		ErrPasswordTooWeak,
 		ErrPasswordMismatch,
-		ErrRateLimitExceeded,
 		ErrParentAccountNotFound,
 		ErrInvitationNotFound,
 		ErrInvitationExpired,
@@ -130,129 +127,5 @@ func TestAuthError(t *testing.T) {
 		}
 
 		assert.True(t, errors.Is(authErr, ErrInvalidCredentials))
-	})
-}
-
-// TestRateLimitError tests the RateLimitError type
-func TestRateLimitError(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Error with underlying error", func(t *testing.T) {
-		underlyingErr := errors.New("rate limit exceeded for user@example.com")
-		rateLimitErr := &RateLimitError{
-			Err:      underlyingErr,
-			Attempts: 3,
-			RetryAt:  time.Now().Add(time.Hour),
-		}
-
-		assert.Equal(t, underlyingErr.Error(), rateLimitErr.Error())
-	})
-
-	t.Run("Error without underlying error", func(t *testing.T) {
-		rateLimitErr := &RateLimitError{
-			Err:      nil,
-			Attempts: 3,
-			RetryAt:  time.Now().Add(time.Hour),
-		}
-
-		assert.Equal(t, "rate limit exceeded", rateLimitErr.Error())
-	})
-
-	t.Run("Unwrap returns underlying error", func(t *testing.T) {
-		underlyingErr := ErrRateLimitExceeded
-		rateLimitErr := &RateLimitError{
-			Err:      underlyingErr,
-			Attempts: 3,
-			RetryAt:  time.Now(),
-		}
-
-		assert.Equal(t, underlyingErr, rateLimitErr.Unwrap())
-	})
-
-	t.Run("Unwrap returns nil when no underlying error", func(t *testing.T) {
-		rateLimitErr := &RateLimitError{
-			Err:      nil,
-			Attempts: 3,
-			RetryAt:  time.Now(),
-		}
-
-		assert.Nil(t, rateLimitErr.Unwrap())
-	})
-}
-
-// TestRetryAfterSeconds tests the RetryAfterSeconds method
-func TestRetryAfterSeconds(t *testing.T) {
-	t.Parallel()
-
-	t.Run("returns seconds until retry when RetryAt is in future", func(t *testing.T) {
-		now := time.Now()
-		retryAt := now.Add(30 * time.Second)
-
-		rateLimitErr := &RateLimitError{
-			Err:      ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  retryAt,
-		}
-
-		seconds := rateLimitErr.RetryAfterSeconds(now)
-		assert.Equal(t, 30, seconds)
-	})
-
-	t.Run("returns zero when RetryAt is in past", func(t *testing.T) {
-		now := time.Now()
-		retryAt := now.Add(-10 * time.Second)
-
-		rateLimitErr := &RateLimitError{
-			Err:      ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  retryAt,
-		}
-
-		seconds := rateLimitErr.RetryAfterSeconds(now)
-		assert.Equal(t, 0, seconds)
-	})
-
-	t.Run("returns zero when RetryAt is exactly now", func(t *testing.T) {
-		now := time.Now()
-
-		rateLimitErr := &RateLimitError{
-			Err:      ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  now,
-		}
-
-		seconds := rateLimitErr.RetryAfterSeconds(now)
-		assert.Equal(t, 0, seconds)
-	})
-
-	t.Run("returns zero when RetryAt is zero value", func(t *testing.T) {
-		rateLimitErr := &RateLimitError{
-			Err:      ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  time.Time{},
-		}
-
-		seconds := rateLimitErr.RetryAfterSeconds(time.Now())
-		assert.Equal(t, 0, seconds)
-	})
-
-	t.Run("returns zero when error is nil", func(t *testing.T) {
-		var rateLimitErr *RateLimitError = nil
-		seconds := rateLimitErr.RetryAfterSeconds(time.Now())
-		assert.Equal(t, 0, seconds)
-	})
-
-	t.Run("rounds down partial seconds", func(t *testing.T) {
-		now := time.Now()
-		retryAt := now.Add(45*time.Second + 600*time.Millisecond)
-
-		rateLimitErr := &RateLimitError{
-			Err:      ErrRateLimitExceeded,
-			Attempts: 3,
-			RetryAt:  retryAt,
-		}
-
-		seconds := rateLimitErr.RetryAfterSeconds(now)
-		assert.Equal(t, 45, seconds)
 	})
 }

@@ -53,8 +53,11 @@ func TestEnsureSchoolIdentityAcceptsTheReaderSpellingOfATag(t *testing.T) {
 	require.Equal(t, card.ID, stored)
 }
 
-// An unknown transponder reaches the retained handlers as the services/auth
-// sentinel they render as 400, with the German text unchanged.
+// An unknown transponder reaches the retained consumers as the services/auth
+// sentinel they switch on, with the German text unchanged. The retained
+// envelope answers a bare owner sentinel with the retained one alone, so
+// this identity is the whole contract; the 400 classification of the owner's
+// errors belongs to the module predicate the handlers call.
 func TestEnsureSchoolIdentityReportsAnUnknownTagAsTheRetainedSentinel(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -79,6 +82,5 @@ func TestEnsureSchoolIdentityReportsAnUnknownTagAsTheRetainedSentinel(t *testing
 		return ensureErr
 	})
 	require.ErrorIs(t, err, auth.ErrSchoolIdentityTagUnknown)
-	require.True(t, auth.IsSchoolIdentityRequestError(err))
 	require.Contains(t, err.Error(), "Der angegebene Transponder ist an dieser Schule nicht bekannt")
 }

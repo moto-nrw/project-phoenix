@@ -1,5 +1,5 @@
 // Package authtest provides shared func-field mocks for the
-// services/auth interfaces (auth.MFAService, auth.InvitationService),
+// services/auth interfaces (auth.MFAService), replacing the hand-rolled
 // replacing the hand-rolled full-interface stubs duplicated across
 // api/auth, api/operator, services/platform, and services/import tests.
 //

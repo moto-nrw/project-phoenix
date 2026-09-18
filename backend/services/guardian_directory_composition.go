@@ -9,8 +9,8 @@ import (
 	"time"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -670,7 +670,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 		SendInvitation: func(ctx context.Context, guardianID, actorAccountID int64) (GuardianInvitationSummary, error) {
 			var summary GuardianInvitationSummary
 			err := tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-				invitation, err := f.GuardianInvitation.Create(txCtx, authSvc.GuardianInvitationCreateRequest{
+				invitation, err := f.GuardianInvitation.CreateGuardianInvitation(txCtx, identityaccess.GuardianInvitationRequest{
 					GuardianProfileID: guardianID, CreatedBy: actorAccountID,
 				})
 				if err != nil {
@@ -700,7 +700,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 			return result, nil
 		},
 		InviteGuardianToStudent: func(ctx context.Context, input GuardianInviteInput) (GuardianInviteResult, error) {
-			result, err := f.GuardianInvitation.InviteToStudent(ctx, authSvc.InviteToStudentRequest{
+			result, err := f.GuardianInvitation.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 				StudentID: input.StudentID, Email: input.Email, FirstName: input.FirstName, LastName: input.LastName,
 				RelationshipType: input.RelationshipType, CreatedBy: input.ActorAccountID,
 				RequireApproval: false, ConfirmRoleUpgrade: input.ConfirmRoleUpgrade,
@@ -775,7 +775,7 @@ func (f *Factory) NewGuardianDirectoryRuntime(db *bun.DB) GuardianDirectoryRunti
 // school-managed social worker contact is forbidden, everything else is bad
 // input.
 func ClassifyGuardianInvitationFailure(err error) GuardianFailureKind {
-	if errors.Is(err, authSvc.ErrInviteSocialWorkerManaged) {
+	if errors.Is(err, identityaccess.ErrInviteSocialWorkerManaged) {
 		return GuardianFailureForbidden
 	}
 	return GuardianFailureInvalidRequest

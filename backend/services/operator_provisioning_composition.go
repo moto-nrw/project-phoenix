@@ -24,7 +24,9 @@ type operatorProvisioningSources struct {
 	organizations  organizationtenancy.Capability
 	adapters       repositories.OperatorProvisioningAdapters
 	authService    *auth.Service
-	invitations    auth.InvitationService
+	invitations    identityaccess.SchoolInvitations
+	provisioning   identityaccess.AccountProvisioning
+	administration identityaccess.AccountAdministration
 	schoolIdentity auth.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 	settings       config.SettingsService
@@ -36,7 +38,8 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 		Organizations: sources.organizations,
 		Identity: provisioningIdentity{
 			repos: sources.repos, authService: sources.authService,
-			invitations: sources.invitations, schoolIdentity: sources.schoolIdentity,
+			invitations: sources.invitations, provisioning: sources.provisioning,
+			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
 			roles: sources.roles,
 		},
 		Devices:           sources.adapters.Devices,
@@ -56,7 +59,9 @@ func newOperatorProvisioning(sources operatorProvisioningSources) (organizationt
 type provisioningIdentity struct {
 	repos          *repositories.Factory
 	authService    *auth.Service
-	invitations    auth.InvitationService
+	invitations    identityaccess.SchoolInvitations
+	provisioning   identityaccess.AccountProvisioning
+	administration identityaccess.AccountAdministration
 	schoolIdentity auth.SchoolIdentityProvisioning
 	roles          identityaccess.RoleCommand
 }
@@ -106,41 +111,46 @@ func (p provisioningIdentity) role(id int64, name string, system bool, tenantID 
 // operator-authenticated (platform scope, no tenant permission set), so the
 // tenant-side role-grant check does not apply.
 func (p provisioningIdentity) InviteSchoolAdmin(ctx context.Context, request organizationCompose.SchoolAdminInvitationRequest) (organizationCompose.SchoolAdminInvitation, error) {
-	invitation, err := p.invitations.CreateInvitation(tenant.WithTenantID(ctx, request.TenantID), auth.InvitationRequest{
+	invitation, err := p.invitations.CreateSchoolInvitation(tenant.WithTenantID(ctx, request.TenantID), identityaccess.SchoolInvitationRequest{
 		Email: request.Email, RoleID: request.RoleID, TenantID: request.TenantID,
 		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position,
 		CaregiverEnabled: request.CaregiverEnabled,
 		OperatorGrant:    true,
 	})
 	if err != nil {
-		return organizationCompose.SchoolAdminInvitation{}, err
+		// The operator routes classify on the retained sentinels; they may
+		// not name the owner's contract (#3332).
+		return organizationCompose.SchoolAdminInvitation{}, invitationServiceError(err)
 	}
-	result := organizationCompose.SchoolAdminInvitation{
-		ID: invitation.ID, Email: invitation.Email, RoleID: invitation.RoleID, Token: invitation.Token,
-		ExpiresAt: invitation.ExpiresAt, FirstName: invitation.FirstName, LastName: invitation.LastName,
-		Position: invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled, CreatedBy: invitation.CreatedBy,
-		EmailSentAt: invitation.EmailSentAt, EmailError: invitation.EmailError, EmailRetryCount: invitation.EmailRetryCount,
-	}
-	if invitation.Role != nil {
-		result.RoleName = invitation.Role.Name
-	}
-	if invitation.Creator != nil {
-		result.CreatorEmail = invitation.Creator.Email
-	}
-	return result, nil
+	return organizationCompose.SchoolAdminInvitation{
+		ID: invitation.ID, Email: invitation.Email, RoleID: invitation.RoleID, RoleName: invitation.RoleName,
+		Token: invitation.Token, ExpiresAt: invitation.ExpiresAt, FirstName: invitation.FirstName,
+		LastName: invitation.LastName, Position: invitation.Position, CaregiverEnabled: invitation.CaregiverEnabled,
+		CreatedBy: invitation.CreatedBy, CreatorEmail: invitation.CreatorEmail,
+		EmailSentAt: invitation.Delivery.SentAt, EmailError: invitation.Delivery.Error,
+		EmailRetryCount: invitation.Delivery.RetryCount,
+	}, nil
 }
 
 func (p provisioningIdentity) RegisterSchoolAccount(ctx context.Context, registration organizationCompose.SchoolAccountRegistration) (organizationCompose.CreatedAccount, error) {
 	roleID := registration.RoleID
-	account, err := p.authService.Register(tenant.WithTenantID(ctx, registration.TenantID),
-		registration.Email, registration.Username, registration.Password, &roleID, registration.TenantID)
+	// The operator routes classify on the retained envelope and may not name
+	// the owner's contract, so the root translates for them (#3332).
+	provisioned, err := p.provisioning.RegisterSchoolAccount(tenant.WithTenantID(ctx, registration.TenantID),
+		identityaccess.SchoolAccountRegistration{
+			TenantID: registration.TenantID, Email: registration.Email, Username: registration.Username,
+			Password: registration.Password, RoleID: &roleID,
+		})
 	if err != nil {
-		return organizationCompose.CreatedAccount{}, err
+		return organizationCompose.CreatedAccount{}, authServiceError(err)
 	}
+	account := provisioned.Account
+	username := account.Username
+	// The identity chain is provisioned by the caller's next step, and a
+	// fresh account carries neither an avatar nor a one-time password.
 	return organizationCompose.CreatedAccount{
 		ID: account.ID, CreatedAt: account.CreatedAt, UpdatedAt: account.UpdatedAt, Email: account.Email,
-		Username: account.Username, Avatar: account.Avatar, Active: account.Active,
-		IsPasswordOTP: account.IsPasswordOTP, LastLogin: account.LastLogin,
+		Username: &username, Active: account.Active, LastLogin: account.LastLogin,
 	}, nil
 }
 
@@ -215,11 +225,11 @@ func (p provisioningIdentity) RevokeSchoolSessions(ctx context.Context, tenantID
 }
 
 func (p provisioningIdentity) InvalidatePendingInvitations(ctx context.Context, tenantID int64) (int, error) {
-	return p.invitations.InvalidatePendingInvitationsByTenantID(ctx, tenantID)
+	return p.invitations.RevokeTenantSchoolInvitations(ctx, tenantID)
 }
 
 func (p provisioningIdentity) DeactivateAccount(ctx context.Context, accountID int64) error {
-	return p.authService.DeactivateAccount(ctx, int(accountID))
+	return authServiceError(p.administration.DeactivateAccount(ctx, accountID))
 }
 
 func (p provisioningIdentity) AnonymizeAccount(ctx context.Context, accountID int64, email string) error {

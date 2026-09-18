@@ -14,8 +14,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -58,7 +57,7 @@ type AcceptGuardianInvitationResponse struct {
 }
 
 func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	if rs.GuardianInvitationService == nil {
+	if rs.GuardianInvitations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
@@ -69,16 +68,16 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	var result *authService.GuardianInvitationValidation
+	var result identityaccess.GuardianInvitationPreview
 	var err error
 	if rs.db != nil {
 		err = tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
 			var txErr error
-			result, txErr = rs.GuardianInvitationService.Validate(txCtx, token)
+			result, txErr = rs.GuardianInvitations.ValidateGuardianInvitation(txCtx, token)
 			return txErr
 		})
 	} else {
-		result, err = rs.GuardianInvitationService.Validate(r.Context(), token)
+		result, err = rs.GuardianInvitations.ValidateGuardianInvitation(r.Context(), token)
 	}
 	if err != nil {
 		if renderInvitationError(w, r, err) {
@@ -94,14 +93,14 @@ func (rs *Resource) validateGuardianInvitation(w http.ResponseWriter, r *http.Re
 		LastName:      result.LastName,
 		ExpiresAt:     result.ExpiresAt,
 		SchoolName:    result.SchoolName,
-		TenantSlug:    result.TenantSlug,
+		TenantSlug:    result.SchoolSlug,
 		SchoolLogoURL: result.SchoolLogoURL,
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Guardian invitation validated successfully")
 }
 
 func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	if rs.GuardianInvitationService == nil {
+	if rs.GuardianInvitations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
@@ -118,21 +117,21 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	data := authService.GuardianInvitationAcceptData{
+	registration := identityaccess.GuardianRegistration{
 		Password:        req.Password,
 		ConfirmPassword: req.ConfirmPassword,
 	}
 
-	var account *authModels.Account
+	var account identityaccess.Account
 	var err error
 	if rs.db != nil {
 		err = tenant.WithAdminTx(r.Context(), rs.db, func(txCtx context.Context, _ bun.Tx) error {
 			var txErr error
-			account, txErr = rs.GuardianInvitationService.Accept(txCtx, token, data)
+			account, txErr = rs.GuardianInvitations.AcceptGuardianInvitation(txCtx, token, registration)
 			return txErr
 		})
 	} else {
-		account, err = rs.GuardianInvitationService.Accept(r.Context(), token, data)
+		account, err = rs.GuardianInvitations.AcceptGuardianInvitation(r.Context(), token, registration)
 	}
 	if err != nil {
 		if !renderAcceptError(w, r, err) {
@@ -157,18 +156,18 @@ func (rs *Resource) acceptGuardianInvitation(w http.ResponseWriter, r *http.Requ
 // lookupTenantSlugForGuardianInvitation resolves the tenant slug from a
 // guardian invitation token. Best-effort; returns "" on error.
 func (rs *Resource) lookupTenantSlugForGuardianInvitation(ctx context.Context, token string) string {
-	if rs.GuardianInvitationService == nil {
+	if rs.GuardianInvitations == nil {
 		return ""
 	}
-	return rs.GuardianInvitationService.GetTenantSlugForToken(ctx, token)
+	return rs.GuardianInvitations.GuardianInvitationSchoolSlug(ctx, token)
 }
 
 func (rs *Resource) resendGuardianInvitation(w http.ResponseWriter, r *http.Request) {
-	if rs.GuardianInvitationService == nil {
+	if rs.GuardianInvitations == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errGuardianInvitationServiceUnavailable)))
 		return
 	}
 	rs.resendInvitationHandler(w, r,
-		rs.GuardianInvitationService.Resend,
+		rs.GuardianInvitations.ResendGuardianInvitation,
 		"guardian invitation resend requested", "Guardian invitation resent", "Guardian invitation resent successfully")
 }

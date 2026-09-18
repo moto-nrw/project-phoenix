@@ -1,30 +1,14 @@
-package auth
+package auth_test
 
 import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// lehrkraftSystemRoleID resolves the platform Lehrkraft role the migrations
-// seed. Shared by the guard tests in both directions.
-func lehrkraftSystemRoleID(t *testing.T, db *bun.DB) int64 {
-	t.Helper()
-	var roleID int64
-	require.NoError(t, db.NewSelect().
-		ColumnExpr("id").
-		TableExpr("auth.roles").
-		Where("LOWER(name) = 'lehrkraft'").
-		Where("is_system = true").
-		Where("tenant_id IS NULL").
-		Scan(context.Background(), &roleID),
-		"lehrkraft system role must exist in the test schema")
-	return roleID
-}
 
 // POST /auth/link-to-tenant is the fourth path that can put the Lehrkraft role
 // on an account, and the one that was still open (#1772/#2222). Unlike
@@ -37,19 +21,25 @@ func TestLinkSchoolAccount_RejectsLehrkraftForCaregiverProfile(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	provisioning := setupAuthFactory(t, db).AccountAuthentication()
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Link", "Betreuung")
 
-	roleID := lehrkraftSystemRoleID(t, db)
-	_, _, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, testpkg.Tenant(t),
-		&SchoolAccountIdentity{FirstName: "Link", LastName: "Betreuung"})
-	require.ErrorIs(t, err, ErrRoleLehrkraftCaregiverProfile)
+	roleID := lehrkraftRoleID(t, db)
+	_, err := provisioning.LinkSchoolAccount(context.Background(), identityaccess.SchoolAccountLink{
+		TenantID: testpkg.Tenant(t), Email: account.Email, RoleID: &roleID,
+		Identity: &identityaccess.SchoolAccountIdentity{FirstName: "Link", LastName: "Betreuung"},
+	})
+	require.ErrorIs(t, err, identityaccess.ErrRoleLehrkraftCaregiverProfile)
 
 	// The guard runs inside the link transaction, so the role is not assigned.
-	roles, err := service.repos.Role.FindByAccountID(testpkg.Ctx(t), account.ID)
-	require.NoError(t, err)
-	assert.Empty(t, roles, "a refused link must not assign the role")
+	var assigned int
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("count(*)").
+		TableExpr("auth.account_roles").
+		Where("account_id = ?", account.ID).
+		Scan(testpkg.Ctx(t), &assigned))
+	assert.Zero(t, assigned, "a refused link must not assign the role")
 }
 
 // The same path with no caregiver profile in the way is the ordinary case and
@@ -59,18 +49,20 @@ func TestLinkSchoolAccount_AllowsLehrkraftWithoutCaregiverProfile(t *testing.T) 
 
 	db := testpkg.SetupTestDB(t)
 
-	service := setupInternalAuthService(t, db)
+	provisioning := setupAuthFactory(t, db).AccountAuthentication()
 
 	account := testpkg.CreateTestAccount(t, db, "link-lehrkraft-plain")
 
-	roleID := lehrkraftSystemRoleID(t, db)
-	_, identity, err := service.LinkSchoolAccount(context.Background(), account.Email, &roleID, testpkg.Tenant(t),
-		&SchoolAccountIdentity{FirstName: "Link", LastName: "Lehrkraft"})
+	roleID := lehrkraftRoleID(t, db)
+	provisioned, err := provisioning.LinkSchoolAccount(context.Background(), identityaccess.SchoolAccountLink{
+		TenantID: testpkg.Tenant(t), Email: account.Email, RoleID: &roleID,
+		Identity: &identityaccess.SchoolAccountIdentity{FirstName: "Link", LastName: "Lehrkraft"},
+	})
 	require.NoError(t, err)
 
 	// Staff, because Lehrkraft is personnel; no caregiver profile, because it is
 	// class_day-read-only by design.
-	require.NotNil(t, identity)
-	require.NotZero(t, identity.StaffID)
-	assert.Zero(t, identity.TeacherID, "the Lehrkraft role never earns a caregiver profile")
+	require.NotNil(t, provisioned.Identity)
+	require.NotZero(t, provisioned.Identity.StaffID)
+	assert.Zero(t, provisioned.Identity.TeacherID, "the Lehrkraft role never earns a caregiver profile")
 }

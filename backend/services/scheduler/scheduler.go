@@ -30,16 +30,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// AuthCleanup exposes the cleanup routines required from the auth service.
+// AuthCleanup exposes the identity maintenance the composition root binds:
+// the expired session sweep of the retained auth service plus the spent
+// reset links and stale rate-limit windows Identity & Access owns (#3332).
 type AuthCleanup interface {
 	CleanupExpiredTokens(ctx context.Context) (int, error)
-	CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error)
-	CleanupExpiredRateLimits(ctx context.Context) (int, error)
+	DeleteSpentPasswordResetTokens(ctx context.Context) (int, error)
+	DeleteStalePasswordResetWindows(ctx context.Context) (int, error)
 }
 
-// InvitationCleaner exposes the cleanup routine required from the invitation service.
+// InvitationCleaner exposes the school invitation maintenance Identity &
+// Access owns (#2722): the links whose expiry has passed.
 type InvitationCleaner interface {
-	CleanupExpiredInvitations(ctx context.Context) (int, error)
+	DeleteExpiredSchoolInvitations(ctx context.Context) (int, error)
 }
 
 // StaffMessageCleanupResult reports the records removed by one tenant's
@@ -1117,23 +1120,26 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 	var jobs []CleanupJob
 
 	if authService != nil {
-		jobs = append(jobs,
-			CleanupJob{
-				Description: "Auth token cleanup",
-				Run: func(ctx context.Context) (int, error) {
-					return authService.CleanupExpiredTokens(ctx)
-				},
+		jobs = append(jobs, CleanupJob{
+			Description: "Auth token cleanup",
+			Run: func(ctx context.Context) (int, error) {
+				return authService.CleanupExpiredTokens(ctx)
 			},
+		})
+	}
+
+	if authService != nil {
+		jobs = append(jobs,
 			CleanupJob{
 				Description: "Password reset token cleanup",
 				Run: func(ctx context.Context) (int, error) {
-					return authService.CleanupExpiredPasswordResetTokens(ctx)
+					return authService.DeleteSpentPasswordResetTokens(ctx)
 				},
 			},
 			CleanupJob{
 				Description: "Password reset rate limit cleanup",
 				Run: func(ctx context.Context) (int, error) {
-					return authService.CleanupExpiredRateLimits(ctx)
+					return authService.DeleteStalePasswordResetWindows(ctx)
 				},
 			},
 		)
@@ -1143,7 +1149,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 		jobs = append(jobs, CleanupJob{
 			Description: "Invitation cleanup",
 			Run: func(ctx context.Context) (int, error) {
-				return invitationService.CleanupExpiredInvitations(ctx)
+				return invitationService.DeleteExpiredSchoolInvitations(ctx)
 			},
 		})
 	}

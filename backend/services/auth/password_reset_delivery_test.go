@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -76,7 +77,7 @@ func TestPasswordResetMailLinksToTheScopesPortal(t *testing.T) {
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	forgetResetWindow(t, db, parent.Email)
 
-	link, err := module.Auth.InitiatePasswordReset(ctx, staff)
+	link, err := module.AccountAuthentication.InitiatePasswordReset(ctx, staff, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 	require.NotNil(t, link)
 	require.True(t, mailer.WaitForMessages(1, 2*time.Second))
@@ -89,7 +90,7 @@ func TestPasswordResetMailLinksToTheScopesPortal(t *testing.T) {
 	assert.Contains(t, resetURL, "/reset-password?token="+link.Token)
 	assert.Positive(t, content["ExpiryMinutes"], "the mail names the link's lifetime")
 
-	parentLink, err := module.Auth.InitiateParentPasswordReset(ctx, parent.Email)
+	parentLink, err := module.AccountAuthentication.InitiatePasswordReset(ctx, parent.Email, identityaccess.PasswordResetScopeParent)
 	require.NoError(t, err)
 	require.NotNil(t, parentLink)
 	require.True(t, mailer.WaitForMessages(2, 2*time.Second))
@@ -119,7 +120,7 @@ func TestPasswordResetMailFailureIsRecordedOnTheLink(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-mail-failure")
 
-	link, err := module.Auth.InitiatePasswordReset(ctx, email)
+	link, err := module.AccountAuthentication.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 	require.NotNil(t, link)
 
@@ -146,7 +147,7 @@ func TestPasswordResetMailSuccessIsRecordedOnTheLink(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	email := resetAccount(t, db, "reset-mail-success")
 
-	link, err := module.Auth.InitiatePasswordReset(ctx, email)
+	link, err := module.AccountAuthentication.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScopeStaff)
 	require.NoError(t, err)
 	require.NotNil(t, link)
 

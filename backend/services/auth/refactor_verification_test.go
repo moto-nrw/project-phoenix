@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"context"
 	"log/slog"
 	"testing"
 	"time"
@@ -17,15 +16,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // TestRefactoringPreservesRepositoryAccess verifies that after refactoring,
-// the service can still access all repositories through the factory pattern
+// the service can still access all repositories through the factory pattern.
+//
+// The account round trip this used to drive through GetAccountByID is the
+// account administration's since #3332; the owner's own tests read the row.
+// What is still this package's to prove is that the factory reference and
+// the repositories behind it survive construction.
 func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	t.Parallel()
 
-	sqlDB, mock, err := sqlmock.New()
+	sqlDB, _, err := sqlmock.New()
 	require.NoError(t, err)
 	defer func() { _ = sqlDB.Close() }()
 
@@ -64,17 +67,4 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	require.NotNil(t, service.repos, "Service should store factory reference")
 	require.NotNil(t, service.repos.Account, "Should access Account repo through factory")
 	require.NotNil(t, service.repos.Role, "Should access Role repo through factory")
-
-	// Verify the platform-scoped account lookup uses the repository factory.
-	ctx := tenant.WithScope(context.Background(), tenant.ScopePlatform)
-	mock.ExpectBegin()
-	mock.ExpectCommit()
-
-	account, err := service.GetAccountByID(ctx, 1)
-	require.NoError(t, err, "GetAccountByID should work with factory pattern")
-	require.NotNil(t, account, "Should return account")
-	require.Equal(t, "test@example.com", account.Email)
-
-	t.Log("✅ Service successfully accesses repositories through factory")
-	t.Log("✅ GetAccountByID verified to work after refactoring")
 }

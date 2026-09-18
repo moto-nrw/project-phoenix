@@ -49,8 +49,11 @@ type StaffNoticesRouter interface {
 
 // Resource bundles the school-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService    authService.AuthService
-	MFAService     authService.MFAService
+	AuthService authService.AuthService
+	MFAService  authService.MFAService
+	// Resets is the reset runtime the composition root binds to Identity &
+	// Access (#3332); the zero value leaves the reset routes answering 500.
+	Resets         PasswordResetRuntime
 	ClassDay       *classdayAPI.Resource
 	Timetable      *timetableAPI.Resource
 	StaffMessaging StaffMessagingRouter
@@ -58,10 +61,13 @@ type Resource struct {
 	Notifications  *notificationsAPI.Resource
 }
 
-// NewResource builds the school-portal resource.
+// NewResource builds the school-portal resource. An incomplete resets
+// runtime leaves the public reset routes answering 500, exactly as a service
+// composed without the reset dependencies did.
 func NewResource(
 	auth authService.AuthService,
 	mfa authService.MFAService,
+	resets PasswordResetRuntime,
 	classDay *classdayAPI.Resource,
 	timetable *timetableAPI.Resource,
 	staffMessaging StaffMessagingRouter,
@@ -71,6 +77,7 @@ func NewResource(
 	return &Resource{
 		AuthService:    auth,
 		MFAService:     mfa,
+		Resets:         resets,
 		ClassDay:       classDay,
 		Timetable:      timetable,
 		StaffMessaging: staffMessaging,

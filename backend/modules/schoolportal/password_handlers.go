@@ -1,19 +1,15 @@
 package schoolportal
 
 import (
-	"database/sql"
 	"errors"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 type passwordResetRequest struct {
@@ -50,13 +46,12 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if _, err := rs.AuthService.InitiateSchoolPasswordReset(r.Context(), req.Email); err != nil {
-		var rateErr *authService.RateLimitError
-		if errors.As(err, &rateErr) {
-			if seconds := rateErr.RetryAfterSeconds(time.Now()); seconds > 0 {
-				w.Header().Set("Retry-After", strconv.Itoa(seconds))
-			}
-			common.RenderError(w, r, common.ErrorTooManyRequests(authService.ErrRateLimitExceeded))
+	if !rs.Resets.complete() {
+		common.RenderError(w, r, common.ErrorInternalServer(ErrPasswordResetUnavailable))
+		return
+	}
+	if err := rs.Resets.Initiate(r.Context(), req.Email); err != nil {
+		if rs.renderPasswordResetRateLimit(w, r, err) {
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -71,17 +66,18 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.AuthService.ResetPassword(r.Context(), req.Token, req.NewPassword); err != nil {
-		var authErr *authService.AuthError
-		if errors.As(err, &authErr) {
-			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidToken), errors.Is(authErr.Err, sql.ErrNoRows):
-				common.RenderError(w, r, common.ErrorGone(errors.New("Der Link ist ungültig oder abgelaufen"))) //nolint:staticcheck // ST1005: user-facing German message
-				return
-			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
-				return
-			}
+	if !rs.Resets.complete() {
+		common.RenderError(w, r, common.ErrorInternalServer(ErrPasswordResetUnavailable))
+		return
+	}
+	if err := rs.Resets.Reset(r.Context(), req.Token, req.NewPassword); err != nil {
+		switch {
+		case rs.Resets.LinkUnusable(err):
+			common.RenderError(w, r, common.ErrorGone(errors.New("Der Link ist ungültig oder abgelaufen"))) //nolint:staticcheck // ST1005: user-facing German message
+			return
+		case rs.Resets.TooWeak(err):
+			common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasswordTooWeak))
+			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return

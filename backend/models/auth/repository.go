@@ -11,11 +11,8 @@ import (
 type AccountRepository interface {
 	base.CRUDRepository[*Account]
 	FindManageableByID(ctx context.Context, id int64) (*Account, error)
-	ListManageable(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
-	UpdateManageable(ctx context.Context, account *Account) error
 	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
-	FindByUsername(ctx context.Context, username string) (*Account, error)
 	// FindByCalendarFeedToken resolves the account owning an iCalendar
 	// subscription token. Returns (nil, nil) when no account matches.
 	FindByCalendarFeedToken(ctx context.Context, token string) (*Account, error)
@@ -27,12 +24,10 @@ type AccountRepository interface {
 	// later write overwrote.
 	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error
-	FindByRole(ctx context.Context, role string) ([]*Account, error)
 	// ListEffectiveAdminAccountIDs returns the IDs of active accounts with
 	// effective admin scope in the current tenant: the literal admin role, or
 	// an admin:* / *:* permission from a role or granted directly.
 	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
-	FindAccountsWithRolesAndPermissions(ctx context.Context, filters map[string]interface{}) ([]*Account, error)
 	FindEmailsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	FindAvatarsByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	// AnonymizeForDeletion overwrites the email with an anonymized
@@ -89,7 +84,6 @@ type PermissionRepository interface {
 type AccountParentRepository interface {
 	base.CRUDRepository[*AccountParent]
 	FindByEmail(ctx context.Context, email string) (*AccountParent, error)
-	FindByUsername(ctx context.Context, username string) (*AccountParent, error)
 }
 
 // RolePermissionRepository defines operations for managing role-permission mappings
@@ -127,11 +121,7 @@ type InvitationTokenRepository interface {
 	Create(ctx context.Context, token *InvitationToken) error
 	Update(ctx context.Context, token *InvitationToken) error
 	FindByID(ctx context.Context, id interface{}) (*InvitationToken, error)
-	UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error
-	FindValidByToken(ctx context.Context, token string, now time.Time) (*InvitationToken, error)
 	FindByEmail(ctx context.Context, email string) ([]*InvitationToken, error)
-	MarkAsUsed(ctx context.Context, id int64) error
-	InvalidateByEmail(ctx context.Context, email string) (int, error)
 	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 	List(ctx context.Context, filters map[string]interface{}) ([]*InvitationToken, error)
 }

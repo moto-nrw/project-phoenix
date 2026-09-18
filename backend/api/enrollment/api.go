@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
@@ -23,20 +22,20 @@ import (
 
 // Resource bundles the handler methods + their dependencies.
 type Resource struct {
-	FormSchemaService         enrollmentService.FormSchemaService
-	CareOfferingService       enrollmentService.CareOfferingService
-	RequestService            enrollmentService.RequestService
-	CaptchaService            *enrollmentService.CaptchaService
-	PhaseService              enrollmentService.PhaseService
-	PhaseExpiryService        enrollmentService.PhaseExpiryService
-	DecisionService           enrollmentService.DecisionService
-	ReportService             enrollmentService.ReportService
-	RolloverService           enrollmentService.RolloverService
-	ChangeRequestService      enrollmentService.ChangeRequestService
-	DeletionService           enrollmentService.EnrollmentDeletionService
-	GuardianInvitationService authService.GuardianInvitationService
-	GuardianProfileLoader     *usersService.GuardianProfileLoader
-	SchoolService             SchoolDirectory
+	FormSchemaService     enrollmentService.FormSchemaService
+	CareOfferingService   enrollmentService.CareOfferingService
+	RequestService        enrollmentService.RequestService
+	CaptchaService        *enrollmentService.CaptchaService
+	PhaseService          enrollmentService.PhaseService
+	PhaseExpiryService    enrollmentService.PhaseExpiryService
+	DecisionService       enrollmentService.DecisionService
+	ReportService         enrollmentService.ReportService
+	RolloverService       enrollmentService.RolloverService
+	ChangeRequestService  enrollmentService.ChangeRequestService
+	DeletionService       enrollmentService.EnrollmentDeletionService
+	GuardianInvitations   GuardianInvitationRuntime
+	GuardianProfileLoader *usersService.GuardianProfileLoader
+	SchoolService         SchoolDirectory
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
@@ -51,7 +50,7 @@ type Resource struct {
 // PR A of the phase model wires PhaseService so the public + admin
 // endpoints can resolve phase rows. PR 8 wires DecisionService for the
 // admin review/accept/reject UI; slice 2 also wires the
-// GuardianInvitationService so post-approval invites can fire.
+// GuardianInvitations runtime so post-approval invites can fire.
 func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
@@ -63,27 +62,27 @@ func NewResource(
 	rolloverSvc enrollmentService.RolloverService,
 	changeRequestSvc enrollmentService.ChangeRequestService,
 	deletionSvc enrollmentService.EnrollmentDeletionService,
-	guardianInvitationSvc authService.GuardianInvitationService,
+	guardianInvitations GuardianInvitationRuntime,
 	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService SchoolDirectory,
 	db *bun.DB,
 	legalDocumentRefs ...legalDocumentReferenceRepository,
 ) *Resource {
 	rs := &Resource{
-		FormSchemaService:         formSchemaSvc,
-		CareOfferingService:       careOfferingSvc,
-		RequestService:            requestSvc,
-		CaptchaService:            captchaSvc,
-		PhaseService:              phaseSvc,
-		DecisionService:           decisionSvc,
-		ReportService:             reportSvc,
-		RolloverService:           rolloverSvc,
-		ChangeRequestService:      changeRequestSvc,
-		DeletionService:           deletionSvc,
-		GuardianInvitationService: guardianInvitationSvc,
-		GuardianProfileLoader:     guardianProfileLoader,
-		SchoolService:             schoolService,
-		db:                        db,
+		FormSchemaService:     formSchemaSvc,
+		CareOfferingService:   careOfferingSvc,
+		RequestService:        requestSvc,
+		CaptchaService:        captchaSvc,
+		PhaseService:          phaseSvc,
+		DecisionService:       decisionSvc,
+		ReportService:         reportSvc,
+		RolloverService:       rolloverSvc,
+		ChangeRequestService:  changeRequestSvc,
+		DeletionService:       deletionSvc,
+		GuardianInvitations:   guardianInvitations,
+		GuardianProfileLoader: guardianProfileLoader,
+		SchoolService:         schoolService,
+		db:                    db,
 	}
 	if len(legalDocumentRefs) > 0 {
 		rs.legalDocumentRefs = legalDocumentRefs[0]

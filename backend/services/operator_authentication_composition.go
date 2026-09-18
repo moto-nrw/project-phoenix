@@ -169,6 +169,8 @@ func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]an
 	return changes
 }
 
+// passwordHasher binds the credential policy Security Runtime owns to the
+// operator flows and reports the module's public sentinel.
 type passwordHasher struct{}
 
 func (passwordHasher) HashPassword(password string) (string, error) {
@@ -176,7 +178,10 @@ func (passwordHasher) HashPassword(password string) (string, error) {
 }
 
 func (passwordHasher) ValidatePasswordStrength(password string) error {
-	return auth.ValidatePasswordStrength(password)
+	if err := auth.ValidatePasswordStrength(password); err != nil {
+		return identityaccess.ErrPasswordTooWeak
+	}
+	return nil
 }
 
 type tenancyDirectory struct{ query organizationtenancy.Query }
