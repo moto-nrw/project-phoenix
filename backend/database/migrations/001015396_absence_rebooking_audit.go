@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	absenceRebookingAuditVersion     = "1.15.395"
+	absenceRebookingAuditVersion     = "1.15.396"
 	absenceRebookingAuditDescription = "Record the old and new absence type when the Leitung rebooks a staff absence (#3258)"
 )
 
