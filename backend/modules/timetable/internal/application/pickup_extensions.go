@@ -372,10 +372,7 @@ func (s *Service) pickupExtensionTargets(
 	if err != nil {
 		return nil, err
 	}
-	// The store already selects the schedule applicable on the task's effective
-	// date. Target groups, like ListTargetStudentIDs, reflect who is eligible
-	// for care today.
-	targets := matchTargetStudents(targetRules, students, s.pickupExtensionToday().String())
+	targetsByOperationalDate := make(map[domain.Date]map[int64][]int64, len(tasks))
 	result := make(map[int64]map[int64]bool, len(tasks))
 	for _, block := range blocks {
 		if block.Member {
@@ -385,6 +382,14 @@ func (s *Service) pickupExtensionTargets(
 			continue
 		}
 		task := tasks[block.TaskID]
+		// Target membership must use the same operational date as the schedule:
+		// a future task cannot assign a child whose care ends before it starts.
+		operationalDate := max(task.EffectiveFrom, s.pickupExtensionToday())
+		targets, found := targetsByOperationalDate[operationalDate]
+		if !found {
+			targets = matchTargetStudents(targetRules, students, operationalDate.String())
+			targetsByOperationalDate[operationalDate] = targets
+		}
 		if result[block.TaskID] == nil {
 			result[block.TaskID] = make(map[int64]bool)
 		}

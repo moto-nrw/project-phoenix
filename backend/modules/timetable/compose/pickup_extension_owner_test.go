@@ -641,7 +641,7 @@ func nextPickupExtensionWeekday(from time.Time, weekday time.Weekday) time.Time 
 	return from.AddDate(0, 0, days)
 }
 
-func TestModuleUsesCurrentPickupTargetsWithFutureSchedule(t *testing.T) {
+func TestModuleExcludesFuturePickupTargetAfterCareEnds(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	suffix := time.Now().UnixNano()
@@ -675,7 +675,8 @@ func TestModuleUsesCurrentPickupTargetsWithFutureSchedule(t *testing.T) {
 	}))
 	tasks, err := module.ListOpenPickupExtensions(ctx, child.ID)
 	require.NoError(t, err)
-	assert.Empty(t, tasks, "a current target-group member is already covered by the future schedule")
+	require.Len(t, tasks, 1)
+	assert.Empty(t, tasks[0].Blocks, "a future target-group block cannot cover a child after care ends")
 }
 
 func TestModuleUsesCurrentPickupDateForTargets(t *testing.T) {

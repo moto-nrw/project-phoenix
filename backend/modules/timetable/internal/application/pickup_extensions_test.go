@@ -28,7 +28,7 @@ func (d pickupExtensionTargetStudents) ListEnrolledStudents(context.Context) ([]
 	return d.students, domain.OperationStats{}, nil
 }
 
-func TestPickupExtensionTargetsUsesCurrentDateForEligibility(t *testing.T) {
+func TestPickupExtensionTargetsUsesTaskOperationalDateForEligibility(t *testing.T) {
 	t.Parallel()
 	class := "1a"
 	service := &Service{
@@ -46,5 +46,7 @@ func TestPickupExtensionTargetsUsesCurrentDateForEligibility(t *testing.T) {
 	}, &domain.OperationStats{})
 
 	require.NoError(t, err)
-	assert.True(t, targets[1][7], "a child eligible today remains a target while the future schedule is selected separately")
+	matched, found := targets[1][7]
+	require.True(t, found)
+	assert.False(t, matched, "a child whose care ends before the task takes effect is not a target")
 }
