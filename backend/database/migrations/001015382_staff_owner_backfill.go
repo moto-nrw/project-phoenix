@@ -95,7 +95,7 @@ func staffOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 // refuses after Cutover, when users.staff is a compatibility view and the
 // targets hold the authoritative data.
 func staffOwnerBackfillDown(ctx context.Context, db *bun.DB) error {
-	release, err := lockStaffOwnerBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, StaffOwnerBackfillName)
 	if err != nil {
 		return err
 	}
