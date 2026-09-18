@@ -153,8 +153,6 @@ func mapPhotoError(err error) error {
 		return peopledirectory.ErrPhotoFilenameMismatch
 	case errors.Is(err, domain.ErrPhotoNotSet):
 		return peopledirectory.ErrPhotoNotSet
-	case errors.Is(err, domain.ErrPhotoNoTenant):
-		return peopledirectory.ErrPhotoNoTenant
 	default:
 		return mapError(err)
 	}

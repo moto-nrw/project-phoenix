@@ -55,7 +55,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	defer common.CloseFile(uploaded.File)
 
 	if !rs.canModifyStudentPhoto(r.Context()) {
-		renderError(w, r, common.ErrorForbidden(peopleModule.ErrPhotoStudentForbidden))
+		mapPhotoUploadError(w, r, peopleModule.ErrPhotoStudentForbidden)
 		return
 	}
 
@@ -94,7 +94,7 @@ func (rs *Resource) deleteStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !rs.canModifyStudentPhoto(r.Context()) {
-		renderError(w, r, common.ErrorForbidden(peopleModule.ErrPhotoStudentForbidden))
+		mapPhotoDeleteError(w, r, peopleModule.ErrPhotoStudentForbidden)
 		return
 	}
 	clearedURL, err := rs.StudentPhotos.CommitDelete(r.Context(), id)
@@ -121,7 +121,7 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	filename := chi.URLParam(r, "filename")
 
 	if !rs.canReadStudentPhoto(r.Context()) {
-		renderError(w, r, common.ErrorForbidden(peopleModule.ErrPhotoStudentForbidden))
+		mapPhotoReadError(w, r, peopleModule.ErrPhotoStudentForbidden)
 		return
 	}
 	storedURL, err := rs.StudentPhotos.LookupForRead(r.Context(), id, filename)

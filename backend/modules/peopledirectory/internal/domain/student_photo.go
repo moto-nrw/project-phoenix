@@ -15,7 +15,6 @@ var (
 	ErrPhotoConsentWithdrawn   = errors.New("photo consent withdrawn mid-operation")
 	ErrPhotoFilenameMismatch   = errors.New("photo filename mismatch")
 	ErrPhotoNotSet             = errors.New("no photo set for this student")
-	ErrPhotoNoTenant           = errors.New("no tenant context")
 )
 
 // StudentPhoto is the photo slice of a child's row: where the image is stored

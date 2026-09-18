@@ -22,7 +22,7 @@ import (
 // NewStudentConsentHistory binds the Audit Platform consent trail behind the
 // People Directory projection seam.
 func NewStudentConsentHistory(db *bun.DB) peopleCompose.StudentConsentHistory {
-	return studentConsentHistory{repo: auditRepositories.NewStudentConsentChangeRepository(auditRuntime(db))}
+	return studentConsentHistory{repo: auditRepositories.NewStudentConsentChangeRepository(auditRootRuntime(db))}
 }
 
 type studentConsentHistory struct {
@@ -73,7 +73,7 @@ func NewStudentConsentsFor(directory StudentConsentCapability, trail auditModels
 func NewStudentConsents(db *bun.DB) *StudentConsents {
 	return NewStudentConsentsFor(
 		MustNewPeopleDirectory(db),
-		auditRepositories.NewStudentConsentChangeRepository(auditRuntime(db)),
+		auditRepositories.NewStudentConsentChangeRepository(auditRootRuntime(db)),
 	)
 }
 

@@ -53,26 +53,7 @@ func MustNewPeopleDirectory(db *bun.DB) peopledirectory.Capability {
 // audit.student_field_edits; this is the composition seam that hands the
 // directory an append and a read of it.
 func NewStudentFieldAuditLog(db *bun.DB) peopleCompose.StudentFieldAuditLog {
-	return studentFieldAuditLog{repo: auditRepositories.NewStudentFieldEditRepository(auditRuntime(db))}
-}
-
-// auditRuntime mirrors the factory's ambient-transaction resolver: an append
-// joins the caller's transaction so it commits with the write it describes.
-func auditRuntime(db *bun.DB) auditRepositories.Runtime {
-	return func(ctx context.Context) (bun.IDB, int64) {
-		tenantID := auditModels.TenantIDFromContext(ctx)
-		if raw, ok := auditModels.TransactionFromContext(ctx); ok {
-			switch tx := raw.(type) {
-			case bun.Tx:
-				return tx, tenantID
-			case *bun.Tx:
-				if tx != nil {
-					return tx, tenantID
-				}
-			}
-		}
-		return db, tenantID
-	}
+	return studentFieldAuditLog{repo: auditRepositories.NewStudentFieldEditRepository(auditRootRuntime(db))}
 }
 
 type studentFieldAuditLog struct {
