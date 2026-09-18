@@ -296,6 +296,48 @@ func TestModuleOwnsPickupWeekdayExtension(t *testing.T) {
 	assert.Zero(t, countPickupExtensionRows(t, db, child.ID))
 }
 
+func TestModuleRestoresNotScheduledPickupWeekdayInstance(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildPickupExtensionModule(t, db), testpkg.Ctx(t)
+	suffix := time.Now().UnixNano()
+	category := createCategory(t, ctx, module, fmt.Sprintf("Restore pickup weekday %d", suffix))
+	child := testpkg.CreateTestStudent(t, db, "Mia", fmt.Sprintf("Restore pickup-%d", suffix), "1a")
+	other := testpkg.CreateTestStudent(t, db, "Noah", fmt.Sprintf("Restore pickup-%d", suffix), "1a")
+	freePlay := pickupExtensionTemplate(t, module, ctx, category.ID, "Freies Spiel", "14:45:00", "16:00:00", timetable.WeekdayTuesday)
+	_, err := module.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID: other.ID, ActivityGroupID: freePlay.ID, ValidFrom: "2020-01-01",
+	})
+	require.NoError(t, err)
+
+	today := time.Now()
+	nextTuesday := nextPickupExtensionWeekday(today, time.Tuesday)
+	fixture := newOwnedActivityInstanceFixture(t, db, "restore-pickup-weekday")
+	instanceInput := ownedActivityInstanceInput(fixture, nextTuesday.Format(time.DateOnly), "14:45:00", "Freies Spiel")
+	instanceInput.EndTime = "16:00:00"
+	instanceInput.ActivityGroupID = &freePlay.ID
+	instance, err := module.CreateActivityInstance(ctx, instanceInput)
+	require.NoError(t, err)
+	createOwnedInstanceStudent(t, module, ctx, instance.ID, child.ID, timetable.InstanceAttendanceExpected)
+	require.NoError(t, module.MarkNotScheduled(ctx, []timetable.StudentInstanceRef{{
+		StudentID: child.ID, InstanceID: instance.ID,
+	}}))
+
+	require.NoError(t, module.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+		StudentID: child.ID, Weekday: timetable.WeekdayTuesday, EffectiveFrom: today.Format(time.DateOnly),
+		PreviousPickup: "14:45", Pickup: "16:00",
+	}))
+	task := pickupExtensionTask(t, module, ctx, child.ID)
+	_, err = module.ResolvePickupExtension(ctx, task.ID, []int64{freePlay.ID})
+	require.NoError(t, err)
+
+	roster, err := module.ListInstanceStudents(ctx, timetable.InstanceStudentFilter{InstanceIDs: []int64{instance.ID}})
+	require.NoError(t, err)
+	require.Len(t, roster, 1)
+	assert.Equal(t, child.ID, roster[0].StudentID)
+	assert.False(t, roster[0].NotScheduled)
+}
+
 func TestModuleIgnoresFuturePickupWeekdayEnrollment(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)

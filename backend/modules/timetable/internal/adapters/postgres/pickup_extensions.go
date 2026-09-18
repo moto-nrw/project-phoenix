@@ -321,7 +321,9 @@ func (s *Store) ListPickupExtensionWeekdayBlocks(ctx context.Context, tasks []do
 }
 
 // ListPickupExtensionTemplateInstances returns the planned blocks of one
-// template on the weekday from the given date on that do not list the child.
+// template on the weekday from the given date on that do not list the child as
+// scheduled. A prior roster removal is recoverable when the Leitung chooses
+// the block for the longer pickup time.
 func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templateID, studentID int64, weekday int, from domain.Date, calendarPeriodID *int64, validUntil *domain.Date) ([]domain.PickupExtensionInstance, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -339,7 +341,7 @@ func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templa
 		Where(`NOT EXISTS (
 			SELECT 1 FROM schedule.instance_students AS "own"
 			WHERE "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id
-			AND "own".student_id = ?)`, studentID).
+			AND "own".student_id = ? AND NOT "own".not_scheduled)`, studentID).
 		OrderExpr(`"instance".date ASC, "instance".id ASC`)
 	if calendarPeriodID == nil {
 		query = query.Where(`"instance".calendar_period_id IS NULL`)

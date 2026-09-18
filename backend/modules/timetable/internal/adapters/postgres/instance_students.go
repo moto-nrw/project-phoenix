@@ -232,7 +232,9 @@ func (s *Store) CreateInstanceStudentIfAbsent(ctx context.Context, fields domain
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).ModelTableExpr(`schedule.instance_students`).
-		On(`CONFLICT (instance_id, student_id) DO NOTHING`).Exec(ctx)
+		On(`CONFLICT (instance_id, student_id) DO UPDATE
+			SET not_scheduled = FALSE, updated_at = NOW()
+			WHERE schedule.instance_students.not_scheduled`).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return false, stats, classifyWriteError("create instance student if absent", err, &stats)
