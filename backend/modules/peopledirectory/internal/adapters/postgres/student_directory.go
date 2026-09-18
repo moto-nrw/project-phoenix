@@ -228,3 +228,63 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter domain.StudentDi
 	}
 	return query
 }
+
+// FindRecord reads one owned row, optionally under a row lock the caller's
+// transaction holds until it commits.
+func (s *StudentStore) FindRecord(
+	ctx context.Context,
+	studentID int64,
+	lock string,
+) (domain.StudentRecord, bool, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.StudentRecord{}, false, domain.OperationStats{}, err
+	}
+	rows := []studentRecordRow{}
+	query := withStudentTenant(db.NewSelect().TableExpr(`users.students AS "student"`).
+		ColumnExpr(studentRecordColumns).Where(`"student".id = ?`, studentID), tenantID)
+	if lock != "" {
+		query = query.For(lock)
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return domain.StudentRecord{}, false, stats, fmt.Errorf("people directory postgres: find student record: %w", err)
+	}
+	if len(rows) == 0 {
+		return domain.StudentRecord{}, false, stats, nil
+	}
+	stats.Rows = 1
+	return rows[0].toDomain(), true, stats, nil
+}
+
+// ListRecordsByIDs reads the owned rows of the given children, alumni
+// included, ordered by id.
+func (s *StudentStore) ListRecordsByIDs(
+	ctx context.Context,
+	ids []int64,
+) ([]domain.StudentRecord, domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	rows := []studentRecordRow{}
+	query := withStudentTenant(db.NewSelect().TableExpr(`users.students AS "student"`).
+		ColumnExpr(studentRecordColumns).Where(`"student".id IN (?)`, bun.List(ids)), tenantID).
+		OrderExpr(`"student".id ASC`)
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return nil, stats, fmt.Errorf("people directory postgres: list student records: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	result := make([]domain.StudentRecord, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, row.toDomain())
+	}
+	return result, stats, nil
+}

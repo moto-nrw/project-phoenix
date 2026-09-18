@@ -111,6 +111,23 @@ type StudentDirectoryQuery interface {
 	CountStudentDirectory(context.Context, StudentDirectoryFilter) (int, error)
 	// ListStudentDirectoryIDs returns the ids of every non-alumni child.
 	ListStudentDirectoryIDs(context.Context) ([]int64, error)
+	// FindStudentRecord reads one owned row.
+	FindStudentRecord(context.Context, int64) (StudentRecord, error)
+	// ListStudentRecordsByID reads the owned rows of the given children,
+	// alumni included, ordered by id.
+	ListStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)
+}
+
+// StudentDirectoryCommand holds the owned rows a caller is about to write.
+type StudentDirectoryCommand interface {
+	// FindStudentRecordForMutation reads one owned row and holds its lock for
+	// the caller's transaction, so a status the caller validates cannot be
+	// changed by a concurrent grade transition before its own write commits.
+	FindStudentRecordForMutation(context.Context, int64) (StudentRecord, error)
+	// LockStudentPhotoFeature takes the per-tenant photo gate, which
+	// serializes photo writes against a feature-disable purge. It belongs to
+	// the caller that also takes a student row lock, and it is taken first.
+	LockStudentPhotoFeature(context.Context) error
 }
 
 func (m *Module) ListStudentDirectory(ctx context.Context, filter StudentDirectoryFilter) ([]StudentRecord, error) {
@@ -133,6 +150,32 @@ func (m *Module) CountStudentDirectory(ctx context.Context, filter StudentDirect
 
 func (m *Module) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
 	return m.engine.ListStudentDirectoryIDs(ctx)
+}
+
+func (m *Module) FindStudentRecord(ctx context.Context, studentID int64) (StudentRecord, error) {
+	if studentID <= 0 {
+		return StudentRecord{}, invalidStudent("student ID is required")
+	}
+	return m.engine.FindStudentRecord(ctx, studentID)
+}
+
+func (m *Module) FindStudentRecordForMutation(ctx context.Context, studentID int64) (StudentRecord, error) {
+	if studentID <= 0 {
+		return StudentRecord{}, invalidStudent("student ID is required")
+	}
+	return m.engine.FindStudentRecordForMutation(ctx, studentID)
+}
+
+func (m *Module) ListStudentRecordsByID(ctx context.Context, ids []int64) ([]StudentRecord, error) {
+	ids = uniquePositive(ids)
+	if len(ids) == 0 {
+		return []StudentRecord{}, nil
+	}
+	return m.engine.ListStudentRecordsByID(ctx, ids)
+}
+
+func (m *Module) LockStudentPhotoFeature(ctx context.Context) error {
+	return m.engine.LockStudentPhotoFeature(ctx)
 }
 
 func normalizeStudentDirectoryFilter(filter StudentDirectoryFilter) (StudentDirectoryFilter, error) {

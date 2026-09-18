@@ -18,24 +18,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// studentPhotoFeatureLockClass is the pg_advisory_xact_lock class id used
-// to serialize concurrent transactions that affect the student-photo
-// feature for a tenant. The disable path (PurgeAllPhotos invoked from the
-// OnValueSet hook) and the upload path (api/students/photo.go) both take
-// this lock so they cannot interleave: the previous post-update recheck
-// only narrowed the race, it didn't eliminate it — the disable's CTE
-// only locks rows whose photo_path is currently non-null, so a brand-new
-// upload's row (photo_path NULL at the moment the CTE evaluates) was
-// never serialized against the disable, and an upload that committed
-// after the CTE ran could leave a stored file the disable's post-commit
-// purge never knew about.
-//
-// Class id is an arbitrary stable int32 ("phot" in ASCII). pg_advisory_
-// xact_lock releases automatically at COMMIT/ROLLBACK of the surrounding
-// tx, so callers must already be inside a tenant tx — there is no
-// separate Unlock method to forget.
-const studentPhotoFeatureLockClass int32 = 0x70686F74
-
 // studentClassWritesLockClass is the pg_advisory_xact_lock class id ("clas" in
 // ASCII) that serializes a grade transition apply/revert against every write
 // which could put a child INTO one of the classes it is transitioning.
@@ -1617,47 +1599,6 @@ func (r *StudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context,
 	return r.FindOverlappingWithGroups(ctx, date, date, timezone.DateFromTime(now))
 }
 
-// LockPhotoFeature acquires the per-tenant pg_advisory_xact_lock that
-// serializes concurrent transactions affecting the student-photo feature.
-// Both PurgeAllPhotos (called from the OnValueSet hook on a feature
-// disable) and the upload handler in api/students/photo.go take this
-// lock so they cannot interleave: without it, an upload tx could read
-// "feature enabled" from a uncommitted-by-another-tx setting state and
-// commit a fresh photo_path AFTER a concurrent disable's purge CTE had
-// already evaluated, leaving a stored file the disable's post-commit
-// purge never knew about.
-//
-// pg_advisory_xact_lock releases automatically at COMMIT/ROLLBACK of the
-// surrounding tenant tx, so callers must already be inside one — there
-// is no separate Unlock method to forget. Returns an error if no tenant
-// context is set; lock keys must be tenant-scoped to avoid one tenant's
-// disable serializing every other tenant's uploads.
-func (r *StudentRepository) LockPhotoFeature(ctx context.Context) error {
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return fmt.Errorf("LockPhotoFeature: tenant_id must be set")
-	}
-	if tenantID > 0x7fffffff {
-		return fmt.Errorf("LockPhotoFeature: tenant_id %d exceeds advisory-lock obj id range", tenantID)
-	}
-	_, err := base.GetDB(ctx, r.db).
-		NewRaw("SELECT pg_advisory_xact_lock(?, ?)", studentPhotoFeatureLockClass, int32(tenantID)).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "lock_photo_feature", Err: base.TranslateNotFound(err)}
-	}
-	return nil
-}
-
-// LockStudentClassWritesShared exposes the shared class-writes gate for the
-// one caller that must take it explicitly: a write path that acquires another
-// tenant-wide gate (the recurrence gate) before its first student row lock.
-// Advisory locks are re-entrant, so the implicit acquisition inside the later
-// row-lock/update methods stays a no-op.
-func (r *StudentRepository) LockStudentClassWritesShared(ctx context.Context) error {
-	return r.lockClassWritesShared(ctx)
-}
-
 // lockClassWritesShared takes the SHARED per-tenant class-writes gate. Called at
 // the top of every repository method that inserts a student, updates one, or
 // takes a student row lock the caller will update under — always BEFORE that
@@ -1835,93 +1776,6 @@ func (r *StudentRepository) applyCompanionLinkDays(ctx context.Context, student 
 		}
 	}
 	return nil
-}
-
-// PurgeAllPhotos clears photo_path for every row visible in the current
-// tenant context (RLS scopes it) and returns the cleared URLs so the
-// caller can unlink the files. Photo consent metadata is left intact —
-// withdrawing parental consent is a separate audit event from a
-// tenant-wide feature toggle.
-//
-// Acquires LockPhotoFeature first to serialize against concurrent
-// uploads. Without the advisory lock, an upload that read "feature
-// enabled" before a disable's SetValue committed could still commit a
-// fresh photo_path AFTER the disable's purge CTE evaluated — the CTE
-// only locks rows whose photo_path is currently non-null, so a row
-// that's still NULL at the moment the CTE evaluates isn't serialized
-// against the upload's UPDATE on that same row. The advisory lock
-// closes that window: the upload waits behind the disable (or the
-// disable waits behind the upload), and whichever runs second sees the
-// other's committed state.
-//
-// Implemented as a single SQL statement (CTE + joined UPDATE … RETURNING)
-// so the rows we identify and the rows we clear are exactly the same set.
-// A previous two-step variant (SELECT then UPDATE) raced with concurrent
-// uploads in a different way: an upload that committed a fresh photo_path
-// between the SELECT and the UPDATE would be cleared by the UPDATE (its
-// row was non-null at that moment) but its URL was missing from the
-// SELECT's snapshot, so the post-commit unlink left the file orphaned.
-// The single-statement form fixes that case; the advisory lock fixes the
-// "still-NULL when CTE evaluates" case.
-//
-// Postgres returns the post-update value from a plain UPDATE … RETURNING
-// (which would always be NULL here); the CTE join is the standard way to
-// surface the OLD value in a single statement.
-func (r *StudentRepository) PurgeAllPhotos(ctx context.Context) ([]string, error) {
-	if err := r.LockPhotoFeature(ctx); err != nil {
-		return nil, err
-	}
-
-	type photoRow struct {
-		PhotoPath string `bun:"photo_path"`
-	}
-
-	// The two statements differ only in the defense-in-depth tenant predicate
-	// inside the CTE. RLS already scopes the query when the caller is inside a
-	// tenant tx (the standard path); the explicit predicate guards against a
-	// future caller running this outside the tenant middleware. The CTE has no
-	// "student" alias, so the predicate names the column directly.
-	const (
-		purgePhotosHead = `
-		WITH locked AS (
-			SELECT id, photo_path
-			FROM users.students
-			WHERE photo_path IS NOT NULL`
-		purgePhotosTail = `
-			FOR UPDATE
-		)
-		UPDATE users.students AS student
-		SET photo_path = NULL
-		FROM locked
-		WHERE student.id = locked.id
-		RETURNING locked.photo_path
-	`
-		purgePhotosQuery       = purgePhotosHead + purgePhotosTail
-		purgePhotosTenantQuery = purgePhotosHead + ` AND tenant_id = ?` + purgePhotosTail
-	)
-
-	var rows []photoRow
-	var err error
-	if _, val, ok := base.TenantWhere(ctx, "student"); ok {
-		err = base.GetDB(ctx, r.db).NewRaw(purgePhotosTenantQuery, val).Scan(ctx, &rows)
-	} else {
-		err = base.GetDB(ctx, r.db).NewRaw(purgePhotosQuery).Scan(ctx, &rows)
-	}
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "purge_all_photos", Err: base.TranslateNotFound(err)}
-	}
-
-	if len(rows) == 0 {
-		return nil, nil
-	}
-
-	urls := make([]string, 0, len(rows))
-	for _, row := range rows {
-		if row.PhotoPath != "" {
-			urls = append(urls, row.PhotoPath)
-		}
-	}
-	return urls, nil
 }
 
 // UpdateStatus changes the lifecycle status of a single student. Tenant-scoped

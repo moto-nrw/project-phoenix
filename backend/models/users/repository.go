@@ -162,35 +162,10 @@ type StudentRepository interface {
 	// activate-students scheduler tick to flip rows to 'inactive'.
 	FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*Student, error)
 
-	// PurgeAllPhotos clears photo_path on every student row visible in the
-	// current tenant context (RLS scopes it) and returns the list of stored
-	// URLs that were cleared. Caller is responsible for unlinking the
-	// underlying files.
-	//
-	// Used when an admin disables operations.student_photos_enabled - the
-	// reviewer flagged that without this, existing photos remain accessible
-	// after the toggle. The DB clear runs inside whatever transaction the
-	// caller provides via context, so it is atomic with the setting write;
-	// file unlinks are best-effort and happen after commit. Acquires the
-	// per-tenant photo-feature advisory lock so it serializes against
-	// concurrent upload tx's that hold the same lock.
-	PurgeAllPhotos(ctx context.Context) ([]string, error)
-
-	// LockPhotoFeature acquires the per-tenant advisory lock that
-	// serializes operations affecting the student-photo feature (uploads
-	// vs. feature disable). Must be called inside a tenant tx; lock
-	// releases on commit/rollback. See implementation for the full race
-	// rationale.
-	LockPhotoFeature(ctx context.Context) error
-
-	// LockStudentClassWritesShared acquires the SHARED form of the class-writes
-	// gate. The repository takes it implicitly in front of every student
-	// insert/update/row lock; callers only need it explicitly when they must
-	// acquire ANOTHER tenant-wide gate (e.g. the recurrence gate) before their
-	// first student row lock — the shared gate has to come first to keep the
-	// project-wide order (class-writes → recurrence → rows) acyclic against a
-	// concurrently applying grade transition (#2147 review round 12).
-	LockStudentClassWritesShared(ctx context.Context) error
+	// Both per-tenant gates this repository takes — the photo-feature lock and
+	// the shared class-writes gate — moved to People Directory in #3349. The
+	// repository still acquires them implicitly in front of its own writes;
+	// callers that need one explicitly ask the owner.
 
 	// FindByIDForUpdate retrieves a student by id with SELECT … FOR
 	// UPDATE so the caller can re-validate state under the same row

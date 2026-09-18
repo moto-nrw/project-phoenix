@@ -39,6 +39,11 @@ type StudentStore interface {
 	ListDirectory(context.Context, domain.StudentDirectoryFilter) ([]domain.StudentRecord, domain.OperationStats, error)
 	// CountDirectory counts the same selection without its page window.
 	CountDirectory(context.Context, domain.StudentDirectoryFilter) (int, domain.OperationStats, error)
+	// FindRecord reads one owned row; lock is "UPDATE" to hold it.
+	FindRecord(ctx context.Context, id int64, lock string) (domain.StudentRecord, bool, domain.OperationStats, error)
+	// ListRecordsByIDs reads the owned rows of the given children, alumni
+	// included, ordered by id.
+	ListRecordsByIDs(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)
 	// ListDirectoryIDs returns the ids of every non-alumni row, the
 	// lightweight candidate set of the dated participation rule.
 	ListDirectoryIDs(context.Context) ([]int64, domain.OperationStats, error)

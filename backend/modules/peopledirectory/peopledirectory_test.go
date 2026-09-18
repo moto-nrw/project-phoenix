@@ -20,6 +20,9 @@ type recordingEngine struct {
 	guardian  guardianCall
 	observed  []string
 	directory peopledirectory.StudentDirectoryFilter
+
+	lockedRecord int64
+	recordIDs    []int64
 }
 
 func (e *recordingEngine) Create(_ context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {

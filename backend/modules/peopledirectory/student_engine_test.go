@@ -239,3 +239,29 @@ func (e *recordingEngine) ListStudentDirectoryIDs(context.Context) ([]int64, err
 	e.calls++
 	return nil, nil
 }
+
+func (e *recordingEngine) FindStudentRecord(_ context.Context, id int64) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) FindStudentRecordForMutation(
+	_ context.Context, id int64,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.lockedRecord = id
+	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByID(
+	_ context.Context, ids []int64,
+) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) LockStudentPhotoFeature(context.Context) error {
+	e.calls++
+	return nil
+}

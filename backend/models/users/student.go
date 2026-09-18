@@ -50,6 +50,13 @@ const MaxDepartureCompanionNoteLen = departure.MaxDepartureCompanionNoteLen
 // violation to a 400 instead of leaking the model error as a 500 (#1694).
 var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequired
 
+// ErrStudentRowMissing says a child the caller named has no row. It lives here
+// because the two sides that need it — the People Directory composition seam
+// that observes the owner's not-found, and the retained student service that
+// translates it into the error shape its handlers branch on — may not import
+// each other (#3349).
+var ErrStudentRowMissing = errors.New("student row not found")
+
 // Student represents a student in the system
 type Student struct {
 	base.Model `bun:"schema:users,table:students"`

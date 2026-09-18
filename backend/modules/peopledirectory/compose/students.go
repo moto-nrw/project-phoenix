@@ -122,6 +122,32 @@ func (e engine) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
 	return ids, mapError(err)
 }
 
+func (e engine) FindStudentRecord(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}
+
+func (e engine) FindStudentRecordForMutation(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "UPDATE")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByID(ctx context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByIDs(ctx, ids)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]peopledirectory.StudentRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRecord(value))
+	}
+	return result, nil
+}
+
+func (e engine) LockStudentPhotoFeature(ctx context.Context) error {
+	return mapPhotoError(e.studentPhotos.LockFeature(ctx))
+}
+
 // toDomainStudentDirectoryFilter renders the grade levels the SQL compares
 // against: the column holds free text, so the match is on the decimal spelling
 // of each level.

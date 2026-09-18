@@ -297,3 +297,16 @@ func (s *StudentPhotoService) run(ctx context.Context, operation string, fn func
 	}
 	return observeRun(ctx, s.observe, operation, s.tx.RunWrite, fn)
 }
+
+// LockFeature takes the per-tenant photo gate without reading a child row. A
+// caller that reaches the photo column through another of the owner's flows
+// takes it first, in the same order the photo writes above do, so the two
+// never deadlock against each other.
+func (s *StudentPhotoService) LockFeature(ctx context.Context) error {
+	return observeRun(ctx, s.observe, "lock_student_photo_feature", s.tx.RunWrite,
+		func(txCtx context.Context, stats *domain.OperationStats) error {
+			lockStats, err := s.store.LockPhotoFeature(txCtx)
+			stats.Add(lockStats)
+			return err
+		})
+}

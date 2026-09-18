@@ -123,6 +123,7 @@ type Query interface {
 
 type Command interface {
 	StudentCommand
+	StudentDirectoryCommand
 	StudentDeletionCommand
 	StudentAuditCommand
 	StudentPhotoCommand
@@ -156,6 +157,7 @@ type engine interface {
 	StudentDepartureQuery
 	studentEngine
 	StudentDirectoryQuery
+	StudentDirectoryCommand
 	studentDeletionEngine
 	StudentAuditQuery
 	StudentPhotoQuery

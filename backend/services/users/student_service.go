@@ -123,6 +123,7 @@ type studentService struct {
 	// StudentDirectoryReader is the owner capability behind the directory
 	// read; embedding it keeps this service out of the filter's way.
 	StudentDirectoryReader
+	directory     StudentDirectoryLocker
 	studentRepo   userModels.StudentRepository
 	companionRepo userModels.StudentCompanionRepository
 	studentAudit  StudentChangeRecorder
@@ -138,7 +139,7 @@ type StudentClassReader interface {
 // NewStudentService creates a StudentService backed by the student-domain
 // repositories.
 func NewStudentService(
-	directory StudentDirectoryReader,
+	directory StudentDirectoryAccess,
 	classes StudentClassReader,
 	studentRepo userModels.StudentRepository,
 	companionRepo userModels.StudentCompanionRepository,
@@ -146,6 +147,7 @@ func NewStudentService(
 ) StudentService {
 	return &studentService{
 		StudentDirectoryReader: directory,
+		directory:              directory,
 		studentRepo:            studentRepo,
 		companionRepo:          companionRepo,
 		studentAudit:           studentAudit,
@@ -158,7 +160,19 @@ func (s *studentService) ListSchoolClasses(ctx context.Context) ([]string, error
 }
 
 func (s *studentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
-	return s.studentRepo.FindByIDForUpdate(ctx, id)
+	student, err := s.directory.LockStudent(ctx, id)
+	return student, translateMissingStudent("find_by_id_for_update", err)
+}
+
+// translateMissingStudent restates the owner's missing child in the error shape
+// this service's handlers have always branched on: a DatabaseError wrapping
+// both base.ErrNotFound and sql.ErrNoRows. The mapping lives here because the
+// composition seam that observes the owner may import neither of those.
+func translateMissingStudent(op string, err error) error {
+	if !errors.Is(err, userModels.ErrStudentRowMissing) {
+		return err
+	}
+	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows)}
 }
 
 // LockStudentsForUpdate takes every student row lock a request needs up front,
@@ -346,11 +360,11 @@ func (s *studentService) Delete(ctx context.Context, id int64) error {
 }
 
 func (s *studentService) LockPhotoFeature(ctx context.Context) error {
-	return s.studentRepo.LockPhotoFeature(ctx)
+	return s.directory.LockPhotoFeature(ctx)
 }
 
 func (s *studentService) LockClassWritesShared(ctx context.Context) error {
-	return s.studentRepo.LockStudentClassWritesShared(ctx)
+	return s.directory.LockClassWritesShared(ctx)
 }
 
 // MaxStudentCompanions caps how many children one child may be linked to. A
@@ -363,7 +377,15 @@ func (s *studentService) GetByIDs(ctx context.Context, ids []int64) (map[int64]*
 	if len(ids) == 0 {
 		return map[int64]*userModels.Student{}, nil
 	}
-	return s.studentRepo.FindByIDs(ctx, ids)
+	students, err := s.directory.GetStudentsByID(ctx, ids)
+	if err != nil {
+		return nil, translateMissingStudent("find_by_ids", err)
+	}
+	result := make(map[int64]*userModels.Student, len(students))
+	for _, student := range students {
+		result[student.ID] = student
+	}
+	return result, nil
 }
 
 func (s *studentService) ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error) {
