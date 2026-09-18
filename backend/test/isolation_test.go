@@ -523,11 +523,14 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("student update blocked", func(t *testing.T) {
-		repo := repoUsers.NewStudentRepository(db)
+		// The child's write path is People Directory's (#3349), so this has to
+		// be the composed repository the composition root hands out — the raw
+		// one no longer performs the write at all.
+		repo := repositories.NewStudentRepository(db)
 		err := repo.Update(ctxB, studentA)
 		require.Error(t, err, "cross-tenant student update must fail")
-		assert.Contains(t, err.Error(), "rows affected",
-			"error should mention rows affected guard")
+		require.ErrorIs(t, err, users.ErrStudentRowMissing,
+			"another tenant's child must not exist for this writer")
 	})
 
 	t.Run("room update blocked", func(t *testing.T) {

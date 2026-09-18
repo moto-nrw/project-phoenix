@@ -23,6 +23,7 @@ type recordingEngine struct {
 
 	lockedRecord int64
 	recordIDs    []int64
+	written      peopledirectory.StudentWrite
 }
 
 func (e *recordingEngine) Create(_ context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {

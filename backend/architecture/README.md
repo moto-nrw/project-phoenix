@@ -93,21 +93,31 @@ with `audit-platform` for the same reason: People Directory decides which of
 its fields are tracked and how a change reads, and appends through a
 consumer-owned port.
 
-#3349 also found what blocks the student write flow from following the reads.
-`StudentRepository.Update` is not only a student write: between the row lock
-and the plan write it reconciles the `users.student_companions` edges a
-narrowed departure plan no longer allows, takes the far children's row locks
-for that, and refuses the write when dropping an edge would strand one of them
-(`planCompanionReconcile`, `checkCompanionStranding`, the deferred verdicts of
-`users.CompanionStrandingBatch`). Those are Care Plan's rules about Care Plan's
-table, reached from People Directory's write path because that is the one path
-every writer passes through. Moving the flow as it stands would move them into
-the wrong owner; splitting them out changes a boundary, which #2580 requires a
-decision for. #3367 carries that decision, with the two candidate shapes and
-what each costs: People Directory owning the rule over the existing Care Plan
-port, or a student-write workflow orchestrating both owners. The read, lock and
-gate halves moved; the write flow and
-`database/repositories/users/student.go`'s retirement wait on #3367.
+#3349 moved the child's whole lifecycle to its owner, including the write.
+`StudentRepository.Update` looked like it crossed a boundary: between the row
+lock and the plan write it reconciles the `users.student_companions` edges a
+narrowed departure plan no longer allows, takes the far children's row locks for
+that, and refuses the write when dropping an edge would strand one of them. It
+does not cross one. `database/repositories/users` is already
+`people-directory/postgres` in `policy.json`, so that code was always on this
+owner's side of the line, reaching Care Plan through a port. Relocating it into
+`modules/peopledirectory/internal` changed no ownership; the port is now
+`ports.StudentCompanions`, bound to Care Plan's `compose.CompanionRecords` — a
+slice of that owner narrow enough to build from the database alone, which is
+what lets the directory have it without waiting for a Care Plan that needs the
+directory.
+
+Two things stayed shared rather than moving. `departure.StrandingBatch` is the
+scope a coordinated multi-child write defers its verdicts into: the owner
+decides them, but the caller opens the scope and carries it on its context, so
+the type lives in the leaf both sides already import. And
+`RecordCompanionChange` stays with the composition seam, because the
+`student_companions_changed` announcement travels on the caller's context too.
+
+`database/repositories/users/student.go` keeps its reads; its four write entry
+points remain only as the interface the retained `StudentRepository` still
+declares, and report a configuration error when a graph reaches them without
+the owner bound.
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread

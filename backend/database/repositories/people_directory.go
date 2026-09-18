@@ -6,6 +6,7 @@ import (
 
 	auditRepositories "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
@@ -24,12 +25,20 @@ func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
 // the caller access and the file cleanup fills it after the directory exists.
 func NewPeopleDirectoryWithPhotos(db *bun.DB) (peopledirectory.Capability, *peopleCompose.StudentPhotoRuntime, error) {
 	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+	// Care Plan's companion slice is constructible from the database alone, so
+	// the directory's write path gets it here rather than waiting for the full
+	// Care Plan — which needs this directory and therefore cannot be built yet.
+	companions, err := careplanCompose.NewCompanionRecords(db, func(careplanCompose.Observation) {})
+	if err != nil {
+		return nil, nil, err
+	}
 	capability, err := peopleCompose.New(peopleCompose.Dependencies{
 		DB:                    db,
 		Observe:               func(peopleCompose.Observation) {},
 		StudentFieldAudit:     NewStudentFieldAuditLog(db),
 		StudentConsentHistory: NewStudentConsentHistory(db),
 		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
+		StudentCompanions:     NewStudentCompanionSeam(companions),
 	})
 	if err != nil {
 		return nil, nil, err

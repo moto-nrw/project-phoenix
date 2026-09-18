@@ -20,6 +20,19 @@ type StudentStore interface {
 	LockLifecycle(ctx context.Context, id int64) (status string, found bool, stats domain.OperationStats, err error)
 	ReadEnrollment(context.Context, int64, string) (domain.EnrollmentRecord, domain.OperationStats, error)
 	LockEnrollmentClassWrites(context.Context) (domain.OperationStats, error)
+	// InsertRecord writes a new child and returns the stored row.
+	InsertRecord(context.Context, domain.StudentRecord) (domain.StudentRecord, domain.OperationStats, error)
+	// UpdateRecord rewrites the owned columns; false means the tenant has no
+	// such row.
+	UpdateRecord(context.Context, domain.StudentRecord) (domain.StudentRecord, bool, domain.OperationStats, error)
+	// DeleteRecord removes one child, reporting whether a row went.
+	DeleteRecord(context.Context, int64) (bool, domain.OperationStats, error)
+	// FindDeparturePlan reads the plan the row holds, already resolved through
+	// the read precedence.
+	FindDeparturePlan(context.Context, int64) (domain.DeparturePlan, bool, domain.OperationStats, error)
+	// PersistDeparturePlan writes the plan and its legacy mirrors, plus the
+	// companion note, in one statement.
+	PersistDeparturePlan(context.Context, int64, domain.DeparturePlan, *string, bool) (domain.OperationStats, error)
 	// LockEnrollmentClassWritesExclusive takes the same gate exclusively.
 	LockEnrollmentClassWritesExclusive(context.Context) (domain.OperationStats, error)
 	ApplyEnrollmentProfile(context.Context, int64, domain.EnrollmentProfilePatch) (domain.OperationStats, error)

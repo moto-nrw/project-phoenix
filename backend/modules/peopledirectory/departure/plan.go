@@ -84,6 +84,28 @@ func (p Plan) Effective() Plan {
 	}
 }
 
+// AccompaniedDays answers the weekdays on which this plan says the child walks
+// home with another child. Both projections are consulted: a caller may have
+// set either, and a day named by one of them counts.
+//
+// It is the question every "mit wem" rule asks — whether a free-text note is
+// required, and whether dropping a companion link would leave a child without
+// an answer on that day.
+func (p Plan) AccompaniedDays() map[string]bool {
+	out := make(map[string]bool, len(PickupDayOrder))
+	for _, day := range PickupDayOrder {
+		for _, mode := range p.AllowedDepartureModes[day] {
+			if mode == DepartureAccompanied {
+				out[day] = true
+			}
+		}
+		if p.DepartureDays[day] == DepartureAccompanied {
+			out[day] = true
+		}
+	}
+	return out
+}
+
 // Rebase replaces every field that still carries exactly what the read
 // hydrated with the state just read under the row lock.
 //

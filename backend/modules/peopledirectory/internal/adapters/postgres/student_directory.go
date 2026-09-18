@@ -251,6 +251,12 @@ func (s *StudentStore) FindRecord(
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
+		// A NOWAIT acquisition the holder refuses is the caller's retriable
+		// conflict, not a failure of this read.
+		if isLockNotAvailable(err) {
+			return domain.StudentRecord{}, false, stats,
+				fmt.Errorf("people directory postgres: find student record: %w", domain.ErrLockNotAvailable)
+		}
 		return domain.StudentRecord{}, false, stats, fmt.Errorf("people directory postgres: find student record: %w", err)
 	}
 	if len(rows) == 0 {

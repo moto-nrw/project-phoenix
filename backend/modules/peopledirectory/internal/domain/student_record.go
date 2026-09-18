@@ -13,6 +13,9 @@ type (
 	AllowedDepartureModes = departure.AllowedDepartureModes
 	PickupDays            = departure.PickupDays
 	BusDays               = departure.BusDays
+	// DeparturePlan is the plan one write carries; the rules that resolve it
+	// belong to the departure package.
+	DeparturePlan = departure.Plan
 )
 
 // Care-status windows of the staff directory. Running and Ended are the two

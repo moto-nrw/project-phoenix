@@ -40,6 +40,11 @@ type Dependencies struct {
 	// what graphs that never serve a photo (CLI roots, repository tests)
 	// need.
 	StudentPhotoRuntime func() StudentPhotoRuntime
+	// StudentCompanions is the Care Plan seam the student write path needs:
+	// narrowing a departure plan drops the "läuft mit" links it no longer
+	// allows. Optional, on the same terms as the others — a graph that never
+	// binds it refuses only the writes that would touch a link.
+	StudentCompanions StudentCompanions
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
@@ -65,7 +70,11 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 		dependencies.Observe(observation)
 	}
 	service := application.New(postgres.New(database), transaction{}, observe)
-	students := application.NewStudents(postgres.NewStudentStore(database), transaction{}, observe)
+	var companions ports.StudentCompanions
+	if dependencies.StudentCompanions != nil {
+		companions = studentCompanions{seam: dependencies.StudentCompanions}
+	}
+	students := application.NewStudents(postgres.NewStudentStore(database), companions, transaction{}, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database), transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
@@ -268,6 +277,13 @@ func mapError(err error) error {
 		return peopledirectory.ErrStudentNotFound
 	case errors.Is(err, domain.ErrStudentLockBusy):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentLockBusy, err)
+	case errors.Is(err, domain.ErrCompanionWouldLoseDeparture):
+		return peopledirectory.ErrCompanionWouldLoseDeparture
+	case errors.Is(err, domain.ErrCompanionLockBusy):
+		return peopledirectory.ErrCompanionLockBusy
+	case errors.Is(err, domain.ErrStudentInvalid):
+		// The reason is the message a handler renders, so it is kept.
+		return &peopledirectory.InvalidStudentError{Reason: err.Error()}
 	case errors.Is(err, domain.ErrFamilyProtectionUnchanged):
 		return peopledirectory.ErrFamilyProtectionUnchanged
 	case errors.Is(err, domain.ErrFamilyProtectionInvalid):

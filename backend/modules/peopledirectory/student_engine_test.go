@@ -260,3 +260,30 @@ func (e *recordingEngine) LockStudentPhotoFeature(context.Context) error {
 	e.calls++
 	return nil
 }
+
+func (e *recordingEngine) CreateStudent(
+	_ context.Context, write peopledirectory.StudentWrite,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.written = write
+	return write.Record, nil
+}
+
+func (e *recordingEngine) UpdateStudent(
+	_ context.Context, write peopledirectory.StudentWrite,
+) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.written = write
+	return write.Record, nil
+}
+
+func (e *recordingEngine) DeleteStudentRecord(_ context.Context, id int64) error {
+	e.calls++
+	e.lockedRecord = id
+	return nil
+}
+
+func (e *recordingEngine) VerifyStudentStrandingBatch(context.Context) error {
+	e.calls++
+	return nil
+}
