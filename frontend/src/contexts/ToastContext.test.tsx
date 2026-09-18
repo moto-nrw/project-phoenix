@@ -121,7 +121,7 @@ describe("ToastContext", () => {
       );
     });
 
-    it("renders mobile notifications as an accessible dismissible dialog", async () => {
+    it("renders mobile notifications as non-blocking toast bars", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
         matches: query === "(max-width: 767px)",
         media: query,
@@ -149,19 +149,13 @@ describe("ToastContext", () => {
         </ToastProvider>,
       );
 
-      const dialog = await screen.findByRole("dialog", {
-        name: "Benachrichtigungen",
-      });
-      expect(dialog).toBeInTheDocument();
-      expect(document.documentElement.style.overflow).toBe("hidden");
-
-      fireEvent.keyDown(document, { key: "Escape" });
-
-      await waitFor(() => {
-        expect(
-          screen.queryByRole("dialog", { name: "Benachrichtigungen" }),
-        ).not.toBeInTheDocument();
-      });
+      expect(
+        await screen.findByRole("status", {
+          name: "Erfolgreich!: Gespeichert",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(document.documentElement.style.overflow).not.toBe("hidden");
     });
 
     it("uses the document language for mobile toast labels", async () => {
@@ -194,7 +188,7 @@ describe("ToastContext", () => {
       );
 
       expect(
-        await screen.findByRole("dialog", { name: "Notifications" }),
+        await screen.findByRole("status", { name: "Success!: Saved" }),
       ).toBeInTheDocument();
       expect(screen.getByLabelText("Close")).toBeInTheDocument();
     });
@@ -207,8 +201,8 @@ describe("ToastContext", () => {
         dismissMessage: "Zapisano",
         actionMessage: "Gotowe",
         action: "Otwórz",
-        dismissLabel: "Sukces!: Zapisano. Dotknij, aby zamknąć",
-        actionLabel: "Sukces!: Gotowe. Dotknij: Otwórz",
+        dismissLabel: "Sukces!: Zapisano",
+        actionLabel: "Dotknij: Otwórz",
       },
       {
         locale: "tr",
@@ -217,8 +211,8 @@ describe("ToastContext", () => {
         dismissMessage: "Kaydedildi",
         actionMessage: "Hazır",
         action: "Aç",
-        dismissLabel: "Başarılı!: Kaydedildi. Kapatmak için dokunun",
-        actionLabel: "Başarılı!: Hazır. Dokunun: Aç",
+        dismissLabel: "Başarılı!: Kaydedildi",
+        actionLabel: "Dokunun: Aç",
       },
       {
         locale: "uk",
@@ -227,14 +221,13 @@ describe("ToastContext", () => {
         dismissMessage: "Збережено",
         actionMessage: "Готово",
         action: "Відкрити",
-        dismissLabel: "Успішно!: Збережено. Торкніться, щоб закрити",
-        actionLabel: "Успішно!: Готово. Торкніться: Відкрити",
+        dismissLabel: "Успішно!: Збережено",
+        actionLabel: "Торкніться: Відкрити",
       },
     ])(
       "localizes all mobile toast chrome for $locale",
       async ({
         locale,
-        dialogTitle,
         close,
         dismissMessage,
         actionMessage,
@@ -276,16 +269,13 @@ describe("ToastContext", () => {
           </ToastProvider>,
         );
 
-        expect(
-          await screen.findByRole("dialog", { name: dialogTitle }),
-        ).toBeInTheDocument();
-        expect(screen.getByLabelText(close)).toBeInTheDocument();
+        expect(screen.getAllByLabelText(close)).toHaveLength(2);
         expect(screen.getByLabelText(dismissLabel)).toBeInTheDocument();
         expect(screen.getByLabelText(actionLabel)).toBeInTheDocument();
       },
     );
 
-    it("restarts the dialog animation when the next mobile toast remains", async () => {
+    it("keeps remaining mobile toast bars visible after dismissing one", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
         matches: query === "(max-width: 767px)",
         media: query,
@@ -315,15 +305,70 @@ describe("ToastContext", () => {
       );
 
       await screen.findByText("Second");
-      fireEvent.keyDown(document, { key: "Escape" });
+      fireEvent.click(screen.getAllByLabelText("Schließen")[1]!);
 
       await waitFor(() => {
         expect(screen.queryByText("Second")).not.toBeInTheDocument();
         expect(screen.getByText("First")).toBeVisible();
-        expect(
-          screen.getByRole("dialog", { name: "Benachrichtigungen" }),
-        ).toHaveClass("animate-modalEnter");
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       });
+    });
+
+    it("runs a mobile toast action without blocking the page", async () => {
+      vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
+        matches: query === "(max-width: 767px)",
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+      const onAction = vi.fn();
+      const onContinue = vi.fn();
+
+      function TestComponent() {
+        const toast = useToast();
+
+        useEffect(() => {
+          toast.info("Änderung gespeichert", {
+            duration: 0,
+            action: { label: "Rückgängig", onClick: onAction },
+          });
+        }, [toast]);
+
+        return (
+          <button type="button" onClick={onContinue}>
+            Weiterarbeiten
+          </button>
+        );
+      }
+
+      render(
+        <ToastProvider>
+          <TestComponent />
+        </ToastProvider>,
+      );
+
+      await screen.findByText("Änderung gespeichert");
+      const continueButton = screen.getByRole("button", {
+        name: "Weiterarbeiten",
+      });
+      fireEvent.click(continueButton);
+      expect(onContinue).toHaveBeenCalledOnce();
+
+      const toast = screen.getByRole("status", {
+        name: "Information: Änderung gespeichert",
+      });
+      expect(toast.parentElement?.parentElement).toHaveClass(
+        "pointer-events-none",
+      );
+      expect(screen.getByLabelText("Schließen")).toHaveClass("h-11");
+      fireEvent.click(
+        screen.getByRole("button", { name: "Tippen zum Rückgängig" }),
+      );
+      expect(onAction).toHaveBeenCalledOnce();
     });
 
     it("runs a toast action from the desktop toast", async () => {

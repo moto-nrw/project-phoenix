@@ -9,8 +9,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Modal } from "~/components/ui/modal";
-import { Button } from "~/components/ui/button";
+import { Toast } from "~/components/ui/toast";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { createLogger } from "~/lib/logger";
 import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
@@ -49,104 +48,80 @@ const ToastContext = createContext<ToastAPI | undefined>(undefined);
 
 const toastLabelsByLocale = {
   de: {
-    title: "Benachrichtigungen",
     close: "Schließen",
-    backdrop: "Benachrichtigung schließen",
     typeTitles: {
       success: "Erfolgreich!",
       error: "Fehler",
       info: "Information",
       warning: "Warnung",
     },
-    dismissInstruction: "Tippen zum Schließen",
     actionInstruction: (label: string) => `Tippen zum ${label}`,
   },
   en: {
-    title: "Notifications",
     close: "Close",
-    backdrop: "Close notification",
     typeTitles: {
       success: "Success!",
       error: "Error",
       info: "Information",
       warning: "Warning",
     },
-    dismissInstruction: "Tap to close",
     actionInstruction: (label: string) => `Tap to ${label}`,
   },
   ru: {
-    title: "Уведомления",
     close: "Закрыть",
-    backdrop: "Закрыть уведомление",
     typeTitles: {
       success: "Успешно!",
       error: "Ошибка",
       info: "Информация",
       warning: "Предупреждение",
     },
-    dismissInstruction: "Нажмите, чтобы закрыть",
     actionInstruction: (label: string) => `Нажмите: ${label}`,
   },
   sq: {
-    title: "Njoftimet",
     close: "Mbyll",
-    backdrop: "Mbyll njoftimin",
     typeTitles: {
       success: "Me sukses!",
       error: "Gabim",
       info: "Informacion",
       warning: "Paralajmërim",
     },
-    dismissInstruction: "Prekni për ta mbyllur",
     actionInstruction: (label: string) => `Prekni: ${label}`,
   },
   pl: {
-    title: "Powiadomienia",
     close: "Zamknij",
-    backdrop: "Zamknij powiadomienie",
     typeTitles: {
       success: "Sukces!",
       error: "Błąd",
       info: "Informacja",
       warning: "Ostrzeżenie",
     },
-    dismissInstruction: "Dotknij, aby zamknąć",
     actionInstruction: (label: string) => `Dotknij: ${label}`,
   },
   tr: {
-    title: "Bildirimler",
     close: "Kapat",
-    backdrop: "Bildirimi kapat",
     typeTitles: {
       success: "Başarılı!",
       error: "Hata",
       info: "Bilgi",
       warning: "Uyarı",
     },
-    dismissInstruction: "Kapatmak için dokunun",
     actionInstruction: (label: string) => `Dokunun: ${label}`,
   },
   uk: {
-    title: "Сповіщення",
     close: "Закрити",
-    backdrop: "Закрити сповіщення",
     typeTitles: {
       success: "Успішно!",
       error: "Помилка",
       info: "Інформація",
       warning: "Попередження",
     },
-    dismissInstruction: "Торкніться, щоб закрити",
     actionInstruction: (label: string) => `Торкніться: ${label}`,
   },
 } as const satisfies Record<
   AppLocale,
   {
-    readonly title: string;
     readonly close: string;
-    readonly backdrop: string;
     readonly typeTitles: Readonly<Record<ToastType, string>>;
-    readonly dismissInstruction: string;
     actionInstruction: (label: string) => string;
   }
 >;
@@ -156,80 +131,6 @@ export function useToast() {
   if (!ctx) throw new Error("useToast must be used within ToastProvider");
   return ctx;
 }
-
-// Mobile: White background with colored icons (center-overlay style)
-const mobileStylesByType: Record<
-  ToastType,
-  {
-    bg: string;
-    border: string;
-    text: string;
-    iconColor: string;
-    iconPath: string;
-  }
-> = {
-  success: {
-    bg: "bg-white/95",
-    border: "border-gray-200",
-    text: "text-gray-900",
-    iconColor: "text-moto-green",
-    iconPath: "M5 13l4 4L19 7",
-  },
-  error: {
-    bg: "bg-white/95",
-    border: "border-gray-200",
-    text: "text-gray-900",
-    iconColor: "text-moto-red",
-    iconPath: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
-  info: {
-    bg: "bg-white/95",
-    border: "border-gray-200",
-    text: "text-gray-900",
-    iconColor: "text-moto-blue",
-    iconPath: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
-  warning: {
-    bg: "bg-white/95",
-    border: "border-gray-200",
-    text: "text-gray-900",
-    iconColor: "text-moto-orange",
-    iconPath:
-      "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
-  },
-};
-
-// Desktop: Original transparent background (bottom-right notification style)
-const desktopStylesByType: Record<
-  ToastType,
-  { bg: string; border: string; text: string; iconPath: string }
-> = {
-  success: {
-    bg: "bg-moto-green/10",
-    border: "border-moto-green/20",
-    text: "text-moto-green-strong",
-    iconPath: "M5 13l4 4L19 7",
-  },
-  error: {
-    bg: "bg-moto-red/10",
-    border: "border-moto-red/20",
-    text: "text-moto-red-strong",
-    iconPath: "M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
-  info: {
-    bg: "bg-moto-blue/10",
-    border: "border-moto-blue/20",
-    text: "text-moto-blue-strong",
-    iconPath: "M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
-  },
-  warning: {
-    bg: "bg-moto-orange/10",
-    border: "border-moto-orange/20",
-    text: "text-moto-orange-strong",
-    iconPath:
-      "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
-  },
-};
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -263,7 +164,6 @@ function ToastRow({
   isMobile: boolean;
   locale: AppLocale;
 }>) {
-  const desktopStyles = desktopStylesByType[item.type];
   const labels = toastLabelsByLocale[locale];
 
   const [visible, setVisible] = useState(false);
@@ -326,113 +226,30 @@ function ToastRow({
     dismissWithExitAnimation();
   };
 
-  if (isMobile) {
-    const mobileStyles = mobileStylesByType[item.type];
-    return (
-      <Button
-        type="button"
-        variant="surface"
-        size="card"
-        aria-label={`${labels.typeTitles[item.type]}: ${item.message}. ${
-          item.action
-            ? labels.actionInstruction(item.action.label)
-            : labels.dismissInstruction
-        }`}
-        onClick={handleAction}
-        className={`${mobileStyles.bg} ${mobileStyles.border} border text-center shadow-none`}
-      >
-        <output
-          aria-live="polite"
-          aria-atomic="true"
-          className="flex flex-col items-center gap-3"
-        >
-          <div className={mobileStyles.iconColor}>
-            <svg
-              className="h-12 w-12"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d={mobileStyles.iconPath}
-              />
-            </svg>
-          </div>
-          <div>
-            <p className={`text-lg font-semibold ${mobileStyles.text}`}>
-              {labels.typeTitles[item.type]}
-            </p>
-            <p className={`mt-1 text-sm ${mobileStyles.text} opacity-80`}>
-              {item.message}
-            </p>
-          </div>
-        </output>
-      </Button>
-    );
-  }
-
   return (
-    <output
-      aria-live="polite"
-      aria-atomic="true"
-      aria-hidden={isMobile}
+    <Toast
+      type={item.type}
+      message={item.message}
+      accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
+      closeLabel={labels.close}
+      onClose={dismissWithExitAnimation}
+      action={
+        item.action
+          ? {
+              label: item.action.label,
+              accessibleLabel: isMobile
+                ? labels.actionInstruction(item.action.label)
+                : item.action.label,
+              onClick: handleAction,
+            }
+          : undefined
+      }
+      visible={visible && !exiting}
+      reducedMotion={reducedMotion}
+      touchFriendly={isMobile}
       onMouseEnter={pauseIfDesktop}
       onMouseLeave={resumeIfDesktop}
-      className={`pointer-events-auto hidden md:block ${desktopStyles.bg} ${desktopStyles.border} ${desktopStyles.text} rounded-2xl border p-4 shadow-lg backdrop-blur-sm transition-all ${reducedMotion ? "" : "duration-300 ease-out"} ${visible && !exiting ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"}`}
-    >
-      <div className="flex items-start gap-3">
-        <div className={`flex-shrink-0 ${desktopStyles.text}`}>
-          <svg
-            className="h-5 w-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d={desktopStyles.iconPath}
-            />
-          </svg>
-        </div>
-        <p className={`flex-1 text-sm font-medium ${desktopStyles.text}`}>
-          {item.message}
-        </p>
-        {item.action && (
-          <button
-            type="button"
-            onClick={handleAction}
-            className={`flex-shrink-0 self-center text-sm font-semibold ${desktopStyles.text} underline underline-offset-2 transition-opacity hover:opacity-70`}
-          >
-            {item.action.label}
-          </button>
-        )}
-        <button
-          type="button"
-          aria-label={labels.close}
-          onClick={() => onClose(item.id)}
-          className={`flex-shrink-0 ${desktopStyles.text} transition-opacity hover:opacity-70`}
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M6 18L18 6M6 6l12 12"
-            />
-          </svg>
-        </button>
-      </div>
-    </output>
+    />
   );
 }
 
@@ -445,7 +262,6 @@ export function ToastProvider({
   const locale = normalizeLocale(
     typeof document === "undefined" ? "de" : document.documentElement.lang,
   );
-  const labels = toastLabelsByLocale[locale];
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
@@ -467,8 +283,8 @@ export function ToastProvider({
       const id =
         options?.id ?? `${now}-${Math.random().toString(36).slice(2, 8)}`;
 
-      // Use shorter duration for mobile center-overlay style
-      // Default to 1500ms to match mobile UX, desktop can be longer if needed
+      // Keep short, passive feedback out of the way; callers with an action or
+      // a longer explanation opt into a longer duration.
       const duration = options?.duration ?? 1500;
 
       // Log error toasts for monitoring
@@ -506,31 +322,13 @@ export function ToastProvider({
     [push, remove],
   );
 
-  const topmostItem = items.at(-1);
-  const dismissedToastIdRef = useRef<string | undefined>(undefined);
   return (
     <ToastContext.Provider value={api}>
       {children}
 
-      <Modal
-        isOpen={isMobile && topmostItem !== undefined}
-        animationKey={topmostItem?.id}
-        onDismissStart={() => {
-          dismissedToastIdRef.current = topmostItem?.id;
-        }}
-        onClose={() => {
-          const dismissedToastId =
-            dismissedToastIdRef.current ?? topmostItem?.id;
-          dismissedToastIdRef.current = undefined;
-          if (dismissedToastId) remove(dismissedToastId);
-        }}
-        title={labels.title}
-        widthClass="mx-4 w-[calc(100%-2rem)] max-w-xs"
-        closeLabel={labels.close}
-        backdropLabel={labels.backdrop}
-      >
-        <div className="space-y-2">
-          {items.map((item) => (
+      <div className="pointer-events-none fixed inset-x-4 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-[9000] flex max-w-sm flex-col gap-2 md:hidden">
+        {isMobile &&
+          items.map((item) => (
             <ToastRow
               key={item.id}
               item={item}
@@ -540,8 +338,7 @@ export function ToastProvider({
               locale={locale}
             />
           ))}
-        </div>
-      </Modal>
+      </div>
 
       <div className="pointer-events-none fixed right-6 bottom-6 z-[9000] hidden max-w-sm flex-col items-stretch justify-end gap-2 md:flex">
         {!isMobile &&
