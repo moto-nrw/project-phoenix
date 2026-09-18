@@ -108,18 +108,25 @@ func (s *staffAbsenceService) RebookAbsences(ctx context.Context, req RebookAbse
 	if err != nil {
 		return nil, err
 	}
+	absences, err := s.loadRebookingAbsences(ctx, req.StaffID, entries)
+	if err != nil {
+		return nil, err
+	}
 	result := &AbsenceRebookingResult{}
 	for _, entry := range entries {
 		if err := s.validateRebookedAbsence(ctx, entry); err != nil {
 			return nil, err
 		}
 		result.Days += countWorkingDays(entry.after.DateStart, entry.after.DateEnd, effectiveStartHalf(entry.after), effectiveEndHalf(entry.after))
-		delta, err := s.rebookingBalanceDelta(ctx, entry)
-		if err != nil {
-			return nil, err
-		}
-		result.BalanceDeltaMinutes += delta
 	}
+	if err := validateRebookedAbsenceOverlaps(absences, entries); err != nil {
+		return nil, err
+	}
+	delta, err := s.rebookingBalanceDelta(ctx, absences, entries)
+	if err != nil {
+		return nil, err
+	}
+	result.BalanceDeltaMinutes = delta
 
 	if selectedType != nil && selectedType.AllowanceEnabled {
 		allowances, err := s.absenceTypes.PreviewAllowanceRebooking(ctx, req.StaffID, *typeID, ids)
@@ -219,6 +226,18 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 	return entries, nil
 }
 
+// loadRebookingAbsences returns every row that can affect the changed days.
+// The staff lock is already held, so this is the stable input for both the
+// overlap check and the balance preview.
+func (s *staffAbsenceService) loadRebookingAbsences(ctx context.Context, staffID int64, entries []rebookedAbsence) ([]*activeModels.StaffAbsence, error) {
+	start, end := rebookedDateRange(entries)
+	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, start, end)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check existing absences for rebooking: %w", err)
+	}
+	return absences, nil
+}
+
 func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry rebookedAbsence) error {
 	after := entry.after
 	day := after.DateStart.Format("02.01.2006")
@@ -257,6 +276,23 @@ func (s *staffAbsenceService) validateRebookedAbsence(ctx context.Context, entry
 	return nil
 }
 
+// validateRebookedAbsenceOverlaps keeps rebooking aligned with creation:
+// blocking absences never share a day. Rebooking keeps rows separate, so it
+// cannot use creation's merge path for equal types either.
+func validateRebookedAbsenceOverlaps(absences []*activeModels.StaffAbsence, entries []rebookedAbsence) error {
+	for _, entry := range entries {
+		for _, absence := range absences {
+			if absence.ID == entry.after.ID || !blocksAbsenceRange(absence.Status) {
+				continue
+			}
+			if !absence.DateEnd.Before(entry.after.DateStart) && !entry.after.DateEnd.Before(absence.DateStart) {
+				return rebookingBlocked("Der Eintrag überschneidet sich mit einer anderen Abwesenheit. Löschen Sie einen Eintrag und tragen Sie ihn neu ein.")
+			}
+		}
+	}
+	return nil
+}
+
 // rejectClosedMonths blocks a change inside a closed month: its closing
 // balance is frozen, so the Stundenkonto would not follow the new type.
 func (s *staffAbsenceService) rejectClosedMonths(ctx context.Context, staffID int64, start, end timezone.Date) error {
@@ -287,38 +323,84 @@ func germanMonth(key monthKey) string {
 	return fmt.Sprintf("%s %d", germanMonthNames[key.Month-1], key.Year)
 }
 
-// rebookingBalanceDelta is the Stundenkonto change of one entry once all its
-// days have passed. Every type except Freizeitausgleich credits the day's
-// target, so only a change into or out of Freizeitausgleich moves the
-// account. The credit comes from the same walk the Monatskarte prices days
-// with, so the preview matches the account afterwards.
-func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, entry rebookedAbsence) (int, error) {
-	fromCompTime := entry.before.AbsenceType == activeModels.AbsenceTypeCompTime
-	toCompTime := entry.after.AbsenceType == activeModels.AbsenceTypeCompTime
-	if fromCompTime == toCompTime {
+// rebookingBalanceDelta is the Stundenkonto change once all changed days have
+// passed. It prices the complete affected absence set before and after the
+// replacement, so the preview uses the Monatskarte's lowest-ID overlap rule.
+func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absences []*activeModels.StaffAbsence, entries []rebookedAbsence) (int, error) {
+	if !rebookingChangesCompTime(entries) {
 		return 0, nil
 	}
 	if s.monthService == nil {
 		return 0, fmt.Errorf("rebooking requires the month service")
 	}
-	start, end := entry.after.DateStart, entry.after.DateEnd
-	targets, err := s.monthService.GetDailyTargets(ctx, entry.after.StaffID, start, end)
-	if err != nil {
-		return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
+	before, after := rebookingBalanceAbsences(absences, entries)
+	delta := 0
+	for _, entry := range entries {
+		for start := entry.after.DateStart; !start.After(entry.after.DateEnd); {
+			end := start.AddDays(maxDailyTargetRangeDays)
+			if entry.after.DateEnd.Before(end) {
+				end = entry.after.DateEnd
+			}
+			targets, err := s.monthService.GetDailyTargets(ctx, entry.after.StaffID, start, end)
+			if err != nil {
+				return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
+			}
+			targetByDay := make(map[timezone.Date]int, len(targets))
+			for _, target := range targets {
+				targetByDay[target.Date] = target.TargetMinutes
+			}
+			delta += creditedAbsenceMinutes(after, start, end, targetByDay) - creditedAbsenceMinutes(before, start, end, targetByDay)
+			start = end.AddDays(1)
+		}
 	}
-	targetByDay := make(map[timezone.Date]int, len(targets))
-	for _, target := range targets {
-		targetByDay[target.Date] = target.TargetMinutes
+	return delta, nil
+}
+
+func rebookingChangesCompTime(entries []rebookedAbsence) bool {
+	for _, entry := range entries {
+		if (entry.before.AbsenceType == activeModels.AbsenceTypeCompTime) != (entry.after.AbsenceType == activeModels.AbsenceTypeCompTime) {
+			return true
+		}
 	}
-	credit := func(absence *activeModels.StaffAbsence) int {
-		total := 0
-		walkCreditedAbsenceDays([]*activeModels.StaffAbsence{absence}, start, end,
-			func(d timezone.Date) int { return targetByDay[d] },
-			func(_ timezone.Date, _ *activeModels.StaffAbsence, minutes int, _ float64) { total += minutes })
-		return total
+	return false
+}
+
+func rebookingBalanceAbsences(absences []*activeModels.StaffAbsence, entries []rebookedAbsence) ([]*activeModels.StaffAbsence, []*activeModels.StaffAbsence) {
+	replacements := make(map[int64]*activeModels.StaffAbsence, len(entries))
+	for _, entry := range entries {
+		replacements[entry.after.ID] = entry.after
 	}
-	before := entry.before
-	return credit(entry.after) - credit(&before), nil
+	before := slices.Clone(absences)
+	after := make([]*activeModels.StaffAbsence, 0, len(absences))
+	for _, absence := range absences {
+		if replacement, ok := replacements[absence.ID]; ok {
+			after = append(after, replacement)
+			continue
+		}
+		after = append(after, absence)
+	}
+	return before, after
+}
+
+func creditedAbsenceMinutes(absences []*activeModels.StaffAbsence, start, end timezone.Date, targets map[timezone.Date]int) int {
+	total := 0
+	walkCreditedAbsenceDays(absences, start, end,
+		func(d timezone.Date) int { return targets[d] },
+		func(_ timezone.Date, _ *activeModels.StaffAbsence, minutes int, _ float64) { total += minutes })
+	return total
+}
+
+func rebookedDateRange(entries []rebookedAbsence) (timezone.Date, timezone.Date) {
+	start, end := entries[0].after.DateStart, entries[0].after.DateEnd
+	for _, entry := range entries[1:] {
+		if entry.after.DateStart.Before(start) {
+			start = entry.after.DateStart
+		}
+		if entry.after.DateEnd.After(end) {
+			end = entry.after.DateEnd
+		}
+	}
+	return start, end
 }
 
 // previewVacationRebooking recomputes the Resturlaub of every year an entry

@@ -208,6 +208,28 @@ func TestAdminRebookAbsences_CompTimeToAllowanceType(t *testing.T) {
 	}
 }
 
+func TestAdminRebookAbsences_RejectsBlockingOverlap(t *testing.T) {
+	t.Parallel()
+
+	f := setupRebookFixture(t, 10)
+	friday := testpkg.Date(2026, time.August, 7)
+	insertAbsenceRow(t, f.tc, map[string]any{
+		"staff_id":     f.subjectID,
+		"absence_type": "training",
+		"date_start":   friday.String(),
+		"date_end":     friday.String(),
+		"status":       "reported",
+		"created_by":   f.subjectID,
+		"requested_at": time.Now(),
+	})
+
+	rec := f.rebook(t, f.body("", true))
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"absence_rebooking_blocked"`)
+	assert.Contains(t, rec.Body.String(), "überschneidet sich")
+	assert.Equal(t, []string{"comp_time:", "comp_time:", "comp_time:"}, f.storedTypes(t))
+}
+
 func TestAdminRebookAbsences_AllowanceShortfallIsShownAndBlocks(t *testing.T) {
 	t.Parallel()
 	f := setupRebookFixture(t, 2)

@@ -112,6 +112,64 @@ func TestLoadRebookedAbsencesRejectsEntriesThatHaveNotEnded(t *testing.T) {
 	}
 }
 
+func TestValidateRebookedAbsenceOverlapsRejectsBlockingRows(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.September, 17)
+	entry := rebookedAbsence{after: &StaffAbsence{
+		Model: Model{ID: 71}, StaffID: 7,
+		AbsenceType: AbsenceTypeOther, DateStart: day, DateEnd: day,
+		Status: AbsenceStatusReported,
+	}}
+	err := validateRebookedAbsenceOverlaps([]*StaffAbsence{
+		entry.after,
+		{
+			Model: Model{ID: 72}, StaffID: 7,
+			AbsenceType: AbsenceTypeTraining, DateStart: day, DateEnd: day,
+			Status: AbsenceStatusReported,
+		},
+	}, []rebookedAbsence{entry})
+
+	require.ErrorIs(t, err, ErrAbsenceRebookingBlocked)
+	assert.ErrorContains(t, err, "überschneidet sich")
+}
+
+type rebookingMonthServiceMock struct {
+	WorkTimeMonthService
+	targets []DailyTarget
+}
+
+func (m *rebookingMonthServiceMock) GetDailyTargets(context.Context, int64, Date, Date) ([]DailyTarget, error) {
+	return m.targets, nil
+}
+
+func TestRebookingBalanceDeltaUsesCompleteAbsenceSet(t *testing.T) {
+	t.Parallel()
+
+	day := NewDate(2026, time.September, 17)
+	before := StaffAbsence{
+		Model: Model{ID: 72}, StaffID: 7,
+		AbsenceType: AbsenceTypeCompTime, DateStart: day, DateEnd: day,
+		Status: AbsenceStatusReported,
+	}
+	after := before
+	after.AbsenceType = AbsenceTypeOther
+	svc, _, _ := absSetupService()
+	svc.monthService = &rebookingMonthServiceMock{targets: []DailyTarget{{Date: day, TargetMinutes: 480}}}
+
+	delta, err := svc.rebookingBalanceDelta(context.Background(), []*StaffAbsence{
+		{
+			Model: Model{ID: 71}, StaffID: 7,
+			AbsenceType: AbsenceTypeOther, DateStart: day, DateEnd: day,
+			Status: AbsenceStatusReported,
+		},
+		&before,
+	}, []rebookedAbsence{{before: before, after: &after}})
+
+	require.NoError(t, err)
+	assert.Zero(t, delta, "the lower-ID absence keeps the day in both versions")
+}
+
 func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
 	t.Parallel()
 
