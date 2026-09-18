@@ -213,6 +213,10 @@ func mapError(err error) error {
 		return peopledirectory.ErrStudentNotFound
 	case errors.Is(err, domain.ErrStudentLockBusy):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentLockBusy, err)
+	case errors.Is(err, domain.ErrFamilyProtectionUnchanged):
+		return peopledirectory.ErrFamilyProtectionUnchanged
+	case errors.Is(err, domain.ErrFamilyProtectionInvalid):
+		return peopledirectory.ErrFamilyProtectionInvalid
 	default:
 		return err
 	}

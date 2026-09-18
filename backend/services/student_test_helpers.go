@@ -51,7 +51,6 @@ type StudentTestModule struct {
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
 	MasterDataReview   users.MasterDataReviewService
 	ParentRequests     *users.ParentRequestCoordinator
-	FamilyProtection   *users.FamilyProtectionService
 	OGSGroupLive       grouplive.Query
 }
 
@@ -323,7 +322,6 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
-	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: contextRepos.Substitutions, Persons: newEducationPersonQuery(persons),
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
@@ -381,7 +379,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
 		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
 		OfferingChanges: offeringChangeRequestService, PickupAdjustments: pickupAdjustmentService, ExcusedRequests: excusedRequestService,
-		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, FamilyProtection: familyProtectionService, OGSGroupLive: ogsGroupLiveService,
+		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
 	}, nil
 }
 

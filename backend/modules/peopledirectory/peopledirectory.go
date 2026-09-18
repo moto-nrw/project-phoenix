@@ -121,6 +121,7 @@ type Command interface {
 	StudentCommand
 	StudentDeletionCommand
 	GuardianCommand
+	FamilyProtectionCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
 	UpdatePerson(context.Context, UpdatePerson) (Person, error)
 	// DeletePerson soft-deletes the person (deleted_at), keeping the row.
@@ -145,6 +146,7 @@ type Capability interface {
 
 type engine interface {
 	FamilyProtectionQuery
+	FamilyProtectionCommand
 	StudentDepartureQuery
 	studentEngine
 	studentDeletionEngine

@@ -5998,7 +5998,7 @@
       "declaration": "TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        531
       ],
       "tables": []
     },
@@ -6018,7 +6018,7 @@
       "declaration": "TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        588
+        587
       ],
       "tables": []
     },
@@ -6028,7 +6028,7 @@
       "declaration": "TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement",
       "target": "database/repositories.NewFactory",
       "lines": [
-        267
+        266
       ],
       "tables": []
     },

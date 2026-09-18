@@ -1392,7 +1392,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ExcusedRequestService:        api.Services.ExcusedRequests,
 		ParentRequestBulkService:     api.Services.ParentRequests,
 		ParentRequestConflictService: api.Services.ParentRequests,
-		FamilyProtectionService:      api.Services.FamilyProtection,
+		FamilyProtection:             api.Services.PeopleDirectory,
 		RequestReviewAccess:          api.Services.RequestReviewPolicy,
 		RequestReview:                requestReview,
 		StudentStatusDayService:      api.Services.StudentStatusDays,

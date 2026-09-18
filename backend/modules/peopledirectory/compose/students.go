@@ -85,6 +85,14 @@ func (e engine) ClearStudentStatusFlags(ctx context.Context, ids []int64, status
 	return affected, mapError(err)
 }
 
+func (e engine) SetFamilyProtection(ctx context.Context, input peopledirectory.SetFamilyProtection) (bool, error) {
+	enabled, err := e.students.SetFamilyProtection(ctx, domain.FamilyProtectionChange{
+		StudentID: input.StudentID, Enabled: input.Enabled,
+		Reason: input.Reason, ActorAccountID: input.ActorAccountID,
+	})
+	return enabled, mapError(err)
+}
+
 func toPublicStudents(values []domain.Student) []peopledirectory.Student {
 	result := make([]peopledirectory.Student, 0, len(values))
 	for _, value := range values {

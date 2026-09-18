@@ -227,7 +227,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		OfferingChangeService:    svc.OfferingChanges,
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
-		FamilyProtectionService:  svc.FamilyProtection,
+		FamilyProtection:         svc.PeopleDirectory,
 		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,

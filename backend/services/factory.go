@@ -241,7 +241,6 @@ type Factory struct {
 	PickupAdjustments enrollment.PickupAdjustmentService
 	ExcusedRequests   careplan.ExcusedAbsenceRequests
 	ParentRequests    *users.ParentRequestCoordinator
-	FamilyProtection  *users.FamilyProtectionService
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
@@ -2917,7 +2916,6 @@ func newFactory(
 	// The resolver records ONLY the staff-entered result. Every verdict it
 	// takes goes through a domain Decide, which writes its own decided event.
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
-	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
 	factory = &Factory{
 		settingsRuntimeDB:       db,
@@ -3033,7 +3031,6 @@ func newFactory(
 		PickupAdjustments:    pickupAdjustmentService,
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,
-		FamilyProtection:     familyProtectionService,
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,

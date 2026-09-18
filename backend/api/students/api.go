@@ -59,6 +59,13 @@ type PrivacyConsentCapability interface {
 	RevisePrivacyConsent(context.Context, studentpresence.PrivacyConsent) (studentpresence.PrivacyConsent, error)
 }
 
+// FamilyProtectionCapability is the People Directory owner surface behind the
+// per-child privacy ledger: the current flag and the append-only change.
+type FamilyProtectionCapability interface {
+	peopleModule.FamilyProtectionQuery
+	peopleModule.FamilyProtectionCommand
+}
+
 // ClassListEntryReader hands over the entries in the class-then-name display
 // order the "Klassenliste" export and the class dropdown both rely on. The
 // root binds it to the School Membership capability that owns them.
@@ -115,7 +122,10 @@ type ResourceConfig struct {
 	// silently deciding requests one by one, which is the bug the group
 	// exists to prevent.
 	ParentRequestConflictService userService.ParentRequestConflictService
-	FamilyProtectionService      userService.FamilyProtectionManager
+	// FamilyProtection is the People Directory owner capability behind the
+	// per-child privacy ledger (#3349). Optional: a bare test Resource answers
+	// 500 rather than reaching the ledger through a second path.
+	FamilyProtection FamilyProtectionCapability
 	// RequestReviewAccess reports the caller's coarse reach over the parent
 	// request queues so the empty list can explain itself. Optional: a nil
 	// policy omits the field (bare test Resources).

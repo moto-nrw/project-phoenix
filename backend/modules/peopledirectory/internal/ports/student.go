@@ -12,6 +12,12 @@ import (
 type StudentStore interface {
 	ListDepartureModes(context.Context, []int64) (map[int64]map[string][]string, domain.OperationStats, error)
 	CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, domain.OperationStats, error)
+	// AppendFamilyProtection inserts one immutable ledger row. The caller
+	// holds the student's row lock.
+	AppendFamilyProtection(context.Context, domain.FamilyProtectionChange) (domain.OperationStats, error)
+	// LockLifecycle takes the student row FOR UPDATE and reports its
+	// lifecycle status; found is false when the tenant has no such row.
+	LockLifecycle(ctx context.Context, id int64) (status string, found bool, stats domain.OperationStats, err error)
 	ReadEnrollment(context.Context, int64, string) (domain.EnrollmentRecord, domain.OperationStats, error)
 	LockEnrollmentClassWrites(context.Context) (domain.OperationStats, error)
 	// LockEnrollmentClassWritesExclusive takes the same gate exclusively.

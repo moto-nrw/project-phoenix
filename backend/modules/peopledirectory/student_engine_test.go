@@ -29,6 +29,11 @@ func (e *recordingEngine) CurrentFamilyProtection(context.Context, []int64) (map
 	return map[int64]bool{}, nil
 }
 
+func (e *recordingEngine) SetFamilyProtection(context.Context, peopledirectory.SetFamilyProtection) (bool, error) {
+	e.calls++
+	return false, nil
+}
+
 func (e *recordingEngine) ListStudentDepartureModes(context.Context, []int64) (map[int64]map[string][]string, error) {
 	e.calls++
 	return map[int64]map[string][]string{}, nil
