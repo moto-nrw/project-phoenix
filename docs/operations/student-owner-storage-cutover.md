@@ -1,6 +1,6 @@
 # Student owner storage Cutover (#2759)
 
-Migration `1.15.396` applies the last backfill delta under one bounded write
+Migration `1.15.397` applies the last backfill delta under one bounded write
 lock, proves per school that the three owner tables reproduce `users.students`,
 moves every student foreign key onto `users.student_profiles`, archives the old
 base table as `users.students_legacy` and republishes the old name as a

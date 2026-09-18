@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const studentOwnerCutoverVersion = "1.15.396"
+const studentOwnerCutoverVersion = "1.15.397"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
@@ -15,7 +15,7 @@ func init() {
 		Description: "Cut over People, School Membership and Care Plan student storage with previous-image compatibility (#2759)",
 		DependsOn: []string{
 			studentOwnerBackfillVersion,
-			pickupExtensionTasksVersion, // 1.15.395 — preserves ladder order
+			absenceRebookingAuditVersion, // 1.15.396 — preserves ladder order
 		},
 	})
 	Migrations.MustRegister(studentOwnerCutoverUp, studentOwnerCutoverDown)

@@ -8,7 +8,7 @@ import (
 )
 
 // RestoreStudentStorageBeforeCutover turns users.students back into the
-// authoritative base table it was before migration 1.15.396 (#2759).
+// authoritative base table it was before migration 1.15.397 (#2759).
 //
 // Contracts written for the Expand (#2717) and Backfill (#2758) migrations, and
 // for schemas older than either, describe a world in which users.students holds
