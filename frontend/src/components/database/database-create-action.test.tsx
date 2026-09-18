@@ -63,4 +63,25 @@ describe("DatabaseCreateAction", () => {
       ),
     ).toBe("");
   });
+
+  it("keeps the desktop action without rendering a mobile FAB when requested", () => {
+    render(
+      <DatabaseCreateAction
+        label="Raum"
+        ariaLabel="Raum erstellen"
+        showMobileFab={false}
+        onClick={() => undefined}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Raum erstellen" })).toHaveClass(
+      "md:flex",
+    );
+    expect(document.body.querySelector("[data-icon-only]")).toBeNull();
+    expect(
+      document.documentElement.style.getPropertyValue(
+        "--moto-floating-fab-offset",
+      ),
+    ).toBe("");
+  });
 });
