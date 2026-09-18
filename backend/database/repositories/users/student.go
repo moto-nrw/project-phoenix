@@ -551,17 +551,6 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	return nil
 }
 
-// departurePlanTouched reports whether this update carries a departure plan at
-// all. Every plan-resolving step keys off it: a caller that loaded no plan
-// leaves all four fields nil and must not have the stored plan rewritten.
-func departurePlanTouched(student *users.Student) bool {
-	return student.AllowedDepartureModes != nil ||
-		student.DepartureDays != nil ||
-		student.BusDays != nil ||
-		student.PickupDays != nil ||
-		student.PickupStatus != nil
-}
-
 // lockSubjectForDepartureWrite takes the subject's row lock when this update
 // will (re)write the departure columns — a plan was supplied, or a companion
 // note was, which persistDepartureDays resolves against the STORED plan and
@@ -582,50 +571,6 @@ func (r *StudentRepository) lockSubjectForDepartureWrite(ctx context.Context, st
 		return err
 	}
 	return nil
-}
-
-// rebaseUntouchedDeparturePlan replaces every departure-plan field that still
-// carries exactly what the read hydrated with the state just read under the row
-// lock.
-//
-// Taking the lock makes the reads agree with the write, but only for the STORED
-// side: the in-memory student is whatever the caller loaded, possibly long
-// before a concurrent companion edit committed. A direct caller that never
-// touches the plan (autoClearStudentSickness, status days, imports) still
-// carries all four hydrated fields, so departurePlanTouched is true and
-// resolveAllowedDepartureModes would read the difference to the now-newer
-// stored plan as an intentional change — reverting the committed edit, trimming
-// its fresh edges, or refusing the unrelated update with
-// ErrCompanionWouldLoseDeparture. Rebasing the untouched fields makes such an
-// update a no-op re-persist of the current plan again.
-//
-// Fields the caller genuinely changed differ from the baseline and are left
-// alone, so an intentional plan write still wins over the stored state (last
-// writer wins, as before — this only stops a NON-writer from winning). Without
-// a baseline (the caller built the student itself, or the read predates this
-// snapshot) nothing is rebased and the supplied fields are taken at face value.
-func rebaseUntouchedDeparturePlan(student *users.Student, current *studentDepartureState) {
-	baseline := student.DepartureBaseline
-	if baseline == nil || current == nil {
-		return
-	}
-	if student.AllowedDepartureModes != nil &&
-		allowedDepartureModesEqual(student.AllowedDepartureModes, baseline.AllowedDepartureModes) {
-		student.AllowedDepartureModes = current.AllowedDepartureModes
-	}
-	if student.DepartureDays != nil &&
-		departureDaysEqual(student.DepartureDays, baseline.DepartureDays) {
-		student.DepartureDays = current.DepartureDays
-	}
-	if student.BusDays != nil && busDaysEqual(student.BusDays, baseline.BusDays) {
-		student.BusDays = current.BusDays
-	}
-	if student.PickupDays != nil && pickupDaysEqual(student.PickupDays, baseline.PickupDays) {
-		student.PickupDays = current.PickupDays
-	}
-	// PickupStatus needs no rebase: hydration always leaves PickupDays non-nil,
-	// and resolvedPickupDays only falls back to the legacy status string when
-	// PickupDays is nil.
 }
 
 // companionTrim is the outcome of planCompanionReconcile: the edge rows the new
@@ -854,14 +799,11 @@ func (r *StudentRepository) VerifyCompanionStrandingBatch(ctx context.Context) e
 // plan stays the no-op persistDepartureDays expects. All four fields are
 // scanonly, so the rewrite never leaks into the base Update's column set (#1694).
 func (r *StudentRepository) alignDeparturePlanForValidation(student *users.Student, current *studentDepartureState) {
-	if !departurePlanTouched(student) {
-		return
-	}
-	allowed := resolveAllowedDepartureModes(student, current)
-	student.AllowedDepartureModes = allowed
-	student.DepartureDays = allowed.DepartureDays()
-	student.BusDays = allowed.BusDays()
-	student.PickupDays = allowed.PickupDays()
+	aligned := studentDeparturePlan(student).Align(current)
+	student.AllowedDepartureModes = aligned.AllowedDepartureModes
+	student.DepartureDays = aligned.DepartureDays
+	student.BusDays = aligned.BusDays
+	student.PickupDays = aligned.PickupDays
 }
 
 // persistDepartureDays writes the unified per-weekday departure mode AND its
@@ -963,85 +905,47 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 	return base.AssertRowsAffected(result, 1, "update student departure days")
 }
 
+// studentDepartureState is the stored plan of one child, in the owner's terms.
+type studentDepartureState = users.DeparturePlan
+
+// studentDeparturePlan reads the plan this write carries off the model.
+func studentDeparturePlan(student *users.Student) users.DeparturePlan {
+	return users.DeparturePlan{
+		AllowedDepartureModes: student.AllowedDepartureModes,
+		DepartureDays:         student.DepartureDays,
+		BusDays:               student.BusDays,
+		PickupDays:            student.PickupDays,
+		PickupStatus:          student.PickupStatus,
+	}
+}
+
+// departurePlanTouched reports whether this update carries a plan at all.
+func departurePlanTouched(student *users.Student) bool {
+	return studentDeparturePlan(student).Touched()
+}
+
+// resolveAllowedDepartureModes answers the mode set in effect after this write.
 func resolveAllowedDepartureModes(student *users.Student, current *studentDepartureState) users.AllowedDepartureModes {
-	if student.AllowedDepartureModes != nil {
-		if shouldUseAllowedDepartureModes(student, current) {
-			return student.AllowedDepartureModes.Normalize()
-		}
-	}
-	if current == nil {
-		if student.DepartureDays != nil {
-			return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
-		}
-		return users.AllowedDepartureModesFromLegacy(student.BusDays, resolvedPickupDays(student)).Normalize()
-	}
-
-	pickup := resolvedPickupDays(student)
-	busChanged := student.BusDays != nil && !busDaysEqual(student.BusDays, current.BusDays)
-	pickupChanged := pickup != nil && !pickupDaysEqual(pickup, current.PickupDays)
-	if busChanged || pickupChanged {
-		return mergeLegacyDepartureModes(current.AllowedDepartureModes, student.BusDays, pickup, busChanged, pickupChanged)
-	}
-
-	if student.DepartureDays != nil && !departureDaysEqual(student.DepartureDays, current.DepartureDays) {
-		return users.AllowedDepartureModesFromDeparture(student.DepartureDays).Normalize()
-	}
-	return current.AllowedDepartureModes.Normalize()
+	return studentDeparturePlan(student).Resolve(current)
 }
 
-func shouldUseAllowedDepartureModes(student *users.Student, current *studentDepartureState) bool {
-	if current == nil {
-		return true
+// rebaseUntouchedDeparturePlan moves the plan fields this caller never touched
+// onto the freshly locked state. users.DeparturePlan.Rebase says why.
+func rebaseUntouchedDeparturePlan(student *users.Student, current *studentDepartureState) {
+	baseline := student.DepartureBaseline
+	if baseline == nil || current == nil {
+		return
 	}
-	if !allowedDepartureModesEqual(student.AllowedDepartureModes, current.AllowedDepartureModes) {
-		return true
-	}
-	pickup := resolvedPickupDays(student)
-	departureChanged := student.DepartureDays != nil &&
-		!departureDaysEqual(student.DepartureDays, current.DepartureDays)
-	legacyChanged := (student.BusDays != nil && !busDaysEqual(student.BusDays, current.BusDays)) ||
-		(pickup != nil && !pickupDaysEqual(pickup, current.PickupDays))
-	return !departureChanged && !legacyChanged
-}
-
-func resolvedPickupDays(student *users.Student) users.PickupDays {
-	if student.PickupDays != nil {
-		return student.PickupDays
-	}
-	if student.PickupStatus != nil {
-		return users.PickupDaysFromLegacyStatus(*student.PickupStatus)
-	}
-	return nil
-}
-
-func mergeLegacyDepartureModes(current users.AllowedDepartureModes, bus users.BusDays, pickup users.PickupDays, busChanged, pickupChanged bool) users.AllowedDepartureModes {
-	current = current.Normalize()
-	out := users.AllowedDepartureModes{}
-	for _, day := range users.PickupDayOrder {
-		modes := map[users.DepartureMode]bool{}
-		for _, mode := range current[day] {
-			modes[mode] = true
-		}
-		if busChanged {
-			modes[users.DepartureBus] = bus[day]
-		}
-		if pickupChanged {
-			modes[users.DeparturePickup] = pickup[day]
-		}
-		for _, mode := range []users.DepartureMode{users.DepartureAlone, users.DepartureBus, users.DeparturePickup, users.DepartureAccompanied} {
-			if modes[mode] {
-				out[day] = append(out[day], mode)
-			}
-		}
-	}
-	return out.Normalize()
-}
-
-type studentDepartureState struct {
-	BusDays               users.BusDays
-	PickupDays            users.PickupDays
-	DepartureDays         users.DepartureDays
-	AllowedDepartureModes users.AllowedDepartureModes
+	rebased := studentDeparturePlan(student).Rebase(&users.DeparturePlan{
+		AllowedDepartureModes: baseline.AllowedDepartureModes,
+		DepartureDays:         baseline.DepartureDays,
+		BusDays:               baseline.BusDays,
+		PickupDays:            baseline.PickupDays,
+	}, current)
+	student.AllowedDepartureModes = rebased.AllowedDepartureModes
+	student.DepartureDays = rebased.DepartureDays
+	student.BusDays = rebased.BusDays
+	student.PickupDays = rebased.PickupDays
 }
 
 func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, studentID int64) (*studentDepartureState, error) {
@@ -1054,63 +958,8 @@ func (r *StudentRepository) findCurrentDepartureState(ctx context.Context, stude
 	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
 		return nil, err
 	}
-	return &studentDepartureState{
-		BusDays:               student.BusDays.Normalize(),
-		PickupDays:            student.PickupDays.Normalize(),
-		DepartureDays:         student.DepartureDays.Normalize(),
-		AllowedDepartureModes: student.AllowedDepartureModes.Normalize(),
-	}, nil
-}
-
-func allowedDepartureModesEqual(a, b users.AllowedDepartureModes) bool {
-	a = a.Normalize()
-	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
-		am := a[day]
-		bm := b[day]
-		if len(am) != len(bm) {
-			return false
-		}
-		for i := range am {
-			if am[i] != bm[i] {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func departureDaysEqual(a, b users.DepartureDays) bool {
-	a = a.Normalize()
-	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
-		if a.ModeFor(day) != b.ModeFor(day) {
-			return false
-		}
-	}
-	return true
-}
-
-func busDaysEqual(a, b users.BusDays) bool {
-	a = a.Normalize()
-	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
-		if a[day] != b[day] {
-			return false
-		}
-	}
-	return true
-}
-
-func pickupDaysEqual(a, b users.PickupDays) bool {
-	a = a.Normalize()
-	b = b.Normalize()
-	for _, day := range users.PickupDayOrder {
-		if a[day] != b[day] {
-			return false
-		}
-	}
-	return true
+	stored := studentDeparturePlan(student).Normalized()
+	return &stored, nil
 }
 
 // Legacy method to maintain compatibility with old interface
