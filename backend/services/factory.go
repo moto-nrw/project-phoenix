@@ -160,8 +160,8 @@ type Factory struct {
 	Facilities                facilities.Service
 	Schulhof                  facilities.SchulhofService
 	WC                        facilities.WCService
-	Invitation                auth.InvitationService
-	GuardianInvitation        auth.GuardianInvitationService
+	Invitation                InvitationCapability
+	GuardianInvitation        GuardianInvitationCapability
 	IoT                       iot.Service
 	StaffClock                *staffclock.Service
 	Settings                  config.SettingsService
@@ -1636,6 +1636,20 @@ func newFactory(
 	if err != nil {
 		return nil, err
 	}
+	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
+	// because both serve the same purpose (one-time verification links with the same
+	// delivery constraints and security profile). If the two ever need to diverge,
+	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
+	// The 15-minute floor accounts for email delivery latency + user interaction time.
+	emailChangeExpiry := passwordResetTokenExpiry
+	if emailChangeExpiry < 15*time.Minute {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
+			slog.Int("effective_minutes", 15),
+		)
+		emailChangeExpiry = 15 * time.Minute
+	}
+
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
@@ -1659,6 +1673,12 @@ func newFactory(
 			},
 		},
 		operators: operatorDependencies,
+		operatorLinks: &operatorLinkWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: invitationTokenExpiry, emailChangeExpiry: emailChangeExpiry,
+			logger: platformLogger,
+		},
 		resets: &passwordResetWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
@@ -1672,7 +1692,6 @@ func newFactory(
 		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
-			admin: func() *auth.Service { return authService },
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
@@ -1690,13 +1709,12 @@ func newFactory(
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
-	authConfig.Resets = accountSessionsPort
 	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	invitationService := NewInvitationService(identityAccess)
+	invitationService := InvitationCapability(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.
@@ -1713,7 +1731,7 @@ func newFactory(
 		Guardians:   repos.StudentGuardian,
 	}))
 	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(map[string]emailoutbox.Renderer{
-		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
@@ -1766,7 +1784,7 @@ func newFactory(
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
+	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -1893,36 +1911,25 @@ func newFactory(
 		},
 	})
 
-	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
-	// because both serve the same purpose (one-time verification links with the same
-	// delivery constraints and security profile). If the two ever need to diverge,
-	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
-	// The 15-minute floor accounts for email delivery latency + user interaction time.
-	emailChangeExpiry := passwordResetTokenExpiry
-	if emailChangeExpiry < 15*time.Minute {
-		logger.Warn("email change token expiry bumped to minimum 15 minutes",
-			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
-			slog.Int("effective_minutes", 15),
-		)
-		emailChangeExpiry = 15 * time.Minute
-	}
-
 	// Initialize platform services (operator dashboard)
 	operatorDirectory := newOperatorDirectory(identityAccess)
+	// The invitation and e-mail change flows are the owner's since #3332;
+	// the retained endpoints reach them through their consumer-owned ports,
+	// and the root translates the outcomes into the envelope they render.
+	operatorProvisioningFlows := newOperatorProvisioningFlows(identityAccess)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:         operatorDirectory,
-		Sessions:             newOperatorSessions(identityAccess),
-		AuditLogRepo:         repos.OperatorAuditLog,
-		EmailChangeTokenRepo: newOperatorEmailChangeTokens(identityAccess),
-		InvitationTokenRepo:  newOperatorInvitationTokens(identityAccess),
-		DB:                   db,
-		Logger:               platformLogger,
-		Dispatcher:           dispatcher,
-		DefaultFrom:          defaultFrom,
-		FrontendURL:          frontendURL,
-		OperatorFrontendURL:  operatorFrontendURL,
-		EmailChangeExpiry:    emailChangeExpiry,
-		InvitationExpiry:     invitationTokenExpiry,
+		OperatorRepo:        operatorDirectory,
+		Sessions:            newOperatorSessions(identityAccess),
+		Invitations:         operatorProvisioningFlows,
+		EmailChanges:        operatorProvisioningFlows,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		InvitationTokenRepo: newOperatorInvitationTokens(identityAccess),
+		DB:                  db,
+		Logger:              platformLogger,
+		Dispatcher:          dispatcher,
+		DefaultFrom:         defaultFrom,
+		FrontendURL:         frontendURL,
+		OperatorFrontendURL: operatorFrontendURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
@@ -2560,7 +2567,7 @@ func newFactory(
 		ExcusedRequests:         excusedRequestService,
 		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
-		GuardianInvites:         guardianInvitationService,
+		GuardianInvites:         NewParentGuardianAccess(guardianInvitationService),
 		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
@@ -2657,6 +2664,8 @@ func newFactory(
 		adapters:       provisioningAdapters,
 		authService:    authService,
 		invitations:    invitationService,
+		provisioning:   identityAccess,
+		administration: identityAccess,
 		schoolIdentity: accountSessionsPort,
 		roles:          identityAccess,
 		settings:       settingsService,

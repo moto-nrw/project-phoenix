@@ -94,10 +94,11 @@ func (i lateSchoolIdentity) EnsureSchoolIdentity(ctx context.Context, input doma
 
 // accountAdministration serves the offboarding port: role removals run
 // through the role administration so their session revocation holds, the
-// deactivation through the retained account management.
+// deactivation through the account administration, which schedules the
+// account-wide session wipe with it (#3332).
 type accountAdministration struct {
 	roles    *application.RoleAdministration
-	accounts AccountAdministration
+	accounts *application.AccountAdministration
 }
 
 func (a accountAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {

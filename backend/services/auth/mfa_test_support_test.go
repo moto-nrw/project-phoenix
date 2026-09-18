@@ -90,14 +90,25 @@ func newGatedAuthService(t *testing.T, db *bun.DB, mfa auth.MFAService) gatedAut
 	module := newMFATestModule(t, db, withDeliveringMailer([]services.AuthTestOption{
 		services.WithAuthTestMFACapability(mfa),
 	})...)
-	return gatedAuthService{AuthService: module.Auth, TokenAuth: module.TokenAuth}
+	return gatedAuthService{
+		testAuthService: &fixtureOwnedAuthService{
+			AuthService:    module.Auth,
+			provisioning:   module.AccountAuthentication,
+			administration: module.AccountAuthentication,
+			t:              t,
+			db:             db,
+		},
+		TokenAuth: module.TokenAuth,
+	}
 }
 
 // gatedAuthService is the composed service together with the signer the
 // module minted its tokens with, so a test can decode what the login
-// returned instead of re-deriving a secret.
+// returned instead of re-deriving a secret. It carries the fixture's account
+// creation too, so the gated tests build their accounts the way every other
+// test in this package does.
 type gatedAuthService struct {
-	auth.AuthService
+	testAuthService
 	TokenAuth *authjwt.TokenAuth
 }
 

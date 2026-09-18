@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -89,7 +89,7 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 		var staffInvitationID int64
 		var staffToken string
 		measure("school_invitation_create", iteration, func() error {
-			created, createErr := factory.Invitation.CreateInvitation(ctx, authService.InvitationRequest{
+			created, createErr := factory.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 				Email: staffAddress, RoleID: role.ID, CreatedBy: inviter.ID,
 				FirstName: testpkg.StrPtr("Evi"), LastName: testpkg.StrPtr("Dence"),
 				ActorPermissions: []string{usersManagePermission},
@@ -101,14 +101,14 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 			return nil
 		})
 		measure("school_invitation_validate", iteration, func() error {
-			_, validateErr := factory.Invitation.ValidateInvitation(publicCtx, staffToken)
+			_, validateErr := factory.Invitation.ValidateSchoolInvitation(publicCtx, staffToken)
 			return validateErr
 		})
 		measure("school_invitation_resend", iteration, func() error {
-			return factory.Invitation.ResendInvitation(ctx, staffInvitationID, inviter.ID)
+			return factory.Invitation.ResendSchoolInvitation(ctx, staffInvitationID, inviter.ID)
 		})
 		measure("school_invitation_accept", iteration, func() error {
-			account, acceptErr := factory.Invitation.AcceptInvitation(publicCtx, staffToken, authService.UserRegistrationData{
+			account, acceptErr := factory.Invitation.AcceptSchoolInvitation(publicCtx, staffToken, identityaccess.InvitationRegistration{
 				Password: invitationPassword, ConfirmPassword: invitationPassword,
 			})
 			if acceptErr == nil {
@@ -117,9 +117,9 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 			return acceptErr
 		})
 		// The spent link is refused on replay.
-		if _, replayErr := factory.Invitation.AcceptInvitation(publicCtx, staffToken, authService.UserRegistrationData{
+		if _, replayErr := factory.Invitation.AcceptSchoolInvitation(publicCtx, staffToken, identityaccess.InvitationRegistration{
 			Password: invitationPassword, ConfirmPassword: invitationPassword,
-		}); errors.Is(replayErr, authService.ErrInvitationUsed) {
+		}); errors.Is(replayErr, identityaccess.ErrInvitationUsed) {
 			replays["school_invitation_replay_refused"]++
 		}
 
@@ -128,7 +128,7 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 		testpkg.CreateTestAccountWithPassword(t, db, resetAddress, invitationPassword)
 		var resetToken string
 		measure("password_reset_initiate", iteration, func() error {
-			link, resetErr := factory.Auth.InitiatePasswordReset(ctx, resetAddress)
+			link, resetErr := factory.AccountAuthentication().InitiatePasswordReset(ctx, resetAddress, identityaccess.PasswordResetScopeStaff)
 			if resetErr != nil {
 				return resetErr
 			}
@@ -139,9 +139,9 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 			return nil
 		})
 		measure("password_reset_complete", iteration, func() error {
-			return factory.Auth.ResetPassword(publicCtx, resetToken, "R3set!Evidence")
+			return factory.AccountAuthentication().ResetPassword(publicCtx, resetToken, "R3set!Evidence")
 		})
-		if replayErr := factory.Auth.ResetPassword(publicCtx, resetToken, "R3set!Again"); replayErr != nil {
+		if replayErr := factory.AccountAuthentication().ResetPassword(publicCtx, resetToken, "R3set!Again"); replayErr != nil {
 			replays["password_reset_replay_refused"]++
 		}
 		// --- guardian invitation: issue, preview, redeem once, resend.
@@ -149,7 +149,7 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 		var guardianToken string
 		var guardianInvitationID int64
 		measure("guardian_invitation_create", iteration, func() error {
-			created, createErr := factory.GuardianInvitation.Create(ctx, authService.GuardianInvitationCreateRequest{
+			created, createErr := factory.GuardianInvitation.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 				GuardianProfileID: profile.ID, CreatedBy: inviter.ID,
 			})
 			if createErr != nil {
@@ -159,14 +159,14 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 			return nil
 		})
 		measure("guardian_invitation_validate", iteration, func() error {
-			_, validateErr := factory.GuardianInvitation.Validate(publicCtx, guardianToken)
+			_, validateErr := factory.GuardianInvitation.ValidateGuardianInvitation(publicCtx, guardianToken)
 			return validateErr
 		})
 		measure("guardian_invitation_resend", iteration, func() error {
-			return factory.GuardianInvitation.Resend(ctx, guardianInvitationID, inviter.ID)
+			return factory.GuardianInvitation.ResendGuardianInvitation(ctx, guardianInvitationID, inviter.ID)
 		})
 		measure("guardian_invitation_accept", iteration, func() error {
-			account, acceptErr := factory.GuardianInvitation.Accept(publicCtx, guardianToken, authService.GuardianInvitationAcceptData{
+			account, acceptErr := factory.GuardianInvitation.AcceptGuardianInvitation(publicCtx, guardianToken, identityaccess.GuardianRegistration{
 				Password: invitationPassword, ConfirmPassword: invitationPassword,
 			})
 			if acceptErr == nil {
@@ -174,14 +174,14 @@ func TestLinkRuntimeEvidence(t *testing.T) {
 			}
 			return acceptErr
 		})
-		if _, replayErr := factory.GuardianInvitation.Accept(publicCtx, guardianToken, authService.GuardianInvitationAcceptData{
+		if _, replayErr := factory.GuardianInvitation.AcceptGuardianInvitation(publicCtx, guardianToken, identityaccess.GuardianRegistration{
 			Password: invitationPassword, ConfirmPassword: invitationPassword,
-		}); errors.Is(replayErr, authService.ErrInvitationUsed) {
+		}); errors.Is(replayErr, identityaccess.ErrInvitationUsed) {
 			replays["guardian_invitation_replay_refused"]++
 		}
 
 		measure("invitation_cleanup", iteration, func() error {
-			_, cleanupErr := factory.Invitation.CleanupExpiredInvitations(ctx)
+			_, cleanupErr := factory.Invitation.DeleteExpiredSchoolInvitations(ctx)
 			return cleanupErr
 		})
 	}

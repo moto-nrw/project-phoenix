@@ -55,6 +55,10 @@ type accountAuthenticationWiring struct {
 	// invitations configures the school invitation flows (#2722); nil
 	// composes the module with the invitation maintenance only.
 	invitations *invitationWiring
+	// operatorLinks configures the operator invitation and e-mail change
+	// flows (#3332); nil composes the module without them and every
+	// operator link reports it as unavailable.
+	operatorLinks *operatorLinkWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -117,13 +121,15 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
 	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
-		Lifecycle:   lifecycle,
-		Resets:      resets,
-		Invitations: invitations,
-		MFA:         mfaDependencies(wiring.mfa),
-		DB:          db,
-		Observe:     observe,
+		Lifecycle:            lifecycle,
+		Resets:               resets,
+		Invitations:          invitations,
+		MFA:                  mfaDependencies(wiring.mfa),
+		OperatorProvisioning: operatorLinks,
+		DB:                   db,
+		Observe:              observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
@@ -262,6 +268,27 @@ func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, account
 		}
 	}
 	return result, nil
+}
+
+// ListManageableSchoolIDs is the set an organisation-scoped administrator
+// is bounded by: the organisation's live, active schools. An organisation
+// without one leaves them with no account to administer, which is the
+// refusal the account boundary applies.
+func (d schoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	if d.schools == nil {
+		return nil, errors.New("school directory is not composed")
+	}
+	schools, err := d.schools.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		if school.Active && !school.IsDeleted() {
+			ids = append(ids, school.ID)
+		}
+	}
+	return ids, nil
 }
 
 type personDirectory struct{ persons userModels.PersonRepository }
@@ -718,6 +745,9 @@ var retainedSentinels = []retainedSentinel{
 	// the retained token sentinels the refresh flow already reports.
 	{identityaccess.ErrAccountSessionNotFound, auth.ErrTokenNotFound},
 	{identityaccess.ErrAccountSessionRotated, auth.ErrInvalidToken},
+	// The password policy seam answers with the owner's sentinel (#3332);
+	// the retained consumers still switch on this package's.
+	{identityaccess.ErrPasswordTooWeak, auth.ErrPasswordTooWeak},
 }
 
 // authServiceError translates the public contract into the retained

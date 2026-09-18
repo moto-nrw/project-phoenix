@@ -203,7 +203,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, api *API) 
 	services := api.Services
 	deps.Active = services.Active
 	deps.ActiveCleanup = services.ActiveCleanup
-	deps.AuthCleanup = services.Auth
+	deps.AuthCleanup = services.AuthMaintenanceRuntime()
 	deps.InvitationCleanup = services.Invitation
 	deps.EmailChangeCleanup = services.OperatorAuth
 	deps.OperatorInvitationCleanup = services.OperatorInvitation

@@ -61,7 +61,7 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 		Now: firstSchoolClock(clocks), DB: db,
 	})
 	resource := schoolportal.NewResource(
-		services.Auth, services.MFA, classDayResource, timetableResource,
+		services.Auth, services.MFA, schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,
 		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences, db),
@@ -82,7 +82,7 @@ func newSchoolRouter(resource *schoolportal.Resource, mfa authService.MFAService
 	if mfa == nil {
 		return resource.Router()
 	}
-	return schoolportal.NewResource(resource.AuthService, mfa, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router()
+	return schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router()
 }
 
 // newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
@@ -127,8 +127,10 @@ func registerLehrkraft(t *testing.T, db *bun.DB, resource *schoolportal.Resource
 
 	unique := time.Now().UnixNano()
 	email = fmt.Sprintf("%s-%d@test.local", prefix, unique)
-	account, err := resource.AuthService.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("%s-%d", prefix, unique), testPassword, nil, 0)
-	require.NoError(t, err)
+	// Account creation belongs to Identity & Access since #3332 and this
+	// portal may not name that contract; the shared fixture writes the same
+	// row the registration would.
+	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	return email, account.ID
@@ -147,7 +149,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, db, nil)
-	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
+	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
 
 	schoolClaims := jwt.AppClaims{
 		ID: int(account.ID), Sub: account.Email,
@@ -201,8 +203,7 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 
 	unique := time.Now().UnixNano()
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
-	account, err := resource.AuthService.Register(testpkg.TenantContext(tenantID), email, fmt.Sprintf("school-login-%d", unique), testPassword, nil, 0)
-	require.NoError(t, err)
+	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
 	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, testPassword)

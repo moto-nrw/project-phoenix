@@ -1,12 +1,10 @@
 package platform
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"log/slog"
 	"net"
-	"time"
 
 	emailpkg "github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/models/platform"
@@ -64,29 +62,25 @@ func (s *operatorAuthService) withTenantRuntime(ctx context.Context) context.Con
 	return tenant.WithUnitOfWork(ctx, *s.tenantRuntime)
 }
 
-func detachedOperatorContext(ctx context.Context) context.Context {
-	ctx = context.WithoutCancel(ctx)
-	ctx = tenant.ContextWithoutTransaction(ctx)
-	return tenant.ContextWithoutAfterCommitHooks(ctx)
-}
-
 // OperatorAuthServiceConfig holds configuration for the retained operator
-// service. OperatorRepo and Sessions are the consumer-owned ports over the
-// Identity & Access owner.
+// service. OperatorRepo, Sessions, Invitations and EmailChanges are the
+// consumer-owned ports over the Identity & Access owner.
 type OperatorAuthServiceConfig struct {
-	OperatorRepo         OperatorDirectory
-	Sessions             OperatorSessions
-	AuditLogRepo         platform.OperatorAuditLogRepository
-	EmailChangeTokenRepo OperatorEmailChangeTokens
-	InvitationTokenRepo  OperatorInvitationTokens
-	DB                   *bun.DB
-	Logger               *slog.Logger
-	Dispatcher           *emailpkg.Dispatcher
-	DefaultFrom          emailpkg.Email
-	FrontendURL          string
-	OperatorFrontendURL  string
-	EmailChangeExpiry    time.Duration
-	InvitationExpiry     time.Duration
+	OperatorRepo OperatorDirectory
+	Sessions     OperatorSessions
+	// Invitations and EmailChanges are the operator invitation and e-mail
+	// change flows the owner runs since #3332; without them the retained
+	// endpoints report the flow as not composed.
+	Invitations         OperatorInvitationFlows
+	EmailChanges        OperatorEmailChangeFlows
+	AuditLogRepo        platform.OperatorAuditLogRepository
+	InvitationTokenRepo OperatorInvitationTokens
+	DB                  *bun.DB
+	Logger              *slog.Logger
+	Dispatcher          *emailpkg.Dispatcher
+	DefaultFrom         emailpkg.Email
+	FrontendURL         string
+	OperatorFrontendURL string
 }
 
 // ErrOperatorSessionsUnavailable reports a service composed without the
@@ -101,10 +95,6 @@ func NewOperatorAuthService(cfg OperatorAuthServiceConfig) (OperatorAuthAndInvit
 		return nil, errors.New("operator auth service: operator directory is required")
 	}
 	return &operatorAuthService{OperatorAuthServiceConfig: cfg}, nil
-}
-
-func (s *operatorAuthService) getLogger() *slog.Logger {
-	return cmp.Or(s.Logger, slog.Default())
 }
 
 // IssueTokensForAuthenticatedOperator delegates to the Identity & Access

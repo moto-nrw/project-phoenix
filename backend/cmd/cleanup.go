@@ -491,7 +491,7 @@ func runCleanupInvitations(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	count, err := ctx.InvitationCleanupService.CleanupExpiredInvitations(context.Background())
+	count, err := ctx.InvitationCleanupService.DeleteExpiredSchoolInvitations(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up invitations: %w", err)
 	}
@@ -508,7 +508,7 @@ func runCleanupRateLimits(cmd *cobra.Command, _ []string) error {
 	defer ctx.Close()
 	ctx.Output = cmd.OutOrStdout()
 
-	count, err := ctx.AuthCleanupService.CleanupExpiredRateLimits(context.Background())
+	count, err := ctx.AuthCleanupService.DeleteStalePasswordResetWindows(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to clean up password reset rate limits: %w", err)
 	}

@@ -31,8 +31,8 @@ type AuthTestModule struct {
 	// hand it to the routes that call the public contract directly.
 	AccountAuthentication *identityaccess.Module
 	StaffPINAuth          StaffPINAuthenticator
-	Invitation            auth.InvitationService
-	GuardianInvitation    auth.GuardianInvitationService
+	Invitation            InvitationCapability
+	GuardianInvitation    GuardianInvitationCapability
 	Schools               organizationtenancy.Capability
 	Settings              config.SettingsService
 	// MFA, Passkeys, OperatorMFA and OperatorPasskeys are the Identity &
@@ -50,7 +50,7 @@ type AuthTestModule struct {
 
 type InvitationTestModule struct {
 	Persistence *repositories.InvitationPersistence
-	Invitation  auth.InvitationService
+	Invitation  InvitationCapability
 }
 
 func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
@@ -240,7 +240,6 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		lifecycle: &lifecycleWiring{
 			settings: settings.Settings, audit: command,
-			admin: func() *auth.Service { return service },
 			guardianMail: &guardianInvitationWiring{
 				settings: settings.Settings, schools: r.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: deliveryModule.EmailOutbox} },
@@ -266,18 +265,17 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
-	authConfig.Resets = accountSessionsPort
 	service, err = auth.NewService(r, authConfig, db, logger)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
 	service.SetTenantRuntime(unit)
-	invitation := NewInvitationService(identityAccess)
+	invitation := InvitationCapability(identityAccess)
 	deliveryModule, err = NewDeliveryTestModule(db, unit)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	guardian := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
+	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
 		Auth: service, AccountAuthentication: identityAccess,
 		StaffPINAuth: NewStaffPINAuthenticator(identityAccess),
@@ -316,7 +314,6 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 		},
 		lifecycle: &lifecycleWiring{
 			settings: cfg.Settings, audit: cfg.Audit,
-			admin: func() *auth.Service { return service },
 		},
 		resets: &passwordResetWiring{
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,
@@ -330,7 +327,6 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	port := newAccountSessions(identityAccess)
 	cfg.Sessions = port
 	cfg.Lifecycle = port
-	cfg.Resets = port
 	service, err = auth.NewService(repos, &cfg, db, logger)
 	return service, err
 }

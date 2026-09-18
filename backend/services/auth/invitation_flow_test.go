@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -29,7 +29,7 @@ const (
 )
 
 type invitationEnv struct {
-	service authService.InvitationService
+	service services.InvitationCapability
 	repos   *repositories.InvitationPersistence
 	db      *bun.DB
 }
@@ -75,7 +75,7 @@ func TestInvitationIsRedeemableOnce(t *testing.T) {
 	role := testpkg.CreateTestRole(t, db, "invited-staff")
 	address := inviteeAddress("invitee")
 
-	invitation, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: " " + address + " ", RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
@@ -87,14 +87,14 @@ func TestInvitationIsRedeemableOnce(t *testing.T) {
 	assert.True(t, invitation.ExpiresAt.After(time.Now()), "an invitation is never stored already expired")
 	assert.Equal(t, testpkg.Tenant(t), invitation.TenantID)
 
-	preview, err := env.service.ValidateInvitation(context.Background(), invitation.Token)
+	preview, err := env.service.ValidateSchoolInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err)
-	assert.Equal(t, "tenant", preview.TargetPortal)
+	assert.Equal(t, identityaccess.InvitationPortalTenant, preview.Portal)
 	assert.False(t, preview.RequiresAccountLogin, "an unknown address signs up instead of signing in")
 	assert.Equal(t, address, preview.Email)
 	assert.Equal(t, role.Name, preview.RoleName)
 
-	account, err := env.service.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	account, err := env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: invitationPassword, ConfirmPassword: invitationPassword,
 	})
 	require.NoError(t, err)
@@ -111,14 +111,14 @@ func TestInvitationIsRedeemableOnce(t *testing.T) {
 	assert.Equal(t, "Ada", person.FirstName)
 	assert.True(t, env.storedInvitation(t, invitation.ID).IsUsed())
 
-	_, err = env.service.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	_, err = env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: invitationPassword, ConfirmPassword: invitationPassword,
 	})
-	require.ErrorIs(t, err, authService.ErrInvitationUsed, "a spent invitation grants no second access")
-	_, err = env.service.ValidateInvitation(context.Background(), invitation.Token)
-	require.ErrorIs(t, err, authService.ErrInvitationUsed)
-	_, err = env.service.ValidateInvitation(context.Background(), "unknown-token")
-	require.ErrorIs(t, err, authService.ErrInvitationNotFound)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed, "a spent invitation grants no second access")
+	_, err = env.service.ValidateSchoolInvitation(context.Background(), invitation.Token)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
+	_, err = env.service.ValidateSchoolInvitation(context.Background(), "unknown-token")
+	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound)
 }
 
 // A second invitation for the same address spends the first, so only the
@@ -131,34 +131,34 @@ func TestCreateInvitationInvalidatesThePreviousInvitationOfTheSchool(t *testing.
 	creator := testpkg.CreateTestAccount(t, db, "invite-replacing-creator")
 	role := testpkg.CreateTestRole(t, db, "invited-replaced")
 	address := inviteeAddress("replaced")
-	request := authService.InvitationRequest{
+	request := identityaccess.SchoolInvitationRequest{
 		Email: address, RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	}
 
-	first, err := env.service.CreateInvitation(ctx, request)
+	first, err := env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
-	second, err := env.service.CreateInvitation(ctx, request)
+	second, err := env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
 
 	assert.True(t, env.storedInvitation(t, first.ID).IsUsed(), "the previous invitation is spent")
-	_, err = env.service.ValidateInvitation(context.Background(), first.Token)
-	require.ErrorIs(t, err, authService.ErrInvitationUsed)
-	_, err = env.service.ValidateInvitation(context.Background(), second.Token)
+	_, err = env.service.ValidateSchoolInvitation(context.Background(), first.Token)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationUsed)
+	_, err = env.service.ValidateSchoolInvitation(context.Background(), second.Token)
 	require.NoError(t, err)
 
 	// An invitation of another school for the same address stays untouched.
 	otherSchool := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherSchool)
 	otherRole := testpkg.CreateTestRoleForTenant(t, db, "invited-elsewhere", otherSchool)
-	elsewhere, err := env.service.CreateInvitation(testpkg.TenantContext(otherSchool), authService.InvitationRequest{
+	elsewhere, err := env.service.CreateSchoolInvitation(testpkg.TenantContext(otherSchool), identityaccess.SchoolInvitationRequest{
 		Email: address, RoleID: otherRole.ID, TenantID: otherSchool, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
-	_, err = env.service.CreateInvitation(ctx, request)
+	_, err = env.service.CreateSchoolInvitation(ctx, request)
 	require.NoError(t, err)
 	assert.False(t, env.storedInvitation(t, elsewhere.ID).IsUsed(), "another school's invitation is not spent")
 }
@@ -178,24 +178,24 @@ func TestCreateInvitationRefusesRolesTheInviterMayNotGrant(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, lehrkraft)
 
-	_, err = env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	_, err = env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("escalation"), RoleID: adminRole.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersCreatePermission},
 	})
-	require.ErrorIs(t, err, authService.ErrRoleGrantNotPermitted,
+	require.ErrorIs(t, err, identityaccess.ErrRoleGrantNotPermitted,
 		"users:create alone must not hand out an admin-tier role")
 
-	_, err = env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	_, err = env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("lehrkraft-caregiver"), RoleID: lehrkraft.ID, CreatedBy: creator.ID,
 		CaregiverEnabled: true, FirstName: testpkg.StrPtr("Lena"), LastName: testpkg.StrPtr("Lehrkraft"),
 		ActorPermissions: []string{usersManagePermission},
 	})
-	require.ErrorIs(t, err, authService.ErrLehrkraftNoCaregiver)
+	require.ErrorIs(t, err, identityaccess.ErrLehrkraftNoCaregiver)
 
 	// An operator-issued invitation carries no tenant permissions and is
 	// still allowed to hand out the role.
-	operatorInvitation, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	operatorInvitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("operator-invited"), RoleID: adminRole.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"), OperatorGrant: true,
 	})
@@ -214,16 +214,16 @@ func TestValidateInvitationNamesTheAcceptancePortal(t *testing.T) {
 	lehrkraft, err := authService.ResolveSystemRoleByName(ctx, env.repos.Role, "lehrkraft")
 	require.NoError(t, err)
 
-	invitation, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("school-portal"), RoleID: lehrkraft.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Lena"), LastName: testpkg.StrPtr("Lehrkraft"),
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
 
-	preview, err := env.service.ValidateInvitation(context.Background(), invitation.Token)
+	preview, err := env.service.ValidateSchoolInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err)
-	assert.Equal(t, "school", preview.TargetPortal)
+	assert.Equal(t, identityaccess.InvitationPortalSchool, preview.Portal)
 }
 
 // An invitation to a school the account can already sign in to is refused,
@@ -238,31 +238,31 @@ func TestCreateInvitationRefusesAnAccountThatAlreadyHasAccess(t *testing.T) {
 	member := testpkg.CreateTestAccount(t, db, "invite-existing-member")
 	testpkg.EnsureAccountTenant(t, db, member.ID, testpkg.Tenant(t))
 
-	_, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	_, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: member.Email, RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	})
-	require.ErrorIs(t, err, authService.ErrAccountAlreadyHasTenantAccess)
+	require.ErrorIs(t, err, identityaccess.ErrAccountAlreadyHasTenantAccess)
 
 	// The same address is invitable at another school.
 	otherSchool := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, otherSchool)
 	otherRole := testpkg.CreateTestRoleForTenant(t, db, "invited-member-elsewhere", otherSchool)
-	invitation, err := env.service.CreateInvitation(testpkg.TenantContext(otherSchool), authService.InvitationRequest{
+	invitation, err := env.service.CreateSchoolInvitation(testpkg.TenantContext(otherSchool), identityaccess.SchoolInvitationRequest{
 		Email: member.Email, RoleID: otherRole.ID, TenantID: otherSchool, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
 
-	preview, err := env.service.ValidateInvitation(context.Background(), invitation.Token)
+	preview, err := env.service.ValidateSchoolInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err)
 	assert.True(t, preview.RequiresAccountLogin, "an existing account signs in before accepting")
-	_, err = env.service.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	_, err = env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: invitationPassword, ConfirmPassword: invitationPassword,
 	})
-	require.ErrorIs(t, err, authService.ErrInvitationOwnerRequired,
+	require.ErrorIs(t, err, identityaccess.ErrInvitationOwnerRequired,
 		"an invitation never takes over an existing account")
 	assert.False(t, env.storedInvitation(t, invitation.ID).IsUsed(), "the refusal leaves the invitation redeemable")
 }
@@ -276,26 +276,26 @@ func TestAcceptInvitationRefusesIncompleteRegistrations(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "invite-incomplete-creator")
 	role := testpkg.CreateTestRole(t, db, "invited-incomplete")
-	invitation, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("incomplete"), RoleID: role.ID, CreatedBy: creator.ID,
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
 
-	_, err = env.service.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	_, err = env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		FirstName: "Ada", LastName: "Lovelace", Password: invitationPassword, ConfirmPassword: "different",
 	})
-	require.ErrorIs(t, err, authService.ErrPasswordMismatch)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationPasswordMismatch)
 
-	_, err = env.service.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	_, err = env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		FirstName: "Ada", LastName: "Lovelace", Password: "weak", ConfirmPassword: "weak",
 	})
-	require.ErrorIs(t, err, authService.ErrPasswordTooWeak)
+	require.ErrorIs(t, err, identityaccess.ErrPasswordTooWeak)
 
-	_, err = env.service.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	_, err = env.service.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: invitationPassword, ConfirmPassword: invitationPassword,
 	})
-	require.ErrorIs(t, err, authService.ErrInvitationNameRequired)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationNameRequired)
 	assert.False(t, env.storedInvitation(t, invitation.ID).IsUsed(), "a refused acceptance leaves the invitation redeemable")
 }
 
@@ -308,7 +308,7 @@ func TestResendInvitationExtendsOnlyRedeemableInvitations(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "invite-resend-creator")
 	role := testpkg.CreateTestRole(t, db, "invited-resend")
-	invitation, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("resend"), RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
@@ -317,17 +317,17 @@ func TestResendInvitationExtendsOnlyRedeemableInvitations(t *testing.T) {
 	_, err = db.NewRaw(`UPDATE auth.invitation_tokens SET expires_at = NOW() + INTERVAL '1 minute', email_error = 'smtp down', email_sent_at = NOW() WHERE id = ?`, invitation.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	require.NoError(t, env.service.ResendInvitation(ctx, invitation.ID, creator.ID))
+	require.NoError(t, env.service.ResendSchoolInvitation(ctx, invitation.ID, creator.ID))
 	resent := env.storedInvitation(t, invitation.ID)
 	assert.True(t, resent.ExpiresAt.After(time.Now().Add(time.Hour)), "the link is extended")
 
-	require.NoError(t, env.service.RevokeInvitation(ctx, invitation.ID, creator.ID))
-	require.ErrorIs(t, env.service.ResendInvitation(ctx, invitation.ID, creator.ID), authService.ErrInvitationUsed,
+	require.NoError(t, env.service.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID))
+	require.ErrorIs(t, env.service.ResendSchoolInvitation(ctx, invitation.ID, creator.ID), identityaccess.ErrInvitationUsed,
 		"a spent invitation is not resent")
-	require.ErrorIs(t, env.service.RevokeInvitation(ctx, invitation.ID, creator.ID), authService.ErrInvitationUsed)
-	require.ErrorIs(t, env.service.ResendInvitation(ctx, invitation.ID+1_000_000, creator.ID), authService.ErrInvitationNotFound)
+	require.ErrorIs(t, env.service.RevokeSchoolInvitation(ctx, invitation.ID, creator.ID), identityaccess.ErrInvitationUsed)
+	require.ErrorIs(t, env.service.ResendSchoolInvitation(ctx, invitation.ID+1_000_000, creator.ID), identityaccess.ErrInvitationNotFound)
 
-	expired, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	expired, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("resend-expired"), RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
@@ -335,7 +335,7 @@ func TestResendInvitationExtendsOnlyRedeemableInvitations(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE auth.invitation_tokens SET expires_at = NOW() - INTERVAL '1 minute' WHERE id = ?`, expired.ID).Exec(ctx)
 	require.NoError(t, err)
-	require.ErrorIs(t, env.service.ResendInvitation(ctx, expired.ID, creator.ID), authService.ErrInvitationExpired,
+	require.ErrorIs(t, env.service.ResendSchoolInvitation(ctx, expired.ID, creator.ID), identityaccess.ErrInvitationExpired,
 		"an expired invitation is never revived")
 }
 
@@ -348,48 +348,46 @@ func TestInvitationListingInvalidationAndCleanup(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	creator := testpkg.CreateTestAccount(t, db, "invite-listing-creator")
 	role := testpkg.CreateTestRole(t, db, "invited-listing")
-	request := func(prefix string) authService.InvitationRequest {
-		return authService.InvitationRequest{
+	request := func(prefix string) identityaccess.SchoolInvitationRequest {
+		return identityaccess.SchoolInvitationRequest{
 			Email: inviteeAddress(prefix), RoleID: role.ID, CreatedBy: creator.ID,
 			FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 			ActorPermissions: []string{usersManagePermission},
 		}
 	}
-	pending, err := env.service.CreateInvitation(ctx, request("listing-pending"))
+	pending, err := env.service.CreateSchoolInvitation(ctx, request("listing-pending"))
 	require.NoError(t, err)
-	expired, err := env.service.CreateInvitation(ctx, request("listing-expired"))
+	expired, err := env.service.CreateSchoolInvitation(ctx, request("listing-expired"))
 	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE auth.invitation_tokens SET expires_at = NOW() - INTERVAL '1 minute' WHERE id = ?`, expired.ID).Exec(ctx)
 	require.NoError(t, err)
-	spent, err := env.service.CreateInvitation(ctx, request("listing-spent"))
+	spent, err := env.service.CreateSchoolInvitation(ctx, request("listing-spent"))
 	require.NoError(t, err)
-	require.NoError(t, env.service.RevokeInvitation(ctx, spent.ID, creator.ID))
+	require.NoError(t, env.service.RevokeSchoolInvitation(ctx, spent.ID, creator.ID))
 
-	listed, err := env.service.ListPendingInvitations(ctx)
+	listed, err := env.service.ListPendingSchoolInvitations(ctx)
 	require.NoError(t, err)
 	ids := make([]int64, 0, len(listed))
-	var pendingEntry *authModels.InvitationToken
-	for _, entry := range listed {
+	var pendingEntry *identityaccess.SchoolInvitation
+	for index, entry := range listed {
 		ids = append(ids, entry.ID)
 		if entry.ID == pending.ID {
-			pendingEntry = entry
+			pendingEntry = &listed[index]
 		}
 	}
 	assert.Contains(t, ids, pending.ID)
 	assert.NotContains(t, ids, expired.ID, "an expired invitation is not pending")
 	assert.NotContains(t, ids, spent.ID, "a spent invitation is not pending")
 	require.NotNil(t, pendingEntry)
-	require.NotNil(t, pendingEntry.Role, "the pending list carries the invited role")
-	assert.Equal(t, role.Name, pendingEntry.Role.Name)
-	require.NotNil(t, pendingEntry.Creator, "the pending list carries who sent the invitation")
-	assert.Equal(t, creator.Email, pendingEntry.Creator.Email)
+	assert.Equal(t, role.Name, pendingEntry.RoleName, "the pending list carries the invited role")
+	assert.Equal(t, creator.Email, pendingEntry.CreatorEmail, "the pending list carries who sent the invitation")
 
-	invalidated, err := env.service.InvalidatePendingInvitationsByTenantID(ctx, testpkg.Tenant(t))
+	invalidated, err := env.service.RevokeTenantSchoolInvitations(ctx, testpkg.Tenant(t))
 	require.NoError(t, err)
 	assert.Equal(t, 2, invalidated, "the pending and the expired invitation of the school are spent")
 	assert.True(t, env.storedInvitation(t, pending.ID).IsUsed())
 
-	deleted, err := env.service.CleanupExpiredInvitations(ctx)
+	deleted, err := env.service.DeleteExpiredSchoolInvitations(ctx)
 	require.NoError(t, err)
 	assert.Equal(t, 1, deleted, "only the expired invitation is deleted")
 	assert.True(t, env.storedInvitation(t, pending.ID).IsUsed(), "a spent but unexpired invitation is kept")
@@ -407,15 +405,15 @@ func TestInvitationSubdomainFollowsTheSchoolHost(t *testing.T) {
 	subdomain := fmt.Sprintf("schule-%d", time.Now().UnixNano())
 	_, err := db.NewRaw(`UPDATE platform.schools SET subdomain = ? WHERE id = ?`, subdomain, testpkg.Tenant(t)).Exec(ctx)
 	require.NoError(t, err)
-	invitation, err := env.service.CreateInvitation(ctx, authService.InvitationRequest{
+	invitation, err := env.service.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("subdomain"), RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
 
-	assert.Equal(t, subdomain, env.service.GetTenantSubdomainForToken(context.Background(), invitation.Token))
-	assert.Empty(t, env.service.GetTenantSubdomainForToken(context.Background(), "unknown-token"),
+	assert.Equal(t, subdomain, env.service.SchoolInvitationSubdomain(context.Background(), invitation.Token))
+	assert.Empty(t, env.service.SchoolInvitationSubdomain(context.Background(), "unknown-token"),
 		"an unknown token answers without a host")
 }
 
@@ -437,7 +435,7 @@ func TestCreateInvitationMailUsesTheSchoolReplyTo(t *testing.T) {
 	creator := testpkg.CreateTestAccount(t, db, "invite-replyto-creator")
 	role := testpkg.CreateTestRole(t, db, "invited-replyto")
 
-	_, err = module.Invitation.CreateInvitation(ctx, authService.InvitationRequest{
+	_, err = module.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: inviteeAddress("replyto"), RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
@@ -469,14 +467,14 @@ func TestAcceptInvitationRollsBackEveryWriteOfTheFailedChain(t *testing.T) {
 	require.NotNil(t, role)
 	address := inviteeAddress("rollback")
 
-	invitation, err := failing.Invitation.CreateInvitation(ctx, authService.InvitationRequest{
+	invitation, err := failing.Invitation.CreateSchoolInvitation(ctx, identityaccess.SchoolInvitationRequest{
 		Email: address, RoleID: role.ID, CreatedBy: creator.ID,
 		FirstName: testpkg.StrPtr("Ada"), LastName: testpkg.StrPtr("Lovelace"),
 		ActorPermissions: []string{usersManagePermission},
 	})
 	require.NoError(t, err)
 
-	_, err = failing.Invitation.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	_, err = failing.Invitation.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: invitationPassword, ConfirmPassword: invitationPassword,
 	})
 	require.ErrorIs(t, err, provisioningErr)
@@ -485,7 +483,7 @@ func TestAcceptInvitationRollsBackEveryWriteOfTheFailedChain(t *testing.T) {
 	require.Error(t, err, "the account must be rolled back")
 	assert.False(t, env.storedInvitation(t, invitation.ID).IsUsed(), "the invitation stays redeemable for the retry")
 
-	account, err := working.Invitation.AcceptInvitation(context.Background(), invitation.Token, authService.UserRegistrationData{
+	account, err := working.Invitation.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
 		Password: invitationPassword, ConfirmPassword: invitationPassword,
 	})
 	require.NoError(t, err, "the retry starts from a clean state")

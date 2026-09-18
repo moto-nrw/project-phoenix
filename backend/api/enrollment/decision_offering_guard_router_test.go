@@ -135,7 +135,7 @@ func setupOfferingGuardRouterTest(
 	decision := newOfferingGuardDecisionService(repos, offeringsEnabled, children, approvedOfferings, guardianAccess, studentEnrollment)
 	resource := enrollmentAPI.NewResource(
 		nil, nil, nil, nil, nil, decision, nil, nil, nil,
-		nil, nil, nil, nil, db,
+		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
 	)
 	token := mintOfferingGuardReviewerToken(t, reviewer.ID, reviewer.Email)
 	return offeringGuardHarness{testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()), request.ID, child.ID, token, repos, ctx}

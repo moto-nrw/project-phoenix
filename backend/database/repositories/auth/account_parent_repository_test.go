@@ -119,31 +119,6 @@ func TestAccountParentRepository_FindByEmail(t *testing.T) {
 	})
 }
 
-func TestAccountParentRepository_FindByUsername(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).AccountParent
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds parent account by username", func(t *testing.T) {
-		account := testpkg.CreateTestParentAccount(t, db, "find_by_user")
-		defer cleanupParentAccount(t, db, account.ID)
-
-		require.NotNil(t, account.Username, "Test account should have username")
-
-		found, err := repo.FindByUsername(ctx, *account.Username)
-		require.NoError(t, err)
-		assert.Equal(t, account.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent username", func(t *testing.T) {
-		_, err := repo.FindByUsername(ctx, "nonexistent_parent_user_12345")
-		require.Error(t, err)
-	})
-}
-
 func TestAccountParentRepository_Update(t *testing.T) {
 	t.Parallel()
 

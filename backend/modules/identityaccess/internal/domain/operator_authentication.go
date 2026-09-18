@@ -60,6 +60,16 @@ const (
 	OperatorAuditActionMFAAdminOverride      = "mfa_admin_override"
 	OperatorAuditResourceOperatorMFA         = "operator_mfa"
 	OperatorAuditResourceAccount             = "account"
+
+	// The invitation and e-mail change vocabulary the operator ledger has
+	// always stored for these actions (#3332).
+	OperatorAuditActionInvitationCreated  = "invitation_created"
+	OperatorAuditActionInvitationAccepted = "invitation_accepted"
+	OperatorAuditActionInvitationRevoked  = "invitation_revoked"
+	OperatorAuditActionInvitationResent   = "invitation_resent"
+	OperatorAuditActionEmailChangeStarted = "email_change_initiated"
+	OperatorAuditActionEmailChangeDone    = "email_change_confirmed"
+	OperatorAuditResourceInvitation       = "invitation"
 )
 
 // OperatorAuditEntry is one platform-scoped ledger entry: who did what to
@@ -79,6 +89,19 @@ type OperatorAuditEntry struct {
 	// MFA is set on the operator's own mfa_* entries and on the operator's
 	// account-wide MFA override (#3331).
 	MFA *OperatorMFAEvidence
+	// EmailChange is set on the e-mail change entries. Only the masked
+	// addresses are recorded: the ledger is read by every operator, and the
+	// full address of a change that was never confirmed has no business
+	// being in it.
+	EmailChange *OperatorEmailChangeEvidence
+}
+
+// OperatorEmailChangeEvidence is the masked address pair of one e-mail
+// change entry. MaskedOldEmail is empty on the initiation, which has not
+// replaced anything yet.
+type OperatorEmailChangeEvidence struct {
+	MaskedOldEmail string
+	MaskedNewEmail string
 }
 
 // OperatorAccessChange summarizes one operator change of an account's

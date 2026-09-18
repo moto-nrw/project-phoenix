@@ -74,7 +74,7 @@ func newSchoolTenant(t *testing.T, db *bun.DB) (tenantID int64, subdomain string
 // newSchoolAccount registers an account and maps it to the tenant, without a
 // school-portal role — the starting point for the "mapped but no portal role"
 // gates.
-func newSchoolAccount(t *testing.T, db *bun.DB, service auth.AuthService, prefix string, tenantID int64) (email string, accountID int64) {
+func newSchoolAccount(t *testing.T, db *bun.DB, service testAuthService, prefix string, tenantID int64) (email string, accountID int64) {
 	t.Helper()
 	email, username := uniqueTestCredentials(prefix)
 	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
@@ -85,7 +85,7 @@ func newSchoolAccount(t *testing.T, db *bun.DB, service auth.AuthService, prefix
 
 // createLehrkraftAccount registers an account, maps it to the tenant, and
 // assigns the lehrkraft system role there.
-func createLehrkraftAccount(t *testing.T, db *bun.DB, service auth.AuthService, prefix string, tenantID int64) (email string, accountID int64) {
+func createLehrkraftAccount(t *testing.T, db *bun.DB, service testAuthService, prefix string, tenantID int64) (email string, accountID int64) {
 	t.Helper()
 	email, accountID = newSchoolAccount(t, db, service, prefix, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)

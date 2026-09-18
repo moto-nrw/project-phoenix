@@ -178,7 +178,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		return
 	}
 
-	if result.PendingInvite != nil && rs.GuardianInvitationService != nil {
+	if result.PendingInvite != nil && rs.GuardianInvitations.configured() {
 		go rs.dispatchPostDecisionInvite(r.Context(), result.PendingInvite)
 	}
 

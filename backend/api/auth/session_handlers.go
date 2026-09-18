@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/rotation"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -156,17 +155,19 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, schoolIdentity, err := rs.AuthService.RegisterSchoolAccount(
-		r.Context(), req.Email, req.Username, req.Password, roleID, callerTenantID,
-		schoolIdentityFrom(req.FirstName, req.LastName, req.TagID))
+	provisioned, err := rs.Sessions.RegisterSchoolAccount(r.Context(), identityaccess.SchoolAccountRegistration{
+		TenantID: callerTenantID, Email: req.Email, Username: req.Username, Password: req.Password,
+		RoleID:   roleID,
+		Identity: schoolIdentityFrom(req.FirstName, req.LastName, req.TagID),
+	})
 	if err != nil {
 		markProvisioningRollback(r)
 		rs.handleRegistrationError(w, r, err)
 		return
 	}
 
-	resp := buildAccountResponse(account)
-	resp.SchoolIdentity = buildSchoolIdentityResponse(schoolIdentity)
+	resp := buildAccountResponse(provisioned.Account)
+	resp.SchoolIdentity = buildSchoolIdentityResponse(provisioned.Identity)
 	common.Respond(w, r, http.StatusCreated, resp, "Account registered successfully")
 }
 
@@ -183,8 +184,8 @@ func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 //
 // Guardian-tier roles provision nothing; EnsureSchoolIdentity returns early for
 // them whatever this carries.
-func schoolIdentityFrom(firstName, lastName string, tagID *string) *authService.SchoolAccountIdentity {
-	return &authService.SchoolAccountIdentity{
+func schoolIdentityFrom(firstName, lastName string, tagID *string) *identityaccess.SchoolAccountIdentity {
+	return &identityaccess.SchoolAccountIdentity{
 		FirstName: strings.TrimSpace(firstName),
 		LastName:  strings.TrimSpace(lastName),
 		TagID:     tagID,
@@ -220,29 +221,30 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	account, schoolIdentity, err := rs.AuthService.LinkSchoolAccount(
-		r.Context(), req.Email, roleID, callerTenantID,
-		schoolIdentityFrom(req.FirstName, req.LastName, req.TagID))
+	provisioned, err := rs.Sessions.LinkSchoolAccount(r.Context(), identityaccess.SchoolAccountLink{
+		TenantID: callerTenantID, Email: req.Email, RoleID: roleID,
+		Identity: schoolIdentityFrom(req.FirstName, req.LastName, req.TagID),
+	})
 	if err != nil {
 		markProvisioningRollback(r)
 
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
+			case errors.Is(authErr.Err, identityaccess.ErrAccountNotFound):
 				common.RenderError(w, r, common.ErrorNotFound(authErr.Err))
-			case errors.Is(authErr.Err, authService.ErrAccountInactive):
+			case errors.Is(authErr.Err, identityaccess.ErrAccountInactive):
 				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
-			case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
-				errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
-				errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
-				errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
+			case errors.Is(authErr.Err, identityaccess.ErrRoleNotAssignable),
+				errors.Is(authErr.Err, identityaccess.ErrRoleForeignTenant),
+				errors.Is(authErr.Err, identityaccess.ErrRoleGuardianNotAssignable),
+				errors.Is(authErr.Err, identityaccess.ErrRoleLegacyTeacherNotAssignable),
 				// Linking an existing account can meet an identity it already has
 				// at this school: a caregiver profile the Lehrkraft role must not
 				// be put on top of (#1772), or a transponder that is not this
 				// school's / not free.
-				errors.Is(authErr.Err, authService.ErrRoleLehrkraftCaregiverProfile),
-				authService.IsSchoolIdentityRequestError(authErr.Err):
+				errors.Is(authErr.Err, identityaccess.ErrRoleLehrkraftCaregiverProfile),
+				identityaccess.IsSchoolIdentityRequestError(authErr.Err):
 				common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -256,9 +258,9 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 	// Return ONLY id, email and what was provisioned at THIS school — never leak
 	// roles, username, or active status from other tenants
 	common.Respond(w, r, http.StatusOK, map[string]any{
-		"id":              account.ID,
-		"email":           account.Email,
-		"school_identity": buildSchoolIdentityResponse(schoolIdentity),
+		"id":              provisioned.Account.ID,
+		"email":           provisioned.Account.Email,
+		"school_identity": buildSchoolIdentityResponse(provisioned.Identity),
 	}, "Account linked to tenant successfully")
 }
 
@@ -278,7 +280,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 
 	if claims.TenantID <= 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(
-			authService.ErrTenantRequiredForRoleAssignment))
+			identityaccess.ErrTenantRequiredForRoleAssignment))
 		return nil, 0, true
 	}
 
@@ -330,60 +332,52 @@ func renderRoleAssignmentError(w http.ResponseWriter, r *http.Request, roleID in
 
 // handleRegistrationError handles authentication errors during registration
 func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
-	var authErr *authService.AuthError
+	var authErr *identityaccess.AuthenticationError
 	if !errors.As(err, &authErr) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	switch {
-	case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
-	case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
-	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
-	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
-	case errors.Is(authErr.Err, authService.ErrRoleNotAssignable),
-		errors.Is(authErr.Err, authService.ErrRoleForeignTenant),
-		errors.Is(authErr.Err, authService.ErrRoleGuardianNotAssignable),
-		errors.Is(authErr.Err, authService.ErrRoleLegacyTeacherNotAssignable),
+	case errors.Is(authErr.Err, identityaccess.ErrEmailAlreadyExists):
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrEmailAlreadyExists))
+	case errors.Is(authErr.Err, identityaccess.ErrUsernameAlreadyExists):
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrUsernameAlreadyExists))
+	case errors.Is(authErr.Err, identityaccess.ErrPasswordTooWeak):
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasswordTooWeak))
+	case errors.Is(authErr.Err, identityaccess.ErrTenantRequiredForRoleAssignment):
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrTenantRequiredForRoleAssignment))
+	case errors.Is(authErr.Err, identityaccess.ErrRoleNotAssignable),
+		errors.Is(authErr.Err, identityaccess.ErrRoleForeignTenant),
+		errors.Is(authErr.Err, identityaccess.ErrRoleGuardianNotAssignable),
+		errors.Is(authErr.Err, identityaccess.ErrRoleLegacyTeacherNotAssignable),
 		// Everything provisioning refuses on the request's own terms: a nameless
 		// staff-tier request (schoolIdentityFor already catches it, so this is
 		// defense in depth), an account linked to a child's person record, and a
 		// transponder that is unknown here or already taken by this person.
-		authService.IsSchoolIdentityRequestError(authErr.Err):
+		identityaccess.IsSchoolIdentityRequestError(authErr.Err):
 		common.RenderError(w, r, common.ErrorInvalidRequest(authErr.Err))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 
-// buildAccountResponse constructs an AccountResponse from an Account model
-func buildAccountResponse(account *authModel.Account) *AccountResponse {
-	resp := &AccountResponse{
-		ID:     account.ID,
-		Email:  account.Email,
-		Active: account.Active,
+// buildAccountResponse constructs an AccountResponse from a registered
+// account. A newly created account holds no role assignment the read would
+// see yet, so the role list stays empty, as it was.
+func buildAccountResponse(account identityaccess.RegisteredAccount) *AccountResponse {
+	return &AccountResponse{
+		ID:       account.ID,
+		Email:    account.Email,
+		Username: account.Username,
+		Active:   account.Active,
+		Roles:    []string{},
 	}
-
-	if account.Username != nil {
-		resp.Username = *account.Username
-	}
-
-	roleNames := make([]string, 0, len(account.Roles))
-	for _, role := range account.Roles {
-		roleNames = append(roleNames, role.Name)
-	}
-	resp.Roles = roleNames
-
-	return resp
 }
 
 // buildSchoolIdentityResponse exposes the provisioned ids, or nil when nothing
 // was provisioned.
-func buildSchoolIdentityResponse(identity *authService.SchoolIdentity) *SchoolIdentityResponse {
+func buildSchoolIdentityResponse(identity *identityaccess.SchoolIdentity) *SchoolIdentityResponse {
 	if identity == nil || identity.PersonID == 0 || identity.StaffID == 0 {
 		return nil
 	}
@@ -485,17 +479,17 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	// Get user ID from JWT claims
 	claims := jwt.ClaimsFromCtx(r.Context())
 
-	err := rs.AuthService.ChangePassword(r.Context(), claims.ID, req.CurrentPassword, req.NewPassword)
+	err := rs.Sessions.ChangeAccountPassword(r.Context(), int64(claims.ID), req.CurrentPassword, req.NewPassword)
 	if err != nil {
-		var authErr *authService.AuthError
+		var authErr *identityaccess.AuthenticationError
 		if errors.As(err, &authErr) {
 			switch {
-			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
-			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
-			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+			case errors.Is(authErr.Err, identityaccess.ErrInvalidCredentials):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+			case errors.Is(authErr.Err, identityaccess.ErrAccountNotFound):
+				common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountNotFound))
+			case errors.Is(authErr.Err, identityaccess.ErrPasswordTooWeak):
+				common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasswordTooWeak))
 			default:
 				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}

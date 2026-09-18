@@ -51,6 +51,10 @@ type Dependencies struct {
 	// requires Sessions; compositions without it report
 	// ErrAccountMFAUnavailable and ErrOperatorMFAUnavailable.
 	MFA *MFADependencies
+	// OperatorProvisioning composes the operator invitation and e-mail
+	// change flows (#3332). They require Sessions and Operators;
+	// compositions without it report ErrOperatorProvisioningUnavailable.
+	OperatorProvisioning *OperatorProvisioningDependencies
 }
 
 // New composes the Identity & Access module. Guardian operations run on the
@@ -102,7 +106,11 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
-	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle)
+	administration, err := newAccountAdministration(store, auth, dependencies.Sessions, dependencies.Lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	lifecycle, roles, err := newAccountLifecycle(service, auth, store, dependencies.Sessions, dependencies.Lifecycle, administration)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +119,10 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		return nil, err
 	}
 	invitations, err := newSchoolInvitation(store, roles, lifecycle, dependencies.Sessions, dependencies.Lifecycle, dependencies.Invitations)
+	if err != nil {
+		return nil, err
+	}
+	provisioning, err := newAccountProvisioning(store, lifecycle, dependencies.Sessions, dependencies.Lifecycle)
 	if err != nil {
 		return nil, err
 	}
@@ -126,11 +138,16 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if err != nil {
 		return nil, err
 	}
+	operatorProvisioning, err := newOperatorProvisioning(service, tokens, dependencies.Sessions, dependencies.Operators, dependencies.OperatorProvisioning)
+	if err != nil {
+		return nil, err
+	}
 	e := engine{
 		service: service, mfa: operatorMFARecords, tokens: tokens,
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys,
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
-		resets: resets, invitations: invitations, mfaFlows: flows,
+		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
+		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	if dependencies.Sessions != nil {
@@ -192,6 +209,15 @@ type engine struct {
 	// invitations is nil when the module was composed without the school
 	// invitation dependencies.
 	invitations *application.SchoolInvitation
+	// provisioning is nil when the module was composed without lifecycle
+	// dependencies.
+	provisioning *application.AccountProvisioning
+	// administration is nil when the module was composed without lifecycle
+	// dependencies.
+	administration *application.AccountAdministration
+	// operatorProvisioning is nil when the module was composed without the
+	// operator provisioning dependencies.
+	operatorProvisioning *application.OperatorProvisioning
 	// invitationMaintenance is always composed: spending a deleted school's
 	// invitations and deleting expired ones need no flow dependencies.
 	invitationMaintenance *application.SchoolInvitationMaintenance
