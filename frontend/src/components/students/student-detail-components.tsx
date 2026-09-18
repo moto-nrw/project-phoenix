@@ -855,27 +855,32 @@ export function PersonalInfoReadOnly({
           </DataField>
         )}
         <DataField label="Erlaubte Heimwege" fullWidth>
-          <span className="flex items-start gap-1.5">
-            <span className="min-w-0 flex-1">
-              <AllowedDepartureModesDisplay
-                value={
-                  student.allowed_departure_modes ??
-                  allowedDepartureModesFromDeparture(
-                    student.departure_days ??
-                      departureDaysFromLegacy(
-                        student.bus_days,
-                        student.pickup_days,
-                      ),
-                  )
-                }
-              />
-            </span>
-            <ParentVisibleBadge compact hint={PARENT_VISIBLE_HINTS.departure} />
+          <div className="flex items-start gap-1.5">
+            <div className="min-w-0 flex-1">
+              <div className="inline-flex items-start gap-1.5">
+                <AllowedDepartureModesDisplay
+                  value={
+                    student.allowed_departure_modes ??
+                    allowedDepartureModesFromDeparture(
+                      student.departure_days ??
+                        departureDaysFromLegacy(
+                          student.bus_days,
+                          student.pickup_days,
+                        ),
+                    )
+                  }
+                />
+                <ParentVisibleBadge
+                  compact
+                  hint={PARENT_VISIBLE_HINTS.departure}
+                />
+              </div>
+            </div>
             <FieldHistoryInfo
               studentId={student.id}
               fields={["departure_days", "pickup_status"]}
             />
-          </span>
+          </div>
         </DataField>
         {companionsUnavailable && (
           <DataField label="Geht mit" fullWidth>
@@ -917,17 +922,25 @@ export function PersonalInfoReadOnly({
         )}
         {student.health_info && (
           <DataField label="Gesundheitsinformationen" fullWidth>
-            <span className="flex items-start gap-1.5">
-              <span className="min-w-0 flex-1">{student.health_info}</span>
-              <ParentVisibleBadge
-                compact
-                hint={PARENT_VISIBLE_HINTS.healthInfo}
-              />
+            <div className="flex items-start gap-1.5">
+              <div className="min-w-0 flex-1">
+                <div className="inline-flex w-full max-w-full min-w-0 items-start gap-1.5">
+                  <span className="min-w-0 break-words">
+                    {student.health_info}
+                  </span>
+                  <span className="shrink-0">
+                    <ParentVisibleBadge
+                      compact
+                      hint={PARENT_VISIBLE_HINTS.healthInfo}
+                    />
+                  </span>
+                </div>
+              </div>
               <FieldHistoryInfo
                 studentId={student.id}
                 fields={["health_info"]}
               />
-            </span>
+            </div>
           </DataField>
         )}
         {student.supervisor_notes && (

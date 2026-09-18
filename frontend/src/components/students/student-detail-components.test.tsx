@@ -786,6 +786,24 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Geht immer alleine")).toBeInTheDocument();
   });
 
+  it("keeps the parent-visible marker with the departure value", () => {
+    const goesAlone = {
+      ...mockStudent,
+      buskind: false,
+      bus: false,
+      bus_days: {},
+      pickup_days: {},
+    };
+    render(<PersonalInfoReadOnly student={goesAlone} />);
+
+    const departureValue = screen.getByText("Geht immer alleine");
+    expect(
+      within(departureValue.parentElement as HTMLElement).getByText(
+        "Für Eltern sichtbar",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders pickup weekdays as 'Abgeholt' badges in the departure matrix", () => {
     const pickedUp = {
       ...mockStudent,
@@ -803,6 +821,40 @@ describe("PersonalInfoReadOnly", () => {
   it("renders health info when present", () => {
     render(<PersonalInfoReadOnly student={mockStudent} />);
     expect(screen.getByText("Allergien: Erdnüsse")).toBeInTheDocument();
+  });
+
+  it("keeps the parent-visible marker with the health information", () => {
+    render(<PersonalInfoReadOnly student={mockStudent} />);
+
+    const healthInfo = screen.getByText("Allergien: Erdnüsse");
+    expect(
+      within(healthInfo.parentElement as HTMLElement).getByText(
+        "Für Eltern sichtbar",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("allows long health information to wrap while keeping its marker visible", () => {
+    const healthInfo = "https://example.test/".padEnd(500, "a");
+    render(
+      <PersonalInfoReadOnly
+        student={{ ...mockStudent, health_info: healthInfo }}
+      />,
+    );
+
+    const healthValue = screen.getByText(healthInfo);
+    expect(healthValue).toHaveClass("min-w-0", "break-words");
+    expect(healthValue.parentElement).toHaveClass(
+      "inline-flex",
+      "w-full",
+      "max-w-full",
+      "min-w-0",
+    );
+    expect(
+      within(healthValue.parentElement as HTMLElement)
+        .getByText("Für Eltern sichtbar")
+        .closest(".shrink-0"),
+    ).not.toBeNull();
   });
 
   it("renders enrollment extra fields as personal info rows", () => {
