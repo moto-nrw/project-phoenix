@@ -103,9 +103,11 @@ for that, and refuses the write when dropping an edge would strand one of them
 table, reached from People Directory's write path because that is the one path
 every writer passes through. Moving the flow as it stands would move them into
 the wrong owner; splitting them out changes a boundary, which #2580 requires a
-decision for. The read, lock and gate halves moved; the write flow waits on
-that decision, and `database/repositories/users/student.go` keeps serving
-`users.students` until then.
+decision for. #3367 carries that decision, with the two candidate shapes and
+what each costs: People Directory owning the rule over the existing Care Plan
+port, or a student-write workflow orchestrating both owners. The read, lock and
+gate halves moved; the write flow and
+`database/repositories/users/student.go`'s retirement wait on #3367.
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
