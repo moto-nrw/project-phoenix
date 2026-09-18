@@ -570,6 +570,9 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 			"test/handler_layer_ratchet_test.go",                           // Source-scanning ratchet (issue #584); same as above, no DB is used
 			"api/timetable/timetable_data_test_helpers_test.go",            // Shared fixture helper; caller tests own DB setup (mirrors created_by_test.go)
 			"services/messaging/apply_export_internal_test.go",             // Test-support wrappers exposing unexported apply funcs; the *bun.DB is injected, caller (requests_test.go) owns SetupTestDB
+			"test/module_file_size_ratchet_test.go",                        // Source-scanning ratchet (#2580); allowlist keys name *_repositories.go files, no DB is used
+			"test/module_complexity_ratchet_test.go",                       // Source-scanning ratchet (#2580); same as above, no DB is used
+			"test/module_http_orm_ratchet_test.go",                         // Source-scanning ratchet (#2580); the rule text names *bun.DB, which is the thing it forbids, no DB is used
 		}
 		skip := false
 		for _, sf := range skipFiles {
