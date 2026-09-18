@@ -43,7 +43,6 @@ const impact: StudentDeletionImpact = {
   },
 };
 
-const NAME_LABEL = "Zur Sicherheit: Name des Kindes erneut eingeben";
 const CONFIRM = "Kind endgültig löschen";
 
 function renderModal(
@@ -68,17 +67,26 @@ function renderModal(
   return { onDeleted, onClose };
 }
 
-// Löschgrund + Bestätigungshaken sind die Voraussetzungen; die Namenseingabe
-// ist das Gate der ConfirmDeleteModal (#3110).
+// Löschgrund + Bestätigungshaken sind die Voraussetzungen für die erste
+// bewusste Löschbestätigung (#3304).
 async function completePrerequisites() {
-  const confirmButton = await screen.findByRole("button", { name: CONFIRM });
-  expect(confirmButton).toBeDisabled();
+  const firstStepButton = await screen.findByRole("button", {
+    name: "Ja, löschen",
+  });
+  expect(firstStepButton).toBeDisabled();
 
   fireEvent.click(screen.getByRole("combobox", { name: "Löschgrund" }));
   fireEvent.click(await screen.findByRole("option", { name: "Testdaten" }));
   fireEvent.click(screen.getByRole("checkbox"));
 
-  return confirmButton;
+  return firstStepButton;
+}
+
+async function advanceToFinalConfirmation() {
+  const firstStepButton = await completePrerequisites();
+  expect(firstStepButton).toBeEnabled();
+  fireEvent.click(firstStepButton);
+  return screen.findByRole("button", { name: CONFIRM });
 }
 
 describe("StudentDeletionModal", () => {
@@ -88,7 +96,7 @@ describe("StudentDeletionModal", () => {
     mockDeleteStudent.mockResolvedValue(undefined);
   });
 
-  it("shows the impact and requires reason, acknowledgement and exact name", async () => {
+  it("shows the impact and requires a reason and acknowledgement", async () => {
     const { onDeleted } = renderModal();
 
     expect(await screen.findByText("Stundenplan-Zuordnungen")).toBeVisible();
@@ -100,17 +108,13 @@ describe("StudentDeletionModal", () => {
       screen.getByText(/Elternkonten und Profile der Erziehungsberechtigten/),
     ).toBeVisible();
 
-    const finalButton = await completePrerequisites();
-    // Reason and acknowledgement alone do not open the gate.
-    expect(finalButton).toBeDisabled();
+    expect(
+      screen.queryByLabelText(
+        "Zur Sicherheit: Name des Kindes erneut eingeben",
+      ),
+    ).not.toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
-      target: { value: "Mia Muste" },
-    });
-    expect(finalButton).toBeDisabled();
-    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
-      target: { value: "Mia Muster" },
-    });
+    const finalButton = await advanceToFinalConfirmation();
     expect(finalButton).toBeEnabled();
     fireEvent.click(finalButton);
 
@@ -129,15 +133,14 @@ describe("StudentDeletionModal", () => {
     expect(onDeleted).toHaveBeenCalledOnce();
   });
 
-  it("keeps the typed name from opening the gate before the prerequisites", async () => {
+  it("keeps the deletion confirmation locked before the prerequisites", async () => {
     renderModal();
-    const finalButton = await screen.findByRole("button", { name: CONFIRM });
+    const firstStepButton = await screen.findByRole("button", {
+      name: "Ja, löschen",
+    });
     await screen.findByText("Stundenplan-Zuordnungen");
 
-    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
-      target: { value: "Mia Muster" },
-    });
-    expect(finalButton).toBeDisabled();
+    expect(firstStepButton).toBeDisabled();
     expect(mockDeleteStudent).not.toHaveBeenCalled();
   });
 
@@ -164,21 +167,16 @@ describe("StudentDeletionModal", () => {
       .mockResolvedValueOnce({ ...impact, fingerprint: "def456" });
     renderModal();
 
-    await completePrerequisites();
-    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
-      target: { value: "Mia Muster" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: CONFIRM }));
+    fireEvent.click(await advanceToFinalConfirmation());
 
     expect(
       await screen.findByText("Die Daten haben sich geändert."),
     ).toBeVisible();
     expect(mockFetchImpact).toHaveBeenCalledTimes(2);
-    // Acknowledgement and typed name reset on the refreshed preview, so the
-    // deletion cannot be re-confirmed without looking again.
+    // The acknowledgement and confirmation step reset on the refreshed
+    // preview, so deletion cannot be re-confirmed without looking again.
     expect(screen.getByRole("checkbox")).not.toBeChecked();
-    expect(screen.getByLabelText(NAME_LABEL)).toHaveValue("");
-    expect(screen.getByRole("button", { name: CONFIRM })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ja, löschen" })).toBeDisabled();
   });
 
   it("does not expose the destructive controls when the preview fails", async () => {
@@ -188,7 +186,7 @@ describe("StudentDeletionModal", () => {
     renderModal();
 
     expect(await screen.findByText("Vorschau nicht verfügbar")).toBeVisible();
-    expect(screen.getByRole("button", { name: CONFIRM })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ja, löschen" })).toBeDisabled();
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
@@ -197,11 +195,7 @@ describe("StudentDeletionModal", () => {
     const onClose = vi.fn();
     renderModal(onDeleted, onClose);
 
-    await completePrerequisites();
-    fireEvent.change(screen.getByLabelText(NAME_LABEL), {
-      target: { value: "Mia Muster" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: CONFIRM }));
+    fireEvent.click(await advanceToFinalConfirmation());
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockDeleteStudent).toHaveBeenCalledOnce();
