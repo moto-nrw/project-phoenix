@@ -914,7 +914,7 @@ export function StaffSessionTable({
                                   },
                                   ...(session == null &&
                                   absence == null &&
-                                  toDateKey(day) < todayKey &&
+                                  toISODate(day) < todayKey &&
                                   onBackfillAbsence
                                     ? [
                                         {
