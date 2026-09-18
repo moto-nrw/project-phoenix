@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/uptrace/bun"
 
@@ -306,6 +307,74 @@ type studentRepositoryWithOwnerWrites struct {
 	userModels.StudentRepository
 	writes *StudentWrites
 	reads  *StudentReads
+	// The teacher assignment is School Membership's, so the roster reads
+	// resolve the groups through it first and then ask this owner for the
+	// children of those groups. The composition root installs the resolvers.
+	teacherGroupIDs      *func(context.Context, int64) ([]int64, error)
+	teacherStaffGroupIDs *func(context.Context, []int64) ([]int64, error)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByTeacherIDWithGroups(
+	ctx context.Context,
+	teacherID int64,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	if r.teacherGroupIDs == nil || *r.teacherGroupIDs == nil {
+		return nil, errors.New("student repository resolves teacher assignments through School Membership")
+	}
+	groupIDs, err := (*r.teacherGroupIDs)(ctx, teacherID)
+	if err != nil {
+		return nil, err
+	}
+	if len(groupIDs) == 0 {
+		return []*userModels.StudentWithGroupInfo{}, nil
+	}
+	return r.reads.FindByTeacherIDWithGroups(ctx, groupIDs, userModels.TodayCalendarDate())
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByTeacherStaffIDsWithGroups(
+	ctx context.Context,
+	staffIDs []int64,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	if len(staffIDs) == 0 {
+		return []*userModels.StudentWithGroupInfo{}, nil
+	}
+	if r.teacherStaffGroupIDs == nil || *r.teacherStaffGroupIDs == nil {
+		return nil, errors.New("student repository resolves teacher assignments through School Membership")
+	}
+	groupIDs, err := (*r.teacherStaffGroupIDs)(ctx, staffIDs)
+	if err != nil {
+		return nil, err
+	}
+	if len(groupIDs) == 0 {
+		return []*userModels.StudentWithGroupInfo{}, nil
+	}
+	return r.reads.FindByTeacherIDWithGroups(ctx, groupIDs, userModels.TodayCalendarDate())
+}
+
+func (r studentRepositoryWithOwnerWrites) FindAllWithGroups(ctx context.Context) ([]*userModels.StudentWithGroupInfo, error) {
+	return r.reads.FindAllWithGroups(ctx, userModels.TodayCalendarDate())
+}
+
+func (r studentRepositoryWithOwnerWrites) FindOverlappingWithGroups(
+	ctx context.Context,
+	from, to, today userModels.CalendarDate,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	return r.reads.FindOverlappingWithGroups(ctx, from, to, today)
+}
+
+// FindOverlappingWithGroupsOnDate is the meal-plan boundary: now is an instant
+// so the immediate-activation rule uses the actual current Berlin day rather
+// than applying the requested list date retroactively.
+func (r studentRepositoryWithOwnerWrites) FindOverlappingWithGroupsOnDate(
+	ctx context.Context,
+	value string,
+	now time.Time,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	date := userModels.OptionalCalendarDate(value)
+	if date == nil {
+		return nil, fmt.Errorf("find students overlapping date: %q is not a calendar date", value)
+	}
+	return r.reads.FindOverlappingWithGroups(ctx, *date, *date, userModels.CalendarDateOf(now))
 }
 
 // The reads the owner now serves. Everything not listed falls through to the
@@ -475,19 +544,11 @@ func (r studentRepositoryWithOwnerWrites) FindCareBoundsByIDs(ctx context.Contex
 // dependencies by type assertion, so the wrapper has to carry them through —
 // otherwise binding a teacher's groups would silently stop reaching the reads.
 func (r studentRepositoryWithOwnerWrites) BindTeacherGroupIDs(query func(context.Context, int64) ([]int64, error)) {
-	if binder, ok := r.StudentRepository.(interface {
-		BindTeacherGroupIDs(func(context.Context, int64) ([]int64, error))
-	}); ok {
-		binder.BindTeacherGroupIDs(query)
-	}
+	*r.teacherGroupIDs = query
 }
 
 func (r studentRepositoryWithOwnerWrites) BindTeacherStaffGroupIDs(query func(context.Context, []int64) ([]int64, error)) {
-	if binder, ok := r.StudentRepository.(interface {
-		BindTeacherStaffGroupIDs(func(context.Context, []int64) ([]int64, error))
-	}); ok {
-		binder.BindTeacherStaffGroupIDs(query)
-	}
+	*r.teacherStaffGroupIDs = query
 }
 
 // bindStudentWrites routes the retained repository's writes through the owner.
@@ -496,9 +557,11 @@ func bindStudentWrites(repository userModels.StudentRepository, directory studen
 		return repository
 	}
 	return studentRepositoryWithOwnerWrites{
-		StudentRepository: repository,
-		writes:            NewStudentWrites(directory),
-		reads:             NewStudentReads(directory),
+		StudentRepository:    repository,
+		writes:               NewStudentWrites(directory),
+		reads:                NewStudentReads(directory),
+		teacherGroupIDs:      new(func(context.Context, int64) ([]int64, error)),
+		teacherStaffGroupIDs: new(func(context.Context, []int64) ([]int64, error)),
 	}
 }
 

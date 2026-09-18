@@ -53,6 +53,12 @@ type StudentStore interface {
 	// ListEnrolledIDsByNameAndBirthday resolves already-enrolled children by
 	// name and birthday, with the tenant given explicitly.
 	ListEnrolledIDsByNameAndBirthday(context.Context, int64, string, string, string) ([]int64, domain.OperationStats, error)
+	// ListRosterByGroups is the live roster of the given groups.
+	ListRosterByGroups(context.Context, []int64, string) ([]domain.StudentRosterEntry, domain.OperationStats, error)
+	// ListRoster is the school's whole live roster.
+	ListRoster(context.Context, string) ([]domain.StudentRosterEntry, domain.OperationStats, error)
+	// ListRosterOverlapping returns the children enrolled on any day of a window.
+	ListRosterOverlapping(context.Context, string, string, string) ([]domain.StudentRosterEntry, domain.OperationStats, error)
 	// ListAllIDs returns every child of the tenant, alumni included.
 	ListAllIDs(context.Context) ([]int64, domain.OperationStats, error)
 	// ListCareEnds projects the enrolment upper bound of the given children.

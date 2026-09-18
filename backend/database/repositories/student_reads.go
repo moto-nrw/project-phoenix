@@ -21,6 +21,9 @@ type StudentReadCapability interface {
 	// repository serves it from the same rows.
 	ListSchoolClasses(context.Context) ([]string, error)
 	LockStudentRecordsByID(context.Context, []int64) ([]peopleModule.StudentRecord, error)
+	ListStudentRoster(context.Context, string) ([]peopleModule.StudentRosterEntry, error)
+	ListStudentRosterByGroup(context.Context, []int64, string) ([]peopleModule.StudentRosterEntry, error)
+	ListStudentRosterOverlapping(context.Context, string, string, string) ([]peopleModule.StudentRosterEntry, error)
 	FindStudentRecordForMutation(context.Context, int64) (peopleModule.StudentRecord, error)
 	FindStudentRecordForMutationNoWait(context.Context, int64) (peopleModule.StudentRecord, error)
 	LockEnrollmentClassWrites(context.Context) error
@@ -250,6 +253,61 @@ func (r *StudentReads) FindByIDForUpdateNoWait(ctx context.Context, id int64) (*
 // the caller that has to take it before another tenant-wide gate.
 func (r *StudentReads) LockStudentClassWritesShared(ctx context.Context) error {
 	return translateStudentReadError("lock student class writes", r.directory.LockEnrollmentClassWrites(ctx))
+}
+
+// The roster reads. The teacher-scoped ones resolve their groups through
+// School Membership first — the assignment is that owner's — and then ask this
+// owner for the children of those groups.
+func (r *StudentReads) FindByTeacherIDWithGroups(
+	ctx context.Context,
+	groupIDs []int64,
+	today userModels.CalendarDate,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	return r.roster(ctx, "find by teacher id with groups", func() ([]peopleModule.StudentRosterEntry, error) {
+		return r.directory.ListStudentRosterByGroup(ctx, groupIDs, today.String())
+	})
+}
+
+func (r *StudentReads) FindAllWithGroups(
+	ctx context.Context,
+	today userModels.CalendarDate,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	return r.roster(ctx, "find all with groups", func() ([]peopleModule.StudentRosterEntry, error) {
+		return r.directory.ListStudentRoster(ctx, today.String())
+	})
+}
+
+func (r *StudentReads) FindOverlappingWithGroups(
+	ctx context.Context,
+	from, to, today userModels.CalendarDate,
+) ([]*userModels.StudentWithGroupInfo, error) {
+	return r.roster(ctx, "find overlapping with groups", func() ([]peopleModule.StudentRosterEntry, error) {
+		return r.directory.ListStudentRosterOverlapping(ctx, from.String(), to.String(), today.String())
+	})
+}
+
+func (r *StudentReads) roster(
+	ctx context.Context,
+	operation string,
+	read func() ([]peopleModule.StudentRosterEntry, error),
+) ([]*userModels.StudentWithGroupInfo, error) {
+	entries, err := read()
+	if err != nil {
+		return nil, translateStudentReadError(operation, err)
+	}
+	result := make([]*userModels.StudentWithGroupInfo, 0, len(entries))
+	for _, entry := range entries {
+		student := studentRecordToModel(entry.Record)
+		person := &userModels.Person{
+			FirstName: entry.FirstName, LastName: entry.LastName,
+			TagID: entry.TagID, AccountID: entry.AccountID,
+		}
+		person.ID = entry.Record.PersonID
+		person.SetTenantID(entry.Record.TenantID)
+		student.Person = person
+		result = append(result, &userModels.StudentWithGroupInfo{Student: student})
+	}
+	return result, nil
 }
 
 func (r *StudentReads) listRecords(

@@ -84,6 +84,16 @@ type StudentRecord struct {
 
 func (r StudentRecord) IsAlumnus() bool { return r.Status == StudentStatusAlumnus }
 
+// StudentRosterEntry is a child together with the identity it renders under.
+// Every roster surface needs both, and both are this owner's rows.
+type StudentRosterEntry struct {
+	Record    StudentRecord `json:"student"`
+	FirstName string        `json:"first_name"`
+	LastName  string        `json:"last_name"`
+	TagID     *string       `json:"tag_id,omitempty"`
+	AccountID *int64        `json:"account_id,omitempty"`
+}
+
 // StudentDirectoryFilter narrows the staff directory page. Every field is
 // optional; an empty filter is the tenant's whole non-alumni roster.
 //
@@ -130,6 +140,15 @@ type StudentDirectoryQuery interface {
 	ListAllStudentIDs(context.Context) ([]int64, error)
 	// FindStudentRecord reads one owned row.
 	FindStudentRecord(context.Context, int64) (StudentRecord, error)
+	// ListStudentRoster is the school's live roster on the given day: the
+	// children it currently cares for, with the identity each renders under.
+	ListStudentRoster(context.Context, string) ([]StudentRosterEntry, error)
+	// ListStudentRosterByGroup narrows the same roster to the given groups.
+	ListStudentRosterByGroup(context.Context, []int64, string) ([]StudentRosterEntry, error)
+	// ListStudentRosterOverlapping returns the children enrolled on at least
+	// one day of a window. Unlike the live roster it keeps children whose care
+	// has since ended and omits later enrolments.
+	ListStudentRosterOverlapping(context.Context, string, string, string) ([]StudentRosterEntry, error)
 	// ListStudentRecordsByPerson resolves the children of the given identities,
 	// alumni included.
 	ListStudentRecordsByPerson(context.Context, []int64) ([]StudentRecord, error)
@@ -357,4 +376,41 @@ func (m *Module) FindStudentRecordForMutationNoWait(ctx context.Context, student
 		return StudentRecord{}, invalidStudent("student ID is required")
 	}
 	return m.engine.FindStudentRecordForMutationNoWait(ctx, studentID)
+}
+
+func (m *Module) ListStudentRoster(ctx context.Context, today string) ([]StudentRosterEntry, error) {
+	if err := validateRosterDay(today); err != nil {
+		return nil, err
+	}
+	return m.engine.ListStudentRoster(ctx, today)
+}
+
+func (m *Module) ListStudentRosterByGroup(ctx context.Context, groupIDs []int64, today string) ([]StudentRosterEntry, error) {
+	groupIDs = uniquePositive(groupIDs)
+	if len(groupIDs) == 0 {
+		return []StudentRosterEntry{}, nil
+	}
+	if err := validateRosterDay(today); err != nil {
+		return nil, err
+	}
+	return m.engine.ListStudentRosterByGroup(ctx, groupIDs, today)
+}
+
+func (m *Module) ListStudentRosterOverlapping(ctx context.Context, from, to, today string) ([]StudentRosterEntry, error) {
+	for _, day := range []string{from, to, today} {
+		if err := validateRosterDay(day); err != nil {
+			return nil, err
+		}
+	}
+	return m.engine.ListStudentRosterOverlapping(ctx, from, to, today)
+}
+
+// validateRosterDay refuses a roster whose day the caller could not name: the
+// care boundary is a date comparison, and a missing day would widen it to
+// every child rather than fail.
+func validateRosterDay(day string) error {
+	if _, err := time.Parse(BirthdayLayout, day); err != nil {
+		return invalidStudent("the roster day must be a calendar date in YYYY-MM-DD format")
+	}
+	return nil
 }

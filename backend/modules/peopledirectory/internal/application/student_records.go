@@ -111,3 +111,35 @@ func (s *StudentService) ListAllIDs(ctx context.Context) (ids []int64, err error
 	})
 	return ids, err
 }
+
+func (s *StudentService) readRoster(
+	ctx context.Context,
+	operation string,
+	read func(context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error),
+) (result []domain.StudentRosterEntry, err error) {
+	err = s.run(ctx, operation, s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		result, queryStats, err = read(txCtx)
+		stats.Add(queryStats)
+		return err
+	})
+	return result, err
+}
+
+func (s *StudentService) ListRosterByGroups(ctx context.Context, groupIDs []int64, today string) ([]domain.StudentRosterEntry, error) {
+	return s.readRoster(ctx, "list_student_roster_by_group", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+		return s.store.ListRosterByGroups(txCtx, groupIDs, today)
+	})
+}
+
+func (s *StudentService) ListRoster(ctx context.Context, today string) ([]domain.StudentRosterEntry, error) {
+	return s.readRoster(ctx, "list_student_roster", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+		return s.store.ListRoster(txCtx, today)
+	})
+}
+
+func (s *StudentService) ListRosterOverlapping(ctx context.Context, from, to, today string) ([]domain.StudentRosterEntry, error) {
+	return s.readRoster(ctx, "list_student_roster_overlapping", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
+		return s.store.ListRosterOverlapping(txCtx, from, to, today)
+	})
+}

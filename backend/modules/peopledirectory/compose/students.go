@@ -258,3 +258,30 @@ func (e engine) FindStudentRecordForMutationNoWait(
 	record, err := e.students.FindRecord(ctx, studentID, "UPDATE NOWAIT")
 	return peopledirectory.StudentRecord(record), mapError(err)
 }
+
+func (e engine) ListStudentRoster(ctx context.Context, today string) ([]peopledirectory.StudentRosterEntry, error) {
+	values, err := e.students.ListRoster(ctx, today)
+	return toPublicRoster(values), mapError(err)
+}
+
+func (e engine) ListStudentRosterByGroup(ctx context.Context, groupIDs []int64, today string) ([]peopledirectory.StudentRosterEntry, error) {
+	values, err := e.students.ListRosterByGroups(ctx, groupIDs, today)
+	return toPublicRoster(values), mapError(err)
+}
+
+func (e engine) ListStudentRosterOverlapping(ctx context.Context, from, to, today string) ([]peopledirectory.StudentRosterEntry, error) {
+	values, err := e.students.ListRosterOverlapping(ctx, from, to, today)
+	return toPublicRoster(values), mapError(err)
+}
+
+func toPublicRoster(values []domain.StudentRosterEntry) []peopledirectory.StudentRosterEntry {
+	result := make([]peopledirectory.StudentRosterEntry, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRosterEntry{
+			Record:    peopledirectory.StudentRecord(value.Record),
+			FirstName: value.FirstName, LastName: value.LastName,
+			TagID: value.TagID, AccountID: value.AccountID,
+		})
+	}
+	return result
+}

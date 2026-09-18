@@ -192,3 +192,17 @@ const StudentStatusPending = "pending"
 // StudentScopeAll is the lookup that counts graduates too; anything else is the
 // roster scope, which leaves them out.
 const StudentScopeAll = "all"
+
+// StudentStatusInactive is a child whose care has formally ended.
+const StudentStatusInactive = "inactive"
+
+// StudentRosterEntry is a child together with the identity it renders under.
+// The roster surfaces — the tablet list, the bracelet assignment, the calendar
+// picker, the statistics aggregate — all need both, and both are this owner's.
+type StudentRosterEntry struct {
+	Record    StudentRecord
+	FirstName string
+	LastName  string
+	TagID     *string
+	AccountID *int64
+}

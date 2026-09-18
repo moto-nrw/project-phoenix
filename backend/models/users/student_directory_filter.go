@@ -1,6 +1,10 @@
 package users
 
-import "github.com/moto-nrw/project-phoenix/internal/timezone"
+import (
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+)
 
 // Care-status windows of the staff directory: the two sides of the enrolment
 // interval, and the unbounded form for callers that manage both.
@@ -67,3 +71,10 @@ func RenderCalendarDate(value *CalendarDate) string {
 	}
 	return value.String()
 }
+
+// TodayCalendarDate is the current Berlin calendar day. The live rosters
+// compare the care window against it.
+func TodayCalendarDate() CalendarDate { return timezone.TodayDate() }
+
+// CalendarDateOf is the calendar day an instant falls on in Berlin.
+func CalendarDateOf(value time.Time) CalendarDate { return timezone.DateFromTime(value) }

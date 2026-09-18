@@ -385,3 +385,19 @@ func (e *recordingEngine) ListStudentRecords(context.Context, peopledirectory.St
 	e.calls++
 	return nil, nil
 }
+
+func (e *recordingEngine) ListStudentRoster(context.Context, string) ([]peopledirectory.StudentRosterEntry, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRosterByGroup(_ context.Context, ids []int64, _ string) ([]peopledirectory.StudentRosterEntry, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRosterOverlapping(context.Context, string, string, string) ([]peopledirectory.StudentRosterEntry, error) {
+	e.calls++
+	return nil, nil
+}
