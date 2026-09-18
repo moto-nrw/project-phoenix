@@ -6,6 +6,7 @@
     "phoenix backfill staff-owner reset",
     "phoenix backfill staff-owner status",
     "phoenix backfill student-owner",
+    "phoenix backfill student-owner compatibility",
     "phoenix backfill student-owner reset",
     "phoenix backfill student-owner status",
     "phoenix cleanup",

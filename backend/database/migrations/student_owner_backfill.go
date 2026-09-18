@@ -822,3 +822,54 @@ func assertStudentSourceIsBaseTable(ctx context.Context, db bun.IDB) error {
 	}
 	return nil
 }
+
+// studentOwnerFinalDeltaLimit bounds Cutover's last copy. A school that still
+// needs more than this many rows copied under the write lock has not been
+// backfilled; failing is cheaper than an unbounded outage.
+const studentOwnerFinalDeltaLimit = 100000
+
+// studentOwnerFinalOrphanDelete drops the profiles of source rows deleted since
+// the last pass. Memberships and care profiles follow through the cascade. It
+// runs before the copy so a person reassigned to a new child cannot meet the
+// stale profile of the deleted one on the per-person unique key.
+const studentOwnerFinalOrphanDelete = `
+	DELETE FROM users.student_profiles AS p
+	WHERE p.tenant_id = ?
+	  AND NOT EXISTS (
+		SELECT 1 FROM users.students AS s
+		WHERE s.id = p.id AND s.tenant_id = p.tenant_id AND s.person_id = p.person_id)`
+
+// StudentOwnerFinalDelta is what Cutover's last copy of one school moved.
+type StudentOwnerFinalDelta struct {
+	Scanned int64
+	Copied  int64
+	Removed int64
+}
+
+// applyStudentOwnerFinalDelta copies everything the resumable backfill has not
+// seen yet for one school and drops the targets of source rows deleted since.
+// It lives beside the batch statement above so it uses the same copy the
+// backfill used. Unlike a backfill pass it is not keyset-batched: Cutover
+// already holds the write lock, the delta is the small remainder, and a partial
+// batch would defeat verifying inside the transaction that switches the schema.
+func applyStudentOwnerFinalDelta(ctx context.Context, tx bun.Tx, tenantID int64) (StudentOwnerFinalDelta, error) {
+	var delta StudentOwnerFinalDelta
+	removed, err := rowsAffected(tx.NewRaw(studentOwnerFinalOrphanDelete, tenantID).Exec(ctx))
+	if err != nil {
+		return delta, fmt.Errorf("student owner cutover: tenant %d remove orphans: %w", tenantID, err)
+	}
+	delta.Removed = removed
+	var lastID, rejected int64
+	if err := tx.NewRaw(studentOwnerCopyBatch, tenantID, int64(0), studentOwnerFinalDeltaLimit, int64(0)).
+		Scan(ctx, &delta.Scanned, &lastID, &rejected, &delta.Copied); err != nil {
+		return delta, fmt.Errorf("student owner cutover: tenant %d final delta: %w", tenantID, err)
+	}
+	if delta.Scanned >= studentOwnerFinalDeltaLimit {
+		return delta, fmt.Errorf("student owner cutover: tenant %d has at least %d students; the final delta refuses to copy a whole school under the write lock",
+			tenantID, studentOwnerFinalDeltaLimit)
+	}
+	if rejected > 0 {
+		return delta, fmt.Errorf("student owner cutover: tenant %d has %d students whose person belongs to another school", tenantID, rejected)
+	}
+	return delta, nil
+}

@@ -117,7 +117,7 @@ func studentTargetRows(t *testing.T, db *testpkg.DB, tenantID int64) string {
 
 func TestStudentOwnerBackfillCopiesAndVerifiesPerTenant(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := studentOwnerSecondTenant(t, db)
@@ -162,7 +162,7 @@ func TestStudentOwnerBackfillCopiesAndVerifiesPerTenant(t *testing.T) {
 
 func TestStudentOwnerBackfillInterruptsAndResumesAtEveryBatchBoundary(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	studentOwnerFixture(t, db, tenantID, 5)
@@ -213,7 +213,7 @@ func TestStudentOwnerBackfillInterruptsAndResumesAtEveryBatchBoundary(t *testing
 
 func TestStudentOwnerBackfillRerunsCompletedBatchesIdempotently(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	studentOwnerFixture(t, db, tenantID, 4)
@@ -238,7 +238,7 @@ func TestStudentOwnerBackfillRerunsCompletedBatchesIdempotently(t *testing.T) {
 
 func TestStudentOwnerBackfillRetriesInjectedFailures(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	otherTenant := studentOwnerSecondTenant(t, db)
@@ -301,7 +301,7 @@ func TestStudentOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
 	for _, code := range []string{"40P01", "40001", "55P03"} {
 		t.Run(code, func(t *testing.T) {
 			ctx := testpkg.OwnCtx(t)
-			db := testpkg.SetupTestDB(t)
+			db := setupStudentStorageBeforeCutover(t)
 			tenantID := testpkg.Tenant(t)
 			studentOwnerFixture(t, db, tenantID, 1)
 			report, err := RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{MaxAttempts: 2,
@@ -332,7 +332,7 @@ func TestStudentOwnerTerminalFailuresPersistTelemetry(t *testing.T) {
 
 func TestStudentOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 5)
@@ -369,7 +369,7 @@ func TestStudentOwnerBackfillRereadsChangedRowsAndRemovesOrphans(t *testing.T) {
 
 func TestStudentOwnerBackfillRejectsCrossTenantPerson(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := studentOwnerSecondTenant(t, db)
@@ -415,7 +415,7 @@ func TestStudentOwnerBackfillRejectsCrossTenantPerson(t *testing.T) {
 // per-person unique key. The pass rewinds, removes the orphan and converges.
 func TestStudentOwnerBackfillRestartsPassWhenChildRejoinsMidPass(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	otherTenant := studentOwnerSecondTenant(t, db)
@@ -452,7 +452,7 @@ func TestStudentOwnerBackfillRestartsPassWhenChildRejoinsMidPass(t *testing.T) {
 
 func TestStudentOwnerBackfillReportsUnreconciledGuardianValues(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 2)
@@ -506,7 +506,7 @@ func TestStudentOwnerBackfillReportsUnreconciledGuardianValues(t *testing.T) {
 
 func TestStudentOwnerBackfillReportsStaleAbsenceFlags(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 3)
@@ -554,7 +554,7 @@ func TestStudentOwnerBackfillReportsStaleAbsenceFlags(t *testing.T) {
 
 func TestStudentOwnerVerificationUsesOneUTCSnapshot(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 1)
@@ -588,7 +588,7 @@ func TestStudentOwnerVerificationUsesOneUTCSnapshot(t *testing.T) {
 
 func TestStudentOwnerRunExcludesOtherWriters(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	studentOwnerFixture(t, db, tenantID, 1)
@@ -612,7 +612,7 @@ func TestStudentOwnerRunExcludesOtherWriters(t *testing.T) {
 
 func TestStudentOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	tenantID := testpkg.Tenant(t)
 	studentOwnerFixture(t, db, tenantID, 1)
 	ctx, cancel := context.WithCancel(testpkg.Ctx(t))
@@ -638,7 +638,7 @@ func TestStudentOwnerCancellationFlushesFailedAttempt(t *testing.T) {
 
 func TestStudentOwnerMeasuresSuccessfulLockWait(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 1)
@@ -676,7 +676,7 @@ func TestStudentOwnerMeasuresSuccessfulLockWait(t *testing.T) {
 
 func TestStudentOwnerBackfillTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := studentOwnerSecondTenant(t, db)
@@ -711,7 +711,7 @@ func TestStudentOwnerBackfillTenantIsolation(t *testing.T) {
 
 func TestStudentOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	studentOwnerFixture(t, db, tenantID, 3)
@@ -759,7 +759,7 @@ func TestStudentOwnerBackfillIndexesAndQueryPlans(t *testing.T) {
 
 func TestStudentOwnerBackfillResetAndRollback(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	studentOwnerFixture(t, db, tenantID, 3)
@@ -839,7 +839,7 @@ func requireStudentOwnerTargetsEmpty(t *testing.T, db *testpkg.DB) {
 // the verifier.
 func TestStudentOwnerBackfillAcceptsInertExcusedFlagUnderSickness(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 1)
@@ -872,7 +872,7 @@ func TestStudentOwnerBackfillAcceptsInertExcusedFlagUnderSickness(t *testing.T) 
 // trusting that Expand's policies are still there.
 func TestStudentOwnerBackfillVerifiesTenantPolicies(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantA := testpkg.Tenant(t)
 	tenantB := studentOwnerSecondTenant(t, db)
@@ -910,7 +910,7 @@ func TestStudentOwnerBackfillVerifiesTenantPolicies(t *testing.T) {
 // per-person claim itself or the pass restarts until it gives up.
 func TestStudentOwnerBackfillRecoversFromPersonReassignment(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 2)
@@ -951,7 +951,7 @@ func TestStudentOwnerBackfillRecoversFromPersonReassignment(t *testing.T) {
 // day" would silently drop a child's absence at Cutover.
 func TestStudentOwnerBackfillReportsAbsenceFlagWithOnlyAnEarlierStatusDay(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := testpkg.Ctx(t)
 	tenantID := testpkg.Tenant(t)
 	ids := studentOwnerFixture(t, db, tenantID, 1)

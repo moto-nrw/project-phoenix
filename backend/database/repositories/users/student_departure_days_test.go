@@ -428,6 +428,11 @@ func TestStudentRepository_CompanionNoteSchemaCompatibility(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	db := testpkg.SetupTestDB(t)
+	// The guard under test exists for schemas in which users.students is still
+	// the authoritative base table and may be missing the column (pre-1.15.138,
+	// and the rollback that drops it). Cutover #2759 replaced that name with a
+	// view whose column cannot be dropped, so this clone gets its world back.
+	testpkg.RestoreStudentStorageBeforeCutover(t, db)
 
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)

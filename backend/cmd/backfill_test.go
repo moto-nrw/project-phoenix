@@ -185,6 +185,7 @@ func (w backfillFailingWriter) Write([]byte) (int, error) { return 0, w.err }
 func TestBackfillStudentOwnerCommands(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.RestoreStudentStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
