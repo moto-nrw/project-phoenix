@@ -12,6 +12,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// This runner deliberately repeats the batch/retry/checkpoint shape of the
+// Staff backfill (staff_owner_backfill.go, #2752) instead of sharing an engine
+// with it. The two differ in the copy statement, the eligibility rule, the
+// canonical projections, the conflict recovery (Staff retires soft-deleted
+// memberships, users.students has no soft deletion) and the verification set
+// (Students add the guardian reconciliation and the care-state equivalence),
+// and a shared engine would couple the already-shipped 1.15.382 migration to
+// every later edit of a one-shot copy. Only what is genuinely identical is
+// shared: lockStorageBackfill and the SQLSTATE constants. The cost is a second
+// bun model on platform.storage_backfill_checkpoints — the Staff model omits
+// guardian_mismatch_count and care_state_mismatch_count on purpose, because
+// only this backfill writes them.
+
 // StudentOwnerBackfillName keys the student People/Membership/Care Plan
 // backfill in the shared checkpoint table.
 const StudentOwnerBackfillName = "student-owner"
@@ -32,8 +45,10 @@ type StudentOwnerBackfillOptions struct {
 	// MaxPasses bounds the re-read passes per tenant in one run. A tenant is
 	// stable when a full pass changes nothing and verification matches.
 	MaxPasses int
-	// MaxAttempts bounds retries of one batch after deadlock, serialization,
-	// lock-timeout, or unique-conflict restarts.
+	// MaxAttempts bounds two independent budgets: the retries of one batch
+	// after a deadlock, serialization failure or lock timeout, and the pass
+	// restarts a unique-conflict rewind may take. A retry re-runs the same
+	// batch, a restart re-reads the tenant, so they are counted apart.
 	MaxAttempts int
 	Logger      *slog.Logger
 
@@ -334,7 +349,7 @@ func RunStudentOwnerBackfill(ctx context.Context, db *bun.DB, opts StudentOwnerB
 		return nil, errors.New("student owner backfill: database is required")
 	}
 	opts = opts.withDefaults()
-	release, err := lockStudentOwnerBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, StudentOwnerBackfillName)
 	if err != nil {
 		return nil, err
 	}
@@ -760,7 +775,7 @@ func ResetStudentOwnerBackfill(ctx context.Context, db *bun.DB) error {
 	if db == nil {
 		return errors.New("student owner backfill: database is required")
 	}
-	release, err := lockStudentOwnerBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, StudentOwnerBackfillName)
 	if err != nil {
 		return err
 	}

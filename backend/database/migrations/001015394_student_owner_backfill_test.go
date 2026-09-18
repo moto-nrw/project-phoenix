@@ -790,9 +790,10 @@ func TestStudentOwnerBackfillResetAndRollback(t *testing.T) {
 	requireStudentOwnerTargetsEmpty(t, db)
 	var remaining []string
 	require.NoError(t, db.NewRaw(`SELECT DISTINCT backfill FROM platform.storage_backfill_checkpoints`).Scan(ctx, &remaining))
-	require.NotContains(t, remaining, StudentOwnerBackfillName)
-	require.Contains(t, remaining, "other-backfill", "another backfill's progress survives this rollback")
-	_, err = db.ExecContext(ctx, `DELETE FROM platform.storage_backfill_checkpoints`)
+	require.ElementsMatch(t, []string{"other-backfill", StaffOwnerBackfillName}, remaining,
+		"this rollback removes exactly its own rows and leaves every other backfill's progress")
+	_, err = db.ExecContext(ctx, `DELETE FROM platform.storage_backfill_checkpoints WHERE backfill IN (?, ?)`,
+		"other-backfill", StaffOwnerBackfillName)
 	require.NoError(t, err)
 	require.NoError(t, studentOwnerBackfillDown(ctx, db))
 	var checkpointsAbsent bool

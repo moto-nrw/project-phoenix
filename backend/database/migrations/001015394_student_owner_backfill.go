@@ -115,7 +115,7 @@ func studentOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 // users.students is a compatibility view and the targets hold the authoritative
 // data.
 func studentOwnerBackfillDown(ctx context.Context, db *bun.DB) error {
-	release, err := lockStudentOwnerBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, StudentOwnerBackfillName)
 	if err != nil {
 		return err
 	}

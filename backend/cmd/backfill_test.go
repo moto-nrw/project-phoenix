@@ -77,7 +77,7 @@ func TestBackfillStaffOwnerCommands(t *testing.T) {
 	require.NoError(t, root.staffOwnerRun(cmd, migrations.StaffOwnerBackfillOptions{BatchSize: 1}))
 	require.Equal(t, 1, released, "the database is released after every command")
 	require.Contains(t, out.String(), "staff owner backfill stable")
-	report := decodeStaffOwnerReport(t, out.String())
+	report := decodeBackfillReport[migrations.StaffOwnerBackfillReport](t, out.String())
 	require.True(t, report.Stable())
 	var found bool
 	for _, tenant := range report.Tenants {
@@ -92,7 +92,7 @@ func TestBackfillStaffOwnerCommands(t *testing.T) {
 	cmd, out = newCommand()
 	require.NoError(t, root.staffOwnerStatus(cmd))
 	require.Equal(t, 2, released)
-	require.Equal(t, len(report.Tenants), len(decodeStaffOwnerReport(t, out.String()).Tenants))
+	require.Equal(t, len(report.Tenants), len(decodeBackfillReport[migrations.StaffOwnerBackfillReport](t, out.String()).Tenants))
 
 	// A cross-tenant work-time model keeps the tenant unstable; the command
 	// prints the evidence and still fails so scripts cannot proceed to Cutover.
@@ -117,7 +117,7 @@ func TestBackfillStaffOwnerCommands(t *testing.T) {
 	require.Zero(t, memberships)
 	cmd, out = newCommand()
 	require.ErrorContains(t, root.staffOwnerStatus(cmd), "not stable", "unvisited schools block Cutover")
-	report = decodeStaffOwnerReport(t, out.String())
+	report = decodeBackfillReport[migrations.StaffOwnerBackfillReport](t, out.String())
 	require.Empty(t, report.Tenants)
 	require.Contains(t, report.MissingTenants, tenantID)
 	var sourceRows int
@@ -125,12 +125,14 @@ func TestBackfillStaffOwnerCommands(t *testing.T) {
 	require.Equal(t, 1, sourceRows)
 }
 
-func decodeStaffOwnerReport(t *testing.T, output string) migrations.StaffOwnerBackfillReport {
+// decodeBackfillReport reads the JSON document every backfill command prints
+// before its verdict line.
+func decodeBackfillReport[T any](t *testing.T, output string) T {
 	t.Helper()
 	// The JSON document ends at the first line that is not part of it.
 	end := strings.Index(output, "\n}\n")
 	require.GreaterOrEqual(t, end, 0, "report output must be a JSON object: %s", output)
-	var report migrations.StaffOwnerBackfillReport
+	var report T
 	require.NoError(t, json.Unmarshal([]byte(output[:end+2]), &report))
 	return report
 }
@@ -158,7 +160,7 @@ func TestBackfillStaffOwnerReportsPartialFailure(t *testing.T) {
 	cmd.SetOut(&out)
 	err = root.staffOwnerRun(cmd, migrations.StaffOwnerBackfillOptions{})
 	require.ErrorContains(t, err, "22023")
-	report := decodeStaffOwnerReport(t, out.String())
+	report := decodeBackfillReport[migrations.StaffOwnerBackfillReport](t, out.String())
 	require.Equal(t, []int64{failedTenant}, report.Unstable())
 	var healthy bool
 	for _, cp := range report.Tenants {
@@ -203,7 +205,7 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 	require.NoError(t, root.studentOwnerRun(cmd, migrations.StudentOwnerBackfillOptions{BatchSize: 1}))
 	require.Equal(t, 1, released, "the database is released after every command")
 	require.Contains(t, out.String(), "student owner backfill stable")
-	report := decodeStudentOwnerReport(t, out.String())
+	report := decodeBackfillReport[migrations.StudentOwnerBackfillReport](t, out.String())
 	require.True(t, report.Stable())
 	var found bool
 	for _, tenant := range report.Tenants {
@@ -218,7 +220,7 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 	cmd, out = newCommand()
 	require.NoError(t, root.studentOwnerStatus(cmd))
 	require.Equal(t, 2, released)
-	require.Equal(t, len(report.Tenants), len(decodeStudentOwnerReport(t, out.String()).Tenants))
+	require.Equal(t, len(report.Tenants), len(decodeBackfillReport[migrations.StudentOwnerBackfillReport](t, out.String()).Tenants))
 
 	// A legacy guardian e-mail that no linked guardian carries has no target
 	// column. The command prints the evidence and still fails so scripts
@@ -241,20 +243,10 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 	require.Zero(t, profiles)
 	cmd, out = newCommand()
 	require.ErrorContains(t, root.studentOwnerStatus(cmd), "not stable", "unvisited schools block Cutover")
-	report = decodeStudentOwnerReport(t, out.String())
+	report = decodeBackfillReport[migrations.StudentOwnerBackfillReport](t, out.String())
 	require.Empty(t, report.Tenants)
 	require.Contains(t, report.MissingTenants, tenantID)
 	var sourceRows int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.students WHERE id = ?`, student.ID).Scan(ctx, &sourceRows))
 	require.Equal(t, 1, sourceRows)
-}
-
-func decodeStudentOwnerReport(t *testing.T, output string) migrations.StudentOwnerBackfillReport {
-	t.Helper()
-	// The JSON document ends at the first line that is not part of it.
-	end := strings.Index(output, "\n}\n")
-	require.GreaterOrEqual(t, end, 0, "report output must be a JSON object: %s", output)
-	var report migrations.StudentOwnerBackfillReport
-	require.NoError(t, json.Unmarshal([]byte(output[:end+2]), &report))
-	return report
 }
