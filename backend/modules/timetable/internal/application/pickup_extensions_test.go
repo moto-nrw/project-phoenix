@@ -28,6 +28,39 @@ func (d pickupExtensionTargetStudents) ListEnrolledStudents(context.Context) ([]
 	return d.students, domain.OperationStats{}, nil
 }
 
+type pickupExtensionInstanceStore struct {
+	ports.Store
+	instance  domain.ActivityInstance
+	lockedID  int64
+	exclusive bool
+}
+
+func (s *pickupExtensionInstanceStore) LockActivityInstance(_ context.Context, id int64, exclusive bool) (domain.ActivityInstance, bool, domain.OperationStats, error) {
+	s.lockedID = id
+	s.exclusive = exclusive
+	return s.instance, true, domain.OperationStats{}, nil
+}
+
+func TestPickupExtensionInstanceLockRejectsLifecycleChange(t *testing.T) {
+	t.Parallel()
+	for _, status := range []string{"cancelled", "completed"} {
+		t.Run(status, func(t *testing.T) {
+			store := &pickupExtensionInstanceStore{instance: domain.ActivityInstance{
+				ID: 7, Date: "2099-03-03", Status: status,
+			}}
+			service := &Service{store: store}
+
+			err := service.lockPickupExtensionInstance(context.Background(), domain.PickupExtensionInstance{
+				ID: 7, Date: "2099-03-03",
+			}, 0, &domain.OperationStats{})
+
+			require.ErrorIs(t, err, domain.ErrPickupExtensionBlockGone)
+			assert.Equal(t, int64(7), store.lockedID)
+			assert.True(t, store.exclusive)
+		})
+	}
+}
+
 func TestPickupExtensionTargetsUsesTaskOperationalDateForEligibility(t *testing.T) {
 	t.Parallel()
 	class := "1a"

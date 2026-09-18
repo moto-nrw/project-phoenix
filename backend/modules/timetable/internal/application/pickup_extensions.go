@@ -188,6 +188,9 @@ func (s *Service) chosenPickupExtensionBlocks(ctx context.Context, task domain.P
 
 func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.PickupExtensionTask, block domain.PickupExtensionBlock, stats *domain.OperationStats) ([]int64, error) {
 	if task.IsDay() {
+		if err := s.lockPickupExtensionInstance(ctx, domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}, 0, stats); err != nil {
+			return nil, err
+		}
 		if err := s.addPlannedStudent(ctx, block.ID, task.StudentID, task.Date, stats); err != nil {
 			return nil, err
 		}
@@ -195,15 +198,20 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 	}
 	validFrom := max(task.EffectiveFrom, s.pickupExtensionToday(), block.ValidFrom)
 	weekday := task.Weekday
-	if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, block, weekday, validFrom, stats); err != nil {
-		return nil, err
-	}
 	// The generator only fills new blocks. Blocks already planned for this
 	// weekday get the child here, without re-planning the week, so edits made
 	// to single dates stay untouched.
 	instances, listStats, err := s.store.ListPickupExtensionTemplateInstances(ctx, block.ID, task.StudentID, task.Weekday, validFrom, block.CalendarPeriodID, block.ValidUntil)
 	stats.Add(listStats)
 	if err != nil {
+		return nil, err
+	}
+	for _, instance := range instances {
+		if err := s.lockPickupExtensionInstance(ctx, instance, block.ID, stats); err != nil {
+			return nil, err
+		}
+	}
+	if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, block, weekday, validFrom, stats); err != nil {
 		return nil, err
 	}
 	instanceIDs := make([]int64, 0, len(instances))
@@ -214,6 +222,25 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 		instanceIDs = append(instanceIDs, instance.ID)
 	}
 	return instanceIDs, nil
+}
+
+// lockPickupExtensionInstance keeps a selected instance selectable until the
+// resolution commits. Lifecycle writers take the same row exclusively, so a
+// cancellation or completion that wins the race is observed before adding the
+// child.
+func (s *Service) lockPickupExtensionInstance(ctx context.Context, instance domain.PickupExtensionInstance, templateID int64, stats *domain.OperationStats) error {
+	current, found, queryStats, err := s.store.LockActivityInstance(ctx, instance.ID, true)
+	stats.Add(queryStats)
+	if err != nil {
+		return err
+	}
+	if !found || current.Date != instance.Date.String() || (current.Status != "planned" && current.Status != "active") {
+		return domain.ErrPickupExtensionBlockGone
+	}
+	if templateID > 0 && (current.ActivityGroupID == nil || *current.ActivityGroupID != templateID || current.IsSpontaneous) {
+		return domain.ErrPickupExtensionBlockGone
+	}
+	return nil
 }
 
 func (s *Service) ensurePickupWeekdayEnrollment(
