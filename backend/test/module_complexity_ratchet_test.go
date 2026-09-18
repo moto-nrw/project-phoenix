@@ -45,14 +45,18 @@ import (
 // legacy code is the bulk of the debt this ratchet is meant to drain.
 const moduleComplexityThreshold = 15
 
-// Seeded 2026-09-18 at commit 19feca2822, the state of modules/ and
+// Seeded 2026-09-18 at merge commit ecf0003369, the state of modules/ and
 // workflows/ right after the #2580 move, measured with:
 //
 //	cd backend && ../scripts/run-go-toolchain.sh \
 //	    go run github.com/uudashr/gocognit/cmd/gocognit -over 15 ./modules ./workflows
 //
-// (_test.go hits filtered out). 433 functions. The entries record the debt
-// as it was on that day; every one of them may only shrink or disappear.
+// (_test.go hits filtered out). 444 functions. The first seed was taken at
+// 19feca2822 and re-measured here after the merge of origin/development
+// (a47f77b2c3): PR #3408 (issue #3350) moved eleven functions over the limit
+// into modules/, which the ratchet cannot absorb without a fresh measurement.
+// The entries record the debt as it was on that day; every one of them may
+// only shrink or disappear.
 //
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
@@ -60,25 +64,38 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/appointments/recurrence.go:boundedRecurrenceDates": 77,
 	"modules/appointments/recurrence.go:matchesRule":            17,
 
-	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                                      39,
-	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":                       16,
-	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":                      17,
-	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":                     23,
-	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).CountEffectiveStudentAbsences":                 16,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":                             22,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                                       18,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                                        34,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                                   20,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                                   21,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":                           28,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":                         56,
-	"modules/careplan/internal/application/offering_review_pending.go:materializeOfferingReview":                                 24,
-	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListHistory":                                   21,
-	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListPending":                                   17,
-	"modules/careplan/internal/application/review_weekly_plan.go:(reviewPlanFacts).pickupWeek":                                   25,
-	"modules/careplan/internal/application/schedule_review_pickup.go:(*ScheduleReviews).pickupDiff":                              22,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                                   30,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                                          23,
+	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                      39,
+	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":       16,
+	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
+	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":     23,
+	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).CountEffectiveStudentAbsences": 16,
+	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":             22,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                        34,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                   20,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                   21,
+	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":           28,
+	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":         56,
+	"modules/careplan/internal/application/offering_review_pending.go:materializeOfferingReview":                 24,
+	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListHistory":                   21,
+	"modules/careplan/internal/application/offering_reviews.go:(*OfferingReviews).ListPending":                   17,
+	"modules/careplan/internal/application/review_weekly_plan.go:(reviewPlanFacts).pickupWeek":                   25,
+	"modules/careplan/internal/application/schedule_review_pickup.go:(*ScheduleReviews).pickupDiff":              22,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                   30,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                          23,
+	// Moved in by PR #3408 (#3350) from services/users and
+	// database/repositories/users; the scores crossed the boundary unchanged.
+	"modules/careplan/legacy/carelifecycle/care_booking_state_evaluator.go:activeCareComponent":                                  22,
+	"modules/careplan/legacy/carelifecycle/care_exit_cleanup.go:(*CareExitCleanupRepository).restoreRemovals":                    19,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).ApplyDueEffects":                    32,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).Cancel":                             48,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).Resume":                             24,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).buildPreview":                       30,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).LockCompanionGraph":                  17,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).ReplaceCompanions":                   21,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).checkCompanionRemovals":              31,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go:buildCompanionEdges":                                     18,
+	"modules/careplan/legacy/carelifecycle/student_document_service.go:(*studentDocumentService).ResolveStudentDocumentDownload": 21,
 	"modules/careplan/legacy/careschedule/arrival_baseline_service.go:(*arrivalBaselineService).Project":                         25,
 	"modules/careplan/legacy/careschedule/arrival_baseline_service.go:projectCareDayIndex":                                       28,
 	"modules/careplan/legacy/careschedule/arrival_service.go:(*arrivalScheduleService).BulkUpsertArrivalSchedules":               91,

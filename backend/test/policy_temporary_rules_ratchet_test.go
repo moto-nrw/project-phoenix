@@ -14,26 +14,28 @@ import (
 // architecture migration countable and shrink-only.
 //
 // The known surface is backend/architecture/legacy.jsonl: a finite, shrink-only
-// baseline of exact import tuples, 688 of them at seed time, each naming its
+// baseline of exact import tuples, 682 of them at seed time, each naming its
 // open migration issue. `scripts/backend-architecture.sh check` requires exact
 // equality with it and pull requests may only remove tuples.
 //
 // The unknown surface is backend/architecture/policy.json itself. Beside the
-// target rules it carries 557 rules whose own description declares them
-// temporary ("Compatibility permission: …" / "Compatibility binding: …"), 455
+// target rules it carries 603 rules whose own description declares them
+// temporary ("Compatibility permission: …" / "Compatibility binding: …"), 501
 // of them literally promising to "convert it to exact debt once the package
 // exists at a base SHA". Those rules are allow-rules: while they stand, the
 // evaluator does not report the edges they cover. Running the same evaluator
-// with the same policy minus those 557 rules reports 1314 violations instead of
-// 688 — roughly 626 real import edges that no number tracks today.
+// with the same policy minus the 557 such rules of the first seed reported
+// 1314 violations instead of 688 — roughly 626 real import edges that no
+// number tracks today.
 //
 // That regime has no monotonicity of its own. The rule set grew from 0 when the
-// ratchet was switched on (2026-08-28) to 455 while legacy.jsonl fell from 3663
-// to 688: converting exact debt into a policy rule looks like progress in the
+// ratchet was switched on (2026-08-28) to 501 while legacy.jsonl fell from 3663
+// to 682: converting exact debt into a policy rule looks like progress in the
 // only number CI prints. The evaluator has neither an `issue` field on rules
 // nor a staleness check for them, so a temporary permission outlives its issue
-// silently — 36 of the 38 families below were created by issues that are closed
-// today.
+// silently — 34 of the 39 families below cite only issues that are closed
+// today. The five exceptions all hang on #2725 or #2736: communication,
+// inbound-parent, inbound-usercontext, organization-tenancy, settings-platform.
 //
 // This test does not fix any of that. It puts a number on the surface and lets
 // the number move one way only.
@@ -63,17 +65,22 @@ import (
 //   - A seeded family with no hits left is the success case: the family was
 //     converted, so remove the entry ("family converted, remove the entry").
 //
-// Seed measured 2026-09-18 at commit 19feca2822 with a throwaway program that
-// decoded architecture/policy.json into {id, description} and grouped the
+// Seed measured 2026-09-18 at merge commit ecf0003369 with a throwaway program
+// that decoded architecture/policy.json into {id, description} and grouped the
 // matches, run as:
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/policyTempRules
 //
+// The first seed was taken at 19feca2822 and re-measured here after the merge
+// of origin/development (a47f77b2c3): PR #3408 (issue #3350) added 46 new
+// temporary permissions for the care-exit, companion and care-document move,
+// which the ratchet cannot absorb without a fresh measurement.
+//
 // The two totals cross-check without Go:
 //
-//	grep -c 'convert it to exact debt' backend/architecture/policy.json          # 455
+//	grep -c 'convert it to exact debt' backend/architecture/policy.json          # 501
 //	grep -ci 'compatibility permission\|compatibility binding' \
-//	  backend/architecture/policy.json                                           # 557
+//	  backend/architecture/policy.json                                           # 603
 const (
 	// policyTempRulesMarker is the conversion promise the temporary rules carry
 	// in their own description. It is the marker the migration itself writes, so
@@ -81,12 +88,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 455
+	policyTempRulesTotal = 501
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 557
+	policyTempRulesCompatTotal = 603
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -113,6 +120,11 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218, #3220, #3224 — all closed.
 	"calendar-view": 8,
 
+	// #3350 (PR #3408) — closed. New family: the care-exit read projection
+	// modules/careplan/legacy/careexitview. No open ticket carries its
+	// conversion.
+	"care-exit-view": 2,
+
 	// #3214 — closed.
 	"care-plan": 3,
 
@@ -128,8 +140,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3218, #3219, #3220 — closed.
 	"document-rendering": 5,
 
-	// #3214, #3218, #3220 — closed.
-	"enrollment": 9,
+	// #3214, #3218, #3220 — closed; #3350 (PR #3408) added three.
+	"enrollment": 12,
 
 	// #3214, #3224 — closed.
 	"facilities": 2,
@@ -137,8 +149,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #2707 — closed.
 	"file-storage": 7,
 
-	// #3214, #3218, #3220, #3224 — closed.
-	"group-live-view": 4,
+	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added one.
+	"group-live-view": 5,
 
 	// #3364 — closed.
 	"identity-access": 19,
@@ -152,8 +164,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3224 — closed.
 	"inbound-groups": 3,
 
-	// #3214 — closed.
-	"inbound-operator": 1,
+	// #3214 — closed; #3350 (PR #3408) added one.
+	"inbound-operator": 2,
 
 	// #3229, #3214, #3220 — closed; #2725 (OPEN) for one rule.
 	"inbound-parent": 34,
@@ -171,8 +183,9 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214 — closed.
 	"inbound-statistics": 1,
 
-	// #3214, #3218, #3220, #3224 — closed.
-	"inbound-students": 9,
+	// #3214, #3218, #3220, #3224 — closed; #3350 (PR #3408) added 36, the
+	// bulk of that PR's 46 new permissions.
+	"inbound-students": 45,
 
 	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
 	// one of them permitted by an issue that is done.
@@ -182,8 +195,8 @@ var policyTempRulesFamilies = map[string]int{
 	// The only large family with a live issue behind it.
 	"inbound-usercontext": 33,
 
-	// #3214, #3218, #3219, #3220, #3224 — closed.
-	"legacy-composition": 7,
+	// #3214, #3218, #3219, #3220, #3224 — closed; #3350 (PR #3408) added one.
+	"legacy-composition": 8,
 
 	// #3214 — closed.
 	"open-room-move": 2,
@@ -194,8 +207,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3220 — closed.
 	"parent-portal": 6,
 
-	// #3214, #3218 — closed.
-	"people-directory": 4,
+	// #3214, #3218 — closed; #3350 (PR #3408) added one.
+	"people-directory": 5,
 
 	// #3214, #3218, #3220 — closed.
 	"process-device-scan": 3,
@@ -213,8 +226,8 @@ var policyTempRulesFamilies = map[string]int{
 	"school-structure": 2,
 
 	// #2736 (OPEN) and #3232 (closed) name most rules jointly; #3207, #3214 the
-	// rest.
-	"settings-platform": 17,
+	// rest; #3350 (PR #3408) added one.
+	"settings-platform": 18,
 
 	// #3214, #3207, #3218, #3224 — closed.
 	"student-presence": 29,

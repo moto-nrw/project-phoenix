@@ -49,34 +49,50 @@ import (
 // is the larger half of the problem, and exempting it would let a migration
 // move a 200-line method into legacy/ to silence the gate.
 //
-// Seed: measured 2026-09-18 at commit 19feca2822 with a throwaway go/ast walk
-// over modules/ and workflows/ (named FuncDecls with a body, non-test files),
-// recording fn.Body.Rbrace.Line - fn.Body.Lbrace.Line + 1 per function:
+// Seed: measured 2026-09-18 at merge commit ecf0003369 with a throwaway
+// go/ast walk over modules/ and workflows/ (named FuncDecls with a body,
+// non-test files), recording fn.Body.Rbrace.Line - fn.Body.Lbrace.Line + 1
+// per function:
 //
 //	cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/moduleFuncLen
 //
-// 292 of 14,443 functions were over the threshold at seed time (474 over 50
-// lines, 82 over 100, 5 over 200). The seed freezes that state; it is not a
-// statement that these 292 functions are acceptable.
+// The first seed was taken at 19feca2822 and re-measured here after the merge
+// of origin/development (a47f77b2c3): PR #3408 (issue #3350) moved seven
+// over-threshold functions into modules/, which the ratchet cannot absorb
+// without a fresh measurement.
+//
+// 299 of 14,623 functions were over the threshold at seed time (483 over 50
+// lines, 83 over 100, 5 over 200). The seed freezes that state; it is not a
+// statement that these 299 functions are acceptable.
 const moduleFuncLenThreshold = 60
 
-// Seeded 2026-09-18 from commit 19feca2822. Shrink-only: lower or delete
-// entries, never add one and never raise a number.
+// Seeded 2026-09-18 from merge commit ecf0003369. Shrink-only: lower or
+// delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
-	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                                                           117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                                                        215,
-	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                                                  67,
-	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                                                      162,
-	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":                                           87,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":                                      78,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                                                73,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                                                 154,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                                            67,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                                            74,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":                                    92,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":                                  100,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                                            70,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                                                   66,
+	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                          117,
+	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       215,
+	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
+	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     162,
+	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          87,
+	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":     78,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":               73,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                154,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":           67,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":           74,
+	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":   92,
+	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews": 100,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":           70,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                  66,
+	// Moved in by PR #3408 (#3350) from services/users and
+	// database/repositories/users; the bodies crossed the boundary at their
+	// old length.
+	"modules/careplan/legacy/carelifecycle/care_exit_cleanup.go:(*CareExitCleanupRepository).restoreRemovals":                             88,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).ApplyDueEffects":                             92,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).Cancel":                                      79,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).Resume":                                      69,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go:(*careLifecycleService).buildPreview":                                108,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).checkCompanionRemovals":                       63,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go:(*companionService).validateCompanionUpdate":                      69,
 	"modules/careplan/legacy/careschedule/arrival_baseline_service.go:(*arrivalBaselineService).Project":                                  69,
 	"modules/careplan/legacy/careschedule/arrival_service.go:(*arrivalScheduleService).BulkUpsertArrivalSchedules":                        229,
 	"modules/careplan/legacy/careschedule/care_request_service.go:(*careScheduleRequestService).Correct":                                  90,

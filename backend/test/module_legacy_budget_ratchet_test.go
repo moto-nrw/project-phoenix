@@ -13,17 +13,20 @@ import (
 // TestModuleLegacyBudgetRatchet caps the production LOC of every legacy tree
 // under backend/modules/ and backend/workflows/ at today's measured size.
 //
-// Why this ratchet exists: 87,643 production LOC sit in directories named
+// Why this ratchet exists: 92,928 production LOC sit in directories named
 // "legacy" below backend/modules/ and backend/workflows/. They were moved
-// there out of the old top-level packages, file by file, at 97-99% rename
-// similarity. backend/architecture/policy.json classifies those 23 packages
-// with ordinary roles (adapter 15, domain 2, postgres 2, compose 2,
-// test-support 2) — "adapter" is not a debt marker. Not a single entry in
-// backend/architecture/legacy.jsonl points at 79,704 of these LOC, so the
-// architecture evaluator reports green and cannot point at this surface at
-// all. No nest has shrunk since it was created, only grown:
-// modules/workforce/legacy went from 15,402 to 21,468 LOC. This ratchet is
-// the missing per-module completion metric.
+// there out of the old top-level packages, file by file, at 77-99% rename
+// similarity. backend/architecture/policy.json classifies those 25 packages
+// with ordinary roles (adapter 16, postgres 3, domain 2, compose 2,
+// test-support 2) — "adapter" is not a debt marker. Only 56 entries in
+// backend/architecture/legacy.jsonl have a legacy target at all, and they
+// reach five packages holding 7,939 LOC: 84,989 of these LOC carry no exact
+// tuple, so the architecture evaluator reports green and cannot point at that
+// surface. No nest has shrunk since it was created, only grown:
+// modules/workforce/legacy went from 15,402 to 21,468 LOC, and the merge that
+// produced this seed added modules/careplan/legacy/carelifecycle (4,902 LOC)
+// and modules/careplan/legacy/careexitview (382 LOC) in one step. This ratchet
+// is the missing per-module completion metric.
 //
 // Scope: every directory named "legacy" below modules/ or workflows/,
 // aggregated per TOPMOST legacy directory — a nested legacy directory inside
@@ -45,34 +48,45 @@ import (
 //   - moduleLegacyBudgetTotal caps the sum on top of the per-tree budgets, so
 //     shifting LOC from one legacy tree into another shows up as well.
 //
-// Seed: measured 2026-09-18 at commit 19feca2822 with a throwaway program
-// (walk modules/ and workflows/ for directories named "legacy", sum the lines
-// of all non-test .go files per topmost tree), run as
+// Seed: measured 2026-09-18 at merge commit ecf0003369 with a throwaway
+// program (walk modules/ and workflows/ for directories named "legacy", sum
+// the lines of all non-test .go files per topmost tree), run as
 // `cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/moduleLegacyBudget`.
+// The first seed was taken at 19feca2822 and re-measured here after the merge
+// of origin/development (a47f77b2c3): PR #3408 (issue #3350) moved the
+// care-exit, companion and care-document code out of services/users into the
+// new subtree modules/careplan/legacy/carelifecycle, so the numbers below are
+// the merged state rather than a raised budget.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 87643
+const moduleLegacyBudgetTotal = 92928
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
 // tree; "no ticket today" is the measurement, not an omission — those trees
 // have no owner and no plan, which is precisely what this ratchet exposes.
 var moduleLegacyBudgets = map[string]int{
-	// #3351 covers the careschedule subtree only; the remainder of this tree
-	// has no ticket today.
-	"modules/careplan/legacy": 10435,
+	// #3351 covers the careschedule subtree only and #3410 the root package;
+	// the remainder of this tree has no ticket today. Grew by 5,284 LOC when
+	// PR #3408 (#3350) moved the care-exit, companion and care-document code
+	// out of services/users into the new subtree carelifecycle — the tree is
+	// counted recursively from its topmost legacy directory, so carelifecycle
+	// lands in this entry and gets none of its own. No open ticket carries its
+	// dissolution.
+	"modules/careplan/legacy": 15719,
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
 	// No ticket today.
 	"modules/emergencysnapshot/legacy": 322,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 518,
-	// No ticket today.
-	"modules/grouplive/legacy": 584,
+	// No ticket today. One line more than at the first seed: PR #3408 (#3350)
+	// added the carelifecycle import to legacy.go.
+	"modules/grouplive/legacy": 585,
 	// #3226 (auth/jwt + repositories move) and #2725 (usercontext read side).
 	"modules/identityaccess/legacy": 8739,
 	// No ticket today.

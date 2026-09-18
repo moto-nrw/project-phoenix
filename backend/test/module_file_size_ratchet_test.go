@@ -13,7 +13,7 @@ import (
 // TestModuleFileSizeRatchet caps the size of production files under modules/
 // and workflows/ at 800 lines. The existing quality gates in this package all
 // stop at the api/ and models/ directory boundaries, so the 228k production
-// lines that migration #2580 moved into modules/ grew unwatched: 52 files are
+// lines that migration #2580 moved into modules/ grew unwatched: 55 files are
 // over the cap today and the largest, instance_service.go, holds 3196 lines.
 // A file that big has no discoverable seam — nobody can review it, split it
 // safely, or find the one function that matters in it.
@@ -42,18 +42,27 @@ const moduleFileSizeThreshold = 800
 // the backend module root.
 var moduleFileSizeTrees = []string{"modules", "workflows"}
 
-// moduleFileSizeAllowlist is the frozen 2026-09-18 baseline at commit
-// 19feca2822: the 52 non-test files over the threshold, out of 1643 scanned
-// files holding 326990 lines. Shrink-only. Reproduce the measurement with:
+// moduleFileSizeAllowlist is the frozen 2026-09-18 baseline at merge commit
+// ecf0003369: the 55 non-test files over the threshold, out of 1655 scanned
+// files holding 332256 lines. The first seed was taken at 19feca2822 and
+// re-measured here after the merge of origin/development (a47f77b2c3), which
+// brought in PR #3408 (issue #3350) and with it three over-cap files that
+// moved into modules/ from services/users and database/repositories/users.
+// Shrink-only. Reproduce the measurement with:
 //
 //	cd backend && find modules workflows -name '*.go' ! -name '*_test.go' \
 //	  -exec wc -l {} + | awk '$1 > 800 {print $2, $1}' | sort
 var moduleFileSizeAllowlist = map[string]int{
-	"modules/appointments/appointments.go":                                           846,
-	"modules/appointments/internal/adapters/postgres/store.go":                       1011,
-	"modules/careplan/internal/adapters/postgres/requests.go":                        853,
-	"modules/careplan/internal/adapters/postgres/student_schedules.go":               921,
-	"modules/careplan/internal/application/excused_requests.go":                      1567,
+	"modules/appointments/appointments.go":                             846,
+	"modules/appointments/internal/adapters/postgres/store.go":         1011,
+	"modules/careplan/internal/adapters/postgres/requests.go":          853,
+	"modules/careplan/internal/adapters/postgres/student_schedules.go": 921,
+	"modules/careplan/internal/application/excused_requests.go":        1567,
+	// Moved in by PR #3408 (#3350) from services/users and
+	// database/repositories/users; the size crossed the boundary with them.
+	"modules/careplan/legacy/carelifecycle/care_exit_cleanup.go":                     1280,
+	"modules/careplan/legacy/carelifecycle/care_lifecycle_service.go":                1407,
+	"modules/careplan/legacy/carelifecycle/student_companion_service.go":             910,
 	"modules/careplan/legacy/careschedule/arrival_service.go":                        1346,
 	"modules/careplan/legacy/careschedule/care_request_service.go":                   2801,
 	"modules/careplan/legacy/careschedule/effective_time_service.go":                 1048,
