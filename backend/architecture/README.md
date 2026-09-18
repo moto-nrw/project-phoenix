@@ -298,6 +298,41 @@ rules. Restoring its target permission is still policy loosening. Removing the
 import requires removing its debt entry in the same change. No schema change
 or second allowlist is needed for the final contract step.
 
+### Relocating a package without losing its debt
+
+A violation is identified by `scope|rule|source|target`, so moving a package
+renames every key it appears in, in both directions, although no import, owner
+or role changed. [ADR 0020](../../docs/adr/0020-a-relocated-package-keeps-its-debt.md)
+lets a reviewed epoch declare that move in the optional `relocations` array,
+sorted by `from`:
+
+```json
+{"from":"models/auth","to":"modules/identityaccess/legacy/authmodels","issue":"https://github.com/moto-nrw/project-phoenix/issues/3226"}
+```
+
+PR mode then reads the base baseline at the candidate's paths. A declaration is
+active while `from` is still classified in the base policy; afterwards it is a
+record of which path became which, and it cannot replay. An active declaration
+must prove the epoch increased, that `from` is classified in the base policy
+and gone from the candidate while `to` is classified in the candidate and
+absent from the base, that owner and all three roles are identical on both
+sides, and that `to` holds exactly the Go files `from` held at the base commit.
+The file set comes from Git, not from the declaration, so a move that adds,
+drops or renames a file is a rewrite and keeps the ordinary guards. It compares
+names, not contents, which it cannot do because a relocation rewrites import
+paths and may rename the package clause. It is a sanity gate; the safety
+property is the unchanged violation-key set below.
+
+The declaration renames keys and grants nothing else. An added import has no
+renamed twin and stays a new violation, a changed migration issue is still a
+reassignment, and a base entry whose import disappeared is still stale. Rule
+anchoring does not read the declaration: whether a package counts as
+candidate-created still comes from Git, as for any package the candidate
+writes. Prefer a relocation over compatibility permissions whenever a package
+moves unchanged — it keeps each consumer's debt under the consumer's own
+migration issue instead of dropping it and re-deriving it later.
+
+
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as
 `workforce`/`adapter`. Their imports of the retained `models/active`,
