@@ -786,6 +786,24 @@ describe("PersonalInfoReadOnly", () => {
     expect(screen.getByText("Geht immer alleine")).toBeInTheDocument();
   });
 
+  it("keeps the parent-visible marker with the departure value", () => {
+    const goesAlone = {
+      ...mockStudent,
+      buskind: false,
+      bus: false,
+      bus_days: {},
+      pickup_days: {},
+    };
+    render(<PersonalInfoReadOnly student={goesAlone} />);
+
+    const departureValue = screen.getByText("Geht immer alleine");
+    expect(
+      within(departureValue.parentElement as HTMLElement).getByText(
+        "Für Eltern sichtbar",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("renders pickup weekdays as 'Abgeholt' badges in the departure matrix", () => {
     const pickedUp = {
       ...mockStudent,
@@ -803,6 +821,15 @@ describe("PersonalInfoReadOnly", () => {
   it("renders health info when present", () => {
     render(<PersonalInfoReadOnly student={mockStudent} />);
     expect(screen.getByText("Allergien: Erdnüsse")).toBeInTheDocument();
+  });
+
+  it("keeps the parent-visible marker with the health information", () => {
+    render(<PersonalInfoReadOnly student={mockStudent} />);
+
+    const healthInfo = screen.getByText("Allergien: Erdnüsse");
+    expect(
+      within(healthInfo).getByText("Für Eltern sichtbar"),
+    ).toBeInTheDocument();
   });
 
   it("renders enrollment extra fields as personal info rows", () => {
