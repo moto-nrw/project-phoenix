@@ -18,7 +18,7 @@ import (
 // in one transaction. The same advisory lock excludes resumable backfills and
 // their destructive restart for the entire switch.
 func finalizeRequestChildStorage(ctx context.Context, db *bun.DB, switchSchema func(context.Context, bun.Tx) error) error {
-	release, err := lockRequestChildStorageBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, requestChildStorageBackfillName)
 	if err != nil {
 		return err
 	}
@@ -343,7 +343,7 @@ func RunRequestChildStorageBackfill(ctx context.Context, db *bun.DB, options Req
 		return RequestChildStorageReport{}, fmt.Errorf("request child storage backfill: database is required")
 	}
 	options = options.withDefaults()
-	release, err := lockRequestChildStorageBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, requestChildStorageBackfillName)
 	if err != nil {
 		return RequestChildStorageReport{}, err
 	}

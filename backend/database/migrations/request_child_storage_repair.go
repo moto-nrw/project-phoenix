@@ -50,7 +50,7 @@ func repairRequestChildStorageCompatibility(ctx context.Context, db *bun.DB, opt
 			return report, fmt.Errorf("compatibility repair requires positive school IDs")
 		}
 	}
-	release, err := lockRequestChildStorageBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, requestChildStorageBackfillName)
 	if err != nil {
 		return report, err
 	}
