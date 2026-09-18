@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -156,9 +157,13 @@ const studentOwnerCareStateMismatch = `
 
 // verify compares per-tenant counts, canonical checksums and row-wise
 // mismatches between the old table and the joined targets, reconciles the
-// legacy guardian values and the effective care state, then persists the
+// legacy guardian values and the effective care state, proves the row-level
+// security of the three targets against the tenant role, then persists the
 // evidence. The pass is stable when it changed nothing and everything matches.
 func (r *studentOwnerTenantRun) verify(ctx context.Context, cp *StudentOwnerBackfillCheckpoint) error {
+	if err := r.verifyTenantIsolation(ctx, cp); err != nil {
+		return err
+	}
 	return r.db.RunInTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead}, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, `SET LOCAL TIME ZONE 'UTC'; SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
 			return err
@@ -166,6 +171,72 @@ func (r *studentOwnerTenantRun) verify(ctx context.Context, cp *StudentOwnerBack
 		return r.verifySnapshot(ctx, tx, cp)
 	})
 }
+
+// verifyTenantIsolation reads the three targets once as phoenix_tenant, scoped
+// to this school, and holds what that role sees against what the superuser
+// connection wrote. The copy runs as superuser and therefore bypasses the very
+// policies the rows depend on, so nothing else in this run would notice a
+// policy that Expand created and a later change dropped, disabled or widened —
+// and after Cutover these rows carry the tenant boundary for every student.
+//
+// It runs in its own transaction: the role switch would otherwise strip the
+// verification transaction of the grants its checkpoint update needs.
+// RowsVisibleToTenant is recorded rather than only asserted, so an operator can
+// see the isolation was measured and not merely assumed.
+func (r *studentOwnerTenantRun) verifyTenantIsolation(ctx context.Context, cp *StudentOwnerBackfillCheckpoint) error {
+	var owned, visible, foreign int64
+	err := r.db.RunInTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead}, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
+			return err
+		}
+		if err := tx.NewRaw(studentOwnerOwnedRows, r.tenantID, r.tenantID, r.tenantID).Scan(ctx, &owned); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_tenant`); err != nil {
+			return err
+		}
+		if _, err := tx.ExecContext(ctx, `SELECT set_config('app.current_tenant_id', ?, true)`,
+			strconv.FormatInt(r.tenantID, 10)); err != nil {
+			return err
+		}
+		if err := tx.NewRaw(studentOwnerVisibleRows).Scan(ctx, &visible, &foreign); err != nil {
+			return err
+		}
+		_, err := tx.ExecContext(ctx, `RESET ROLE`)
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("student owner backfill: tenant %d row-level security: %w", r.tenantID, err)
+	}
+	if foreign != 0 || visible != owned {
+		return fmt.Errorf(
+			"student owner backfill: tenant %d row-level security leaked: phoenix_tenant sees %d of %d own rows and %d foreign rows",
+			r.tenantID, visible, owned, foreign)
+	}
+	cp.RowsVisibleToTenant = visible
+	return nil
+}
+
+// studentOwnerOwnedRows counts this school's target rows on the superuser
+// connection, which no policy filters.
+const studentOwnerOwnedRows = `
+	SELECT (SELECT count(*) FROM users.student_profiles WHERE tenant_id = ?)
+	     + (SELECT count(*) FROM users.student_school_memberships WHERE tenant_id = ?)
+	     + (SELECT count(*) FROM users.student_care_profiles WHERE tenant_id = ?)`
+
+// studentOwnerVisibleRows counts the same three tables under the tenant policy.
+// The second column must stay zero: a row the policy lets through while its
+// tenant_id names another school is a cross-tenant leak, not a miscount.
+const studentOwnerVisibleRows = `
+	WITH rows AS (
+		SELECT tenant_id FROM users.student_profiles
+		UNION ALL SELECT tenant_id FROM users.student_school_memberships
+		UNION ALL SELECT tenant_id FROM users.student_care_profiles
+	)
+	SELECT count(*),
+	       count(*) FILTER (
+		WHERE tenant_id IS DISTINCT FROM NULLIF(current_setting('app.current_tenant_id', true), '')::bigint)
+	FROM rows`
 
 func (r *studentOwnerTenantRun) verifySnapshot(ctx context.Context, tx bun.Tx, cp *StudentOwnerBackfillCheckpoint) error {
 	var source, target struct {
@@ -229,12 +300,12 @@ func (r *studentOwnerTenantRun) verifySnapshot(ctx context.Context, tx bun.Tx, c
 		UPDATE platform.storage_backfill_checkpoints SET
 			source_count = ?, target_count = ?, source_checksum = ?, target_checksum = ?,
 			mismatch_count = ?, guardian_mismatch_count = ?, care_state_mismatch_count = ?,
-			oldest_unmigrated_at = ?, verified_at = ?, stable = ?, stable_at = ?,
+			rows_visible_to_tenant = ?, oldest_unmigrated_at = ?, verified_at = ?, stable = ?, stable_at = ?,
 			batch_p95_ms = ?, batch_max_ms = ?, pool_wait_ms = ?, verification_snapshot = ?, pass_completed = true, updated_at = now()
 		WHERE backfill = ? AND tenant_id = ?`,
 		cp.SourceCount, cp.TargetCount, cp.SourceChecksum, cp.TargetChecksum,
 		cp.MismatchCount, cp.GuardianMismatchCount, cp.CareStateMismatchCount,
-		cp.OldestUnmigratedAt, cp.VerifiedAt, cp.Stable, cp.StableAt,
+		cp.RowsVisibleToTenant, cp.OldestUnmigratedAt, cp.VerifiedAt, cp.Stable, cp.StableAt,
 		cp.BatchP95Ms, cp.BatchMaxMs, cp.PoolWaitMs, cp.VerificationSnapshot, StudentOwnerBackfillName, r.tenantID); err != nil {
 		return fmt.Errorf("student owner backfill: tenant %d persist verification: %w", r.tenantID, err)
 	}

@@ -77,11 +77,14 @@ func studentOwnerBackfillUp(ctx context.Context, db *bun.DB) error {
 			-- contact or a stale absence flag.
 			ALTER TABLE platform.storage_backfill_checkpoints
 				ADD COLUMN IF NOT EXISTS guardian_mismatch_count BIGINT NOT NULL DEFAULT 0,
-				ADD COLUMN IF NOT EXISTS care_state_mismatch_count BIGINT NOT NULL DEFAULT 0;
+				ADD COLUMN IF NOT EXISTS care_state_mismatch_count BIGINT NOT NULL DEFAULT 0,
+				ADD COLUMN IF NOT EXISTS rows_visible_to_tenant BIGINT NOT NULL DEFAULT 0;
 			COMMENT ON COLUMN platform.storage_backfill_checkpoints.guardian_mismatch_count IS
 				'Rows whose legacy contact values have no counterpart in the owning tables. Only the student backfill (#2758) raises it.';
 			COMMENT ON COLUMN platform.storage_backfill_checkpoints.care_state_mismatch_count IS
 				'Rows whose legacy absence flags have no equivalent open status day. Only the student backfill (#2758) raises it.';
+			COMMENT ON COLUMN platform.storage_backfill_checkpoints.rows_visible_to_tenant IS
+				'Target rows the phoenix_tenant role saw for this school at the last verification; the copy is superuser and bypasses the policies. Only the student backfill (#2758) records it.';
 		`)
 		if err != nil {
 			return fmt.Errorf("create storage backfill checkpoints: %w", err)

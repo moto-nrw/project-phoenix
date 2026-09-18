@@ -70,6 +70,15 @@ legacy value has an owner and every raised flag has its day.
   verification queries and their checkpoint update share one `REPEATABLE READ`
   transaction with local UTC; `verification_snapshot` identifies that snapshot.
   A tenant is stable when a pass changed nothing and every verification matches.
+- A separate transaction before that one reads the three targets as
+  `phoenix_tenant`, scoped to the school, and fails the pass unless that role
+  sees exactly this school's rows and no other school's. The copy runs as
+  superuser and bypasses the very policies the rows depend on, so nothing else
+  in the run would notice a policy that Expand created and a later change
+  dropped, disabled or widened. It runs apart from the verification transaction
+  because the role switch would strip that transaction of the grants its
+  checkpoint update needs; the count it saw is recorded as
+  `rows_visible_to_tenant`.
   Unstable tenants get another pass, up to `--max-passes` (default 5) per run;
   at the limit the completed pass and its high-water mark are kept.
 - A run on a tenant whose persisted pass is complete starts a new pass so old
@@ -96,21 +105,95 @@ its checkpoint. The next run resumes at the persisted high-water mark. Reset
 and the migration rollback refuse once `users.students` is no longer a base
 table, because after Cutover #2759 the targets hold the authoritative rows.
 
-## Resolving the two reported backlogs
+## Resolving the three reported backlogs
 
-Neither counter is cleared by rerunning the backfill; both name data work.
+None of these counters is cleared by rerunning the backfill; each names data
+work. The report gives a count per school, so the queries below name the rows
+behind it. Run them as a superuser against the school's `tenant_id`; they read
+only, and they mirror `studentOwnerGuardianMismatch`,
+`studentOwnerCareStateMismatch` and `studentOwnerEligibleBatch` in
+`backend/database/migrations/student_owner_backfill*.go`.
 
-- **`guardian_mismatch_count`** — list the affected children and decide per
-  value whether the contact belongs on an existing linked guardian, needs a new
-  `users.guardian_profiles` row and link, or is stale and may be cleared on
-  `users.students`. Normalization stops at case and whitespace for names and
-  e-mails and at digits for phone numbers, so the same number written `+49 170
-  1234567` on the guardian and `0170 1234567` on the child is reported, not
-  assumed equal. Correcting the guardian row or the legacy column clears it.
-- **`care_state_mismatch_count`** — a raised flag without an open status day is
-  an absence the split would drop. Run the end-of-day status archiver, which
-  writes the day and clears the flag, or clear the flag directly when the child
-  is no longer absent.
+### `guardian_mismatch_count`
+
+Decide per value whether the contact belongs on an existing linked guardian,
+needs a new `users.guardian_profiles` row and link, or is stale and may be
+cleared on `users.students`. Normalization stops at case and whitespace for
+names and e-mails and at digits for phone numbers, so the same number written
+`+49 170 1234567` on the guardian and `0170 1234567` on the child is reported,
+not assumed equal. Correcting the guardian row or the legacy column clears it.
+
+```sql
+SELECT s.id AS student_id, p.first_name, p.last_name,
+       s.guardian_name, s.guardian_contact, s.guardian_email, s.guardian_phone,
+       (SELECT string_agg(format('%s %s <%s>', g.first_name, g.last_name, coalesce(g.email, '-')), '; ')
+        FROM users.students_guardians sg
+        JOIN users.guardian_profiles g ON g.tenant_id = sg.tenant_id AND g.id = sg.guardian_profile_id
+        WHERE sg.tenant_id = s.tenant_id AND sg.student_id = s.id) AS linked_guardians,
+       (SELECT string_agg(n.phone_number, '; ')
+        FROM users.students_guardians sg
+        JOIN users.guardian_phone_numbers n ON n.tenant_id = sg.tenant_id AND n.guardian_profile_id = sg.guardian_profile_id
+        WHERE sg.tenant_id = s.tenant_id AND sg.student_id = s.id) AS linked_phones
+FROM users.students s
+JOIN users.persons p ON p.tenant_id = s.tenant_id AND p.id = s.person_id
+WHERE s.tenant_id = :tenant_id
+  AND (nullif(btrim(coalesce(s.guardian_name, '')), '') IS NOT NULL
+    OR nullif(btrim(coalesce(s.guardian_contact, '')), '') IS NOT NULL
+    OR nullif(btrim(coalesce(s.guardian_email, '')), '') IS NOT NULL
+    OR nullif(regexp_replace(coalesce(s.guardian_phone, ''), '\D', '', 'g'), '') IS NOT NULL)
+ORDER BY s.id;
+```
+
+This lists every child still carrying a legacy value next to the guardians
+linked to them, which is a superset of the reported ones: the rows where the
+two columns already agree are the reconciled ones and need nothing.
+
+### `care_state_mismatch_count`
+
+A raised flag without an open status day for today is an absence the split would
+drop. The flags carry no date while the status days do, so a day on an earlier
+date does not cover a flag that still marks the child absent today. Run the
+end-of-day status archiver, which writes the day and clears the flag, or clear
+the flag directly when the child is no longer absent.
+
+```sql
+SELECT s.id AS student_id, p.first_name, p.last_name,
+       s.sick, s.sick_since, s.excused, s.excused_since,
+       (SELECT string_agg(format('%s/%s%s', d.date, d.status,
+               CASE WHEN d.cleared_at IS NULL THEN '' ELSE ' (cleared)' END), '; ' ORDER BY d.date DESC)
+        FROM active.student_status_days d
+        WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+          AND d.date >= (now() AT TIME ZONE 'Europe/Berlin')::date - 7) AS recent_status_days
+FROM users.students s
+JOIN users.persons p ON p.tenant_id = s.tenant_id AND p.id = s.person_id
+WHERE s.tenant_id = :tenant_id
+  AND ((s.sick IS TRUE AND NOT EXISTS (
+        SELECT 1 FROM active.student_status_days d
+        WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+          AND d.date = (now() AT TIME ZONE 'Europe/Berlin')::date
+          AND d.cleared_at IS NULL AND d.status = 'sick'))
+    OR (s.excused IS TRUE AND NOT EXISTS (
+        SELECT 1 FROM active.student_status_days d
+        WHERE d.tenant_id = s.tenant_id AND d.student_id = s.id
+          AND d.date = (now() AT TIME ZONE 'Europe/Berlin')::date
+          AND d.cleared_at IS NULL AND d.status IN ('excused', 'class_trip'))))
+ORDER BY s.id;
+```
+
+### `rows_rejected`
+
+A rejected row points at a person of another school, which the old
+single-column person foreign key allows and People storage does not. Repoint
+`users.students.person_id` at this school's person, or move the person.
+
+```sql
+SELECT s.id AS student_id, s.tenant_id AS student_tenant, s.person_id, p.tenant_id AS person_tenant
+FROM users.students s
+LEFT JOIN users.persons p ON p.id = s.person_id
+WHERE s.tenant_id = :tenant_id
+  AND (p.id IS NULL OR p.tenant_id <> s.tenant_id)
+ORDER BY s.id;
+```
 
 ## Runtime evidence
 
@@ -126,6 +209,7 @@ created after the last run). Missing schools count as unstable. Fields:
 | `source_count`, `target_count`, `source_checksum`, `target_checksum`, `mismatch_count`, `verified_at`, `verification_snapshot` | Last coherent UTC verification of the mapped columns and its PostgreSQL snapshot |
 | `guardian_mismatch_count` | Students whose legacy guardian name, contact, e-mail or phone has no counterpart among the guardians linked to that child |
 | `care_state_mismatch_count` | Students whose legacy sick/excused flag has no equivalent uncleared status day for today |
+| `rows_visible_to_tenant` | Target rows the `phoenix_tenant` role saw for this school at the last verification, across all three tables. The copy is superuser and bypasses the policies, so this is the checkpoint's only evidence that the tenant boundary still holds |
 | `oldest_unmigrated_at` | `updated_at` of the oldest source row still reported by any of the three checks; `null` when none |
 | `batch_p95_ms`, `batch_max_ms` | p95 of the last run's batch transactions and the maximum across runs |
 | `pool_wait_ms` | Pool-wide connection wait observed while the tenant's batches ran; the process pool is shared, so concurrent users of the same pool are included |
@@ -160,7 +244,8 @@ checkpoint. The Expand rollback follows after the targets are empty.
 `backfill student-owner status` exits zero only when every school reports
 `stable: true`, equal counts and checksums, `mismatch_count: 0`,
 `guardian_mismatch_count: 0`, `care_state_mismatch_count: 0`, and
-`rows_rejected` explained. Cutover #2759 applies the final delta under its own
+`rows_rejected` explained. A school whose tenant policies no longer hold never
+reaches a verdict at all: the run fails that school's pass before verification. Cutover #2759 applies the final delta under its own
 write lock using the same runner and re-verifies before switching callers.
 
 ## Staging acceptance record
@@ -196,10 +281,13 @@ completed batches, injected deadlock, serialization and lock-timeout failures
 with retry accounting and durable terminal counters, graceful cancellation, one
 failing school not blocking the others, changed-row re-read and orphan removal,
 cross-tenant person rejection with the pass limit keeping the high-water mark,
-a mid-pass rejoin unique-conflict restart, unreconciled guardian values and
-stale absence flags with their corrections, concurrent run/reset/down exclusion,
+a mid-pass rejoin unique-conflict restart, a person reassignment between two
+live students that no orphan sweep can clear, unreconciled guardian values and
+stale absence flags with their corrections (including a flag whose only open
+status day is dated yesterday), concurrent run/reset/down exclusion,
 a measured successful lock wait, one coherent UTC verification snapshot,
-two-tenant RLS reads with the checkpoint grant denial, index validity and
+two-tenant RLS reads with the checkpoint grant denial, runtime detection of a
+dropped and of a widened tenant policy, index validity and
 index-backed plans for the batch, checksum and mismatch queries with sequential
 scans disabled, reset, and the guarded down/up sequence with the Expand
 rollback, shared checkpoint retention and the post-Cutover view guard. The CLI

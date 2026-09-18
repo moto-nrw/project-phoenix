@@ -831,3 +831,115 @@ func requireStudentOwnerTargetsEmpty(t *testing.T, db *testpkg.DB) {
 		require.Zero(t, count, "%s must be empty", table)
 	}
 }
+
+// The copy runs as superuser and bypasses every policy it writes through, so
+// the run proves the tenant boundary of its own targets on each pass instead of
+// trusting that Expand's policies are still there.
+func TestStudentOwnerBackfillVerifiesTenantPolicies(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantA := testpkg.Tenant(t)
+	tenantB := studentOwnerSecondTenant(t, db)
+	studentOwnerFixture(t, db, tenantA, 2)
+	studentOwnerFixture(t, db, tenantB, 3)
+	report, err := RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	cpA := requireStudentOwnerTenantEqual(t, db, report, tenantA)
+	cpB := requireStudentOwnerTenantEqual(t, db, report, tenantB)
+	require.EqualValues(t, 6, cpA.RowsVisibleToTenant, "one profile, membership and care profile per student")
+	require.EqualValues(t, 9, cpB.RowsVisibleToTenant)
+
+	// A policy dropped after Expand leaves the target default-deny under FORCE
+	// row-level security: the tenant role stops seeing its own rows.
+	_, err = db.ExecContext(ctx, `DROP POLICY tenant_isolation_users_student_care_profiles ON users.student_care_profiles`)
+	require.NoError(t, err)
+	_, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.ErrorContains(t, err, "row-level security leaked")
+	require.ErrorContains(t, err, "own rows")
+	status, err := StudentOwnerBackfillStatus(ctx, db)
+	require.NoError(t, err)
+	require.Equal(t, []int64{tenantA, tenantB}, status.Unstable(), "an unproven boundary blocks Cutover for every school")
+
+	// A policy widened to every school is the opposite failure and must not
+	// pass as "the role can read its rows".
+	_, err = db.ExecContext(ctx, `CREATE POLICY tenant_isolation_users_student_care_profiles
+		ON users.student_care_profiles FOR ALL USING (true) WITH CHECK (true)`)
+	require.NoError(t, err)
+	_, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.ErrorContains(t, err, "foreign rows")
+}
+
+// Two children swapping their person rows is the conflict no orphan sweep can
+// clear: both source rows are alive, so the rewind must release the stale
+// per-person claim itself or the pass restarts until it gives up.
+func TestStudentOwnerBackfillRecoversFromPersonReassignment(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := studentOwnerFixture(t, db, tenantID, 2)
+	first, err := RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	requireStudentOwnerTenantEqual(t, db, first, tenantID)
+
+	var personA, personB int64
+	require.NoError(t, db.NewRaw(`SELECT person_id FROM users.students WHERE id = ?`, ids[0]).Scan(ctx, &personA))
+	require.NoError(t, db.NewRaw(`SELECT person_id FROM users.students WHERE id = ?`, ids[1]).Scan(ctx, &personB))
+	// The unique key forbids an intermediate duplicate, so the swap parks one
+	// child on a third person first — exactly how a real merge would do it.
+	parked := testpkg.CreateTestPersonForTenant(t, db, tenantID, "Parked", "Person")
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET person_id = ? WHERE id = ?`, parked.ID, ids[0])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET person_id = ? WHERE id = ?`, personA, ids[1])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET person_id = ? WHERE id = ?`, personB, ids[0])
+	require.NoError(t, err)
+	sourceAfterSwap := studentSourceRows(t, db, tenantID)
+
+	report, err := RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{BatchSize: 1})
+	require.NoError(t, err)
+	cp := requireStudentOwnerTenantEqual(t, db, report, tenantID)
+	require.EqualValues(t, 2, cp.SourceCount)
+	require.Positive(t, cp.BatchesRetried, "the conflict must be observed, not avoided by luck")
+	var swappedA, swappedB int64
+	require.NoError(t, db.NewRaw(`SELECT person_id FROM users.student_profiles WHERE id = ?`, ids[0]).Scan(ctx, &swappedA))
+	require.NoError(t, db.NewRaw(`SELECT person_id FROM users.student_profiles WHERE id = ?`, ids[1]).Scan(ctx, &swappedB))
+	require.Equal(t, personB, swappedA)
+	require.Equal(t, personA, swappedB)
+	require.Equal(t, sourceAfterSwap, studentSourceRows(t, db, tenantID), "recovery must not modify authoritative source rows")
+}
+
+// The legacy flags carry no date, so an open status day on an earlier date does
+// not reproduce them: the flag makes the child absent today and tomorrow, the
+// dated row does not. Pinned because reading the flag as "covered by any open
+// day" would silently drop a child's absence at Cutover.
+func TestStudentOwnerBackfillReportsAbsenceFlagWithOnlyAnEarlierStatusDay(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	ids := studentOwnerFixture(t, db, tenantID, 1)
+	_, err := db.ExecContext(ctx, `INSERT INTO active.student_status_days (tenant_id, student_id, date, status, reported_at, source)
+		VALUES (?, ?, (now() AT TIME ZONE 'Europe/Berlin')::date - 1, 'sick', now() - interval '1 day', 'manual')`, tenantID, ids[0])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET sick = true, sick_since = now() - interval '1 day' WHERE id = ?`, ids[0])
+	require.NoError(t, err)
+
+	report, err := RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{MaxPasses: 1})
+	require.NoError(t, err)
+	cp := studentOwnerCheckpoint(t, report, tenantID)
+	require.EqualValues(t, 1, cp.CareStateMismatchCount,
+		"yesterday's open day does not cover a flag that still makes the child absent today")
+	require.False(t, cp.Stable)
+
+	// The end-of-day archiver writes the day already cleared and clears the
+	// flag; a child drained that way is not a candidate at all.
+	_, err = db.ExecContext(ctx, `UPDATE active.student_status_days SET cleared_at = now() WHERE student_id = ?`, ids[0])
+	require.NoError(t, err)
+	_, err = db.ExecContext(ctx, `UPDATE users.students SET sick = false WHERE id = ?`, ids[0])
+	require.NoError(t, err)
+	report, err = RunStudentOwnerBackfill(ctx, db, StudentOwnerBackfillOptions{})
+	require.NoError(t, err)
+	requireStudentOwnerTenantEqual(t, db, report, tenantID)
+}

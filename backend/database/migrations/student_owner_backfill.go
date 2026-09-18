@@ -120,8 +120,13 @@ type StudentOwnerBackfillCheckpoint struct {
 	// CareStateMismatchCount counts students whose legacy sick/excused flag is
 	// raised without an equivalent open day in active.student_status_days, the
 	// authority the targets rely on. Those flags have no target column either.
-	CareStateMismatchCount int64      `bun:"care_state_mismatch_count" json:"care_state_mismatch_count"`
-	OldestUnmigratedAt     *time.Time `bun:"oldest_unmigrated_at" json:"oldest_unmigrated_at,omitempty"`
+	CareStateMismatchCount int64 `bun:"care_state_mismatch_count" json:"care_state_mismatch_count"`
+	// RowsVisibleToTenant is how many of the three targets' rows the
+	// phoenix_tenant role saw for this school at the last verification. The
+	// copy runs as superuser and bypasses the policies, so this is the only
+	// evidence in the checkpoint that they still hold.
+	RowsVisibleToTenant int64      `bun:"rows_visible_to_tenant" json:"rows_visible_to_tenant"`
+	OldestUnmigratedAt  *time.Time `bun:"oldest_unmigrated_at" json:"oldest_unmigrated_at,omitempty"`
 
 	BatchP95Ms           int64   `bun:"batch_p95_ms" json:"batch_p95_ms"`
 	BatchMaxMs           int64   `bun:"batch_max_ms" json:"batch_max_ms"`
@@ -594,10 +599,13 @@ func (p *studentOwnerRetries) record(code string) bool {
 	return true
 }
 
-// rewindPass removes the orphaned profile of a physically deleted source row
-// before retrying. A deleted row cannot be re-read on the next pass, so its
-// profile would keep the person's unique key occupied and reject the new
-// student row of the same child forever.
+// rewindPass releases the per-person unique key before retrying. Only one
+// profile per (tenant, person) may exist, so a conflict means some target
+// profile still claims a person its own source row no longer names — either
+// because that source row was physically deleted and cannot be re-read at all,
+// or because the person was reassigned to another child. Rewinding alone would
+// meet the same claim on every restart, so the stale profile goes first and the
+// restarted pass rebuilds it from the authoritative source.
 func (r *studentOwnerTenantRun) rewindPass(ctx context.Context, cp *StudentOwnerBackfillCheckpoint) error {
 	return r.reconcileOrphans(ctx, cp, true)
 }
@@ -683,7 +691,12 @@ func (r *studentOwnerTenantRun) removeOrphans(ctx context.Context, cp *StudentOw
 	return r.reconcileOrphans(ctx, cp, false)
 }
 
-// Cleanup and any conflict rewind commit together with their counters.
+// Cleanup and any conflict rewind commit together with their counters. The
+// end-of-pass sweep only drops profiles whose source row is gone; a rewind also
+// drops those whose source row now names a different person, because that stale
+// claim on the per-person unique key is what rejected the batch. A changed
+// person alone is no reason to delete: the ordinary copy updates it in place,
+// and only a conflict proves the update could not run.
 func (r *studentOwnerTenantRun) reconcileOrphans(ctx context.Context, cp *StudentOwnerBackfillCheckpoint, rewind bool) error {
 	var removed int64
 	err := r.db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
@@ -694,10 +707,13 @@ func (r *studentOwnerTenantRun) reconcileOrphans(ctx context.Context, cp *Studen
 			WITH removed AS (
 				DELETE FROM users.student_profiles AS p
 				WHERE p.tenant_id = ?
-				  AND NOT EXISTS (SELECT 1 FROM users.students AS s WHERE s.id = p.id AND s.tenant_id = p.tenant_id)
+				  AND NOT EXISTS (
+					SELECT 1 FROM users.students AS s
+					WHERE s.id = p.id AND s.tenant_id = p.tenant_id
+					  AND (NOT ? OR s.person_id = p.person_id))
 				RETURNING p.id
 			)
-			SELECT count(*) FROM removed`, r.tenantID).Scan(ctx, &removed); err != nil {
+			SELECT count(*) FROM removed`, r.tenantID, rewind).Scan(ctx, &removed); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `
