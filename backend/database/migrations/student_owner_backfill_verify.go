@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -409,4 +410,92 @@ func verifyStudentOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (S
 		return verification, fmt.Errorf("student owner cutover: tenant %d care state: %w", tenantID, err)
 	}
 	return verification, nil
+}
+
+// studentOwnerUnreconciled is one school's two human-decision verdicts.
+type studentOwnerUnreconciled struct {
+	TenantID  int64
+	Guardian  int64
+	CareState int64
+}
+
+// studentOwnerCutoverPrecondition answers, before the deployment stops the
+// application, whether Cutover's two data verdicts would refuse.
+//
+// Of the five verdicts the switch checks, three are mechanical: counts,
+// canonical checksums and the row-wise mismatch all describe how far the
+// resumable backfill has got, and another backfill pass closes them. The other
+// two cannot be closed by copying, because the columns they cover have no
+// target. A legacy guardian value that no linked guardian carries, and a raised
+// sick/excused flag with no open status day for today, are corrections somebody
+// has to make in the data, and the switch is right to refuse until they are.
+//
+// It lives here, beside the two queries, and runs them unchanged: one
+// definition of reconciliation, asked early instead of asked twice. Neither
+// query needs the backfill's targets or its checkpoints, which is what makes the
+// answer meaningful on an environment where the backfill has never run — one
+// several releases behind reaches the backfill and the cutover in the same
+// `migrate` run, and the checkpoint-based `backfill student-owner status` has
+// nothing to report there yet.
+func studentOwnerCutoverPrecondition(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return fmt.Errorf("student owner cutover preflight: database is required")
+	}
+	kind, err := studentOwnerRelationKind(ctx, db)
+	if err != nil {
+		return err
+	}
+	// Already switched: users.students is the compatibility view and the
+	// legacy columns live in the archive. The entry can still be pending,
+	// waiting only for its foreign-key validation to resume, which needs no
+	// data correction.
+	if kind == "v" {
+		return nil
+	}
+
+	var tenantIDs []int64
+	if err := db.NewRaw(`SELECT id FROM platform.schools ORDER BY id`).Scan(ctx, &tenantIDs); err != nil {
+		return fmt.Errorf("student owner cutover preflight: list schools: %w", err)
+	}
+
+	var blocked []studentOwnerUnreconciled
+	for _, tenantID := range tenantIDs {
+		var guardian, careState int64
+		var oldest sql.NullTime
+		if err := db.NewRaw(studentOwnerGuardianMismatch, tenantID, tenantID).
+			Scan(ctx, &guardian, &oldest); err != nil {
+			return fmt.Errorf("student owner cutover preflight: tenant %d guardian reconciliation: %w", tenantID, err)
+		}
+		if err := db.NewRaw(studentOwnerCareStateMismatch, tenantID).
+			Scan(ctx, &careState, &oldest); err != nil {
+			return fmt.Errorf("student owner cutover preflight: tenant %d care state: %w", tenantID, err)
+		}
+		if guardian > 0 || careState > 0 {
+			blocked = append(blocked, studentOwnerUnreconciled{TenantID: tenantID, Guardian: guardian, CareState: careState})
+		}
+	}
+	if len(blocked) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s; fix the data and deploy again, see docs/operations/student-owner-storage-backfill.md",
+		describeStudentOwnerUnreconciled(blocked))
+}
+
+// describeStudentOwnerUnreconciled names the schools and which of the two
+// verdicts each one fails, so the deployment log says what to correct without
+// anyone opening a psql session first.
+func describeStudentOwnerUnreconciled(blocked []studentOwnerUnreconciled) string {
+	parts := make([]string, 0, len(blocked))
+	for _, entry := range blocked {
+		switch {
+		case entry.Guardian > 0 && entry.CareState > 0:
+			parts = append(parts, fmt.Sprintf("tenant %d: %d unreconciled guardian values, %d absence flags without a status day",
+				entry.TenantID, entry.Guardian, entry.CareState))
+		case entry.Guardian > 0:
+			parts = append(parts, fmt.Sprintf("tenant %d: %d unreconciled guardian values", entry.TenantID, entry.Guardian))
+		default:
+			parts = append(parts, fmt.Sprintf("tenant %d: %d absence flags without a status day", entry.TenantID, entry.CareState))
+		}
+	}
+	return "student owner cutover would refuse: " + strings.Join(parts, "; ")
 }

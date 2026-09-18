@@ -20,6 +20,7 @@ type migrateRoot struct {
 	migrate      migrationOperation
 	reset        migrationOperation
 	status       migrationOperation
+	preflight    migrationOperation
 }
 
 func (root migrateRoot) operation(command string) (migrationOperation, error) {
@@ -30,6 +31,8 @@ func (root migrateRoot) operation(command string) (migrationOperation, error) {
 		return root.reset, nil
 	case "status":
 		return root.status, nil
+	case "preflight":
+		return root.preflight, nil
 	default:
 		return nil, fmt.Errorf("unknown migration operation %q", command)
 	}
@@ -85,6 +88,7 @@ var defaultMigrateRoot = migrateRoot{
 	migrate:      migrations.Migrate,
 	reset:        migrations.Reset,
 	status:       migrations.MigrateStatus,
+	preflight:    migrations.MigratePreflight,
 }
 
 // migrateCmd represents the migrate command
@@ -114,6 +118,21 @@ var migrateStatusCmd = &cobra.Command{
 	Long:  `Display the status of all migrations, showing which ones have been applied`,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return defaultMigrateRoot.runCommand(cmd.Context(), "status")
+	},
+}
+
+// migratePreflightCmd represents the migrate preflight command
+var migratePreflightCmd = &cobra.Command{
+	Use:   "preflight",
+	Short: "check the data preconditions of pending migrations without changing anything",
+	Long: `Ask every pending migration that declares one whether the data it needs is already in the shape
+it requires. Nothing is written and no migration runs.
+
+Deployments run this while the previous release is still serving, so a migration that would refuse
+on data somebody has to correct aborts the release before the application is stopped, instead of
+failing mid-migration and forcing a restore of the backup. Exits non-zero when a precondition fails.`,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultMigrateRoot.runCommand(cmd.Context(), "preflight")
 	},
 }
 
@@ -151,5 +170,6 @@ func init() {
 	RootCmd.AddCommand(migrateCmd)
 	migrateCmd.AddCommand(migrateResetCmd)
 	migrateCmd.AddCommand(migrateStatusCmd)
+	migrateCmd.AddCommand(migratePreflightCmd)
 	migrateCmd.AddCommand(migrateValidateCmd)
 }
