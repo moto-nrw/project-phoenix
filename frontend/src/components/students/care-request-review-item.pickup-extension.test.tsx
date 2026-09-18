@@ -101,7 +101,10 @@ function approve() {
 
 describe("CareRequestReviewItem after a later pickup (#3261)", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // Einige Abläufe verbrauchen mehrere Einmal-Antworten. Sie dürfen nicht
+    // in den nächsten Test übergehen, sonst hängt dessen Ergebnis von der
+    // Ausführungsreihenfolge der Suite ab.
+    vi.resetAllMocks();
     mockDecide.mockResolvedValue(laterPickupRow());
   });
 
@@ -199,8 +202,9 @@ describe("CareRequestReviewItem after a later pickup (#3261)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Eintragen" }));
 
     await waitFor(() =>
-      expect(mockResolve).toHaveBeenLastCalledWith("7", ["31"]),
+      expect(screen.queryByText("Längere Betreuung eintragen")).toBeNull(),
     );
+    expect(mockResolve).toHaveBeenLastCalledWith("7", ["31"]);
   });
 
   it("öffnet die Auswahl nach dem Schließen nicht erneut durch einen ausstehenden Reload", async () => {
