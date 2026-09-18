@@ -82,6 +82,17 @@ tables: `users.profiles` belongs to the account, not the person, so its model,
 contract and repository move to `models/auth` and
 `database/repositories/auth` under `identity-access`.
 
+#3349 settles the one table two owners reached for: `users.privacy_consents`
+stays with `student-presence`. The recorded window bounds how long presence
+data is kept, and the GDPR cleanup reads it through that owner's
+`ListAcceptedRetentionSettings`; People Directory gives up the consent
+lifecycle it kept in `services/users` instead. The policy entry is unchanged —
+the decision is that the existing owner keeps the table, not that it changes
+hands. `audit.student_consent_changes` and `audit.student_field_edits` stay
+with `audit-platform` for the same reason: People Directory decides which of
+its fields are tracked and how a change reads, and appends through a
+consumer-owned port.
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe
