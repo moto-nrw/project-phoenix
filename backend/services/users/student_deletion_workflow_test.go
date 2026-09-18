@@ -48,6 +48,12 @@ func newCompanionTestService(db *bun.DB) carelifecycle.StudentCompanionService {
 	return carelifecycle.NewStudentCompanionService(factory.Student, factory.StudentCompanion, nil)
 }
 
+// studentPlans is the child repository the departure-plan fixture writes
+// through, so a staged plan is the normalized one a production write leaves.
+func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+}
+
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
 // whose "mit wem" is answered only by the structured link — the state in which
 // deleting the far end would strand them.
@@ -942,8 +948,8 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	service := newCompanionTestService(db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Companion", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Companion", "1a")
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, subject.ID, "mon")
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})
@@ -968,7 +974,7 @@ func TestStudentDeletionWorkflow_CompanionGraphLockAndStrandingCheck(t *testing.
 	// A concurrent holder of the far end's row blocks the ascending lock pass
 	// instead of being skipped: the deletion waits, then times out, and the
 	// rows stay untouched.
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 	testpkg.HoldStudentRowLock(t, db, companion.ID)
 	lockCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer cancel()
@@ -988,8 +994,8 @@ func TestStudentDeletionWorkflow_RemovesCompanionEdgesAndNotifies(t *testing.T) 
 	service := newCompanionTestService(db)
 	subject := testpkg.CreateTestStudent(t, db, "DeleteSubject", "Notified", "1a")
 	companion := testpkg.CreateTestStudent(t, db, "DeleteCompanion", "Notified", "1a")
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, subject.ID, "mon")
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, companion.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), subject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), companion.ID, "mon")
 	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
 	})

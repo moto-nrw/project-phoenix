@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
@@ -704,6 +705,7 @@ func newStatusDayTestResource(db *bun.DB, clocks ...func() time.Time) *Resource 
 			StudentRepo:      repoFactory.Student,
 		}),
 		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), repoFactory.Student),
+		CompanionService:        carelifecycle.NewStudentCompanionService(repoFactory.Student, repoFactory.StudentCompanion, nil),
 		StudentStatusDayService: activeService.NewStudentStatusDayServiceWithPartialAbsences(repoFactory.StudentStatusDay, nil, nil, repoFactory.CarePlan.LockExceptionDay, clock),
 		Logger:                  slog.Default(),
 		Now:                     clock,

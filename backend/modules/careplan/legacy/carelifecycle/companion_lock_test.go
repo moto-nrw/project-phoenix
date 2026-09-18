@@ -121,8 +121,8 @@ func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing
 	secondSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectTwo", "Companion", "1a")
 	farEnd := testpkg.CreateTestStudent(t, db, "GraphFarEnd", "Companion", "1a")
 
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, secondSubject.ID, "mon")
-	testpkg.SetAccompaniedDepartureDays(t, db, ctx, farEnd.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), secondSubject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, ctx, studentPlans(db), farEnd.ID, "mon")
 	conflicts, err := service.ReplaceCompanions(ctx, secondSubject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{
 			{CompanionStudentID: farEnd.ID, Weekdays: []string{"mon"}},

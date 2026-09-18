@@ -105,32 +105,35 @@ func SetStudentLifecycle(
 	require.NoError(tb, err, "failed to seed lifecycle columns")
 }
 
+// StudentPlanWriter is the slice of the child repository the departure-plan
+// fixture needs. It writes through the repository rather than in raw SQL so
+// the stored plan is the normalized one every production write leaves behind;
+// a hand-written UPDATE would desynchronize the derived columns and make the
+// next real write look like it changed them.
+type StudentPlanWriter interface {
+	FindByID(ctx context.Context, id any) (*users.Student, error)
+	Update(ctx context.Context, student *users.Student) error
+}
+
 // SetAccompaniedDepartureDays gives the child an "Anderes Kind" departure plan
 // on the given weekdays, which is the precondition for carrying a companion
 // link. The free-text note comes along because an accompanied plan must say
 // "mit wem" and there is no link yet at this point.
 func SetAccompaniedDepartureDays(
 	tb testing.TB,
-	db *bun.DB,
 	ctx context.Context,
+	students StudentPlanWriter,
 	studentID int64,
 	days ...string,
 ) *users.Student {
 	tb.Helper()
-	student := new(users.Student)
-	require.NoError(tb, db.NewSelect().Model(student).
-		ModelTableExpr("users.students").
-		Where("id = ?", studentID).
-		Scan(ctx))
+	student, err := students.FindByID(ctx, studentID)
+	require.NoError(tb, err)
+	require.NotNil(tb, student)
 
 	note := "Nachbarskind"
 	student.AllowedDepartureModes = users.WithAccompaniedDays(student.AllowedDepartureModes, days)
 	student.DepartureCompanionNote = &note
-	_, err := db.NewUpdate().Model(student).
-		ModelTableExpr("users.students").
-		Column("allowed_departure_modes", "departure_companion_note").
-		WherePK().
-		Exec(ctx)
-	require.NoError(tb, err)
+	require.NoError(tb, students.Update(ctx, student))
 	return student
 }
