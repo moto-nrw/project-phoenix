@@ -211,7 +211,7 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 ## 9. Auth Code Location — Audit Before Adding
 
-**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `services/auth/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
+**RULE: Before adding new authentication or authorization code, search both `backend/auth/` and `backend/modules/identityaccess/` (and `modules/identityaccess/legacy/usercontext/`) — match the existing layering rather than creating a third home.**
 
 `backend/auth/` is NOT legacy. It contains structured low-level utility packages:
 
@@ -220,10 +220,10 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 - `backend/auth/device/` — device API key + PIN authentication
 - `backend/auth/userpass/` — password hashing primitives
 
-`services/auth/` holds business-logic services (login flows, invitation flows, MFA orchestration, password reset) that depend on the lower-level `backend/auth/` packages.
+`backend/modules/identityaccess/` owns the business flows (login, invitations, MFA orchestration, password reset, operator identity); they depend on the lower-level `backend/auth/` packages. The retained `services/auth` and `services/platform` ports are gone (#3364).
 
 - New low-level primitive (hash, parse, verify)? → `backend/auth/{subdomain}/`
-- New business flow (login, invite, reset)? → `services/auth/`
+- New business flow (login, invite, reset)? → `backend/modules/identityaccess/`
 - New permission decision? → `backend/auth/authorize/policy/` (`modules/identityaccess/legacy/usercontext/` is the retained user-context read side under #2725: do not extend it)
 - Handler needs to authorize? → call the service or middleware, never decide inline
 
@@ -314,7 +314,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 | `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
 | Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
 | `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
-| `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
+| `identityaccess.AccountMFA` | a package-local func-field double; the behaviour suites keep theirs in `modules/identityaccess/behavior` |
 | `users.PersonService` | `services/users/userstest` |
 | API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
 
@@ -362,7 +362,7 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 - [ ] State variants are filter params, not separate endpoints
 - [ ] Errors use `api/common` helpers, not local copies
 - [ ] Services encapsulate business logic, don't just delegate
-- [ ] Auth code matches the `backend/auth/` (primitives) vs `services/auth/` (flows) layering
+- [ ] Auth code matches the `backend/auth/` (primitives) vs `modules/identityaccess/` (flows) layering
 - [ ] No query construction in `services/` (CI: `TestServiceRepositoryRatchet`)
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)

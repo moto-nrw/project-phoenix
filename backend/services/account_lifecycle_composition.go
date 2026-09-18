@@ -12,7 +12,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -107,7 +107,7 @@ func staffMember(staff *userModels.Staff) identityaccessCompose.StaffMember {
 func (d staffDirectory) FindStaff(ctx context.Context, staffID int64) (identityaccessCompose.StaffMember, bool, error) {
 	staff, err := d.repos.staff.FindByID(ctx, staffID)
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return identityaccessCompose.StaffMember{}, false, nil
 		}
 		return identityaccessCompose.StaffMember{}, false, err
@@ -120,7 +120,7 @@ func (d staffDirectory) FindStaff(ctx context.Context, staffID int64) (identitya
 
 func (d staffDirectory) findPerson(person *userModels.Person, err error) (identityaccessCompose.PersonRecord, bool, error) {
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return identityaccessCompose.PersonRecord{}, false, nil
 		}
 		return identityaccessCompose.PersonRecord{}, false, err
@@ -183,7 +183,7 @@ func (d staffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64
 func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bool, error) {
 	student, err := d.repos.students.FindByPersonID(ctx, personID)
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return false, nil
 		}
 		return false, err
@@ -194,7 +194,7 @@ func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bo
 func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (identityaccessCompose.StaffMember, bool, error) {
 	staff, err := d.repos.staff.FindByPersonID(ctx, personID)
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return identityaccessCompose.StaffMember{}, false, nil
 		}
 		return identityaccessCompose.StaffMember{}, false, err
@@ -217,7 +217,7 @@ func (d staffDirectory) CreateStaff(ctx context.Context, tenantID, personID int6
 func (d staffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (identityaccessCompose.CaregiverProfile, bool, error) {
 	teacher, err := d.repos.teachers.FindByStaffID(ctx, staffID)
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return identityaccessCompose.CaregiverProfile{}, false, nil
 		}
 		return identityaccessCompose.CaregiverProfile{}, false, err
@@ -246,10 +246,10 @@ func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, st
 // pinHasher reuses the Argon2id helpers accounts store their credentials with.
 type pinHasher struct{}
 
-func (pinHasher) HashPIN(pin string) (string, error) { return auth.HashPassword(pin) }
+func (pinHasher) HashPIN(pin string) (string, error) { return securityruntime.HashPassword(pin) }
 
 func (pinHasher) VerifyPIN(pin, hash string) bool {
-	valid, err := auth.VerifyPassword(pin, hash)
+	valid, err := securityruntime.VerifyPassword(pin, hash)
 	return err == nil && valid
 }
 
@@ -275,14 +275,14 @@ func (p lockoutPolicy) PINLockout(ctx context.Context) (int, time.Duration) {
 type passwordPolicy struct{}
 
 func (passwordPolicy) ValidatePasswordStrength(password string) error {
-	if err := auth.ValidatePasswordStrength(password); err != nil {
+	if securityruntime.PasswordTooWeak(password) {
 		return identityaccess.ErrPasswordTooWeak
 	}
 	return nil
 }
 
 func (passwordPolicy) HashPassword(password string) (string, error) {
-	return auth.HashPassword(password)
+	return securityruntime.HashPassword(password)
 }
 
 // --- preview audit ----------------------------------------------------------
@@ -341,7 +341,7 @@ func studentGuardianLink(link *userModels.StudentGuardian) identityaccessCompose
 
 func (d guardianDirectory) findProfile(profile *userModels.GuardianProfile, err error) (identityaccessCompose.GuardianProfile, bool, error) {
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return identityaccessCompose.GuardianProfile{}, false, nil
 		}
 		return identityaccessCompose.GuardianProfile{}, false, err
@@ -403,7 +403,7 @@ func (d guardianDirectory) LinkGuardianProfileToAccount(ctx context.Context, pro
 func (d guardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (identityaccessCompose.StudentGuardianLink, bool, error) {
 	link, err := d.repos.studentGuardians.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
-		if auth.IsRowMissing(err) {
+		if userModels.RowMissing(err) {
 			return identityaccessCompose.StudentGuardianLink{}, false, nil
 		}
 		return identityaccessCompose.StudentGuardianLink{}, false, err
@@ -577,185 +577,4 @@ func (a staffPINAuthenticator) AuthenticateStaffPIN(ctx context.Context, tenantI
 		return nil, err
 	}
 	return &StaffPINPrincipal{ID: staff.ID, PersonID: staff.PersonID, TenantID: staff.TenantID}, nil
-}
-
-// --- the retained auth service's consumer-owned lifecycle port --------------
-
-func roleFacts(role *auth.RoleFacts) *identityaccess.RoleFacts {
-	if role == nil {
-		return nil
-	}
-	facts := identityaccess.RoleFacts(*role)
-	return &facts
-}
-
-func (a *accountSessions) EnsureSchoolIdentity(ctx context.Context, input auth.SchoolIdentityInput) (*auth.SchoolIdentity, error) {
-	identity, err := a.module.EnsureSchoolIdentity(ctx, identityaccess.SchoolIdentityInput{
-		AccountID: input.AccountID, TenantID: input.TenantID, Role: roleFacts(input.Role),
-		FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID, PersonID: input.PersonID,
-		Position: input.Position, CaregiverUpgrade: input.CaregiverUpgrade, CreatePerson: input.CreatePerson,
-	})
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	if identity == nil {
-		return nil, nil
-	}
-	result := auth.SchoolIdentity(*identity)
-	return &result, nil
-}
-
-func (a *accountSessions) RoleNeedsStaffRecord(role *auth.RoleFacts) bool {
-	return identityaccess.RoleNeedsStaffRecord(roleFacts(role))
-}
-
-func (a *accountSessions) RoleNeedsCaregiverProfile(role *auth.RoleFacts) bool {
-	return identityaccess.RoleNeedsCaregiverProfile(roleFacts(role))
-}
-
-func (a *accountSessions) IsPlatformCaregiverRole(role *auth.RoleFacts) bool {
-	return identityaccess.IsPlatformCaregiverRole(roleFacts(role))
-}
-
-func (a *accountSessions) StartStaffPreview(ctx context.Context, adminAccountID, tenantID, targetAccountID int64, previousToken, ipAddress, userAgent string) (*auth.StaffPreviewSession, error) {
-	session, err := a.module.StartStaffPreview(ctx, adminAccountID, tenantID, targetAccountID, previousToken, ipAddress, userAgent)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	result := auth.StaffPreviewSession(*session)
-	return &result, nil
-}
-
-func (a *accountSessions) EndStaffPreview(ctx context.Context, previewToken, ipAddress, userAgent string) (int64, error) {
-	accountID, err := a.module.EndStaffPreview(ctx, previewToken, ipAddress, userAgent)
-	return accountID, authServiceError(err)
-}
-
-func (a *accountSessions) ListStaffPreviewCandidates(ctx context.Context, tenantID, excludeAccountID int64) ([]auth.StaffPreviewCandidate, error) {
-	candidates, err := a.module.ListStaffPreviewCandidates(ctx, tenantID, excludeAccountID)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	result := make([]auth.StaffPreviewCandidate, 0, len(candidates))
-	for _, candidate := range candidates {
-		result = append(result, auth.StaffPreviewCandidate(candidate))
-	}
-	return result, nil
-}
-
-func (a *accountSessions) PreviewStaffOffboarding(ctx context.Context, accountID int64) (auth.StaffOffboardingPreview, error) {
-	preview, err := a.module.PreviewStaffOffboarding(ctx, accountID)
-	return auth.StaffOffboardingPreview(preview), authServiceError(err)
-}
-
-func (a *accountSessions) ExecuteStaffOffboarding(ctx context.Context, accountID int64, revision string) (auth.StaffOffboardingResult, error) {
-	result, err := a.module.ExecuteStaffOffboarding(ctx, accountID, revision)
-	return auth.StaffOffboardingResult(result), authServiceError(err)
-}
-
-func (a *accountSessions) CreateParentAccount(ctx context.Context, email, username, password string) (auth.ParentAccountRecord, error) {
-	account, err := a.module.CreateParentAccount(ctx, email, username, password)
-	return auth.ParentAccountRecord(account), authServiceError(err)
-}
-
-func (a *accountSessions) GetParentAccountByID(ctx context.Context, id int64) (auth.ParentAccountRecord, error) {
-	account, err := a.module.GetParentAccountByID(ctx, id)
-	return auth.ParentAccountRecord(account), authServiceError(err)
-}
-
-func (a *accountSessions) GetParentAccountByEmail(ctx context.Context, email string) (auth.ParentAccountRecord, error) {
-	account, err := a.module.GetParentAccountByEmail(ctx, email)
-	return auth.ParentAccountRecord(account), authServiceError(err)
-}
-
-func (a *accountSessions) UpdateParentAccount(ctx context.Context, account auth.ParentAccountRecord) error {
-	return authServiceError(a.module.UpdateParentAccount(ctx, identityaccess.ParentAccount(account)))
-}
-
-func (a *accountSessions) ActivateParentAccount(ctx context.Context, id int64) error {
-	return authServiceError(a.module.ActivateParentAccount(ctx, id))
-}
-
-func (a *accountSessions) DeactivateParentAccount(ctx context.Context, id int64) error {
-	return authServiceError(a.module.DeactivateParentAccount(ctx, id))
-}
-
-func (a *accountSessions) ListParentAccounts(ctx context.Context, email string, active *bool) ([]auth.ParentAccountRecord, error) {
-	accounts, err := a.module.ListParentAccounts(ctx, identityaccess.ParentAccountFilter{Email: email, Active: active})
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	result := make([]auth.ParentAccountRecord, 0, len(accounts))
-	for _, account := range accounts {
-		result = append(result, auth.ParentAccountRecord(account))
-	}
-	return result, nil
-}
-
-func (a *accountSessions) InviteToStudent(ctx context.Context, req auth.InviteToStudentRequest) (*auth.InviteToStudentResult, error) {
-	result, err := a.module.InviteToStudent(ctx, identityaccess.InviteToStudentRequest(req))
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	return &auth.InviteToStudentResult{
-		Outcome: auth.InviteToStudentOutcome(result.Outcome), GuardianProfileID: result.GuardianProfileID,
-		InvitationID: result.InvitationID, ExistingRole: result.ExistingRole,
-	}, nil
-}
-
-func (a *accountSessions) ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
-	return authServiceError(a.module.ApproveInvitation(ctx, invitationID, approverAccountID))
-}
-
-func (a *accountSessions) RejectInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error {
-	return authServiceError(a.module.RejectInvitation(ctx, invitationID, approverAccountID))
-}
-
-func (a *accountSessions) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {
-	studentID, err := a.module.PendingInvitationStudentID(ctx, invitationID)
-	return studentID, authServiceError(err)
-}
-
-func (a *accountSessions) ListPendingApprovalsDetailed(ctx context.Context) ([]*auth.PendingApprovalView, error) {
-	views, err := a.module.ListPendingApprovalsDetailed(ctx)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	result := make([]*auth.PendingApprovalView, 0, len(views))
-	for _, view := range views {
-		retained := auth.PendingApprovalView(view)
-		result = append(result, &retained)
-	}
-	return result, nil
-}
-
-func (a *accountSessions) RevokeAccess(ctx context.Context, req auth.RevokeAccessRequest) error {
-	return authServiceError(a.module.RevokeAccess(ctx, identityaccess.RevokeAccessRequest(req)))
-}
-
-var _ auth.AccountLifecycle = (*accountSessions)(nil)
-
-// lifecycleRetainedSentinels extend the session translation with the
-// lifecycle outcomes the retained consumers switch on.
-var lifecycleRetainedSentinels = []retainedSentinel{
-	{identityaccess.ErrPreviewSelf, auth.ErrPreviewSelf},
-	{identityaccess.ErrPreviewTargetNotStaff, auth.ErrPreviewTargetNotStaff},
-	{identityaccess.ErrPreviewTokenInvalid, auth.ErrPreviewTokenInvalid},
-	{identityaccess.ErrStaffOffboardingConflict, auth.ErrStaffOffboardingConflict},
-	{identityaccess.ErrSchoolIdentityNamesRequired, auth.ErrSchoolIdentityNamesRequired},
-	{identityaccess.ErrSchoolIdentityPersonIsStudent, auth.ErrSchoolIdentityPersonIsStudent},
-	{identityaccess.ErrSchoolIdentityTagUnknown, auth.ErrSchoolIdentityTagUnknown},
-	{identityaccess.ErrSchoolIdentityTagConflict, auth.ErrSchoolIdentityTagConflict},
-	{identityaccess.ErrSchoolIdentityTagTaken, auth.ErrSchoolIdentityTagTaken},
-	{identityaccess.ErrParentAccountNotFound, auth.ErrParentAccountNotFound},
-	{identityaccess.ErrEmailAlreadyExists, auth.ErrEmailAlreadyExists},
-	{identityaccess.ErrUsernameAlreadyExists, auth.ErrUsernameAlreadyExists},
-	{identityaccess.ErrCannotRemovePrimaryGuardian, auth.ErrCannotRemovePrimaryGuardian},
-	{identityaccess.ErrCannotRemoveStaffManagedGuardian, auth.ErrCannotRemoveStaffManagedGuardian},
-	{identityaccess.ErrCannotRemoveOwnAccess, auth.ErrCannotRemoveOwnAccess},
-	{identityaccess.ErrCannotRemovePayerGuardian, auth.ErrCannotRemovePayerGuardian},
-	{identityaccess.ErrInviteSocialWorkerManaged, auth.ErrInviteSocialWorkerManaged},
-	{identityaccess.ErrGuardianInvitationNotFound, auth.ErrInvitationNotFound},
-	{identityaccess.ErrGuardianInvitationExpired, auth.ErrInvitationExpired},
-	{identityaccess.ErrAccountLifecycleUnavailable, auth.ErrAccountLifecycleUnavailable},
 }

@@ -12,8 +12,7 @@ import (
 	"testing"
 	"time"
 
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ type stubOperatorMFAServiceExtra struct {
 	startChallengeFn  func(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	verifyCodeFn      func(ctx context.Context, operatorID int64, code string) error
 	enrollFn          func(ctx context.Context, operatorID int64) error
-	listDevicesFn     func(ctx context.Context, operatorID int64) ([]platformSvc.OperatorTrustedDevice, error)
+	listDevicesFn     func(ctx context.Context, operatorID int64) ([]identityoperator.OperatorTrustedDevice, error)
 }
 
 func (s *stubOperatorMFAServiceExtra) HasOperatorMFAEnrollment(context.Context, int64) (bool, error) {
@@ -82,7 +81,7 @@ func (s *stubOperatorMFAServiceExtra) VerifyOperatorTrustedDevice(context.Contex
 	return false, nil
 }
 
-func (s *stubOperatorMFAServiceExtra) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]platformSvc.OperatorTrustedDevice, error) {
+func (s *stubOperatorMFAServiceExtra) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityoperator.OperatorTrustedDevice, error) {
 	if s.listDevicesFn != nil {
 		return s.listDevicesFn(ctx, operatorID)
 	}
@@ -95,7 +94,7 @@ func (s *stubOperatorMFAServiceExtra) RevokeOperatorTrustedDeviceOwned(context.C
 
 func (s *stubOperatorMFAServiceExtra) OperatorTrustedDeviceDays() int { return 90 }
 
-var _ platformSvc.OperatorMFAService = (*stubOperatorMFAServiceExtra)(nil)
+var _ identityoperator.OperatorMFA = (*stubOperatorMFAServiceExtra)(nil)
 
 // --- helpers -----------------------------------------------------------
 
@@ -152,7 +151,7 @@ func TestOperatorMFAVerify_ServiceErrorMapsTo401(t *testing.T) {
 
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		verifyChallengeFn: func(context.Context, string, string) (int64, error) {
-			return 0, authSvc.ErrMFACodeInvalid
+			return 0, identityoperator.ErrMFACodeInvalid
 		},
 	}}
 
@@ -202,7 +201,7 @@ func TestOperatorMFAResend_ServiceErrorMapsTo429(t *testing.T) {
 
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
 		resendChallengeFn: func(context.Context, string, net.IP) (string, error) {
-			return "", authSvc.ErrMFARateLimited
+			return "", identityoperator.ErrMFARateLimited
 		},
 	}}
 
@@ -257,7 +256,7 @@ func TestOperatorMFAEnrollConfirm_WrongCodeReturns401(t *testing.T) {
 	t.Parallel()
 
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
-		verifyCodeFn: func(context.Context, int64, string) error { return authSvc.ErrMFACodeInvalid },
+		verifyCodeFn: func(context.Context, int64, string) error { return identityoperator.ErrMFACodeInvalid },
 	}}
 
 	r := opWithEnrollmentClaims(opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
@@ -278,7 +277,7 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	rs := &MFAResource{
 		mfaService: &stubOperatorMFAServiceExtra{
 			verifyCodeFn: func(context.Context, int64, string) error { return nil },
-			enrollFn:     func(context.Context, int64) error { return authSvc.ErrMFAAlreadyEnrolled },
+			enrollFn:     func(context.Context, int64) error { return identityoperator.ErrMFAAlreadyEnrolled },
 		},
 		authService: &completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"},
 	}
@@ -302,8 +301,8 @@ func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {
 	t.Parallel()
 
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
-		listDevicesFn: func(context.Context, int64) ([]platformSvc.OperatorTrustedDevice, error) {
-			return []platformSvc.OperatorTrustedDevice{}, nil
+		listDevicesFn: func(context.Context, int64) ([]identityoperator.OperatorTrustedDevice, error) {
+			return []identityoperator.OperatorTrustedDevice{}, nil
 		},
 	}}
 
@@ -330,7 +329,7 @@ func TestOperatorMFAListTrustedDevices_ServiceErrorReturns500(t *testing.T) {
 	t.Parallel()
 
 	rs := &MFAResource{mfaService: &stubOperatorMFAServiceExtra{
-		listDevicesFn: func(context.Context, int64) ([]platformSvc.OperatorTrustedDevice, error) {
+		listDevicesFn: func(context.Context, int64) ([]identityoperator.OperatorTrustedDevice, error) {
 			return nil, errors.New("db down")
 		},
 	}}

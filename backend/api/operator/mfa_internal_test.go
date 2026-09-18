@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -116,12 +116,12 @@ func TestMapOperatorMFAError_StatusCodes(t *testing.T) {
 		err    error
 		status int
 	}{
-		{authSvc.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
-		{authSvc.ErrMFACodeInvalid, http.StatusUnauthorized},
-		{authSvc.ErrMFALocked, http.StatusTooManyRequests},
-		{authSvc.ErrMFARateLimited, http.StatusTooManyRequests},
-		{authSvc.ErrMFANotEnrolled, http.StatusForbidden},
-		{authSvc.ErrMFAAlreadyEnrolled, http.StatusConflict},
+		{identityoperator.ErrMFAChallengeTokenInvalid, http.StatusUnauthorized},
+		{identityoperator.ErrMFACodeInvalid, http.StatusUnauthorized},
+		{identityoperator.ErrMFALocked, http.StatusTooManyRequests},
+		{identityoperator.ErrMFARateLimited, http.StatusTooManyRequests},
+		{identityoperator.ErrMFANotEnrolled, http.StatusForbidden},
+		{identityoperator.ErrMFAAlreadyEnrolled, http.StatusConflict},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

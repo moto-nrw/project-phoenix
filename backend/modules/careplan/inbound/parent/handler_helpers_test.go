@@ -18,21 +18,11 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- submitParentEnrollment ----------------------------------------------
-
-type parentSubmitAuthStub struct {
-	authService.AuthService
-	mapped bool
-}
-
-func (s *parentSubmitAuthStub) VerifyAccountTenantMembership(context.Context, int64, int64) (bool, error) {
-	return s.mapped, nil
-}
 
 type parentSubmitSchoolStub struct {
 	school *EnrollmentSchool
@@ -67,8 +57,7 @@ func TestSubmitParentEnrollment_AllowsMappedAccountWithoutExistingGuardianPermis
 	school.ID = tenantID
 	requestSvc := &parentSubmitRequestStub{}
 	rs := &Resource{
-		AuthService: &parentSubmitAuthStub{mapped: true},
-		// The submit path now resolves guardian facts via ParentService
+		// The submit path resolves guardian facts via ParentService
 		// (#1663); the zero-value status (no guardian link, no permission)
 		// is exactly the pre-guardian-row state this test asserts on.
 		ParentService:  &fakeParentService{},

@@ -15,9 +15,7 @@ import (
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/uptrace/bun"
 )
@@ -25,7 +23,7 @@ import (
 // Resource defines the operator API resource
 type Resource struct {
 	identity                *identityoperator.Resource
-	passkeyService          platformSvc.OperatorPasskeyService
+	passkeyService          identityoperator.OperatorPasskeys
 	mfaResource             *MFAResource
 	provisioningResource    *provisioningoperator.ProvisioningResource
 	mfaAdminResource        *SchoolAccountMFAResource
@@ -44,14 +42,14 @@ type Resource struct {
 // ResourceConfig holds dependencies for the operator resource
 type ResourceConfig struct {
 	AppEnv      string
-	AuthService platformSvc.OperatorAuthService
+	AuthService OperatorAccess
 	// Identity serves operator login, refresh, the profile and password
 	// changes and the school access of accounts from Identity & Access
 	// (#3252). Without it those routes are not mounted.
 	Identity                   *identityoperator.Resource
-	PasskeyService             platformSvc.OperatorPasskeyService
-	MFAService                 platformSvc.OperatorMFAService
-	InvitationService          platformSvc.OperatorInvitationService
+	PasskeyService             identityoperator.OperatorPasskeys
+	MFAService                 identityoperator.OperatorMFA
+	InvitationService          OperatorAccess
 	ProvisioningService        organizationtenancy.Provisioning
 	CaregiverCapabilityService usersSvc.CaregiverCapabilityService
 	AnnouncementsService       communication.Capability
@@ -80,7 +78,7 @@ type ResourceConfig struct {
 	// The operator dashboard reuses it to read + write per-account MFA
 	// state on behalf of school staff. Distinct from MFAService above,
 	// which is the operator's own MFA service (operator login flow).
-	TenantMFAService authSvc.MFAService
+	TenantMFAService identityoperator.AccountMFA
 	TokenAuth        *jwt.TokenAuth
 	DB               *bun.DB
 }

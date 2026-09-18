@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -189,7 +188,7 @@ func TestLogin_ServiceErrorMapping(t *testing.T) {
 		// (settings or credentials lookup hit a non-not-found error) must
 		// surface as 503 so the frontend can retry, and so a settings DB
 		// outage cannot silently downgrade MFA to "off" for this login.
-		{"mfa status unavailable", &identityaccess.AuthenticationError{Op: "check mfa required", Err: authService.ErrMFAStatusUnavailable}, http.StatusServiceUnavailable},
+		{"mfa status unavailable", &identityaccess.AuthenticationError{Op: "check mfa required", Err: identityaccess.ErrMFAStatusUnavailable}, http.StatusServiceUnavailable},
 		{"unknown server error", errors.New("boom"), http.StatusInternalServerError},
 	}
 	for _, tc := range cases {
