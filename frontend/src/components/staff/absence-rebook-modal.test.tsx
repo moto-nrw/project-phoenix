@@ -146,6 +146,31 @@ describe("AbsenceRebookModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("hides every type already used by a mixed selection", () => {
+    render(
+      <AbsenceRebookModal
+        staff={staff}
+        types={[sickLeave]}
+        absences={[
+          { ...fridays[0]!, absence_type: "vacation" },
+          { ...fridays[1]!, absence_type: "training" },
+        ]}
+        onClose={vi.fn()}
+        onSaved={vi.fn().mockResolvedValue(undefined)}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("radio", { name: "Urlaub" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("radio", { name: "Fortbildung" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("radio", { name: /Krank-Urlaubstag/ }),
+    ).toBeInTheDocument();
+  });
+
   it("shows the effects and saves with a reason", async () => {
     mocks.rebookAbsences.mockResolvedValue(rebooking());
     const onSaved = renderModal();

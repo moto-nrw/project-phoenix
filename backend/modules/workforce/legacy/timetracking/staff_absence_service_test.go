@@ -29,6 +29,47 @@ func TestAbsenceRequestsDecodeLosslessCustomIDAndExplicitNull(t *testing.T) {
 	assert.Nil(t, update.AbsenceTypeID)
 }
 
+func TestLoadRebookedAbsencesOnlyMapsMissingRowsToNotFound(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		findErr          error
+		wantErr          string
+		preservesFindErr bool
+	}{
+		{
+			name:    "missing absence",
+			findErr: ErrNotFound,
+			wantErr: "absence not found",
+		},
+		{
+			name:             "repository failure",
+			findErr:          errors.New("database unavailable"),
+			wantErr:          "database unavailable",
+			preservesFindErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc, repo, _ := absSetupService()
+			repo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
+				return nil, tt.findErr
+			}
+
+			_, err := svc.loadRebookedAbsences(context.Background(), 7, []int64{71}, AbsenceTypeOther, nil)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, tt.wantErr)
+			if tt.preservesFindErr {
+				assert.ErrorIs(t, err, tt.findErr)
+			}
+		})
+	}
+}
+
 func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
 	t.Parallel()
 

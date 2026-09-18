@@ -53,27 +53,30 @@ function renderTable(props: {
   sessions?: readonly StaffHistorySession[];
   absences?: readonly StaffAbsenceRow[];
   onBackfillAbsence?: (date: Date) => void;
+  from?: Date;
+  to?: Date;
+  today?: Date;
 }) {
   return render(
     <StaffSessionTable
       staffId="1"
-      from={from}
-      to={to}
+      from={props.from ?? from}
+      to={props.to ?? to}
       sessions={props.sessions ?? []}
       absences={props.absences ?? []}
       schedule={schedule}
       accountStartDate=""
       accountStartDatePending={false}
       accountStartDateError={false}
-      today={today}
+      today={props.today ?? today}
       isAdminView
       onBackfillAbsence={props.onBackfillAbsence}
     />,
   );
 }
 
-function openMondayMenu() {
-  const row = screen.getByText("05.01.").closest("tr");
+function openDayMenu(day: string) {
+  const row = screen.getByText(day).closest("tr");
   expect(row).not.toBeNull();
   fireEvent.click(within(row!).getByRole("button", { name: /^Aktionen für/ }));
 }
@@ -83,7 +86,7 @@ describe("StaffSessionTable Abwesenheit nachtragen", () => {
     const onBackfillAbsence = vi.fn();
     renderTable({ onBackfillAbsence });
 
-    openMondayMenu();
+    openDayMenu("05.01.");
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Abwesenheit nachtragen" }),
     );
@@ -100,7 +103,7 @@ describe("StaffSessionTable Abwesenheit nachtragen", () => {
     const onBackfillAbsence = vi.fn();
     renderTable({ onBackfillAbsence });
 
-    openMondayMenu();
+    openDayMenu("05.01.");
     fireEvent.click(
       screen.getByRole("menuitem", { name: "Krankmeldung nachtragen" }),
     );
@@ -111,7 +114,7 @@ describe("StaffSessionTable Abwesenheit nachtragen", () => {
   it("bietet sie nicht an, wenn der Tag schon Arbeitszeit hat", () => {
     renderTable({ sessions: [mondaySession], onBackfillAbsence: vi.fn() });
 
-    openMondayMenu();
+    openDayMenu("05.01.");
     expect(
       screen.queryByRole("menuitem", { name: "Abwesenheit nachtragen" }),
     ).not.toBeInTheDocument();
@@ -120,7 +123,7 @@ describe("StaffSessionTable Abwesenheit nachtragen", () => {
   it("bietet sie nicht an, wenn der Tag schon eine Abwesenheit hat", () => {
     renderTable({ absences: [mondayHalfSick], onBackfillAbsence: vi.fn() });
 
-    openMondayMenu();
+    openDayMenu("05.01.");
     expect(
       screen.queryByRole("menuitem", { name: "Abwesenheit nachtragen" }),
     ).not.toBeInTheDocument();
@@ -129,12 +132,36 @@ describe("StaffSessionTable Abwesenheit nachtragen", () => {
   it("bietet sie ohne Berechtigung zum Eintragen nicht an", () => {
     renderTable({});
 
-    openMondayMenu();
+    openDayMenu("05.01.");
     expect(
       screen.queryByRole("menuitem", { name: "Abwesenheit nachtragen" }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("menuitem", { name: "Eintrag nachtragen" }),
     ).toBeInTheDocument();
+  });
+
+  it("bietet sie nicht für den aktuellen oder einen zukünftigen Tag an", () => {
+    const sameDay = new Date(2026, 0, 5);
+    renderTable({
+      from: sameDay,
+      to: new Date(2026, 0, 6),
+      today: sameDay,
+      onBackfillAbsence: vi.fn(),
+    });
+
+    openDayMenu("05.01.");
+    expect(
+      screen.queryByRole("menuitem", { name: "Abwesenheit nachtragen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Krankmeldung nachtragen" }),
+    ).not.toBeInTheDocument();
+
+    const futureRow = screen.getByText("06.01.").closest("tr");
+    expect(futureRow).not.toBeNull();
+    expect(
+      within(futureRow!).queryByRole("button", { name: /^Aktionen für/ }),
+    ).not.toBeInTheDocument();
   });
 });

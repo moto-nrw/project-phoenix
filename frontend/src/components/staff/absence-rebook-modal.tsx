@@ -133,7 +133,8 @@ export function AbsenceRebookModal({
   readonly onSaved: () => Promise<void>;
 }) {
   const toast = useToast();
-  // Die Art, die alle gewählten Einträge schon haben, steht nicht zur Wahl.
+  // Eine Art, die einer der gewählten Einträge schon hat, würde die gesamte
+  // atomare Umbuchung sperren. Deshalb steht sie nicht zur Wahl.
   const currentValues = useMemo(
     () =>
       new Set(
@@ -146,8 +147,7 @@ export function AbsenceRebookModal({
   const options = useMemo(
     () =>
       bookingOptions(types).filter(
-        (option) =>
-          currentValues.size !== 1 || !currentValues.has(option.value),
+        (option) => !currentValues.has(option.value),
       ),
     [types, currentValues],
   );

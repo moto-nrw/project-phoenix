@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
@@ -185,7 +186,13 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 	entries := make([]rebookedAbsence, 0, len(ids))
 	for _, id := range ids {
 		absence, err := s.absenceRepo.FindByID(ctx, id)
-		if err != nil || absence == nil || absence.StaffID != staffID {
+		if err != nil {
+			if modelBase.IsNoRows(err) {
+				return nil, fmt.Errorf("absence not found")
+			}
+			return nil, err
+		}
+		if absence == nil || absence.StaffID != staffID {
 			return nil, fmt.Errorf("absence not found")
 		}
 		day := absence.DateStart.Format("02.01.2006")
