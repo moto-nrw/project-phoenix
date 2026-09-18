@@ -378,7 +378,16 @@ function LoginForm() {
         return;
       }
 
-      if (err instanceof MFAApiError && err.status === 401) {
+      // Ausgeschaltetes Konto: das Passwort war korrekt, sonst käme dieser
+      // Code nicht. Ohne eigene Meldung liest sich die Ablehnung wie ein
+      // falsches Passwort, und niemand kommt über "Passwort vergessen"
+      // wieder hinein (#3376).
+      if (err instanceof MFAApiError && err.code === "account_inactive") {
+        setError(
+          "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die OGS-Leitung.",
+        );
+        trackLoginEvent("login_failed", { reason: "account_inactive" });
+      } else if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
         trackLoginEvent("login_failed", { reason: "invalid_credentials" });
       } else {

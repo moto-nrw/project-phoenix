@@ -470,6 +470,49 @@ describe("HomePage (Login)", () => {
     });
   });
 
+  // Backend answers 401 + code "account_inactive" once the password was
+  // accepted but the account is switched off — which is what offboarding
+  // leaves behind. Regression guard for #3376: the generic credentials error
+  // sent a school through password resets that could not help.
+  it("names a switched-off account instead of blaming the password", async () => {
+    global.fetch = mockFetchResponse(401, {
+      status: "error",
+      error: "account is inactive",
+      code: "account_inactive",
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("input-email")).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.change(screen.getByTestId("input-email"), {
+        target: { value: "offboarded@example.com" },
+      });
+      fireEvent.change(screen.getByTestId("input-password"), {
+        target: { value: "correct-password" },
+      });
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /anmelden/i }));
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Ihr Konto ist ausgeschaltet/),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("Ungültige E-Mail oder Passwort"),
+    ).not.toBeInTheDocument();
+    expect(mockTrackTenantEvent).toHaveBeenCalledWith("login_failed", "42", {
+      reason: "account_inactive",
+    });
+  });
+
   describe("guardian-only account at the staff login", () => {
     // Backend answers 403 + code "use_parent_portal" once the password was
     // accepted but the account only exists as a guardian. Regression guard
