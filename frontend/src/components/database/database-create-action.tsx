@@ -11,6 +11,7 @@ interface DatabaseCreateActionProps {
   label: string;
   ariaLabel: string;
   disabled?: boolean;
+  showMobileFab?: boolean;
   onClick: () => void;
 }
 
@@ -22,6 +23,7 @@ export function DatabaseCreateAction({
   label,
   ariaLabel,
   disabled = false,
+  showMobileFab = true,
   onClick,
 }: DatabaseCreateActionProps) {
   // `TenantPage` renders actions inside a blurred content surface. A backdrop
@@ -34,7 +36,7 @@ export function DatabaseCreateAction({
   }, []);
 
   useFloatingFabOffset({
-    active: true,
+    active: showMobileFab,
     mediaQuery: MOBILE_CREATE_FAB_MEDIA_QUERY,
   });
 
@@ -49,7 +51,8 @@ export function DatabaseCreateAction({
       >
         + {label}
       </button>
-      {mounted &&
+      {showMobileFab &&
+        mounted &&
         createPortal(
           <button
             type="button"
