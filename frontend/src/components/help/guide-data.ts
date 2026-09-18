@@ -809,7 +809,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Steuern Sie, wer Zugriff auf ein Kind im Elternportal hat. Sie können weitere Bezugspersonen einladen und bestehende Zugänge wieder trennen – pro Kind sind oft mehrere Konten sinnvoll (zweiter Elternteil, Großeltern).",
         steps: [
           "Im Tab `Erziehungsberechtigte` eines Kindes am Status erkennen, wer bereits ein Konto hat (`Konto aktiv`), eingeladen ist (`Einladung offen`) oder noch keinen Zugang hat (`Kein Konto`).",
-          "Mit `Einladen` neben einer Person eine Einladung zum Elternportal an deren hinterlegte E-Mail-Adresse senden. Die Person legt sich darüber selbst ein Passwort an.",
+          "Das Menü mit den drei Punkten bei der Person öffnen und `Einladen` wählen.",
+          "Bei `Einladung offen` im Menü `Erneut einladen` wählen.",
+          "Bei `Konto aktiv, kein Portalzugriff` im Menü `Zugriff gewähren` wählen.",
+          "Fehlt die E-Mail-Adresse, im Menü `Bearbeiten` wählen und sie eintragen.",
           "Einen bestehenden Zugang über `Bearbeiten` -> `Entfernen` wieder trennen – die Person sieht das Kind danach nicht mehr im Elternportal.",
           "Ob Eltern selbst weitere Bezugspersonen einladen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal` (`Deaktiviert`, `Direkt` oder `Mit Freigabe durch das Team`).",
           "Antwortet eine Person auf die Einladung, geht die Antwort an die `Antwortadresse für Eltern-E-Mails` unter `Einstellungen` -> `Betrieb`. Ohne Eintrag gilt die Kontaktadresse Ihrer Einrichtung.",
@@ -820,12 +823,12 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "green",
         },
         screenshot:
-          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und Einladen-Schaltflächen sowie die Admin-Seite Elternzugänge mit Freigeben- und Ablehnen-Aktionen.",
+          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und dem Menü mit den drei Punkten für Einladen-Aktionen sowie die Admin-Seite Elternzugänge mit Freigeben- und Ablehnen-Aktionen.",
         gallery: [
           {
             image: "/help/screens/erziehungsberechtigte-konten.webp",
             caption:
-              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus (Konto aktiv / Kein Konto) und die Schaltfläche „Einladen“.",
+              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus. Im geöffneten Menü mit den drei Punkten steht je nach Status „Einladen“, „Erneut einladen“ oder „Zugriff gewähren“.",
           },
           {
             image: "/help/screens/konto-anfragen.webp",
