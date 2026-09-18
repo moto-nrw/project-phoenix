@@ -32,8 +32,6 @@ func init() {
 }
 
 func addPickupStatusToStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.18: Adding pickup_status column to users.students...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE users.students
 		ADD COLUMN IF NOT EXISTS pickup_status TEXT;
@@ -54,8 +52,6 @@ func addPickupStatusToStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addPickupStatusToStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.18: Removing pickup_status column from users.students...")
-
 	// Drop index first
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS users.idx_students_pickup_status;

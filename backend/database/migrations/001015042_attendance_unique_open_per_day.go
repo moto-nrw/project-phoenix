@@ -36,8 +36,6 @@ func init() {
 }
 
 func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.42: Closing duplicate open attendance rows then adding partial unique index...")
-
 	// Pre-step: dedupe. CREATE UNIQUE INDEX would fail outright on any DB
 	// where the old race left more than one open row per (student_id, date)
 	// — the very condition this migration exists to make impossible. Pick
@@ -75,7 +73,9 @@ func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed deduping open attendance rows before unique index: %w", err)
 	}
 	if affected, raErr := res.RowsAffected(); raErr == nil && affected > 0 {
-		fmt.Printf("Migration 1.15.42: closed %d duplicate open attendance row(s) before applying unique index\n", affected)
+		migrationLog().InfoContext(ctx, "duplicate open attendance rows closed before unique index",
+			"rows", affected,
+		)
 	}
 
 	// Two concurrent "in" calls (tab double-click, web + kiosk, retry) used to
@@ -95,8 +95,6 @@ func attendanceUniqueOpenPerDayUp(ctx context.Context, db *bun.DB) error {
 }
 
 func attendanceUniqueOpenPerDayDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.42: dropping uniq_attendance_open_per_student_day...")
-
 	_, err := db.NewRaw(`DROP INDEX IF EXISTS active.uniq_attendance_open_per_student_day;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed dropping uniq_attendance_open_per_student_day: %w", err)

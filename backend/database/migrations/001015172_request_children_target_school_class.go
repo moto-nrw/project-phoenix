@@ -32,8 +32,6 @@ func init() {
 }
 
 func requestChildrenTargetSchoolClassUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.172: Adding target_school_class to enrollment.request_children...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_children
 		ADD COLUMN IF NOT EXISTS target_school_class TEXT;
@@ -48,8 +46,6 @@ func requestChildrenTargetSchoolClassUp(ctx context.Context, db *bun.DB) error {
 }
 
 func requestChildrenTargetSchoolClassDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.172: Removing target_school_class from enrollment.request_children...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.request_children
 		DROP COLUMN IF EXISTS target_school_class;

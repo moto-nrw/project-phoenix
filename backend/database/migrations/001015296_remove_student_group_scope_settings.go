@@ -38,8 +38,6 @@ func init() {
 // in the permission catalog — so the registry definitions are gone and any
 // remaining rows would be orphans the settings UI can no longer display.
 func removeStudentGroupScopeSettingsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.296: Removing student group scope settings...")
-
 	keys := []string{
 		"gdpr.student_data_scope",
 		"gdpr.attendance_log_scope",
@@ -67,6 +65,5 @@ func removeStudentGroupScopeSettingsUp(ctx context.Context, db *bun.DB) error {
 // gone, and re-registering the settings is a code-level change this migration
 // cannot restore.
 func removeStudentGroupScopeSettingsDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.296: nothing to restore (setting definitions were removed in code)")
 	return nil
 }

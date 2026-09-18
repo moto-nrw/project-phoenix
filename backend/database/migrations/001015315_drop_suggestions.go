@@ -46,8 +46,6 @@ func init() {
 // (migration 1.15.241). It is session state, not a schema object, so there is
 // nothing to drop — the Go side simply stopped setting it.
 func dropSuggestionsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.315: Dropping suggestions...")
-
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if _, err := tx.ExecContext(ctx, "DROP SCHEMA IF EXISTS suggestions CASCADE"); err != nil {
 			return fmt.Errorf("error dropping schema suggestions: %w", err)
@@ -95,6 +93,5 @@ func dropSuggestionsUp(ctx context.Context, db *bun.DB) error {
 // exists in the pre-migration database backup. Restoring it is an operational
 // task (restore the dump), not something a migration can do.
 func dropSuggestionsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.315 down: no-op — dropped suggestions data can only be restored from a backup")
 	return nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -40,15 +39,13 @@ func init() {
 // from a pre-existing "2a" assignment it never touched. Mirrors
 // education.grade_transition_history on the student side.
 func classTeacherTransitionHistoryUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.279: Class-teacher transition ledger...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -97,15 +94,13 @@ func classTeacherTransitionHistoryUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classTeacherTransitionHistoryDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.279: Dropping education.grade_transition_class_teachers...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

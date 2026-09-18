@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -33,15 +32,13 @@ func init() {
 
 // addGradeTransitionPermissions adds grade transition permissions and grants them to admin role
 func addGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.7: Adding grade transition permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -74,21 +71,18 @@ func addGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting grade transition permissions to admin role: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.7: Successfully added grade transition permissions")
 	return tx.Commit()
 }
 
 // removeGradeTransitionPermissions removes grade transition permissions
 func removeGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.7: Removing grade transition permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -111,6 +105,5 @@ func removeGradeTransitionPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing grade transition permissions: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.7: Successfully removed grade transition permissions")
 	return tx.Commit()
 }

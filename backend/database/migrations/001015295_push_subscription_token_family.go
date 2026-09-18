@@ -22,7 +22,6 @@ func init() {
 }
 
 func pushSubscriptionTokenFamilyUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.295: Binding push subscriptions to token families...")
 	_, err := db.ExecContext(ctx, `
 		ALTER TABLE iot.push_subscriptions
 			ADD COLUMN IF NOT EXISTS token_family_id TEXT NOT NULL DEFAULT '';

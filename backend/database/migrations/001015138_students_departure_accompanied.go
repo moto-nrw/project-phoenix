@@ -32,8 +32,6 @@ func init() {
 }
 
 func studentsDepartureAccompaniedUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.138: Allowing 'accompanied' departure mode + adding departure_companion_note...")
-
 	// Widen the exclusive per-day validator to accept 'accompanied'. Replacing
 	// the IMMUTABLE function is enough: the CHECK constraints reference it by
 	// name and re-validate only on future writes, and widening the accepted set
@@ -96,8 +94,6 @@ func studentsDepartureAccompaniedUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsDepartureAccompaniedDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.138: Removing 'accompanied' departure mode + departure_companion_note...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			DROP COLUMN IF EXISTS departure_companion_note;

@@ -26,7 +26,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.337: Granting guardian invitation worker permissions to phoenix_auth...")
 			if _, err := db.ExecContext(ctx, `
 				GRANT SELECT ON users.students_guardians TO phoenix_auth;
 				GRANT SELECT, UPDATE ON auth.guardian_invitations TO phoenix_auth;
@@ -36,7 +35,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.337: Revoking guardian invitation worker permissions from phoenix_auth...")
 			if _, err := db.ExecContext(ctx, `
 				REVOKE SELECT ON users.students_guardians FROM phoenix_auth;
 				REVOKE SELECT, UPDATE ON auth.guardian_invitations FROM phoenix_auth;

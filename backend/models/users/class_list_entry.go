@@ -1,9 +1,6 @@
 package users
 
 import (
-	"errors"
-	"strings"
-
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
@@ -16,12 +13,10 @@ import (
 // portal or any planning view. SchoolClass stores the display form as
 // entered; comparisons go through schoolclass.Normalize like every other
 // class string (see models/education.ClassTeacher).
-// ClassListEntryUniqueIndexName is the unique index behind the "one child
-// once per class" rule (tenant, LOWER(BTRIM(first/last/class))). The service
-// maps a 23505 on it to ErrClassListEntryDuplicate so a concurrent create
-// loses with the documented duplicate response instead of a 500.
-const ClassListEntryUniqueIndexName = "uniq_class_list_entries_name_class"
-
+//
+// The rows belong to the School Membership owner (#2668): this struct is the
+// bun mapping test fixtures insert through, nothing more. Validation, the
+// audit display form and the unique-index contract live with that owner.
 type ClassListEntry struct {
 	base.Model `bun:"schema:users,table:class_list_entries"`
 	base.TenantModel
@@ -31,24 +26,4 @@ type ClassListEntry struct {
 	// CreatedBy is the creating account ID; nil for rows created by system
 	// paths without an authenticated account.
 	CreatedBy *int64 `bun:"created_by" json:"created_by,omitempty"`
-}
-
-// Validate ensures class list entry data is valid.
-func (e *ClassListEntry) Validate() error {
-	if strings.TrimSpace(e.FirstName) == "" {
-		return errors.New("first name is required")
-	}
-	if strings.TrimSpace(e.LastName) == "" {
-		return errors.New("last name is required")
-	}
-	if strings.TrimSpace(e.SchoolClass) == "" {
-		return errors.New("school class is required")
-	}
-	return nil
-}
-
-// DisplayValue renders the audit-trail representation of the entry:
-// "Vorname Nachname (Klasse)".
-func (e *ClassListEntry) DisplayValue() string {
-	return strings.TrimSpace(e.FirstName) + " " + strings.TrimSpace(e.LastName) + " (" + strings.TrimSpace(e.SchoolClass) + ")"
 }

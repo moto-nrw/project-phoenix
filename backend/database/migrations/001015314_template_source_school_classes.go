@@ -33,8 +33,6 @@ func init() {
 }
 
 func templateSourceSchoolClassesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.314: Adding activities.groups.source_school_classes...")
-
 	// OGS am Berg runs ONE Betreuungsangebot "Randstunde" and six Regeltermine,
 	// one per Schulklasse (1a…2c), each on its own weekdays (#2482). The
 	// existing Jahrgang filter cannot express that — "Jahrgang 1" would put 1a,
@@ -98,7 +96,6 @@ func templateSourceSchoolClassesUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed extending offering-source check constraint: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.314: Completed successfully")
 	return nil
 }
 
@@ -111,8 +108,6 @@ func templateSourceSchoolClassesDown(ctx context.Context, db *bun.DB) error {
 }
 
 func templateSourceSchoolClassesDownAt(ctx context.Context, db *bun.DB, today string) error {
-	fmt.Println("Rolling back migration 1.15.314: Dropping activities.groups.source_school_classes...")
-
 	// Class-filtered templates lose their filter on rollback: the pre-1.15.314
 	// shape cannot express it, and keeping the column while restoring the old
 	// CHECK is not an option either. Widening them to "all children of the

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addAuditDataAccessLogMetadata(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.101: Adding metadata column to audit.data_access_log...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -59,21 +56,18 @@ func addAuditDataAccessLogMetadata(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error adding audit.data_access_log.metadata: %w", err)
 	}
-	fmt.Println("  ✓ audit.data_access_log.metadata — column added")
 
 	return tx.Commit()
 }
 
 func dropAuditDataAccessLogMetadata(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.101: Dropping audit.data_access_log.metadata...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

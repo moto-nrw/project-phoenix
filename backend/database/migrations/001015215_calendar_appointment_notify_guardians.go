@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.215: Adding notify_guardians to calendar.appointments...")
 			// DEFAULT FALSE so existing appointments are backfilled OPTED OUT: the
 			// send_email preference was never persisted before this column, so there
 			// is no evidence a legacy appointment was meant to mail guardians. Left
@@ -39,7 +38,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.215: Dropping calendar.appointments.notify_guardians...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointments DROP COLUMN IF EXISTS notify_guardians;
 			`).Exec(ctx); err != nil {

@@ -46,6 +46,12 @@ var queryBudgets = map[string]queryBudget{
 	"api.students.requests.schema_introspection": {max: 0, exact: true},
 	// api/students — #2098: each planning-time bulk load runs once per list request.
 	"api.students.list.planning_times.per_table": {max: 1, exact: true},
+	// api/class-list-entries — GET the class-list-only entries (#2382), 3
+	// entries each with a namesake student. The "Zuordnen" hint is resolved
+	// per entry (the entry set is a hand-maintained handful per school), so
+	// this budget is the fixture-sized total: a third statement per entry, or
+	// a constant read moved inside the loop, fails the test.
+	"api.class_list_entries.list": {max: 8},
 	// api/students — GET /students list, 10 students, page_size=50.
 	"api.students.list": {max: 31},
 	// api/students — #2056: aggregated OGS group view, 10 students.

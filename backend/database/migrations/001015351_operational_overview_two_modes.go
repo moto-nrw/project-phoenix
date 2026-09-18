@@ -3,7 +3,6 @@ package migrations
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -22,11 +21,6 @@ func init() {
 }
 
 func operationalOverviewTwoModesUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting",
-		slog.String("migration", operationalOverviewTwoModesVersion),
-		slog.String("detail", "preserving operational overview scopes for existing schools"),
-	)
-
 	if _, err := db.NewRaw(`
 		WITH desired AS (
 			SELECT
@@ -63,11 +57,6 @@ func operationalOverviewTwoModesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func operationalOverviewTwoModesDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rollback restores untouched admin scopes",
-		slog.String("migration", operationalOverviewTwoModesVersion),
-		slog.String("detail", "restoring admins scopes without later setting changes"),
-	)
-
 	if _, err := db.NewRaw(`
 		WITH migration_changes AS (
 			SELECT id, tenant_id

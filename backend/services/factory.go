@@ -227,7 +227,6 @@ type Factory struct {
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
 	Students             users.StudentService
-	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
@@ -605,6 +604,9 @@ func newFactory(
 		return nil, err
 	}
 	repos.RouteAuditWrites(auditCommand)
+	if err := bindClassListEntryAdministration(membership, persons, auditCommand); err != nil {
+		return nil, err
+	}
 	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
@@ -2257,7 +2259,7 @@ func newFactory(
 		PersonRepo:             repos.Person,
 		EducationGroupRepo:     repos.Group,
 		StudentStatusDayRepo:   repos.StudentStatusDay,
-		ClassListEntryRepo:     repos.ClassListEntry,
+		ClassListEntries:       NewClassListEntryRosterReader(membership),
 		PickupScheduleSvc:      pickupScheduleService,
 		ArrivalScheduleSvc:     arrivalScheduleService,
 		ClassArrivalExceptions: arrivalScheduleService,
@@ -3087,7 +3089,6 @@ func newFactory(
 		Announcement:         communicationCapability,
 		Schools:              organizations,
 		Students:             studentService,
-		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,

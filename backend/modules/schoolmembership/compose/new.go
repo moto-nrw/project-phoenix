@@ -226,9 +226,7 @@ func (e engine) FindClassListEntry(ctx context.Context, id int64, lock string) (
 }
 
 func (e engine) ListClassListEntries(ctx context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, error) {
-	values, err := e.service.ListClassListEntries(ctx, domain.ClassListEntryFilter{
-		IDs: filter.IDs, FirstName: filter.FirstName, LastName: filter.LastName, SchoolClass: filter.SchoolClass,
-	})
+	values, err := e.service.ListClassListEntries(ctx, classListEntryFilterToDomain(filter))
 	if err != nil {
 		return nil, mapError(err)
 	}
@@ -336,9 +334,13 @@ func mapError(err error) error {
 	case errors.Is(err, domain.ErrClassListEntryNotFound):
 		return schoolmembership.ErrClassListEntryNotFound
 	case errors.Is(err, domain.ErrClassListEntryDuplicate):
-		// The cause stays in the chain on purpose: the legacy repository
-		// contract classifies the collision by the unique index name.
-		return fmt.Errorf("%w: %w", schoolmembership.ErrClassListEntryDuplicate, err)
+		return schoolmembership.ErrClassListEntryDuplicate
+	case errors.Is(err, domain.ErrClassListEntryStudentExists):
+		return schoolmembership.ErrClassListEntryStudentExists
+	case errors.Is(err, domain.ErrClassListEntryStudentNotFound):
+		return schoolmembership.ErrClassListEntryStudentNotFound
+	case errors.Is(err, domain.ErrClassListEntryAssignMismatch):
+		return schoolmembership.ErrClassListEntryAssignMismatch
 	case errors.Is(err, domain.ErrClassAssignmentNotFound):
 		return schoolmembership.ErrClassAssignmentNotFound
 	case errors.Is(err, domain.ErrGroupAssignmentNotFound):

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -70,7 +69,6 @@ func init() {
 // unique key carries tenant_id and one person keeps a separate start page per
 // school.
 func homeLayoutsUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", "migration", homeLayoutsVersion)
 	return ensureHomeLayouts(ctx, db)
 }
 
@@ -81,11 +79,7 @@ func ensureHomeLayouts(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if rollbackErr := tx.Rollback(); rollbackErr != nil && rollbackErr != sql.ErrTxDone {
-			slog.Warn(
-				"migration rollback failed",
-				"migration", homeLayoutsVersion,
-				"error", rollbackErr,
-			)
+			logRollbackFailure(ctx, rollbackErr)
 		}
 	}()
 
@@ -164,7 +158,6 @@ func ensureHomeLayouts(ctx context.Context, db *bun.DB) error {
 // homeLayoutsDown drops both tables. The rows are a display preference the
 // person can re-enter in a dialog, and nothing else references them.
 func homeLayoutsDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rollback starting", "migration", homeLayoutsVersion)
 	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS config.home_layouts;
 		DROP TABLE IF EXISTS config.home_block_policies;

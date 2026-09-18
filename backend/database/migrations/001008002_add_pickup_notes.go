@@ -34,8 +34,6 @@ func init() {
 }
 
 func addPickupNotesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.8.2: Adding student pickup notes table and making exception reason nullable...")
-
 	// Step 1: Make reason nullable on exceptions table
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.student_pickup_exceptions ALTER COLUMN reason DROP NOT NULL;
@@ -90,8 +88,6 @@ func addPickupNotesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func addPickupNotesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.8.2: Dropping student pickup notes table and restoring reason NOT NULL...")
-
 	// Drop notes table
 	_, err := db.NewRaw(`
 		DROP TABLE IF EXISTS schedule.student_pickup_notes CASCADE;

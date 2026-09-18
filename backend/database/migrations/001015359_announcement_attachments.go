@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -56,18 +55,13 @@ func init() {
 // die verunglückte Anfrage kann eine Mitteilung nennen, die inzwischen
 // gelöscht wurde, und die verwaisten Bytes müssen trotzdem weg.
 func announcementAttachmentsUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", "migration", announcementAttachmentsVersion)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Warn("migration rollback failed",
-				"migration", announcementAttachmentsVersion,
-				"error", err,
-			)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -213,23 +207,17 @@ func announcementAttachmentsUp(ctx context.Context, db *bun.DB) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit announcement attachments migration: %w", err)
 	}
-	slog.Info("migration finished", "migration", announcementAttachmentsVersion)
 	return nil
 }
 
 func announcementAttachmentsDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rollback starting", "migration", announcementAttachmentsVersion)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Warn("migration rollback failed",
-				"migration", announcementAttachmentsVersion,
-				"error", err,
-			)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -271,6 +259,5 @@ func announcementAttachmentsDown(ctx context.Context, db *bun.DB) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit announcement attachments rollback: %w", err)
 	}
-	slog.Info("migration rollback finished", "migration", announcementAttachmentsVersion)
 	return nil
 }

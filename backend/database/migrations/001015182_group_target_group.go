@@ -32,8 +32,6 @@ func init() {
 }
 
 func groupTargetGroupUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.182: Adding target-group columns to activities.groups...")
-
 	// target_group_type is TEXT+CHECK rather than a DB enum, matching the
 	// established convention in this domain (activities.groups.type,
 	// schedule.activity_instances.status, schedule.activity_exceptions.
@@ -71,13 +69,10 @@ func groupTargetGroupUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating activities.groups target_group_type index: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.182: Completed successfully")
 	return nil
 }
 
 func groupTargetGroupDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.182: Dropping target-group columns from activities.groups...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_activities_groups_target_group;
 

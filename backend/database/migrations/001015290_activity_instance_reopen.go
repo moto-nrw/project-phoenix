@@ -19,7 +19,6 @@ func init() {
 }
 
 func activityInstanceReopenUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.290: Adding activity completion recovery metadata (#2266)...")
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
 			ADD COLUMN IF NOT EXISTS completed_by BIGINT REFERENCES auth.accounts(id) ON DELETE SET NULL,

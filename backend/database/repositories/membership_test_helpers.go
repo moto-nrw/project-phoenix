@@ -13,16 +13,18 @@ import (
 )
 
 type MembershipTestRepositories struct {
-	Person         usersModels.PersonRepository
-	Account        authModels.AccountRepository
-	AccountTenant  authModels.AccountTenantRepository
-	Staff          usersModels.StaffRepository
-	Teacher        usersModels.TeacherRepository
-	Guest          usersModels.GuestRepository
-	Group          educationModels.GroupRepository
-	GroupTeacher   educationModels.GroupTeacherRepository
-	ClassTeacher   educationModels.ClassTeacherRepository
-	ClassListEntry usersModels.ClassListEntryRepository
+	Person        usersModels.PersonRepository
+	Account       authModels.AccountRepository
+	AccountTenant authModels.AccountTenantRepository
+	Staff         usersModels.StaffRepository
+	Teacher       usersModels.TeacherRepository
+	Guest         usersModels.GuestRepository
+	Group         educationModels.GroupRepository
+	GroupTeacher  educationModels.GroupTeacherRepository
+	ClassTeacher  educationModels.ClassTeacherRepository
+	// Membership is the owner capability itself; the class-list entries
+	// (#2382) are read and written through it.
+	Membership schoolmembership.Capability
 }
 
 // NewMembershipTestRepositories constructs only membership and its identity
@@ -72,6 +74,6 @@ func NewMembershipTestRepositories(db *bun.DB) (MembershipTestRepositories, erro
 		Person: repos.Person, Account: repos.Account, AccountTenant: repos.AccountTenant,
 		Staff: repos.Staff, Teacher: repos.Teacher, Guest: repos.Guest,
 		Group: repos.Group, GroupTeacher: repos.GroupTeacher, ClassTeacher: repos.ClassTeacher,
-		ClassListEntry: repos.ClassListEntry,
+		Membership: membership,
 	}, nil
 }

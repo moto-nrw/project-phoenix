@@ -51,8 +51,6 @@ func init() {
 // only describes how the school organises children, and a school that later
 // switches to open care must open the operational view deliberately.
 func operationalOverviewScopeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.322: Deriving operations.operational_overview_scope from group mode and admin overview...")
-
 	if _, err := db.NewRaw(`
 		WITH derived AS (
 			SELECT
@@ -107,8 +105,6 @@ func operationalOverviewScopeUp(ctx context.Context, db *bun.DB) error {
 // their access came from operations.group_mode, which this migration never
 // changed, so an old binary reads open care again and behaves as before.
 func operationalOverviewScopeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.322: restoring operations.admin_supervision_overview...")
-
 	if _, err := db.NewRaw(`
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)
 		SELECT tenant_id, ?, 'true'::jsonb

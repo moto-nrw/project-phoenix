@@ -30,8 +30,6 @@ func init() {
 }
 
 func studentGuardianRolesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.137: Adding guardian role presets to users.students_guardians...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students_guardians
 		ADD COLUMN IF NOT EXISTS guardian_role TEXT NOT NULL DEFAULT 'custom';
@@ -71,7 +69,6 @@ func studentGuardianRolesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentGuardianRolesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.137: Removing guardian role presets from users.students_guardians...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students_guardians
 		DROP COLUMN IF EXISTS guardian_role;

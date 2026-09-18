@@ -23,8 +23,6 @@ func init() {
 }
 
 func activityInstanceIdempotencyUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.339: Adding activity-instance idempotency keys...")
-
 	_, err := db.NewRaw(`
 		ALTER TABLE schedule.activity_instances
 			ADD COLUMN IF NOT EXISTS idempotency_key TEXT,
@@ -46,8 +44,6 @@ func activityInstanceIdempotencyUp(ctx context.Context, db *bun.DB) error {
 }
 
 func activityInstanceIdempotencyDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.339: Removing activity-instance idempotency keys...")
-
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS schedule.uq_activity_instances_tenant_idempotency;
 		ALTER TABLE schedule.activity_instances

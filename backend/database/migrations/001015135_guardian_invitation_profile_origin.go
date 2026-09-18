@@ -30,8 +30,6 @@ func init() {
 }
 
 func guardianInvitationProfileOriginUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.135: Tracking invite-created guardian profiles...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations
 			ADD COLUMN IF NOT EXISTS profile_created_for_invitation BOOLEAN NOT NULL DEFAULT FALSE;
@@ -42,8 +40,6 @@ func guardianInvitationProfileOriginUp(ctx context.Context, db *bun.DB) error {
 }
 
 func guardianInvitationProfileOriginDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.135: dropping invite-created profile marker...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE auth.guardian_invitations
 			DROP COLUMN IF EXISTS profile_created_for_invitation;

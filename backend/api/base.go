@@ -1366,7 +1366,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
-		ClassListEntryService:        api.Services.ClassListEntries,
+		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
@@ -1547,7 +1547,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Caller:            api.Services.UserContext,
 		ArrivalExceptions: api.Services.ClassDayArrivalExceptions,
 	}), db, logger.With("handler", "class-day"))
-	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = newTimeTrackingResource(api.Services, db)

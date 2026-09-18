@@ -290,11 +290,12 @@ type ReportServiceConfig struct {
 	// (#2962) the class day view shows as one line on top (#2970).
 	// Optional: nil serves the sheet without that line.
 	ClassArrivalExceptions ClassArrivalExceptionReader
-	// ClassListEntryRepo supplies the class-list-only entries (#2382) the
-	// class roster and the class day view append to the Klassenverband.
+	// ClassListEntries supplies the class-list-only entries (#2382) the
+	// class roster and the class day view append to the Klassenverband,
+	// read through their School Membership owner.
 	// Optional: nil (older tests, report paths that never show class lists)
 	// simply serves rosters without list entries.
-	ClassListEntryRepo userModels.ClassListEntryRepository
+	ClassListEntries ClassListEntryReader
 	// CareDaySvc owns the "kommt heute / kommt nicht" decision (timeless
 	// exception on EITHER leg cancels the day). The class day view consumes
 	// it instead of re-deriving the precedence from raw schedule entries —
@@ -308,6 +309,22 @@ type ReportServiceConfig struct {
 	Settings          RequestSettingsResolver
 	CareParticipation CareParticipationResolver
 	Now               func() time.Time
+}
+
+// ClassListEntry is one class-list-only child (#2382) as the roster reads
+// it: a name and a free-text class, nothing else exists.
+type ClassListEntry struct {
+	ID          int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+// ClassListEntryReader hands over the class-list-only entries of one class,
+// or of every class when schoolClass is empty. The root binds it to the
+// School Membership capability that owns them.
+type ClassListEntryReader interface {
+	ListClassListEntries(ctx context.Context, schoolClass string) ([]ClassListEntry, error)
 }
 
 // CareParticipationResolver is the dated operational-participation seam owned
@@ -635,24 +652,18 @@ func (s *reportService) appendClassListEntries(ctx context.Context, filters Clas
 // and renders them as roster rows. A nil repo (feature not wired) yields no
 // rows.
 func (s *reportService) classListEntryRows(ctx context.Context, schoolClass string, allClasses bool) ([]ClassRosterRow, error) {
-	if s.ClassListEntryRepo == nil {
+	if s.ClassListEntries == nil {
 		return nil, nil
 	}
-	var entries []*userModels.ClassListEntry
-	var err error
 	if allClasses {
-		entries, err = s.ClassListEntryRepo.List(ctx, nil)
-	} else {
-		entries, err = s.ClassListEntryRepo.FindBySchoolClass(ctx, schoolClass)
+		schoolClass = ""
 	}
+	entries, err := s.ClassListEntries.ListClassListEntries(ctx, schoolClass)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list class list entries: %w", err)
 	}
 	rows := make([]ClassRosterRow, 0, len(entries))
 	for _, entry := range entries {
-		if entry == nil {
-			continue
-		}
 		rows = append(rows, ClassRosterRow{
 			ListEntry:         true,
 			ListEntryID:       entry.ID,

@@ -854,40 +854,6 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 	assert.NotContains(t, afterWindow, activated.ID, "the override reaches today, not a window that ended before it")
 }
 
-func TestStudentRepository_FindByNameAndClass(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
-	ctx := testpkg.Ctx(t)
-
-	t.Run("finds by name and class (case-insensitive)", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "John", "Doe", "3A")
-
-		// Search with different case
-		students, err := repo.FindByNameAndClass(ctx, "JOHN", "DOE", "3a")
-		require.NoError(t, err)
-		assert.Len(t, students, 1)
-		assert.Equal(t, student.ID, students[0].ID)
-	})
-
-	t.Run("returns empty for non-matching criteria", func(t *testing.T) {
-		students, err := repo.FindByNameAndClass(ctx, "NonExistent", "Person", "99z")
-		require.NoError(t, err)
-		assert.Empty(t, students)
-	})
-
-	t.Run("does not match partial name", func(t *testing.T) {
-		testpkg.CreateTestStudent(t, db, "Jennifer", "Smith", "4b")
-
-		// Search with partial first name should not match
-		students, err := repo.FindByNameAndClass(ctx, "Jenn", "Smith", "4b")
-		require.NoError(t, err)
-		assert.Empty(t, students)
-	})
-}
-
 // NOTE: FindByGuardianEmail and FindByGuardianPhone exist in the
 // implementation but are not exposed in the StudentRepository interface, so they
 // cannot be tested through the interface.

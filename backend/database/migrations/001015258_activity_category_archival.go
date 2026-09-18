@@ -23,8 +23,6 @@ func init() {
 }
 
 func activityCategoryArchivalUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.258: Adding archived_at to activities.categories...")
-
 	if _, err := db.NewRaw(`
 				ALTER TABLE activities.categories
 				ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
@@ -130,8 +128,6 @@ func activityCategoryArchivalUp(ctx context.Context, db *bun.DB) error {
 }
 
 func activityCategoryArchivalDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.258...")
-
 	// The old schema cannot represent two categories with the same name.
 	// Preserve every category and its references by giving only conflicting
 	// archived rows an explicit rollback suffix before restoring the

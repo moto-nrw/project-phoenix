@@ -26,7 +26,6 @@ func init() {
 // in force. The interval is deliberately nullable at either end so existing
 // enrollment selections retain their open-ended semantics.
 func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.247: Adding validity intervals to request child offerings...")
 	if _, err := db.NewRaw(`
 		CREATE EXTENSION IF NOT EXISTS btree_gist;
 
@@ -75,7 +74,6 @@ func requestChildOfferingValidityUp(ctx context.Context, db *bun.DB) error {
 }
 
 func requestChildOfferingValidityDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.247: Removing validity intervals from request child offerings...")
 	if _, err := db.NewRaw(`
 		-- Expired-only intervals must stay absent in the legacy model: retaining
 		-- their last row would resurrect a removed booking on rollback.

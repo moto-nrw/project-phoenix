@@ -1065,26 +1065,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/class_list_entry_membership_test.go",
-      "declaration": "TestClassListEntryAdapter_ClassLookupsMatchCaseInsensitivelyAndOrderByName",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        53
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/class_list_entry_membership_test.go",
-      "declaration": "TestClassListEntryAdapter_KeepsTheLegacyErrorContracts",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        23
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/education/class_teacher_repository_test.go",
       "declaration": "TestClassTeacherRepository_Create",
       "target": "database/repositories.NewFactory",
@@ -2719,16 +2699,6 @@
     },
     {
       "scope": "test",
-      "file": "database/repositories/users/student_alumni_filter_test.go",
-      "declaration": "TestStudentRepository_FindByNameAndClassExcludesAlumni",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        172
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "database/repositories/users/student_care_end_filter_test.go",
       "declaration": "TestStudentRepository_EndedCareExcludedFromRosterReads",
       "target": "database/repositories.NewFactory",
@@ -3362,17 +3332,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        1015
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_FindByNameAndClass",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        862
+        981
       ],
       "tables": []
     },
@@ -3448,7 +3408,7 @@
       "declaration": "TestStudentRepository_LockPhotoFeature",
       "target": "database/repositories.NewFactory",
       "lines": [
-        966
+        932
       ],
       "tables": []
     },
@@ -3458,7 +3418,7 @@
       "declaration": "TestStudentRepository_PurgeAllPhotos",
       "target": "database/repositories.NewFactory",
       "lines": [
-        911
+        877
       ],
       "tables": []
     },
@@ -5765,16 +5725,6 @@
     },
     {
       "scope": "test",
-      "file": "services/users/class_list_entry_service_test.go",
-      "declaration": "setupClassListEntryService",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        21
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
       "file": "services/users/guardian_service_test.go",
       "declaration": "TestGetStudentGuardians_AccountHolderPendingUpgradeApproval",
       "target": "database/repositories.NewFactory",
@@ -6290,28 +6240,6 @@
       "target": "database/repositories.NewFactory",
       "lines": [
         63
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "test/class_list_entry_isolation_test.go",
-      "declaration": "TestClassListEntryRepositoryCannotSmuggleAForeignTenant",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        124
-      ],
-      "tables": [
-        "users.class_list_entries"
-      ]
-    },
-    {
-      "scope": "test",
-      "file": "test/class_list_entry_isolation_test.go",
-      "declaration": "TestClassListEntryTenantIsolation",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        48
       ],
       "tables": []
     },
@@ -22775,12 +22703,12 @@
         },
         {
           "file": "services/factory.go",
-          "line": 455,
+          "line": 454,
           "declaration": "NewFactoryWithModules"
         },
         {
           "file": "services/factory.go",
-          "line": 505,
+          "line": 504,
           "declaration": "newFactory"
         },
         {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -34,15 +33,13 @@ func init() {
 }
 
 func parentAnnouncementRemindersUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.386: Adding scheduled reminder columns to parent announcements...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Error("rollback parent announcement reminders migration", "error", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -112,20 +109,17 @@ func parentAnnouncementRemindersUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error creating reminder index on users.parent_announcements: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.386: Successfully added scheduled reminder columns to parent announcements")
 	return tx.Commit()
 }
 
 func parentAnnouncementRemindersDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.386: Dropping scheduled reminder columns from parent announcements...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Error("rollback parent announcement reminders migration", "error", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

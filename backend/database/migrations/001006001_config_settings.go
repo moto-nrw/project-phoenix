@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createConfigSettingsTable creates the config.settings table
 func createConfigSettingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.1: Creating config.settings table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createConfigSettingsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -112,8 +109,6 @@ func createConfigSettingsTable(ctx context.Context, db *bun.DB) error {
 
 // dropConfigSettingsTable drops the config.settings table
 func dropConfigSettingsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.1: Removing config.settings table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -121,7 +116,7 @@ func dropConfigSettingsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

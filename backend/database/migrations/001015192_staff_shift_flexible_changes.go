@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.192: Adding flexible-change columns to schedule.staff_shifts...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shifts
 				ADD COLUMN IF NOT EXISTS cancelled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -87,7 +86,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.192...")
 			// The partial index this rollback replaces only forbade duplicate
 			// start_times among NON-cancelled rows, so normal feature use can leave
 			// a cancelled shift and an active shift (or several cancelled rows)

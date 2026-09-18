@@ -32,8 +32,6 @@ func init() {
 }
 
 func phaseAudienceExistingStudentsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.231: Adding existing_students to the enrollment.phases audience CHECK...")
-
 	// Compatibility for databases that ran the push-subscriptions feature
 	// branch while it still used version 1.15.230. Bun keys applied migrations
 	// only by that numeric prefix, so such a database skips the canonical
@@ -61,8 +59,6 @@ func phaseAudienceExistingStudentsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func phaseAudienceExistingStudentsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.231: Removing existing_students from the enrollment.phases audience CHECK...")
-
 	// Fold any existing_students phases back to 'open' so the narrower
 	// CHECK below can be re-created without a constraint violation.
 	_, err := db.NewRaw(`

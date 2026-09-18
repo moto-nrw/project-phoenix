@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -51,15 +50,13 @@ func init() {
 //     entered_remaining_days documents what the admin actually typed
 //     (Resturlaub zum Stichtag) from which taken_before was derived.
 func openingBalancesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.261: Opening balances for Stundenkonto and vacation...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -130,15 +127,13 @@ func openingBalancesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func openingBalancesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.261: Removing opening balance structures...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.144: Creating audit.guardian_changes...")
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS audit.guardian_changes (
 					id BIGSERIAL PRIMARY KEY,
@@ -78,7 +77,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.144: Dropping audit.guardian_changes...")
 			if _, err := db.NewRaw(`
 				DROP TABLE IF EXISTS audit.guardian_changes CASCADE;
 			`).Exec(ctx); err != nil {

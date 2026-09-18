@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addSuggestionStatuses(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.11.2: Adding new suggestion statuses...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -63,20 +60,17 @@ func addSuggestionStatuses(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding new status constraint: %w", err)
 	}
 
-	fmt.Println("Migration 1.11.2: Successfully added new suggestion statuses")
 	return tx.Commit()
 }
 
 func removeSuggestionStatuses(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.11.2: Reverting suggestion statuses...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -109,6 +103,5 @@ func removeSuggestionStatuses(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error restoring original status constraint: %w", err)
 	}
 
-	fmt.Println("Migration 1.11.2: Successfully reverted suggestion statuses")
 	return tx.Commit()
 }

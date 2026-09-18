@@ -32,7 +32,6 @@ func init() {
 // pending row that already carried an empty weekdays array predates this
 // migration and stays untouched.
 func withdrawParentArrivalRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.301: Stripping arrival times from pending parent care requests...")
 	_, err := db.NewRaw(`
 		UPDATE schedule.care_schedule_change_requests AS req
 		SET payload = jsonb_set(req.payload, '{weekdays}', stripped.weekdays),
@@ -67,6 +66,5 @@ func withdrawParentArrivalRequestsUp(ctx context.Context, db *bun.DB) error {
 // The stripped arrival values are gone; restoring an arrival-only request to
 // pending would recreate an empty, invalid payload. Deliberate no-op.
 func withdrawParentArrivalRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.301: nothing to restore (arrival values were stripped irreversibly)")
 	return nil
 }

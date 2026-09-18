@@ -28,8 +28,6 @@ func init() {
 }
 
 func repairSchulhofIsSystemBackfillUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.169: Repairing is_system backfill for staff-provisioned Schulhof activities...")
-
 	// 1.15.168 flagged activity groups only where created_by IS NULL, but
 	// created_by does not cleanly separate system from staff rows for
 	// Schulhof: ToggleSupervision calls EnsureInfrastructure(ctx, staffID),
@@ -67,6 +65,5 @@ func repairSchulhofIsSystemBackfillDown(ctx context.Context, db *bun.DB) error {
 	// Intentionally a no-op: the repaired rows are indistinguishable from
 	// rows 1.15.168 flagged, and the 1.15.168 down migration drops the
 	// is_system columns entirely.
-	fmt.Println("Rolling back migration 1.15.169 (no-op)...")
 	return nil
 }

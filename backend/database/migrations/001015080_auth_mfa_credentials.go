@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func authMFACredentialsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.80: Creating auth.mfa_credentials table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in mfa_credentials migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -76,15 +73,13 @@ func authMFACredentialsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func authMFACredentialsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.80: Dropping auth.mfa_credentials...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback in mfa_credentials down migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

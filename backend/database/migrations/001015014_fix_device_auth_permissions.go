@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.14: Granting phoenix_auth access to iot.devices...")
-
 			// Device authentication (auth/device/device_auth.go) runs BEFORE any
 			// tenant transaction middleware — it queries iot.devices by API key to
 			// identify the device (and thus the tenant). phoenix_auth is NOINHERIT,
@@ -67,12 +65,9 @@ func init() {
 				return fmt.Errorf("create RLS policy device_auth_update: %w", err)
 			}
 
-			fmt.Println("Migration 1.15.14: Done")
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.14: Revoking phoenix_auth IoT grants...")
-
 			_, err := db.ExecContext(ctx, `
 				DROP POLICY IF EXISTS device_auth_update ON iot.devices;
 				DROP POLICY IF EXISTS device_auth_select ON iot.devices;

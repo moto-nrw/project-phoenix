@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createSuggestionsPerformanceIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.15: Adding suggestions performance indexes...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -80,20 +77,17 @@ func createSuggestionsPerformanceIndexes(ctx context.Context, db *bun.DB) error 
 	// post_reads already has PRIMARY KEY (account_id, post_id, reader_type)
 	// which covers the NOT EXISTS probe — no additional index needed.
 
-	fmt.Println("Migration 1.15.15: Successfully added suggestions performance indexes")
 	return tx.Commit()
 }
 
 func dropSuggestionsPerformanceIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.15: Removing suggestions performance indexes...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -106,6 +100,5 @@ func dropSuggestionsPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping suggestions performance indexes: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.15: Successfully removed suggestions performance indexes")
 	return tx.Commit()
 }

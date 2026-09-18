@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.30: Creating audit.data_access_log table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -77,7 +74,6 @@ func createAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error creating audit.data_access_log: %w", err)
 	}
-	fmt.Println("  ✓ audit.data_access_log — table, indexes, RLS created")
 
 	_, err = tx.ExecContext(ctx, `
 		GRANT INSERT, SELECT ON audit.data_access_log TO phoenix_tenant;
@@ -86,21 +82,18 @@ func createAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("error granting permissions on audit.data_access_log: %w", err)
 	}
-	fmt.Println("  ✓ audit.data_access_log — GRANT INSERT, SELECT + USAGE ON SEQUENCE to phoenix_tenant")
 
 	return tx.Commit()
 }
 
 func dropAuditDataAccessLogTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.29: Dropping audit.data_access_log...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
