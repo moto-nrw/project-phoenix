@@ -55,7 +55,7 @@ func TestPickupExtensionInstanceLockRejectsLifecycleChange(t *testing.T) {
 			}, 0, &domain.OperationStats{})
 
 			require.ErrorIs(t, err, domain.ErrPickupExtensionBlockGone)
-			assert.Equal(t, int64(7), store.lockedID)
+			assert.Equal(t, store.instance.ID, store.lockedID)
 			assert.True(t, store.exclusive)
 		})
 	}
