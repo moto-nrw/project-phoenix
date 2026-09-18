@@ -88,7 +88,10 @@ export function PickupExtensionDialog({
 
   return (
     <PickupExtensionStep
-      key={`${task.id}:${task.blocks.map((block) => block.id).join(",")}`}
+      // A reloaded task can retain its IDs while its selectable details
+      // change. Remount the step for every changed task payload so its stale
+      // state cannot briefly disable the newly rendered choice.
+      key={JSON.stringify(task)}
       task={task}
       position={tasks.length > 1 ? `${index + 1} von ${tasks.length}` : null}
       onDone={advance}
