@@ -28,7 +28,6 @@ import (
 type stubPhotoDirectory struct {
 	purged    []string
 	purgeErr  error
-	unlinked  []string
 	purgeSeen int32
 }
 
