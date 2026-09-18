@@ -114,6 +114,19 @@ endpoints against the pre-release baseline while callers still go through it.
    guardian value, a stale absence flag or a lock timeout aborts the cutover
    transaction and changes nothing. Fix the cause, resume the existing backfill
    and retry `migrate`.
+
+   The two verdicts that need a data correction rather than another backfill
+   pass no longer have to be discovered here. `scripts/deploy-remote.sh` runs
+   `migrate preflight` against the live database before it stops the
+   application, and `1.15.397` answers it by reconciling the legacy guardian
+   values and the absence flags straight off `users.students`. An environment
+   whose data would refuse therefore aborts the release with exit 1, untouched
+   and still serving, instead of failing mid-migration and restoring the
+   backup. The check needs no checkpoints, so it also answers on an environment
+   that reaches the backfill and the cutover in the same `migrate` run. Run it
+   by hand with:
+
+       go run . migrate preflight
 3. Deploy the new image. Exercise student creation, edit, class and group
    changes, enrollment approval, graduation and reactivation, deletion, the
    care plan and the parent portal. Save the evidence below with the image

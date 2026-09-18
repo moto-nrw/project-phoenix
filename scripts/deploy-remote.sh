@@ -18,6 +18,21 @@ trap 'rmdir .release-operation.lock' EXIT
 sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${DEPLOY_SHA}|" docker-compose.yml.new > docker-compose.yml.pinned
 mv docker-compose.yml.pinned docker-compose.yml.new
 docker compose --env-file .env.new -f docker-compose.yml.new pull
+
+# Ask the new image whether the pending migrations' data preconditions hold,
+# while the old release is still serving. A migration that refuses on data
+# somebody has to correct would otherwise announce it after the application is
+# stopped and the backup taken, making a full restore the only way out. Read-only:
+# it runs no migration and writes nothing.
+#
+# --no-deps keeps compose from reconciling postgres against the new file while
+# the old release is still connected to it; the surrounding script already
+# assumes the database is up, the same way the backup below does.
+if ! docker compose --env-file .env.new -f docker-compose.yml.new run --rm --no-deps migrate ./main migrate preflight; then
+  echo 'Migration preflight failed; the running release was not touched' >&2
+  exit 1
+fi
+
 backup_root="${deployment_directory%/*}/backups/$DEPLOY_DIR"
 mkdir -p "$backup_root"
 if ! docker compose stop server frontend; then
