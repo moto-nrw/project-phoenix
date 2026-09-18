@@ -6,61 +6,53 @@ import (
 	"net"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/services"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-type cancelingOperatorMFAMailer struct {
-	cancel   context.CancelFunc
+// refusingOperatorMFAMailer refuses every message, the way a dead SMTP hop
+// does.
+type refusingOperatorMFAMailer struct {
 	attempts atomic.Int32
 }
 
-func (m *cancelingOperatorMFAMailer) Send(message email.Message) error {
+func (m *refusingOperatorMFAMailer) Send(message email.Message) error {
 	return m.SendContext(context.Background(), message)
 }
 
-func (m *cancelingOperatorMFAMailer) SendContext(_ context.Context, _ email.Message) error {
+func (m *refusingOperatorMFAMailer) SendContext(_ context.Context, _ email.Message) error {
 	m.attempts.Add(1)
-	m.cancel()
 	return errors.New("smtp connection lost")
 }
 
+// The operator code is sent synchronously and the row is only made
+// redeemable once the transport accepted it. A refused send must therefore
+// fail the login attempt and leave no code behind that a second request
+// could redeem.
 func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
-	require.NoError(t, err)
-	ctx, cancel := context.WithCancel(context.Background())
-	mailer := &cancelingOperatorMFAMailer{cancel: cancel}
-	svc, err := platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
-		Repos:      repos,
-		Operators:  newTestOperatorDirectory(db),
-		Records:    newTestOperatorMFARecords(db),
-		TokenAuth:  tokenAuth,
-		Dispatcher: email.NewDispatcher(mailer, nil),
-		JWTSecret:  operatorMFATestJWTSecret,
-		DB:         db,
-	})
-	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, svc, db)
+	mailer := &refusingOperatorMFAMailer{}
+	module := newOperatorMFATestModule(t, db,
+		services.WithAuthTestMailer(mailer),
+		services.WithAuthTestMFABackoff(time.Millisecond))
 	operator := testpkg.CreateTestOperator(t, db)
+	deleteOperatorChallenges(t, db, operator.ID)
 
-	token, err := svc.StartChallenge(ctx, operator.ID, net.ParseIP("203.0.113.73"))
+	token, err := module.OperatorMFA.StartOperatorMFAChallenge(
+		context.Background(), operator.ID, net.ParseIP("203.0.113.73"))
 
-	require.ErrorIs(t, err, authService.ErrMFAStatusUnavailable)
+	require.ErrorIs(t, err, authSvc.ErrMFAStatusUnavailable)
 	assert.Empty(t, token)
-	assert.Equal(t, int32(1), mailer.attempts.Load())
-	active, activeErr := newTestOperatorMFARecords(db).FindActiveChallenge(context.Background(), operator.ID)
-	require.NoError(t, activeErr)
-	require.Nil(t, active, "the undelivered operator code must not remain redeemable")
+	assert.Positive(t, mailer.attempts.Load(), "the code is sent synchronously, so the attempt is visible here")
+	assert.Nil(t, activeOperatorChallenge(t, db, operator.ID),
+		"the undelivered operator code must not remain redeemable")
 }

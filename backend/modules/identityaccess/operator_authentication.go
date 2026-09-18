@@ -66,6 +66,9 @@ type OperatorAuditEntry struct {
 	// AccessChange is set on the create, update and delete entries of an
 	// account's school access.
 	AccessChange *OperatorAccessChange
+	// MFA is set on the operator's own mfa_* entries and on the operator's
+	// account-wide MFA override (#3331).
+	MFA *OperatorMFAEvidence
 }
 
 // OperatorAccessChange summarizes one operator change of an account's

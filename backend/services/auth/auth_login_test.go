@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -14,9 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -37,15 +33,11 @@ type loginGateScenario struct {
 	tenantID  int64
 }
 
-// loginGatePassword + loginGateJWTSecret are generated at init time so
-// they never appear as string literals in the source tree. The fixed
-// "Aa1!" prefix on the password guarantees the strength rules
-// (upper + lower + digit + special) are satisfied regardless of the
-// hex-randomness that follows.
-var (
-	loginGatePassword  = randomTestPassword()
-	loginGateJWTSecret = randomTestJWTSecret()
-)
+// loginGatePassword is generated at init time so it never appears as a
+// string literal in the source tree. The fixed "Aa1!" prefix guarantees the
+// strength rules (upper + lower + digit + special) are satisfied regardless
+// of the hex-randomness that follows.
+var loginGatePassword = randomTestPassword()
 
 func randomTestPassword() string {
 	b := make([]byte, 12)
@@ -55,48 +47,19 @@ func randomTestPassword() string {
 	return "Aa1!" + hex.EncodeToString(b)
 }
 
-func randomTestJWTSecret() string {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		panic(err)
-	}
-	return hex.EncodeToString(b)
-}
-
-func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
+// newLoginGateScenario composes the auth service and the second factor over
+// the test database, the way the service root does. The gate is always
+// composed since #3331 — the school's security.mfa_mode decides, and these
+// tests drive it through the platform-wide override row instead, which
+// short-circuits the verdict without a settings registry.
+func newLoginGateScenario(t *testing.T, options ...services.AuthTestOption) *loginGateScenario {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
-
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-
-	authCfg, err := auth.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
-	require.NoError(t, err)
-	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
-	svc, err := services.NewAuthServiceForTests(repos, *authCfg, db, nil)
-	require.NoError(t, err)
+	module := newMFATestModule(t, db, withDeliveringMailer(options)...)
+	svc, ok := module.Auth.(*auth.Service)
+	require.True(t, ok, "the composed auth service is the retained one")
 	testpkg.SetTenantRuntime(t, svc, db)
-
-	var mfaSvc auth.MFAService
-	if withMFA {
-		tokenAuth, err := authjwt.NewTokenAuthWithSecret(loginGateJWTSecret)
-		require.NoError(t, err)
-		mailer := testpkg.NewCapturingMailer()
-		dispatcher := email.NewDispatcher(mailer, slog.Default())
-		dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
-		mfaSvc, err = auth.NewMFAService(auth.MFAServiceConfig{
-			Repos:       repos,
-			TokenAuth:   tokenAuth,
-			Dispatcher:  dispatcher,
-			DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
-			FrontendURL: "https://moto.test/",
-			JWTSecret:   loginGateJWTSecret,
-			DB:          db,
-		})
-		require.NoError(t, err)
-		testpkg.SetTenantRuntime(t, mfaSvc, db)
-		svc.SetMFAService(mfaSvc)
-	}
 
 	emailAddr := uniqueLoginEmail(t)
 	acc := testpkg.CreateTestAccountWithPassword(t, db, emailAddr, loginGatePassword)
@@ -114,7 +77,7 @@ func newLoginGateScenario(t *testing.T, withMFA bool) *loginGateScenario {
 	})
 
 	return &loginGateScenario{
-		t: t, db: db, svc: svc, mfa: mfaSvc,
+		t: t, db: db, svc: svc, mfa: module.MFA,
 		accountID: acc.ID, email: emailAddr, tenantID: tenantID,
 	}
 }
@@ -143,10 +106,12 @@ func (sc *loginGateScenario) setOverride(override string) {
 	require.NoError(sc.t, err)
 }
 
-func TestLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
+// A composed gate whose school leaves security.mfa_mode off issues the
+// token pair straight away, with no challenge and no enrollment redirect.
+func TestLoginWithMFAGate_GateOff_ReturnsTokens(t *testing.T) {
 	t.Parallel()
 
-	sc := newLoginGateScenario(t, false)
+	sc := newLoginGateScenario(t)
 
 	result, err := sc.svc.LoginWithMFAGate(
 		context.Background(), sc.email, loginGatePassword, "127.0.0.1", "ua-test", "", "",
@@ -155,16 +120,16 @@ func TestLoginWithMFAGate_NoMFAService_ReturnsTokens(t *testing.T) {
 	require.NotNil(t, result)
 
 	assert.Equal(t, auth.LoginStatusAuthenticated, result.Status)
-	assert.NotEmpty(t, result.AccessToken, "access token must be issued when MFA gate is off")
+	assert.NotEmpty(t, result.AccessToken, "access token must be issued when the MFA gate is off")
 	assert.NotEmpty(t, result.RefreshToken, "refresh token must be issued")
-	assert.Empty(t, result.ChallengeToken, "no challenge token without MFA gate")
+	assert.Empty(t, result.ChallengeToken, "no challenge token while the gate is off")
 	assert.False(t, result.MFAEnrollmentRequired, "no enrollment flag when MFA disabled")
 }
 
 func TestLoginWithMFAGate_MFANotRequired_ReturnsTokens(t *testing.T) {
 	t.Parallel()
 
-	sc := newLoginGateScenario(t, true)
+	sc := newLoginGateScenario(t)
 	sc.setOverride(auth.MFAAdminOverrideForceOff) // explicit "MFA off for this account"
 
 	result, err := sc.svc.LoginWithMFAGate(
@@ -188,7 +153,7 @@ func TestLoginWithMFAGate_MFARequiredNotEnrolled_IssuesEnrollmentToken(t *testin
 	// (not a full session) and NO refresh token. The previous design
 	// returned `Status: authenticated` plus a full token pair, which
 	// allowed bypassing MFA entirely by skipping enrollment.
-	sc := newLoginGateScenario(t, true)
+	sc := newLoginGateScenario(t)
 	sc.setOverride(auth.MFAAdminOverrideForceOn) // require MFA, but no credential row exists
 
 	result, err := sc.svc.LoginWithMFAGate(
@@ -212,9 +177,9 @@ func TestLoginWithMFAGate_MFARequiredNotEnrolled_IssuesEnrollmentToken(t *testin
 func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) {
 	t.Parallel()
 
-	sc := newLoginGateScenario(t, true)
+	sc := newLoginGateScenario(t)
 	sc.setOverride(auth.MFAAdminOverrideForceOn)
-	require.NoError(t, sc.mfa.Enroll(context.Background(), sc.accountID),
+	require.NoError(t, sc.mfa.EnrollMFA(context.Background(), sc.accountID),
 		"enrolment row must exist for the MFA-required-and-enrolled branch")
 
 	result, err := sc.svc.LoginWithMFAGate(
@@ -234,7 +199,7 @@ func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) 
 func TestLoginWithMFAGate_WrongPassword_ReturnsAuthError(t *testing.T) {
 	t.Parallel()
 
-	sc := newLoginGateScenario(t, false)
+	sc := newLoginGateScenario(t)
 
 	result, err := sc.svc.LoginWithMFAGate(
 		context.Background(), sc.email, "wrong-password", "127.0.0.1", "ua-test", "", "",

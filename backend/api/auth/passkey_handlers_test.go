@@ -11,19 +11,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	authService "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type passkeyServiceStub struct {
-	beginLoginReq         authService.PasskeyLoginStartRequest
-	finishLoginReq        authService.PasskeyLoginFinishRequest
-	beginRegistrationReq  authService.PasskeyRegistrationStartRequest
-	finishRegistrationReq authService.PasskeyRegistrationFinishRequest
+	beginLoginReq         authService.AccountPasskeyLoginStart
+	finishLoginReq        authService.AccountPasskeyLoginFinish
+	beginRegistrationReq  authService.AccountPasskeyRegistrationStart
+	finishRegistrationReq authService.AccountPasskeyRegistrationFinish
 	enrollmentAccountID   int64
 	enrollmentTenantID    int64
 	listAccountID         int64
@@ -38,48 +40,48 @@ type passkeyServiceStub struct {
 	revokeErr             error
 }
 
-func (s *passkeyServiceStub) StartEnrollmentChallenge(_ context.Context, accountID, tenantID int64, _ net.IP) (*authService.PasskeyEnrollmentChallenge, error) {
+func (s *passkeyServiceStub) StartAccountPasskeyEnrollment(_ context.Context, accountID, tenantID int64, _ net.IP) (authService.PasskeyEnrollmentChallenge, error) {
 	s.enrollmentAccountID = accountID
 	s.enrollmentTenantID = tenantID
 	if s.startEnrollmentErr != nil {
-		return nil, s.startEnrollmentErr
+		return authService.PasskeyEnrollmentChallenge{}, s.startEnrollmentErr
 	}
-	return &authService.PasskeyEnrollmentChallenge{ChallengeToken: "challenge-token", MaskedEmail: "m***@example.test"}, nil
+	return authService.PasskeyEnrollmentChallenge{ChallengeToken: "challenge-token", MaskedEmail: "m***@example.test"}, nil
 }
 
-func (s *passkeyServiceStub) BeginRegistration(_ context.Context, req authService.PasskeyRegistrationStartRequest) (*authService.PasskeyCredentialCreation, error) {
+func (s *passkeyServiceStub) BeginAccountPasskeyRegistration(_ context.Context, req authService.AccountPasskeyRegistrationStart) (authService.PasskeyCeremonyOptions, error) {
 	s.beginRegistrationReq = req
 	if s.beginRegistrationErr != nil {
-		return nil, s.beginRegistrationErr
+		return authService.PasskeyCeremonyOptions{}, s.beginRegistrationErr
 	}
-	return &authService.PasskeyCredentialCreation{SessionID: "registration-session", Options: map[string]string{"challenge": "register"}}, nil
+	return authService.PasskeyCeremonyOptions{SessionID: "registration-session", Options: map[string]string{"challenge": "register"}}, nil
 }
 
-func (s *passkeyServiceStub) FinishRegistration(_ context.Context, req authService.PasskeyRegistrationFinishRequest) (*authService.PasskeyCredentialSummary, error) {
+func (s *passkeyServiceStub) FinishAccountPasskeyRegistration(_ context.Context, req authService.AccountPasskeyRegistrationFinish) (authService.PasskeyCredentialSummary, error) {
 	s.finishRegistrationReq = req
 	if s.finishRegistrationErr != nil {
-		return nil, s.finishRegistrationErr
+		return authService.PasskeyCredentialSummary{}, s.finishRegistrationErr
 	}
-	return &authService.PasskeyCredentialSummary{ID: "7", Name: "Laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
+	return authService.PasskeyCredentialSummary{ID: "7", Name: "Laptop", CreatedAt: time.Unix(1, 0).UTC()}, nil
 }
 
-func (s *passkeyServiceStub) BeginLogin(_ context.Context, req authService.PasskeyLoginStartRequest) (*authService.PasskeyCredentialAssertion, error) {
+func (s *passkeyServiceStub) BeginAccountPasskeyLogin(_ context.Context, req authService.AccountPasskeyLoginStart) (authService.PasskeyCeremonyOptions, error) {
 	s.beginLoginReq = req
 	if s.beginLoginErr != nil {
-		return nil, s.beginLoginErr
+		return authService.PasskeyCeremonyOptions{}, s.beginLoginErr
 	}
-	return &authService.PasskeyCredentialAssertion{SessionID: "login-session", Options: map[string]string{"challenge": "login"}}, nil
+	return authService.PasskeyCeremonyOptions{SessionID: "login-session", Options: map[string]string{"challenge": "login"}}, nil
 }
 
-func (s *passkeyServiceStub) FinishLogin(_ context.Context, req authService.PasskeyLoginFinishRequest) (*authService.PasskeyLoginResult, error) {
+func (s *passkeyServiceStub) FinishAccountPasskeyLogin(_ context.Context, req authService.AccountPasskeyLoginFinish) (authService.PasskeyLoginResult, error) {
 	s.finishLoginReq = req
 	if s.finishLoginErr != nil {
-		return nil, s.finishLoginErr
+		return authService.PasskeyLoginResult{}, s.finishLoginErr
 	}
-	return &authService.PasskeyLoginResult{AccessToken: "access", RefreshToken: "refresh"}, nil
+	return authService.PasskeyLoginResult{AccessToken: "access", RefreshToken: "refresh"}, nil
 }
 
-func (s *passkeyServiceStub) ListCredentials(_ context.Context, accountID int64) ([]authService.PasskeyCredentialSummary, error) {
+func (s *passkeyServiceStub) ListAccountPasskeyCredentials(_ context.Context, accountID int64) ([]authService.PasskeyCredentialSummary, error) {
 	s.listAccountID = accountID
 	if s.listErr != nil {
 		return nil, s.listErr
@@ -87,7 +89,7 @@ func (s *passkeyServiceStub) ListCredentials(_ context.Context, accountID int64)
 	return []authService.PasskeyCredentialSummary{{ID: "8", Name: "Phone", CreatedAt: time.Unix(2, 0).UTC()}}, nil
 }
 
-func (s *passkeyServiceStub) RevokeCredential(_ context.Context, accountID, credentialID int64) error {
+func (s *passkeyServiceStub) RevokeAccountPasskeyCredential(_ context.Context, accountID, credentialID int64) error {
 	s.revokeAccountID = accountID
 	s.revokeCredentialID = credentialID
 	return s.revokeErr
@@ -382,7 +384,7 @@ func TestPasskeyHandlerErrors(t *testing.T) {
 func TestPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 	t.Parallel()
 
-	storeDown := &authService.AuthError{Op: "consume passkey login session", Err: errors.New("connection reset")}
+	storeDown := &identityaccess.AuthenticationError{Op: "consume passkey login session", Err: errors.New("connection reset")}
 	claims := jwt.AppClaims{ID: 11, TenantID: 7}
 	loginVerify := func(rs *Resource, w http.ResponseWriter) {
 		req := passkeyJSONRequest("/passkeys/login/verify", `{"session_id":"s","response":{"id":"a"}}`)

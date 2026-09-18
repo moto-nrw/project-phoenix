@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestMapOperatorMFAError_RemainingCases fills the two branches the
@@ -20,7 +20,7 @@ func TestMapOperatorMFAError_RemainingCases(t *testing.T) {
 	t.Run("permission_denied_maps_to_403", func(t *testing.T) {
 		rr := httptest.NewRecorder()
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
-		mapOperatorMFAError(rr, req, authService.ErrMFAPermissionDenied)
+		mapOperatorMFAError(rr, req, authSvc.ErrMFAPermissionDenied)
 		assert.Equal(t, http.StatusForbidden, rr.Code)
 	})
 

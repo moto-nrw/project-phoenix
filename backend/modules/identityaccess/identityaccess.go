@@ -326,9 +326,13 @@ type Engine interface {
 	GuardianAccess
 	OperatorAccess
 	OperatorMFARecords
+	OperatorMFAFlows
 	OperatorTokens
 	OperatorPasskeyRecords
+	OperatorPasskeyFlows
 	AccountPasskeyRecords
+	AccountPasskeyFlows
+	AccountMFA
 	PasswordResets
 	SchoolInvitations
 	AccountSessionAccess

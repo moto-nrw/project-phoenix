@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditmodel "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,11 +45,11 @@ func TestMFAService_RecordAuthEvent_LandsRowWithExplicitTenantID(t *testing.T) {
 	})
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantID)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
 	// Login-flow context: NO tenant on the context. The fix's whole point
 	// is that the explicit tenantID param makes the audit land regardless.
-	_, err := svc.StartChallenge(ctx, acc.ID, tenantID, authjwt.MFAChallengeScopeTenant,
+	_, err := svc.StartMFAChallenge(ctx, acc.ID, tenantID, auth.MFAChallengeScopeTenant,
 		net.ParseIP("203.0.113.42"))
 	require.NoError(t, err)
 
@@ -87,8 +87,8 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 
 	// Seed a real active challenge so VerifyCodeForAccount reaches the
 	// wrong-code branch (the path that emits mfa_failed with nil IP).
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
-	_, err := svc.StartChallenge(ctx, acc.ID, tenantID, authjwt.MFAChallengeScopeTenant,
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	_, err := svc.StartMFAChallenge(ctx, acc.ID, tenantID, auth.MFAChallengeScopeTenant,
 		net.ParseIP("203.0.113.55"))
 	require.NoError(t, err)
 
@@ -102,7 +102,7 @@ func TestMFAService_RecordAuthEvent_FallsBackToSentinelIPForInternalEvents(t *te
 	// Wrong code -> mfa_failed audit row via the nil-IP internal path.
 	// (We can't recover the plaintext code, so "000000" is guaranteed to
 	// miss the hash and produce the wrong-code branch.)
-	err = svc.VerifyCodeForAccount(authedCtx, acc.ID, tenantID, "000000", authjwt.MFAChallengeScopeTenant)
+	err = svc.VerifyMFACodeForAccount(authedCtx, acc.ID, tenantID, "000000", auth.MFAChallengeScopeTenant)
 	require.ErrorIs(t, err, auth.ErrMFACodeInvalid)
 
 	row := waitForAuthEvent(t, db, acc.ID, auditmodel.EventTypeMFAFailed, 3*time.Second)

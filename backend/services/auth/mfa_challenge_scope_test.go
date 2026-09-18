@@ -10,11 +10,10 @@ import (
 	"testing"
 	"time"
 
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // rateLimitWindowStart is the lower bound for the code-issuance counter the
@@ -27,8 +26,8 @@ func TestMFAService_ResendChallengeForScope_InvalidToken_ReturnsTokenInvalid(t *
 
 	svc, _, _ := newExtraMFAService(t)
 
-	renewed, err := svc.ResendChallengeForScope(
-		context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"), authjwt.MFAChallengeScopeSchool)
+	renewed, err := svc.ResendMFAChallengeForScope(
+		context.Background(), "not-a-jwt", net.ParseIP("127.0.0.1"), auth.MFAChallengeScopeSchool)
 
 	require.Error(t, err)
 	assert.Empty(t, renewed, "invalid token must not produce a renewed JWT")
@@ -40,10 +39,10 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 
 	svc, repos, accID := newExtraMFAService(t)
 	ctx := context.Background()
-	require.NoError(t, svc.Enroll(ctx, accID))
+	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
 	// A challenge started at the TENANT login…
-	token, err := svc.StartChallenge(ctx, accID, 0, authjwt.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(ctx, accID, 0, auth.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -51,7 +50,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	require.NoError(t, err)
 
 	// …must not be re-drivable through the school resend endpoint.
-	renewed, err := svc.ResendChallengeForScope(ctx, token, net.ParseIP("127.0.0.1"), authjwt.MFAChallengeScopeSchool)
+	renewed, err := svc.ResendMFAChallengeForScope(ctx, token, net.ParseIP("127.0.0.1"), auth.MFAChallengeScopeSchool)
 
 	require.Error(t, err)
 	assert.Empty(t, renewed)
@@ -67,13 +66,13 @@ func TestMFAService_ResendChallengeForScope_SchoolScope_HappyPath(t *testing.T) 
 
 	svc, _, accID := newExtraMFAService(t)
 	ctx := context.Background()
-	require.NoError(t, svc.Enroll(ctx, accID))
+	require.NoError(t, svc.EnrollMFA(ctx, accID))
 
-	token, err := svc.StartChallenge(ctx, accID, 0, authjwt.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(ctx, accID, 0, auth.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
-	renewed, err := svc.ResendChallengeForScope(ctx, token, net.ParseIP("127.0.0.1"), authjwt.MFAChallengeScopeSchool)
+	renewed, err := svc.ResendMFAChallengeForScope(ctx, token, net.ParseIP("127.0.0.1"), auth.MFAChallengeScopeSchool)
 
 	require.NoError(t, err)
 	assert.NotEmpty(t, renewed, "a matching scope must return a usable renewed challenge JWT")

@@ -40,7 +40,9 @@ type accountAuthenticationWiring struct {
 	logger        *slog.Logger
 	observe       IdentityAccessObserver
 	tenantRuntime func(context.Context) context.Context
-	mfa           func() auth.MFAService
+	// mfa composes the second factor and the passkey ceremonies (#3331);
+	// nil composes the module without them.
+	mfa *mfaWiring
 	// operators composes the operator flows (#3252); nil leaves them
 	// unavailable, as the cleanup roots compose the module.
 	operators *identityaccessCompose.OperatorDependencies
@@ -104,10 +106,6 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			wiring.observe(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccess.ErrorCode(observation.Err), observation.Err)
 		}
 	}
-	mfa := wiring.mfa
-	if mfa == nil {
-		mfa = func() auth.MFAService { return nil }
-	}
 	var lifecycleBinding *lifecycleWiring
 	if wiring.lifecycle != nil {
 		bound := *wiring.lifecycle
@@ -128,6 +126,7 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 		Lifecycle:            lifecycle,
 		Resets:               resets,
 		Invitations:          invitations,
+		MFA:                  mfaDependencies(wiring.mfa),
 		OperatorProvisioning: operatorLinks,
 		DB:                   db,
 		Observe:              observe,
@@ -136,7 +135,6 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			Persons:       personDirectory{persons: wiring.repos.persons},
 			Passwords:     passwordVerifier{},
 			Codec:         sessionTokenCodec{tokenAuth: wiring.tokenAuth},
-			MFA:           mfaGate{current: mfa},
 			MFALock:       mfaPolicyLock{settings: wiring.settings},
 			Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
 			Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
@@ -386,86 +384,6 @@ func (c sessionTokenCodec) ParseRefreshToken(token string) (identityaccess.Refre
 }
 
 func (c sessionTokenCodec) RefreshExpiry() time.Duration { return c.tokenAuth.JwtRefreshExpiry }
-
-type mfaGate struct{ current func() auth.MFAService }
-
-func (g mfaGate) Configured() bool { return g.current() != nil }
-
-func (g mfaGate) IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.IsRequired(ctx, auth.AccountForMFAGate(accountID, email, roleNames), tenantID)
-}
-
-func (g mfaGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {
-	svc := g.current()
-	if svc == nil {
-		return identityaccess.MFAPolicyFunc(func([]string) bool { return false }), nil
-	}
-	policy, err := svc.ResolvePolicy(ctx, accountID, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return identityaccess.MFAPolicyFunc(policy.RequiredForRoleNames), nil
-}
-
-func (g mfaGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {
-	svc := g.current()
-	if svc == nil {
-		return identityaccess.MFAPolicyFunc(func([]string) bool { return false }), nil
-	}
-	policy, err := svc.ResolvePolicyInTx(ctx, accountID, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return identityaccess.MFAPolicyFunc(policy.RequiredForRoleNames), nil
-}
-
-func (g mfaGate) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.HasEnrollment(ctx, accountID)
-}
-
-func (g mfaGate) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
-}
-
-func (g mfaGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {
-	svc := g.current()
-	if svc == nil {
-		return "", errors.New("mfa service is not configured")
-	}
-	challengeScope := authjwt.MFAChallengeScopeTenant
-	if scope == "school" {
-		challengeScope = authjwt.MFAChallengeScopeSchool
-	}
-	return svc.StartChallenge(ctx, accountID, tenantID, challengeScope, auth.ParseClientIP(ipAddress))
-}
-
-func (g mfaGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
-	svc := g.current()
-	if svc == nil {
-		return false
-	}
-	return svc.IsTrustedDeviceEnabled(ctx, tenantID)
-}
-
-func (g mfaGate) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	svc := g.current()
-	if svc == nil {
-		return 0
-	}
-	return svc.TrustedDeviceDays(ctx, tenantID)
-}
 
 type mfaPolicyLock struct{ settings config.SettingsService }
 
@@ -822,7 +740,6 @@ var retainedSentinels = []retainedSentinel{
 	{identityaccess.ErrInvalidToken, auth.ErrInvalidToken},
 	{identityaccess.ErrTokenExpired, auth.ErrTokenExpired},
 	{identityaccess.ErrTokenNotFound, auth.ErrTokenNotFound},
-	{identityaccess.ErrMFAStatusUnavailable, auth.ErrMFAStatusUnavailable},
 	{identityaccess.ErrAccountAuthenticationUnavailable, auth.ErrAccountSessionsUnavailable},
 	// A session that vanished or was rotated underneath a consumer reads as
 	// the retained token sentinels the refresh flow already reports.
@@ -845,7 +762,7 @@ func authServiceError(err error) error {
 	if errors.As(err, &operation) && operation == err {
 		return &auth.AuthError{Op: operation.Op, Err: authServiceError(operation.Err)}
 	}
-	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels} {
+	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels, mfaRetainedSentinels} {
 		for _, sentinel := range sentinels {
 			if !errors.Is(err, sentinel.public) {
 				continue

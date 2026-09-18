@@ -182,11 +182,6 @@ type MFAPolicy interface {
 	RequiredFor(roleNames []string) bool
 }
 
-// MFAPolicyFunc adapts a predicate to MFAPolicy.
-type MFAPolicyFunc func(roleNames []string) bool
-
-func (f MFAPolicyFunc) RequiredFor(roleNames []string) bool { return f(roleNames) }
-
 // Authentication audit event types, as the Audit platform stores them.
 const (
 	AuthEventLogin                    = "login"
@@ -212,6 +207,8 @@ type AuthEvent struct {
 	RevokedSessions *RevokedSessionsEvidence
 	PendingWipe     *PendingWipeEvidence
 	CompletedWipe   *CompletedWipeEvidence
+	// MFA is set on the mfa_* events (#3331).
+	MFA *MFAEvidence
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

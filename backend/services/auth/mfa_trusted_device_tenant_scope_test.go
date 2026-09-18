@@ -33,7 +33,7 @@ func TestMFAService_VerifyTrustedDevice_RejectsCrossTenantCookie(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantA)
 	testpkg.EnsureAccountTenant(t, db, acc.ID, tenantB)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
 	// Issue the cookie in tenant A.
 	cookie, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.30"))
@@ -73,7 +73,7 @@ func TestMFAService_ListTrustedDevices_ScopedToTenant(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantA, "UA-A", net.ParseIP("203.0.113.40"))
 	require.NoError(t, err)
@@ -108,7 +108,7 @@ func TestMFAService_RevokeTrustedDevice_RejectsCrossTenantRevoke(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
 
-	require.NoError(t, svc.Enroll(ctx, acc.ID))
+	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
 
 	// Trust a device in tenant B.
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantB, "UA", net.ParseIP("203.0.113.50"))

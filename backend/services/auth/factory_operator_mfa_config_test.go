@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	auth "github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +33,6 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)
-	_, err = factory.OperatorMFA.StartChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
-	require.ErrorIs(t, err, authService.ErrMFAStatusUnavailable)
+	_, err = factory.OperatorMFA.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
+	require.ErrorIs(t, err, auth.ErrMFAStatusUnavailable)
 }

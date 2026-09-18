@@ -43,14 +43,14 @@ func (s *adminAuthStub) GetAccountByID(ctx context.Context, id int) (*authModels
 // Item #2 cross-tenant guard — tests can capture it via the per-method
 // override and assert the handler is forwarding the JWT tenant claim.
 type adminMFAStub struct {
-	stubMFAService  // reuse the broader stub from mfa_handlers_extra_internal_test.go
-	hasEnrollmentFn func(ctx context.Context, accountID int64) (bool, error)
-	setOverrideFn   func(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error
-	adminDisableFn  func(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error
-	getAdminStateFn func(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error)
+	stubMFAService    // reuse the broader stub from mfa_handlers_extra_internal_test.go
+	hasEnrollmentFn   func(ctx context.Context, accountID int64) (bool, error)
+	setOverrideFn     func(ctx context.Context, actorID, actorTenantID, targetID int64, override, reason string, perms []string) error
+	adminDisableMFAFn func(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error
+	getAdminStateFn   func(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error)
 }
 
-func (s *adminMFAStub) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
+func (s *adminMFAStub) HasMFAEnrollment(ctx context.Context, accountID int64) (bool, error) {
 	if s.hasEnrollmentFn != nil {
 		return s.hasEnrollmentFn(ctx, accountID)
 	}
@@ -64,14 +64,14 @@ func (s *adminMFAStub) SetMFAOverride(ctx context.Context, actorID, actorTenantI
 	return nil
 }
 
-func (s *adminMFAStub) AdminDisable(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error {
-	if s.adminDisableFn != nil {
-		return s.adminDisableFn(ctx, actorID, actorTenantID, targetID, reason, perms)
+func (s *adminMFAStub) AdminDisableMFA(ctx context.Context, actorID, actorTenantID, targetID int64, reason string, perms []string) error {
+	if s.adminDisableMFAFn != nil {
+		return s.adminDisableMFAFn(ctx, actorID, actorTenantID, targetID, reason, perms)
 	}
 	return nil
 }
 
-func (s *adminMFAStub) GetAdminState(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error) {
+func (s *adminMFAStub) GetMFAAdminState(ctx context.Context, actorID, actorTenantID, targetID int64, perms []string) (authService.MFAAdminState, error) {
 	if s.getAdminStateFn != nil {
 		return s.getAdminStateFn(ctx, actorID, actorTenantID, targetID, perms)
 	}
@@ -316,7 +316,7 @@ func TestMFAAdminDisable_HappyPath(t *testing.T) {
 	var capturedTenantID int64
 	rs := &Resource{
 		MFAService: &adminMFAStub{
-			adminDisableFn: func(_ context.Context, _, actorTenantID, _ int64, reason string, _ []string) error {
+			adminDisableMFAFn: func(_ context.Context, _, actorTenantID, _ int64, reason string, _ []string) error {
 				capturedReason = reason
 				capturedTenantID = actorTenantID
 				return nil
@@ -369,7 +369,7 @@ func TestMFAAdminDisable_ServiceErrorMapsTo500(t *testing.T) {
 	t.Parallel()
 
 	rs := &Resource{MFAService: &adminMFAStub{
-		adminDisableFn: func(context.Context, int64, int64, int64, string, []string) error {
+		adminDisableMFAFn: func(context.Context, int64, int64, int64, string, []string) error {
 			return errors.New("db down")
 		},
 	}}

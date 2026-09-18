@@ -13,7 +13,6 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -31,7 +30,15 @@ import (
 // decodeTokenClaims decodes a minted JWT and returns scope + tenant_id.
 func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64) {
 	t.Helper()
-	decoded, err := schoolTokenAuth(t).JwtAuth.Decode(token)
+	return decodeTokenClaimsWith(t, schoolTokenAuth(t), token)
+}
+
+// decodeTokenClaimsWith decodes with the signer that minted the token. The
+// composed module signs with the process configuration, the retained factory
+// with this file's test configuration, so a caller names which one applies.
+func decodeTokenClaimsWith(t *testing.T, tokenAuth *authjwt.TokenAuth, token string) (scope string, tenantID int64) {
+	t.Helper()
+	decoded, err := tokenAuth.JwtAuth.Decode(token)
 	require.NoError(t, err, "minted token must decode")
 	_ = decoded.Get("scope", &scope)
 	var rawTenant float64
@@ -351,23 +358,20 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 	// challenge started with the SCHOOL challenge scope — that is what
 	// keeps the challenge redeemable only at the school verify endpoint.
 	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
-
-	tenantID, _ := newSchoolTenant(t, db)
-	email, _ := createLehrkraftAccount(t, db, service, "school-mfa", tenantID)
-
-	var startedScope string
 	var startedTenantID int64
-	service.SetMFAService(&authtest.MFAServiceMock{
-		IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
-		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
-		StartChallengeFn: func(_ context.Context, _, challengeTenantID int64, scope string, _ net.IP) (string, error) {
+	var startedScope string
+	service := newGatedAuthService(t, db, &authtest.MFAServiceMock{
+		IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
+		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
+		StartMFAChallengeFn: func(_ context.Context, _, challengeTenantID int64, scope string, _ net.IP) (string, error) {
 			startedScope = scope
 			startedTenantID = challengeTenantID
 			return "school-challenge-token", nil
 		},
 	})
-	defer service.SetMFAService(nil)
+
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-mfa", tenantID)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 
@@ -456,27 +460,24 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	// second factor: the login must mint the token pair directly instead
 	// of starting another email-code challenge.
 	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
-
-	tenantID, _ := newSchoolTenant(t, db)
-	email, _ := createLehrkraftAccount(t, db, service, "school-trusted", tenantID)
-
 	var verifiedCookie string
 	var verifiedTenantID int64
-	service.SetMFAService(&authtest.MFAServiceMock{
-		IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
-		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
+	service := newGatedAuthService(t, db, &authtest.MFAServiceMock{
+		IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
+		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
 		VerifyTrustedDeviceFn: func(_ context.Context, _, cookieTenantID int64, cookie string) (bool, error) {
 			verifiedCookie = cookie
 			verifiedTenantID = cookieTenantID
 			return true, nil
 		},
-		StartChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
+		StartMFAChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
 			t.Error("a verified trusted device must not start another challenge")
 			return "", nil
 		},
 	})
-	defer service.SetMFAService(nil)
+
+	tenantID, _ := newSchoolTenant(t, db)
+	email, _ := createLehrkraftAccount(t, db, service, "school-trusted", tenantID)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "trusted-cookie")
 
@@ -486,7 +487,7 @@ func TestLoginSchool_TrustedDevice_SkipsChallenge(t *testing.T) {
 	assert.Equal(t, "trusted-cookie", verifiedCookie)
 	assert.Equal(t, tenantID, verifiedTenantID, "the trusted device must be checked against the resolved school")
 
-	scope, tokenTenantID := decodeTokenClaims(t, result.AccessToken)
+	scope, tokenTenantID := decodeTokenClaimsWith(t, service.TokenAuth, result.AccessToken)
 	assert.Equal(t, tenant.ScopeSchool, scope)
 	assert.Equal(t, tenantID, tokenTenantID)
 }
@@ -498,17 +499,21 @@ func TestLoginSchool_MFAStatusUnavailable_FailsClosed(t *testing.T) {
 	// is refused with the 503 sentinel instead of silently degrading to
 	// "MFA not required".
 	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
-
-	tenantID, _ := newSchoolTenant(t, db)
-	email, _ := createLehrkraftAccount(t, db, service, "school-mfa-infra", tenantID)
-	defer service.SetMFAService(nil)
-
 	mfaErr := errors.New("mfa backend unreachable")
 
+	// The gate is composed into the module since #3331, so each branch names
+	// the capability it drives when it builds the service.
+	setup := func(t *testing.T, mfa *authtest.MFAServiceMock) (auth.AuthService, string) {
+		t.Helper()
+		service := newGatedAuthService(t, db, mfa)
+		tenantID, _ := newSchoolTenant(t, db)
+		email, _ := createLehrkraftAccount(t, db, service, "school-mfa-infra", tenantID)
+		return service, email
+	}
+
 	t.Run("IsRequired lookup fails", func(t *testing.T) {
-		service.SetMFAService(&authtest.MFAServiceMock{
-			IsRequiredFn: func(context.Context, *authModels.Account, int64) (bool, error) { return false, mfaErr },
+		service, email := setup(t, &authtest.MFAServiceMock{
+			IsRequiredFn: func(context.Context, int64, []string, int64) (bool, error) { return false, mfaErr },
 		})
 
 		result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
@@ -521,9 +526,9 @@ func TestLoginSchool_MFAStatusUnavailable_FailsClosed(t *testing.T) {
 	})
 
 	t.Run("enrollment lookup fails", func(t *testing.T) {
-		service.SetMFAService(&authtest.MFAServiceMock{
-			IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
-			HasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, mfaErr },
+		service, email := setup(t, &authtest.MFAServiceMock{
+			IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
+			HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return false, mfaErr },
 		})
 
 		result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
@@ -536,10 +541,10 @@ func TestLoginSchool_MFAStatusUnavailable_FailsClosed(t *testing.T) {
 	})
 
 	t.Run("challenge start fails", func(t *testing.T) {
-		service.SetMFAService(&authtest.MFAServiceMock{
-			IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
-			HasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
-			StartChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
+		service, email := setup(t, &authtest.MFAServiceMock{
+			IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
+			HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
+			StartMFAChallengeFn: func(context.Context, int64, int64, string, net.IP) (string, error) {
 				return "", auth.ErrMFARateLimited
 			},
 		})
@@ -676,16 +681,13 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	// SCHOOL enrollment scope. A tenant-scope token here would let the
 	// enrollment detour convert a school login into a tenant session.
 	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
+	service := newGatedAuthService(t, db, &authtest.MFAServiceMock{
+		IsRequiredFn:       func(context.Context, int64, []string, int64) (bool, error) { return true, nil },
+		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
+	})
 
 	tenantID, _ := newSchoolTenant(t, db)
 	email, _ := createLehrkraftAccount(t, db, service, "school-enroll", tenantID)
-
-	service.SetMFAService(&authtest.MFAServiceMock{
-		IsRequiredFn:    func(context.Context, *authModels.Account, int64) (bool, error) { return true, nil },
-		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return false, nil },
-	})
-	defer service.SetMFAService(nil)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 
@@ -693,7 +695,7 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 	require.Equal(t, auth.LoginStatusMFAEnrollmentRequired, result.Status)
 	require.NotEmpty(t, result.AccessToken)
 
-	claims, err := schoolTokenAuth(t).ParseMFAEnrollmentJWT(result.AccessToken)
+	claims, err := service.TokenAuth.ParseMFAEnrollmentJWT(result.AccessToken)
 	require.NoError(t, err)
 	assert.Equal(t, authjwt.MFAEnrollmentScopeSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
@@ -844,42 +846,45 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	// a test artifact — it is the reason the in-transaction resolver reads on
 	// the caller's transaction and never opens a second one.
 	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
+	// The gate closes over the school and the role it grants mid-login, so
+	// both are declared before the capability is composed and filled in
+	// below, once the school exists.
+	var (
+		startedScope string
+		tenantID     int64
+		adminRoleID  int64
+	)
+	service := newGatedAuthService(t, db, &authtest.MFAServiceMock{
+		ResolveMFAPolicyFn: func(_ context.Context, policyAccountID, _ int64) (auth.MFAPolicy, error) {
+			assignment := &authModels.AccountRole{AccountID: policyAccountID, RoleID: adminRoleID}
+			assignment.SetTenantID(tenantID)
+			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
+			require.NoError(t, err)
+			return requiredAdminsPolicy(), nil
+		},
+		// The guard re-reads the policy inside the mint transaction; the school
+		// still says `required_admins`, and this time it meets the admin role.
+		ResolveMFAPolicyInTxFn: func(context.Context, int64, int64) (auth.MFAPolicy, error) {
+			return requiredAdminsPolicy(), nil
+		},
+		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
+		StartMFAChallengeFn: func(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {
+			startedScope = scope
+			return "school-race-challenge", nil
+		},
+	})
 
-	tenantID, _ := newSchoolTenant(t, db)
+	tenantID, _ = newSchoolTenant(t, db)
 	email, accountID := createLehrkraftAccount(t, db, service, "school-mfa-race", tenantID)
 
 	// The seeded admin system role, not a fixture one: `required_admins`
 	// matches the literal role name, and CreateTestRoleForTenant uniquifies it.
-	var adminRoleID int64
 	require.NoError(t, db.NewSelect().
 		ColumnExpr("id").
 		TableExpr("auth.roles").
 		Where("name = ?", "admin").
 		Where("is_system = TRUE").
 		Scan(context.Background(), &adminRoleID))
-
-	var startedScope string
-	service.SetMFAService(&authtest.MFAServiceMock{
-		ResolvePolicyFn: func(_ context.Context, policyAccountID, _ int64) (auth.MFAPolicy, error) {
-			assignment := &authModels.AccountRole{AccountID: policyAccountID, RoleID: adminRoleID}
-			assignment.SetTenantID(tenantID)
-			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
-			require.NoError(t, err)
-			return auth.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
-		},
-		// The guard re-reads the policy inside the mint transaction; the school
-		// still says `required_admins`, and this time it meets the admin role.
-		ResolvePolicyInTxFn: func(context.Context, int64, int64) (auth.MFAPolicy, error) {
-			return auth.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
-		},
-		HasEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
-		StartChallengeFn: func(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {
-			startedScope = scope
-			return "school-race-challenge", nil
-		},
-	})
-	defer service.SetMFAService(nil)
 
 	result, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, switchIP, switchUserAgent, "")
 

@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -16,17 +17,6 @@ import (
 // rules the root still composes. The seams below are expressed in public
 // values so the root can implement them without the module's internal
 // vocabulary; this package adapts them to the consumer-owned ports.
-
-// OperatorMFAGate is the retained operator MFA service as login consults
-// it. Configured false means the gate is not wired and token pairs are
-// issued directly.
-type OperatorMFAGate interface {
-	Configured() bool
-	HasEnrollment(ctx context.Context, operatorID int64) (bool, error)
-	VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error)
-	TrustedDeviceDays() int
-}
 
 // OperatorAudit appends operator actions to the Audit platform's
 // platform-scoped ledger on the caller's transaction.
@@ -102,7 +92,6 @@ type SchoolIdentityProvisioner interface {
 // account-session dependencies they share (the password verifier, the JWT
 // codec, the auth ledger, the schools and the tenant runtime).
 type OperatorDependencies struct {
-	MFA           OperatorMFAGate
 	Audit         OperatorAudit
 	Passwords     PasswordHasher
 	Organizations OrganizationDirectory
@@ -110,7 +99,7 @@ type OperatorDependencies struct {
 	Logger        *slog.Logger
 }
 
-func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
+func newOperatorFlows(service *application.Service, store *postgres.Store, tokens *application.OperatorTokens, auth *application.AccountAuthentication, sessions *SessionDependencies, deps *OperatorDependencies, lifecycle *application.AccountLifecycle, mfa ports.OperatorMFAGate) (*application.OperatorAuthentication, *application.OperatorAccountAccess, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -118,7 +107,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		return nil, nil, errors.New("identity access compose: the operator flows require the session dependencies")
 	}
 	switch {
-	case deps.MFA == nil, deps.Audit == nil, deps.Passwords == nil,
+	case deps.Audit == nil, deps.Passwords == nil,
 		deps.Organizations == nil, deps.Identities == nil:
 		return nil, nil, errors.New("identity access compose: every operator dependency is required")
 	}
@@ -131,7 +120,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 		Passwords:   sessions.Passwords,
 		Hasher:      deps.Passwords,
 		Codec:       tokenCodec{sessions.Codec},
-		MFA:         deps.MFA,
+		MFA:         mfa,
 		Audit:       operatorAudit{deps.Audit},
 		Credentials: emailChangeRevocation{tokens},
 		Runtime:     runtime,
@@ -164,6 +153,12 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 type operatorAudit struct{ source OperatorAudit }
 
 func (a operatorAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
+	return a.source.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))
+}
+
+// publicOperatorAuditEntry renders one ledger entry across the module
+// boundary, with the typed evidence each action carries.
+func publicOperatorAuditEntry(entry domain.OperatorAuditEntry) identityaccess.OperatorAuditEntry {
 	public := identityaccess.OperatorAuditEntry{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
 		ResourceID: entry.ResourceID, IPAddress: entry.IPAddress,
@@ -176,7 +171,15 @@ func (a operatorAudit) RecordOperatorAction(ctx context.Context, entry domain.Op
 		change := identityaccess.OperatorAccessChange(*entry.AccessChange)
 		public.AccessChange = &change
 	}
-	return a.source.RecordOperatorAction(ctx, public)
+	if entry.MFA != nil {
+		evidence := identityaccess.OperatorMFAEvidence{Reason: entry.MFA.Reason, LockedUntil: entry.MFA.LockedUntil}
+		if entry.MFA.Override != nil {
+			override := identityaccess.OperatorMFAOverrideEvidence(*entry.MFA.Override)
+			evidence.Override = &override
+		}
+		public.MFA = &evidence
+	}
+	return public
 }
 
 type organizationDirectory struct{ source OrganizationDirectory }
