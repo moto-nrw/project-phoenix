@@ -21,6 +21,18 @@ import {
   staffScheduleService,
 } from "~/lib/staff-api";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
+import { AbsenceBookingModal } from "~/components/staff/absence-booking-modal";
+import {
+  SickReportModal,
+  type SickReportStaff,
+} from "~/components/staff/sick-report-modal";
+import { createLogger } from "~/lib/logger";
+import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
+} from "~/lib/timetable-helpers";
+import { isStaleAfterSessionSave } from "~/components/staff/staff-session-table";
+import { absenceTypeService } from "~/lib/absence-type-api";
 import { useSWRConfig } from "swr";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
@@ -45,11 +57,13 @@ import {
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { usePeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
+
+const logger = createLogger({ component: "ZeiterfassungTab" });
 
 // Reopening changes both the staff-detail chain and, when the selected person
 // is the signed-in manager, the self-service month chain. The remaining
@@ -83,10 +97,32 @@ export function resolveInitialTimeTrackingDate(initialDate?: string): Date {
 export function ZeiterfassungTab({
   staffId,
   initialDate,
+  staff,
+  canBookAbsences = false,
 }: {
   readonly staffId: string;
   readonly initialDate?: string;
+  // Für „Abwesenheit nachtragen" an Tagen ohne Eintrag (#3258); braucht
+  // time_tracking:manage, wie das Eintragen im Reiter Abwesenheiten.
+  readonly staff?: SickReportStaff;
+  readonly canBookAbsences?: boolean;
 }) {
+  const [backfill, setBackfill] = useState<{
+    date: string;
+    kind: "absence" | "sick";
+  } | null>(null);
+  // Eine Krankmeldung ändert Dienst- und Vertretungsplan mit (#1843).
+  const refreshPlanCaches = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+    VERTRETUNG_WEEK_KEY_PREFIX,
+    VERTRETUNG_GAPS_KEY_PREFIX,
+  ]);
+  const canBackfill = canBookAbsences && staff !== undefined;
+  const { data: absenceTypes } = useSWRAuth(
+    canBackfill ? "staff-absence-types" : null,
+    () => absenceTypeService.getAbsenceTypes(),
+  );
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // tab stays mounted for hours, and `new Date()` frozen at mount would keep
   // pointing "Dieser Monat" and the open-month poll at yesterday's month after
@@ -246,6 +282,12 @@ export function ZeiterfassungTab({
     accountStartDate !== "" && accountStartDate > todayISO;
   const [showReopenModal, setShowReopenModal] = useState(false);
   const { mutate: globalMutate } = useSWRConfig();
+  const refreshAfterBackfill = () =>
+    globalMutate(
+      (key) =>
+        isStaleAfterSessionSave(key, staffId) ||
+        isStaleAfterMonthReopen(key, staffId),
+    );
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -430,10 +472,45 @@ export function ZeiterfassungTab({
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}
+              onBackfillAbsence={
+                canBackfill
+                  ? (day, kind) => setBackfill({ date: toDateKey(day), kind })
+                  : undefined
+              }
             />
           </div>
         )}
       </SectionCard>
+      {backfill?.kind === "absence" && staff ? (
+        <AbsenceBookingModal
+          staff={staff}
+          types={absenceTypes ?? []}
+          initialDate={backfill.date}
+          onClose={() => setBackfill(null)}
+          onSaved={async () => {
+            setBackfill(null);
+            await refreshAfterBackfill();
+          }}
+        />
+      ) : null}
+      {backfill?.kind === "sick" && staff ? (
+        <SickReportModal
+          isOpen
+          staff={staff}
+          initialDate={backfill.date}
+          onClose={() => setBackfill(null)}
+          onCreated={() => {
+            Promise.all([refreshPlanCaches(), refreshAfterBackfill()]).catch(
+              (err: unknown) => {
+                logger.error("sick_backfill_refresh_failed", {
+                  staff_id: staffId,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }
