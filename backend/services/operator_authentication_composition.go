@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -16,8 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/services/auth"
-	"github.com/moto-nrw/project-phoenix/services/platform"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // Identity & Access owns operator login, the MFA-proven token issue, refresh,
@@ -86,7 +84,7 @@ type operatorAuditLedger struct {
 func (a operatorAuditLedger) RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error {
 	row := &platformModels.OperatorAuditLog{
 		OperatorID: entry.OperatorID, Action: entry.Action, ResourceType: entry.ResourceType,
-		ResourceID: entry.ResourceID, RequestIP: auth.ParseClientIP(entry.IPAddress),
+		ResourceID: entry.ResourceID, RequestIP: securityruntime.ParseClientAddress(entry.IPAddress),
 	}
 	if changes := operatorAuditChanges(entry); len(changes) > 0 {
 		if err := row.SetChanges(changes); err != nil {
@@ -131,11 +129,11 @@ func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]an
 type passwordHasher struct{}
 
 func (passwordHasher) HashPassword(password string) (string, error) {
-	return auth.HashPassword(password)
+	return securityruntime.HashPassword(password)
 }
 
 func (passwordHasher) ValidatePasswordStrength(password string) error {
-	if err := auth.ValidatePasswordStrength(password); err != nil {
+	if securityruntime.PasswordTooWeak(password) {
 		return identityaccess.ErrPasswordTooWeak
 	}
 	return nil
@@ -281,155 +279,4 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 		facts = append(facts, identityaccessCompose.AccountIdentityFact{TenantID: tenantID, HasPerson: true, HasStaff: hasStaff && staffTenant == tenantID})
 	}
 	return facts, nil
-}
-
-// --- the retained platform services' consumer-owned ports -----------------
-
-// operatorSessions serves platform.OperatorSessions over the public module
-// and translates the public sentinels back into the retained error shapes
-// the MFA and passkey routes render.
-type operatorSessions struct {
-	module identityaccess.OperatorAuthentication
-}
-
-func newOperatorSessions(module identityaccess.OperatorAuthentication) platform.OperatorSessions {
-	return operatorSessions{module: module}
-}
-
-func (s operatorSessions) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := s.module.IssueTokensForAuthenticatedOperator(ctx, operatorID, ipAddress, userAgent)
-	switch {
-	case err == nil:
-		return access, refresh, nil
-	case errors.Is(err, identityaccess.ErrOperatorNotFound):
-		return "", "", &platform.OperatorNotFoundError{OperatorID: operatorID}
-	case errors.Is(err, identityaccess.ErrOperatorInactive):
-		return "", "", &platform.OperatorInactiveError{OperatorID: operatorID}
-	default:
-		return "", "", err
-	}
-}
-
-// operatorDirectory serves platform.OperatorDirectory, the retained
-// contract the e-mail change, invitation, MFA and passkey flows read
-// operator rows through: a missing row is (nil, nil), validation runs on the
-// retained model before the owner sees the value, and the identity and
-// timestamps are written back into the caller's value.
-type operatorDirectory struct{ identity identityaccess.OperatorAccess }
-
-func newOperatorDirectory(identity identityaccess.OperatorAccess) platform.OperatorDirectory {
-	return operatorDirectory{identity: identity}
-}
-
-func (r operatorDirectory) Create(ctx context.Context, operator *platformModels.Operator) error {
-	if operator == nil {
-		return fmt.Errorf("%s cannot be nil or zero value", "Operator")
-	}
-	if err := operator.Validate(); err != nil {
-		return err
-	}
-	stored, err := r.identity.CreateOperator(ctx, identityOperator(operator))
-	if err != nil {
-		return operatorDatabaseError("create", err)
-	}
-	applyIdentityOperator(operator, stored)
-	return nil
-}
-
-func (r operatorDirectory) FindByID(ctx context.Context, id int64) (*platformModels.Operator, error) {
-	operator, err := r.identity.FindOperator(ctx, id)
-	return operatorResult(operator, err, "find operator by id")
-}
-
-func (r operatorDirectory) FindByIDForUpdate(ctx context.Context, id int64) (*platformModels.Operator, error) {
-	operator, err := r.identity.FindOperatorForUpdate(ctx, id)
-	return operatorResult(operator, err, "find operator by id for update")
-}
-
-func (r operatorDirectory) FindByEmail(ctx context.Context, email string) (*platformModels.Operator, error) {
-	operator, err := r.identity.FindOperatorByEmail(ctx, email)
-	return operatorResult(operator, err, "find operator by email")
-}
-
-func operatorResult(operator identityaccess.Operator, err error, op string) (*platformModels.Operator, error) {
-	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, operatorDatabaseError(op, err)
-	}
-	return operatorModel(operator), nil
-}
-
-func (r operatorDirectory) Update(ctx context.Context, operator *platformModels.Operator) error {
-	if operator == nil {
-		return fmt.Errorf("%s cannot be nil or zero value", "Operator")
-	}
-	if err := operator.Validate(); err != nil {
-		return err
-	}
-	stored, err := r.identity.UpdateOperator(ctx, identityOperator(operator))
-	if err != nil {
-		return operatorDatabaseError("update", err)
-	}
-	applyIdentityOperator(operator, stored)
-	return nil
-}
-
-func (r operatorDirectory) List(ctx context.Context) ([]*platformModels.Operator, error) {
-	operators, err := r.identity.ListOperators(ctx)
-	if err != nil {
-		return nil, operatorDatabaseError("list operators", err)
-	}
-	result := make([]*platformModels.Operator, 0, len(operators))
-	for _, operator := range operators {
-		result = append(result, operatorModel(operator))
-	}
-	return result, nil
-}
-
-func (r operatorDirectory) IncrementMFAAttempts(ctx context.Context, id int64, threshold int, lockoutDuration time.Duration) (platform.OperatorMFAAttempts, error) {
-	attempts, err := r.identity.IncrementOperatorMFAAttempts(ctx, id, threshold, lockoutDuration)
-	if err != nil {
-		return platform.OperatorMFAAttempts{}, operatorDatabaseError("increment operator mfa attempts", err)
-	}
-	return platform.OperatorMFAAttempts{Attempts: attempts.Attempts, LockedUntil: attempts.LockedUntil}, nil
-}
-
-func (r operatorDirectory) ResetMFAAttempts(ctx context.Context, id int64) error {
-	if err := r.identity.ResetOperatorMFAAttempts(ctx, id); err != nil {
-		return operatorDatabaseError("reset operator mfa attempts", err)
-	}
-	return nil
-}
-
-func operatorDatabaseError(op string, err error) error {
-	return fmt.Errorf("database error during %s: %w", op, err)
-}
-
-func identityOperator(operator *platformModels.Operator) identityaccess.Operator {
-	return identityaccess.Operator{
-		ID: operator.ID, Email: operator.Email, DisplayName: operator.DisplayName, PasswordHash: operator.PasswordHash, Active: operator.Active,
-		LastLogin: operator.LastLogin, MFAAttempts: operator.MFAAttempts, MFALockedUntil: operator.MFALockedUntil,
-		CreatedAt: operator.CreatedAt, UpdatedAt: operator.UpdatedAt,
-	}
-}
-
-func applyIdentityOperator(dst *platformModels.Operator, src identityaccess.Operator) {
-	dst.ID = src.ID
-	dst.Email = src.Email
-	dst.DisplayName = src.DisplayName
-	dst.PasswordHash = src.PasswordHash
-	dst.Active = src.Active
-	dst.LastLogin = src.LastLogin
-	dst.MFAAttempts = src.MFAAttempts
-	dst.MFALockedUntil = src.MFALockedUntil
-	dst.CreatedAt = src.CreatedAt
-	dst.UpdatedAt = src.UpdatedAt
-}
-
-func operatorModel(src identityaccess.Operator) *platformModels.Operator {
-	operator := &platformModels.Operator{}
-	applyIdentityOperator(operator, src)
-	return operator
 }

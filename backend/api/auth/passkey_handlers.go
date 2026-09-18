@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -68,7 +67,7 @@ func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	origin := passkeyExpectedOrigin(r)
 	if origin == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasskeyOriginInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasskeyOriginInvalid))
 		return
 	}
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), req.TenantSlug)
@@ -76,7 +75,7 @@ func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 		return
 	}
-	options, err := rs.PasskeyService.BeginAccountPasskeyLogin(r.Context(), authService.AccountPasskeyLoginStart{
+	options, err := rs.PasskeyService.BeginAccountPasskeyLogin(r.Context(), identityaccess.AccountPasskeyLoginStart{
 		TenantID:        school.ID,
 		TenantSubdomain: school.Subdomain,
 		ExpectedOrigin:  origin,
@@ -97,7 +96,7 @@ func (rs *Resource) passkeyLoginVerify(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	result, err := rs.PasskeyService.FinishAccountPasskeyLogin(r.Context(), authService.AccountPasskeyLoginFinish{
+	result, err := rs.PasskeyService.FinishAccountPasskeyLogin(r.Context(), identityaccess.AccountPasskeyLoginFinish{
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
 		IPAddress:          getClientIP(r),
@@ -145,7 +144,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 	}
 	origin := passkeyExpectedOrigin(r)
 	if origin == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasskeyOriginInvalid))
+		common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPasskeyOriginInvalid))
 		return
 	}
 	school, err := rs.SchoolService.GetSchoolByID(r.Context(), claims.TenantID)
@@ -153,7 +152,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 		return
 	}
-	options, err := rs.PasskeyService.BeginAccountPasskeyRegistration(r.Context(), authService.AccountPasskeyRegistrationStart{
+	options, err := rs.PasskeyService.BeginAccountPasskeyRegistration(r.Context(), identityaccess.AccountPasskeyRegistrationStart{
 		AccountID:       int64(claims.ID),
 		TenantID:        claims.TenantID,
 		TenantSubdomain: school.Subdomain,
@@ -181,7 +180,7 @@ func (rs *Resource) passkeyRegisterVerify(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
-	credential, err := rs.PasskeyService.FinishAccountPasskeyRegistration(r.Context(), authService.AccountPasskeyRegistrationFinish{
+	credential, err := rs.PasskeyService.FinishAccountPasskeyRegistration(r.Context(), identityaccess.AccountPasskeyRegistrationFinish{
 		AccountID:          int64(claims.ID),
 		SessionID:          req.SessionID,
 		CredentialResponse: req.Response,
@@ -243,42 +242,42 @@ func passkeyExpectedOrigin(r *http.Request) string {
 // here are the retained ones the composition translates the module's into;
 // the status codes and messages are unchanged.
 func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
-	var flowErr *authService.AuthError
+	var flowErr *identityaccess.AuthenticationError
 	if errors.As(err, &flowErr) {
 		err = flowErr.Err
 	}
 	switch {
-	case errors.Is(err, authService.ErrInvalidCredentials),
-		errors.Is(err, authService.ErrPasskeySessionInvalid),
-		errors.Is(err, authService.ErrAccountNotFound):
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
-	case errors.Is(err, authService.ErrAccountInactive):
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
-	case errors.Is(err, authService.ErrTenantAccessDenied):
-		common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
-	case errors.Is(err, authService.ErrTenantNotFound):
-		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
-	case errors.Is(err, authService.ErrPasskeyOriginInvalid):
+	case errors.Is(err, identityaccess.ErrInvalidCredentials),
+		errors.Is(err, identityaccess.ErrPasskeySessionInvalid),
+		errors.Is(err, identityaccess.ErrAccountNotFound):
+		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrInvalidCredentials))
+	case errors.Is(err, identityaccess.ErrAccountInactive):
+		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrAccountInactive))
+	case errors.Is(err, identityaccess.ErrTenantAccessDenied):
+		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
+	case errors.Is(err, identityaccess.ErrTenantNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
+	case errors.Is(err, identityaccess.ErrPasskeyOriginInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
-	case errors.Is(err, authService.ErrMFACodeInvalid):
+	case errors.Is(err, identityaccess.ErrMFACodeInvalid):
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
-	case errors.Is(err, authService.ErrMFARateLimited),
-		errors.Is(err, authService.ErrMFALocked):
+	case errors.Is(err, identityaccess.ErrMFARateLimited),
+		errors.Is(err, identityaccess.ErrMFALocked):
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
-	case errors.Is(err, authService.ErrMFAStatusUnavailable):
+	case errors.Is(err, identityaccess.ErrMFAStatusUnavailable):
 		// Passkey enrollment starts an email challenge, so it inherits the
 		// gate's fail-closed behaviour on a status or rate-limit lookup
 		// error. That is a transient infrastructure problem: 503 so the
 		// client retries instead of surfacing a permanent-looking 500.
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
-	case errors.Is(err, authService.ErrParentMustUseParentPortal):
+	case errors.Is(err, identityaccess.ErrParentMustUseParentPortal):
 		// Same code as the password path in session_handlers.go — a client
 		// must not have to care which login route produced the 403.
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "use_parent_portal"))
-	case errors.Is(err, authService.ErrMustUseSchoolPortal):
+	case errors.Is(err, identityaccess.ErrMustUseSchoolPortal):
 		// School-portal split (#2207), same reasoning as the parent split.
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "use_school_portal"))
-	case errors.Is(err, authService.ErrPasskeyNotFound):
+	case errors.Is(err, identityaccess.ErrPasskeyNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:
 		// A failed read or write of the passkey records reaches this branch

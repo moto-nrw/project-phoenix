@@ -14,7 +14,6 @@ import (
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -169,7 +168,7 @@ func (s *caregiverCapabilityService) EnableCaregiverCapability(
 			details["requested_position"] = input.Position
 		}
 
-		userRole, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
+		userRole, err := authModels.ResolveSystemRoleByName(txCtx, s.RoleRepo, "user")
 		if err != nil {
 			return err
 		}
@@ -258,7 +257,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 		}
 
 		for _, roleName := range roleNamesToRemove {
-			role, err := authSvc.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
+			role, err := authModels.ResolveSystemRoleByName(txCtx, s.RoleRepo, roleName)
 			if err != nil {
 				return err
 			}
@@ -499,7 +498,7 @@ func (s *caregiverCapabilityService) loadAccountAndTenant(
 		return nil, 0, err
 	}
 	if account == nil {
-		return nil, 0, authSvc.ErrAccountNotFound
+		return nil, 0, ErrAccountNotFound
 	}
 
 	exists, err := s.AccountTenantRepo.ExistsByAccountAndTenant(ctx, accountID, tenantID)

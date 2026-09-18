@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -19,7 +18,6 @@ import (
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
-	authSvcPkg "github.com/moto-nrw/project-phoenix/services/auth"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,10 +32,18 @@ func offboardingCredential(prefix string, suffix string) string {
 	return prefix + suffix + "!"
 }
 
+// offboardingIdentity is what the suite drives on the composed identity
+// module: the membership the offboarding revokes and the login it must
+// refuse afterwards.
+type offboardingIdentity interface {
+	VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error)
+	LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error)
+}
+
 type offboardingScenario struct {
 	db      *bun.DB
 	repos   *repositories.Factory
-	authSvc authSvcPkg.AuthService
+	authSvc offboardingIdentity
 	svc     *offboardingTestRunner
 	deps    offboardingcompose.Dependencies
 	ctx     context.Context
@@ -56,16 +62,16 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	repos.SetConfigRuntime(testpkg.ConfigRuntime(db))
 
-	authCfg, err := authSvcPkg.NewServiceConfig(nil, email.Email{}, "http://localhost:3000", time.Hour)
+	authService, err := services.IdentityAccessForTests(repos, services.IdentityAccessTestConfig{
+		TenantRuntime: testpkg.TenantRuntime(t, db),
+		Audit:         testpkg.NewAuthEventCommand(repos.AuthEvent),
+		FrontendURL:   "http://localhost:3000", PasswordResetExpiry: time.Hour,
+	}, db, nil)
 	require.NoError(t, err)
-	authCfg.Audit = testpkg.NewAuthEventCommand(repos.AuthEvent)
-	authService, err := services.NewAuthServiceForTests(repos, *authCfg, db, nil)
-	require.NoError(t, err)
-	testpkg.SetTenantRuntime(t, authService, db)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
-		DB: db, Access: authService,
+		DB: db, Access: services.StaffOffboardingAccess(authService),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -202,10 +208,10 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	active, err := sc.authSvc.VerifyAccountTenantMembership(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)
 	require.True(t, active)
-	tokens, err := sc.authSvc.GetActiveTokens(sc.ctx, int(account.ID))
-	require.NoError(t, err)
-	require.Len(t, tokens, 1, "rolled-back account cleanup must not revoke credentials after commit")
-	require.Equal(t, token.ID, tokens[0].ID)
+	var liveTokens int
+	require.NoError(t, sc.db.NewSelect().TableExpr("auth.tokens").ColumnExpr("count(*)").
+		Where("account_id = ?", account.ID).Where("id = ?", token.ID).Scan(sc.ctx, &liveTokens))
+	require.Equal(t, 1, liveTokens, "rolled-back account cleanup must not revoke credentials after commit")
 	var auditRows int
 	require.NoError(t, sc.db.NewSelect().TableExpr("audit.data_deletions").ColumnExpr("count(*)").Where("staff_id = ?", staff.ID).Scan(sc.ctx, &auditRows))
 	require.Zero(t, auditRows, "the deletion audit and owner writes must roll back together")
@@ -213,9 +219,9 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	sc.svc.deps.Cleanup = func(context.Context, int64) error { return nil }
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
-	tokens, err = sc.authSvc.GetActiveTokens(sc.ctx, int(account.ID))
-	require.NoError(t, err)
-	require.Empty(t, tokens)
+	require.NoError(t, sc.db.NewSelect().TableExpr("auth.tokens").ColumnExpr("count(*)").
+		Where("account_id = ?", account.ID).Scan(sc.ctx, &liveTokens))
+	require.Zero(t, liveTokens)
 }
 
 func TestOffboardStaff_ConcurrentPlanningCannotAttachAfterRetirement(t *testing.T) {
@@ -433,7 +439,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	assignTenantRole(t, sc.db, account.ID, role.ID)
 	testpkg.CreateTestToken(t, sc.db, account.ID, "refresh")
 
-	_, _, err := sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err := sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.NoError(t, err, "login must work before offboarding")
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
@@ -478,7 +484,7 @@ func TestOffboardStaff_RevokesAccountAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Zero(t, roleCount, "tenant roles must be removed")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.Error(t, err, "login must fail after offboarding")
 }
 
@@ -519,7 +525,7 @@ func TestOffboardStaff_MultiTenantAccountKeepsOtherSchool(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, existsB, "other school mapping must stay active")
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.NoError(t, err, "login at the other school must keep working")
 }
 
@@ -598,7 +604,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	assert.False(t, stored.Active)
 	assert.Equal(t, account.PasswordHash, stored.PasswordHash)
 
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, newCredential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, newCredential, "", "", "")
 	require.Error(t, err, "the proposed invitation password must grant no access")
 }
 
@@ -916,9 +922,9 @@ func TestOffboardStaff_PreservesGuardianAccess(t *testing.T) {
 
 	// Staff portal login is refused for the now guardian-only account; the
 	// parents portal remains the entry point.
-	_, _, err = sc.authSvc.Login(context.Background(), emailAddr, credential)
+	_, _, err = sc.authSvc.LoginWithAudit(context.Background(), emailAddr, credential, "", "", "")
 	require.Error(t, err, "staff login must be refused for the guardian-only account")
-	assert.ErrorIs(t, err, authSvcPkg.ErrParentMustUseParentPortal)
+	assert.ErrorIs(t, err, services.ErrParentMustUseParentPortal)
 }
 
 // TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments: same-day

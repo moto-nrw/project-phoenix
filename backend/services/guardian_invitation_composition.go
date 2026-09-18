@@ -198,7 +198,7 @@ func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileID
 	}
 	invitations, err := module.ListOpenGuardianInvitations(ctx, guardianProfileIDs)
 	if err != nil {
-		return nil, invitationServiceError(err)
+		return nil, err
 	}
 	return guardianListRecords(invitations), nil
 }
@@ -210,7 +210,7 @@ func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]usersSvc
 	}
 	invitations, err := module.ListRedeemableGuardianInvitations(ctx)
 	if err != nil {
-		return nil, invitationServiceError(err)
+		return nil, err
 	}
 	return guardianListRecords(invitations), nil
 }
@@ -224,7 +224,7 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	}
 	invitations, err := module.ListGuardianInvitations(ctx, guardianProfileID)
 	if err != nil {
-		return nil, invitationServiceError(err)
+		return nil, err
 	}
 	result := make([]parentportal.GuardianInvitationRecord, 0, len(invitations))
 	for _, invitation := range invitations {

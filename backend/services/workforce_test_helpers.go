@@ -55,11 +55,11 @@ func NewWorkforceTestModule(db *bun.DB, unit tenant.UnitOfWork, clocks ...func()
 		return WorkforceTestModule{}, err
 	}
 	logger := slog.Default()
-	_, identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
+	identityAccess, err := lifecycleTestModule(db, unit, GuardianInvitationTestConfig{Audit: command, Logger: logger})
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess.module }}
+	identityRoles := roleAdministration{current: func() *identityaccess.Module { return identityAccess }}
 	settingsService := settings.Settings
 	activeLogger := logger
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)

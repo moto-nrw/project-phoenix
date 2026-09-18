@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -42,9 +41,18 @@ type AccountSessions interface {
 	identityaccess.AccountAdministration
 }
 
+// AccountLifecycle is the Identity & Access capability the admin
+// staff-view preview (#2893) and the parent account routes call directly
+// (#3364). The retained port that used to carry them is gone; the routes
+// name the owner's contract, as the session routes already do.
+type AccountLifecycle interface {
+	identityaccess.StaffPreview
+	identityaccess.ParentAccountAccess
+}
+
 // Resource defines the auth resource
 type Resource struct {
-	AuthService authService.AuthService
+	AuthService AccountLifecycle
 	Sessions    AccountSessions
 	// Invitations is the Identity & Access invitation capability the
 	// invitation routes call directly (#3332).
@@ -62,8 +70,8 @@ type Resource struct {
 	// and the school-portal WebAuthn ceremonies (#3331). Both stay optional:
 	// handlers gate on nil and answer 503, so a deployment composed without
 	// them does not crash.
-	MFAService      authService.MFAService
-	PasskeyService  authService.PasskeyService
+	MFAService      identityaccess.AccountMFA
+	PasskeyService  identityaccess.AccountPasskeyFlows
 	db              *bun.DB
 	authRateLimiter func(http.Handler) http.Handler
 }
@@ -76,19 +84,19 @@ func (rs *Resource) SetAuthRateLimiter(mw func(http.Handler) http.Handler) {
 // SetMFAService wires the optional MFA service. Setter pattern matches
 // SetSettingsService — keeps the NewResource constructor signature
 // backward-compatible while phases roll in.
-func (rs *Resource) SetMFAService(svc authService.MFAService) {
+func (rs *Resource) SetMFAService(svc identityaccess.AccountMFA) {
 	rs.MFAService = svc
 }
 
-func (rs *Resource) SetPasskeyService(svc authService.PasskeyService) {
+func (rs *Resource) SetPasskeyService(svc identityaccess.AccountPasskeyFlows) {
 	rs.PasskeyService = svc
 }
 
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(authService authService.AuthService, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
+func NewResource(lifecycle AccountLifecycle, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
 	return &Resource{
-		AuthService:         authService,
+		AuthService:         lifecycle,
 		Sessions:            sessions,
 		Invitations:         invitations,
 		GuardianInvitations: invitations,

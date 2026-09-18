@@ -17,6 +17,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
+	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -36,7 +37,7 @@ func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.
 	classDay := classdayhttp.NewResource(classdayCompose.NewClassDay(classdayCompose.ClassDayDependencies{
 		Reports: services.EnrollmentReport, Caller: services.UserContext, ArrivalExceptions: services.ClassDayArrivalExceptions,
 	}), db, nil)
-	return db, schoolportal.NewResource(services.Auth, services.MFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
+	return db, schoolportal.NewResource(portaltest.AuthRuntime(services.SchoolAuth), portaltest.MFARuntime(services.SchoolMFA), schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
