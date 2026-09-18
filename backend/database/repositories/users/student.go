@@ -87,308 +87,6 @@ func (r *StudentRepository) BindTeacherStaffGroupIDs(query func(context.Context,
 	r.teacherStaffGroupIDs = query
 }
 
-// FindByID retrieves a student by their ID.
-func (r *StudentRepository) FindByID(ctx context.Context, id interface{}) (*users.Student, error) {
-	student, err := r.Repository.FindByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := r.hydrateBusDaysForStudents(ctx, []*users.Student{student}); err != nil {
-		return nil, err
-	}
-	return student, nil
-}
-
-// FindByPersonID retrieves a student by their person ID
-func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) (*users.Student, error) {
-	student := new(users.Student)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(student).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("person_id = ?", personID)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by person ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return student, nil
-}
-
-// FindByIDs retrieves multiple students by their IDs in a single query
-func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
-	if len(ids) == 0 {
-		return make(map[int64]*users.Student), nil
-	}
-
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".id IN (?)`, bun.List(ids))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	result := make(map[int64]*users.Student, len(students))
-	for _, student := range students {
-		result[student.ID] = student
-	}
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-
-// FindReadScopeByIDs retrieves a lightweight projection of the given students —
-// only id, group_id, person_id, and school_class — in a single primary-key
-// IN-list query. Unlike FindByIDs it does NOT run hydrateBusDaysForStudents, so
-// it avoids the extra jsonb weekday-hydration round-trip. Callers that only
-// gate read access and display a name (e.g. the
-// reminders header, polled per browser every 60s) get just those small rows and
-// nothing they never read. The returned *Student values have ONLY those four
-// fields populated — do not use them where full student data is expected.
-func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
-	if len(ids) == 0 {
-		return make(map[int64]*users.Student), nil
-	}
-
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(`users.students AS "student"`).
-		Column("id", "group_id", "person_id", "school_class").
-		Where(`"student".id IN (?)`, bun.List(ids))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find read scope by IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	result := make(map[int64]*users.Student, len(students))
-	for _, student := range students {
-		result[student.ID] = student
-	}
-	return result, nil
-}
-
-// FindByGroupID retrieves students by their group ID. Alumni (graduated,
-// soft-deleted) are excluded — their rows only exist for transition reverts.
-func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id = ?", groupID).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by group ID",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
-	}
-
-	return students, nil
-}
-
-// FindByGroupIDs retrieves students by multiple group IDs
-func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*users.Student, error) {
-	if len(groupIDs) == 0 {
-		return []*users.Student{}, nil
-	}
-
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("group_id IN (?)", bun.List(groupIDs)).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by group IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
-	}
-
-	return students, nil
-}
-
-// FindBySchoolClass retrieves students by their school class. Alumni
-// (graduated, soft-deleted) are excluded — staff-facing callers (arrival-plan
-// bulk upsert, enrollment reports, calendar targeting) must never write to or
-// count a graduate. Their rows survive only for transition reverts, which use
-// the education repository's by-ID paths, not this lookup.
-func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by school class",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
-	}
-
-	return students, nil
-}
-
-// ExistsEnrolledByNameAndBirthday reports whether an already-enrolled
-// student with the given (case-insensitive, trimmed) name and birthday
-// exists in the tenant. Backs the enrollment new_students audience check
-// (#1663). "Enrolled" spans both active and pending students: an
-// enrollment approved before its service start date creates the resulting
-// student as pending until the activation scheduler flips it to active
-// (approvalActivationPlan), so pending children are already enrolled and
-// must be treated as such — otherwise a just-approved child would slip
-// through a new_students phase and create a duplicate record. The tenant
-// filter is explicit (not RLS/context-based) because the parent submit
-// path runs under an admin transaction. A zero birthday binds NULL and
-// matches nothing — the safe outcome for incomplete input.
-func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (bool, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Where(`"student".tenant_id = ?`, tenantID).
-		Where(`"student".status IN (?)`, bun.List([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
-		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
-		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
-		Where(`"person".birthday = ?`, birthday).
-		Where(`"person".deleted_at IS NULL`).
-		Count(ctx)
-	if err != nil {
-		return false, &modelBase.DatabaseError{
-			Op:  "exists enrolled by name and birthday",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return count > 0, nil
-}
-
-// FindEnrolledStudentIDByNameAndBirthday resolves the single already-enrolled
-// student matching the given (case-insensitive, trimmed) name and birthday in
-// the tenant, backing the existing_students re-enrollment path (#1663). It
-// returns the student ID ONLY when exactly one active/pending student matches:
-// zero matches or an ambiguous multi-match both yield (nil, nil) so the caller
-// stores no reference and approval falls back to the fresh-create path rather
-// than renewing an arbitrary record. Same enrolled-scope and explicit tenant
-// filter as ExistsEnrolledByNameAndBirthday (the parent submit path runs under
-// an admin transaction, not RLS context). A zero birthday binds NULL and
-// matches nothing.
-func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday timezone.Date) (*int64, error) {
-	var ids []int64
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		ColumnExpr(`"student".id`).
-		Where(`"student".tenant_id = ?`, tenantID).
-		Where(`"student".status IN (?)`, bun.List([]users.StudentStatus{users.StudentStatusActive, users.StudentStatusPending})).
-		Where(`LOWER(TRIM("person".first_name)) = LOWER(TRIM(?))`, firstName).
-		Where(`LOWER(TRIM("person".last_name)) = LOWER(TRIM(?))`, lastName).
-		Where(`"person".birthday = ?`, birthday).
-		Where(`"person".deleted_at IS NULL`).
-		OrderExpr(`"student".id ASC`).
-		Limit(2).
-		Scan(ctx, &ids)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find enrolled student id by name and birthday",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	if len(ids) != 1 {
-		// Zero or ambiguous (>1): no unambiguous student to renew.
-		return nil, nil
-	}
-	id := ids[0]
-	return &id, nil
-}
-
-// ListSchoolClasses retrieves all distinct non-empty school_class values.
-func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, error) {
-	var classes []string
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`DISTINCT TRIM("student".school_class)`).
-		Where(`TRIM("student".school_class) != ''`).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
-		OrderExpr(`TRIM("student".school_class) ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx, &classes); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list school classes",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return classes, nil
-}
-
-func (r *StudentRepository) ListIDs(ctx context.Context) ([]int64, error) {
-	ids := make([]int64, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".id`).
-		OrderExpr(`"student".id`)
-	query = base.WithTenantFilter(ctx, query, "student")
-	if err := query.Scan(ctx, &ids); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list student ids", Err: base.TranslateNotFound(err)}
-	}
-	return ids, nil
-}
-
 // applyEffectiveDeparturePlan resolves the stored projections into the plan
 // that is in effect and records it as the baseline a later Update rebases
 // untouched fields onto (see rebaseUntouchedDeparturePlan). The precedence
@@ -506,88 +204,6 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 
 	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
 		return nil, err
-	}
-
-	return students, nil
-}
-
-// CountByGroupIDs counts students per group for multiple groups in a single query
-func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
-	if len(groupIDs) == 0 {
-		return make(map[int64]int), nil
-	}
-
-	type countResult struct {
-		GroupID int64 `bun:"group_id"`
-		Count   int   `bun:"count"`
-	}
-
-	var results []countResult
-	query := base.GetDB(ctx, r.db).NewSelect().
-		TableExpr(`users.students AS "student"`).
-		ColumnExpr(`"student".group_id`).
-		ColumnExpr("COUNT(*) AS count").
-		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
-		Where(`"student".status <> ?`, string(users.StudentStatusAlumnus)).
-		GroupExpr(`"student".group_id`)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx, &results)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "count by group IDs",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	counts := make(map[int64]int, len(results))
-	for _, r := range results {
-		counts[r.GroupID] = r.Count
-	}
-	return counts, nil
-}
-
-// FindByGuardianEmail finds students with a specific guardian email
-func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email string) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(`users.students AS "student"`).
-		Where(`LOWER("student".guardian_email) = LOWER(?)`, email)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by guardian email",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return students, nil
-}
-
-// FindByGuardianPhone finds students with a specific guardian phone
-func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone string) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(`users.students AS "student"`).
-		Where(`"student".guardian_phone = ?`, phone)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by guardian phone",
-			Err: base.TranslateNotFound(err),
-		}
 	}
 
 	return students, nil
@@ -996,92 +612,6 @@ func (r *StudentRepository) findByIDForUpdate(ctx context.Context, id int64, noW
 	return student, nil
 }
 
-// FindByIDsForUpdate fetches and locks the given student rows in one
-// SELECT … ORDER BY id FOR UPDATE. Ascending id order is the project-wide
-// student lock convention (see FindByIDForUpdateNoWait), so overlapping
-// batch callers serialize on their first shared row instead of deadlocking.
-// The class-writes shared gate is taken once for the whole batch, exactly
-// like the single-row lock does per row. Unknown or foreign ids are simply
-// absent from the returned map — callers re-validate per id.
-func (r *StudentRepository) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*users.Student, error) {
-	result := make(map[int64]*users.Student, len(ids))
-	if len(ids) == 0 {
-		return result, nil
-	}
-	if err := r.lockClassWritesShared(ctx); err != nil {
-		return nil, err
-	}
-
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where(`"student".id IN (?)`, bun.List(ids)).
-		OrderExpr(`"student".id ASC`).
-		For("UPDATE")
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find_by_ids_for_update", Err: base.TranslateNotFound(err)}
-	}
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
-	}
-	for _, student := range students {
-		result[student.ID] = student
-	}
-	return result, nil
-}
-
-// FindPendingDueForActivation returns students whose status='pending' and
-// enrolled_from <= asOf within the current tenant context. Drives the
-// pending→active half of the activate-students scheduler tick.
-func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asOf timezone.Date) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where(`"student".status = ?`, string(users.StudentStatusPending)).
-		Where(`"student".enrolled_from IS NOT NULL`).
-		Where(`"student".enrolled_from <= ?`, asOf)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find pending students due for activation",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return students, nil
-}
-
-// FindActiveDueForDeactivation returns students whose status='active' and
-// enrolled_until <= asOf within the current tenant context. Drives the
-// active→inactive half of the activate-students scheduler tick.
-func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf timezone.Date) ([]*users.Student, error) {
-	var students []*users.Student
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&students).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Where(`"student".status = ?`, string(users.StudentStatusActive)).
-		Where(`"student".enrolled_until IS NOT NULL`).
-		Where(`"student".enrolled_until <= ?`, asOf)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find active students due for deactivation",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return students, nil
-}
-
 // The lifecycle status and the care window are the owner's too (#3349). These
 // stay only as the interface the retained StudentRepository declares; the
 // composition root routes them to People Directory.
@@ -1106,5 +636,80 @@ func (r *StudentRepository) SetEnrollmentWindowByID(
 }
 
 func (r *StudentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]timezone.Date, error) {
+	return nil, errStudentWritesMoved
+}
+
+// These reads moved to People Directory in #3349. They stay on this type
+// because the retained StudentRepository interface still declares them, and the
+// composition root routes them to the owner (database/repositories.NewStudentReads).
+func (r *StudentRepository) FindByID(context.Context, any) (*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByPersonID(context.Context, int64) (*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByIDs(context.Context, []int64) (map[int64]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindReadScopeByIDs(context.Context, []int64) (map[int64]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByGroupID(context.Context, int64) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByGroupIDs(context.Context, []int64) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindBySchoolClass(context.Context, string) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(
+	context.Context, int64, string, string, timezone.Date,
+) (bool, error) {
+	return false, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(
+	context.Context, int64, string, string, timezone.Date,
+) (*int64, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) ListSchoolClasses(context.Context) ([]string, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) ListIDs(context.Context) ([]int64, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) CountByGroupIDs(context.Context, []int64) (map[int64]int, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByGuardianEmail(context.Context, string) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByGuardianPhone(context.Context, string) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindPendingDueForActivation(context.Context, timezone.Date) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindActiveDueForDeactivation(context.Context, timezone.Date) ([]*users.Student, error) {
+	return nil, errStudentWritesMoved
+}
+
+func (r *StudentRepository) FindByIDsForUpdate(context.Context, []int64) (map[int64]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }

@@ -34,6 +34,25 @@ type StudentStore interface {
 	SetCareEnd(context.Context, []int64, string) (int64, domain.OperationStats, error)
 	// ReopenCare gives one child a new start day and clears the end day.
 	ReopenCare(context.Context, int64, string, string) (bool, domain.OperationStats, error)
+	// ListRecordsByPersonIDs resolves the children of the given identities.
+	ListRecordsByPersonIDs(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)
+	// ListRecordsByGroups returns the non-alumni children of the groups.
+	ListRecordsByGroups(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)
+	// ListRecordsByClasses returns the non-alumni children of the classes.
+	ListRecordsByClasses(context.Context, []string) ([]domain.StudentRecord, domain.OperationStats, error)
+	// ListRecordsByGuardianContact finds children by a retained guardian column.
+	ListRecordsByGuardianContact(context.Context, string, string) ([]domain.StudentRecord, domain.OperationStats, error)
+	// ListRecordsDueForStatus returns the children a lifecycle tick is due to move.
+	ListRecordsDueForStatus(context.Context, string, string, string) ([]domain.StudentRecord, domain.OperationStats, error)
+	// LockRecordsByIDs reads and locks the given rows in ascending id order.
+	LockRecordsByIDs(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)
+	// CountByGroups counts the non-alumni children of each group.
+	CountByGroups(context.Context, []int64) (map[int64]int, domain.OperationStats, error)
+	// ListEnrolledIDsByNameAndBirthday resolves already-enrolled children by
+	// name and birthday, with the tenant given explicitly.
+	ListEnrolledIDsByNameAndBirthday(context.Context, int64, string, string, string) ([]int64, domain.OperationStats, error)
+	// ListAllIDs returns every child of the tenant, alumni included.
+	ListAllIDs(context.Context) ([]int64, domain.OperationStats, error)
 	// ListCareEnds projects the enrolment upper bound of the given children.
 	ListCareEnds(context.Context, []int64) (map[int64]string, domain.OperationStats, error)
 	// DeleteRecord removes one child, reporting whether a row went.

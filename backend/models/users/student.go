@@ -1,6 +1,7 @@
 package users
 
 import (
+	"database/sql"
 	"errors"
 	"strings"
 	"time"
@@ -56,6 +57,13 @@ var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequi
 // translates it into the error shape its handlers branch on — may not import
 // each other (#3349).
 var ErrStudentRowMissing = errors.New("student row not found")
+
+// MissingStudentError is the error a lookup returns for a child that is not
+// there: a DatabaseError wrapping both base.ErrNotFound and sql.ErrNoRows,
+// which is the shape the retained callers branch on.
+func MissingStudentError(op string) error {
+	return &base.DatabaseError{Op: op, Err: errors.Join(base.ErrNotFound, sql.ErrNoRows, ErrStudentRowMissing)}
+}
 
 // Student represents a student in the system
 type Student struct {

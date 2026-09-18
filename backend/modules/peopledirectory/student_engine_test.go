@@ -317,3 +317,58 @@ func (e *recordingEngine) ListStudentCareEnds(_ context.Context, ids []int64) (m
 	e.recordIDs = ids
 	return map[int64]string{}, nil
 }
+
+func (e *recordingEngine) FindStudentRecord(_ context.Context, id int64) (peopledirectory.StudentRecord, error) {
+	e.calls++
+	return peopledirectory.StudentRecord{ID: id}, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByPerson(_ context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByGroup(_ context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByClass(_ context.Context, classes []string) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.student.classes = classes
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsByGuardianContact(context.Context, string, string) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListStudentRecordsDueForStatus(context.Context, string, string, string) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) LockStudentRecordsByID(_ context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	e.calls++
+	e.recordIDs = ids
+	return nil, nil
+}
+
+func (e *recordingEngine) CountStudentsByGroup(_ context.Context, ids []int64) (map[int64]int, error) {
+	e.calls++
+	e.recordIDs = ids
+	return map[int64]int{}, nil
+}
+
+func (e *recordingEngine) ListEnrolledStudentIDsByNameAndBirthday(context.Context, int64, string, string, string) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ListAllStudentIDs(context.Context) ([]int64, error) {
+	e.calls++
+	return nil, nil
+}

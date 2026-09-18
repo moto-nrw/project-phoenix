@@ -2,6 +2,7 @@ package peopledirectory
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
@@ -114,6 +115,30 @@ type StudentDirectoryQuery interface {
 	// ListStudentRecordsByID reads the owned rows of the given children,
 	// alumni included, ordered by id.
 	ListStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)
+	// ListAllStudentIDs returns every child of the tenant, alumni included:
+	// a graduate who is actually present today still has to be reachable.
+	ListAllStudentIDs(context.Context) ([]int64, error)
+	// FindStudentRecord reads one owned row.
+	FindStudentRecord(context.Context, int64) (StudentRecord, error)
+	// ListStudentRecordsByPerson resolves the children of the given identities,
+	// alumni included.
+	ListStudentRecordsByPerson(context.Context, []int64) ([]StudentRecord, error)
+	// ListStudentRecordsByGroup returns the non-alumni children of the groups.
+	ListStudentRecordsByGroup(context.Context, []int64) ([]StudentRecord, error)
+	// ListStudentRecordsByClass returns the non-alumni children of the classes.
+	ListStudentRecordsByClass(context.Context, []string) ([]StudentRecord, error)
+	// ListStudentRecordsByGuardianContact finds children by one of the two
+	// retained guardian columns; the guardian tables stay authoritative.
+	ListStudentRecordsByGuardianContact(context.Context, string, string) ([]StudentRecord, error)
+	// ListStudentRecordsDueForStatus returns the children a lifecycle tick is
+	// due to move, for the named bound of the enrolment interval.
+	ListStudentRecordsDueForStatus(context.Context, string, string, string) ([]StudentRecord, error)
+	// CountStudentsByGroup counts the non-alumni children of each group.
+	CountStudentsByGroup(context.Context, []int64) (map[int64]int, error)
+	// ListEnrolledStudentIDsByNameAndBirthday resolves already-enrolled
+	// children by name and birthday. The tenant is explicit because the parent
+	// submit path runs outside a tenant transaction.
+	ListEnrolledStudentIDsByNameAndBirthday(context.Context, int64, string, string, string) ([]int64, error)
 }
 
 // StudentDirectoryCommand holds the owned rows a caller is about to write.
@@ -126,6 +151,9 @@ type StudentDirectoryCommand interface {
 	// serializes photo writes against a feature-disable purge. It belongs to
 	// the caller that also takes a student row lock, and it is taken first.
 	LockStudentPhotoFeature(context.Context) error
+	// LockStudentRecordsByID reads and locks the given rows in ascending id
+	// order, the project-wide student lock order.
+	LockStudentRecordsByID(context.Context, []int64) ([]StudentRecord, error)
 }
 
 func (m *Module) ListStudentDirectory(ctx context.Context, filter StudentDirectoryFilter) ([]StudentRecord, error) {
@@ -192,4 +220,97 @@ func normalizeStudentDirectoryFilter(filter StudentDirectoryFilter) (StudentDire
 		}
 	}
 	return filter, nil
+}
+
+func (m *Module) FindStudentRecord(ctx context.Context, studentID int64) (StudentRecord, error) {
+	if studentID <= 0 {
+		return StudentRecord{}, invalidStudent("student ID is required")
+	}
+	return m.engine.FindStudentRecord(ctx, studentID)
+}
+
+func (m *Module) ListStudentRecordsByPerson(ctx context.Context, personIDs []int64) ([]StudentRecord, error) {
+	personIDs = uniquePositive(personIDs)
+	if len(personIDs) == 0 {
+		return []StudentRecord{}, nil
+	}
+	return m.engine.ListStudentRecordsByPerson(ctx, personIDs)
+}
+
+func (m *Module) ListStudentRecordsByGroup(ctx context.Context, groupIDs []int64) ([]StudentRecord, error) {
+	groupIDs = uniquePositive(groupIDs)
+	if len(groupIDs) == 0 {
+		return []StudentRecord{}, nil
+	}
+	return m.engine.ListStudentRecordsByGroup(ctx, groupIDs)
+}
+
+func (m *Module) ListStudentRecordsByClass(ctx context.Context, classes []string) ([]StudentRecord, error) {
+	classes = uniqueClasses(classes)
+	if len(classes) == 0 {
+		return []StudentRecord{}, nil
+	}
+	return m.engine.ListStudentRecordsByClass(ctx, classes)
+}
+
+func (m *Module) ListStudentRecordsByGuardianContact(ctx context.Context, email, phone string) ([]StudentRecord, error) {
+	email, phone = strings.TrimSpace(email), strings.TrimSpace(phone)
+	if email == "" && phone == "" {
+		return []StudentRecord{}, nil
+	}
+	return m.engine.ListStudentRecordsByGuardianContact(ctx, email, phone)
+}
+
+func (m *Module) ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]StudentRecord, error) {
+	if status == "" {
+		return nil, invalidStudent("status is required")
+	}
+	switch bound {
+	case StudentBoundCareStart, StudentBoundCareEnd:
+	default:
+		return nil, invalidStudent("enrolment bound is invalid")
+	}
+	if _, err := time.Parse(BirthdayLayout, asOf); err != nil {
+		return nil, invalidStudent("the day must be a calendar date in YYYY-MM-DD format")
+	}
+	return m.engine.ListStudentRecordsDueForStatus(ctx, status, bound, asOf)
+}
+
+func (m *Module) LockStudentRecordsByID(ctx context.Context, ids []int64) ([]StudentRecord, error) {
+	ids = uniquePositive(ids)
+	if len(ids) == 0 {
+		return []StudentRecord{}, nil
+	}
+	return m.engine.LockStudentRecordsByID(ctx, ids)
+}
+
+func (m *Module) CountStudentsByGroup(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	groupIDs = uniquePositive(groupIDs)
+	if len(groupIDs) == 0 {
+		return map[int64]int{}, nil
+	}
+	return m.engine.CountStudentsByGroup(ctx, groupIDs)
+}
+
+func (m *Module) ListEnrolledStudentIDsByNameAndBirthday(
+	ctx context.Context,
+	tenantID int64,
+	firstName, lastName, birthday string,
+) ([]int64, error) {
+	if tenantID <= 0 {
+		return nil, invalidStudent("tenant is required")
+	}
+	if strings.TrimSpace(firstName) == "" || strings.TrimSpace(lastName) == "" {
+		return nil, invalidStudent("both names are required")
+	}
+	// A child without a recorded birthday cannot be matched this way, and a
+	// blank one must not match every child of the name.
+	if _, err := time.Parse(BirthdayLayout, birthday); err != nil {
+		return nil, invalidStudent("birthday must be a calendar date in YYYY-MM-DD format")
+	}
+	return m.engine.ListEnrolledStudentIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
+}
+
+func (m *Module) ListAllStudentIDs(ctx context.Context) ([]int64, error) {
+	return m.engine.ListAllStudentIDs(ctx)
 }

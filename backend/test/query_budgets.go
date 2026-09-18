@@ -199,12 +199,15 @@ var queryBudgets = map[string]queryBudget{
 	"services.schedule.shift_coverage.series":          {max: 8, exact: true},
 	// modules/emergencysnapshot — the Notfallliste projection (#2704) reads
 	// each owner once, flat in the number of children: open attendance,
-	// student rows (two statements in the retained repository: the row and
-	// its departure hydration), person identities, current visits, room
-	// names and guardian contacts, after the three tenant-scope statements
-	// of the transaction runtime. The presence mode is a settings read that
-	// the scenario fakes.
-	"modules.emergencysnapshot.snapshot": {max: 10, exact: true},
+	// student rows, person identities, current visits, room names and
+	// guardian contacts, after the three tenant-scope statements of the
+	// transaction runtime. The presence mode is a settings read that the
+	// scenario fakes.
+	//
+	// Lowered from 10 in #3349: the owner reads a child's departure plan in
+	// the same statement as the row, where the retained repository needed a
+	// second one to reach the scan-only columns.
+	"modules.emergencysnapshot.snapshot": {max: 9, exact: true},
 	// modules/requestreview/compose — #3179: the open review page of one
 	// child with one request in each of the four native queues (the RLS
 	// proof fixture), inside one tenant transaction: the urgent and the

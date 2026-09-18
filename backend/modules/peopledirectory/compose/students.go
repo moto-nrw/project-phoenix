@@ -172,3 +172,65 @@ func toPublicStudents(values []domain.Student) []peopledirectory.Student {
 	}
 	return result
 }
+
+func (e engine) FindStudentRecord(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByPerson(ctx context.Context, personIDs []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByPersonIDs(ctx, personIDs)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByGroup(ctx context.Context, groupIDs []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByGroups(ctx, groupIDs)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByClass(ctx context.Context, classes []string) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByClasses(ctx, classes)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByGuardianContact(ctx context.Context, email, phone string) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByGuardianContact(ctx, email, phone)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsDueForStatus(ctx, status, bound, asOf)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) LockStudentRecordsByID(ctx context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.LockRecordsByIDs(ctx, ids)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) CountStudentsByGroup(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	counts, err := e.students.CountByGroups(ctx, groupIDs)
+	return counts, mapError(err)
+}
+
+func (e engine) ListEnrolledStudentIDsByNameAndBirthday(
+	ctx context.Context,
+	tenantID int64,
+	firstName, lastName, birthday string,
+) ([]int64, error) {
+	ids, err := e.students.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
+	return ids, mapError(err)
+}
+
+func toPublicStudentRecords(values []domain.StudentRecord) []peopledirectory.StudentRecord {
+	result := make([]peopledirectory.StudentRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRecord(value))
+	}
+	return result
+}
+
+func (e engine) ListAllStudentIDs(ctx context.Context) ([]int64, error) {
+	ids, err := e.students.ListAllIDs(ctx)
+	return ids, mapError(err)
+}

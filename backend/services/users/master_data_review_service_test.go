@@ -282,7 +282,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	student, err := repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "2b", student.SchoolClass)
 }
@@ -446,7 +446,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	student, err := repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])

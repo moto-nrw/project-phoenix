@@ -311,7 +311,7 @@ func TestCareLifecycle_TenantIsolation(t *testing.T) {
 		"a child of another school is unknown here, not endable")
 
 	stored, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(
-		tenant.WithTenantID(context.Background(), otherTenantID), foreign.ID)
+		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID), foreign.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stored.EnrolledUntil)
 }

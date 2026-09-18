@@ -76,7 +76,7 @@ func testTimetableDataWithOfferingCallbacks(
 		ArrivalScheduleRepo:   boundRepos.StudentArrivalSchedule,
 		ArrivalBaselines: careschedule.NewArrivalBaselineService(
 			boundRepos.StudentArrivalSchedule,
-			usersRepo.NewStudentRepository(db),
+			repositories.NewStudentRepository(db),
 			educationRepo.NewClassArrivalTimeRepository(db),
 			boundRepos.ClassArrivalException,
 			approvedOfferings,

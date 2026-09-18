@@ -2979,7 +2979,7 @@
       "declaration": "TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        88
+        91
       ],
       "tables": [
         "users.students"
@@ -6088,7 +6088,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        411
+        410
       ],
       "tables": []
     },
@@ -6098,7 +6098,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        207
+        206
       ],
       "tables": []
     },

@@ -182,3 +182,13 @@ func invalidStudentRecord(reason string) error { return &InvalidStudentRecordErr
 // DepartureAccompanied is the "Mit anderem Kind" mode, re-exported so this
 // package states the companion rules without reaching past itself.
 const DepartureAccompanied = departure.DepartureAccompanied
+
+// The two bounds of the enrolment interval, naming which one a due-for-status
+// read compares against.
+const (
+	StudentBoundCareStart = "care_start"
+	StudentBoundCareEnd   = "care_end"
+)
+
+// StudentStatusPending is a child enrolled for a start day still ahead.
+const StudentStatusPending = "pending"

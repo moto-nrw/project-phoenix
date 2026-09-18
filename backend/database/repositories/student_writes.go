@@ -25,6 +25,13 @@ type StudentWriteCapability interface {
 	peopleModule.StudentWriteCommand
 }
 
+// studentOwnerCapability is everything the composed repository needs from the
+// owner: the child's lifecycle and the reads that replaced its own SQL.
+type studentOwnerCapability interface {
+	StudentWriteCapability
+	StudentReadCapability
+}
+
 // StudentWrites adapts the owner's child lifecycle to the retained model-typed
 // contract. It satisfies the write half of models/users.StudentRepository
 // structurally, so the seam does not depend on that package's interface.
@@ -298,6 +305,81 @@ func (c careplanCompanions) DeleteCompanionEdges(ctx context.Context, edgeIDs []
 type studentRepositoryWithOwnerWrites struct {
 	userModels.StudentRepository
 	writes *StudentWrites
+	reads  *StudentReads
+}
+
+// The reads the owner now serves. Everything not listed falls through to the
+// retained repository, which still holds the group-info joins.
+func (r studentRepositoryWithOwnerWrites) FindByID(ctx context.Context, id any) (*userModels.Student, error) {
+	return r.reads.FindByID(ctx, id)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByPersonID(ctx context.Context, personID int64) (*userModels.Student, error) {
+	return r.reads.FindByPersonID(ctx, personID)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+	return r.reads.FindByIDs(ctx, ids)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+	return r.reads.FindReadScopeByIDs(ctx, ids)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByGroupID(ctx context.Context, groupID int64) ([]*userModels.Student, error) {
+	return r.reads.FindByGroupID(ctx, groupID)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*userModels.Student, error) {
+	return r.reads.FindByGroupIDs(ctx, groupIDs)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindBySchoolClass(ctx context.Context, schoolClass string) ([]*userModels.Student, error) {
+	return r.reads.FindBySchoolClass(ctx, schoolClass)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByGuardianEmail(ctx context.Context, email string) ([]*userModels.Student, error) {
+	return r.reads.FindByGuardianEmail(ctx, email)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByGuardianPhone(ctx context.Context, phone string) ([]*userModels.Student, error) {
+	return r.reads.FindByGuardianPhone(ctx, phone)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindPendingDueForActivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {
+	return r.reads.FindPendingDueForActivation(ctx, asOf)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindActiveDueForDeactivation(ctx context.Context, asOf userModels.CalendarDate) ([]*userModels.Student, error) {
+	return r.reads.FindActiveDueForDeactivation(ctx, asOf)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+	return r.reads.FindByIDsForUpdate(ctx, ids)
+}
+
+func (r studentRepositoryWithOwnerWrites) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	return r.reads.CountByGroupIDs(ctx, groupIDs)
+}
+
+func (r studentRepositoryWithOwnerWrites) ExistsEnrolledByNameAndBirthday(
+	ctx context.Context, tenantID int64, firstName, lastName string, birthday userModels.CalendarDate,
+) (bool, error) {
+	return r.reads.ExistsEnrolledByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindEnrolledStudentIDByNameAndBirthday(
+	ctx context.Context, tenantID int64, firstName, lastName string, birthday userModels.CalendarDate,
+) (*int64, error) {
+	return r.reads.FindEnrolledStudentIDByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
+}
+
+func (r studentRepositoryWithOwnerWrites) ListSchoolClasses(ctx context.Context) ([]string, error) {
+	return r.reads.ListSchoolClasses(ctx)
+}
+
+func (r studentRepositoryWithOwnerWrites) ListIDs(ctx context.Context) ([]int64, error) {
+	return r.reads.ListIDs(ctx)
 }
 
 func (r studentRepositoryWithOwnerWrites) Create(ctx context.Context, student *userModels.Student) error {
@@ -389,13 +471,14 @@ func (r studentRepositoryWithOwnerWrites) BindTeacherStaffGroupIDs(query func(co
 }
 
 // bindStudentWrites routes the retained repository's writes through the owner.
-func bindStudentWrites(repository userModels.StudentRepository, directory StudentWriteCapability) userModels.StudentRepository {
+func bindStudentWrites(repository userModels.StudentRepository, directory studentOwnerCapability) userModels.StudentRepository {
 	if repository == nil || directory == nil {
 		return repository
 	}
 	return studentRepositoryWithOwnerWrites{
 		StudentRepository: repository,
 		writes:            NewStudentWrites(directory),
+		reads:             NewStudentReads(directory),
 	}
 }
 

@@ -18,7 +18,6 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	repoAudit "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	repoEducation "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -66,7 +65,7 @@ func TestTenantIsolation_StudentVisibility(t *testing.T) {
 	sA := CreateTestStudentForTenant(t, db, tenantA, "TenantA", "Student", "1a")
 	sB := CreateTestStudentForTenant(t, db, tenantB, "TenantB", "Student", "1a")
 
-	repo := repoUsers.NewStudentRepository(db)
+	repo := repositories.NewStudentRepository(db)
 
 	// --- Tenant A perspective ---
 	ctx42 := ctxForTenant(tenantA)

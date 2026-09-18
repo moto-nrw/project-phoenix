@@ -7,6 +7,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
+// The two bounds of the enrolment interval a lifecycle tick compares against.
+const (
+	StudentBoundCareStart = "care_start"
+	StudentBoundCareEnd   = "care_end"
+)
+
 var (
 	// ErrCompanionWouldLoseDeparture refuses a plan change that would leave a
 	// linked child with an accompanied weekday and no remaining "mit wem"
