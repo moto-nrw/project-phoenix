@@ -2,6 +2,7 @@ package migrations
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -88,6 +89,64 @@ func TestStudentOwnerCutoverPreconditionWritesNothing(t *testing.T) {
 	require.NoError(t, studentOwnerCutoverPrecondition(t.Context(), db))
 	require.JSONEq(t, before, studentRowsJSON(t, db, tenantID))
 }
+
+// The preflight runs before every pending migration, so an environment below
+// the migration that creates one of these relations must get "no verdict yet",
+// not a "relation does not exist" that aborts the release for a reason nobody
+// can correct. The rename is rolled back with the transaction.
+func TestStudentOwnerCutoverPreconditionYieldsBelowTheSchemaFloor(t *testing.T) {
+	t.Parallel()
+	db := setupStudentStorageBeforeCutover(t)
+	studentOwnerCutoverFixture(t, db, 1)
+	require.ErrorIs(t, db.RunInTx(t.Context(), nil, func(ctx context.Context, tx bun.Tx) error {
+		ready, err := studentOwnerPreflightReady(ctx, tx)
+		require.NoError(t, err)
+		require.True(t, ready, "the fixture is above the floor")
+
+		_, err = tx.ExecContext(ctx, `ALTER TABLE active.student_status_days RENAME TO student_status_days_absent`)
+		require.NoError(t, err)
+		ready, err = studentOwnerPreflightReady(ctx, tx)
+		require.NoError(t, err)
+		require.False(t, ready, "a missing relation is not a data verdict")
+		return errRollbackPreflightFixture
+	}), errRollbackPreflightFixture, "the rename is rolled back with the transaction")
+}
+
+// The cutover also refuses a school with students the backfill has never
+// completed a pass over. Once any school has a checkpoint the backfill has run,
+// so a school without one is drift a release cannot recover from.
+func TestStudentOwnerCutoverPreconditionReportsSchoolTheBackfillNeverVisited(t *testing.T) {
+	t.Parallel()
+	db := setupStudentStorageBeforeCutover(t)
+	studentOwnerCutoverFixture(t, db, 1)
+
+	// A school onboarded after the last pass: students, no checkpoint.
+	newcomer := testpkg.Tenant(t)
+	studentOwnerFixture(t, db, newcomer, 2)
+	_, err := db.NewRaw(`DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ? AND tenant_id = ?`,
+		StudentOwnerBackfillName, newcomer).Exec(t.Context())
+	require.NoError(t, err)
+
+	require.ErrorContains(t, studentOwnerCutoverPrecondition(t.Context(), db),
+		fmt.Sprintf("tenant %d: students without a completed backfill pass", newcomer))
+}
+
+// Production reaches the backfill and the cutover in one migrate run. Asking
+// about checkpoints there would fail a release that is about to write them.
+func TestStudentOwnerCutoverPreconditionIgnoresCheckpointsBeforeAnyBackfillRan(t *testing.T) {
+	t.Parallel()
+	db := setupStudentStorageBeforeCutover(t)
+	tenantID := testpkg.Tenant(t)
+	studentOwnerFixture(t, db, tenantID, 2)
+	_, err := db.NewRaw(`DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = ?`,
+		StudentOwnerBackfillName).Exec(t.Context())
+	require.NoError(t, err)
+
+	require.NoError(t, studentOwnerCutoverPrecondition(t.Context(), db),
+		"no checkpoint anywhere means the backfill is pending in this same run")
+}
+
+var errRollbackPreflightFixture = errors.New("rollback preflight fixture")
 
 func TestDescribeStudentOwnerUnreconciledNamesBothVerdicts(t *testing.T) {
 	t.Parallel()

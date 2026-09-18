@@ -26,6 +26,7 @@ import (
 var runnerOwnedFiles = map[string]bool{
 	"00_migrations.go":     true, // PrintMigrationPlanTo, the collision scanner
 	"main.go":              true, // MigrateStatus prints the plan a person asked for
+	"preflight.go":         true, // MigratePreflight prints the verdict a deployment waits on
 	"reset.go":             true,
 	"runner_logging.go":    true,
 	"migration_logging.go": true,

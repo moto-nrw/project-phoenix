@@ -21,6 +21,10 @@ import (
 // live database while the old release is still serving, and a failure is an
 // ordinary pre-migration abort that leaves the environment untouched.
 //
+// It runs no migration. It is not literally read-only: initialising the migrator
+// creates bun's own bookkeeping tables when they are absent, which is what
+// `migrate` itself would do moments later anyway.
+//
 // Only pending migrations are asked. An applied migration's precondition
 // describes a state its own Up has already consumed, so re-asking it would
 // report a failure about work that is finished.
@@ -40,7 +44,7 @@ func migratePreflightTo(ctx context.Context, db *bun.DB, output io.Writer) error
 	if err != nil {
 		return fmt.Errorf("load migration status: %w", err)
 	}
-	return reportPreflightChecks(ctx, output, pendingPreconditions(status), db)
+	return reportPreflightChecks(ctx, output, pendingPreconditions(status.Unapplied()), db)
 }
 
 // reportPreflightChecks runs every selected precondition, prints one line per
@@ -81,14 +85,13 @@ type preconditionCheck struct {
 }
 
 // pendingPreconditions keeps the migrator's order, so the checks are reported in
-// the order the migrations would run.
-func pendingPreconditions(status migrate.MigrationSlice) []preconditionCheck {
+// the order the migrations would run. It takes the unapplied slice rather than
+// filtering again: an applied migration's precondition describes a state its own
+// Up has already consumed.
+func pendingPreconditions(pending migrate.MigrationSlice) []preconditionCheck {
 	var checks []preconditionCheck
-	for index := range status {
-		entry := &status[index]
-		if entry.MigratedAt.Unix() > 0 {
-			continue
-		}
+	for index := range pending {
+		entry := &pending[index]
 		registered, ok := MigrationByBunName(entry.Name)
 		if !ok || registered.Precondition == nil {
 			continue

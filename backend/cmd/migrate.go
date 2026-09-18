@@ -131,6 +131,10 @@ it requires. Nothing is written and no migration runs.
 Deployments run this while the previous release is still serving, so a migration that would refuse
 on data somebody has to correct aborts the release before the application is stopped, instead of
 failing mid-migration and forcing a restore of the backup. Exits non-zero when a precondition fails.`,
+	// The failure names the schools and the values to correct. Cobra would
+	// print the whole usage block underneath it, burying the one line the
+	// operator reading a deployment log actually needs.
+	SilenceUsage: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		return defaultMigrateRoot.runCommand(cmd.Context(), "preflight")
 	},

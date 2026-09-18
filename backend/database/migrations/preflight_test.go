@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -28,12 +27,16 @@ func TestPendingPreconditionsSelectsPendingMigrationsThatDeclareOne(t *testing.T
 }
 
 // An applied migration's precondition describes a state its own Up has already
-// consumed. Asking it again would report a failure about finished work.
-func TestPendingPreconditionsSkipsAppliedMigrations(t *testing.T) {
+// consumed, so asking it again would report a failure about finished work. The
+// filtering itself is the migrator's `Unapplied()`; what this pins is that
+// preflight feeds on that set. The test database has every migration applied,
+// so nothing may be selected.
+func TestMigratePreflightAsksNothingWhenEveryMigrationIsApplied(t *testing.T) {
 	t.Parallel()
-	require.Empty(t, pendingPreconditions(migrate.MigrationSlice{
-		{Name: studentOwnerCutoverBunName, MigratedAt: time.Now()},
-	}))
+	db := testpkg.SetupTestDB(t)
+	output := &bytes.Buffer{}
+	require.NoError(t, migratePreflightTo(t.Context(), db, output))
+	require.Contains(t, output.String(), "no pending migration declares a data precondition")
 }
 
 func TestPendingPreconditionsSkipsMigrationsWithoutOne(t *testing.T) {
@@ -43,18 +46,6 @@ func TestPendingPreconditionsSkipsMigrationsWithoutOne(t *testing.T) {
 		{Name: "001015025"},             // registered with bun only, absent from the registry
 		{Name: "000000000000_not_real"}, // unknown to both
 	}))
-}
-
-// The stubbed tests above cover the reporting; this one covers the wiring the
-// deployment actually runs: initialise the migration tables, read the real
-// applied/pending status and select from it. A fully migrated database has
-// nothing pending, so the command has to succeed and say so.
-func TestMigratePreflightReadsRealMigrationStatus(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	output := &bytes.Buffer{}
-	require.NoError(t, migratePreflightTo(t.Context(), db, output))
-	require.Contains(t, output.String(), "migration preflight")
 }
 
 func TestMigratePreflightRequiresADatabase(t *testing.T) {

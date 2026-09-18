@@ -122,8 +122,8 @@ keys through 1Password/Signal, never Slack/email.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
    starts, and healthchecks; failures after the backup trigger rollback.
 
-The preflight runs while the previous release is still serving and writes
-nothing. It asks every pending migration that declares a `Precondition` whether
+The preflight runs while the previous release is still serving and runs no
+migration. It asks every pending migration that declares a `Precondition` whether
 the data it needs is already in the shape it requires, so a migration that would
 refuse on data somebody has to correct aborts the release with exit 1 — nothing
 stopped, nothing restored — instead of failing mid-migration. A migration whose

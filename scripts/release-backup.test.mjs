@@ -105,7 +105,11 @@ test('preflight failure aborts before the application is stopped', t => {
   const f = fixture(t);
   const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'preflight' });
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(f.calls(), /run --rm --no-deps migrate \.\/main migrate preflight/);
+  // The flags are the assertion: without them the preflight would run the
+  // PREVIOUS image against the old config and pass while checking the wrong
+  // binary's preconditions, which is the exact failure this step exists to stop.
+  assert.match(f.calls(),
+    /--env-file \.env\.new -f docker-compose\.yml\.new run --rm --no-deps migrate \.\/main migrate preflight/);
   assert.doesNotMatch(f.calls(), /stop|pg_dump|pg_restore/);
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
   assert.equal(readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8'), 'old config\n');
@@ -118,6 +122,7 @@ test('a passing preflight runs before the stop and does not migrate', t => {
   const preflight = calls.findIndex(line => line.includes('migrate preflight'));
   const stop = calls.findIndex(line => /stop server frontend/.test(line));
   assert.ok(preflight >= 0 && stop > preflight, f.calls());
+  assert.doesNotMatch(f.calls(), /run --rm migrate$/m);
 });
 test('migration failure invokes complete automatic rollback', t => {
   const f = fixture(t);

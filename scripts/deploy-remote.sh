@@ -22,8 +22,9 @@ docker compose --env-file .env.new -f docker-compose.yml.new pull
 # Ask the new image whether the pending migrations' data preconditions hold,
 # while the old release is still serving. A migration that refuses on data
 # somebody has to correct would otherwise announce it after the application is
-# stopped and the backup taken, making a full restore the only way out. Read-only:
-# it runs no migration and writes nothing.
+# stopped and the backup taken, making a full restore the only way out. It runs
+# no migration; the only thing it writes is bun's own bookkeeping tables when
+# they are absent, which the migrate below would create moments later anyway.
 #
 # --no-deps keeps compose from reconciling postgres against the new file while
 # the old release is still connected to it; the surrounding script already
