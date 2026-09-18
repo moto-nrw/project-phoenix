@@ -16167,17 +16167,6 @@
       "target_role": "domain"
     },
     {
-      "id": "parent-portal.adapter.identity-application",
-      "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the guardian invitation service (services/auth); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter",
-      "target_owner": "identity-access",
-      "target_role": "application"
-    },
-    {
       "id": "parent-portal.adapter.transaction-domain",
       "description": "Compatibility binding of the retained parent-portal services (workflows/parentportal/legacy) to the pointer and unique-violation helpers (models/base); exists only because PR mode cannot record debt for a package the candidate creates. Convert to exact debt once the package exists at a base SHA (#3228).",
       "scopes": [
@@ -16406,17 +16395,6 @@
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "domain"
-    },
-    {
-      "id": "parent-portal.adapter-test.identity-application",
-      "description": "The retained parent-portal behaviour tests (workflows/parentportal/legacy) build the guardian invitation service (services/auth); compatibility permission until the package exists at a base SHA (#3228).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "application"
     },
     {
       "id": "parent-portal.adapter-test.security-application",
