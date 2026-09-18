@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useSWRConfig } from "swr";
 import {
+  ArrowLeftRight,
   CalendarClock,
   CalendarPlus,
   Check,
@@ -27,6 +28,11 @@ import {
 } from "~/components/staff/sick-report-modal";
 import { AbsenceRequestRow } from "~/components/staff/absence-request-row";
 import { AbsenceBookingModal } from "~/components/staff/absence-booking-modal";
+import {
+  AbsenceRebookModal,
+  isRebookableAbsence,
+} from "~/components/staff/absence-rebook-modal";
+import { Checkbox } from "~/components/ui/checkbox";
 import { CustomAllowanceEditForm } from "~/components/staff/custom-allowance-editor";
 import { CatalogManageLink } from "~/components/database/catalog/catalog-manage-link";
 import {
@@ -221,6 +227,11 @@ export function AbwesenheitenTab({
   // der eigenen Art (BAUARTEN-SPEC Bauart 2 Regel 3, #3119).
   const [editing, setEditing] = useState<string | null>(null);
   const [bookingOpen, setBookingOpen] = useState(false);
+  // Art ändern (#3258): erst Einträge in der Historie ankreuzen, dann den
+  // Dialog öffnen. `null` heißt: kein Auswahlmodus.
+  const [rebookSelection, setRebookSelection] =
+    useState<ReadonlySet<number> | null>(null);
+  const [rebookOpen, setRebookOpen] = useState(false);
   const [absences, setAbsences] = useState<StaffAbsenceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
@@ -320,6 +331,24 @@ export function AbwesenheitenTab({
   const pending = useMemo(() => pendingAbsences(absences), [absences]);
   const upcoming = useMemo(() => upcomingAbsences(absences), [absences]);
   const history = useMemo(() => historicalAbsences(absences), [absences]);
+  const canRebook =
+    canManageSickReports &&
+    staff !== undefined &&
+    history.some(isRebookableAbsence);
+  const selectedForRebook = useMemo(
+    () =>
+      rebookSelection
+        ? history.filter((row) => rebookSelection.has(row.id))
+        : [],
+    [history, rebookSelection],
+  );
+  const toggleRebook = (id: number) =>
+    setRebookSelection((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const handleApprove = async (row: StaffAbsenceRow) => {
     setPendingActionId(row.id);
@@ -399,6 +428,7 @@ export function AbwesenheitenTab({
             value={String(year)}
             onChange={(value) => {
               setEditing(null);
+              setRebookSelection(null);
               setYear(Number(value));
             }}
           />
@@ -536,17 +566,77 @@ export function AbwesenheitenTab({
       </SectionCard>
 
       {/* Past history */}
-      <SectionCard title={`Historie ${year}`} headingLevel={3}>
+      <SectionCard
+        title={`Historie ${year}`}
+        headingLevel={3}
+        description={
+          rebookSelection
+            ? "Kreuzen Sie die Einträge an, deren Art sich ändern soll. Krankmeldungen und Anträge lassen sich hier nicht ändern."
+            : undefined
+        }
+        actions={
+          canRebook && !rebookSelection ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setRebookSelection(new Set())}
+            >
+              <ArrowLeftRight className="mr-1.5 h-4 w-4" aria-hidden />
+              Art ändern
+            </Button>
+          ) : undefined
+        }
+        bodyClassName="mt-4 space-y-3"
+      >
+        {rebookSelection ? (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-gray-50 px-3 py-2">
+            <span className="text-sm text-gray-700">
+              {rebookSelection.size === 1
+                ? "1 Eintrag gewählt"
+                : `${rebookSelection.size} Einträge gewählt`}
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setRebookSelection(null)}
+              >
+                Abbrechen
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={selectedForRebook.length === 0}
+                onClick={() => setRebookOpen(true)}
+              >
+                Weiter
+              </Button>
+            </div>
+          </div>
+        ) : null}
         {history.length === 0 ? (
           <EmptyState title="Keine vergangenen oder abgelehnten Abwesenheiten." />
         ) : (
           <ul className="space-y-2">
-            {history.slice(0, 20).map((row) => (
+            {(rebookSelection ? history : history.slice(0, 20)).map((row) => (
               <AbsenceRow
                 key={row.id}
                 row={row}
+                selection={
+                  rebookSelection && isRebookableAbsence(row)
+                    ? {
+                        checked: rebookSelection.has(row.id),
+                        onToggle: () => toggleRebook(row.id),
+                      }
+                    : undefined
+                }
                 onDelete={
-                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                  canManageSickReports &&
+                  !rebookSelection &&
+                  !isVacationWorkflowAbsence(row)
                     ? () => setDeleteTarget(row)
                     : undefined
                 }
@@ -651,6 +741,19 @@ export function AbwesenheitenTab({
           }}
         />
       )}
+      {rebookOpen && staff && selectedForRebook.length > 0 ? (
+        <AbsenceRebookModal
+          staff={staff}
+          types={absenceTypes}
+          absences={selectedForRebook}
+          onClose={() => setRebookOpen(false)}
+          onSaved={async () => {
+            setRebookOpen(false);
+            setRebookSelection(null);
+            await afterBooking();
+          }}
+        />
+      ) : null}
       {bookingOpen && staff ? (
         <AbsenceBookingModal
           staff={staff}
@@ -964,17 +1067,28 @@ function isRedundantNote(absenceType: string, note: string): boolean {
 function AbsenceRow({
   row,
   onDelete,
+  selection,
 }: {
   readonly row: StaffAbsenceRow;
   // Delete action for admin-entered absences (status "reported"), e.g. a sick
   // report whose plan cascade can be undone. Omitted for read-only rows.
   readonly onDelete?: () => void;
+  // Häkchen im Auswahlmodus „Art ändern" (#3258).
+  readonly selection?: { checked: boolean; onToggle: () => void };
 }) {
   const meta = statusMeta(row.status);
   const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
   const canDelete = onDelete && row.status === "reported";
   return (
     <li className="moto-content-surface flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 shadow-sm">
+      {selection ? (
+        <label className="flex cursor-pointer items-center">
+          <Checkbox checked={selection.checked} onChange={selection.onToggle} />
+          <span className="sr-only">
+            {`${absenceRowLabel(row)} ${formatRange(row.date_start, row.date_end)} auswählen`}
+          </span>
+        </label>
+      ) : null}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <StatusColorBadge

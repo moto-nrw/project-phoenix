@@ -35,6 +35,10 @@ type AbsenceTypeReader interface {
 	ResolveForAbsence(context.Context, int64) (*activeModels.StaffAbsenceType, error)
 	LabelsByID(context.Context) (map[int64]string, error)
 	PreviewAllowanceBooking(context.Context, int64, int64, timezone.Date, timezone.Date, bool) ([]*AbsenceTypeAllowanceSummary, error)
+	// PreviewAllowanceRebooking checks stored absences against the allowance
+	// of the type they would be rebooked to (#3258). With
+	// ErrAbsenceTypeAllowanceExceeded the previews are still set.
+	PreviewAllowanceRebooking(ctx context.Context, staffID, typeID int64, absenceIDs []int64) ([]*AbsenceTypeAllowanceSummary, error)
 }
 
 var (
@@ -50,6 +54,8 @@ type AbsenceTypeAllowanceSummary struct {
 	TakenDays     float64 `json:"taken_days"`
 	ReservedDays  float64 `json:"reserved_days"`
 	RemainingDays float64 `json:"remaining_days"`
+	// BookingDays is what a previewed booking takes from this year.
+	BookingDays float64 `json:"booking_days"`
 }
 
 // StampAbsenceTypeLabels enriches custom absences only. Failed label lookups

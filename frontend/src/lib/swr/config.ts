@@ -7,6 +7,7 @@
 
 import type { SWRConfiguration } from "swr";
 import { createLogger } from "~/lib/logger";
+import { swrDataEqual } from "~/lib/swr/compare";
 import {
   isRateLimitError,
   remainingRateLimitMs,
@@ -82,6 +83,10 @@ export const swrConfig: SWRConfiguration = {
 
   // Keep previous data while revalidating (prevents loading flash)
   keepPreviousData: true,
+
+  // SWR's default compare treats every two Maps as equal and would keep a
+  // stale Map after a refetch (see swrDataEqual).
+  compare: swrDataEqual,
 
   onError: logSWRError,
 };

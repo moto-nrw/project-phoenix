@@ -26,6 +26,7 @@ var timeTrackingSentinels = []struct {
 }{
 	{timetracking.ErrManagerControlledAbsence, workforce.ErrManagerControlledAbsence},
 	{timetracking.ErrAllowanceBookingOverlap, workforce.ErrAllowanceBookingOverlap},
+	{timetracking.ErrAbsenceRebookingBlocked, workforce.ErrAbsenceRebookingBlocked},
 	{timetracking.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
 	{timetracking.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
 	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
@@ -511,6 +512,32 @@ func (c staffAbsenceCapability) PreviewCompTimeBalance(ctx context.Context, staf
 		return nil, nil
 	}
 	return new(workforce.CompTimeBalancePreview(*preview)), nil
+}
+
+func (c staffAbsenceCapability) RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request workforce.RebookAbsencesRequest) (*workforce.AbsenceRebookingResult, error) {
+	value, err := c.absences.RebookAbsences(ctx, timetracking.RebookAbsencesRequest{
+		StaffID: staffID, ActorAccountID: actorAccountID, AbsenceIDs: request.AbsenceIDs,
+		AbsenceType: request.AbsenceType, AbsenceTypeID: request.AbsenceTypeID,
+		Reason: request.Reason, DryRun: request.DryRun,
+	})
+	if err != nil {
+		return nil, mapTimeTrackingFailure(err)
+	}
+	result := &workforce.AbsenceRebookingResult{
+		Absences: publicAbsenceResponses(value.Absences), Days: value.Days,
+		BalanceDeltaMinutes: value.BalanceDeltaMinutes, AllowanceExceeded: value.AllowanceExceeded,
+		VacationExceeded: value.VacationExceeded, Applied: value.Applied,
+	}
+	for _, allowance := range value.Allowances {
+		result.Allowances = append(result.Allowances, workforce.RebookingAllowanceYear{
+			Year: allowance.Year, EntitledDays: allowance.EntitledDays, TakenDays: allowance.TakenDays,
+			ReservedDays: allowance.ReservedDays, RemainingDays: allowance.RemainingDays, BookingDays: allowance.BookingDays,
+		})
+	}
+	for _, year := range value.Vacation {
+		result.Vacation = append(result.Vacation, workforce.RebookingVacationYear(year))
+	}
+	return result, nil
 }
 
 func (c staffAbsenceCapability) RequestVacation(ctx context.Context, staffID int64, request workforce.RequestVacationRequest) (*workforce.StaffAbsenceResponse, error) {
