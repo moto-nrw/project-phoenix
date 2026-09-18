@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
@@ -19,7 +19,7 @@ import (
 // behavior is unchanged. Contract: identity_request_cache.go.
 type UserContextService interface {
 	// GetCurrentUser retrieves the currently authenticated user account
-	GetCurrentUser(ctx context.Context) (*auth.Account, error)
+	GetCurrentUser(ctx context.Context) (*authmodels.Account, error)
 
 	// GetCurrentPerson retrieves the person linked to the currently authenticated user
 	GetCurrentPerson(ctx context.Context) (*users.Person, error)

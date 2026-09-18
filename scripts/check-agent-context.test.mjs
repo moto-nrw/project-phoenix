@@ -172,3 +172,18 @@ test('anchors strip underscore emphasis but retain identifiers and inline code',
   assert.match(errors[1], /^CLAUDE\.md:11:.*missing anchor: #keep-tenant_id-and-school_id/);
   assert.match(errors[2], /^CLAUDE\.md:9:.*missing anchor: #what-does-_not_-qualify/);
 });
+
+test('reports ADRs that claim a number another file already holds', t => {
+  const root = fixture(t, {
+    'CLAUDE.md': '# Root',
+    'docs/adr/0001-first.md': '# First',
+    'docs/adr/0002-second.md': '# Second',
+    'docs/adr/0002-third.md': '# Third',
+    'docs/adr/2-fourth.md': '# Fourth',
+    'docs/adr/README.md': '# Index',
+  });
+  assert.deepEqual(checkContext(root).errors, [
+    'docs/adr/0002-third.md: ADR number 0002 already taken by 0002-second.md',
+    'docs/adr/2-fourth.md: ADR number 2 already taken by 0002-second.md',
+  ]);
+});

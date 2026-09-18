@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 

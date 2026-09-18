@@ -9,9 +9,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -60,8 +60,8 @@ type PersonServiceDependencies struct {
 	StudentDirectory StudentDirectoryLocker
 	// Repository dependencies
 	PersonRepo  userModels.PersonRepository
-	RFIDRepo    auth.RFIDCardRepository
-	AccountRepo auth.AccountRepository
+	RFIDRepo    authmodels.RFIDCardRepository
+	AccountRepo authmodels.AccountRepository
 	StudentRepo userModels.StudentRepository
 	StaffRepo   userModels.StaffRepository
 	TeacherRepo userModels.TeacherRepository
@@ -393,7 +393,7 @@ func (s *personService) LinkToRFIDCard(ctx context.Context, personID int64, tagI
 	}
 	if card == nil {
 		// Auto-create RFID card on assignment (per RFID Implementation Guide)
-		newCard := &auth.RFIDCard{
+		newCard := &authmodels.RFIDCard{
 			StringIDModel: base.StringIDModel{ID: tagID},
 			Active:        true,
 		}

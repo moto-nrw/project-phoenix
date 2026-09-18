@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 )
 
 // Person represents a physical person in the system
@@ -22,8 +22,8 @@ type Person struct {
 	DeletedAt *time.Time     `bun:"deleted_at,soft_delete,nullzero" json:"-"`
 
 	// Relations not stored in the database
-	Account  *auth.Account  `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
-	RFIDCard *auth.RFIDCard `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
+	Account  *authmodels.Account  `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
+	RFIDCard *authmodels.RFIDCard `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
 }
 
 // Validate ensures person data is valid
@@ -59,7 +59,7 @@ func (p *Person) GetFullName() string {
 }
 
 // SetAccount links this person to an account
-func (p *Person) SetAccount(account *auth.Account) {
+func (p *Person) SetAccount(account *authmodels.Account) {
 	p.Account = account
 	if account != nil {
 		p.AccountID = &account.ID
@@ -69,7 +69,7 @@ func (p *Person) SetAccount(account *auth.Account) {
 }
 
 // SetRFIDCard links this person to an RFID card
-func (p *Person) SetRFIDCard(card *auth.RFIDCard) {
+func (p *Person) SetRFIDCard(card *authmodels.RFIDCard) {
 	p.RFIDCard = card
 	if card != nil {
 		p.TagID = &card.ID

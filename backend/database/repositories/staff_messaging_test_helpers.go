@@ -3,10 +3,10 @@ package repositories
 import (
 	"context"
 
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 

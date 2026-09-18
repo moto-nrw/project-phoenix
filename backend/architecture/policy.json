@@ -1,6 +1,6 @@
 {
   "schema_version": 2,
-  "policy_epoch": 14,
+  "policy_epoch": 15,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1043,7 +1043,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/jwt",
+      "path": "modules/identityaccess/legacy/jwt",
       "owner": "identity-access",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -1113,7 +1113,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "database/repositories/auth",
+      "path": "modules/identityaccess/legacy/authpostgres",
       "owner": "identity-access",
       "role": "postgres",
       "internal_test_role": "module-internal-test",
@@ -1456,7 +1456,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "models/auth",
+      "path": "modules/identityaccess/legacy/authmodels",
       "owner": "identity-access",
       "role": "domain",
       "internal_test_role": "module-internal-test",
@@ -26696,6 +26696,23 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-school",
       "target_role": "test-support"
+    }
+  ],
+  "relocations": [
+    {
+      "from": "auth/jwt",
+      "to": "modules/identityaccess/legacy/jwt",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
+    },
+    {
+      "from": "database/repositories/auth",
+      "to": "modules/identityaccess/legacy/authpostgres",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
+    },
+    {
+      "from": "models/auth",
+      "to": "modules/identityaccess/legacy/authmodels",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
     }
   ]
 }
