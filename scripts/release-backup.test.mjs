@@ -97,6 +97,28 @@ test('deployment stop or backup failure never reaches migrations', t => {
   assert.equal(f.run('deploy-remote.sh').status, 1);
   assert.doesNotMatch(f.calls(), /stop|run --rm migrate/);
 });
+// The whole point of the preflight: a migration that would refuse on data
+// somebody has to correct must abort the release while the previous one is
+// still serving, rather than after the stop and the backup, where the only way
+// back is a restore.
+test('preflight failure aborts before the application is stopped', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'preflight' });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(f.calls(), /run --rm --no-deps migrate \.\/main migrate preflight/);
+  assert.doesNotMatch(f.calls(), /stop|pg_dump|pg_restore/);
+  assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
+  assert.equal(readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8'), 'old config\n');
+});
+test('a passing preflight runs before the stop and does not migrate', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'stop' });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  const calls = f.calls().trim().split('\n');
+  const preflight = calls.findIndex(line => line.includes('migrate preflight'));
+  const stop = calls.findIndex(line => /stop server frontend/.test(line));
+  assert.ok(preflight >= 0 && stop > preflight, f.calls());
+});
 test('migration failure invokes complete automatic rollback', t => {
   const f = fixture(t);
   const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'migrate' });
