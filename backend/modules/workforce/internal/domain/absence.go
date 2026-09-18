@@ -323,6 +323,16 @@ type StaffAbsenceAudit struct {
 	ActorID    int64
 	Note       string
 	ChangedAt  time.Time
+	// TypeChange is set when the Leitung rebooked the absence (#3258).
+	TypeChange *AbsenceTypeChange
+}
+
+// AbsenceTypeChange is the old and new type of a rebooked absence.
+type AbsenceTypeChange struct {
+	FromType   string
+	FromTypeID *int64
+	ToType     string
+	ToTypeID   *int64
 }
 
 func (a StaffAbsenceAudit) Validate() error {

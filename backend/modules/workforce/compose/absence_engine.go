@@ -171,10 +171,12 @@ func (e engine) RecordStaffAbsenceAudit(ctx context.Context, value workforce.Sta
 	recorded, err := e.service.RecordStaffAbsenceAudit(ctx, domain.StaffAbsenceAudit{
 		ID: value.ID, TenantID: value.TenantID, AbsenceID: value.AbsenceID, FromStatus: value.FromStatus,
 		ToStatus: value.ToStatus, ActorID: value.ActorID, Note: value.Note, ChangedAt: value.ChangedAt,
+		TypeChange: (*domain.AbsenceTypeChange)(value.TypeChange),
 	})
 	return workforce.StaffAbsenceAudit{
 		ID: recorded.ID, TenantID: recorded.TenantID, AbsenceID: recorded.AbsenceID, FromStatus: recorded.FromStatus,
 		ToStatus: recorded.ToStatus, ActorID: recorded.ActorID, Note: recorded.Note, ChangedAt: recorded.ChangedAt,
+		TypeChange: (*workforce.AbsenceTypeChange)(recorded.TypeChange),
 	}, mapError(err)
 }
 

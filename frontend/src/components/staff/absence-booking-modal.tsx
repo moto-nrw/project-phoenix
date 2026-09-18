@@ -47,20 +47,20 @@ import { staffAbsenceService } from "~/lib/staff-api";
 const logger = createLogger({ component: "AbsenceBookingModal" });
 
 /** Everything one calendar year holds for the booking decision. */
-interface YearAccount {
+export interface YearAccount {
   readonly vacationRemaining: number;
   readonly allowances: ReadonlyMap<string, AbsenceTypeAllowanceSummary>;
 }
 
-type OptionKind = "quota" | "comp_time" | "plain";
+export type OptionKind = "quota" | "comp_time" | "plain";
 
-interface BookingOption {
+export interface BookingOption {
   readonly value: string;
   readonly label: string;
   readonly kind: OptionKind;
 }
 
-function bookingOptions(types: readonly AbsenceType[]): BookingOption[] {
+export function bookingOptions(types: readonly AbsenceType[]): BookingOption[] {
   const active = types.filter((type) => type.isActive);
   return [
     { value: "vacation", label: "Urlaub", kind: "quota" },
@@ -241,7 +241,7 @@ async function loadYear(
   };
 }
 
-function yearsBetween(dateStart: string, dateEnd: string): number[] {
+export function yearsBetween(dateStart: string, dateEnd: string): number[] {
   const first = Number(dateStart.slice(0, 4));
   const last = Number((dateEnd || dateStart).slice(0, 4));
   if (!Number.isFinite(first) || !Number.isFinite(last) || last < first)
@@ -249,7 +249,7 @@ function yearsBetween(dateStart: string, dateEnd: string): number[] {
   return Array.from({ length: last - first + 1 }, (_, index) => first + index);
 }
 
-function useYearAccounts(
+export function useYearAccounts(
   staffId: string,
   types: readonly AbsenceType[],
   years: readonly number[],
@@ -295,7 +295,7 @@ function useYearAccounts(
   return { accounts, loading: missing.length > 0 && !failed, failed };
 }
 
-interface Projection {
+export interface Projection {
   readonly year: number;
   readonly remaining: number;
   readonly needed: number;
@@ -303,14 +303,22 @@ interface Projection {
   readonly expiresOn?: string;
 }
 
+interface AccountHint {
+  readonly year?: number;
+  readonly account: YearAccount | undefined;
+  readonly firstDay: string;
+}
+
 function OptionHint({
   option,
   account,
   firstDay,
+  accountHints,
 }: {
   option: BookingOption;
   account: YearAccount | undefined;
   firstDay: string;
+  accountHints?: readonly AccountHint[];
 }) {
   if (option.kind === "comp_time") {
     return (
@@ -326,36 +334,64 @@ function OptionHint({
       </span>
     );
   }
-  if (!account) {
+  const hints: readonly AccountHint[] = accountHints ?? [{ account, firstDay }];
+  if (hints.length === 1 && !hints[0]!.account) {
     return <span className="text-xs text-gray-400">…</span>;
   }
-  const remaining = remainingFor(option.value, account, firstDay);
   return (
-    <span
-      className={`shrink-0 text-xs whitespace-nowrap tabular-nums ${remaining <= 0 ? "text-moto-red-strong" : "text-gray-600"}`}
-    >
-      noch {formatDayCount(remaining)}
+    <span className="flex shrink-0 flex-col items-end text-xs whitespace-nowrap tabular-nums">
+      {hints.map((hint) => {
+        if (!hint.account) {
+          return (
+            <span key={hint.year ?? hint.firstDay} className="text-gray-400">
+              {hints.length > 1 ? `${hint.year}: ` : ""}…
+            </span>
+          );
+        }
+        const remaining = remainingFor(
+          option.value,
+          hint.account,
+          hint.firstDay,
+        );
+        return (
+          <span
+            key={hint.year ?? hint.firstDay}
+            className={
+              remaining <= 0 ? "text-moto-red-strong" : "text-gray-600"
+            }
+          >
+            {hints.length > 1 ? `${hint.year}: ` : ""}noch{" "}
+            {formatDayCount(remaining)}
+          </span>
+        );
+      })}
     </span>
   );
 }
 
-function TypeChoice({
+export function TypeChoice({
   options,
   value,
   account,
   firstDay,
+  accountHints,
   onChange,
+  legend = "Von welchem Kontingent?",
+  name = "absence-booking-type",
 }: {
   options: readonly BookingOption[];
   value: string;
   account: YearAccount | undefined;
   firstDay: string;
+  accountHints?: readonly AccountHint[];
   onChange: (value: string) => void;
+  legend?: string;
+  name?: string;
 }) {
   return (
     <fieldset>
       <legend className="mb-2 text-sm font-medium text-gray-700">
-        Von welchem Kontingent?
+        {legend}
       </legend>
       <div className="grid grid-cols-1 gap-2">
         {options.map((option) => (
@@ -366,14 +402,19 @@ function TypeChoice({
           >
             <span className="flex min-w-0 items-center gap-3">
               <Radio
-                name="absence-booking-type"
+                name={name}
                 value={option.value}
                 checked={value === option.value}
                 onChange={() => onChange(option.value)}
               />
               <span className="truncate">{option.label}</span>
             </span>
-            <OptionHint option={option} account={account} firstDay={firstDay} />
+            <OptionHint
+              option={option}
+              account={account}
+              firstDay={firstDay}
+              accountHints={accountHints}
+            />
           </ChoiceTile>
         ))}
       </div>
@@ -381,12 +422,14 @@ function TypeChoice({
   );
 }
 
-function QuotaSummary({
+export function QuotaSummary({
   label,
   projections,
+  neededLabel = "Diese Eintragung",
 }: {
   label: string;
   projections: readonly Projection[];
+  neededLabel?: string;
 }) {
   const multiYear = projections.length > 1;
   return (
@@ -403,7 +446,7 @@ function QuotaSummary({
               {formatDayCount(item.remaining)}
             </span>
           </DataField>
-          <DataField inline label="Diese Eintragung">
+          <DataField inline label={neededLabel}>
             <span className="tabular-nums">{formatDayCount(item.needed)}</span>
           </DataField>
           <DataField inline label="Danach übrig">
@@ -441,17 +484,20 @@ export function AbsenceBookingModal({
   types,
   onClose,
   onSaved,
+  initialDate,
 }: {
   readonly staff: SickReportStaff;
   readonly types: readonly AbsenceType[];
   readonly onClose: () => void;
   readonly onSaved: () => Promise<void>;
+  /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
+  readonly initialDate?: string;
 }) {
   const toast = useToast();
   const options = useMemo(() => bookingOptions(types), [types]);
   const [value, setValue] = useState("");
-  const [dateStart, setDateStart] = useState(todayISO());
-  const [dateEnd, setDateEnd] = useState(todayISO());
+  const [dateStart, setDateStart] = useState(initialDate ?? todayISO());
+  const [dateEnd, setDateEnd] = useState(initialDate ?? todayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [overdraftConfirmed, setOverdraftConfirmed] = useState(false);

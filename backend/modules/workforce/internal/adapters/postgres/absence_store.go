@@ -77,6 +77,11 @@ type staffAbsenceAuditRow struct {
 	ActorID       int64     `bun:"actor_id,notnull"`
 	Note          string    `bun:"note"`
 	ChangedAt     time.Time `bun:"changed_at,nullzero,notnull,default:current_timestamp"`
+	// The type columns are only set on a rebooking (#3258).
+	FromAbsenceType   *string `bun:"from_absence_type"`
+	ToAbsenceType     *string `bun:"to_absence_type"`
+	FromAbsenceTypeID *int64  `bun:"from_absence_type_id"`
+	ToAbsenceTypeID   *int64  `bun:"to_absence_type_id"`
 }
 
 // AcquireXactLock takes the transaction-scoped advisory lock for key on the
@@ -526,6 +531,10 @@ func (s *Store) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffA
 		TenantID: value.TenantID, AbsenceID: value.AbsenceID, FromStatus: value.FromStatus, ToStatus: value.ToStatus,
 		ActorID: value.ActorID, Note: value.Note, ChangedAt: value.ChangedAt,
 	}
+	if change := value.TypeChange; change != nil {
+		row.FromAbsenceType, row.ToAbsenceType = &change.FromType, &change.ToType
+		row.FromAbsenceTypeID, row.ToAbsenceTypeID = change.FromTypeID, change.ToTypeID
+	}
 	if row.TenantID == 0 {
 		row.TenantID = tenantID
 	}
@@ -539,7 +548,7 @@ func (s *Store) RecordStaffAbsenceAudit(ctx context.Context, value domain.StaffA
 	stats.Rows = 1
 	return domain.StaffAbsenceAudit{
 		ID: row.ID, TenantID: row.TenantID, AbsenceID: row.AbsenceID, FromStatus: row.FromStatus, ToStatus: row.ToStatus,
-		ActorID: row.ActorID, Note: row.Note, ChangedAt: row.ChangedAt,
+		ActorID: row.ActorID, Note: row.Note, ChangedAt: row.ChangedAt, TypeChange: value.TypeChange,
 	}, stats, nil
 }
 
