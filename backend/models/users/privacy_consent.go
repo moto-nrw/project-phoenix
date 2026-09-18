@@ -1,7 +1,6 @@
 package users
 
 import (
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -17,6 +16,10 @@ const (
 	MaxDataRetentionDays     = 31
 	DefaultDataRetentionDays = 30
 )
+
+// The consent lifecycle — what a valid window is, when one needs renewing, how
+// its details are read — moved to Student Presence with the table it belongs to
+// (#3349). What stays here is the row shape the retained fixtures insert.
 
 // PrivacyConsent represents a privacy consent record for a student
 type PrivacyConsent struct {
@@ -34,60 +37,4 @@ type PrivacyConsent struct {
 
 	// Relations not stored in the database
 	Student *Student `bun:"-" json:"student,omitempty"`
-}
-
-// Validate ensures privacy consent data is valid. It performs pure field
-// validation only and never mutates the entity. Acceptance/expiry derivation
-// is a business decision owned by the privacy-consent service (issue #586,
-// Rule 12: models hold data, not decisions).
-func (pc *PrivacyConsent) Validate() error {
-	if pc.StudentID <= 0 {
-		return errors.New("student ID is required")
-	}
-
-	if pc.PolicyVersion == "" {
-		return errors.New("policy version is required")
-	}
-
-	// Validate data retention days
-	if pc.DataRetentionDays < MinDataRetentionDays || pc.DataRetentionDays > MaxDataRetentionDays {
-		return errors.New("data retention days must be between 1 and 31")
-	}
-
-	// Validate expires_at is after acceptance if both set
-	if pc.ExpiresAt != nil && pc.AcceptedAt != nil {
-		if pc.ExpiresAt.Before(*pc.AcceptedAt) {
-			return errors.New("expiration date must be after acceptance date")
-		}
-	}
-
-	// No need to validate JSONB details - handled by the database
-	return nil
-}
-
-// NeedsRenewal checks if consent needs renewal based on renewal_required flag
-func (pc *PrivacyConsent) NeedsRenewal() bool {
-	return pc.RenewalRequired
-}
-
-// SetStudent links this privacy consent to a student
-func (pc *PrivacyConsent) SetStudent(student *Student) {
-	pc.Student = student
-	if student != nil {
-		pc.StudentID = student.ID
-	}
-}
-
-// GetDetails returns details map
-func (pc *PrivacyConsent) GetDetails() map[string]interface{} {
-	if pc.Details == nil {
-		pc.Details = make(map[string]interface{})
-	}
-	return pc.Details
-}
-
-// UpdateDetails updates the details map
-func (pc *PrivacyConsent) UpdateDetails(details map[string]interface{}) error {
-	pc.Details = details
-	return nil
 }

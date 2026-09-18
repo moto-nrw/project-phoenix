@@ -6,7 +6,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/uptrace/bun"
 )
 
 // This file is the translation seam between the retained users.Student
@@ -32,11 +31,6 @@ type StudentAudit struct{ capability StudentAuditCapability }
 // serve root keeps one observed People Directory.
 func NewStudentAuditFor(capability StudentAuditCapability) *StudentAudit {
 	return &StudentAudit{capability: capability}
-}
-
-// NewStudentAudit composes an unobserved owner for test graphs and CLI roots.
-func NewStudentAudit(db *bun.DB) *StudentAudit {
-	return NewStudentAuditFor(MustNewPeopleDirectory(db))
 }
 
 func (s *StudentAudit) RecordChanges(

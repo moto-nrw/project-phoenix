@@ -69,14 +69,6 @@ func NewStudentConsentsFor(directory StudentConsentCapability, trail auditModels
 	return &StudentConsents{directory: directory, trail: trail}
 }
 
-// NewStudentConsents composes unobserved owners for test graphs and CLI roots.
-func NewStudentConsents(db *bun.DB) *StudentConsents {
-	return NewStudentConsentsFor(
-		MustNewPeopleDirectory(db),
-		auditRepositories.NewStudentConsentChangeRepository(auditRootRuntime(db)),
-	)
-}
-
 // CurrentStates resolves the four consent states of a student row the caller
 // already read.
 func (s *StudentConsents) CurrentStates(
