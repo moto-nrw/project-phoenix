@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -400,13 +401,204 @@ func verifyStudentOwnerTenant(ctx context.Context, tx bun.Tx, tenantID int64) (S
 		Scan(ctx, &verification.MismatchCount, &oldest); err != nil {
 		return verification, fmt.Errorf("student owner cutover: tenant %d mismatches: %w", tenantID, err)
 	}
-	if err := tx.NewRaw(studentOwnerGuardianMismatch, tenantID, tenantID).
-		Scan(ctx, &verification.GuardianMismatchCount, &oldest); err != nil {
-		return verification, fmt.Errorf("student owner cutover: tenant %d guardian reconciliation: %w", tenantID, err)
+	guardian, careState, err := studentOwnerHumanVerdicts(ctx, tx, tenantID)
+	if err != nil {
+		return verification, fmt.Errorf("student owner cutover: %w", err)
 	}
-	if err := tx.NewRaw(studentOwnerCareStateMismatch, tenantID).
-		Scan(ctx, &verification.CareStateMismatchCount, &oldest); err != nil {
-		return verification, fmt.Errorf("student owner cutover: tenant %d care state: %w", tenantID, err)
-	}
+	verification.GuardianMismatchCount, verification.CareStateMismatchCount = guardian, careState
 	return verification, nil
+}
+
+// studentOwnerHumanVerdicts reads the two verdicts no backfill pass can close,
+// because the columns behind them have no target: a legacy guardian value that
+// no linked guardian carries, and a raised sick/excused flag with no open status
+// day for today. Both the switch and the deployment preflight ask through here,
+// so the question stays one definition rather than two that could drift.
+func studentOwnerHumanVerdicts(ctx context.Context, db bun.IDB, tenantID int64) (int64, int64, error) {
+	var guardian, careState int64
+	var oldest sql.NullTime
+	if err := db.NewRaw(studentOwnerGuardianMismatch, tenantID, tenantID).Scan(ctx, &guardian, &oldest); err != nil {
+		return 0, 0, fmt.Errorf("tenant %d guardian reconciliation: %w", tenantID, err)
+	}
+	if err := db.NewRaw(studentOwnerCareStateMismatch, tenantID).Scan(ctx, &careState, &oldest); err != nil {
+		return 0, 0, fmt.Errorf("tenant %d care state: %w", tenantID, err)
+	}
+	return guardian, careState, nil
+}
+
+// studentOwnerUnreconciled is one school's verdict on everything the preflight
+// can answer: the two the data owns, and whether the backfill ever visited it.
+type studentOwnerUnreconciled struct {
+	TenantID        int64
+	Guardian        int64
+	CareState       int64
+	NeverBackfilled bool
+}
+
+// studentOwnerPreflightRelations are the relations the two reconciliation
+// queries read. The preflight runs before every pending migration, so on an
+// environment below the migration that creates one of them the query would fail
+// with "relation does not exist" — a schema answer to a data question, and a
+// refused release for a reason no operator can correct. Nothing is reconciled
+// against a relation that does not exist yet, so an absent one means "no verdict
+// to give", not "abort".
+var studentOwnerPreflightRelations = []string{
+	"platform.schools",
+	"users.students",
+	"users.students_guardians",
+	"users.guardian_profiles",
+	"users.guardian_phone_numbers",
+	"active.student_status_days",
+}
+
+// studentOwnerCutoverPrecondition answers, before the deployment stops the
+// application, whether Cutover's two data verdicts would refuse.
+//
+// Of the five verdicts the switch checks, three are mechanical: counts,
+// canonical checksums and the row-wise mismatch all describe how far the
+// resumable backfill has got, and another backfill pass closes them. The other
+// two cannot be closed by copying, because the columns they cover have no
+// target. A legacy guardian value that no linked guardian carries, and a raised
+// sick/excused flag with no open status day for today, are corrections somebody
+// has to make in the data, and the switch is right to refuse until they are.
+//
+// It lives here, beside the two queries, and asks them through the same helper
+// the switch uses: one definition of reconciliation, asked early instead of
+// asked twice. Neither query needs the backfill's targets or its checkpoints,
+// which is what makes the answer meaningful on an environment where the backfill
+// has never run — one several releases behind reaches the backfill and the
+// cutover in the same `migrate` run, and the checkpoint-based
+// `backfill student-owner status` has nothing to report there yet.
+//
+// It reads, and only reads, under the same lock and statement timeouts the
+// backfill's own verification uses: this runs against a live database that is
+// still serving the previous release, so it must never be the thing that holds
+// it up.
+func studentOwnerCutoverPrecondition(ctx context.Context, db *bun.DB) error {
+	if db == nil {
+		return fmt.Errorf("student owner cutover preflight: database is required")
+	}
+	ready, err := studentOwnerPreflightReady(ctx, db)
+	if err != nil {
+		return err
+	}
+	// Either the schema floor is not reached yet, or users.students is already
+	// the compatibility view: after the switch the legacy columns live in the
+	// archive and the entry can still be pending, waiting only for its
+	// foreign-key validation to resume, which needs no data correction.
+	if !ready {
+		return nil
+	}
+
+	var blocked []studentOwnerUnreconciled
+	if err := db.RunInTx(ctx, &sql.TxOptions{ReadOnly: true}, func(ctx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(ctx, `SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '60s'`); err != nil {
+			return err
+		}
+		var tenantIDs []int64
+		if err := tx.NewRaw(`SELECT id FROM platform.schools ORDER BY id`).Scan(ctx, &tenantIDs); err != nil {
+			return fmt.Errorf("list schools: %w", err)
+		}
+		// Only meaningful once some school has a checkpoint. Where none has,
+		// the backfill is pending in this same run and will write them all,
+		// so asking would fail a release that is about to succeed.
+		var backfillStarted bool
+		if err := tx.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.storage_backfill_checkpoints WHERE backfill = ?)`,
+			StudentOwnerBackfillName).Scan(ctx, &backfillStarted); err != nil {
+			return fmt.Errorf("read backfill checkpoints: %w", err)
+		}
+		for _, tenantID := range tenantIDs {
+			guardian, careState, err := studentOwnerHumanVerdicts(ctx, tx, tenantID)
+			if err != nil {
+				return err
+			}
+			neverBackfilled, err := studentOwnerTenantNeverBackfilled(ctx, tx, tenantID, backfillStarted)
+			if err != nil {
+				return err
+			}
+			if guardian > 0 || careState > 0 || neverBackfilled {
+				blocked = append(blocked, studentOwnerUnreconciled{
+					TenantID: tenantID, Guardian: guardian, CareState: careState, NeverBackfilled: neverBackfilled,
+				})
+			}
+		}
+		return nil
+	}); err != nil {
+		return fmt.Errorf("student owner cutover preflight: %w", err)
+	}
+	if len(blocked) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%s; fix the data and deploy again, see docs/operations/student-owner-storage-backfill.md",
+		describeStudentOwnerUnreconciled(blocked))
+}
+
+// studentOwnerPreflightReady reports whether there is a verdict to give at all:
+// every relation the two queries read exists, and users.students is still the
+// base table the switch is about to replace.
+func studentOwnerPreflightReady(ctx context.Context, db bun.IDB) (bool, error) {
+	for _, relation := range studentOwnerPreflightRelations {
+		var present bool
+		if err := db.NewRaw(`SELECT to_regclass(?) IS NOT NULL`, relation).Scan(ctx, &present); err != nil {
+			return false, fmt.Errorf("student owner cutover preflight: inspect %s: %w", relation, err)
+		}
+		if !present {
+			return false, nil
+		}
+	}
+	// storage_backfill_checkpoints arrives with the backfill itself, which may
+	// still be pending here; the checkpoint read below is guarded separately.
+	var checkpoints bool
+	if err := db.NewRaw(`SELECT to_regclass('platform.storage_backfill_checkpoints') IS NOT NULL`).Scan(ctx, &checkpoints); err != nil {
+		return false, fmt.Errorf("student owner cutover preflight: inspect checkpoints: %w", err)
+	}
+	if !checkpoints {
+		return false, nil
+	}
+	var kind string
+	if err := db.NewRaw(`SELECT relkind::text FROM pg_class WHERE oid = to_regclass('users.students')`).Scan(ctx, &kind); err != nil {
+		return false, fmt.Errorf("student owner cutover preflight: inspect users.students: %w", err)
+	}
+	return kind != "v", nil
+}
+
+// studentOwnerTenantNeverBackfilled reports the school the switch would refuse
+// for having students the resumable backfill has never completed a pass over.
+// It is the one refusal besides the two data verdicts that a release cannot
+// recover from on its own.
+func studentOwnerTenantNeverBackfilled(ctx context.Context, db bun.IDB, tenantID int64, backfillStarted bool) (bool, error) {
+	if !backfillStarted {
+		return false, nil
+	}
+	var pending bool
+	if err := db.NewRaw(`
+		SELECT EXISTS (SELECT 1 FROM users.students WHERE tenant_id = ?)
+		   AND NOT EXISTS (
+			SELECT 1 FROM platform.storage_backfill_checkpoints
+			WHERE backfill = ? AND tenant_id = ? AND pass_completed)`,
+		tenantID, StudentOwnerBackfillName, tenantID).Scan(ctx, &pending); err != nil {
+		return false, fmt.Errorf("tenant %d backfill pass: %w", tenantID, err)
+	}
+	return pending, nil
+}
+
+// describeStudentOwnerUnreconciled names the schools and which of the two
+// verdicts each one fails, so the deployment log says what to correct without
+// anyone opening a psql session first.
+func describeStudentOwnerUnreconciled(blocked []studentOwnerUnreconciled) string {
+	parts := make([]string, 0, len(blocked))
+	for _, entry := range blocked {
+		var reasons []string
+		if entry.Guardian > 0 {
+			reasons = append(reasons, fmt.Sprintf("%d unreconciled guardian values", entry.Guardian))
+		}
+		if entry.CareState > 0 {
+			reasons = append(reasons, fmt.Sprintf("%d absence flags without a status day", entry.CareState))
+		}
+		if entry.NeverBackfilled {
+			reasons = append(reasons, "students without a completed backfill pass")
+		}
+		parts = append(parts, fmt.Sprintf("tenant %d: %s", entry.TenantID, strings.Join(reasons, ", ")))
+	}
+	return "student owner cutover would refuse: " + strings.Join(parts, "; ")
 }
