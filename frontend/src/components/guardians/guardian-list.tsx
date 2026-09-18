@@ -27,7 +27,6 @@ import {
   Globe,
   Send,
 } from "lucide-react";
-import { Button } from "~/components/ui/button";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -133,17 +132,27 @@ export default function GuardianList({
     );
   }
 
-  // Bearbeiten bleibt im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4). Einladen
-  // ist für Personen ohne Portalzugang der nächste wichtige Schritt und bleibt
-  // deshalb in der Zeile sichtbar (#3329).
+  // Alle Zeilenaktionen stehen im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4).
   // Social-worker contacts are school-managed: the backend refuses to invite
   // or upgrade them, so no invite entry is offered. A pending entry for an
   // ACCOUNT holder is a role-upgrade request awaiting approval in the queue —
   // there is no email to re-send and acting here would bypass the queue.
   const buildGuardianMenu = (
     guardian: GuardianWithRelationship,
+    showInvite: boolean,
   ): OverflowMenuEntry[] => {
     const items: OverflowMenuEntry[] = [];
+    if (showInvite) {
+      const isInviting = invitingGuardianId === guardian.id;
+      items.push({
+        label: isInviting
+          ? "Wird eingeladen"
+          : getInviteActionLabel(guardian.accountStatus),
+        icon: <Send className="h-4 w-4" aria-hidden />,
+        disabled: isInviting,
+        onClick: () => onInvite?.(guardian),
+      });
+    }
     if (onEdit) {
       items.push({
         label: "Bearbeiten",
@@ -159,7 +168,7 @@ export default function GuardianList({
       {guardians.map((guardian) => {
         const showInvite = canInviteGuardian(guardian, onInvite);
         const showMissingEmailHint = inviteNeedsEmail(guardian, onInvite);
-        const menuItems = buildGuardianMenu(guardian);
+        const menuItems = buildGuardianMenu(guardian, showInvite);
 
         return (
           <div
@@ -187,27 +196,12 @@ export default function GuardianList({
                 )}
               </div>
 
-              {!readOnly && (showInvite || menuItems.length > 0) && (
+              {!readOnly && menuItems.length > 0 && (
                 <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
-                  {showInvite && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="compact"
-                      isLoading={invitingGuardianId === guardian.id}
-                      loadingText="Wird eingeladen"
-                      onClick={() => onInvite?.(guardian)}
-                    >
-                      <Send className="h-4 w-4" aria-hidden />
-                      {getInviteActionLabel(guardian.accountStatus)}
-                    </Button>
-                  )}
-                  {menuItems.length > 0 && (
-                    <OverflowMenu
-                      ariaLabel={`Aktionen für ${getGuardianFullName(guardian)}`}
-                      items={menuItems}
-                    />
-                  )}
+                  <OverflowMenu
+                    ariaLabel={`Aktionen für ${getGuardianFullName(guardian)}`}
+                    items={menuItems}
+                  />
                 </div>
               )}
             </div>

@@ -230,7 +230,7 @@ describe("GuardianList", () => {
     expect(phoneCounts[1]).toHaveTextContent("0");
   });
 
-  it("shows the honest status and a visible grant-access action for active_no_access", () => {
+  it("shows the honest status and grant-access action for active_no_access", () => {
     const onInvite = vi.fn();
     const guardian = {
       ...mockGuardians[1]!,
@@ -243,7 +243,8 @@ describe("GuardianList", () => {
     expect(
       screen.getByText("Konto aktiv, kein Portalzugriff"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Zugriff gewähren" }));
+    fireEvent.click(rowMenuTriggers()[0]!);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff gewähren" }));
     expect(onInvite).toHaveBeenCalledWith(guardian);
   });
 
@@ -262,7 +263,7 @@ describe("GuardianList", () => {
     expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
   });
 
-  it("shows re-invite for a pending guardian without an account", () => {
+  it("offers re-invite in the row menu for a pending guardian without an account", () => {
     const guardian = {
       ...mockGuardians[1]!,
       accountStatus: "pending" as const,
@@ -276,9 +277,33 @@ describe("GuardianList", () => {
     );
 
     expect(screen.getByText("Einladung offen")).toBeInTheDocument();
+    fireEvent.click(rowMenuTriggers()[0]!);
     expect(
-      screen.getByRole("button", { name: "Erneut einladen" }),
+      screen.getByRole("menuitem", { name: "Erneut einladen" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows a disabled sending state in the row menu while inviting", () => {
+    const onInvite = vi.fn();
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "pending" as const,
+    };
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        onInvite={onInvite}
+        invitingGuardianId={guardian.id}
+      />,
+    );
+
+    fireEvent.click(rowMenuTriggers()[0]!);
+    const inviteItem = screen.getByRole("menuitem", {
+      name: "Wird eingeladen",
+    });
+    expect(inviteItem).toBeDisabled();
+    fireEvent.click(inviteItem);
+    expect(onInvite).not.toHaveBeenCalled();
   });
 
   it("explains why a person without an email address cannot be invited", () => {
