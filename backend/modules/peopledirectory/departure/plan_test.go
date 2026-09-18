@@ -154,3 +154,57 @@ func TestAlignRewritesEveryProjectionFromTheResolvedModes(t *testing.T) {
 		"the mode set follows the projection the caller actually moved")
 	assert.Equal(t, departure.DepartureAlone, aligned.DepartureDays.ModeFor(departure.PickupDayMonday))
 }
+
+// Effective is the read-side precedence every hydrated row passes through.
+func TestEffectivePrefersTheStoredModeSet(t *testing.T) {
+	t.Parallel()
+
+	stored := departure.Plan{
+		AllowedDepartureModes: departure.AllowedDepartureModes{
+			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureBus},
+		},
+		// Deliberately contradictory: the mode set is authoritative.
+		DepartureDays: departure.DepartureDays{departure.PickupDayFriday: departure.DeparturePickup},
+		BusDays:       departure.BusDays{departure.PickupDayTuesday: true},
+	}
+
+	got := stored.Effective()
+
+	assert.Equal(t, departure.DepartureBus, got.DepartureDays.ModeFor(departure.PickupDayMonday))
+	assert.True(t, got.BusDays[departure.PickupDayMonday])
+	assert.False(t, got.BusDays[departure.PickupDayTuesday])
+	assert.Equal(t, departure.DepartureAlone, got.DepartureDays.ModeFor(departure.PickupDayFriday))
+}
+
+func TestEffectiveFallsBackToDepartureDaysThenTheLegacyMaps(t *testing.T) {
+	t.Parallel()
+
+	unified := departure.Plan{
+		DepartureDays: departure.DepartureDays{departure.PickupDayWednesday: departure.DeparturePickup},
+		BusDays:       departure.BusDays{departure.PickupDayMonday: true},
+	}
+	got := unified.Effective()
+	assert.True(t, got.PickupDays[departure.PickupDayWednesday])
+	assert.False(t, got.BusDays[departure.PickupDayMonday],
+		"departure_days is authoritative once it carries a non-alone day")
+
+	// An empty departure_days cannot tell "alone every day" from "not
+	// backfilled", so a row written straight to bus_days still reads as one.
+	legacy := departure.Plan{
+		DepartureDays: departure.DepartureDays{},
+		BusDays:       departure.BusDays{departure.PickupDayMonday: true},
+	}
+	assert.Equal(t, departure.DepartureBus,
+		legacy.Effective().DepartureDays.ModeFor(departure.PickupDayMonday))
+}
+
+func TestEffectiveOnAnEmptyRowIsAllAlone(t *testing.T) {
+	t.Parallel()
+
+	got := departure.Plan{}.Effective()
+
+	assert.False(t, got.AllowedDepartureModes.HasAny())
+	for _, day := range departure.PickupDayOrder {
+		assert.Equal(t, departure.DepartureAlone, got.DepartureDays.ModeFor(day))
+	}
+}

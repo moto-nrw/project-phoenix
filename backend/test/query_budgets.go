@@ -53,7 +53,10 @@ var queryBudgets = map[string]queryBudget{
 	// a constant read moved inside the loop, fails the test.
 	"api.class_list_entries.list": {max: 8},
 	// api/students — GET /students list, 10 students, page_size=50.
-	"api.students.list": {max: 31},
+	// Lowered from 31 in #3349: the owner's directory read selects the
+	// departure plans in the same statement the rows come from, where the
+	// retained repository needed a second one to reach the scan-only columns.
+	"api.students.list": {max: 30},
 	// api/students — #2056: aggregated OGS group view, 10 students.
 	"api.students.ogs_group_live": {max: 41},
 	// api/students — #2099: identity chain resolved once per request.

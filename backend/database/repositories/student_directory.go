@@ -120,52 +120,39 @@ func studentRecordToModel(record peopleModule.StudentRecord) *userModels.Student
 	return student
 }
 
-// hydrateDeparturePlan resolves the three stored departure projections into the
-// one effective plan and records it as the update baseline, exactly as the
-// repository's own hydration does.
-//
-// Precedence: allowed_departure_modes wins, then departure_days, then the
-// legacy bus/pickup maps — an empty departure_days cannot distinguish "walks
-// alone every day" from "not backfilled yet", and a row written straight to
-// bus_days would otherwise read as no plan at all.
-//
-// The snapshot is what lets a later Update tell a plan the caller intentionally
-// changed from one that merely rode along on this read; without it, a caller
-// that never touches the plan re-persists its copy over a concurrent companion
-// edit (models/users.Student.DepartureBaseline, #1694).
+// hydrateDeparturePlan resolves the stored departure projections into the one
+// effective plan and records it as the update baseline. The precedence is the
+// owner's (departure.Plan.Effective); the snapshot is what lets a later Update
+// tell a plan the caller intentionally changed from one that merely rode along
+// on this read — without it, a caller that never touches the plan re-persists
+// its copy over a concurrent companion edit (#1694).
 func hydrateDeparturePlan(student *userModels.Student) {
-	if allowed := student.AllowedDepartureModes.Normalize(); allowed.HasAny() {
-		student.AllowedDepartureModes = allowed
-		student.DepartureDays = allowed.DepartureDays()
-		student.BusDays = allowed.BusDays()
-		student.PickupDays = allowed.PickupDays()
-		student.SnapshotDeparturePlan()
-		return
-	}
-	if departure := student.DepartureDays.Normalize(); departure.HasAny() {
-		student.DepartureDays = departure
-		student.AllowedDepartureModes = userModels.AllowedDepartureModesFromDeparture(departure)
-		student.BusDays = departure.BusDays()
-		student.PickupDays = departure.PickupDays()
-		student.SnapshotDeparturePlan()
-		return
-	}
-	student.BusDays = student.BusDays.Normalize()
-	student.PickupDays = student.PickupDays.Normalize()
-	student.DepartureDays = userModels.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
-	student.AllowedDepartureModes = userModels.AllowedDepartureModesFromLegacy(student.BusDays, student.PickupDays)
+	effective := userModels.DeparturePlan{
+		AllowedDepartureModes: student.AllowedDepartureModes,
+		DepartureDays:         student.DepartureDays,
+		BusDays:               student.BusDays,
+		PickupDays:            student.PickupDays,
+	}.Effective()
+	student.AllowedDepartureModes = effective.AllowedDepartureModes
+	student.DepartureDays = effective.DepartureDays
+	student.BusDays = effective.BusDays
+	student.PickupDays = effective.PickupDays
 	student.SnapshotDeparturePlan()
 }
 
-// translateStudentDirectoryError restates a missing child in the vocabulary
-// the retained contract uses. The owner has its own not-found sentinel, which
-// this package's consumers cannot reference; the service above turns the
-// shared one into the error shape its callers branch on.
+// translateStudentDirectoryError restates a child the owner would not hand
+// over in the vocabulary the retained contract uses. A missing row and an
+// unusable id collapse to the same answer on purpose: both mean "no such child
+// of this tenant", which is what the retained repository reported for either,
+// and what the handlers above render as 404 rather than 500.
 func translateStudentDirectoryError(err error) error {
-	if !errors.Is(err, peopleModule.ErrStudentNotFound) {
-		return err
+	if err == nil {
+		return nil
 	}
-	return userModels.ErrStudentRowMissing
+	if errors.Is(err, peopleModule.ErrStudentNotFound) || errors.Is(err, peopleModule.ErrInvalidStudent) {
+		return userModels.ErrStudentRowMissing
+	}
+	return err
 }
 
 func (d *StudentDirectory) GetStudentsByID(ctx context.Context, ids []int64) ([]*userModels.Student, error) {

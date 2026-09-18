@@ -908,6 +908,19 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 // studentDepartureState is the stored plan of one child, in the owner's terms.
 type studentDepartureState = users.DeparturePlan
 
+// applyEffectiveDeparturePlan resolves the stored projections into the plan
+// that is in effect and records it as the baseline a later Update rebases
+// untouched fields onto (see rebaseUntouchedDeparturePlan). The precedence
+// itself belongs to the owner; this only moves the result onto the row.
+func applyEffectiveDeparturePlan(student *users.Student, stored users.DeparturePlan) {
+	effective := stored.Effective()
+	student.AllowedDepartureModes = effective.AllowedDepartureModes
+	student.DepartureDays = effective.DepartureDays
+	student.BusDays = effective.BusDays
+	student.PickupDays = effective.PickupDays
+	student.SnapshotDeparturePlan()
+}
+
 // studentDeparturePlan reads the plan this write carries off the model.
 func studentDeparturePlan(student *users.Student) users.DeparturePlan {
 	return users.DeparturePlan{
@@ -1268,38 +1281,15 @@ func (r *StudentRepository) hydrateBusDaysForStudents(ctx context.Context, stude
 		if student == nil {
 			continue
 		}
-		// The companion note is independent of which departure projection wins
-		// below, so set it before the branches (all of which `continue`).
+		// The companion note is independent of which departure projection wins,
+		// so it is set outside the resolution.
 		student.DepartureCompanionNote = row.DepartureCompanionNote
-		if allowed := row.AllowedDepartureModes.Normalize(); allowed.HasAny() {
-			student.AllowedDepartureModes = allowed
-			student.DepartureDays = allowed.DepartureDays()
-			student.BusDays = allowed.BusDays()
-			student.PickupDays = allowed.PickupDays()
-			student.SnapshotDeparturePlan()
-			continue
-		}
-		// departure_days is authoritative when it carries any non-alone day:
-		// derive the legacy per-day views from it. When it is empty we cannot
-		// tell "genuinely all alone" from "not yet backfilled" (e.g. a row
-		// written straight to bus_days), so we fall back to the stored legacy
-		// maps — which are empty too for a truly all-alone child, giving the
-		// same result either way.
-		if departure := row.DepartureDays.Normalize(); departure.HasAny() {
-			student.DepartureDays = departure
-			student.AllowedDepartureModes = users.AllowedDepartureModesFromDeparture(departure)
-			student.BusDays = departure.BusDays()
-			student.PickupDays = departure.PickupDays()
-			student.SnapshotDeparturePlan()
-			continue
-		}
-		student.BusDays = row.BusDays.Normalize()
-		student.PickupDays = row.PickupDays.Normalize()
-		student.DepartureDays = users.DepartureDaysFromLegacy(student.BusDays, student.PickupDays)
-		student.AllowedDepartureModes = users.AllowedDepartureModesFromLegacy(student.BusDays, student.PickupDays)
-		// The hydrated plan is the baseline Update rebases untouched fields
-		// onto — see rebaseUntouchedDeparturePlan.
-		student.SnapshotDeparturePlan()
+		applyEffectiveDeparturePlan(student, users.DeparturePlan{
+			AllowedDepartureModes: row.AllowedDepartureModes,
+			DepartureDays:         row.DepartureDays,
+			BusDays:               row.BusDays,
+			PickupDays:            row.PickupDays,
+		})
 	}
 	return nil
 }

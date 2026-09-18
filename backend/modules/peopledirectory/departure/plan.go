@@ -42,6 +42,48 @@ func (p Plan) Normalized() Plan {
 	}
 }
 
+// Effective resolves the three stored projections of a row into the one plan
+// that is actually in effect. Every read hydrates through it, so a caller never
+// has to know which column a given school's data happens to live in.
+//
+// Precedence: the mode set wins when it says anything at all; then
+// departure_days, which is authoritative as soon as it carries a non-alone day.
+// An empty departure_days cannot distinguish "walks alone every day" from "not
+// backfilled yet" — a row written straight to bus_days would read as no plan —
+// so the legacy maps answer last. For a genuinely all-alone child every branch
+// gives the same result.
+//
+// PickupStatus is carried through untouched: it is an input projection, and
+// nothing derives the stored plan from it at read time.
+func (p Plan) Effective() Plan {
+	if allowed := p.AllowedDepartureModes.Normalize(); allowed.HasAny() {
+		return Plan{
+			AllowedDepartureModes: allowed,
+			DepartureDays:         allowed.DepartureDays(),
+			BusDays:               allowed.BusDays(),
+			PickupDays:            allowed.PickupDays(),
+			PickupStatus:          p.PickupStatus,
+		}
+	}
+	if days := p.DepartureDays.Normalize(); days.HasAny() {
+		return Plan{
+			AllowedDepartureModes: AllowedDepartureModesFromDeparture(days),
+			DepartureDays:         days,
+			BusDays:               days.BusDays(),
+			PickupDays:            days.PickupDays(),
+			PickupStatus:          p.PickupStatus,
+		}
+	}
+	bus, pickup := p.BusDays.Normalize(), p.PickupDays.Normalize()
+	return Plan{
+		AllowedDepartureModes: AllowedDepartureModesFromLegacy(bus, pickup),
+		DepartureDays:         DepartureDaysFromLegacy(bus, pickup),
+		BusDays:               bus,
+		PickupDays:            pickup,
+		PickupStatus:          p.PickupStatus,
+	}
+}
+
 // Rebase replaces every field that still carries exactly what the read
 // hydrated with the state just read under the row lock.
 //
