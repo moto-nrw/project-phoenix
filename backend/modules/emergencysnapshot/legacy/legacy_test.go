@@ -432,7 +432,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 	query, err := New(Sources{
 		Presence:     newPresenceModule(t, db),
 		PresenceMode: fakeMode{mode: "detailed"},
-		Students:     usersRepo.NewStudentRepository(db),
+		Students:     newOwnerStudentSource(t, db),
 		Persons:      people,
 		Contacts:     usersRepo.NewStudentGuardianRepository(db),
 		Rooms:        facilitiesModule,
@@ -457,4 +457,44 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 			return nil
 		}))
 	}
+}
+
+// ownerStudentSource satisfies the snapshot's one-method student port from
+// People Directory, which owns users.students since #3349. This adapter-test
+// may not reach the legacy composition that production wires, so it speaks to
+// the owner directly — and therefore still reads real rows under real RLS,
+// which is the point of the checks below.
+type ownerStudentSource struct{ directory peopledirectory.Capability }
+
+func newOwnerStudentSource(t *testing.T, db *bun.DB) ownerStudentSource {
+	t.Helper()
+	directory, err := peopleCompose.New(peopleCompose.Dependencies{
+		DB: db, Observe: func(peopleCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	return ownerStudentSource{directory: directory}
+}
+
+func (s ownerStudentSource) FindByIDs(
+	ctx context.Context,
+	ids []int64,
+) (map[int64]*usersModels.Student, error) {
+	records, err := s.directory.ListStudentRecordsByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	// Only what the snapshot renders; the owner's record carries the rest.
+	result := make(map[int64]*usersModels.Student, len(records))
+	for _, record := range records {
+		student := &usersModels.Student{
+			PersonID: record.PersonID, SchoolClass: record.SchoolClass,
+			HealthInfo:      record.HealthInfo,
+			GuardianName:    record.GuardianName,
+			GuardianContact: record.GuardianContact,
+			GuardianPhone:   record.GuardianPhone,
+		}
+		student.ID = record.ID
+		result[record.ID] = student
+	}
+	return result, nil
 }

@@ -11,32 +11,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestStudentRepositoryListWithOptionsPreservesHydrationOrderAndEmptySlice(t *testing.T) {
+// The class roster replaced the student repository's generic filter surface in
+// #3349. It keeps what that surface was pinned for: the departure plan comes
+// back hydrated, the rows arrive in a total order, and a selection that matches
+// nothing is nil rather than an empty slice.
+func TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
+
+	class := "List behavior"
 	person := testpkg.CreateTestPerson(t, db, "Student list", "Hydrated")
 	hydrated := &userModels.Student{
 		PersonID:    person.ID,
-		SchoolClass: "List behavior",
+		SchoolClass: class,
 		BusDays:     userModels.BusDaysFromLegacyFlag(true),
 	}
 	require.NoError(t, repo.Create(ctx, hydrated))
-	second := testpkg.CreateTestStudent(t, db, "Student list", "Second", "List behavior")
+	second := testpkg.CreateTestStudent(t, db, "Student list", "Second", class)
 
-	options := modelBase.NewQueryOptions().WithPagination(1, 1)
-	options.Filter.In("id", hydrated.ID, second.ID)
-	rows, err := repo.ListWithOptions(ctx, options)
+	rows, err := repo.ListClassRoster(ctx, class)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, hydrated.ID, rows[0].ID)
-	assert.True(t, rows[0].BusDays.HasAny())
+	require.Len(t, rows, 2)
+	assert.Equal(t, hydrated.ID, rows[0].ID, "rows arrive in a total order")
+	assert.Equal(t, second.ID, rows[1].ID)
+	assert.True(t, rows[0].BusDays.HasAny(), "the departure plan comes back hydrated")
 
-	emptyOptions := modelBase.NewQueryOptions()
-	emptyOptions.Filter.Equal("school_class", "Missing student class")
-	empty, err := repo.ListWithOptions(ctx, emptyOptions)
+	empty, err := repo.ListClassRoster(ctx, "Missing student class")
 	require.NoError(t, err)
 	assert.Nil(t, empty)
 	assert.Empty(t, empty)

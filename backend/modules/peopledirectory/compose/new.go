@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
@@ -21,6 +22,32 @@ type Observation = ports.Observation
 type Dependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
+	// StudentFieldAudit is the Audit Platform seam behind the per-child
+	// change history. Optional: without it the change-history capability
+	// reports that it is not configured, which is what graphs that never
+	// touch it (CLI roots, repository tests) need.
+	StudentFieldAudit StudentFieldAuditLog
+	// StudentConsentHistory is the Audit Platform seam behind the shared
+	// consent projection. Optional on the same terms; a child without a live
+	// photo consent then reports that the trail is not configured rather than
+	// rendering a withdrawal as "never granted".
+	StudentConsentHistory StudentConsentHistory
+	// StudentPhotoRuntime resolves the surfaces the photo lifecycle needs
+	// beyond the directory's own rows. It is a resolver, not a value, because
+	// the file cleanup, the live refresh and the caller-access gates only
+	// exist once the HTTP layer is up. Optional, and a resolver may return
+	// nil: every photo route then reports the feature as disabled, which is
+	// what graphs that never serve a photo (CLI roots, repository tests)
+	// need.
+	StudentPhotoRuntime func() StudentPhotoRuntime
+	// StudentCompanions is the Care Plan seam the student write path needs:
+	// narrowing a departure plan drops the "läuft mit" links it no longer
+	// allows. Optional, on the same terms as the others — a graph that never
+	// binds it refuses only the writes that would touch a link.
+	StudentCompanions StudentCompanions
+	// Now is the clock a granted photo consent is stamped with. Optional;
+	// time.Now by default.
+	Now func() time.Time
 }
 
 func New(dependencies Dependencies) (*peopledirectory.Module, error) {
@@ -43,12 +70,46 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 		dependencies.Observe(observation)
 	}
 	service := application.New(postgres.New(database), transaction{}, observe)
-	students := application.NewStudents(postgres.NewStudentStore(database), transaction{}, observe)
+	var companions ports.StudentCompanions
+	if dependencies.StudentCompanions != nil {
+		companions = studentCompanions{seam: dependencies.StudentCompanions}
+	}
+	students := application.NewStudents(postgres.NewStudentStore(database), companions, transaction{}, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database), transaction{}, observe)
-	return peopledirectory.NewModule(engine{service: service, students: students, guardians: guardians, observe: observe}), nil
+	var auditLog ports.StudentFieldAuditLog
+	if dependencies.StudentFieldAudit != nil {
+		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
+	}
+	studentAudit := application.NewStudentAudit(auditLog, observe)
+	var consentHistory ports.StudentConsentHistory
+	if dependencies.StudentConsentHistory != nil {
+		consentHistory = dependencies.StudentConsentHistory
+	}
+	studentConsents := application.NewStudentConsents(consentHistory, observe)
+	photoRuntime := ports.StudentPhotoRuntime(studentPhotoRuntime{resolve: dependencies.StudentPhotoRuntime})
+	now := dependencies.Now
+	if now == nil {
+		now = time.Now
+	}
+	studentPhotos := application.NewStudentPhotos(
+		postgres.NewStudentStore(database), photoRuntime, transaction{}, observe, now)
+	return peopledirectory.NewModule(engine{
+		service: service, students: students, guardians: guardians,
+		studentAudit: studentAudit, studentConsents: studentConsents,
+		studentPhotos: studentPhotos, observe: observe,
+	}), nil
 }
 
 type transaction struct{}
+
+// TenantID is the tenant the caller's request is scoped to.
+func (transaction) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
+
+// RegisterAfterCommit defers file cleanup and live refreshes to the commit of
+// the transaction the write ran in.
+func (transaction) RegisterAfterCommit(ctx context.Context, callback func()) {
+	tenant.RegisterAfterCommit(ctx, callback)
+}
 
 func (transaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
 	if _, ok := tenant.TransactionFromContext(ctx); ok {
@@ -79,10 +140,13 @@ func (transaction) RunAdminRead(ctx context.Context, callback func(context.Conte
 }
 
 type engine struct {
-	service   *application.Service
-	students  *application.StudentService
-	guardians *application.GuardianService
-	observe   func(Observation)
+	service         *application.Service
+	students        *application.StudentService
+	guardians       *application.GuardianService
+	studentAudit    *application.StudentAuditService
+	studentConsents *application.StudentConsentService
+	studentPhotos   *application.StudentPhotoService
+	observe         func(Observation)
 }
 
 func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
@@ -213,6 +277,17 @@ func mapError(err error) error {
 		return peopledirectory.ErrStudentNotFound
 	case errors.Is(err, domain.ErrStudentLockBusy):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentLockBusy, err)
+	case errors.Is(err, domain.ErrCompanionWouldLoseDeparture):
+		return peopledirectory.ErrCompanionWouldLoseDeparture
+	case errors.Is(err, domain.ErrCompanionLockBusy):
+		return peopledirectory.ErrCompanionLockBusy
+	case errors.Is(err, domain.ErrStudentInvalid):
+		// The reason is the message a handler renders, so it is kept.
+		return &peopledirectory.InvalidStudentError{Reason: err.Error()}
+	case errors.Is(err, domain.ErrFamilyProtectionUnchanged):
+		return peopledirectory.ErrFamilyProtectionUnchanged
+	case errors.Is(err, domain.ErrFamilyProtectionInvalid):
+		return peopledirectory.ErrFamilyProtectionInvalid
 	default:
 		return err
 	}

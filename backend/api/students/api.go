@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -19,6 +20,7 @@ import (
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -46,6 +48,31 @@ type ClassListEntry struct {
 	FirstName   string
 	LastName    string
 	SchoolClass string
+}
+
+// PrivacyConsentCapability is the Student Presence owner surface this
+// resource needs for the per-child GDPR retention consent. Student Presence
+// owns users.privacy_consents because the recorded window bounds how long
+// presence data is kept (#3349).
+type PrivacyConsentCapability interface {
+	ListPrivacyConsents(context.Context, int64) ([]studentpresence.PrivacyConsent, error)
+	RecordPrivacyConsent(context.Context, studentpresence.PrivacyConsent) (studentpresence.PrivacyConsent, error)
+	RevisePrivacyConsent(context.Context, studentpresence.PrivacyConsent) (studentpresence.PrivacyConsent, error)
+}
+
+// FamilyProtectionCapability is the People Directory owner surface behind the
+// per-child privacy ledger: the current flag and the append-only change.
+type FamilyProtectionCapability interface {
+	peopleModule.FamilyProtectionQuery
+	peopleModule.FamilyProtectionCommand
+}
+
+// StudentConsentCapability is the consent surface this resource needs for the
+// student rows it holds: the shared portal projection People Directory folds
+// together, and the Audit Platform trail every effective change appends to.
+type StudentConsentCapability interface {
+	CurrentStates(ctx context.Context, student *users.Student, canManagePhoto bool) ([]users.StudentConsentState, error)
+	RecordTransitions(ctx context.Context, before, after *users.Student, source string, actorAccountID *int64, changedAt time.Time) error
 }
 
 // ClassListEntryReader hands over the entries in the class-then-name display
@@ -104,7 +131,10 @@ type ResourceConfig struct {
 	// silently deciding requests one by one, which is the bug the group
 	// exists to prevent.
 	ParentRequestConflictService userService.ParentRequestConflictService
-	FamilyProtectionService      userService.FamilyProtectionManager
+	// FamilyProtection is the People Directory owner capability behind the
+	// per-child privacy ledger (#3349). Optional: a bare test Resource answers
+	// 500 rather than reaching the ledger through a second path.
+	FamilyProtection FamilyProtectionCapability
 	// RequestReviewAccess reports the caller's coarse reach over the parent
 	// request queues so the empty list can explain itself. Optional: a nil
 	// policy omits the field (bare test Resources).
@@ -139,7 +169,15 @@ type ResourceConfig struct {
 	ParentEventEmitter *parentmessaging.Emitter
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
-	StudentConsents    userService.StudentConsentService
+	// StudentConsents serves the shared consent projection (People Directory)
+	// and records every effective change (Audit Platform) for the retained
+	// student rows this resource holds (#3349).
+	StudentConsents StudentConsentCapability
+	// PrivacyConsents is the Student Presence owner capability over
+	// users.privacy_consents (#3349). Optional: a bare test Resource answers
+	// 500 on the two consent routes rather than reaching the table through a
+	// second path.
+	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService userService.StudentDocumentService
 	ListExportService      *listexport.RendererService

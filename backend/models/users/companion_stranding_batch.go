@@ -2,7 +2,8 @@ package users
 
 import (
 	"context"
-	"sort"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 )
 
 // CompanionStrandingBatch collects the "would dropping this edge strand the far
@@ -31,69 +32,19 @@ import (
 //
 // Scope is one transaction — the batch lives in the context of the coordinating
 // write and is never shared across requests or goroutines.
-type CompanionStrandingBatch struct {
-	// days holds, per far child, the weekdays on which this batch removed one
-	// of their links.
-	days map[int64]map[string]bool
-}
-
-type companionStrandingBatchKey struct{}
+// CompanionStrandingBatch is the owner's batch under the name the retained
+// callers already use (#3349): opening a scope here is opening the owner's.
+type CompanionStrandingBatch = departure.StrandingBatch
 
 // ContextWithCompanionStrandingBatch opens a batch scope and returns both the
-// derived context to run the coordinated writes with and the batch itself.
-// Every departure-plan write made with that context defers its stranding
-// verdicts instead of refusing on the spot, so the caller MUST decide them via
-// StudentRepository.VerifyCompanionStrandingBatch before it commits.
+// derived context and the batch itself. The caller decides its verdicts through
+// the student repository's VerifyCompanionStrandingBatch before it commits.
 func ContextWithCompanionStrandingBatch(ctx context.Context) (context.Context, *CompanionStrandingBatch) {
-	batch := &CompanionStrandingBatch{days: make(map[int64]map[string]bool)}
-	return context.WithValue(ctx, companionStrandingBatchKey{}, batch), batch
+	return departure.ContextWithStrandingBatch(ctx)
 }
 
 // CompanionStrandingBatchFromContext returns the open batch, or nil when the
-// write is a plain single-child one and must decide its verdicts immediately.
+// caller is an ordinary single-child write.
 func CompanionStrandingBatchFromContext(ctx context.Context) *CompanionStrandingBatch {
-	batch, _ := ctx.Value(companionStrandingBatchKey{}).(*CompanionStrandingBatch)
-	return batch
-}
-
-// Defer records that the batch removed a link of studentID on the given
-// weekdays. Purely additive: a child whose links are trimmed by several writes
-// of the same batch accumulates every affected weekday.
-func (b *CompanionStrandingBatch) Defer(studentID int64, days []string) {
-	if b == nil || studentID <= 0 || len(days) == 0 {
-		return
-	}
-	if b.days[studentID] == nil {
-		b.days[studentID] = make(map[string]bool, len(days))
-	}
-	for _, day := range days {
-		b.days[studentID][day] = true
-	}
-}
-
-// Pending returns the deferred verdicts: the far children in ascending id order
-// and, per child, the affected weekdays in the canonical PickupDayOrder (the
-// only keys a stored edge can carry, see CompanionWeekdayKeys) — so the flush
-// queries and, on a refusal, the refused child are deterministic.
-func (b *CompanionStrandingBatch) Pending() ([]int64, map[int64][]string) {
-	if b == nil || len(b.days) == 0 {
-		return nil, nil
-	}
-	ids := make([]int64, 0, len(b.days))
-	for id := range b.days {
-		ids = append(ids, id)
-	}
-	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
-
-	days := make(map[int64][]string, len(ids))
-	for _, id := range ids {
-		ordered := make([]string, 0, len(b.days[id]))
-		for _, day := range PickupDayOrder {
-			if b.days[id][day] {
-				ordered = append(ordered, day)
-			}
-		}
-		days[id] = ordered
-	}
-	return ids, days
+	return departure.StrandingBatchFromContext(ctx)
 }

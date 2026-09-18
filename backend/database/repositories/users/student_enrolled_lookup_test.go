@@ -36,7 +36,10 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday(t *testing.T) {
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
-	ctx := context.Background()
+	// The lookup names its tenant explicitly and runs outside tenant scope, but
+	// it still opens a transaction — as it does under the runtime middleware
+	// the parent submit path runs in.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// Exact match → true.
 	exists, err := repo.ExistsEnrolledByNameAndBirthday(ctx, tenantID, "Milan", "Eligibilitytest", birthday)
@@ -86,7 +89,10 @@ func TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending(t *testing.T)
 	setPersonBirthday(t, db, student.PersonID, birthday)
 
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
-	ctx := context.Background()
+	// The lookup names its tenant explicitly and runs outside tenant scope, but
+	// it still opens a transaction — as it does under the runtime middleware
+	// the parent submit path runs in.
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	// Flip the student to pending (approved-but-not-yet-activated).
 	_, err := db.NewRaw(`UPDATE users.students SET status = ? WHERE id = ?`, users.StudentStatusPending, student.ID).

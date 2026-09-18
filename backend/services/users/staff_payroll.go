@@ -72,8 +72,8 @@ func (s *personService) updatePersonnelNumberInTx(
 		return nil, err
 	}
 
-	oldValue := derefString(staff.PersonnelNumber)
-	newValue := derefString(normalized)
+	oldValue := derefPayrollString(staff.PersonnelNumber)
+	newValue := derefPayrollString(normalized)
 	if oldValue == newValue {
 		return staff, nil
 	}
@@ -111,4 +111,12 @@ func normalizePersonnelNumber(value *string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+// derefPayrollString renders an unset Personalnummer as the empty audit value.
+func derefPayrollString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

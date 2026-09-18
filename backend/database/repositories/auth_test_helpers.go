@@ -4,7 +4,6 @@ import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -31,7 +30,7 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		AccountRole:   authRepo.NewAccountRoleRepository(db), AccountPermission: authRepo.NewAccountPermissionRepository(db),
 		Role: authRepo.NewRoleRepository(db), RolePermission: authRepo.NewRolePermissionRepository(db),
 		Permission: authRepo.NewPermissionRepository(db),
-		RFIDCard:   authRepo.NewRFIDCardRepository(db), Student: usersRepo.NewStudentRepository(db),
+		RFIDCard:   authRepo.NewRFIDCardRepository(db), Student: NewStudentRepository(db),
 		InvitationToken: authRepo.NewInvitationTokenRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 		ParentEnrollmentRequest: parentRepo.NewEnrollmentRequestRepository(carePlanLegacy.NewParentRuntime(db), enrollmentCompose.New(), identityAccountDirectory{accounts: newIdentityAccess(db, nil)}),

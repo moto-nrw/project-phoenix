@@ -524,7 +524,7 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	// repositories need are bound at construction.
 	identity := newIdentityAccess(db, timetableDependencies.ObserveIdentityAccess)
 	personRepo := NewPersonRepository(db)
-	studentRepo := users.NewStudentRepository(db)
+	studentRepo := NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
 	factory := &Factory{
 		db: db,

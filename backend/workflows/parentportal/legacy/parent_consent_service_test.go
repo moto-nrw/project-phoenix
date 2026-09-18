@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
@@ -20,23 +19,28 @@ type consentRecordingUnlinker struct{ urls []string }
 
 func (r *consentRecordingUnlinker) UnlinkStored(url string) { r.urls = append(r.urls, url) }
 
+// consentPhotoUnlinker is the only part of the photo lifecycle this portal
+// reaches: a withdrawal detaches the stored file after the commit.
+type consentPhotoUnlinker struct{ unlinker *consentRecordingUnlinker }
+
+func (u consentPhotoUnlinker) ScheduleUnlinkAfterCommit(_ context.Context, storedURL string) {
+	if storedURL == "" {
+		return
+	}
+	u.unlinker.UnlinkStored(storedURL)
+}
+
 func buildConsentService(t *testing.T) (parentService.Service, *bun.DB, *repositories.Factory, *consentRecordingUnlinker) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	unlinker := &consentRecordingUnlinker{}
-	photos := usersService.NewStudentPhotoService(usersService.StudentPhotoServiceDependencies{
-		StudentRepo: repos.Student,
-		Broadcaster: testpkg.NewRecordingBroadcaster(),
-		Unlinker:    unlinker,
-		DB:          db,
-		Logger:      slog.Default(),
-	})
+	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:           repos.ParentChild,
 		StudentRepo:         repos.Student,
 		StudentGuardianRepo: repos.StudentGuardian,
-		StudentConsents:     usersService.NewStudentConsentService(repos.StudentConsentChange),
+		StudentConsents:     repositories.NewStudentConsents(db),
 		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,

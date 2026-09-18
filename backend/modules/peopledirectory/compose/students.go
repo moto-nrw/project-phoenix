@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -85,6 +86,79 @@ func (e engine) ClearStudentStatusFlags(ctx context.Context, ids []int64, status
 	return affected, mapError(err)
 }
 
+func (e engine) SetFamilyProtection(ctx context.Context, input peopledirectory.SetFamilyProtection) (bool, error) {
+	enabled, err := e.students.SetFamilyProtection(ctx, domain.FamilyProtectionChange{
+		StudentID: input.StudentID, Enabled: input.Enabled,
+		Reason: input.Reason, ActorAccountID: input.ActorAccountID,
+	})
+	return enabled, mapError(err)
+}
+
+func (e engine) ListStudentDirectory(
+	ctx context.Context,
+	filter peopledirectory.StudentDirectoryFilter,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListDirectory(ctx, toDomainStudentDirectoryFilter(filter))
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]peopledirectory.StudentRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRecord(value))
+	}
+	return result, nil
+}
+
+func (e engine) CountStudentDirectory(
+	ctx context.Context,
+	filter peopledirectory.StudentDirectoryFilter,
+) (int, error) {
+	total, err := e.students.CountDirectory(ctx, toDomainStudentDirectoryFilter(filter))
+	return total, mapError(err)
+}
+
+func (e engine) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {
+	ids, err := e.students.ListDirectoryIDs(ctx)
+	return ids, mapError(err)
+}
+
+func (e engine) FindStudentRecordForMutation(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "UPDATE")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByID(ctx context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByIDs(ctx, ids)
+	if err != nil {
+		return nil, mapError(err)
+	}
+	result := make([]peopledirectory.StudentRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRecord(value))
+	}
+	return result, nil
+}
+
+func (e engine) LockStudentPhotoFeature(ctx context.Context) error {
+	return mapPhotoError(e.studentPhotos.LockFeature(ctx))
+}
+
+// toDomainStudentDirectoryFilter renders the grade levels the SQL compares
+// against: the column holds free text, so the match is on the decimal spelling
+// of each level.
+func toDomainStudentDirectoryFilter(filter peopledirectory.StudentDirectoryFilter) domain.StudentDirectoryFilter {
+	levels := make([]string, 0, len(filter.GradeLevels))
+	for _, level := range filter.GradeLevels {
+		levels = append(levels, strconv.Itoa(level))
+	}
+	return domain.StudentDirectoryFilter{
+		IDs: filter.IDs, SchoolClasses: filter.SchoolClasses, GradeLevels: levels,
+		GuardianNameContains: filter.GuardianNameContains, KeepAlumni: filter.KeepAlumni,
+		CareStatus: filter.CareStatus, CareStatusOn: filter.CareStatusOn,
+		Page: filter.Page, PageSize: filter.PageSize,
+	}
+}
+
 func toPublicStudents(values []domain.Student) []peopledirectory.Student {
 	result := make([]peopledirectory.Student, 0, len(values))
 	for _, value := range values {
@@ -94,6 +168,119 @@ func toPublicStudents(values []domain.Student) []peopledirectory.Student {
 			EnrolledFrom: value.EnrolledFrom, EnrolledUntil: value.EnrolledUntil,
 			Sick: value.Sick, SickSince: value.SickSince, Excused: value.Excused, ExcusedSince: value.ExcusedSince,
 			PhotoPath: value.PhotoPath,
+		})
+	}
+	return result
+}
+
+func (e engine) FindStudentRecord(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByPerson(ctx context.Context, personIDs []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByPersonIDs(ctx, personIDs)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByGroup(
+	ctx context.Context,
+	groupIDs []int64,
+	scope peopledirectory.StudentScope,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByGroups(ctx, groupIDs, string(scope))
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecords(
+	ctx context.Context,
+	scope peopledirectory.StudentScope,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecords(ctx, string(scope))
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByClass(
+	ctx context.Context,
+	classes []string,
+	scope peopledirectory.StudentScope,
+) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByClasses(ctx, classes, string(scope))
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsByGuardianContact(ctx context.Context, email, phone string) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsByGuardianContact(ctx, email, phone)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.ListRecordsDueForStatus(ctx, status, bound, asOf)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) LockStudentRecordsByID(ctx context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {
+	values, err := e.students.LockRecordsByIDs(ctx, ids)
+	return toPublicStudentRecords(values), mapError(err)
+}
+
+func (e engine) CountStudentsByGroup(ctx context.Context, groupIDs []int64) (map[int64]int, error) {
+	counts, err := e.students.CountByGroups(ctx, groupIDs)
+	return counts, mapError(err)
+}
+
+func (e engine) ListEnrolledStudentIDsByNameAndBirthday(
+	ctx context.Context,
+	tenantID int64,
+	firstName, lastName, birthday string,
+) ([]int64, error) {
+	ids, err := e.students.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)
+	return ids, mapError(err)
+}
+
+func toPublicStudentRecords(values []domain.StudentRecord) []peopledirectory.StudentRecord {
+	result := make([]peopledirectory.StudentRecord, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRecord(value))
+	}
+	return result
+}
+
+func (e engine) ListAllStudentIDs(ctx context.Context) ([]int64, error) {
+	ids, err := e.students.ListAllIDs(ctx)
+	return ids, mapError(err)
+}
+
+func (e engine) FindStudentRecordForMutationNoWait(
+	ctx context.Context,
+	studentID int64,
+) (peopledirectory.StudentRecord, error) {
+	record, err := e.students.FindRecord(ctx, studentID, "UPDATE NOWAIT")
+	return peopledirectory.StudentRecord(record), mapError(err)
+}
+
+func (e engine) ListStudentRoster(ctx context.Context, today string) ([]peopledirectory.StudentRosterEntry, error) {
+	values, err := e.students.ListRoster(ctx, today)
+	return toPublicRoster(values), mapError(err)
+}
+
+func (e engine) ListStudentRosterByGroup(ctx context.Context, groupIDs []int64, today string) ([]peopledirectory.StudentRosterEntry, error) {
+	values, err := e.students.ListRosterByGroups(ctx, groupIDs, today)
+	return toPublicRoster(values), mapError(err)
+}
+
+func (e engine) ListStudentRosterOverlapping(ctx context.Context, from, to, today string) ([]peopledirectory.StudentRosterEntry, error) {
+	values, err := e.students.ListRosterOverlapping(ctx, from, to, today)
+	return toPublicRoster(values), mapError(err)
+}
+
+func toPublicRoster(values []domain.StudentRosterEntry) []peopledirectory.StudentRosterEntry {
+	result := make([]peopledirectory.StudentRosterEntry, 0, len(values))
+	for _, value := range values {
+		result = append(result, peopledirectory.StudentRosterEntry{
+			Record:    peopledirectory.StudentRecord(value.Record),
+			FirstName: value.FirstName, LastName: value.LastName,
+			TagID: value.TagID, AccountID: value.AccountID,
 		})
 	}
 	return result

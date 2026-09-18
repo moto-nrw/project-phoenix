@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -382,83 +381,45 @@ func parseDayStatusParam(value string) string {
 	}
 }
 
-// buildBaseFilter creates the shared filter for school_class and guardian_name.
+// buildDirectoryFilter renders this request as the owner's directory filter.
 // school_class is an exact class selector for class rosters; free text class
 // search still belongs in the broader `search` parameter.
-func (p *studentListParams) buildBaseFilter() *base.Filter {
-	filter := base.NewFilter()
-	p.applyCareVisibility(filter)
-	// Several classes may be selected at once (#2218); TrimIn collapses to the
-	// single-value TrimEqual when exactly one is requested.
-	if len(p.schoolClasses) > 0 {
-		filter.TrimIn("school_class", p.schoolClasses...)
+//
+// The filter is People Directory's typed surface rather than a query object:
+// which of its columns a caller may narrow by is the owner's decision (#3349).
+func (p *studentListParams) buildDirectoryFilter() users.StudentDirectoryFilter {
+	return users.StudentDirectoryFilter{
+		SchoolClasses:        p.schoolClasses,
+		GradeLevels:          p.gradeLevels,
+		GuardianNameContains: p.guardianName,
+		// actuallyPresentIDs bypass the alumnus guard only.
+		KeepAlumni:   p.actuallyPresentIDs,
+		IDs:          p.studentIDs,
+		CareStatus:   p.directoryCareStatus(),
+		CareStatusOn: p.careStatusOn,
 	}
-	// The school year reads the first number out of the same free-text class
-	// name that matchesGradeLevel reads in Go — in SQL, so the year filter keeps
-	// LIMIT/OFFSET and the count query narrows with it (#2218 review).
-	if len(p.gradeLevels) > 0 {
-		levels := make([]string, len(p.gradeLevels))
-		for i, level := range p.gradeLevels {
-			levels[i] = strconv.Itoa(level)
-		}
-		filter.FirstNumberIn("school_class", levels...)
+}
+
+// directoryCareStatus keeps the running side out of SQL: the shared evaluator
+// decides it after actual attendance is known, so asking the database for the
+// same boundary here would drop children the evaluator would have kept.
+// Explicit administrative views retain their SQL date boundary.
+func (p *studentListParams) directoryCareStatus() string {
+	if p.careStatus == CareStatusRunning {
+		return users.StudentCareStatusAll
 	}
-	if p.guardianName != "" {
-		filter.ILike("guardian_name", "%"+p.guardianName+"%")
-	}
-	if len(p.studentIDs) > 0 {
-		ids := make([]interface{}, len(p.studentIDs))
-		for i, id := range p.studentIDs {
-			ids[i] = id
-		}
-		filter.In("id", ids...)
+	return p.careStatus
+}
+
+// buildPagedDirectoryFilter adds the page window. Exports (fetchAll) and
+// requests with in-memory filters take every row, so their later passes see
+// the whole selection.
+func (p *studentListParams) buildPagedDirectoryFilter() users.StudentDirectoryFilter {
+	filter := p.buildDirectoryFilter()
+	if !p.fetchAll && !p.hasInMemoryFilters() {
+		filter.Page, filter.PageSize = p.page, p.pageSize
 	}
 	return filter
-}
-
-func (p *studentListParams) applyCareVisibility(filter *base.Filter) {
-	applyAlumnusVisibility(filter, p.actuallyPresentIDs)
-	// The shared evaluator handles the running side after actual attendance is
-	// known. Explicit administrative views retain their SQL date boundary.
-	if p.careStatus != CareStatusRunning {
-		applyCareStatusFilter(filter, p.careStatus, p.careStatusOn)
-	}
-}
-
-func applyAlumnusVisibility(filter *base.Filter, actuallyPresentIDs []int64) {
-	status := base.NewFilter().NotIn("status", string(users.StudentStatusAlumnus))
-	if len(actuallyPresentIDs) == 0 {
-		filter.And(*status)
-		return
-	}
-	ids := make([]interface{}, len(actuallyPresentIDs))
-	for i, id := range actuallyPresentIDs {
-		ids[i] = id
-	}
-	status.Or(*base.NewFilter().In("id", ids...))
-	filter.And(*status)
-}
-
-// buildQueryOptions creates query options from parameters
-func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
-	queryOptions := base.NewQueryOptions()
-	queryOptions.Filter = p.buildBaseFilter()
-
-	// Add pagination only if no person-based filters and the caller wants a
-	// page. Exports (fetchAll) take every row so their in-memory filters see
-	// the whole set.
-	if !p.fetchAll && !p.hasInMemoryFilters() {
-		queryOptions.WithPagination(p.page, p.pageSize)
-	}
-
-	return queryOptions
-}
-
-// buildCountOptions creates query options for counting records
-func (p *studentListParams) buildCountOptions() *base.QueryOptions {
-	countOptions := base.NewQueryOptions()
-	countOptions.Filter = p.buildBaseFilter()
-	return countOptions
 }
 
 // determineStudentAccess resolves the access context for the current request.
@@ -606,21 +567,6 @@ func collectFullAccessStudentIDs(responses []StudentResponse) []int64 {
 // "running" is the default and covers both a child with no end date at all and
 // one whose last care day is still ahead — the planned exit stays visible so
 // the office can see "Betreuung endet am …" while the child still attends.
-func applyCareStatusFilter(filter *base.Filter, careStatus string, today timezone.Date) {
-	switch careStatus {
-	case CareStatusEnded:
-		filter.IsNotNull("enrolled_until")
-		filter.LessThan("enrolled_until", today)
-	case CareStatusAll:
-		// No boundary: the caller manages both sides.
-	default:
-		running := base.NewFilter()
-		running.IsNull("enrolled_until")
-		running.Or(*base.NewFilter().GreaterThanOrEqual("enrolled_until", today))
-		filter.And(*running)
-	}
-}
-
 // careStatusFromRequest resolves the administrative list parameters together
 // with the permission guarding departed children, and returns the response to
 // render when either says no (#2487).

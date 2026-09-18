@@ -82,6 +82,52 @@ tables: `users.profiles` belongs to the account, not the person, so its model,
 contract and repository move to `models/auth` and
 `database/repositories/auth` under `identity-access`.
 
+#3349 settles the one table two owners reached for: `users.privacy_consents`
+stays with `student-presence`. The recorded window bounds how long presence
+data is kept, and the GDPR cleanup reads it through that owner's
+`ListAcceptedRetentionSettings`; People Directory gives up the consent
+lifecycle it kept in `services/users` instead. The policy entry is unchanged —
+the decision is that the existing owner keeps the table, not that it changes
+hands. `audit.student_consent_changes` and `audit.student_field_edits` stay
+with `audit-platform` for the same reason: People Directory decides which of
+its fields are tracked and how a change reads, and appends through a
+consumer-owned port.
+
+#3349 moved the child's whole lifecycle to its owner, including the write.
+`StudentRepository.Update` looked like it crossed a boundary: between the row
+lock and the plan write it reconciles the `users.student_companions` edges a
+narrowed departure plan no longer allows, takes the far children's row locks for
+that, and refuses the write when dropping an edge would strand one of them. It
+does not cross one. `database/repositories/users` is already
+`people-directory/postgres` in `policy.json`, so that code was always on this
+owner's side of the line, reaching Care Plan through a port. Relocating it into
+`modules/peopledirectory/internal` changed no ownership; the port is now
+`ports.StudentCompanions`, bound to Care Plan's `compose.CompanionRecords` — a
+slice of that owner narrow enough to build from the database alone, which is
+what lets the directory have it without waiting for a Care Plan that needs the
+directory.
+
+Two things stayed shared rather than moving. `departure.StrandingBatch` is the
+scope a coordinated multi-child write defers its verdicts into: the owner
+decides them, but the caller opens the scope and carries it on its context, so
+the type lives in the leaf both sides already import. And
+`RecordCompanionChange` stays with the composition seam, because the
+`student_companions_changed` announcement travels on the caller's context too.
+
+`database/repositories/users/student.go` issues no SQL at all any more. What
+remains is the interface the retained `StudentRepository` still declares, each
+method reporting a configuration error when a graph reaches it without the
+owner bound — the composition root binds it for every graph, so the shell is
+reachable only by a mistake.
+
+The reads moved with the same care as the writes, because three of them are
+not what their names suggest: the class lookup matches trimmed and
+case-insensitively, the id list keeps graduates because one who is actually
+present must stay reachable, and the participation candidates and the class
+roster count graduates while every other roster read does not. That last
+distinction is now stated as `peopledirectory.StudentScope` rather than left to
+each query.
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe

@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -497,69 +495,85 @@ func TestStudentRepository_FindBySchoolClass(t *testing.T) {
 	})
 }
 
-func TestStudentRepository_List(t *testing.T) {
+// The generic filter surface was replaced in #3349 by reads that name the
+// children they count. These pin what the old ones did: the roster of one
+// class, the whole-school roster, and the enrolled count that leaves graduates
+// out.
+func TestStudentRepository_ClassRoster(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
-	t.Run("lists students with filters", func(t *testing.T) {
-		testpkg.CreateTestStudent(t, db, "ListFilter", "Test", "FilterClass")
+	t.Run("one class", func(t *testing.T) {
+		class := fmt.Sprintf("RosterClass%d", time.Now().UnixNano())
+		student := testpkg.CreateTestStudent(t, db, "Roster", "Test", class)
 
-		// Filter by school_class_like
-		students, err := repo.List(ctx, map[string]interface{}{
-			"school_class_like": "Filter",
-		})
+		students, err := repo.ListClassRoster(ctx, class)
 		require.NoError(t, err)
-		assert.NotEmpty(t, students)
+		require.Len(t, students, 1)
+		assert.Equal(t, student.ID, students[0].ID)
 	})
 
-	t.Run("lists all students with no filters", func(t *testing.T) {
-		testpkg.CreateTestStudent(t, db, "ListAll", "Test", "1a")
+	t.Run("every class", func(t *testing.T) {
+		testpkg.CreateTestStudent(t, db, "RosterAll", "Test", "1a")
 
-		students, err := repo.List(ctx, nil)
+		students, err := repo.ListClassRoster(ctx, "")
 		require.NoError(t, err)
-		assert.NotEmpty(t, students)
+		assert.NotEmpty(t, students, "an empty class name spans the whole school")
 	})
 }
 
-func TestStudentRepository_ListWithOptions(t *testing.T) {
+func TestStudentRepository_CountEnrolledLeavesGraduatesOut(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-
 	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 	ctx := testpkg.Ctx(t)
 
-	t.Run("lists with pagination", func(t *testing.T) {
-		// Create several students
-		testpkg.CreateTestStudent(t, db, "Page1", "Test", "1a")
-		testpkg.CreateTestStudent(t, db, "Page2", "Test", "1b")
-		testpkg.CreateTestStudent(t, db, "Page3", "Test", "1c")
+	student := testpkg.CreateTestStudent(t, db, "Counted", "Test", "1a")
+	before, err := repo.CountEnrolled(ctx)
+	require.NoError(t, err)
+	require.Positive(t, before)
 
-		options := modelBase.NewQueryOptions()
-		options.WithPagination(1, 2) // Page 1, limit 2
+	_, err = db.NewUpdate().TableExpr("users.students").
+		Set("status = ?", users.StudentStatusAlumnus).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
 
-		students, err := repo.ListWithOptions(ctx, options)
-		require.NoError(t, err)
-		assert.LessOrEqual(t, len(students), 2)
-	})
+	after, err := repo.CountEnrolled(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, before-1, after, "a graduate stops counting")
+}
 
-	t.Run("lists with filter", func(t *testing.T) {
-		uniqueClass := fmt.Sprintf("FilterClass%d", time.Now().UnixNano())
-		testpkg.CreateTestStudent(t, db, "FilterOpt", "Test", uniqueClass)
+func TestStudentRepository_ListByGroupIDsIncludingAlumni(t *testing.T) {
+	t.Parallel()
 
-		options := modelBase.NewQueryOptions()
-		filter := modelBase.NewFilter()
-		filter.ILike("school_class", "%"+uniqueClass+"%")
-		options.Filter = filter
+	db := testpkg.SetupTestDB(t)
+	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
+	ctx := testpkg.Ctx(t)
 
-		students, err := repo.ListWithOptions(ctx, options)
-		require.NoError(t, err)
-		assert.Len(t, students, 1)
-	})
+	group := testpkg.CreateTestEducationGroup(t, db, fmt.Sprintf("CandidateGroup%d", time.Now().UnixNano()))
+	student := testpkg.CreateTestStudent(t, db, "Candidate", "Test", "1a")
+	_, err := db.NewUpdate().TableExpr("users.students").
+		Set("group_id = ?", group.ID).
+		Set("status = ?", users.StudentStatusAlumnus).
+		Where("id = ?", student.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// The participation rule that follows decides per child whether a graduate
+	// still counts, so the candidate set has to contain them.
+	students, err := repo.ListByGroupIDsIncludingAlumni(ctx, []int64{group.ID})
+	require.NoError(t, err)
+	require.Len(t, students, 1)
+	assert.Equal(t, student.ID, students[0].ID)
+
+	enrolled, err := repo.FindByGroupIDs(ctx, []int64{group.ID})
+	require.NoError(t, err)
+	assert.Empty(t, enrolled, "the roster read still leaves the graduate out")
 }
 
 func TestStudentRepository_CountWithOptions(t *testing.T) {
@@ -858,113 +872,9 @@ func TestStudentRepository_FindOverlappingWithGroupsImmediateActivation(t *testi
 // implementation but are not exposed in the StudentRepository interface, so they
 // cannot be tested through the interface.
 
-// TestStudentRepository_PurgeAllPhotos pins the contract that the repo
-// returns the OLD photo_path values (the URLs the post-commit unlink needs)
-// and clears the photo_path column on the same rows in a single statement.
-//
-// The single-statement guarantee is what closes the race documented on
-// PurgeAllPhotos: the previous SELECT-then-UPDATE shape captured a snapshot
-// then cleared rows that were not in the snapshot, leaving any concurrently
-// uploaded file orphaned on disk. We can't reproduce true concurrency in a
-// hermetic unit test (would need a second connection coordinating with FOR
-// UPDATE locks), but we can lock down the basic contract — return-before-
-// clear and round-trip equivalence.
-func TestStudentRepository_PurgeAllPhotos(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
-	ctx := testpkg.Ctx(t)
-
-	t.Run("returns old urls and clears photo_path in one statement", func(t *testing.T) {
-		s1 := testpkg.CreateTestStudent(t, db, "Purge", "One", "1a")
-		s2 := testpkg.CreateTestStudent(t, db, "Purge", "Two", "1a")
-		s3 := testpkg.CreateTestStudent(t, db, "Purge", "Three", "1a")
-
-		// Seed photos on s1 and s2; leave s3 NULL so we also assert the
-		// purge does not touch rows that were already null.
-		url1 := "/uploads/student-photos/p1.jpg"
-		url2 := "/uploads/student-photos/p2.jpg"
-		setPhotoPath(t, db, s1.ID, &url1)
-		setPhotoPath(t, db, s2.ID, &url2)
-
-		urls, err := repo.PurgeAllPhotos(ctx)
-		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{url1, url2}, urls,
-			"purge must return the OLD photo_path values for unlinking — "+
-				"a Postgres UPDATE … RETURNING returns post-update values "+
-				"by default (always NULL here), so this asserts the CTE "+
-				"join that surfaces the pre-image is in place")
-
-		// Both rows now NULL; s3 still NULL (untouched).
-		assert.Nil(t, getPhotoPath(t, db, s1.ID))
-		assert.Nil(t, getPhotoPath(t, db, s2.ID))
-		assert.Nil(t, getPhotoPath(t, db, s3.ID))
-	})
-
-	t.Run("returns nil when no photos are stored", func(t *testing.T) {
-		testpkg.CreateTestStudent(t, db, "Empty", "Purge", "1a")
-
-		urls, err := repo.PurgeAllPhotos(ctx)
-		require.NoError(t, err)
-		assert.Empty(t, urls, "no rows with photo_path → empty url list, no error")
-	})
-}
-
-// TestStudentRepository_LockPhotoFeature verifies that the per-tenant
-// advisory lock is actually visible to other transactions. Without this
-// observable serialization the in-tx feature-flag recheck on the upload
-// path would still race with a concurrent disable: the upload could
-// commit a fresh photo_path AFTER the disable's purge CTE captured
-// rows, leaving the file orphaned because the disable's post-commit
-// unlinks never saw it.
-//
-// We lock from a real *bun.Tx, then use pg_try_advisory_xact_lock from
-// a SECOND short-lived tx (separate connection) and assert it cannot
-// acquire the same key. After the first tx commits, a fresh attempt
-// must succeed — locks bound to the tenant id, not the connection.
-func TestStudentRepository_LockPhotoFeature(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
-	ctx := testpkg.Ctx(t)
-
-	// First tx: take the lock, but DON'T commit yet — we want to observe
-	// it from a second tx while the first is still open.
-	tx, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err, "begin tx 1")
-	holdCtx := tenant.WithTransactionForTest(ctx, &tx)
-	require.NoError(t, repo.LockPhotoFeature(holdCtx),
-		"first tx must acquire the per-tenant advisory lock")
-
-	// Second tx on a separate connection: try_advisory_xact_lock must
-	// FAIL (return false) because the first tx holds the same key. We
-	// use a try-variant so the test doesn't deadlock if the lock isn't
-	// being acquired correctly — a buggy LockPhotoFeature that no-oped
-	// would let the try succeed and the assertion fail.
-	probeTx, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err, "begin tx 2")
-	const lockClass int32 = 0x70686F74
-	var got bool
-	err = probeTx.NewRaw(`SELECT pg_try_advisory_xact_lock(?, ?)`, lockClass, int32(testpkg.Tenant(t))).Scan(ctx, &got)
-	require.NoError(t, err)
-	assert.False(t, got, "second tx must NOT be able to acquire the same per-tenant lock while tx 1 holds it")
-	require.NoError(t, probeTx.Rollback(), "rollback probe tx")
-
-	// Release the first tx's lock by rolling back.
-	require.NoError(t, tx.Rollback(), "rollback tx 1")
-
-	// After release, a fresh probe must acquire the lock cleanly.
-	probeTx2, err := db.BeginTx(ctx, nil)
-	require.NoError(t, err, "begin tx 3")
-	defer func() { _ = probeTx2.Rollback() }()
-	err = probeTx2.NewRaw(`SELECT pg_try_advisory_xact_lock(?, ?)`, lockClass, int32(testpkg.Tenant(t))).Scan(ctx, &got)
-	require.NoError(t, err)
-	assert.True(t, got, "after the holding tx releases, the lock must be acquirable again")
-}
+// The photo purge and the per-tenant photo gate moved to People Directory
+// in #3349; their tests live with the owner
+// (modules/peopledirectory/compose/student_photo_purge_test.go).
 
 // TestStudentRepository_FindByIDForUpdate locks down the basic contract:
 // the method returns the row fields and uses SELECT … FOR UPDATE so the
@@ -1001,10 +911,8 @@ func TestStudentRepository_FindByIDForUpdate(t *testing.T) {
 	})
 }
 
-// setPhotoPath / getPhotoPath are tiny test fixtures to read/write the
-// photo_path column without going through repo methods that don't exist on
-// the public interface. They use the test tenant context so RLS doesn't
-// strip the writes.
+// setPhotoPath writes the photo_path column without going through a repo
+// method. It runs in the test tenant context so RLS does not strip the write.
 func setPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
@@ -1014,19 +922,4 @@ func setPhotoPath(t *testing.T, db *bun.DB, studentID int64, path *string) {
 		Where("id = ?", studentID).
 		Exec(ctx)
 	require.NoError(t, err)
-}
-
-func getPhotoPath(t *testing.T, db *bun.DB, studentID int64) *string {
-	t.Helper()
-	ctx := testpkg.Ctx(t)
-	var row struct {
-		PhotoPath *string `bun:"photo_path"`
-	}
-	err := db.NewSelect().
-		TableExpr("users.students").
-		Column("photo_path").
-		Where("id = ?", studentID).
-		Scan(ctx, &row)
-	require.NoError(t, err)
-	return row.PhotoPath
 }

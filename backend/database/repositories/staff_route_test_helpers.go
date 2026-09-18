@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -37,7 +36,7 @@ func NewShiftTypeTestRepositories(db *bun.DB) ShiftTypeTestRepositories {
 }
 
 func NewStudentLookupTestRepository(db *bun.DB) usersModels.StudentRepository {
-	return usersRepo.NewStudentRepository(db)
+	return NewStudentRepository(db)
 }
 
 func NewGuardianProfileTestRepository(db *bun.DB) usersModels.GuardianProfileRepository {
