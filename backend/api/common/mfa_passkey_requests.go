@@ -7,7 +7,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // MFA and passkey request bodies shared verbatim by the tenant (api/auth)
@@ -28,7 +28,7 @@ func (req *MFAVerifyRequest) Bind(_ *http.Request) error {
 	req.Code = strings.TrimSpace(req.Code)
 	return validation.ValidateStruct(req,
 		validation.Field(&req.ChallengeToken, validation.Required),
-		validation.Field(&req.Code, validation.Required, validation.Length(authService.MFAEmailCodeLength, authService.MFAEmailCodeLength)),
+		validation.Field(&req.Code, validation.Required, validation.Length(authSvc.MFAEmailCodeLength, authSvc.MFAEmailCodeLength)),
 	)
 }
 
@@ -65,7 +65,7 @@ type MFAEnrollConfirmRequest struct {
 func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
 	req.Code = strings.TrimSpace(req.Code)
 	return validation.ValidateStruct(req,
-		validation.Field(&req.Code, validation.Required, validation.Length(authService.MFAEmailCodeLength, authService.MFAEmailCodeLength)),
+		validation.Field(&req.Code, validation.Required, validation.Length(authSvc.MFAEmailCodeLength, authSvc.MFAEmailCodeLength)),
 	)
 }
 

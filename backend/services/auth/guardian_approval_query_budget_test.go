@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +20,7 @@ func TestPendingGuardianApprovalsQueryBudget(t *testing.T) {
 		for i := from; i < to; i++ {
 			student := testpkg.CreateTestStudent(t, env.db, fmt.Sprintf("Approval%d", i), "Budget", "1a")
 			email := fmt.Sprintf("approval-budget-%d-%d@example.test", i, time.Now().UnixNano())
-			_, err := env.service.InviteToStudent(testpkg.Ctx(t), authService.InviteToStudentRequest{
+			_, err := env.service.InviteToStudent(testpkg.Ctx(t), identityaccess.InviteToStudentRequest{
 				StudentID: student.ID, Email: email, FirstName: "Guardian", LastName: fmt.Sprintf("Budget%d", i),
 				CreatedBy: requester.ID, RequestedByParentAccountID: &requester.ID, RequireApproval: true,
 			})

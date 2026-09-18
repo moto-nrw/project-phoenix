@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -144,54 +142,4 @@ func (d passwordResetDelivery) recordDelivery(ctx context.Context, meta email.De
 			slog.Any("error", result.Err),
 		)
 	}
-}
-
-// --- the retained auth service's consumer-owned reset port -----------------
-
-var _ auth.PasswordResets = (*accountSessions)(nil)
-
-func (a *accountSessions) InitiatePasswordReset(ctx context.Context, email string, scope auth.PasswordResetScope) (*auth.PasswordResetLink, error) {
-	link, err := a.module.InitiatePasswordReset(ctx, email, identityaccess.PasswordResetScope(scope))
-	if err != nil || link == nil {
-		return nil, passwordResetServiceError(err)
-	}
-	return &auth.PasswordResetLink{
-		ID: link.ID, AccountID: link.AccountID, Token: link.Token, Expiry: link.Expiry, CreatedAt: link.CreatedAt,
-		EmailSentAt: link.Delivery.SentAt, EmailError: link.Delivery.Error, EmailRetryCount: link.Delivery.RetryCount,
-	}, nil
-}
-
-func (a *accountSessions) ResetPassword(ctx context.Context, token, newPassword string) error {
-	return passwordResetServiceError(a.module.ResetPassword(ctx, token, newPassword))
-}
-
-func (a *accountSessions) CleanupExpiredPasswordResetTokens(ctx context.Context) (int, error) {
-	deleted, err := a.module.DeleteSpentPasswordResetTokens(ctx)
-	return deleted, passwordResetServiceError(err)
-}
-
-func (a *accountSessions) CleanupExpiredRateLimits(ctx context.Context) (int, error) {
-	deleted, err := a.module.DeleteStalePasswordResetWindows(ctx)
-	return deleted, passwordResetServiceError(err)
-}
-
-// passwordResetServiceError translates the rate-limit rejection to the
-// retained *auth.RateLimitError the reset routes read Retry-After from, and
-// everything else like the session flows.
-func passwordResetServiceError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if errors.Is(err, identityaccess.ErrPasswordResetUnavailable) {
-		return &auth.AuthError{Op: "password reset", Err: auth.ErrPasswordResetUnavailable}
-	}
-	var operation *identityaccess.AuthenticationError
-	if errors.As(err, &operation) && operation == err {
-		return &auth.AuthError{Op: operation.Op, Err: passwordResetServiceError(operation.Err)}
-	}
-	var limited *identityaccess.PasswordResetRateLimitError
-	if errors.As(err, &limited) {
-		return &auth.RateLimitError{Err: auth.ErrRateLimitExceeded, Attempts: limited.Attempts, RetryAt: limited.RetryAt}
-	}
-	return authServiceError(err)
 }

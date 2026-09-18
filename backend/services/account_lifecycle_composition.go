@@ -27,13 +27,11 @@ import (
 // service's consumer-owned port over the public module.
 
 // lifecycleWiring is the retained material the lifecycle seams are bound to.
-// The module composition fills repos from the session repositories. admin is
-// read at call time because the auth service is composed after the module.
+// The module composition fills repos from the session repositories.
 type lifecycleWiring struct {
 	repos    lifecycleRepositories
 	settings config.SettingsService
 	audit    auditModels.Command
-	admin    func() *auth.Service
 	// guardianMail carries the invitation delivery and the enrollment claim
 	// the guardian invitation flows leave to the root.
 	guardianMail *guardianInvitationWiring
@@ -59,7 +57,7 @@ func (w lifecycleWiring) complete() bool {
 	r := w.repos
 	return r.persons != nil && r.staff != nil && r.teachers != nil && r.students != nil &&
 		r.guardianProfiles != nil && r.studentGuardians != nil && r.authEvents != nil &&
-		r.roles != nil && w.audit != nil && w.admin != nil
+		r.roles != nil && w.audit != nil
 }
 
 func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
@@ -70,7 +68,7 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		return nil, fmt.Errorf("identity access composition: %w", wiring.repos.rolesErr)
 	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle and role repository, the audit command and the retained auth service are required")
+		return nil, errors.New("identity access composition: every lifecycle and role repository and the audit command are required")
 	}
 	delivery, enrollments, err := guardianInvitationDependencies(wiring.guardianMail)
 	if err != nil {
@@ -81,7 +79,6 @@ func lifecycleDependencies(wiring *lifecycleWiring, logger *slog.Logger) (*ident
 		PINs:        pinHasher{},
 		Lockout:     lockoutPolicy{settings: wiring.settings, logger: logger},
 		Audit:       previewAudit{events: wiring.repos.authEvents},
-		Admin:       accountAdministration{current: wiring.admin},
 		Passwords:   passwordPolicy{},
 		Guardians:   guardianDirectory{repos: wiring.repos},
 		Delivery:    delivery,
@@ -257,22 +254,31 @@ func (pinHasher) VerifyPIN(pin, hash string) bool {
 }
 
 // lockoutPolicy resolves the security.account_lockout_* settings for the
-// tenant in context; the MFA lockout constants are the shared fallback.
+// tenant in context. The PIN lockout and the MFA lockout share one
+// threshold and one window, so the identity module's constants are the
+// fallback here too (#586: one source of truth for the 5-attempt /
+// 15-minute policy).
 type lockoutPolicy struct {
 	settings config.SettingsService
 	logger   *slog.Logger
 }
 
 func (p lockoutPolicy) PINLockout(ctx context.Context) (int, time.Duration) {
-	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, auth.MFALockoutThreshold, p.logger)
-	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(auth.MFALockoutDuration/time.Minute), p.logger)
+	threshold := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutThreshold, identityaccess.MFALockoutThreshold, p.logger)
+	minutes := config.ResolveIntOrDefault(ctx, p.settings, configModels.KeyAccountLockoutDurationMinutes, int(identityaccess.MFALockoutDuration/time.Minute), p.logger)
 	return threshold, time.Duration(minutes) * time.Minute
 }
 
+// passwordPolicy binds the credential policy Security Runtime owns to the
+// module's password seam and reports the module's public sentinel, so every
+// flow that accepts a password answers with the same error text.
 type passwordPolicy struct{}
 
 func (passwordPolicy) ValidatePasswordStrength(password string) error {
-	return auth.ValidatePasswordStrength(password)
+	if err := auth.ValidatePasswordStrength(password); err != nil {
+		return identityaccess.ErrPasswordTooWeak
+	}
+	return nil
 }
 
 func (passwordPolicy) HashPassword(password string) (string, error) {
@@ -308,18 +314,6 @@ func (a previewAudit) LockStaffPreview(ctx context.Context, adminAccountID int64
 
 func (a previewAudit) StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error) {
 	return a.events.StaffPreviewEnded(ctx, adminAccountID, previewID)
-}
-
-// --- retained account management -------------------------------------------
-
-type accountAdministration struct{ current func() *auth.Service }
-
-func (a accountAdministration) DeactivateAccount(ctx context.Context, accountID int64) error {
-	service := a.current()
-	if service == nil {
-		return errors.New("auth service is not composed")
-	}
-	return service.DeactivateAccount(ctx, int(accountID))
 }
 
 // --- guardian directory ----------------------------------------------------

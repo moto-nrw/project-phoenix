@@ -326,9 +326,13 @@ type Engine interface {
 	GuardianAccess
 	OperatorAccess
 	OperatorMFARecords
+	OperatorMFAFlows
 	OperatorTokens
 	OperatorPasskeyRecords
+	OperatorPasskeyFlows
 	AccountPasskeyRecords
+	AccountPasskeyFlows
+	AccountMFA
 	PasswordResets
 	SchoolInvitations
 	AccountSessionAccess
@@ -346,6 +350,9 @@ type Engine interface {
 	OperatorAccountAccess
 	AccountLifecycle
 	RoleAdministration
+	AccountProvisioning
+	AccountAdministration
+	OperatorProvisioning
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

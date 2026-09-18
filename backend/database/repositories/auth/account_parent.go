@@ -57,30 +57,6 @@ func (r *AccountParentRepository) FindByEmail(ctx context.Context, email string)
 	return account, nil
 }
 
-// FindByUsername retrieves a parent account by username
-func (r *AccountParentRepository) FindByUsername(ctx context.Context, username string) (*auth.AccountParent, error) {
-	account := new(auth.AccountParent)
-
-	// Explicitly specify the schema and table
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(account).
-		ModelTableExpr(accountParentTableAlias).
-		Where(`LOWER("account_parent".username) = LOWER(?)`, username)
-
-	query = base.WithTenantFilter(ctx, query, "account_parent")
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by username",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return account, nil
-}
-
 // List retrieves parent accounts matching the provided filters
 func (r *AccountParentRepository) List(ctx context.Context, filters map[string]interface{}) ([]*auth.AccountParent, error) {
 	var accounts []*auth.AccountParent

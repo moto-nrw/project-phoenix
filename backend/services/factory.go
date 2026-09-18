@@ -50,6 +50,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -130,10 +131,12 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 
 // Factory provides access to all services
 type Factory struct {
-	settingsRuntimeDB    *bun.DB
-	Auth                 auth.AuthService
-	Audit                auditModels.Command
-	StaffPINAuth         StaffPINAuthenticator
+	settingsRuntimeDB *bun.DB
+	Auth              auth.AuthService
+	Audit             auditModels.Command
+	StaffPINAuth      StaffPINAuthenticator
+	// MFA and Passkey are the Identity & Access second factor and the
+	// school-portal WebAuthn ceremonies (#3331).
 	MFA                  auth.MFAService
 	Passkey              auth.PasskeyService
 	Active               active.Service
@@ -157,8 +160,8 @@ type Factory struct {
 	Facilities                facilities.Service
 	Schulhof                  facilities.SchulhofService
 	WC                        facilities.WCService
-	Invitation                auth.InvitationService
-	GuardianInvitation        auth.GuardianInvitationService
+	Invitation                InvitationCapability
+	GuardianInvitation        GuardianInvitationCapability
 	IoT                       iot.Service
 	StaffClock                *staffclock.Service
 	Settings                  config.SettingsService
@@ -227,7 +230,6 @@ type Factory struct {
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
 	Students             users.StudentService
-	ClassListEntries     users.ClassListEntryService
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        users.CareLifecycleService
 	StudentAudit         users.StudentAuditService
@@ -605,6 +607,9 @@ func newFactory(
 		return nil, err
 	}
 	repos.RouteAuditWrites(auditCommand)
+	if err := bindClassListEntryAdministration(membership, persons, auditCommand); err != nil {
+		return nil, err
+	}
 	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
@@ -1566,6 +1571,36 @@ func newFactory(
 		RecoveryRepo:       recoveryRepo,
 	})
 
+	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
+	if tenantDomain == "" {
+		return nil, fmt.Errorf("TENANT_DOMAIN is required")
+	}
+
+	// Operator frontend URL for invitation emails. The operator subdomain is separate
+	// from FRONTEND_URL, so we link directly to the operator host to avoid a
+	// cross-origin redirect hop that email content scanners treat as a phishing
+	// signal. Constructed conditionally - only required when actually sending
+	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
+	// operatorFrontendURL.
+	var operatorFrontendURL string
+	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
+		protocol := "http"
+		if strings.HasPrefix(frontendURL, "https://") {
+			protocol = "https"
+		}
+		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
+	}
+	if operatorFrontendURL == "" {
+		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
+	}
+
+	// The MFA challenge JWTs are signed with their own token auth, as the
+	// retained service did, so the session signer's durations stay separate.
+	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	if err != nil {
+		return nil, fmt.Errorf("init mfa token auth: %w", err)
+	}
+
 	// Initialize auth service with validated config
 	authConfig, err := auth.NewServiceConfig(
 		dispatcher,
@@ -1593,20 +1628,30 @@ func newFactory(
 	// runtime back from the auth service at call time, so SetMFAService and
 	// SetTenantRuntime keep their meaning.
 	var authService *auth.Service
-	// The operator flows (#3252) share the module: the operator MFA service
-	// is constructed after it and read at call time.
-	var operatorMFAService platform.OperatorMFAService
 	operatorDependencies, err := newOperatorDependencies(operatorAuthenticationWiring{
 		repos:         operatorRepositoriesOf(repos),
 		organizations: organizations,
 		persons:       persons,
 		membership:    membership,
-		mfa:           func() platform.OperatorMFAService { return operatorMFAService },
 		logger:        platformLogger,
 	})
 	if err != nil {
 		return nil, err
 	}
+	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
+	// because both serve the same purpose (one-time verification links with the same
+	// delivery constraints and security profile). If the two ever need to diverge,
+	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
+	// The 15-minute floor accounts for email delivery latency + user interaction time.
+	emailChangeExpiry := passwordResetTokenExpiry
+	if emailChangeExpiry < 15*time.Minute {
+		logger.Warn("email change token expiry bumped to minimum 15 minutes",
+			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
+			slog.Int("effective_minutes", 15),
+		)
+		emailChangeExpiry = 15 * time.Minute
+	}
+
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time.
 	var emailOutboxService *emailoutbox.Service
@@ -1620,8 +1665,22 @@ func newFactory(
 		tenantRuntime: func(ctx context.Context) context.Context {
 			return authService.WithTenantRuntime(ctx)
 		},
-		mfa:       func() auth.MFAService { return authService.CurrentMFAService() },
+		mfa: &mfaWiring{
+			repos: repos, settings: settingsService, tokenAuth: mfaTokenAuth,
+			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
+			jwtSecret: cfg.JWTSecret, logger: authLogger,
+			passkeys: &identityaccessCompose.PasskeyDependencies{
+				RPID: tenantDomain, RPName: "moto",
+				TenantDomain: tenantDomain, OperatorFrontendURL: operatorFrontendURL,
+			},
+		},
 		operators: operatorDependencies,
+		operatorLinks: &operatorLinkWiring{
+			dispatcher: dispatcher, defaultFrom: defaultFrom,
+			frontendURL: frontendURL, operatorFrontendURL: operatorFrontendURL,
+			invitationExpiry: invitationTokenExpiry, emailChangeExpiry: emailChangeExpiry,
+			logger: platformLogger,
+		},
 		resets: &passwordResetWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom,
 			staffURL: frontendURL, parentsURL: parentsURL, schoolURL: schoolURL,
@@ -1635,7 +1694,6 @@ func newFactory(
 		// at call time; it is composed below.
 		lifecycle: &lifecycleWiring{
 			settings: settingsService, audit: auditCommand,
-			admin: func() *auth.Service { return authService },
 			guardianMail: &guardianInvitationWiring{
 				settings: settingsService, schools: organizations,
 				outbox:      func() platformModels.OutboxEnqueuer { return outboxEnqueuer{outbox: emailOutboxService} },
@@ -1653,56 +1711,12 @@ func newFactory(
 	accountSessionsPort := newAccountSessions(identityAccess)
 	authConfig.Sessions = accountSessionsPort
 	authConfig.Lifecycle = accountSessionsPort
-	authConfig.Resets = accountSessionsPort
 	authService, err = auth.NewService(repos, authConfig, db, authLogger)
 	if err != nil {
 		return nil, err
 	}
 
-	mfaTokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("init mfa token auth: %w", err)
-	}
-	mfaService, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:       repos,
-		TokenAuth:   mfaTokenAuth,
-		Settings:    settingsService,
-		Dispatcher:  dispatcher,
-		DefaultFrom: defaultFrom,
-		FrontendURL: frontendURL,
-		JWTSecret:   cfg.JWTSecret,
-		DB:          db,
-		Logger:      authLogger,
-		Audit:       auditCommand,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init mfa service: %w", err)
-	}
-	// Wire the MFA gate into the auth service so /auth/login knows to issue
-	// challenge tokens instead of token pairs when MFA is required. Done
-	// post-construction so we don't introduce a constructor cycle.
-	authService.SetMFAService(mfaService)
-
-	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
-	if tenantDomain == "" {
-		return nil, fmt.Errorf("TENANT_DOMAIN is required")
-	}
-	passkeyService, err := auth.NewPasskeyService(auth.PasskeyServiceConfig{
-		Repos:        repos,
-		Records:      newAccountPasskeyRecords(identityAccess),
-		MFAService:   mfaService,
-		AuthService:  authService,
-		DB:           db,
-		Logger:       authLogger,
-		RPID:         tenantDomain,
-		RPName:       "moto",
-		TenantDomain: tenantDomain,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init passkey service: %w", err)
-	}
-
-	invitationService := NewInvitationService(identityAccess)
+	invitationService := InvitationCapability(identityAccess)
 
 	// Delivery composition is declared here so legacy email producers and the
 	// guardian invitation service share the same durable capability.
@@ -1719,7 +1733,7 @@ func newFactory(
 		Guardians:   repos.StudentGuardian,
 	}))
 	emailTemplateRegistry := emailoutbox.NewTemplateRegistry(map[string]emailoutbox.Renderer{
-		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(auth.NewGuardianInvitationRenderer(auth.GuardianInvitationRendererConfig{
+		platformModels.EmailKindGuardianInvitation: guardianInvitationRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: defaultFrom,
 		})),
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
@@ -1772,7 +1786,7 @@ func newFactory(
 	emailOutboxWorker := deliveryRuntime.Worker
 	emailOutboxService = emailoutbox.NewService(durableEmailAdapter{module: deliveryRuntime.Module})
 
-	guardianInvitationService := auth.NewGuardianInvitationService(newGuardianInvitations(identityAccess), accountSessionsPort)
+	guardianInvitationService := GuardianInvitationCapability(identityAccess)
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -1899,97 +1913,28 @@ func newFactory(
 		},
 	})
 
-	// Email change tokens deliberately reuse PASSWORD_RESET_TOKEN_EXPIRY_MINUTES
-	// because both serve the same purpose (one-time verification links with the same
-	// delivery constraints and security profile). If the two ever need to diverge,
-	// introduce EMAIL_CHANGE_TOKEN_EXPIRY_MINUTES and fall back to passwordResetTokenExpiry.
-	// The 15-minute floor accounts for email delivery latency + user interaction time.
-	emailChangeExpiry := passwordResetTokenExpiry
-	if emailChangeExpiry < 15*time.Minute {
-		logger.Warn("email change token expiry bumped to minimum 15 minutes",
-			slog.Int("configured_minutes", int(passwordResetTokenExpiry.Minutes())),
-			slog.Int("effective_minutes", 15),
-		)
-		emailChangeExpiry = 15 * time.Minute
-	}
-
-	// Operator frontend URL for invitation emails. The operator subdomain is separate
-	// from FRONTEND_URL, so we link directly to the operator host to avoid a
-	// cross-origin redirect hop that email content scanners treat as a phishing
-	// signal. Constructed conditionally - only required when actually sending
-	// invitations. InviteOperator and ResendOperatorInvitation guard on empty
-	// operatorFrontendURL.
-	var operatorFrontendURL string
-	if operatorHostname := cfg.OperatorHostname; operatorHostname != "" {
-		protocol := "http"
-		if strings.HasPrefix(frontendURL, "https://") {
-			protocol = "https"
-		}
-		operatorFrontendURL = fmt.Sprintf("%s://%s", protocol, strings.TrimRight(operatorHostname, "/"))
-	}
-	if operatorFrontendURL == "" {
-		return nil, fmt.Errorf("NEXT_PUBLIC_OPERATOR_HOSTNAME is required")
-	}
-
 	// Initialize platform services (operator dashboard)
 	operatorDirectory := newOperatorDirectory(identityAccess)
+	// The invitation and e-mail change flows are the owner's since #3332;
+	// the retained endpoints reach them through their consumer-owned ports,
+	// and the root translates the outcomes into the envelope they render.
+	operatorProvisioningFlows := newOperatorProvisioningFlows(identityAccess)
 	operatorAuthService, err := platform.NewOperatorAuthService(platform.OperatorAuthServiceConfig{
-		OperatorRepo:         operatorDirectory,
-		Sessions:             newOperatorSessions(identityAccess),
-		AuditLogRepo:         repos.OperatorAuditLog,
-		EmailChangeTokenRepo: newOperatorEmailChangeTokens(identityAccess),
-		InvitationTokenRepo:  newOperatorInvitationTokens(identityAccess),
-		DB:                   db,
-		Logger:               platformLogger,
-		Dispatcher:           dispatcher,
-		DefaultFrom:          defaultFrom,
-		FrontendURL:          frontendURL,
-		OperatorFrontendURL:  operatorFrontendURL,
-		EmailChangeExpiry:    emailChangeExpiry,
-		InvitationExpiry:     invitationTokenExpiry,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
-	}
-
-	// Operator MFA service (issue #1308 phase 7b-2). Constructed alongside
-	// the operator auth service so the login-flow integration in 7b-3 can
-	// inject it via SetMFAService.
-	operatorMFATokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return nil, fmt.Errorf("init operator mfa token auth: %w", err)
-	}
-	operatorMFAService, err = platform.NewOperatorMFAService(platform.OperatorMFAServiceConfig{
-		Repos:       repos,
-		Operators:   operatorDirectory,
-		Records:     newOperatorMFARecords(identityAccess),
-		TokenAuth:   operatorMFATokenAuth,
-		Dispatcher:  dispatcher,
-		DefaultFrom: defaultFrom,
-		FrontendURL: frontendURL,
-		JWTSecret:   cfg.JWTSecret,
-		DB:          db,
-		Logger:      platformLogger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("init operator mfa service: %w", err)
-	}
-	// The Identity & Access operator login reads operatorMFAService through
-	// the gate closure above, so /operator/auth/login returns challenge
-	// tokens from here on (MFA is mandatory for the platform scope).
-	operatorPasskeyService, err := platform.NewOperatorPasskeyService(platform.OperatorPasskeyServiceConfig{
-		Records:             newOperatorPasskeyRecords(identityAccess),
-		Operators:           operatorDirectory,
-		MFAService:          operatorMFAService,
-		AuthService:         operatorAuthService,
+		OperatorRepo:        operatorDirectory,
+		Sessions:            newOperatorSessions(identityAccess),
+		Invitations:         operatorProvisioningFlows,
+		EmailChanges:        operatorProvisioningFlows,
+		AuditLogRepo:        repos.OperatorAuditLog,
+		InvitationTokenRepo: newOperatorInvitationTokens(identityAccess),
 		DB:                  db,
 		Logger:              platformLogger,
-		RPID:                tenantDomain,
-		RPName:              "moto",
+		Dispatcher:          dispatcher,
+		DefaultFrom:         defaultFrom,
+		FrontendURL:         frontendURL,
 		OperatorFrontendURL: operatorFrontendURL,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("init operator passkey service: %w", err)
+		return nil, fmt.Errorf("failed to create operator auth service: %w", err)
 	}
 
 	enrollmentFormSchemaService := enrollment.NewFormSchemaService(enrollment.FormSchemaServiceConfig{
@@ -2259,7 +2204,7 @@ func newFactory(
 		PersonRepo:             repos.Person,
 		EducationGroupRepo:     repos.Group,
 		StudentStatusDayRepo:   repos.StudentStatusDay,
-		ClassListEntryRepo:     repos.ClassListEntry,
+		ClassListEntries:       NewClassListEntryRosterReader(membership),
 		PickupScheduleSvc:      pickupScheduleService,
 		ArrivalScheduleSvc:     arrivalScheduleService,
 		ClassArrivalExceptions: arrivalScheduleService,
@@ -2631,7 +2576,7 @@ func newFactory(
 		ExcusedRequests:         excusedRequestService,
 		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
-		GuardianInvites:         guardianInvitationService,
+		GuardianInvites:         NewParentGuardianAccess(guardianInvitationService),
 		GuardianInvitations:     newGuardianInvitationReads(func() identityaccess.GuardianInvitations { return identityAccess }),
 		StudentGuardianRepo:     repos.StudentGuardian,
 		GuardianPhoneRepo:       repos.GuardianPhoneNumber,
@@ -2728,6 +2673,8 @@ func newFactory(
 		adapters:       provisioningAdapters,
 		authService:    authService,
 		invitations:    invitationService,
+		provisioning:   identityAccess,
+		administration: identityAccess,
 		schoolIdentity: accountSessionsPort,
 		roles:          identityAccess,
 		settings:       settingsService,
@@ -2987,8 +2934,8 @@ func newFactory(
 		Auth:                    authService,
 		Audit:                   auditCommand,
 		StaffPINAuth:            NewStaffPINAuthenticator(identityAccess),
-		MFA:                     mfaService,
-		Passkey:                 passkeyService,
+		MFA:                     newAccountMFAPort(identityAccess),
+		Passkey:                 newAccountPasskeyPort(identityAccess),
 		Active:                  activeService,
 		ActiveCleanup:           activeCleanupService,
 		WorkSession:             workSessionService,
@@ -3087,7 +3034,6 @@ func newFactory(
 		Announcement:         communicationCapability,
 		Schools:              organizations,
 		Students:             studentService,
-		ClassListEntries:     users.NewClassListEntryService(repos.ClassListEntry, repos.Student, repos.ClassListEntryChange),
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,
@@ -3122,8 +3068,8 @@ func newFactory(
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetableDataService,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		OperatorMFA:             operatorMFAService,
-		OperatorPasskey:         operatorPasskeyService,
+		OperatorMFA:             newOperatorMFAPort(identityAccess),
+		OperatorPasskey:         newOperatorPasskeyPort(identityAccess),
 		UnregisteredTagScans:    unregisteredTagScanService,
 
 		EmailOutboxWorker: emailOutboxWorker,

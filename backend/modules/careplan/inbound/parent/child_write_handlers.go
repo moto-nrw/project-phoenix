@@ -14,7 +14,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
 )
@@ -654,15 +653,15 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "invite_disabled"))
 	case errors.Is(err, parentService.ErrRemoveDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "remove_disabled"))
-	case errors.Is(err, authService.ErrCannotRemovePrimaryGuardian):
+	case errors.Is(err, parentService.ErrCannotRemovePrimaryGuardian):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "primary_guardian_protected"))
-	case errors.Is(err, authService.ErrCannotRemoveStaffManagedGuardian):
+	case errors.Is(err, parentService.ErrCannotRemoveStaffManagedGuardian):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "staff_managed_guardian_protected"))
-	case errors.Is(err, authService.ErrCannotRemovePayerGuardian):
+	case errors.Is(err, parentService.ErrCannotRemovePayerGuardian):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "payer_guardian_protected"))
-	case errors.Is(err, authService.ErrCannotRemoveOwnAccess):
+	case errors.Is(err, parentService.ErrCannotRemoveOwnAccess):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "cannot_remove_own_access"))
-	case errors.Is(err, authService.ErrInviteSocialWorkerManaged):
+	case errors.Is(err, parentService.ErrInviteSocialWorkerManaged):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_social_worker_managed"))
 	case errors.Is(err, parentService.ErrGuardianManagementDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, "guardian_management_disabled"))

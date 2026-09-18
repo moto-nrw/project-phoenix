@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestMapMFAErrorDeliveryUnavailableWireContract(t *testing.T) {

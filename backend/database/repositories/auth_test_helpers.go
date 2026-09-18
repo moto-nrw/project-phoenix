@@ -39,6 +39,9 @@ func NewAuthTestRepositories(db *bun.DB, command auditModels.Command) (*Factory,
 		MFATrustedDevice: authRepo.NewMFATrustedDeviceRepository(db), MFAOverride: authRepo.NewMFAOverrideRepository(db),
 		PushSubscription: deliveryCompose.NewPushSubscriptionRepository(db),
 		AuthEvent:        authEventCommand{auditRepo.NewAuthEventRepository(newTestAuditRuntime(db)), command},
+		// The operator second factor appends to the operator ledger
+		// (#3331), so the composed test module needs it bound.
+		OperatorAuditLog: newOperatorAuditLog(newTestAuditRuntime(db)),
 	}
 	r.BindOrganizationTenancy(organizations)
 	return r, nil

@@ -311,6 +311,13 @@ const (
 	AuthEventTokenRevoked             = "token_revoked"
 	AuthEventAccountWideWipeCompleted = "account_wide_wipe_completed"
 	AuthEventTenantSwitch             = "tenant_switch"
+	AuthEventMFAEmailSent             = "mfa_email_sent"
+	AuthEventMFAVerified              = "mfa_verified"
+	AuthEventMFAFailed                = "mfa_failed"
+	AuthEventMFALocked                = "mfa_locked"
+	AuthEventMFADisabled              = "mfa_disabled"
+	AuthEventMFATrustedDeviceAdded    = "mfa_trusted_device_added"
+	AuthEventMFAAdminOverride         = "mfa_admin_override"
 )
 
 // InternalRevocationAuditIP marks revocation evidence no client request
@@ -336,6 +343,8 @@ type AuthEvent struct {
 	PendingWipe *PendingWipeEvidence
 	// CompletedWipe is set on account_wide_wipe_completed events.
 	CompletedWipe *CompletedWipeEvidence
+	// MFA is set on the mfa_* events (#3331).
+	MFA *MFAEvidence
 }
 
 // TenantAccessEvidence describes an operator-led change of the school

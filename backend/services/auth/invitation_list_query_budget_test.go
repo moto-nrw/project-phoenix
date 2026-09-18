@@ -3,7 +3,7 @@ package auth_test
 import (
 	"testing"
 
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +19,7 @@ func TestPendingInvitationsQueryBudget(t *testing.T) {
 	role := testpkg.CreateTestRole(t, db, "invitation-budget")
 	add := func(from, to int) {
 		for i := from; i < to; i++ {
-			_, err := env.service.CreateInvitation(testpkg.Ctx(t), authService.InvitationRequest{
+			_, err := env.service.CreateSchoolInvitation(testpkg.Ctx(t), identityaccess.SchoolInvitationRequest{
 				Email: inviteeAddress("invitation-budget"), RoleID: role.ID, CreatedBy: creator.ID,
 				FirstName: testpkg.StrPtr("Budget"), LastName: testpkg.StrPtr("Invitee"),
 				ActorPermissions: []string{usersManagePermission},
@@ -33,7 +33,7 @@ func TestPendingInvitationsQueryBudget(t *testing.T) {
 	ctx := counter.Context(testpkg.Ctx(t))
 	run := func() []string {
 		counter.Reset()
-		_, err := env.service.ListPendingInvitations(ctx)
+		_, err := env.service.ListPendingSchoolInvitations(ctx)
 		require.NoError(t, err)
 		return counter.Operation("SELECT")
 	}

@@ -89,92 +89,6 @@ func TestInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 // FindValidByToken Tests
 // ============================================================================
 
-func TestInvitationTokenRepository_FindValidByToken_Valid(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "valid-token-role")
-	creator := testpkg.CreateTestAccount(t, db, "valid-token-creator")
-
-	// Create valid (not expired, not used) invitation token
-	expiry := time.Now().Add(48 * time.Hour)
-	invitation := createTestInvitationToken(t, db, "valid@example.com", role.ID, creator.ID, expiry)
-
-	// ACT
-	found, err := repo.FindValidByToken(ctx, invitation.Token, time.Now())
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.Equal(t, invitation.ID, found.ID)
-	assert.Nil(t, found.UsedAt)
-}
-
-func TestInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "expired-token-role")
-	creator := testpkg.CreateTestAccount(t, db, "expired-token-creator")
-
-	// Create expired invitation using raw SQL to bypass validation
-	token := uuid.Must(uuid.NewV4()).String()
-	var invitationID int64
-	err := db.NewRaw(`
-		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, ?)
-		RETURNING id
-	`, "expired@example.com", token, role.ID, creator.ID, time.Now().Add(-1*time.Hour), testpkg.Tenant(t)).
-		Scan(ctx, &invitationID)
-	require.NoError(t, err)
-
-	// ACT
-	_, err = repo.FindValidByToken(ctx, token, time.Now())
-
-	// ASSERT
-	require.Error(t, err) // Should not find expired token
-}
-
-func TestInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "used-token-role")
-	creator := testpkg.CreateTestAccount(t, db, "used-token-creator")
-
-	// Create used invitation
-	token := uuid.Must(uuid.NewV4()).String()
-	usedAt := time.Now()
-	var invitationID int64
-	err := db.NewRaw(`
-		INSERT INTO auth.invitation_tokens (email, token, role_id, created_by, expires_at, used_at, tenant_id)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		RETURNING id
-	`, "used@example.com", token, role.ID, creator.ID, time.Now().Add(48*time.Hour), usedAt, testpkg.Tenant(t)).
-		Scan(ctx, &invitationID)
-	require.NoError(t, err)
-
-	// ACT
-	_, err = repo.FindValidByToken(ctx, token, time.Now())
-
-	// ASSERT
-	require.Error(t, err) // Should not find used token
-}
-
 // ============================================================================
 // FindByEmail Tests
 // ============================================================================
@@ -233,69 +147,9 @@ func TestInvitationTokenRepository_FindByEmail_CaseInsensitive(t *testing.T) {
 // MarkAsUsed Tests
 // ============================================================================
 
-func TestInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "mark-used-role")
-	creator := testpkg.CreateTestAccount(t, db, "mark-used-creator")
-
-	// Create invitation token
-	expiry := time.Now().Add(48 * time.Hour)
-	invitation := createTestInvitationToken(t, db, "markused@example.com", role.ID, creator.ID, expiry)
-
-	// ACT
-	err := repo.MarkAsUsed(ctx, invitation.ID)
-
-	// ASSERT
-	require.NoError(t, err)
-
-	// Verify token is now marked as used
-	found, err := repo.FindByID(ctx, invitation.ID)
-	require.NoError(t, err)
-	assert.NotNil(t, found.UsedAt)
-}
-
 // ============================================================================
 // InvalidateByEmail Tests
 // ============================================================================
-
-func TestInvitationTokenRepository_InvalidateByEmail_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "invalidate-role")
-	creator := testpkg.CreateTestAccount(t, db, "invalidate-creator")
-
-	// Create multiple unused invitations for same email
-	expiry := time.Now().Add(48 * time.Hour)
-	email := "invalidate@example.com"
-	inv1 := createTestInvitationToken(t, db, email, role.ID, creator.ID, expiry)
-	inv2 := createTestInvitationToken(t, db, email, role.ID, creator.ID, expiry)
-
-	// ACT
-	count, err := repo.InvalidateByEmail(ctx, email)
-
-	// ASSERT
-	require.NoError(t, err)
-	assert.GreaterOrEqual(t, count, 2)
-
-	// Verify both are now marked as used
-	found1, _ := repo.FindByID(ctx, inv1.ID)
-	found2, _ := repo.FindByID(ctx, inv2.ID)
-	assert.NotNil(t, found1.UsedAt)
-	assert.NotNil(t, found2.UsedAt)
-}
 
 // ============================================================================
 // DeleteExpired Tests
@@ -450,68 +304,6 @@ func TestInvitationTokenRepository_List_WithPendingFilter(t *testing.T) {
 // ============================================================================
 // UpdateDeliveryResult Tests
 // ============================================================================
-
-func TestInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "delivery-result-role")
-	creator := testpkg.CreateTestAccount(t, db, "delivery-result-creator")
-
-	// Create invitation
-	expiry := time.Now().Add(48 * time.Hour)
-	invitation := createTestInvitationToken(t, db, "delivery@example.com", role.ID, creator.ID, expiry)
-
-	// ACT
-	sentAt := time.Now()
-	err := repo.UpdateDeliveryResult(ctx, invitation.ID, &sentAt, nil, 1)
-
-	// ASSERT
-	require.NoError(t, err)
-
-	// Verify delivery result was updated
-	found, err := repo.FindByID(ctx, invitation.ID)
-	require.NoError(t, err)
-	assert.NotNil(t, found.EmailSentAt)
-	assert.Nil(t, found.EmailError)
-	assert.Equal(t, 1, found.EmailRetryCount)
-}
-
-func TestInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	repo := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).InvitationToken
-	ctx := testpkg.Ctx(t)
-
-	// Create dependencies
-	role := testpkg.CreateTestRole(t, db, "delivery-error-role")
-	creator := testpkg.CreateTestAccount(t, db, "delivery-error-creator")
-
-	// Create invitation
-	expiry := time.Now().Add(48 * time.Hour)
-	invitation := createTestInvitationToken(t, db, "delivery-err@example.com", role.ID, creator.ID, expiry)
-
-	// ACT
-	emailError := "SMTP connection failed"
-	err := repo.UpdateDeliveryResult(ctx, invitation.ID, nil, &emailError, 2)
-
-	// ASSERT
-	require.NoError(t, err)
-
-	// Verify error was recorded
-	found, err := repo.FindByID(ctx, invitation.ID)
-	require.NoError(t, err)
-	assert.Nil(t, found.EmailSentAt)
-	assert.NotNil(t, found.EmailError)
-	assert.Equal(t, 2, found.EmailRetryCount)
-}
 
 // ============================================================================
 // Update Tests

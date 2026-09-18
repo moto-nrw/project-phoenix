@@ -17,7 +17,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
@@ -53,22 +52,23 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	return records, nil
 }
 
+// stubInvites stands in for the consumer-owned relative access port the
+// composition root binds to Identity & Access (#3332).
 type stubInvites struct {
-	authService.GuardianInvitationService
-	lastInvite *authService.InviteToStudentRequest
-	lastRevoke *authService.RevokeAccessRequest
+	lastInvite *parentService.GuardianInviteRequest
+	lastRevoke *parentService.GuardianAccessRevocation
 }
 
-func (s *stubInvites) InviteToStudent(_ context.Context, req authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
-	s.lastInvite = &req
-	return &authService.InviteToStudentResult{
-		Outcome:           authService.InviteOutcomeInvited,
-		GuardianProfileID: req.StudentID, // arbitrary non-zero
+func (s *stubInvites) InviteToStudent(_ context.Context, request parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	s.lastInvite = &request
+	return parentService.GuardianInviteOutcome{
+		Outcome:           "invited",
+		GuardianProfileID: request.StudentID, // arbitrary non-zero
 	}, nil
 }
 
-func (s *stubInvites) RevokeAccess(_ context.Context, req authService.RevokeAccessRequest) error {
-	s.lastRevoke = &req
+func (s *stubInvites) RevokeAccess(_ context.Context, revocation parentService.GuardianAccessRevocation) error {
+	s.lastRevoke = &revocation
 	return nil
 }
 
@@ -265,8 +265,7 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastInvite)
 	assert.False(t, invites.lastInvite.RequireApproval, "direct mode must not require approval")
-	require.NotNil(t, invites.lastInvite.RequestedByParentAccountID)
-	assert.Equal(t, chain.AccountID, *invites.lastInvite.RequestedByParentAccountID)
+	assert.Equal(t, chain.AccountID, invites.lastInvite.RequestedByAccountID)
 	assert.Equal(t, chain.StudentID, invites.lastInvite.StudentID)
 }
 
@@ -368,7 +367,11 @@ func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 	err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastRevoke)
-	assert.True(t, invites.lastRevoke.ByParent, "parent removals must set ByParent (primary protection)")
+	// The port revokes as a parent by contract, so the portal passes only
+	// who acts and on which link; the root proves the ByParent flag
+	// (TestParentGuardianAccessRevokesAsParent).
+	assert.Equal(t, chain.AccountID, invites.lastRevoke.ActorAccountID)
+	assert.Equal(t, chain.StudentID, invites.lastRevoke.StudentID)
 	assert.Equal(t, chain.GuardianProfileID, invites.lastRevoke.GuardianProfileID)
 }
 
@@ -466,19 +469,17 @@ func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
 }
 
 // failingInvites errors on delegation so the parent service's error-return
-// branches around the guardian invitation service are exercised.
-type failingInvites struct {
-	authService.GuardianInvitationService
-}
+// branches around the relative access port are exercised.
+type failingInvites struct{}
 
-func (failingInvites) InviteToStudent(_ context.Context, _ authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
-	return nil, errors.New("invite failed")
+func (failingInvites) InviteToStudent(_ context.Context, _ parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{}, errors.New("invite failed")
 }
-func (failingInvites) RevokeAccess(_ context.Context, _ authService.RevokeAccessRequest) error {
+func (failingInvites) RevokeAccess(_ context.Context, _ parentService.GuardianAccessRevocation) error {
 	return errors.New("revoke failed")
 }
 
-func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites authService.GuardianInvitationService) (parentService.Service, *bun.DB) {
+func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites parentService.GuardianAccess) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))

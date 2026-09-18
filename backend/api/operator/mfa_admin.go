@@ -88,7 +88,7 @@ func (rs *SchoolAccountMFAResource) resolveOperatorMFAAdminTarget(w http.Respons
 	if !ok {
 		return 0, 0, false
 	}
-	exists, err := rs.TenantMFAService.AccountBelongsToTenant(r.Context(), accountID, schoolID)
+	exists, err := rs.TenantMFAService.AccountBelongsToSchool(r.Context(), accountID, schoolID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to verify account membership"))
 		return 0, 0, false
@@ -118,7 +118,7 @@ func (rs *SchoolAccountMFAResource) GetSchoolAccountMFAState(w http.ResponseWrit
 	if !ok {
 		return
 	}
-	enrolled, err := rs.TenantMFAService.HasEnrollment(r.Context(), accountID)
+	enrolled, err := rs.TenantMFAService.HasMFAEnrollment(r.Context(), accountID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to read MFA enrollment"))
 		return
@@ -161,7 +161,7 @@ func (rs *SchoolAccountMFAResource) ResetSchoolAccountMFA(w http.ResponseWriter,
 		return
 	}
 	ctx := withTenantContext(r, schoolID).Context()
-	if err := rs.TenantMFAService.OperatorAdminDisable(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
+	if err := rs.TenantMFAService.OperatorDisableMFA(ctx, operatorID, schoolID, accountID, req.Reason); err != nil {
 		if errors.Is(err, authSvc.ErrMFAPermissionDenied) {
 			common.RenderError(w, r, ErrForbidden("Permission denied"))
 			return
@@ -247,7 +247,7 @@ func (rs *SchoolAccountMFAResource) GetAccountMFAGlobalOverride(w http.ResponseW
 	if !ok {
 		return
 	}
-	enrolled, err := rs.TenantMFAService.HasEnrollment(r.Context(), accountID)
+	enrolled, err := rs.TenantMFAService.HasMFAEnrollment(r.Context(), accountID)
 	if err != nil {
 		common.RenderError(w, r, ErrInternal("failed to read MFA enrollment"))
 		return

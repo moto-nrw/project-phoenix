@@ -1337,7 +1337,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Auth.SettingsService = api.Services.Settings
 	api.Auth.SetMFAService(api.Services.MFA)
 	api.Auth.SetPasskeyService(api.Services.Passkey)
-	api.Auth.SetGuardianInvitationService(api.Services.GuardianInvitation)
 	api.Rooms = roomsHTTPAdapter.NewResource(api.rooms, roomsHTTPAdapter.Dependencies{
 		Facilities: api.Services.Facilities, Settings: api.Services.Settings,
 		UserContext: api.Services.UserContext, Active: api.Services.Active,
@@ -1367,7 +1366,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
 		StudentService:               api.Services.Students,
-		ClassListEntryService:        api.Services.ClassListEntries,
+		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,
 		StudentAuditService:          api.Services.StudentAudit,
@@ -1456,7 +1455,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
 		api.Services.EnrollmentDeletion,
-		api.Services.GuardianInvitation,
+		enrollmentGuardianInvitations(api.Services.GuardianInvitation),
 		api.Services.GuardianProfileLoader,
 		enrollmentSchoolDirectory{schools: api.Services.Schools},
 		db,
@@ -1548,7 +1547,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		Caller:            api.Services.UserContext,
 		ArrivalExceptions: api.Services.ClassDayArrivalExceptions,
 	}), db, logger.With("handler", "class-day"))
-	api.ClassListEntries = newClassListEntriesResource(api.membership, api.Services, db, logger.With("handler", "class-list-entries"))
+	api.ClassListEntries = newClassListEntriesResource(api.membership, db, logger.With("handler", "class-list-entries"))
 	api.Substitutions = workforceInbound.NewSubstitutionsResource(services.SubstitutionCapability(api.Services.Substitution), db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
 	api.TimeTracking = newTimeTrackingResource(api.Services, db)
@@ -1578,7 +1577,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// The school portal reuses the class-day and the timetable resources, so
 	// it is built after both (#2207, #2527).
 	api.Notifications = notificationsAPI.NewResource(api.Services.Notifications, api.Services.PushSubscriptions, api.Services.NotificationPreferences, db)
-	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
+	api.School = schoolPortal.NewResource(api.Services.Auth, api.Services.MFA, schoolPasswordResets(api.Services.SchoolPasswordResetRuntime()), api.ClassDay, api.Timetable, api.StaffMessaging, api.StaffNotices, api.Notifications)
 	api.Emergency = emergencyAPI.NewResource(api.Services.Emergency, db)
 	api.Reminders = remindersAPI.NewResource(api.Services.Reminders, reminderCompose.HTTPRuntime(db))
 
@@ -1624,6 +1623,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	})
 	api.Parent = parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:                  api.Services.Auth,
+		Resets:                parentPasswordResets(api.Services.ParentPasswordResetRuntime()),
 		Parent:                api.Services.Parent,
 		Calendar:              api.Services.Calendar,
 		Requests:              api.Services.EnrollmentRequest,

@@ -37,7 +37,10 @@ import (
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
 type Resource struct {
-	AuthService           authService.AuthService
+	AuthService authService.AuthService
+	// Resets is the reset runtime the composition root binds to Identity &
+	// Access (#3332); the zero value leaves the reset routes answering 500.
+	Resets                PasswordResetRuntime
 	ParentService         parentService.Service
 	RequestSharing        parentService.RequestSharingService
 	CalendarService       calendarService.Service
@@ -54,7 +57,9 @@ type Resource struct {
 // supplies all of them at construction; tests set only the ones their routes
 // reach.
 type ResourceConfig struct {
-	Auth                  authService.AuthService
+	Auth authService.AuthService
+	// Resets is the reset runtime the composition root binds (#3332).
+	Resets                PasswordResetRuntime
 	Parent                parentService.Service
 	Calendar              calendarService.Service
 	Requests              enrollmentService.RequestService
@@ -81,6 +86,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 	}
 	return &Resource{
 		AuthService:           cfg.Auth,
+		Resets:                cfg.Resets,
 		ParentService:         cfg.Parent,
 		RequestSharing:        sharing,
 		CalendarService:       cfg.Calendar,

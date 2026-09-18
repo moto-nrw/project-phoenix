@@ -99,9 +99,11 @@ func TestCleanupRootFailsFastForEveryNilBuiltCapability(t *testing.T) {
 
 type nilAuthCleanup struct{}
 
-func (*nilAuthCleanup) CountExpiredTokens(context.Context) (int, error)       { return 0, nil }
-func (*nilAuthCleanup) CleanupExpiredTokens(context.Context) (int, error)     { return 0, nil }
-func (*nilAuthCleanup) CleanupExpiredRateLimits(context.Context) (int, error) { return 0, nil }
+func (*nilAuthCleanup) CountExpiredTokens(context.Context) (int, error)   { return 0, nil }
+func (*nilAuthCleanup) CleanupExpiredTokens(context.Context) (int, error) { return 0, nil }
+func (*nilAuthCleanup) DeleteStalePasswordResetWindows(context.Context) (int, error) {
+	return 0, nil
+}
 
 func TestCleanupRootRejectsTypedNilBuiltCapability(t *testing.T) {
 	t.Parallel()

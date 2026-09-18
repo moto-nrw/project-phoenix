@@ -14,7 +14,6 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
@@ -45,28 +44,29 @@ func (s relAcctHandlerSettings) ResolveBoolForTenant(_ context.Context, _ int64,
 // relAcctStubInvites is a no-op guardian invitation service: the related-
 // accounts handlers only need it to succeed once the gate passes.
 type relAcctStubInvites struct {
-	authService.GuardianInvitationService
 }
 
-func (relAcctStubInvites) InviteToStudent(_ context.Context, req authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
-	return &authService.InviteToStudentResult{
-		Outcome:           authService.InviteOutcomeInvited,
+func (relAcctStubInvites) InviteToStudent(_ context.Context, req parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{
+		Outcome:           "invited",
 		GuardianProfileID: req.StudentID,
 	}, nil
 }
 
-func (relAcctStubInvites) RevokeAccess(_ context.Context, _ authService.RevokeAccessRequest) error {
+func (relAcctStubInvites) RevokeAccess(_ context.Context, _ parentService.GuardianAccessRevocation) error {
 	return nil
 }
 
 // relAcctSocialWorkerInvites refuses every invite with the social-worker
 // sentinel, mirroring the service refusal for school-managed contacts (#2172).
-type relAcctSocialWorkerInvites struct {
-	authService.GuardianInvitationService
+type relAcctSocialWorkerInvites struct{}
+
+func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{}, parentService.ErrInviteSocialWorkerManaged
 }
 
-func (relAcctSocialWorkerInvites) InviteToStudent(_ context.Context, _ authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
-	return nil, &authService.AuthError{Op: "invite guardian to student", Err: authService.ErrInviteSocialWorkerManaged}
+func (relAcctSocialWorkerInvites) RevokeAccess(context.Context, parentService.GuardianAccessRevocation) error {
+	return nil
 }
 
 func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove bool) http.Handler {
@@ -164,17 +164,20 @@ func TestRelatedAccountsEndpoint_RemoveGate(t *testing.T) {
 // relAcctCaptureInvites records the invite request and returns a canned result,
 // so the handler's confirm_role_upgrade/existing_role passthrough is testable.
 type relAcctCaptureInvites struct {
-	authService.GuardianInvitationService
-	lastReq *authService.InviteToStudentRequest
-	result  *authService.InviteToStudentResult
+	lastReq *parentService.GuardianInviteRequest
+	result  parentService.GuardianInviteOutcome
 }
 
-func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
+func (s *relAcctCaptureInvites) InviteToStudent(_ context.Context, req parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
 	s.lastReq = &req
 	return s.result, nil
 }
 
-func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites authService.GuardianInvitationService) http.Handler {
+func (s *relAcctCaptureInvites) RevokeAccess(context.Context, parentService.GuardianAccessRevocation) error {
+	return nil
+}
+
+func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService.GuardianAccess) http.Handler {
 	t.Helper()
 	repos, repoErr := repositories.NewParentRouteTestRepositories(db)
 	require.NoError(t, repoErr)
@@ -199,8 +202,8 @@ func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	invites := &relAcctCaptureInvites{result: &authService.InviteToStudentResult{
-		Outcome:           authService.InviteOutcomeExistingContactRestricted,
+	invites := &relAcctCaptureInvites{result: parentService.GuardianInviteOutcome{
+		Outcome:           "existing_contact_restricted",
 		GuardianProfileID: chain.GuardianProfileID,
 		ExistingRole:      "emergency_contact",
 	}}

@@ -60,7 +60,7 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 	}
 	expiry := cfg.Expiry
 	if expiry <= 0 {
-		expiry = auth.GuardianTokenExpiryFallback
+		expiry = GuardianTokenExpiryFallback
 	}
 	outbox := cfg.Outbox
 	if outbox == nil {
@@ -76,7 +76,6 @@ func lifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitat
 		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		lifecycle: &lifecycleWiring{
 			audit: audit,
-			admin: func() *auth.Service { return service },
 			guardianMail: &guardianInvitationWiring{
 				schools:     repos.School,
 				outbox:      func() platformModels.OutboxEnqueuer { return outbox },
@@ -134,10 +133,10 @@ func NewSchoolIdentityForTests(db *bun.DB, unit tenant.UnitOfWork) (auth.SchoolI
 // invitation service over the owner module, the way the factory does it: the
 // invitation flows, the related-accounts flows and the mail all run against
 // the test database and the outbox the config names.
-func NewGuardianInvitationServiceForTests(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (auth.GuardianInvitationService, error) {
-	module, port, err := lifecycleTestModule(db, unit, cfg)
+func NewGuardianInvitationServiceForTests(db *bun.DB, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (GuardianInvitationCapability, error) {
+	module, _, err := lifecycleTestModule(db, unit, cfg)
 	if err != nil {
 		return nil, err
 	}
-	return auth.NewGuardianInvitationService(newGuardianInvitations(module), port), nil
+	return module, nil
 }

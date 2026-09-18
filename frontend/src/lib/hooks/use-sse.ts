@@ -266,7 +266,8 @@ export function useSSE(
             // deployment at the same instant, and without jitter they all
             // reconnected — and revalidated — in synchronized waves (#2057).
             const base = reconnectInterval * Math.pow(2, currentAttempts);
-            const delay = base + Math.random() * base; // NOSONAR typescript:S2245 non-cryptographic reconnect jitter, no security context
+            // Math.random is fine here: reconnect jitter, no security context.
+            const delay = base + Math.random() * base;
 
             // Update both ref (for next closure) and state (for UI)
             reconnectAttemptsRef.current = currentAttempts + 1;

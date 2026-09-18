@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -97,7 +96,10 @@ func TestModuleFiltersAndOrdersClassListEntries(t *testing.T) {
 	assert.Empty(t, none, "an empty ID set lists nothing instead of everything")
 }
 
-func TestModuleReportsClassListEntryDuplicatesWithTheIndexCause(t *testing.T) {
+// The unique index over the case-folded name and class is the race-safe
+// backstop behind the advisory guards: a collision surfaces as the documented
+// duplicate refusal with its user-facing message, never as a driver error.
+func TestModuleReportsClassListEntryDuplicatesAsTheDocumentedRefusal(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	module := buildModule(t, db)
@@ -108,8 +110,8 @@ func TestModuleReportsClassListEntryDuplicatesWithTheIndexCause(t *testing.T) {
 		ClassListEntryFields: schoolmembership.ClassListEntryFields{FirstName: "zoe", LastName: "AALDERS", SchoolClass: " 1A "},
 	})
 	require.ErrorIs(t, err, schoolmembership.ErrClassListEntryDuplicate)
-	assert.True(t, strings.Contains(err.Error(), "uniq_class_list_entries_name_class"),
-		"the unique index stays visible in the chain: %v", err)
+	assert.Equal(t, schoolmembership.ErrClassListEntryDuplicate.Error(), err.Error(),
+		"no driver detail may leak into the message the API renders")
 	assert.Equal(t, "class_list_entry_conflict", schoolmembership.ErrorCode(err))
 
 	second := createEntry(t, ctx, module, "Zoe", "Aalders", "1b")
@@ -126,10 +128,12 @@ func TestModuleTenantIsolationHidesAnotherTenantsClassListEntries(t *testing.T) 
 	ctx := testpkg.Ctx(t)
 
 	entry := createEntry(t, ctx, module, "Ida", "Isolation", "iso1a")
-	otherCtx, _ := otherTenantContext(t, db)
+	assert.Equal(t, testpkg.Tenant(t), entry.TenantID, "the owner stamps the transaction's tenant")
+	otherCtx, otherTenant := otherTenantContext(t, db)
 
 	// The same class name exists in both schools: the realistic collision.
 	foreign := createEntry(t, otherCtx, module, "Ben", "Fremd", "iso1a")
+	assert.Equal(t, otherTenant, foreign.TenantID, "and never the caller's own")
 
 	_, err := module.FindClassListEntry(otherCtx, entry.ID)
 	require.ErrorIs(t, err, schoolmembership.ErrClassListEntryNotFound)

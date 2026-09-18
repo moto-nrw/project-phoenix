@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"database/sql"
 	"errors"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -18,4 +19,12 @@ func DatabaseError(op string, err error) error {
 // outcome, as TranslateNotFound records it.
 func IsNotFound(err error) bool {
 	return errors.Is(err, modelBase.ErrNotFound)
+}
+
+// IsMissingRow reports whether err is a missing row in either spelling the
+// retained repositories produce: the base not-found sentinel that
+// TranslateNotFound records, and the driver's own sql.ErrNoRows, which the
+// lookups that scan a single row return unwrapped.
+func IsMissingRow(err error) bool {
+	return errors.Is(err, modelBase.ErrNotFound) || errors.Is(err, sql.ErrNoRows)
 }

@@ -30,29 +30,38 @@ const (
 
 // AccountSessions is the Identity & Access capability the login, refresh,
 // logout, tenant-switch, session-validation, MFA exchange and token routes
-// (#3251) and the role and permission routes (#3314) call directly.
+// (#3251), the role and permission routes (#3314) and the public password
+// reset, account registration, link and account administration routes
+// (#3332) call directly.
 type AccountSessions interface {
 	identityaccess.AccountAuthentication
 	identityaccess.AccountSessionMaintenance
 	identityaccess.RoleAdministration
+	identityaccess.PasswordResets
+	identityaccess.AccountProvisioning
+	identityaccess.AccountAdministration
 }
 
 // Resource defines the auth resource
 type Resource struct {
-	AuthService                authService.AuthService
-	Sessions                   AccountSessions
-	InvitationService          authService.InvitationService
-	GuardianInvitationService  authService.GuardianInvitationService
+	AuthService authService.AuthService
+	Sessions    AccountSessions
+	// Invitations is the Identity & Access invitation capability the
+	// invitation routes call directly (#3332).
+	Invitations Invitations
+	// GuardianInvitations is the Identity & Access guardian invitation
+	// capability the public accept page and the admin resend call (#3332).
+	GuardianInvitations        identityaccess.GuardianInvitations
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
 	SchoolService              SchoolDirectory
 	// SettingsService enriches tenant-shell metadata. Some optional feature
 	// flags retain defensive fallbacks, but resolveTenant requires this service
 	// for the grade-level validation contract and returns 500 when it is absent.
 	SettingsService configSvc.SettingsService
-	// MFAService is optional during the rollout window — handlers gate on
-	// nil and return 503 so deployments without the service wired in don't
-	// crash. Once Phase 7 lands the login-flow integration this will become
-	// effectively mandatory.
+	// MFAService and PasskeyService are the Identity & Access second factor
+	// and the school-portal WebAuthn ceremonies (#3331). Both stay optional:
+	// handlers gate on nil and answer 503, so a deployment composed without
+	// them does not crash.
 	MFAService      authService.MFAService
 	PasskeyService  authService.PasskeyService
 	db              *bun.DB
@@ -75,24 +84,26 @@ func (rs *Resource) SetPasskeyService(svc authService.PasskeyService) {
 	rs.PasskeyService = svc
 }
 
-// SetGuardianInvitationService injects the guardian invitation service.
-// Wired via setter (not constructor) so existing test call sites that pass 4
-// positional args keep compiling. When nil, the public guardian invitation
-// routes return 500 with errGuardianInvitationServiceUnavailable.
-func (rs *Resource) SetGuardianInvitationService(svc authService.GuardianInvitationService) {
-	rs.GuardianInvitationService = svc
-}
-
 // NewResource creates a new auth resource. sessions is the Identity & Access
 // capability the session routes (#3251) and the RBAC routes (#3314) call.
-func NewResource(authService authService.AuthService, invitationService authService.InvitationService, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
+func NewResource(authService authService.AuthService, invitations Invitations, schoolService SchoolDirectory, sessions AccountSessions, db *bun.DB) *Resource {
 	return &Resource{
-		AuthService:       authService,
-		Sessions:          sessions,
-		InvitationService: invitationService,
-		SchoolService:     schoolService,
-		db:                db,
+		AuthService:         authService,
+		Sessions:            sessions,
+		Invitations:         invitations,
+		GuardianInvitations: invitations,
+		SchoolService:       schoolService,
+		db:                  db,
 	}
+}
+
+// Invitations is what the invitation routes need from Identity & Access: the
+// school invitation flows the staff screens drive and the guardian
+// invitation flows the public accept page and the admin resend drive. One
+// owner serves both, so the resource takes them as one dependency (#3332).
+type Invitations interface {
+	identityaccess.SchoolInvitations
+	identityaccess.GuardianInvitations
 }
 
 func requirePlatformScope(next http.Handler) http.Handler {
@@ -282,8 +293,11 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
 					r.With(common.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, accountManagementErrorRenderer))
-					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, accountManagementErrorRenderer))
+					// Bound through the resource rather than as a method value
+					// on rs.Sessions: the router must build before the
+					// capability is wired, as it does for every other route.
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/activate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.activateAccount, accountManagementErrorRenderer))
+					r.With(common.RequiresPermission(permUsersUpdate)).Put("/deactivate", common.IDAction("accountId", common.MsgInvalidAccountID, rs.deactivateAccount, accountManagementErrorRenderer))
 					r.With(common.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 					r.With(common.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 					r.With(common.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)

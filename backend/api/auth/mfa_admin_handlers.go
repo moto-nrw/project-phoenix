@@ -112,7 +112,7 @@ type MFAAdminStateResponse struct {
 //
 // Membership-gated: the read path runs the same actor-permissions +
 // account-belongs-to-tenant check as the write paths via
-// MFAService.GetAdminState. Without that gate a tenant admin with
+// the module's GetMFAAdminState. Without that gate a tenant admin with
 // users:manage could probe account_ids across tenants and learn MFA
 // state for accounts they don't administer. (#1430 review round 2.)
 func (rs *Resource) mfaAdminGetState(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +130,7 @@ func (rs *Resource) mfaAdminGetState(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	state, err := rs.MFAService.GetAdminState(
+	state, err := rs.MFAService.GetMFAAdminState(
 		r.Context(),
 		int64(claims.ID),
 		claims.TenantID,
@@ -148,7 +148,7 @@ func (rs *Resource) mfaAdminGetState(w http.ResponseWriter, r *http.Request) {
 }
 
 // mfaAdminSetOverride flips the per-account override (force_off / force_on /
-// none). MFAService.SetMFAOverride handles trusted-device revocation and
+// none). The module's SetMFAOverride handles trusted-device revocation and
 // audit logging.
 func (rs *Resource) mfaAdminSetOverride(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
@@ -186,7 +186,7 @@ func (rs *Resource) mfaAdminSetOverride(w http.ResponseWriter, r *http.Request) 
 }
 
 // mfaAdminDisable wipes the target's MFA enrollment and trusted devices.
-// The MFAService's AdminDisable runs the cascade and records the audit
+// The module's AdminDisableMFA runs the cascade and records the audit
 // event with the actor's identity + reason.
 func (rs *Resource) mfaAdminDisable(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
@@ -196,7 +196,7 @@ func (rs *Resource) mfaAdminDisable(w http.ResponseWriter, r *http.Request) {
 	if octx == nil {
 		return
 	}
-	err := rs.MFAService.AdminDisable(
+	err := rs.MFAService.AdminDisableMFA(
 		r.Context(),
 		octx.actorAccountID,
 		octx.actorTenantID,

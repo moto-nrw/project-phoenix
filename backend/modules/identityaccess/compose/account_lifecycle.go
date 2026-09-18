@@ -106,13 +106,6 @@ type PreviewAudit interface {
 	StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error)
 }
 
-// AccountAdministration is the retained account management staff offboarding
-// drives on the caller's transaction: the deactivation records the durable
-// account-wide revocation intent.
-type AccountAdministration interface {
-	DeactivateAccount(ctx context.Context, accountID int64) error
-}
-
 // PasswordPolicy validates and hashes parent account passwords.
 type PasswordPolicy interface {
 	ValidatePasswordStrength(password string) error
@@ -207,7 +200,6 @@ type LifecycleDependencies struct {
 	PINs      PINHasher
 	Lockout   LockoutPolicy
 	Audit     PreviewAudit
-	Admin     AccountAdministration
 	Passwords PasswordPolicy
 	Guardians GuardianDirectory
 	Delivery  GuardianInvitationDelivery
@@ -224,7 +216,7 @@ type LifecycleDependencies struct {
 // newAccountLifecycle composes the lifecycle flows and the role
 // administration: offboarding removes roles through the administration, and
 // an assignment completes the school identity through the lifecycle.
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies) (*application.AccountLifecycle, *application.RoleAdministration, error) {
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
 		return nil, nil, nil
 	}
@@ -232,10 +224,12 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		return nil, nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
 	}
 	switch {
-	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil, deps.Admin == nil,
+	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil,
 		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil,
 		deps.Roles == nil:
 		return nil, nil, errors.New("identity access compose: every lifecycle dependency is required")
+	case administration == nil:
+		return nil, nil, errors.New("identity access compose: the account administration is required")
 	}
 	attach := sessions.TenantRuntime
 	if attach == nil {
@@ -256,7 +250,7 @@ func newAccountLifecycle(service *application.Service, auth *application.Account
 		Lockout:     deps.Lockout,
 		Audit:       previewAudit{deps.Audit},
 		Codec:       tokenCodec{sessions.Codec},
-		Admin:       accountAdministration{roles: roles, accounts: deps.Admin},
+		Admin:       accountAdministration{roles: roles, accounts: administration},
 		Passwords:   deps.Passwords,
 		Guardians:   guardianDirectory{deps.Guardians},
 		Invitations: store,

@@ -6,21 +6,14 @@ package auth_test
 
 import (
 	"context"
-	"log/slog"
 	"net"
 	"testing"
-	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
-	"github.com/moto-nrw/project-phoenix/email"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-const portalBindingJWTSecret = "portal-binding-test-secret-please-ignore"
 
 // The pool is closed via t.Cleanup rather than defer throughout this file:
 // deferred closes run BEFORE the fixture cleanups registered later, so every
@@ -119,25 +112,8 @@ func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *tes
 func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	tokenAuth, err := authjwt.NewTokenAuthWithSecret(portalBindingJWTSecret)
-	require.NoError(t, err)
-	mailer := testpkg.NewCapturingMailer()
-	dispatcher := email.NewDispatcher(mailer, slog.Default())
-	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
-	svc, err := auth.NewMFAService(auth.MFAServiceConfig{
-		Repos:       repos,
-		TokenAuth:   tokenAuth,
-		Dispatcher:  dispatcher,
-		DefaultFrom: email.NewEmail("Moto Tests", "tests@example.test"),
-		FrontendURL: "https://moto.test/",
-		JWTSecret:   portalBindingJWTSecret,
-		DB:          db,
-	})
-	require.NoError(t, err)
+	svc, repos, db := newTestMFAService(t)
 
 	account := testpkg.CreateTestAccount(t, db, "mfa-portal-binding")
 	accountID := account.ID
@@ -150,27 +126,27 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	})
 
 	// One school-portal challenge in flight, nothing else.
-	_, err = svc.StartChallenge(ctx, accountID, tenantID, authjwt.MFAChallengeScopeSchool, net.ParseIP("203.0.113.7"))
+	_, err := svc.StartMFAChallenge(ctx, accountID, tenantID, auth.MFAChallengeScopeSchool, net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 
-	stored, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, authjwt.MFAChallengeScopeSchool)
+	stored, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, auth.MFAChallengeScopeSchool)
 	require.NoError(t, err)
 	require.NotNil(t, stored, "the school challenge must be visible to the school scope")
-	assert.Equal(t, authjwt.MFAChallengeScopeSchool, stored.Scope)
+	assert.Equal(t, auth.MFAChallengeScopeSchool, stored.Scope)
 	assert.Equal(t, tenantID, stored.TenantID)
 
 	// The tenant surface must not see it at all — not even to compare a code
 	// against, so a correct school code cannot be spent here.
-	_, err = repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, authjwt.MFAChallengeScopeTenant)
+	_, err = repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, auth.MFAChallengeScopeTenant)
 	assert.Error(t, err, "a school-scope code must be invisible to the tenant portal's lookup")
 
-	err = svc.VerifyCodeForAccount(ctx, accountID, tenantID, "000000", authjwt.MFAChallengeScopeTenant)
+	err = svc.VerifyMFACodeForAccount(ctx, accountID, tenantID, "000000", auth.MFAChallengeScopeTenant)
 	assert.ErrorIs(t, err, auth.ErrMFACodeInvalid,
 		"the tenant enroll-confirm must find no challenge at all while only a school challenge is in flight")
 
 	// The school challenge is still unconsumed — the foreign-portal attempt
 	// must not have burned it either.
-	stillActive, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, authjwt.MFAChallengeScopeSchool)
+	stillActive, err := repos.MFAEmailChallenge.FindActiveByAccountIDInScope(ctx, accountID, tenantID, auth.MFAChallengeScopeSchool)
 	require.NoError(t, err)
 	require.NotNil(t, stillActive)
 	assert.Equal(t, stored.ID, stillActive.ID)

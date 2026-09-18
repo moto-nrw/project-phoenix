@@ -40,7 +40,9 @@ type accountAuthenticationWiring struct {
 	logger        *slog.Logger
 	observe       IdentityAccessObserver
 	tenantRuntime func(context.Context) context.Context
-	mfa           func() auth.MFAService
+	// mfa composes the second factor and the passkey ceremonies (#3331);
+	// nil composes the module without them.
+	mfa *mfaWiring
 	// operators composes the operator flows (#3252); nil leaves them
 	// unavailable, as the cleanup roots compose the module.
 	operators *identityaccessCompose.OperatorDependencies
@@ -53,6 +55,10 @@ type accountAuthenticationWiring struct {
 	// invitations configures the school invitation flows (#2722); nil
 	// composes the module with the invitation maintenance only.
 	invitations *invitationWiring
+	// operatorLinks configures the operator invitation and e-mail change
+	// flows (#3332); nil composes the module without them and every
+	// operator link reports it as unavailable.
+	operatorLinks *operatorLinkWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -100,10 +106,6 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 			wiring.observe(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, identityaccess.ErrorCode(observation.Err), observation.Err)
 		}
 	}
-	mfa := wiring.mfa
-	if mfa == nil {
-		mfa = func() auth.MFAService { return nil }
-	}
 	var lifecycleBinding *lifecycleWiring
 	if wiring.lifecycle != nil {
 		bound := *wiring.lifecycle
@@ -119,18 +121,20 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	var module *identityaccess.Module
 	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
 	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
 	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
-		Lifecycle:   lifecycle,
-		Resets:      resets,
-		Invitations: invitations,
-		DB:          db,
-		Observe:     observe,
+		Lifecycle:            lifecycle,
+		Resets:               resets,
+		Invitations:          invitations,
+		MFA:                  mfaDependencies(wiring.mfa),
+		OperatorProvisioning: operatorLinks,
+		DB:                   db,
+		Observe:              observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
 			Passwords:     passwordVerifier{},
 			Codec:         sessionTokenCodec{tokenAuth: wiring.tokenAuth},
-			MFA:           mfaGate{current: mfa},
 			MFALock:       mfaPolicyLock{settings: wiring.settings},
 			Audit:         authAudit{command: wiring.audit, events: wiring.repos.authEvents},
 			Push:          pushSubscriptionCleanup{subscriptions: wiring.repos.pushSubscriptions},
@@ -266,6 +270,27 @@ func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, account
 	return result, nil
 }
 
+// ListManageableSchoolIDs is the set an organisation-scoped administrator
+// is bounded by: the organisation's live, active schools. An organisation
+// without one leaves them with no account to administer, which is the
+// refusal the account boundary applies.
+func (d schoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	if d.schools == nil {
+		return nil, errors.New("school directory is not composed")
+	}
+	schools, err := d.schools.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		if school.Active && !school.IsDeleted() {
+			ids = append(ids, school.ID)
+		}
+	}
+	return ids, nil
+}
+
 type personDirectory struct{ persons userModels.PersonRepository }
 
 func (d personDirectory) FindPersonName(ctx context.Context, accountID int64) (string, string, bool, error) {
@@ -359,86 +384,6 @@ func (c sessionTokenCodec) ParseRefreshToken(token string) (identityaccess.Refre
 }
 
 func (c sessionTokenCodec) RefreshExpiry() time.Duration { return c.tokenAuth.JwtRefreshExpiry }
-
-type mfaGate struct{ current func() auth.MFAService }
-
-func (g mfaGate) Configured() bool { return g.current() != nil }
-
-func (g mfaGate) IsRequired(ctx context.Context, accountID int64, email string, roleNames []string, tenantID int64) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.IsRequired(ctx, auth.AccountForMFAGate(accountID, email, roleNames), tenantID)
-}
-
-func (g mfaGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {
-	svc := g.current()
-	if svc == nil {
-		return identityaccess.MFAPolicyFunc(func([]string) bool { return false }), nil
-	}
-	policy, err := svc.ResolvePolicy(ctx, accountID, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return identityaccess.MFAPolicyFunc(policy.RequiredForRoleNames), nil
-}
-
-func (g mfaGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {
-	svc := g.current()
-	if svc == nil {
-		return identityaccess.MFAPolicyFunc(func([]string) bool { return false }), nil
-	}
-	policy, err := svc.ResolvePolicyInTx(ctx, accountID, tenantID)
-	if err != nil {
-		return nil, err
-	}
-	return identityaccess.MFAPolicyFunc(policy.RequiredForRoleNames), nil
-}
-
-func (g mfaGate) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.HasEnrollment(ctx, accountID)
-}
-
-func (g mfaGate) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error) {
-	svc := g.current()
-	if svc == nil {
-		return false, nil
-	}
-	return svc.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)
-}
-
-func (g mfaGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {
-	svc := g.current()
-	if svc == nil {
-		return "", errors.New("mfa service is not configured")
-	}
-	challengeScope := authjwt.MFAChallengeScopeTenant
-	if scope == "school" {
-		challengeScope = authjwt.MFAChallengeScopeSchool
-	}
-	return svc.StartChallenge(ctx, accountID, tenantID, challengeScope, auth.ParseClientIP(ipAddress))
-}
-
-func (g mfaGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {
-	svc := g.current()
-	if svc == nil {
-		return false
-	}
-	return svc.IsTrustedDeviceEnabled(ctx, tenantID)
-}
-
-func (g mfaGate) TrustedDeviceDays(ctx context.Context, tenantID int64) int {
-	svc := g.current()
-	if svc == nil {
-		return 0
-	}
-	return svc.TrustedDeviceDays(ctx, tenantID)
-}
 
 type mfaPolicyLock struct{ settings config.SettingsService }
 
@@ -795,12 +740,14 @@ var retainedSentinels = []retainedSentinel{
 	{identityaccess.ErrInvalidToken, auth.ErrInvalidToken},
 	{identityaccess.ErrTokenExpired, auth.ErrTokenExpired},
 	{identityaccess.ErrTokenNotFound, auth.ErrTokenNotFound},
-	{identityaccess.ErrMFAStatusUnavailable, auth.ErrMFAStatusUnavailable},
 	{identityaccess.ErrAccountAuthenticationUnavailable, auth.ErrAccountSessionsUnavailable},
 	// A session that vanished or was rotated underneath a consumer reads as
 	// the retained token sentinels the refresh flow already reports.
 	{identityaccess.ErrAccountSessionNotFound, auth.ErrTokenNotFound},
 	{identityaccess.ErrAccountSessionRotated, auth.ErrInvalidToken},
+	// The password policy seam answers with the owner's sentinel (#3332);
+	// the retained consumers still switch on this package's.
+	{identityaccess.ErrPasswordTooWeak, auth.ErrPasswordTooWeak},
 }
 
 // authServiceError translates the public contract into the retained
@@ -815,7 +762,7 @@ func authServiceError(err error) error {
 	if errors.As(err, &operation) && operation == err {
 		return &auth.AuthError{Op: operation.Op, Err: authServiceError(operation.Err)}
 	}
-	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels} {
+	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels, mfaRetainedSentinels} {
 		for _, sentinel := range sentinels {
 			if !errors.Is(err, sentinel.public) {
 				continue

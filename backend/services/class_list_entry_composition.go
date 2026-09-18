@@ -2,98 +2,143 @@ package services
 
 import (
 	"context"
-	"errors"
-	"sort"
+	"fmt"
+	"strings"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	auditClassList "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
-// The class-list entry HTTP adapter (#2668) reads through the School
-// Membership capability but may not import the legacy services. The audited
-// write flows, the student-match hint and the display order still live with
-// users.ClassListEntryService; they are composed here with plain types so
-// the HTTP root can bind the adapter without importing any service package.
+// The audited class-list administration (#2382, #3355) lives with School
+// Membership, but two of its collaborators only exist once this factory has
+// been built: the People Directory student lookup behind the duplicate guard
+// and the "Zuordnen" hint, and the fail-closed Audit command behind the
+// change trail. They are adapted to the owner's ports and bound here.
 
-// ClassListEntryInput carries the three fields an entry consists of.
-type ClassListEntryInput struct {
-	FirstName   string
-	LastName    string
-	SchoolClass string
+// classListEntryAdministrationBinder is what the School Membership module
+// exposes for that late binding.
+type classListEntryAdministrationBinder interface {
+	BindClassListEntryAdministration(schoolmembership.ClassListEntryStudents, schoolmembership.ClassListEntryTrail)
 }
 
-// ClassListEntryRuntime is the legacy-service side of the class-list entry
-// HTTP adapter. Every closure keeps the exact semantics of the handler code
-// it replaced in api/classlistentries.
-type ClassListEntryRuntime struct {
-	Order              func([]schoolmembership.ClassListEntry)
-	MatchingStudentIDs func(context.Context, ClassListEntryInput) ([]int64, error)
-	Create             func(context.Context, ClassListEntryInput, int64) (schoolmembership.ClassListEntry, error)
-	Update             func(context.Context, int64, ClassListEntryInput, int64) (schoolmembership.ClassListEntry, error)
-	Delete             func(context.Context, int64, int64) error
-	Assign             func(ctx context.Context, entryID, studentID, actorID int64) error
-}
-
-// NewClassListEntryRuntime composes the closures over the service factory.
-func (f *Factory) NewClassListEntryRuntime() ClassListEntryRuntime {
-	service := f.ClassListEntries
-	return ClassListEntryRuntime{
-		Order: SortClassListEntries,
-		MatchingStudentIDs: func(ctx context.Context, input ClassListEntryInput) ([]int64, error) {
-			return service.MatchingStudentIDs(ctx, classListEntryInput(input))
-		},
-		Create: func(ctx context.Context, input ClassListEntryInput, actorID int64) (schoolmembership.ClassListEntry, error) {
-			entry, err := service.Create(ctx, classListEntryInput(input), actorID)
-			return classListEntryToPublic(entry), err
-		},
-		Update: func(ctx context.Context, id int64, input ClassListEntryInput, actorID int64) (schoolmembership.ClassListEntry, error) {
-			entry, err := service.Update(ctx, id, classListEntryInput(input), actorID)
-			return classListEntryToPublic(entry), err
-		},
-		Delete: service.Delete,
-		Assign: service.Assign,
+// bindClassListEntryAdministration installs both ports. A capability without
+// the binder cannot serve the Klassenliste screen at all, so the composition
+// refuses to continue silently.
+func bindClassListEntryAdministration(
+	membership schoolmembership.Capability,
+	persons peopledirectory.Capability,
+	audit auditModels.Command,
+) error {
+	binder, ok := membership.(classListEntryAdministrationBinder)
+	if !ok {
+		return fmt.Errorf("class list entry administration: school membership %T cannot bind it", membership)
 	}
+	if persons == nil || audit == nil {
+		return fmt.Errorf("class list entry administration: people directory and audit command are required")
+	}
+	binder.BindClassListEntryAdministration(classListEntryStudents{persons: persons}, classListEntryTrail{audit: audit})
+	return nil
 }
 
-// SortClassListEntries orders a listing the way the class list reads it:
-// class (grade-aware), then last and first name with German collation.
-func SortClassListEntries(entries []schoolmembership.ClassListEntry) {
-	sort.SliceStable(entries, func(i, j int) bool {
-		return usersSvc.CompareClassListEntryOrder(
-			entries[i].SchoolClass, entries[i].LastName, entries[i].FirstName, entries[i].ID,
-			entries[j].SchoolClass, entries[j].LastName, entries[j].FirstName, entries[j].ID,
-		) < 0
+// classListEntryStudents answers "is this name already a child of that class"
+// through the People Directory, matching like the legacy student lookup did:
+// case-insensitive and trimmed on all three keys, alumni excluded — a
+// graduate must not block a new child of the same name. It is the same
+// two-step the class-list import already resolves its guard with.
+//
+// One difference to the legacy SQL, which joined users.persons directly: the
+// directory leaves soft-deleted persons out, so a student whose person row is
+// deleted no longer blocks an entry. That row is a broken state either way,
+// and the owner is the only one allowed to decide which persons exist.
+type classListEntryStudents struct{ persons peopledirectory.Capability }
+
+func (d classListEntryStudents) ListStudentIDsByNameAndClass(ctx context.Context, firstName, lastName, schoolClass string) ([]int64, error) {
+	first, last := strings.TrimSpace(firstName), strings.TrimSpace(lastName)
+	if first == "" || last == "" {
+		return nil, nil
+	}
+	// Unpaged on purpose: absence is decided over every namesake, not over
+	// the first page of a sorted listing.
+	matches, err := d.persons.SearchPersons(ctx, peopledirectory.PersonFilter{FirstNameEquals: first, LastNameEquals: last})
+	if err != nil {
+		return nil, fmt.Errorf("class list entry student lookup: search persons: %w", err)
+	}
+	if len(matches) == 0 {
+		return nil, nil
+	}
+	personIDs := make([]int64, 0, len(matches))
+	for _, person := range matches {
+		personIDs = append(personIDs, person.ID)
+	}
+	students, err := d.persons.ListStudentsByPersonID(ctx, personIDs)
+	if err != nil {
+		return nil, fmt.Errorf("class list entry student lookup: list students: %w", err)
+	}
+	class := strings.TrimSpace(schoolClass)
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student.IsAlumnus() || !strings.EqualFold(strings.TrimSpace(student.SchoolClass), class) {
+			continue
+		}
+		ids = append(ids, student.ID)
+	}
+	return ids, nil
+}
+
+func (d classListEntryStudents) IsEnrolledStudent(ctx context.Context, studentID int64) (bool, error) {
+	students, err := d.persons.ListStudentsByID(ctx, []int64{studentID})
+	if err != nil {
+		return false, fmt.Errorf("class list entry student lookup: find student: %w", err)
+	}
+	for _, student := range students {
+		if student.ID == studentID {
+			return !student.IsAlumnus(), nil
+		}
+	}
+	return false, nil
+}
+
+// classListEntryTrail appends the change through the single Audit command, so
+// the row joins the producer's transaction and a refused append aborts it.
+type classListEntryTrail struct{ audit auditModels.Command }
+
+func (t classListEntryTrail) AppendClassListEntryChange(ctx context.Context, change schoolmembership.ClassListEntryChange) error {
+	return t.audit.Append(ctx, &auditClassList.ClassListEntryChange{
+		EntryID: change.EntryID, Action: change.Action, OldValue: change.OldValue,
+		NewValue: change.NewValue, MatchedStudentID: change.MatchedStudentID, ChangedBy: change.ChangedBy,
 	})
 }
 
-// ClassifyClassListEntryFailure maps the service sentinels onto the HTTP
-// outcome the legacy handlers produced: unknown entry -> 404, the four
-// German conflict messages -> 400, everything else -> 500.
-func ClassifyClassListEntryFailure(err error) (StaffFailureKind, error) {
-	switch {
-	case errors.Is(err, usersSvc.ErrClassListEntryNotFound):
-		return StaffFailureNotFound, err
-	case errors.Is(err, usersSvc.ErrClassListEntryDuplicate),
-		errors.Is(err, usersSvc.ErrClassListEntryStudentExists),
-		errors.Is(err, usersSvc.ErrClassListEntryStudentNotFound),
-		errors.Is(err, usersSvc.ErrClassListEntryAssignMismatch):
-		return StaffFailureInvalidRequest, err
-	default:
-		return StaffFailureInternal, err
-	}
+// classListEntryRosterReader adapts the owner capability to the narrow reader
+// the enrollment class roster and the class day view consume: they append the
+// entries of one class, or of every class, to the Klassenverband and need
+// nothing else from the owner.
+type classListEntryRosterReader struct {
+	entries schoolmembership.ClassListEntries
 }
 
-func classListEntryInput(input ClassListEntryInput) usersSvc.ClassListEntryInput {
-	return usersSvc.ClassListEntryInput{FirstName: input.FirstName, LastName: input.LastName, SchoolClass: input.SchoolClass}
+// NewClassListEntryRosterReader binds the class roster's class-list reader to
+// the School Membership capability that owns the entries.
+func NewClassListEntryRosterReader(entries schoolmembership.ClassListEntries) enrollment.ClassListEntryReader {
+	if entries == nil {
+		panic("class list entry roster reader: the school membership capability is required")
+	}
+	return classListEntryRosterReader{entries: entries}
 }
 
-func classListEntryToPublic(entry *userModels.ClassListEntry) schoolmembership.ClassListEntry {
-	if entry == nil {
-		return schoolmembership.ClassListEntry{}
+func (r classListEntryRosterReader) ListClassListEntries(ctx context.Context, schoolClass string) ([]enrollment.ClassListEntry, error) {
+	values, err := r.entries.ListClassListEntriesInDisplayOrder(ctx, schoolmembership.ClassListEntryFilter{SchoolClass: schoolClass})
+	if err != nil {
+		return nil, err
 	}
-	return schoolmembership.ClassListEntry{
-		ID: entry.ID, TenantID: entry.GetTenantID(), CreatedAt: entry.CreatedAt, UpdatedAt: entry.UpdatedAt,
-		FirstName: entry.FirstName, LastName: entry.LastName, SchoolClass: entry.SchoolClass, CreatedBy: entry.CreatedBy,
+	result := make([]enrollment.ClassListEntry, 0, len(values))
+	for _, value := range values {
+		result = append(result, enrollment.ClassListEntry{
+			ID: value.ID, FirstName: value.FirstName, LastName: value.LastName, SchoolClass: value.SchoolClass,
+		})
 	}
+	return result, nil
 }

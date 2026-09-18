@@ -14,7 +14,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -208,21 +207,23 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 	}
 	requireApproval := mode == configModels.ParentInviteModeStaffApproval
 
-	requestedBy := accountID
-	var result *authService.InviteToStudentResult
+	if s.GuardianInvites == nil {
+		return nil, ErrGuardianAccessUnavailable
+	}
+	var result GuardianInviteOutcome
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
-		res, inviteErr := s.GuardianInvites.InviteToStudent(txCtx, authService.InviteToStudentRequest{
-			StudentID:                  studentID,
-			Email:                      email,
-			FirstName:                  firstName,
-			LastName:                   lastName,
-			CreatedBy:                  accountID,
-			RequestedByParentAccountID: &requestedBy,
-			RequireApproval:            requireApproval,
-			ConfirmRoleUpgrade:         confirmRoleUpgrade,
+		res, inviteErr := s.GuardianInvites.InviteToStudent(txCtx, GuardianInviteRequest{
+			StudentID:            studentID,
+			Email:                email,
+			FirstName:            firstName,
+			LastName:             lastName,
+			CreatedBy:            accountID,
+			RequestedByAccountID: accountID,
+			RequireApproval:      requireApproval,
+			ConfirmRoleUpgrade:   confirmRoleUpgrade,
 		})
 		if inviteErr != nil {
 			return inviteErr
@@ -234,7 +235,7 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 		return nil, txErr
 	}
 	return &InviteRelatedAccountResult{
-		Outcome:           string(result.Outcome),
+		Outcome:           result.Outcome,
 		GuardianProfileID: result.GuardianProfileID,
 		ExistingRole:      result.ExistingRole,
 	}, nil
@@ -268,15 +269,17 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return ErrRemoveDisabled
 	}
 
+	if s.GuardianInvites == nil {
+		return ErrGuardianAccessUnavailable
+	}
 	return tenant.WithTenantTx(ctx, s.DB, child.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		if err := s.requireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
-		return s.GuardianInvites.RevokeAccess(txCtx, authService.RevokeAccessRequest{
+		return s.GuardianInvites.RevokeAccess(txCtx, GuardianAccessRevocation{
 			StudentID:         studentID,
 			GuardianProfileID: guardianProfileID,
 			ActorAccountID:    accountID,
-			ByParent:          true,
 		})
 	})
 }
