@@ -86,12 +86,13 @@ row into the archive, so a previous image finds its legacy columns unchanged.
 `INSERT` allocates the profile id from `users.student_profiles_id_seq` (the
 view's column default) and lets the membership sequence allocate the membership
 id — nothing references a membership id, and the profile id is what every
-foreign key names. `UPDATE` locks the three owners in the view's join order
-(profile, live membership, care) so it cannot deadlock against
-`SELECT … FOR UPDATE`, then re-reads and applies only the columns the statement
-assigned. A concurrent `SET extra_info` is kept; `SET status` against a
-membership whose status moved (the activate-students / `TransitionStatus`
-case) affects 0 rows, the way heap `EvalPlanQual` would. `UPDATE` refuses to
+foreign key names. `UPDATE` locks profile, then the archive row, then live
+membership and care so it cannot deadlock against `SELECT … FOR UPDATE`. It
+re-reads and applies only the columns the statement assigned, including the
+archive-only `sick` / `excused` / `guardian_*` fields the view still serves.
+A concurrent `SET extra_info` is kept; `SET status` against a membership whose
+status moved (the activate-students / `TransitionStatus` case) affects 0 rows,
+the way heap `EvalPlanQual` would. `UPDATE` refuses to
 change `id` or `tenant_id` (`SQLSTATE 23514`). `DELETE` removes the profile,
 whose cascade takes the membership and the care profile, and the archive row
 with it. A stale archive row still claiming the per-person unique key of a

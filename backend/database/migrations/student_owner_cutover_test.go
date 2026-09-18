@@ -568,6 +568,42 @@ func TestStudentOwnerCutoverUpdateKeepsConcurrentColumns(t *testing.T) {
 	require.Equal(t, "kept", extra)
 }
 
+func TestStudentOwnerCutoverUpdateKeepsConcurrentArchiveColumns(t *testing.T) {
+	t.Parallel()
+	db := setupIsolatedStudentStorageBeforeCutover(t)
+	_, ids := studentOwnerCutoverFixture(t, db, 1)
+	require.NoError(t, finalizeStudentOwnerStorage(t.Context(), db, installStudentOwnerCompatibility))
+	id := ids[0]
+	ctx := t.Context()
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.ExecContext(ctx, `SELECT id FROM users.students WHERE id = ? FOR UPDATE`, id)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, execErr := db.NewRaw(`UPDATE users.students SET extra_info = 'kept' WHERE id = ?`, id).Exec(ctx)
+		done <- execErr
+	}()
+	requireStudentUpdateWaiting(t, db, ctx, "%SET extra_info = 'kept'%")
+	_, err = holder.ExecContext(ctx,
+		`UPDATE users.students SET sick = true, guardian_email = 'kept@example.org' WHERE id = ?`, id)
+	require.NoError(t, err)
+	require.NoError(t, holder.Commit())
+	require.NoError(t, waitStudentUpdateErr(t, done))
+
+	var extra, email string
+	var sick bool
+	require.NoError(t, db.NewRaw(
+		`SELECT extra_info, sick, guardian_email FROM users.students WHERE id = ?`, id,
+	).Scan(ctx, &extra, &sick, &email))
+	require.Equal(t, "kept", extra)
+	require.True(t, sick, "a later extra_info write must not restore the snapshot sick flag")
+	require.Equal(t, "kept@example.org", email)
+}
+
 func TestStudentOwnerCutoverSelectForUpdateAndUpdateShareLockOrder(t *testing.T) {
 	t.Parallel()
 	db := setupIsolatedStudentStorageBeforeCutover(t)

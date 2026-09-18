@@ -142,7 +142,7 @@ const studentOwnerCompatibilityView = `
 // studentOwnerCompatibilityRouting sends every write on the view to the owner
 // that holds the column, and mirrors the whole old row into the archive so a
 // previous image finds its legacy guardian and absence columns unchanged.
-// Routed UPDATE locks profile, live membership and care in that join order,
+// Routed UPDATE locks profile, the archive row, live membership and care,
 // then applies only assigned columns onto the locked rows.
 //
 // Membership identity is not preserved for rows created here: nothing
@@ -154,6 +154,7 @@ const studentOwnerCompatibilityRouting = `
 	DECLARE
 		owning_membership bigint;
 		current_status text;
+		archived users.students_legacy%ROWTYPE;
 	BEGIN
 		PERFORM nextval('users.student_compatibility_writes');
 		IF TG_OP = 'DELETE' THEN
@@ -193,15 +194,49 @@ const studentOwnerCompatibilityRouting = `
 				COALESCE(NEW.pickup_days, '{}'::jsonb), COALESCE(NEW.bus_days, '{}'::jsonb),
 				NEW.created_at, NEW.updated_at);
 		ELSE
-			-- Lock the three owners in the view's join order (profile, live
-			-- membership, care) so SELECT ... FOR UPDATE on the view cannot
-			-- deadlock against a routed UPDATE. The live enrollment is still
-			-- the row that can disappear under a concurrent retirement: if it
-			-- is gone after the profile lock, return no row without writing.
+			-- Lock profile, then the archive, then live membership and care.
+			-- Profile first matches SELECT ... FOR UPDATE on the view so the
+			-- pair cannot deadlock. The live enrollment is still the row that
+			-- can disappear under a concurrent retirement: if it is gone after
+			-- the profile lock, return no row without writing.
 			PERFORM 1 FROM users.student_profiles AS profile
 			WHERE profile.tenant_id = OLD.tenant_id AND profile.id = OLD.id
 			FOR UPDATE;
 			IF NOT FOUND THEN RETURN NULL; END IF;
+			-- sick, excused and guardian_* live only on the archive. NEW still
+			-- holds the pre-wait snapshot of them; merge unassigned columns
+			-- from the locked row so a later extra_info write cannot restore
+			-- a committed UpdateLiveStatus or guardian SET.
+			SELECT * INTO archived
+			FROM users.students_legacy AS legacy
+			WHERE legacy.tenant_id = OLD.tenant_id AND legacy.id = OLD.id
+			FOR UPDATE;
+			IF FOUND THEN
+				IF NEW.guardian_name IS NOT DISTINCT FROM OLD.guardian_name THEN
+					NEW.guardian_name := archived.guardian_name;
+				END IF;
+				IF NEW.guardian_contact IS NOT DISTINCT FROM OLD.guardian_contact THEN
+					NEW.guardian_contact := archived.guardian_contact;
+				END IF;
+				IF NEW.guardian_email IS NOT DISTINCT FROM OLD.guardian_email THEN
+					NEW.guardian_email := archived.guardian_email;
+				END IF;
+				IF NEW.guardian_phone IS NOT DISTINCT FROM OLD.guardian_phone THEN
+					NEW.guardian_phone := archived.guardian_phone;
+				END IF;
+				IF NEW.sick IS NOT DISTINCT FROM OLD.sick THEN
+					NEW.sick := archived.sick;
+				END IF;
+				IF NEW.sick_since IS NOT DISTINCT FROM OLD.sick_since THEN
+					NEW.sick_since := archived.sick_since;
+				END IF;
+				IF NEW.excused IS NOT DISTINCT FROM OLD.excused THEN
+					NEW.excused := archived.excused;
+				END IF;
+				IF NEW.excused_since IS NOT DISTINCT FROM OLD.excused_since THEN
+					NEW.excused_since := archived.excused_since;
+				END IF;
+			END IF;
 			SELECT membership.id, membership.status INTO owning_membership, current_status
 			FROM users.student_school_memberships AS membership
 			WHERE membership.tenant_id = OLD.tenant_id AND membership.student_profile_id = OLD.id
