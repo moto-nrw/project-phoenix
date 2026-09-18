@@ -272,7 +272,10 @@ and gone from the candidate while `to` is classified in the candidate and
 absent from the base, that owner and all three roles are identical on both
 sides, and that `to` holds exactly the Go files `from` held at the base commit.
 The file set comes from Git, not from the declaration, so a move that adds,
-drops or renames a file is a rewrite and keeps the ordinary guards.
+drops or renames a file is a rewrite and keeps the ordinary guards. It compares
+names, not contents, which it cannot do because a relocation rewrites import
+paths and may rename the package clause. It is a sanity gate; the safety
+property is the unchanged violation-key set below.
 
 The declaration renames keys and grants nothing else. An added import has no
 renamed twin and stays a new violation, a changed migration issue is still a
