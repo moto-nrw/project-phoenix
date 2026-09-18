@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
 

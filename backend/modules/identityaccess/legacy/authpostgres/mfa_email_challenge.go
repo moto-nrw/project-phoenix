@@ -1,0 +1,170 @@
+package authpostgres
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	"github.com/uptrace/bun"
+)
+
+const (
+	mfaEmailChallengeTable      = "auth.mfa_email_challenges"
+	mfaEmailChallengeTableAlias = `auth.mfa_email_challenges AS "mfa_email_challenge"`
+)
+
+// MFAEmailChallengeRepository implements auth.MFAEmailChallengeRepository.
+type MFAEmailChallengeRepository struct {
+	*base.Repository[*authmodels.MFAEmailChallenge]
+	db *bun.DB
+}
+
+// NewMFAEmailChallengeRepository creates a new repository for MFA email challenge codes.
+func NewMFAEmailChallengeRepository(db *bun.DB) authmodels.MFAEmailChallengeRepository {
+	return &MFAEmailChallengeRepository{
+		Repository: base.NewRepository[*authmodels.MFAEmailChallenge](db, mfaEmailChallengeTable, "MfaEmailChallenge"),
+		db:         db,
+	}
+}
+
+// Create persists a new challenge after light validation.
+func (r *MFAEmailChallengeRepository) Create(ctx context.Context, challenge *authmodels.MFAEmailChallenge) error {
+	if challenge == nil {
+		return fmt.Errorf("mfa email challenge cannot be nil")
+	}
+	if challenge.AccountID == 0 {
+		return fmt.Errorf("account_id is required")
+	}
+	if challenge.CodeHash == "" {
+		return fmt.Errorf("code_hash is required")
+	}
+	// An unscoped row would be invisible to every portal's lookup, so a
+	// missing scope must fail here rather than silently produce a code
+	// nobody can redeem.
+	if challenge.Scope == "" {
+		return fmt.Errorf("scope is required")
+	}
+	if challenge.ExpiresAt.IsZero() {
+		return fmt.Errorf("expires_at is required")
+	}
+	return r.Repository.Create(ctx, challenge)
+}
+
+// FindActiveByAccountIDInScope returns the most recent unconsumed, unexpired
+// challenge the account holds for ONE portal scope (and school, when the
+// caller knows it). Returns a DatabaseError wrapping sql.ErrNoRows when none
+// exists; callers should check for that.
+//
+// The scope predicate is a security boundary, not a convenience filter: this
+// is the lookup used where no challenge id is available (enrollment confirm,
+// passkey registration), and without it the newest code of ANY portal would
+// answer — a school-portal login code redeemed at the tenant enrollment
+// endpoint mints a tenant session from a second factor that was never meant
+// for it. tenantID = 0 drops the school predicate and is for callers that
+// genuinely have no school (there are none on the portal surfaces today);
+// rows predating the binding carry no school and none can be reconstructed, so
+// migration 1.15.282 retired them outright rather than guess one — a lookup
+// with a real school id therefore never matches a pre-binding row, and the few
+// codes in flight during that deploy are re-requested instead of redeemed
+// somewhere they were never issued for.
+func (r *MFAEmailChallengeRepository) FindActiveByAccountIDInScope(ctx context.Context, accountID, tenantID int64, scope string) (*authmodels.MFAEmailChallenge, error) {
+	challenge := new(authmodels.MFAEmailChallenge)
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(challenge).
+		ModelTableExpr(mfaEmailChallengeTableAlias).
+		Where("account_id = ?", accountID).
+		Where("scope = ?", scope).
+		Where("consumed_at IS NULL").
+		Where("expires_at > ?", time.Now())
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+	err := query.
+		Order("expires_at DESC").
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge in scope", Err: base.TranslateNotFound(err)}
+	}
+	return challenge, nil
+}
+
+// FindActiveByIDForAccount returns one specific unconsumed, unexpired
+// challenge, scoped to its owning account. This is the lookup the verify path
+// uses: the challenge JWT names the row it was minted for, so a code emailed
+// for one portal can never be redeemed against another in-flight challenge of
+// the same account. The account_id predicate makes a guessed or forged id
+// useless even though the id also travels inside a signed token.
+// Returns a DatabaseError wrapping sql.ErrNoRows when no such row exists.
+func (r *MFAEmailChallengeRepository) FindActiveByIDForAccount(ctx context.Context, id, accountID int64) (*authmodels.MFAEmailChallenge, error) {
+	challenge := new(authmodels.MFAEmailChallenge)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(challenge).
+		ModelTableExpr(mfaEmailChallengeTableAlias).
+		Where("id = ?", id).
+		Where("account_id = ?", accountID).
+		Where("consumed_at IS NULL").
+		Where("expires_at > ?", time.Now()).
+		Limit(1).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active mfa email challenge by id", Err: base.TranslateNotFound(err)}
+	}
+	return challenge, nil
+}
+
+// MarkConsumed marks a challenge as redeemed. The partial index on
+// (account_id, expires_at) WHERE consumed_at IS NULL means the challenge
+// becomes immediately invisible to FindActiveByAccountIDInScope after this
+// update.
+func (r *MFAEmailChallengeRepository) MarkConsumed(ctx context.Context, id int64, consumedAt time.Time) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*authmodels.MFAEmailChallenge)(nil)).
+		ModelTableExpr(mfaEmailChallengeTable).
+		Set("consumed_at = ?", consumedAt).
+		Where(whereID, id).
+		Where("consumed_at IS NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark mfa email challenge consumed", Err: base.TranslateNotFound(err)}
+	}
+	return base.AssertRowsAffected(res, 1, "mark mfa email challenge consumed")
+}
+
+func (r *MFAEmailChallengeRepository) MarkActive(ctx context.Context, id int64) error {
+	res, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*authmodels.MFAEmailChallenge)(nil)).
+		ModelTableExpr(mfaEmailChallengeTable).
+		Set("consumed_at = NULL").
+		Where(whereID, id).
+		Where("consumed_at IS NOT NULL").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark mfa email challenge active", Err: base.TranslateNotFound(err)}
+	}
+	return base.AssertRowsAffected(res, 1, "mark mfa email challenge active")
+}
+
+// CountRecentByAccountID returns the number of challenges issued to the account at or after `since`.
+func (r *MFAEmailChallengeRepository) CountRecentByAccountID(ctx context.Context, accountID int64, since time.Time) (int, error) {
+	count, err := base.GetDB(ctx, r.db).NewSelect().
+		Model((*authmodels.MFAEmailChallenge)(nil)).
+		ModelTableExpr(mfaEmailChallengeTableAlias).
+		Where("account_id = ?", accountID).
+		Where("created_at >= ?", since).
+		Count(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "count recent mfa email challenges", Err: base.TranslateNotFound(err)}
+	}
+	return count, nil
+}
+
+// DeleteExpired removes challenges past their TTL, regardless of consumption status.
+// Intended for the periodic cleanup scheduler.
+func (r *MFAEmailChallengeRepository) DeleteExpired(ctx context.Context) (int, error) {
+	deleted, err := r.DeleteBefore(ctx, "expires_at", time.Now(), "delete expired mfa email challenges")
+	return int(deleted), err
+}

@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 )
 
 func TestPerson_Validate(t *testing.T) {
@@ -170,7 +170,7 @@ func TestPerson_SetAccount(t *testing.T) {
 			LastName:  "Doe",
 		}
 
-		account := &auth.Account{
+		account := &authmodels.Account{
 			Model: base.Model{ID: 42},
 			Email: "john@example.com",
 		}
@@ -215,7 +215,7 @@ func TestPerson_SetRFIDCard(t *testing.T) {
 			LastName:  "Doe",
 		}
 
-		card := &auth.RFIDCard{
+		card := &authmodels.RFIDCard{
 			StringIDModel: base.StringIDModel{ID: "RFID123456AB"},
 		}
 

@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/models/audit"
-	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
@@ -27,17 +27,17 @@ var (
 	// activities package
 
 	// auth package
-	_ base.Entity = (*auth.Account)(nil)
-	_ base.Entity = (*auth.AccountParent)(nil)
-	_ base.Entity = (*auth.AccountPermission)(nil)
-	_ base.Entity = (*auth.AccountRole)(nil)
-	_ base.Entity = (*auth.GuardianInvitation)(nil)
-	_ base.Entity = (*auth.InvitationToken)(nil)
-	_ base.Entity = (*auth.PasswordResetToken)(nil)
-	_ base.Entity = (*auth.Permission)(nil)
-	_ base.Entity = (*auth.Role)(nil)
-	_ base.Entity = (*auth.RolePermission)(nil)
-	_ base.Entity = (*auth.Token)(nil)
+	_ base.Entity = (*authmodels.Account)(nil)
+	_ base.Entity = (*authmodels.AccountParent)(nil)
+	_ base.Entity = (*authmodels.AccountPermission)(nil)
+	_ base.Entity = (*authmodels.AccountRole)(nil)
+	_ base.Entity = (*authmodels.GuardianInvitation)(nil)
+	_ base.Entity = (*authmodels.InvitationToken)(nil)
+	_ base.Entity = (*authmodels.PasswordResetToken)(nil)
+	_ base.Entity = (*authmodels.Permission)(nil)
+	_ base.Entity = (*authmodels.Role)(nil)
+	_ base.Entity = (*authmodels.RolePermission)(nil)
+	_ base.Entity = (*authmodels.Token)(nil)
 
 	// education package
 	_ base.Entity = (*education.Group)(nil)
@@ -51,8 +51,8 @@ var (
 	_ base.Entity = (*users.GuardianProfile)(nil)
 	_ base.Entity = (*users.Person)(nil)
 	_ base.Entity = (*users.PrivacyConsent)(nil)
-	_ base.Entity = (*auth.Profile)(nil)
-	_ base.Entity = (*auth.RFIDCard)(nil)
+	_ base.Entity = (*authmodels.Profile)(nil)
+	_ base.Entity = (*authmodels.RFIDCard)(nil)
 	_ base.Entity = (*users.Staff)(nil)
 	_ base.Entity = (*users.Student)(nil)
 	_ base.Entity = (*users.StudentGuardian)(nil)

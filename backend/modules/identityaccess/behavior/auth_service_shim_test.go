@@ -3,9 +3,9 @@ package behavior_test
 import (
 	"context"
 
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 )
 
 // The behaviour suites in this directory were written against the retained

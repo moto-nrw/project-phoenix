@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 )
 
 const errPasswordsNotMatch = "passwords do not match"

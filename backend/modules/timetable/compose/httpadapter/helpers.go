@@ -9,8 +9,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 )
 
