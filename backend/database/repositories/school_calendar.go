@@ -8,6 +8,7 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -71,7 +72,7 @@ func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capabilit
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
 	if repo, ok := f.CareExitCleanup.(interface {
-		BindCalendarPeriods(usersRepo.CalendarPeriodDirectory)
+		BindCalendarPeriods(carelifecycle.CalendarPeriodDirectory)
 	}); ok {
 		repo.BindCalendarPeriods(careExitCalendarPeriods{calendar: capability})
 	}

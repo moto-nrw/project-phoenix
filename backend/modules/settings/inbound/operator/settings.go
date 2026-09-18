@@ -20,10 +20,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -77,7 +77,7 @@ type SettingsResource struct {
 	// contract so side effects apply uniformly regardless of who flipped the
 	// value; passed to the operatorSettings service on each write.
 	onValueSet    configSvc.OperatorValueSetHook
-	careLifecycle usersSvc.CareLifecycleService
+	careLifecycle carelifecycle.CareLifecycleService
 }
 
 type operatorSettingsRuntime struct{ db *bun.DB }
@@ -121,7 +121,7 @@ type SettingsConfig struct {
 	Schools SchoolLookup
 	// Active feeds the presence-mode guard. Optional: nil disables it.
 	Active        activeSvc.Service
-	CareLifecycle usersSvc.CareLifecycleService
+	CareLifecycle carelifecycle.CareLifecycleService
 	// OnValueSet runs after a setting value change is validated and
 	// persisted, inside the tenant transaction; the optional postCommit
 	// closure it returns runs only after a successful commit. It mirrors the
@@ -232,7 +232,7 @@ func (rs *SettingsResource) GetBookingAuthorityImpact(w http.ResponseWriter, r *
 		render.Render(w, r, common.OperatorInternal("Booking authority impact service is not configured")) //nolint:errcheck
 		return
 	}
-	var impact *usersSvc.BookingAuthorityImpact
+	var impact *carelifecycle.BookingAuthorityImpact
 	err := tenant.WithTenantTx(r.Context(), rs.db, schoolID, func(ctx context.Context, _ bun.Tx) error {
 		var impactErr error
 		impact, impactErr = rs.careLifecycle.PreviewBookingAuthorityImpact(ctx, timezone.TodayDate())
@@ -281,8 +281,8 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 			render.Render(w, r, common.OperatorConflict(configSvc.ErrPresenceModeSwitchBlocked.Error())) //nolint:errcheck
 			return
 		}
-		if errors.Is(err, usersSvc.ErrBookingAuthorityBlocked) {
-			render.Render(w, r, common.OperatorConflict(usersSvc.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
+		if errors.Is(err, carelifecycle.ErrBookingAuthorityBlocked) {
+			render.Render(w, r, common.OperatorConflict(carelifecycle.ErrBookingAuthorityBlocked.Error())) //nolint:errcheck
 			return
 		}
 		renderOperatorSettingsError(w, r, err)

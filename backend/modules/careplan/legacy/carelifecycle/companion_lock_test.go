@@ -1,4 +1,4 @@
-package users_test
+package carelifecycle_test
 
 // The lock protocol behind these tests: every companion writer takes student
 // rows in ascending id order, which is what keeps two people editing the same
@@ -18,30 +18,11 @@ import (
 	"time"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
-
-// holdStudentRowLock opens its own transaction, locks the student's row and
-// keeps it locked until the test ends — the stand-in for "someone else is
-// editing this child right now".
-func holdStudentRowLock(t *testing.T, db *bun.DB, studentID int64) {
-	t.Helper()
-
-	tx, err := db.BeginTx(context.Background(), nil)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = tx.Rollback() })
-
-	var locked int64
-	err = tx.NewRaw(
-		`SELECT id FROM users.students WHERE id = ? FOR UPDATE`, studentID,
-	).Scan(context.Background(), &locked)
-	require.NoError(t, err)
-	require.Equal(t, studentID, locked)
-}
 
 // TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock pins the
 // escape hatch: an id BELOW what this transaction already holds must come back
@@ -58,12 +39,12 @@ func TestStudentService_LockStudentsForUpdateBelow_RefusesDownwardLock(t *testin
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyLow", "Companion", "1a")
 
-	holdStudentRowLock(t, db, busy.ID)
+	testpkg.HoldStudentRowLock(t, db, busy.ID)
 
 	start := time.Now()
 	err := service.LockStudentsForUpdateBelow(ctx, []int64{busy.ID}, busy.ID+1)
 
-	assert.ErrorIs(t, err, usersService.ErrCompanionLockBusy)
+	assert.ErrorIs(t, err, carelifecycle.ErrCompanionLockBusy)
 	// It must REFUSE, not wait: a downward lock that blocks is the deadlock the
 	// whole protocol exists to avoid, so the refusal has to be immediate.
 	assert.Less(t, time.Since(start), 2*time.Second)
@@ -83,7 +64,7 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 
 	busy := testpkg.CreateTestStudent(t, db, "LockBusyHigh", "Companion", "1a")
 
-	holdStudentRowLock(t, db, busy.ID)
+	testpkg.HoldStudentRowLock(t, db, busy.ID)
 
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 750*time.Millisecond)
 	defer cancel()
@@ -91,7 +72,7 @@ func TestStudentService_LockStudentsForUpdateBelow_WaitsAtOrAboveBound(t *testin
 	err := service.LockStudentsForUpdateBelow(ctx, []int64{busy.ID}, busy.ID)
 
 	require.Error(t, err)
-	assert.NotErrorIs(t, err, usersService.ErrCompanionLockBusy)
+	assert.NotErrorIs(t, err, carelifecycle.ErrCompanionLockBusy)
 }
 
 // TestStudentService_LockStudentsForUpdate_TakesFreeRows guards the ordinary
@@ -140,9 +121,9 @@ func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing
 	secondSubject := testpkg.CreateTestStudent(t, db, "GraphSubjectTwo", "Companion", "1a")
 	farEnd := testpkg.CreateTestStudent(t, db, "GraphFarEnd", "Companion", "1a")
 
-	setAccompaniedDays(t, db, ctx, secondSubject.ID, "mon")
-	setAccompaniedDays(t, db, ctx, farEnd.ID, "mon")
-	conflicts, err := service.ReplaceCompanions(ctx, secondSubject.ID, usersService.CompanionUpdate{
+	testpkg.SetAccompaniedDepartureDays(t, db, ctx, secondSubject.ID, "mon")
+	testpkg.SetAccompaniedDepartureDays(t, db, ctx, farEnd.ID, "mon")
+	conflicts, err := service.ReplaceCompanions(ctx, secondSubject.ID, carelifecycle.CompanionUpdate{
 		Links: []userModels.CompanionLink{
 			{CompanionStudentID: farEnd.ID, Weekdays: []string{"mon"}},
 		},
@@ -153,13 +134,13 @@ func TestStudentService_LockCompanionGraph_CoversEverySubjectsFarEnds(t *testing
 	// Nobody holds anything: both subjects and the stored far end are free.
 	require.NoError(t, service.LockCompanionGraph(ctx, []int64{firstSubject.ID, secondSubject.ID}, nil))
 
-	holdStudentRowLock(t, db, farEnd.ID)
+	testpkg.HoldStudentRowLock(t, db, farEnd.ID)
 
 	lockCtx, cancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer cancel()
 
 	err = service.LockCompanionGraph(lockCtx, []int64{firstSubject.ID, secondSubject.ID}, nil)
 	require.Error(t, err, "the far end of the second subject must be part of the pass")
-	assert.NotErrorIs(t, err, usersService.ErrCompanionLockBusy,
+	assert.NotErrorIs(t, err, carelifecycle.ErrCompanionLockBusy,
 		"nothing is held yet at that point, so the acquisition follows the ascending order and waits")
 }

@@ -48,7 +48,7 @@ func newStaffNotesResource(db *bun.DB) *Resource {
 			StudentDirectory: repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)),
 			StudentRepo:      rf.Student,
 		}),
-		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), rf.Student, rf.StudentCompanion, nil),
+		StudentService:          usersSvc.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), rf.Student),
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),
 		DB:                      db,

@@ -2,10 +2,10 @@ package repositories
 
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/uptrace/bun"
@@ -34,7 +34,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 		return CareLifecycleTestRepositories{}, err
 	}
 	r := &Factory{db: db,
-		CareExit: usersRepo.NewCareExitRepository(db), CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: tt.Timetable}, newStudentPresence(db)),
+		CareExit: carelifecycle.NewCareExitRepository(db), CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: tt.Timetable}, newStudentPresence(db)),
 		CareWithdrawal: newCareWithdrawalCompletionRepository(
 			func() careplan.Capability { return care }, func() peopledirectory.StudentQuery { return people }),
 	}
@@ -46,7 +46,7 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	}
 	r.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), tt.Timetable))
 	r.bindCarePlanAdapters(care)
-	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: tt.Timetable})
+	r.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: tt.Timetable})
 	return CareLifecycleTestRepositories{TimetableTestRepositories: tt, CareExit: r.CareExit, CareExitCleanup: r.CareExitCleanup,
 		CareWithdrawal: r.CareWithdrawal, TagReleaser: NewStudentTagReleaser(people),
 		StudentFieldEdit: studentFieldEditCommand{auditRepo.NewStudentFieldEditRepository(newTestAuditRuntime(db)), command}}, nil

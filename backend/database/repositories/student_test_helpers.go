@@ -8,6 +8,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -44,7 +45,7 @@ type StudentTestRepositories struct {
 }
 
 func (r StudentTestRepositories) BindTimetable(capability timetable.Capability) {
-	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: capability})
+	r.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: capability})
 }
 
 func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (StudentTestRepositories, error) {
@@ -83,7 +84,7 @@ func NewStudentTestRepositories(db *bun.DB, command auditModels.Command) (Studen
 	r.BindPeopleDirectory(people)
 	r.bindCarePlanAdapters(care)
 	r.BindAppointments(appointments)
-	r.CareExitCleanup.(*usersRepo.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: enrollment.Timetable})
+	r.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: enrollment.Timetable})
 	r.RouteAuditWrites(command)
 	return StudentTestRepositories{
 		CarePlan:                     care,

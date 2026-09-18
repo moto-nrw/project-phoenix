@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -151,10 +152,10 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.StudentDocument = carePlanLegacy.NewCareDocumentRepository(capability)
 	f.bindCarePlanAuditDirectory()
 
-	if repository, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {
+	if repository, ok := f.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository); ok {
 		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
 	}
-	if repository, ok := f.CareExit.(*usersRepo.CareExitRepository); ok {
+	if repository, ok := f.CareExit.(*carelifecycle.CareExitRepository); ok {
 		repository.BindCarePlan(careExitDirectory{capability: capability})
 	}
 	if repository, ok := f.InstanceStudent.(interface {
@@ -288,14 +289,14 @@ func (d auditCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]audit.
 
 type careExitCarePlanDirectory struct{ capability careplan.Capability }
 
-func (d careExitCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]usersRepo.CareOfferingProjection, error) {
+func (d careExitCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]carelifecycle.CareOfferingProjection, error) {
 	values, err := d.capability.ListCareOfferings(ctx, careplan.CareOfferingFilter{Order: careplan.OfferingOrderID})
 	if err != nil {
 		return nil, err
 	}
-	result := make([]usersRepo.CareOfferingProjection, 0, len(values))
+	result := make([]carelifecycle.CareOfferingProjection, 0, len(values))
 	for _, value := range values {
-		result = append(result, usersRepo.CareOfferingProjection{
+		result = append(result, carelifecycle.CareOfferingProjection{
 			ID: value.ID, TenantID: value.TenantID, Name: value.Name,
 			DaysOfWeekMode: value.DaysOfWeekMode, AvailableDays: value.AvailableDays,
 			CountsAsCare: value.CountsAsCare, SortOrder: value.SortOrder,
@@ -311,7 +312,7 @@ func (d careExitCarePlanDirectory) LockCareOfferings(ctx context.Context, ids []
 	return err
 }
 
-func (d careExitCarePlanDirectory) ListPendingOfferingChanges(ctx context.Context, studentIDs []int64, lock bool) ([]usersRepo.PendingOfferingChange, error) {
+func (d careExitCarePlanDirectory) ListPendingOfferingChanges(ctx context.Context, studentIDs []int64, lock bool) ([]carelifecycle.PendingOfferingChange, error) {
 	values, err := d.capability.ListOfferingChanges(ctx, careplan.OfferingChangeFilter{
 		StudentIDs: studentIDs, Statuses: []string{careplan.OfferingChangePending},
 		LockForUpdate: lock, Order: careplan.ChangeOrderCreated,
@@ -319,9 +320,9 @@ func (d careExitCarePlanDirectory) ListPendingOfferingChanges(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
-	result := make([]usersRepo.PendingOfferingChange, 0, len(values))
+	result := make([]carelifecycle.PendingOfferingChange, 0, len(values))
 	for _, value := range values {
-		result = append(result, usersRepo.PendingOfferingChange{StudentID: value.StudentID})
+		result = append(result, carelifecycle.PendingOfferingChange{StudentID: value.StudentID})
 	}
 	return result, nil
 }
@@ -330,26 +331,26 @@ func (d careExitCarePlanDirectory) ClosePendingOfferingChanges(ctx context.Conte
 	return d.capability.ClosePendingOfferingChanges(ctx, studentIDs, reason, reviewedBy, at)
 }
 
-func (d careExitCarePlanDirectory) ListCareExitRemovals(ctx context.Context, studentIDs []int64) ([]usersRepo.CareExitRemoval, error) {
+func (d careExitCarePlanDirectory) ListCareExitRemovals(ctx context.Context, studentIDs []int64) ([]carelifecycle.CareExitRemoval, error) {
 	values, err := d.capability.ListCareExitRemovals(ctx, studentIDs)
-	return convertCareExitRecords[[]careplan.CareExitRemoval, []usersRepo.CareExitRemoval](values, err)
+	return convertCareExitRecords[[]careplan.CareExitRemoval, []carelifecycle.CareExitRemoval](values, err)
 }
 
-func (d careExitCarePlanDirectory) ListCareExitSourceRemovals(ctx context.Context, studentIDs []int64) ([]usersRepo.CareExitSourceRemoval, error) {
+func (d careExitCarePlanDirectory) ListCareExitSourceRemovals(ctx context.Context, studentIDs []int64) ([]carelifecycle.CareExitSourceRemoval, error) {
 	values, err := d.capability.ListCareExitSourceRemovals(ctx, studentIDs)
-	return convertCareExitRecords[[]careplan.CareExitSourceRemoval, []usersRepo.CareExitSourceRemoval](values, err)
+	return convertCareExitRecords[[]careplan.CareExitSourceRemoval, []carelifecycle.CareExitSourceRemoval](values, err)
 }
 
-func (d careExitCarePlanDirectory) RecordCareExitRemovals(ctx context.Context, values []usersRepo.CareExitRemoval) error {
-	converted, err := convertCareExitRecords[[]usersRepo.CareExitRemoval, []careplan.CareExitRemoval](values, nil)
+func (d careExitCarePlanDirectory) RecordCareExitRemovals(ctx context.Context, values []carelifecycle.CareExitRemoval) error {
+	converted, err := convertCareExitRecords[[]carelifecycle.CareExitRemoval, []careplan.CareExitRemoval](values, nil)
 	if err != nil {
 		return err
 	}
 	return d.capability.RecordCareExitRemovals(ctx, converted)
 }
 
-func (d careExitCarePlanDirectory) RecordCareExitSourceRemovals(ctx context.Context, values []usersRepo.CareExitSourceRemoval) error {
-	converted, err := convertCareExitRecords[[]usersRepo.CareExitSourceRemoval, []careplan.CareExitSourceRemoval](values, nil)
+func (d careExitCarePlanDirectory) RecordCareExitSourceRemovals(ctx context.Context, values []carelifecycle.CareExitSourceRemoval) error {
+	converted, err := convertCareExitRecords[[]carelifecycle.CareExitSourceRemoval, []careplan.CareExitSourceRemoval](values, nil)
 	if err != nil {
 		return err
 	}
@@ -450,14 +451,14 @@ func (d careExitCarePlanDirectory) LockOpenCareRequests(ctx context.Context, stu
 	return d.capability.LockOpenCareRequests(ctx, studentIDs)
 }
 
-func (d careExitCarePlanDirectory) ListCareWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]usersRepo.CareWithdrawalCompletionKey, error) {
+func (d careExitCarePlanDirectory) ListCareWithdrawalCompletionKeys(ctx context.Context, studentIDs []int64) ([]carelifecycle.CareWithdrawalCompletionKey, error) {
 	values, err := d.capability.ListWithdrawalCompletionKeys(ctx, studentIDs)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]usersRepo.CareWithdrawalCompletionKey, 0, len(values))
+	result := make([]carelifecycle.CareWithdrawalCompletionKey, 0, len(values))
 	for _, value := range values {
-		result = append(result, usersRepo.CareWithdrawalCompletionKey{
+		result = append(result, carelifecycle.CareWithdrawalCompletionKey{
 			StudentID: value.StudentID, FirstBookinglessDay: carePlanLegacy.ScheduleDate(value.FirstBookinglessDay),
 		})
 	}

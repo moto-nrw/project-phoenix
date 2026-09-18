@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -104,6 +105,11 @@ type ResourceConfig struct {
 	SchoolService   SchoolDirectory
 	SettingsService configService.SettingsService
 	StudentService  userService.StudentService
+	// CompanionService is the Care Plan "läuft mit" graph (#3350): the links
+	// themselves and the lock protocol every writer of them shares. It is a
+	// second field rather than part of StudentService because the two halves
+	// of the child record have different owners.
+	CompanionService carelifecycle.StudentCompanionService
 	// ClassListEntries supplies the class-list-only entries (#2382) the
 	// "Klassenliste" export merges into the Klassenverband, read through
 	// their School Membership owner in the display order the export needs.
@@ -116,7 +122,7 @@ type ResourceConfig struct {
 	StudentDeletion *studentdeletion.Workflow
 	// CareLifecycleService backs "Betreuung beenden" (#2487) — the regular
 	// exit, which is deliberately NOT a deletion.
-	CareLifecycleService    userService.CareLifecycleService
+	CareLifecycleService    carelifecycle.CareLifecycleService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      careschedule.CareScheduleRequestService
@@ -179,7 +185,7 @@ type ResourceConfig struct {
 	// second path.
 	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
-	StudentDocumentService userService.StudentDocumentService
+	StudentDocumentService carelifecycle.StudentDocumentService
 	ListExportService      *listexport.RendererService
 	Logger                 *slog.Logger
 	Now                    func() time.Time

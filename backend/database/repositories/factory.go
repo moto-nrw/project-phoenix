@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -548,8 +549,8 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		Person:              personRepo,
 		RFIDCard:            auth.NewRFIDCardRepository(db),
 		Student:             studentRepo,
-		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
+		CareExit:            carelifecycle.NewCareExitRepository(db),
+		CareExitCleanup:     carelifecycle.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
 		Profile:             auth.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below

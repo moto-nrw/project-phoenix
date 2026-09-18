@@ -1,4 +1,4 @@
-package users_test
+package carelifecycle_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 
 	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -25,12 +26,12 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userService.CareLifecycleService {
+func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) carelifecycle.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
+	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
 		TagReleaser:           repos.StudentTagReleaser(),
@@ -41,12 +42,12 @@ func bookingAuthorityService(t *testing.T, db *bun.DB, authoritative bool) userS
 	})
 }
 
-func lockedBookingAuthorityService(t *testing.T, db *bun.DB) userService.CareLifecycleService {
+func lockedBookingAuthorityService(t *testing.T, db *bun.DB) carelifecycle.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
+	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person, CareExitRepo: repos.CareExit,
 		CleanupRepo: repos.CareExitCleanup, WithdrawalRepo: repos.CareWithdrawal,
 		TagReleaser:  repos.StudentTagReleaser(),
@@ -178,7 +179,7 @@ func TestBookingAuthorityImpactAndActivationUseTheSameEvaluation(t *testing.T) {
 	assert.Equal(t, fmt.Sprintf("%d", planned.ID), impact.PlannedCompletions[0].StudentID)
 
 	_, err = svc.ApplyBookingAuthoritySetting(ctx, today, true)
-	require.ErrorIs(t, err, userService.ErrBookingAuthorityBlocked)
+	require.ErrorIs(t, err, carelifecycle.ErrBookingAuthorityBlocked)
 	rows, total, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	assert.Zero(t, total)

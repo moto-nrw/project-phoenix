@@ -41,7 +41,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("updates while the row still holds the expected status", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasPending", "Lifecycle", "1a")
-		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		updated, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)
@@ -54,7 +54,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasAlumnus", "Lifecycle", "4a")
 		// The tick selected this row as active; a grade transition graduated it
 		// before the update landed.
-		setLifecycle(t, db, student.ID, users.StudentStatusAlumnus, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusAlumnus, nil, nil)
 
 		updated, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusActive, users.StudentStatusInactive)
@@ -66,7 +66,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("second run is a no-op, not an error", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasIdempotent", "Lifecycle", "1a")
-		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		first, err := repo.TransitionStatus(ctx, student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)
@@ -81,7 +81,7 @@ func TestStudentRepository_TransitionStatus_GraduationRaces(t *testing.T) {
 
 	t.Run("does not write across tenants", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "CasTenant", "Lifecycle", "1a")
-		setLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
+		testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusPending, nil, nil)
 
 		updated, err := repo.TransitionStatus(testpkg.TenantContext(2), student.ID,
 			users.StudentStatusPending, users.StudentStatusActive)

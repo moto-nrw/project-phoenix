@@ -4,7 +4,7 @@
 // confirmation is all-or-nothing and only valid for the exact state the
 // preview described, another tenant's child is invisible, and everything that
 // happened before the exit stays untouched.
-package users_test
+package carelifecycle_test
 
 import (
 	"context"
@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -35,11 +36,11 @@ func careActor(t *testing.T, db *bun.DB) int64 {
 	return testpkg.CreateTestAccount(t, db, "care-actor").ID
 }
 
-func newCareLifecycleService(t *testing.T, db *bun.DB) userService.CareLifecycleService {
+func newCareLifecycleService(t *testing.T, db *bun.DB) carelifecycle.CareLifecycleService {
 	return newCareLifecycleServiceWithLockAt(t, db, nil, nil)
 }
 
-func newCareLifecycleServiceAt(t *testing.T, db *bun.DB, today timezone.Date) userService.CareLifecycleService {
+func newCareLifecycleServiceAt(t *testing.T, db *bun.DB, today timezone.Date) carelifecycle.CareLifecycleService {
 	return newCareLifecycleServiceWithLockAt(t, db, nil, func() timezone.Date { return today })
 }
 
@@ -48,12 +49,12 @@ func newCareLifecycleServiceWithLockAt(
 	db *bun.DB,
 	lockCareBookingWrites func(context.Context) error,
 	today func() timezone.Date,
-) userService.CareLifecycleService {
+) carelifecycle.CareLifecycleService {
 	t.Helper()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := repositories.NewFactoryWithPeopleDirectory(db, repositories.NewUnobservedTimetableDependencies(db))
 	require.NoError(t, err)
-	return userService.NewCareLifecycleService(userService.CareLifecycleDependencies{
+	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo:           repos.Student,
 		PersonRepo:            repos.Person,
 		CareExitRepo:          repos.CareExit,
@@ -74,10 +75,10 @@ func newCareLifecycleServiceWithLockAt(
 func endCare(
 	t *testing.T,
 	ctx context.Context,
-	svc userService.CareLifecycleService,
+	svc carelifecycle.CareLifecycleService,
 	actorID int64,
-	input userService.CareExitInput,
-) *userService.CareExitResult {
+	input carelifecycle.CareExitInput,
+) *carelifecycle.CareExitResult {
 	t.Helper()
 	preview, err := svc.Preview(ctx, input)
 	require.NoError(t, err)
@@ -108,7 +109,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: timezone.TodayDate(),
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -137,7 +138,7 @@ func TestCareLifecycle_LastCareDayIsInclusive(t *testing.T) {
 	actorID := careActor(t, db)
 
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Bergmann", "2a")
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -163,12 +164,12 @@ func TestCareLifecycle_RefusesRetroactiveExit(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, db, "Jonas", "Bergmann", "2a")
 
-	_, err := svc.Preview(ctx, userService.CareExitInput{
+	_, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: timezone.TodayDate().AddDays(-1),
 		Reason:      userModels.CareExitReasonNoCareNeed,
 	})
-	require.ErrorIs(t, err, userService.ErrCareExitDayInPast)
+	require.ErrorIs(t, err, carelifecycle.ErrCareExitDayInPast)
 }
 
 func TestCareLifecycle_ReasonNotePairing(t *testing.T) {
@@ -182,7 +183,7 @@ func TestCareLifecycle_ReasonNotePairing(t *testing.T) {
 	today := timezone.TodayDate()
 
 	t.Run("other requires a note", func(t *testing.T) {
-		_, err := svc.Preview(ctx, userService.CareExitInput{
+		_, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 			StudentIDs:  []int64{student.ID},
 			LastCareDay: today,
 			Reason:      userModels.CareExitReasonOther,
@@ -191,7 +192,7 @@ func TestCareLifecycle_ReasonNotePairing(t *testing.T) {
 	})
 
 	t.Run("a categorised reason refuses a note", func(t *testing.T) {
-		_, err := svc.Preview(ctx, userService.CareExitInput{
+		_, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 			StudentIDs:  []int64{student.ID},
 			LastCareDay: today,
 			Reason:      userModels.CareExitReasonMovedAway,
@@ -201,7 +202,7 @@ func TestCareLifecycle_ReasonNotePairing(t *testing.T) {
 	})
 
 	t.Run("an unknown reason is refused", func(t *testing.T) {
-		_, err := svc.Preview(ctx, userService.CareExitInput{
+		_, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 			StudentIDs:  []int64{student.ID},
 			LastCareDay: today,
 			Reason:      "weggezogen",
@@ -221,7 +222,7 @@ func TestCareLifecycle_ConfirmRefusesStalePreview(t *testing.T) {
 	first := testpkg.CreateTestStudent(t, db, "Ida", "Kramer", "3a")
 	second := testpkg.CreateTestStudent(t, db, "Tom", "Kramer", "3a")
 	today := timezone.TodayDate()
-	input := userService.CareExitInput{
+	input := carelifecycle.CareExitInput{
 		StudentIDs:  []int64{first.ID, second.ID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonNoCareNeed,
@@ -240,7 +241,7 @@ func TestCareLifecycle_ConfirmRefusesStalePreview(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.Confirm(ctx, preview.Token, input, actorID)
-	require.ErrorIs(t, err, userService.ErrCareExitPreviewChanged)
+	require.ErrorIs(t, err, carelifecycle.ErrCareExitPreviewChanged)
 
 	// Nothing at all was written — not even for the untouched child.
 	for _, id := range []int64{first.ID, second.ID} {
@@ -267,7 +268,7 @@ func TestCareLifecycle_BlockedChildStopsTheWholeAction(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	input := userService.CareExitInput{
+	input := carelifecycle.CareExitInput{
 		StudentIDs:  []int64{fine.ID, graduated.ID},
 		LastCareDay: timezone.TodayDate(),
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -285,7 +286,7 @@ func TestCareLifecycle_BlockedChildStopsTheWholeAction(t *testing.T) {
 	assert.NotEmpty(t, blocked[graduated.ID], "the graduate is named with a reason")
 
 	_, err = svc.Confirm(ctx, preview.Token, input, actorID)
-	require.ErrorIs(t, err, userService.ErrCareExitBlocked)
+	require.ErrorIs(t, err, carelifecycle.ErrCareExitBlocked)
 	assert.Nil(t, loadStudent(t, db, ctx, fine.ID).EnrolledUntil,
 		"one blocked child stops the whole action")
 }
@@ -300,7 +301,7 @@ func TestCareLifecycle_TenantIsolation(t *testing.T) {
 	otherTenantID, _ := testpkg.CreateTestTenant(t, db)
 	foreign := testpkg.CreateTestStudentForTenant(t, db, otherTenantID, "Fremd", "Kind", "1a")
 
-	preview, err := svc.Preview(ctx, userService.CareExitInput{
+	preview, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{foreign.ID},
 		LastCareDay: timezone.TodayDate(),
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -337,7 +338,7 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 	booking.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, booking))
 
-	preview, err := svc.Preview(ctx, userService.CareExitInput{
+	preview, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonNoCareNeed,
@@ -347,7 +348,7 @@ func TestCareLifecycle_EndsBookingsAtTheLastCareDay(t *testing.T) {
 	assert.Equal(t, 1, preview.Students[0].ActivityBookings,
 		"the preview names the booking before it ends it")
 
-	result, err := svc.Confirm(ctx, preview.Token, userService.CareExitInput{
+	result, err := svc.Confirm(ctx, preview.Token, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonNoCareNeed,
@@ -377,7 +378,7 @@ func TestCareLifecycle_CancelOnlyBeforeItTakesEffect(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Ruben", "Hesse", "3c")
 	future := timezone.TodayDate().AddDays(14)
 
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: future,
 		Reason:      userModels.CareExitReasonOther,
@@ -397,7 +398,7 @@ func TestCareLifecycle_CancelOnlyBeforeItTakesEffect(t *testing.T) {
 
 	// A second cancel has nothing to withdraw.
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
-	require.ErrorIs(t, err, userService.ErrCareExitNotPlanned)
+	require.ErrorIs(t, err, carelifecycle.ErrCareExitNotPlanned)
 }
 
 func TestCareLifecycle_CancelRefusesOrdinaryEnrollmentEnd(t *testing.T) {
@@ -418,7 +419,7 @@ func TestCareLifecycle_CancelRefusesOrdinaryEnrollmentEnd(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
-	require.ErrorIs(t, err, userService.ErrCareExitNotPlanned)
+	require.ErrorIs(t, err, carelifecycle.ErrCareExitNotPlanned)
 	stored := loadStudent(t, db, ctx, student.ID)
 	require.NotNil(t, stored.EnrolledUntil)
 	assert.Equal(t, ordinaryEnd, *stored.EnrolledUntil)
@@ -435,7 +436,7 @@ func TestCareLifecycle_CancelRestoresPreviousEnrollmentEnd(t *testing.T) {
 	previousEnd := today.AddDays(40)
 	_, err := db.NewUpdate().TableExpr("users.students").Set("enrolled_until = ?", previousEnd).Where("id = ?", student.ID).Exec(ctx)
 	require.NoError(t, err)
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{StudentIDs: []int64{student.ID}, LastCareDay: today.AddDays(10), Reason: userModels.CareExitReasonMovedAway})
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{StudentIDs: []int64{student.ID}, LastCareDay: today.AddDays(10), Reason: userModels.CareExitReasonMovedAway})
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
 	require.NoError(t, err)
 	stored := loadStudent(t, db, ctx, student.ID)
@@ -468,7 +469,7 @@ func TestCareLifecycle_CancelRefusedAfterItTookEffect(t *testing.T) {
 	}))
 
 	_, err = svc.Cancel(ctx, []int64{student.ID}, actorID)
-	require.ErrorIs(t, err, userService.ErrCareExitAlreadyEffective)
+	require.ErrorIs(t, err, carelifecycle.ErrCareExitAlreadyEffective)
 }
 
 func TestCareLifecycle_Resume(t *testing.T) {
@@ -496,27 +497,27 @@ func TestCareLifecycle_Resume(t *testing.T) {
 	}))
 
 	t.Run("refuses without the explicit review", func(t *testing.T) {
-		err := svc.Resume(ctx, userService.CareResumeInput{
+		err := svc.Resume(ctx, carelifecycle.CareResumeInput{
 			StudentID:      student.ID,
 			NewStart:       timezone.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
 			Checked:        false,
 		})
-		require.ErrorIs(t, err, userService.ErrCareResumeNotChecked)
+		require.ErrorIs(t, err, carelifecycle.ErrCareResumeNotChecked)
 	})
 
 	t.Run("refuses a start in the past", func(t *testing.T) {
-		err := svc.Resume(ctx, userService.CareResumeInput{
+		err := svc.Resume(ctx, carelifecycle.CareResumeInput{
 			StudentID:      student.ID,
 			NewStart:       yesterday,
 			ActorAccountID: actorID,
 			Checked:        true,
 		})
-		require.ErrorIs(t, err, userService.ErrCareResumeStartInPast)
+		require.ErrorIs(t, err, carelifecycle.ErrCareResumeStartInPast)
 	})
 
 	t.Run("reopens the care from the new start", func(t *testing.T) {
-		require.NoError(t, svc.Resume(ctx, userService.CareResumeInput{
+		require.NoError(t, svc.Resume(ctx, carelifecycle.CareResumeInput{
 			StudentID:      student.ID,
 			NewStart:       timezone.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
@@ -533,13 +534,13 @@ func TestCareLifecycle_Resume(t *testing.T) {
 
 	t.Run("refuses a child whose care is running", func(t *testing.T) {
 		running := testpkg.CreateTestStudent(t, db, "Noah", "Lorenz", "1c")
-		err := svc.Resume(ctx, userService.CareResumeInput{
+		err := svc.Resume(ctx, carelifecycle.CareResumeInput{
 			StudentID:      running.ID,
 			NewStart:       timezone.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
 			Checked:        true,
 		})
-		require.ErrorIs(t, err, userService.ErrCareResumeNotEnded)
+		require.ErrorIs(t, err, carelifecycle.ErrCareResumeNotEnded)
 	})
 
 	t.Run("refuses an enrollment that ended without a recorded care exit", func(t *testing.T) {
@@ -552,13 +553,13 @@ func TestCareLifecycle_Resume(t *testing.T) {
 			Exec(context.Background())
 		require.NoError(t, err)
 
-		err = svc.Resume(ctx, userService.CareResumeInput{
+		err = svc.Resume(ctx, carelifecycle.CareResumeInput{
 			StudentID:      naturalEnd.ID,
 			NewStart:       timezone.NewDate(2026, 8, 24),
 			ActorAccountID: actorID,
 			Checked:        true,
 		})
-		require.ErrorIs(t, err, userService.ErrCareResumeMissing)
+		require.ErrorIs(t, err, carelifecycle.ErrCareResumeMissing)
 	})
 }
 
@@ -585,7 +586,7 @@ func TestCareLifecycle_ResumeForAFutureStartWaitsForTheScheduler(t *testing.T) {
 	}))
 
 	start := timezone.TodayDate().AddDays(10)
-	require.NoError(t, svc.Resume(ctx, userService.CareResumeInput{
+	require.NoError(t, svc.Resume(ctx, carelifecycle.CareResumeInput{
 		StudentID:      student.ID,
 		NewStart:       start,
 		ActorAccountID: actorID,
@@ -708,7 +709,7 @@ func TestCareLifecycle_CancelPutsThePlanBack(t *testing.T) {
 	require.NoError(t, repos.StudentEnrollment.Create(ctx, futureOnly))
 	futureOnlyID := futureOnly.ID
 
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today.AddDays(14),
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -799,7 +800,7 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, db, late.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 
 	// First decision: the child leaves in five days. Both blocks go.
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today.AddDays(5),
 		Reason:      userModels.CareExitReasonNoCareNeed,
@@ -810,7 +811,7 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 
 	// Correction: they stay until day 20 after all.
 	newLastDay := today.AddDays(20)
-	preview, err := svc.Preview(ctx, userService.CareExitInput{
+	preview, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: newLastDay,
 		Reason:      userModels.CareExitReasonNoCareNeed,
@@ -821,7 +822,7 @@ func TestCareLifecycle_ChangingTheDayReplansFromTheBaseline(t *testing.T) {
 		"the preview counts the baseline: only the block after the NEW day is lost")
 	require.NotNil(t, preview.Students[0].PlannedEndsOn)
 
-	_, err = svc.Confirm(ctx, preview.Token, userService.CareExitInput{
+	_, err = svc.Confirm(ctx, preview.Token, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: newLastDay,
 		Reason:      userModels.CareExitReasonNoCareNeed,
@@ -863,7 +864,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 		testpkg.ActivityInstanceOpts{ActivityGroupID: &group.ID})
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -877,7 +878,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	require.NoError(t, svc.Resume(ctx, userService.CareResumeInput{
+	require.NoError(t, svc.Resume(ctx, carelifecycle.CareResumeInput{
 		StudentID:      student.ID,
 		NewStart:       today,
 		ActorAccountID: actorID,
@@ -889,7 +890,7 @@ func TestCareLifecycle_ResumeDoesNotBringThePlanBack(t *testing.T) {
 	assert.Empty(t, rows, "the old plan stays off — the school sets it up again")
 
 	// And the ledger is gone, so a later exit cannot resurrect it either.
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today.AddDays(3),
 		Reason:      userModels.CareExitReasonNoCareNeed,

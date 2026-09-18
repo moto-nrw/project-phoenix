@@ -1,4 +1,4 @@
-package users_test
+package carelifecycle_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +24,7 @@ import (
 
 type studentDocumentScenario struct {
 	db        *bun.DB
-	svc       usersSvc.StudentDocumentService
+	svc       carelifecycle.StudentDocumentService
 	ctx       context.Context
 	studentID int64
 	account   int64
@@ -57,11 +57,11 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	student := testpkg.CreateTestStudent(t, db, "Dokumente", fmt.Sprintf("Kind-%d", suffix), "1a")
 	// The child sits in a group so the fixture keeps modelling the ordinary
 	// case; since #2329 the group no longer takes part in the access decision.
-	assignStudentGroup(t, db, student.ID, group.ID)
+	testpkg.AssignStudentGroup(t, db, student.ID, group.ID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("kind-dokumente-%d@example.test", suffix))
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	svc := usersSvc.NewStudentDocumentService(
+	svc := carelifecycle.NewStudentDocumentService(
 		db,
 		repos.StudentDocument,
 		repos.Student,
@@ -81,8 +81,8 @@ func newStudentDocumentScenario(t *testing.T) *studentDocumentScenario {
 	}
 }
 
-func (s *studentDocumentScenario) actor(perms ...string) usersSvc.StudentDocumentActor {
-	return usersSvc.StudentDocumentActor{
+func (s *studentDocumentScenario) actor(perms ...string) carelifecycle.StudentDocumentActor {
+	return carelifecycle.StudentDocumentActor{
 		AccountID:   s.account,
 		Name:        "Test Person",
 		Role:        "test",
@@ -93,7 +93,7 @@ func (s *studentDocumentScenario) actor(perms ...string) usersSvc.StudentDocumen
 // create mirrors what the upload handler does, intent first. Skipping that
 // step in tests hides the whole class of bug where a later re-queue collides
 // with the settled intent this leaves behind.
-func (s *studentDocumentScenario) create(t *testing.T, category string, actor usersSvc.StudentDocumentActor) *userModels.StudentDocument {
+func (s *studentDocumentScenario) create(t *testing.T, category string, actor carelifecycle.StudentDocumentActor) *userModels.StudentDocument {
 	t.Helper()
 	input := s.input(category)
 	require.NoError(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, input.FilenameStored))
@@ -102,8 +102,8 @@ func (s *studentDocumentScenario) create(t *testing.T, category string, actor us
 	return doc
 }
 
-func (s *studentDocumentScenario) input(category string) usersSvc.CreateStudentDocumentInput {
-	return usersSvc.CreateStudentDocumentInput{
+func (s *studentDocumentScenario) input(category string) carelifecycle.CreateStudentDocumentInput {
+	return carelifecycle.CreateStudentDocumentInput{
 		StudentID:       s.studentID,
 		Category:        category,
 		FilenameDisplay: category + "-datei.pdf",
@@ -164,17 +164,17 @@ func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
 	// The office covers the everyday paperwork only.
 	s.create(t, userModels.StudentDocumentCategoryBetreuungsvertrag, office)
 	_, err := s.svc.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategoryAttest), office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 	_, err = s.svc.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategorySorgerecht), office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 
 	// The dedicated permissions cover exactly their tier and nothing else.
 	attest := s.create(t, userModels.StudentDocumentCategoryAttest, health)
 	sorgerecht := s.create(t, userModels.StudentDocumentCategorySorgerecht, legal)
 	_, err = s.svc.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategorySorgerecht), health)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 	_, err = s.svc.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategoryImpfnachweis), legal)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 
 	// List visibility follows the same mapping — a health document must not
 	// even appear in the office's list.
@@ -205,7 +205,7 @@ func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
 	// A category filter outside the caller's authority is refused; inside it
 	// narrows.
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, s.studentID, userModels.StudentDocumentCategoryAttest, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 	docs, _, err = s.svc.ListStudentDocuments(s.ctx, s.studentID, userModels.StudentDocumentCategoryAttest, health)
 	require.NoError(t, err)
 	require.Len(t, docs, 1)
@@ -214,7 +214,7 @@ func TestStudentDocumentService_CategoryAuthority(t *testing.T) {
 	// Deleting across the tier boundary is refused too — a 403 on upload would
 	// be worthless if delete were open.
 	_, err = s.svc.DeleteStudentDocument(s.ctx, s.studentID, sorgerecht.ID, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 }
 
 func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
@@ -232,7 +232,7 @@ func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
 
 	// Foreign permissions never reach the bytes.
 	_, err := s.svc.ResolveStudentDocumentDownload(s.ctx, s.studentID, attest.ID, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 
 	// An ordinary category is served without an access-log row.
 	_, err = s.svc.ResolveStudentDocumentDownload(s.ctx, s.studentID, everyday.ID, office)
@@ -334,7 +334,7 @@ func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 
 	// Same permissions, but no staff record in the tenant.
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	outsider := usersSvc.NewStudentDocumentService(
+	outsider := carelifecycle.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
 		repos.Student,
@@ -348,16 +348,16 @@ func TestStudentDocumentService_NonStaffCallerIsUnreachable(t *testing.T) {
 	doc := s.create(t, userModels.StudentDocumentCategoryBetreuungsvertrag, office)
 
 	_, _, err := outsider.ListStudentDocuments(s.ctx, s.studentID, "", office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentNoAccess)
 
 	_, err = outsider.ResolveStudentDocumentDownload(s.ctx, s.studentID, doc.ID, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentNoAccess)
 
 	_, err = outsider.DeleteStudentDocument(s.ctx, s.studentID, doc.ID, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentNoAccess)
 
 	_, err = outsider.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategorySonstiges), office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentNoAccess)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentNoAccess)
 
 	// The document is untouched: the refusals are refusals, not silent no-ops.
 	docs, _, err := s.svc.ListStudentDocuments(s.ctx, s.studentID, "", office)
@@ -402,11 +402,11 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 
 	// The office permission covers the contract but not the medical note.
 	office := []string{"users:update"}
-	assert.True(t, usersSvc.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategoryBetreuungsvertrag, office))
-	assert.False(t, usersSvc.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategoryAttest, office))
-	assert.False(t, usersSvc.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategorySorgerecht, office))
-	assert.False(t, usersSvc.CanSeeEveryStudentDocumentCategory(office))
-	assert.True(t, usersSvc.CanSeeEveryStudentDocumentCategory([]string{"admin:*"}))
+	assert.True(t, carelifecycle.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategoryBetreuungsvertrag, office))
+	assert.False(t, carelifecycle.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategoryAttest, office))
+	assert.False(t, carelifecycle.CanSeeStudentDocumentCategory(userModels.StudentDocumentCategorySorgerecht, office))
+	assert.False(t, carelifecycle.CanSeeEveryStudentDocumentCategory(office))
+	assert.True(t, carelifecycle.CanSeeEveryStudentDocumentCategory([]string{"admin:*"}))
 }
 
 // TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail pins the rule
@@ -419,7 +419,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 
 	s := newStudentDocumentScenario(t)
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	unaudited := usersSvc.NewStudentDocumentService(
+	unaudited := carelifecycle.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
 		repos.Student,
@@ -446,7 +446,7 @@ func TestStudentDocumentService_RefusesToWriteWithoutAnAuditTrail(t *testing.T) 
 
 	// The same holds for a sensitive download without a data-access log: no
 	// row, no file.
-	unlogged := usersSvc.NewStudentDocumentService(
+	unlogged := carelifecycle.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
 		repos.Student,
@@ -475,7 +475,7 @@ func TestStudentDocumentService_RequiresAnActingAccount(t *testing.T) {
 
 	s := newStudentDocumentScenario(t)
 	office := s.actor("users:update")
-	anonymous := usersSvc.StudentDocumentActor{Permissions: []string{"admin:*"}}
+	anonymous := carelifecycle.StudentDocumentActor{Permissions: []string{"admin:*"}}
 
 	_, err := s.svc.CreateStudentDocument(s.ctx, s.input(userModels.StudentDocumentCategorySonstiges), anonymous)
 	require.Error(t, err)
@@ -510,28 +510,28 @@ func TestStudentDocumentService_RejectsMalformedInput(t *testing.T) {
 	unknown := s.input(userModels.StudentDocumentCategorySonstiges)
 	unknown.Category = "erfundene_kategorie"
 	_, err := s.svc.CreateStudentDocument(s.ctx, unknown, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentInvalid)
 
 	blank := s.input(userModels.StudentDocumentCategorySonstiges)
 	blank.FilenameDisplay = "   "
 	_, err = s.svc.CreateStudentDocument(s.ctx, blank, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentInvalid)
 
 	// Passes the input checks but fails the model's own validation, which is
 	// the last guard before the insert.
 	nameless := s.input(userModels.StudentDocumentCategorySonstiges)
 	nameless.FilenameStored = ""
 	_, err = s.svc.CreateStudentDocument(s.ctx, nameless, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentInvalid)
 
 	// The list filter validates its category too, before it decides whether the
 	// caller may see it.
 	_, _, err = s.svc.ListStudentDocuments(s.ctx, s.studentID, "erfundene_kategorie", office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentInvalid)
 
 	// A cleanup intent needs both halves or it can never be acted on.
-	require.ErrorIs(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, 0, "x.pdf"), usersSvc.ErrStudentDocumentInvalid)
-	require.ErrorIs(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, "  "), usersSvc.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, 0, "x.pdf"), carelifecycle.ErrStudentDocumentInvalid)
+	require.ErrorIs(t, s.svc.QueueStudentDocumentFileCleanup(s.ctx, s.studentID, "  "), carelifecycle.ErrStudentDocumentInvalid)
 
 	// None of it reached the table.
 	docs, _, err := s.svc.ListStudentDocuments(s.ctx, s.studentID, "", s.actor("admin:*"))
@@ -581,7 +581,7 @@ func TestStudentDocumentService_CleanupRetryPathIsAuthorized(t *testing.T) {
 	assert.Equal(t, attest.FilenameStored, resolved.FilenameStored)
 
 	_, err = s.svc.ResolveStudentDocumentCleanup(s.ctx, s.studentID, attest.ID, office)
-	require.ErrorIs(t, err, usersSvc.ErrStudentDocumentForbidden)
+	require.ErrorIs(t, err, carelifecycle.ErrStudentDocumentForbidden)
 
 	_, err = s.svc.ResolveStudentDocumentCleanup(s.ctx, s.studentID, attest.ID+9_000_000, health)
 	require.Error(t, err)
@@ -646,7 +646,7 @@ func TestStudentDocumentService_AuditNamesAnUnknownActor(t *testing.T) {
 	t.Parallel()
 
 	s := newStudentDocumentScenario(t)
-	nameless := usersSvc.StudentDocumentActor{
+	nameless := carelifecycle.StudentDocumentActor{
 		AccountID:   s.account,
 		Permissions: []string{"users:update"},
 	}
@@ -687,13 +687,13 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 	// without a staff record — all refused up front.
 	require.ErrorIs(t,
 		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategoryAttest, office),
-		usersSvc.ErrStudentDocumentForbidden)
+		carelifecycle.ErrStudentDocumentForbidden)
 	require.ErrorIs(t,
 		s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, "erfundene_kategorie", office),
-		usersSvc.ErrStudentDocumentInvalid)
+		carelifecycle.ErrStudentDocumentInvalid)
 
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	outsider := usersSvc.NewStudentDocumentService(
+	outsider := carelifecycle.NewStudentDocumentService(
 		s.db,
 		repos.StudentDocument,
 		repos.Student,
@@ -704,7 +704,7 @@ func TestStudentDocumentService_AuthorizeUploadWritesNothing(t *testing.T) {
 	)
 	require.ErrorIs(t,
 		outsider.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, userModels.StudentDocumentCategorySonstiges, office),
-		usersSvc.ErrStudentDocumentNoAccess)
+		carelifecycle.ErrStudentDocumentNoAccess)
 
 	// None of those refusals left a trace — no document row, no cleanup intent,
 	// no audit entry.

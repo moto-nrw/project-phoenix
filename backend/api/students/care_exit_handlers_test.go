@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,8 +36,8 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 	t.Helper()
 	repos := newStudentTestRepositories(tc.db)
 	repos.BindTimetable(timetabletest.New(t, tc.db))
-	tc.resource.CareLifecycleService = userService.NewCareLifecycleService(
-		userService.CareLifecycleDependencies{
+	tc.resource.CareLifecycleService = carelifecycle.NewCareLifecycleService(
+		carelifecycle.CareLifecycleDependencies{
 			StudentRepo:    repos.Student,
 			PersonRepo:     repos.Person,
 			CareExitRepo:   repos.CareExit,
