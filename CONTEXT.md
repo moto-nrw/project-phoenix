@@ -479,3 +479,44 @@ Sie betreuen keine Kinder und sind keine OGS-Admins; ein OGS-Admin mit Zugang
 zu mehreren OGS wechselt zwischen ihnen, das Träger-Büro sieht sie gemeinsam.
 _Vermeiden_: Träger-Admin, Organisationsadmin, Bereichsleitung (eine Person im
 Träger-Büro, nicht das Büro).
+
+## Personalaustritt
+
+Ein **Personalaustritt** beendet die Beschäftigung einer Person an einer
+Schule, ohne ihren Personensatz oder ihren Beschäftigungsverlauf zu löschen.
+Er entzieht den Schulzugang, beendet Gruppen-, Klassen- und Vertretungs-
+zuordnungen und gibt Transponder und Arbeitszeitmodell frei. Personal-
+dokumente werden dabei endgültig entfernt; sie kehren durch nichts zurück.
+_Vermeiden_: Offboarding (nur im Code), Löschung, Deaktivierung.
+
+## Frühere Beschäftigung
+
+Eine **frühere Beschäftigung** ist der abgeschlossene Beschäftigungsverlauf
+einer ausgetretenen Person an einer Schule. Sie bleibt für Berechtigte
+auffindbar, taucht aber in keiner laufenden Arbeitsliste auf. Der
+Personensatz bleibt dabei bestehen, weil Zeiterfassung, Abwesenheiten und
+Auditeinträge sonst ihren Namen verlieren.
+
+## Wiederaufnahme (Personal)
+
+Eine **Wiederaufnahme** beschäftigt eine ausgetretene Person an derselben
+Schule erneut und führt dabei ihre frühere Beschäftigung fort. Personensatz,
+Stammdaten und Personalnummer, Qualifikationen sowie die Arbeitszeit aus
+Zeitkonto, Urlaubskonto und Arbeitszeitmodell bleiben dieselben. Die Schule
+kann jeden dieser drei Bereiche vor der Wiederaufnahme zurücksetzen; die
+Arbeitszeit nur als Ganzes. Zurücksetzen bewahrt den bisherigen Stand als
+Historie, es löscht ihn nicht. Frühere Gruppen, Klassen und Schichten werden
+nie automatisch wieder wirksam, und Personaldokumente kehren nicht zurück.
+Die Schule entscheidet beim Einladen zwischen Wiederaufnahme und
+Neuaufnahme. Die Wiederaufnahme eines Kindes ist ein anderer Vorgang, siehe
+OGS-Betreuung.
+_Vermeiden_: Wiederherstellung (das ist das Zurückholen gelöschter Daten und
+das Wiederanschalten eines stillgelegten Kontos), Reaktivierung.
+
+## Neuaufnahme (Personal)
+
+Eine **Neuaufnahme** beschäftigt eine ausgetretene Person an derselben Schule
+erneut, beginnt dabei aber einen neuen Beschäftigungsverlauf. Die frühere
+Beschäftigung bleibt als solche bestehen und wird nicht fortgeführt. Eine
+Person hat danach mehrere Beschäftigungen an derselben Schule, aber weiterhin
+nur einen Personensatz.
