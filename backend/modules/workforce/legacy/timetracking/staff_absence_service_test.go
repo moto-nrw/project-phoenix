@@ -70,6 +70,48 @@ func TestLoadRebookedAbsencesOnlyMapsMissingRowsToNotFound(t *testing.T) {
 	}
 }
 
+func TestLoadRebookedAbsencesRejectsEntriesThatHaveNotEnded(t *testing.T) {
+	t.Parallel()
+
+	today := NewDate(2026, time.September, 18)
+	for _, tt := range []struct {
+		name  string
+		start Date
+		end   Date
+	}{
+		{
+			name:  "ends today",
+			start: today.AddDays(-2),
+			end:   today,
+		},
+		{
+			name:  "ends in the future",
+			start: today,
+			end:   today.AddDays(1),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			svc, repo, _ := absSetupService()
+			svc.todayFunc = func() Date { return today }
+			repo.findByIDFunc = func(context.Context, any) (*StaffAbsence, error) {
+				return &StaffAbsence{
+					StaffID:     7,
+					AbsenceType: AbsenceTypeCompTime,
+					DateStart:   tt.start,
+					DateEnd:     tt.end,
+					Status:      AbsenceStatusReported,
+				}, nil
+			}
+
+			_, err := svc.loadRebookedAbsences(context.Background(), 7, []int64{71}, AbsenceTypeOther, nil)
+			require.ErrorIs(t, err, ErrAbsenceRebookingBlocked)
+			assert.ErrorContains(t, err, "noch nicht vorbei")
+		})
+	}
+}
+
 func TestStaffAbsenceResponseMarshalsCustomIDAsString(t *testing.T) {
 	t.Parallel()
 

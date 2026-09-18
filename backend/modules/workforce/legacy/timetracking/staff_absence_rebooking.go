@@ -203,6 +203,8 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 			return nil, rebookingBlocked("Der Eintrag vom %s ist ein Antrag. Anträge lassen sich nicht umbuchen.", day)
 		case absence.AbsenceType == baseType && sameAbsenceTypeID(absence.AbsenceTypeID, typeID):
 			return nil, rebookingBlocked("Der Eintrag vom %s hat diese Art schon.", day)
+		case !absence.DateEnd.Before(s.today()):
+			return nil, rebookingBlocked("Der Eintrag ist noch nicht vorbei. Sie können ihn danach ändern.")
 		}
 		after := *absence
 		after.AbsenceType, after.AbsenceTypeID = baseType, typeID
