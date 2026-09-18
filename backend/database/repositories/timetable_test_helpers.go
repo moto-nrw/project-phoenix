@@ -101,12 +101,15 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	repos := &Factory{
+	var repos *Factory
+	repos = &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student:         NewStudentRepository(db),
-		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: bookings}, newStudentPresence(db)),
-		StaffShift:      newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
+		Student: NewStudentRepository(db),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &repos, NewEnrollmentBookingProjection(enrollmentCompose.New()), newStudentPresence(db), bookings,
+		)),
+		StaffShift: newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),
 		ShiftType:                 newWorkforceShiftTypeRepository(workTime),
 		InstanceStudent:           timetableInstanceStudentRepository{timetable: bookings},
@@ -141,7 +144,6 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos.PlanningTrack, repos.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
 	repos.ActivityException, repos.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	repos.InstanceIdempotency, repos.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	repos.BindTimetable(bookings)
 	result := timetableTestRepositories(repos)
 	result.Timetable = bookings
 	return result, nil

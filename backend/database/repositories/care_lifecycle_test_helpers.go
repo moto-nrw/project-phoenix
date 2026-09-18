@@ -33,8 +33,12 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}
-	r := &Factory{db: db,
-		CareExit: carelifecycle.NewCareExitRepository(db), CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: tt.Timetable}, newStudentPresence(db)),
+	var r *Factory
+	r = &Factory{db: db,
+		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&r)),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &r, NewEnrollmentBookingProjection(enrollmentCompose.New()), newStudentPresence(db), tt.Timetable,
+		)),
 		CareWithdrawal: newCareWithdrawalCompletionRepository(
 			func() careplan.Capability { return care }, func() peopledirectory.StudentQuery { return people }),
 	}
@@ -46,7 +50,6 @@ func NewCareLifecycleTestRepositories(db *bun.DB, command auditModels.Command) (
 	}
 	r.bindSchoolCalendarAdapters(calendar, NewCalendarPeriodUsage(enrollmentCompose.New(), tt.Timetable))
 	r.bindCarePlanAdapters(care)
-	r.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository).BindActivityBookings(activityBookingDirectory{capability: tt.Timetable})
 	return CareLifecycleTestRepositories{TimetableTestRepositories: tt, CareExit: r.CareExit, CareExitCleanup: r.CareExitCleanup,
 		CareWithdrawal: r.CareWithdrawal, TagReleaser: NewStudentTagReleaser(people),
 		StudentFieldEdit: studentFieldEditCommand{auditRepo.NewStudentFieldEditRepository(newTestAuditRuntime(db)), command}}, nil

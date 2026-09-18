@@ -27,7 +27,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -49,7 +48,6 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 

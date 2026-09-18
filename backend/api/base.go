@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
@@ -1376,10 +1377,11 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		return fmt.Errorf("request review projection: %w", err)
 	}
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		PersonService:                api.Services.Users,
-		PeopleDirectory:              api.Services.PeopleDirectory,
-		StudentService:               api.Services.Students,
-		CompanionService:             api.Services.StudentCompanions,
+		PersonService:   api.Services.Users,
+		PeopleDirectory: api.Services.PeopleDirectory,
+		StudentService:  api.Services.Students,
+		CompanionService: carelifecycle.NewStudentCompanionService(
+			repoFactory.Student, repoFactory.StudentCompanion, api.Services.StudentAudit),
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,

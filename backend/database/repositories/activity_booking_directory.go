@@ -109,16 +109,3 @@ func publicActivityBooking(value carelifecycle.ActivityBooking) timetable.CareEx
 		SelectedWeekdays: value.SelectedWeekdays, AttendanceStatus: value.AttendanceStatus, Weekday: value.Weekday,
 	}
 }
-
-// BindTimetable routes the remaining care-exit enrollment mutations through
-// their owner before the service graph captures the repositories.
-func (f *Factory) BindTimetable(capability timetable.Capability) {
-	if capability == nil {
-		panic("repository factory: timetable capability is required")
-	}
-	repository, ok := f.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository)
-	if !ok {
-		panic("repository factory: care exit cleanup adapter is unavailable")
-	}
-	repository.BindActivityBookings(activityBookingDirectory{capability: capability})
-}

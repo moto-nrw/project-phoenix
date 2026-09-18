@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -35,7 +34,6 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
 	repos := newStudentTestRepositories(tc.db)
-	repos.BindTimetable(timetabletest.New(t, tc.db))
 	tc.resource.CareLifecycleService = carelifecycle.NewCareLifecycleService(
 		carelifecycle.CareLifecycleDependencies{
 			StudentRepo:    repos.Student,

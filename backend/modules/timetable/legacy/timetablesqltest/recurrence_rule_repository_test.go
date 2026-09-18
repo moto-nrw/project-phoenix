@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +15,6 @@ import (
 func recurrenceRuleRepository(t *testing.T, db *bun.DB) recurrenceRuleQueryRepository {
 	t.Helper()
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	factory.BindTimetable(timetabletest.New(t, db))
 	return factory.RecurrenceRule.(recurrenceRuleQueryRepository)
 }
 

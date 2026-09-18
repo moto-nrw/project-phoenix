@@ -20,7 +20,6 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +53,6 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	testpkg.EnsureTestTenant(t, db, testpkg.Tenant(t))
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repoFactory.BindTimetable(timetabletest.New(t, db))
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true

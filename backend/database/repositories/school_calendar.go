@@ -8,7 +8,6 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -71,11 +70,8 @@ func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capabilit
 	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, usage)
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
-	if repo, ok := f.CareExitCleanup.(interface {
-		BindCalendarPeriods(carelifecycle.CalendarPeriodDirectory)
-	}); ok {
-		repo.BindCalendarPeriods(careExitCalendarPeriods{calendar: capability})
-	}
+	// The care-exit cleanup repository reads f.schoolCalendar through the
+	// resolver it was constructed with, so the assignment above binds it too.
 }
 
 const opFindByID = "find by id"

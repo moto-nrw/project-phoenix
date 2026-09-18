@@ -236,7 +236,6 @@ type Factory struct {
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
 	Students             users.StudentService
-	StudentCompanions    carelifecycle.StudentCompanionService
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        carelifecycle.CareLifecycleService
 	StudentAudit         users.StudentAuditService
@@ -549,7 +548,6 @@ func newFactory(
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.BindFacilities(rooms)
-	repos.BindTimetable(timetableCapability)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
@@ -2992,7 +2990,6 @@ func newFactory(
 		Announcement:         communicationCapability,
 		Schools:              organizations,
 		Students:             studentService,
-		StudentCompanions:    companionService,
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,

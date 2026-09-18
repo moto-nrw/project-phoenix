@@ -527,7 +527,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	personRepo := NewPersonRepository(db)
 	studentRepo := NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
-	factory := &Factory{
+	// The care-exit repositories read their owners through resolvers over this
+	// pointer, because Care Plan and the School Calendar are composed after
+	// the factory; its own bind methods fill the fields they read.
+	var factory *Factory
+	factory = &Factory{
 		db: db,
 		// Auth repositories
 		Account:                accountRepo,
@@ -546,11 +550,13 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		MFAOverride:            auth.NewMFAOverrideRepository(db),
 
 		// Users repositories
-		Person:              personRepo,
-		RFIDCard:            auth.NewRFIDCardRepository(db),
-		Student:             studentRepo,
-		CareExit:            carelifecycle.NewCareExitRepository(db),
-		CareExitCleanup:     carelifecycle.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
+		Person:   personRepo,
+		RFIDCard: auth.NewRFIDCardRepository(db),
+		Student:  studentRepo,
+		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&factory)),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
+		)),
 		Profile:             auth.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
@@ -805,7 +811,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
 	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	factory.BindTimetable(timetableCapability)
 	return factory
 }
 

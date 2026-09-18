@@ -152,12 +152,8 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	f.StudentDocument = carePlanLegacy.NewCareDocumentRepository(capability)
 	f.bindCarePlanAuditDirectory()
 
-	if repository, ok := f.CareExitCleanup.(*carelifecycle.CareExitCleanupRepository); ok {
-		repository.BindCarePlan(careExitCarePlanDirectory{capability: capability})
-	}
-	if repository, ok := f.CareExit.(*carelifecycle.CareExitRepository); ok {
-		repository.BindCarePlan(careExitDirectory{capability: capability})
-	}
+	// The care-exit repositories read f.carePlan through the resolvers they
+	// were constructed with, so the assignment above is the whole binding.
 	if repository, ok := f.InstanceStudent.(interface {
 		BindCarePlan(timetableCompose.PickupExceptionDirectory)
 	}); ok {

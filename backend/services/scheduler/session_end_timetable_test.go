@@ -12,7 +12,6 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,7 +49,6 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 
 	instanceRepo := timetablesqltest.NewActivityInstanceRepository(db)
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	factory.BindTimetable(timetabletest.New(t, db))
 	instanceStudentRepo := factory.InstanceStudent
 	s := unitScheduler(&Scheduler{
 		instanceRepo:        instanceRepo,

@@ -3,50 +3,57 @@ package carelifecycle
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careexitview"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
+
+// CareExitReasonDirectory is the Care Plan owner behind the reason rows.
+type CareExitReasonDirectory interface {
+	FindCareExits(context.Context, []int64) (map[int64]*userModels.CareExit, error)
+	UpsertCareExit(context.Context, *userModels.CareExit) error
+	DeleteCareExits(context.Context, []int64) error
+}
 
 // CareExitRepository preserves the legacy archive contract. Care Plan owns the
 // reason rows; this adapter combines them with People Directory rows whose care
 // interval has run out (#2487).
 type CareExitRepository struct {
 	db       *bun.DB
-	carePlan interface {
-		FindCareExits(context.Context, []int64) (map[int64]*userModels.CareExit, error)
-		UpsertCareExit(context.Context, *userModels.CareExit) error
-		DeleteCareExits(context.Context, []int64) error
-	}
+	carePlan func() CareExitReasonDirectory
 }
 
-// NewCareExitRepository builds the repository.
-func NewCareExitRepository(db *bun.DB) userModels.CareExitRepository {
-	return &CareExitRepository{
-		db: db,
+// NewCareExitRepository builds the repository. The owner arrives as a resolver
+// because the composition root builds the Care Plan capability after the
+// repository factory; a post-construction setter would be mutable wiring.
+func NewCareExitRepository(db *bun.DB, carePlan func() CareExitReasonDirectory) userModels.CareExitRepository {
+	if carePlan == nil {
+		panic("care exit repository: care plan resolver is required")
 	}
+	return &CareExitRepository{db: db, carePlan: carePlan}
 }
 
-func (r *CareExitRepository) BindCarePlan(capability interface {
-	FindCareExits(context.Context, []int64) (map[int64]*userModels.CareExit, error)
-	UpsertCareExit(context.Context, *userModels.CareExit) error
-	DeleteCareExits(context.Context, []int64) error
-}) {
-	if capability == nil {
-		panic("care exit repository: care plan capability is required")
+// reasons resolves the owner, or reports the configuration error a graph
+// reaching this repository without a composed Care Plan would otherwise hide.
+func (r *CareExitRepository) reasons() (CareExitReasonDirectory, error) {
+	directory := r.carePlan()
+	if directory == nil {
+		return nil, errors.New("care exit repository: care plan capability is not bound")
 	}
-	r.carePlan = capability
+	return directory, nil
 }
 
 func (r *CareExitRepository) FindByStudentIDs(ctx context.Context, studentIDs []int64) (map[int64]*userModels.CareExit, error) {
-	if r.carePlan == nil {
-		return nil, errors.New("care exit repository: care plan capability is not bound")
+	carePlan, err := r.reasons()
+	if err != nil {
+		return nil, err
 	}
-	values, err := r.carePlan.FindCareExits(ctx, studentIDs)
+	values, err := carePlan.FindCareExits(ctx, studentIDs)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find care exits by student ids", Err: err}
 	}
@@ -57,21 +64,22 @@ func (r *CareExitRepository) Upsert(ctx context.Context, exit *userModels.CareEx
 	if err := exit.Validate(); err != nil {
 		return err
 	}
-	if r.carePlan == nil {
-		return errors.New("care exit repository: care plan capability is not bound")
-	}
-	err := r.carePlan.UpsertCareExit(ctx, exit)
+	carePlan, err := r.reasons()
 	if err != nil {
+		return err
+	}
+	if err := carePlan.UpsertCareExit(ctx, exit); err != nil {
 		return &modelBase.DatabaseError{Op: "upsert care exit", Err: base.TranslateNotFound(err)}
 	}
 	return nil
 }
 
 func (r *CareExitRepository) DeleteByStudentIDs(ctx context.Context, studentIDs []int64) error {
-	if r.carePlan == nil {
-		return errors.New("care exit repository: care plan capability is not bound")
+	carePlan, err := r.reasons()
+	if err != nil {
+		return err
 	}
-	if err := r.carePlan.DeleteCareExits(ctx, studentIDs); err != nil {
+	if err := carePlan.DeleteCareExits(ctx, studentIDs); err != nil {
 		return &modelBase.DatabaseError{Op: "delete care exits", Err: base.TranslateNotFound(err)}
 	}
 	return nil
@@ -87,53 +95,22 @@ func (r *CareExitRepository) ListEnded(
 	asOf timezone.Date,
 	filter userModels.CareExitListFilter,
 ) ([]*userModels.EndedCare, int, error) {
-	build := func() *bun.SelectQuery {
-		query := base.GetDB(ctx, r.db).NewSelect().
-			TableExpr(`users.students AS "student"`).
-			Join(`JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-			Where(`"student".enrolled_until IS NOT NULL`).
-			Where(`"student".enrolled_until < ?`, asOf).
-			Where(`"student".status <> ?`, string(userModels.StudentStatusAlumnus))
-		query = base.WithTenantFilter(ctx, query, "student")
-		if search := strings.TrimSpace(filter.Search); search != "" {
-			pattern := "%" + strings.ToLower(search) + "%"
-			query = query.Where(
-				`(LOWER("person".first_name) LIKE ? OR LOWER("person".last_name) LIKE ? OR LOWER("student".school_class) LIKE ?)`,
-				pattern, pattern, pattern,
-			)
-		}
-		if len(filter.SchoolClasses) > 0 {
-			query = query.Where(`"student".school_class IN (?)`, bun.List(filter.SchoolClasses))
-		}
-		return query
-	}
-
-	total, err := build().Count(ctx)
+	values, total, err := careexitview.ListEndedCare(ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), asOf,
+		careexitview.EndedCareFilter{
+			Search: filter.Search, SchoolClasses: filter.SchoolClasses,
+			Page: filter.Page, PageSize: filter.PageSize,
+		})
 	if err != nil {
-		return nil, 0, &modelBase.DatabaseError{Op: "count ended care", Err: base.TranslateNotFound(err)}
-	}
-
-	var rows []*userModels.EndedCare
-	query := build().
-		ColumnExpr(`"student".id AS student_id`).
-		ColumnExpr(`"person".first_name AS first_name`).
-		ColumnExpr(`"person".last_name AS last_name`).
-		ColumnExpr(`"student".school_class AS school_class`).
-		ColumnExpr(`"student".enrolled_until AS last_care_day`).
-		OrderExpr(`"student".enrolled_until DESC, "person".last_name ASC, "person".first_name ASC, "student".id ASC`)
-
-	if filter.PageSize > 0 {
-		query = query.Limit(filter.PageSize)
-		if filter.Page > 1 {
-			query = query.Offset((filter.Page - 1) * filter.PageSize)
-		}
-	}
-	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, 0, &modelBase.DatabaseError{Op: "list ended care", Err: base.TranslateNotFound(err)}
 	}
-	studentIDs := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		studentIDs = append(studentIDs, row.StudentID)
+	rows := make([]*userModels.EndedCare, 0, len(values))
+	studentIDs := make([]int64, 0, len(values))
+	for _, value := range values {
+		rows = append(rows, &userModels.EndedCare{
+			StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName,
+			SchoolClass: value.SchoolClass, LastCareDay: value.LastCareDay,
+		})
+		studentIDs = append(studentIDs, value.StudentID)
 	}
 	exits, err := r.FindByStudentIDs(ctx, studentIDs)
 	if err != nil {
