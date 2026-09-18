@@ -167,11 +167,6 @@ func (s *Service) AccountLifecycle() AccountLifecycle {
 	return s.lifecycle
 }
 
-func hasAmbientTx(ctx context.Context) bool {
-	_, ok := tenant.TransactionFromContext(ctx)
-	return ok
-}
-
 // VerifyPassword checks a plain-text password against its Argon2id hash. It
 // is the credential check the Identity & Access login flows are composed
 // with, so password hashing stays in one place.
