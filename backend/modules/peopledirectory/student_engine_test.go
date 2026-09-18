@@ -189,3 +189,32 @@ func (e *recordingEngine) AnonymizeDeletedStudentPerson(context.Context, int64, 
 	e.calls++
 	return true, nil
 }
+
+func (e *recordingEngine) FindStudentPhoto(context.Context, int64, string) (string, error) {
+	e.calls++
+	return "", nil
+}
+
+func (e *recordingEngine) CommitStudentPhoto(context.Context, int64, string, bool) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) ClearStudentPhoto(context.Context, int64) (string, error) {
+	e.calls++
+	return "", nil
+}
+
+func (e *recordingEngine) PurgeStudentPhotos(context.Context) ([]string, error) {
+	e.calls++
+	return nil, nil
+}
+
+func (e *recordingEngine) ApplyStudentPhotoConsent(
+	_ context.Context, current peopledirectory.StudentPhotoState, _ *bool,
+) peopledirectory.StudentPhotoState {
+	e.calls++
+	return current
+}
+
+func (e *recordingEngine) ScheduleStudentPhotoUnlink(context.Context, string) { e.calls++ }

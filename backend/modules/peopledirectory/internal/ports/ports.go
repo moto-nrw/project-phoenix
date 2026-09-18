@@ -46,6 +46,11 @@ type Transaction interface {
 	// RunAdminRead opens a separate admin transaction for the platform-wide
 	// reads that must see every tenant's rows.
 	RunAdminRead(context.Context, func(context.Context) error) error
+	// TenantID is the tenant of the caller's transaction, 0 outside one.
+	TenantID(context.Context) int64
+	// RegisterAfterCommit runs fn once the caller's transaction commits, so
+	// file cleanup and live refreshes never precede the write they describe.
+	RegisterAfterCommit(context.Context, func())
 }
 
 type Observation struct {

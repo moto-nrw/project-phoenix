@@ -72,15 +72,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		slog.Default(),
 	)
 
-	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
-		StudentRepo: repoFactory.Student,
-		Settings:    svc.Settings,
-		UserContext: svc.UserContext,
-		Broadcaster: broadcaster,
-		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default(), "public"),
-		DB:          db,
-		Logger:      slog.Default(),
-	})
+	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public"))
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)

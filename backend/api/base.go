@@ -191,6 +191,9 @@ type moduleServices struct {
 	// in config.work_time_models, config.work_time_model_entries and
 	// config.staff_work_schedules (#2687).
 	workforce *workforceModule.Module
+	// studentPhotoRuntime is the slot the People Directory photo lifecycle
+	// resolves from; EnableStudentPhotos fills it once the factory exists.
+	studentPhotoRuntime *peopleCompose.StudentPhotoRuntime
 }
 
 // NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
@@ -217,11 +220,19 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 	if err != nil {
 		return moduleServices{}, err
 	}
+	// The photo lifecycle's runtime (feature gate, caller access, file
+	// cleanup, live refresh, consent trail) only exists once the services
+	// factory and the HTTP layer are up, so the owner resolves it from a slot
+	// that EnableStudentPhotos fills.
+	studentPhotoRuntime := new(peopleCompose.StudentPhotoRuntime)
 	persons, err := peopleCompose.New(peopleCompose.Dependencies{
 		DB: db,
 		Observe: func(observation peopleCompose.Observation) {
 			observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
 		},
+		StudentFieldAudit:     repositories.NewStudentFieldAuditLog(db),
+		StudentConsentHistory: repositories.NewStudentConsentHistory(db),
+		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *studentPhotoRuntime },
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -407,7 +418,7 @@ func initializeModuleServices(db *bun.DB, publicAPIURL string, logger *slog.Logg
 		return moduleServices{}, err
 	}
 	legacyFacilities = factory.Facilities
-	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime}, nil
+	return moduleServices{repositories: repoFactory, services: factory, communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime}, nil
 }
 
 // withFileStorageWiring resolves what the File Storage module needs from the
@@ -1344,10 +1355,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		ListExport: api.Services.ListExport,
 	}, db, logger.With("handler", "rooms"))
 	api.Services.EnableStudentPhotos(services.StudentPhotoBootstrap{
-		Unlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
-		StudentRepo: repoFactory.Student,
-		DB:          db,
-		Logger:      logger.With("service", "student-photo"),
+		Unlinker:     studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
+		PhotoRuntime: modules.studentPhotoRuntime,
+		Logger:       logger.With("service", "student-photo"),
 	})
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10). The

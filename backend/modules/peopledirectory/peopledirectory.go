@@ -94,6 +94,7 @@ type Query interface {
 	StudentFieldReviewQuery
 	StudentQuery
 	StudentAuditQuery
+	StudentPhotoQuery
 	StudentConsentQuery
 	GuardianQuery
 	// FindPerson returns one non-deleted person of the current tenant.
@@ -123,6 +124,7 @@ type Command interface {
 	StudentCommand
 	StudentDeletionCommand
 	StudentAuditCommand
+	StudentPhotoCommand
 	GuardianCommand
 	FamilyProtectionCommand
 	CreatePerson(context.Context, CreatePerson) (Person, error)
@@ -154,8 +156,10 @@ type engine interface {
 	studentEngine
 	studentDeletionEngine
 	StudentAuditQuery
+	StudentPhotoQuery
 	StudentConsentQuery
 	StudentAuditCommand
+	StudentPhotoCommand
 	guardianEngine
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)

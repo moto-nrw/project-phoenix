@@ -54,6 +54,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	planexportlegacy "github.com/moto-nrw/project-phoenix/modules/planexport/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -3149,31 +3150,29 @@ func optionalClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
-// StudentPhotoBootstrap aggregates the dependencies api/base.go must
-// provide to wire the photo lifecycle. The unlinker is api-layer (file IO
-// shared with login-image/avatar upload helpers); the StudentRepo is
-// passed in to avoid storing the repo factory on the services Factory.
+// StudentPhotoBootstrap aggregates what api/base.go must provide to wire the
+// photo lifecycle: the file IO is an api-layer concern (shared with the
+// login-image and avatar upload helpers), and the owner's runtime slot is
+// filled here because the factory holds the rest.
 type StudentPhotoBootstrap struct {
-	Unlinker    users.PhotoUnlinker
-	StudentRepo userModels.StudentRepository
-	DB          *bun.DB
-	Logger      *slog.Logger
+	Unlinker users.PhotoUnlinker
+	// PhotoRuntime is the slot the People Directory owner resolves its photo
+	// runtime from; EnableStudentPhotos fills it with the surfaces this
+	// factory holds.
+	PhotoRuntime *peopleCompose.StudentPhotoRuntime
+	Logger       *slog.Logger
 }
 
-// EnableStudentPhotos constructs the StudentPhotoService with the supplied
-// dependencies and registers its settings handler on
-// f.SettingsSideEffects. Idempotent: repeated calls overwrite the prior
-// service. Call once at API bootstrap.
+// EnableStudentPhotos stores the photo lifecycle and registers its settings
+// handler on f.SettingsSideEffects. Idempotent: repeated calls overwrite the
+// prior service. Call once at API bootstrap.
 func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
-	f.StudentPhotos = users.NewStudentPhotoService(users.StudentPhotoServiceDependencies{
-		StudentRepo: deps.StudentRepo,
+	f.StudentPhotos = NewStudentPhotos(f.PeopleDirectory, deps.PhotoRuntime, StudentPhotoRuntimeDependencies{
 		Settings:    f.Settings,
-		UserContext: f.UserContext,
 		Broadcaster: f.RealtimeHub,
 		Unlinker:    deps.Unlinker,
-		DB:          deps.DB,
-		Logger:      deps.Logger,
 		Consents:    f.StudentConsents,
+		Logger:      deps.Logger,
 	})
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

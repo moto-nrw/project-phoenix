@@ -15,12 +15,26 @@ import (
 // legacy composition seam for test graphs and CLI roots. The observed
 // instance of the serve root replaces it through BindPeopleDirectory.
 func NewPeopleDirectory(db *bun.DB) (peopledirectory.Capability, error) {
-	return peopleCompose.New(peopleCompose.Dependencies{
+	capability, _, err := NewPeopleDirectoryWithPhotos(db)
+	return capability, err
+}
+
+// NewPeopleDirectoryWithPhotos additionally hands back the slot the photo
+// lifecycle resolves its runtime from, so a caller that has the feature gate,
+// the caller access and the file cleanup fills it after the directory exists.
+func NewPeopleDirectoryWithPhotos(db *bun.DB) (peopledirectory.Capability, *peopleCompose.StudentPhotoRuntime, error) {
+	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
+	capability, err := peopleCompose.New(peopleCompose.Dependencies{
 		DB:                    db,
 		Observe:               func(peopleCompose.Observation) {},
 		StudentFieldAudit:     NewStudentFieldAuditLog(db),
 		StudentConsentHistory: NewStudentConsentHistory(db),
+		StudentPhotoRuntime:   func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return capability, photoRuntime, nil
 }
 
 // MustNewPeopleDirectory is NewPeopleDirectory for composition seams that
