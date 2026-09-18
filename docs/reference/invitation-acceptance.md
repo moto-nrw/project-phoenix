@@ -9,12 +9,17 @@ of an existing global account.
    validation. Acceptance creates the account and school identity once.
 2. Existing accounts require an independently authenticated backend access
    token for the invited account. Passwords, MFA enrollment, global active
-   state, and memberships at other schools remain unchanged.
+   state, and memberships at other schools remain unchanged. A dormant
+   account is the exception: it is disabled and has no active mapping at
+   any school. Preview treats it like a new address, the invitee sets a
+   new password, and acceptance re-enables the account together with the
+   school membership.
 3. Tenant, organisation, parent, and school sessions can prove ownership.
    Operator accounts have a separate identity namespace and cannot do so.
    Preview, unfinished MFA, expired, unsigned, and unknown-scope tokens fail.
-4. Disabled global accounts cannot join through invitation acceptance, even
-   with a previously issued access token.
+4. Disabled global accounts that still hold an active school mapping cannot
+   join through invitation acceptance, even with a previously issued access
+   token. A dormant account can join without that token; see item 2.
 5. Membership, school identity, role assignment, and one-time consumption
    commit together. Rejection or a provisioning failure rolls back the changes.
 
@@ -28,14 +33,15 @@ Normal portal login, including MFA, remains the only UI authentication path.
 `target_portal` (`tenant` or `school`) with the existing invitation details.
 
 `POST /auth/invitations/{token}/accept` accepts registration data for a new
-account. Existing accounts provide their backend session in
-`Authorization: Bearer ...`; password fields are ignored for that branch.
+account and for a dormant account. Other existing accounts provide their
+backend session in `Authorization: Bearer ...`; password fields are
+ignored for that branch.
 
 | Condition | HTTP | Code |
 | --- | --- | --- |
 | Missing or invalid owner session | 401 | `INVITATION_ACCOUNT_LOGIN_REQUIRED` |
 | Session belongs to another account | 403 | `INVITATION_ACCOUNT_MISMATCH` |
-| Global account disabled | 403 | `ACCOUNT_INACTIVE` |
+| Disabled account that still holds school access | 403 | `ACCOUNT_INACTIVE` |
 | Accepted | 201 | Existing account response shape |
 | Expired, revoked, or consumed invitation | 410 | Existing invitation error |
 
@@ -47,9 +53,10 @@ caller-supplied account ID or ownership token from the JSON body.
 ## Copyable links, resend, and imports
 
 Creation responses retain the invitation token for the existing copy-link UI.
-Such a link authorizes new-account registration, or presents an existing-account
-membership offer requiring independent authentication. It cannot replace an
-existing account's credentials or accept on that account's behalf.
+Such a link authorizes new-account registration, restores a dormant account
+with a new password, or presents an existing-account membership offer
+requiring independent authentication. It cannot replace the credentials of
+an account that can still sign in, or accept on that account's behalf.
 
 Pending-list responses omit tokens. Resend responses contain no token and reuse
 the pending invitation. Staff imports and Lehrkraft invitations use the same
