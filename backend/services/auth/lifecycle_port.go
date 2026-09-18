@@ -45,14 +45,6 @@ type RoleFacts struct {
 	BaseRole *string
 }
 
-// RoleFactsOf projects a role row onto its classification facts; nil stays nil.
-func RoleFactsOf(role *authModels.Role) *RoleFacts {
-	if role == nil {
-		return nil
-	}
-	return &RoleFacts{ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole}
-}
-
 // StaffPreviewSession is the result of starting an admin staff-view preview
 // (#2893): a short-lived, access-only JWT carrying the TARGET account's
 // identity, roles, and permissions plus the read_only/acting_admin_id claims.
@@ -134,17 +126,6 @@ type SchoolIdentity struct {
 	PersonID  int64
 	StaffID   int64
 	TeacherID int64
-}
-
-// IsSchoolIdentityRequestError reports whether the error is the caller's fault
-// rather than the server's: a missing name, a child's record, an unknown or
-// conflicting transponder. Handlers render these as 400.
-func IsSchoolIdentityRequestError(err error) bool {
-	return errors.Is(err, ErrSchoolIdentityNamesRequired) ||
-		errors.Is(err, ErrSchoolIdentityPersonIsStudent) ||
-		errors.Is(err, ErrSchoolIdentityTagUnknown) ||
-		errors.Is(err, ErrSchoolIdentityTagConflict) ||
-		errors.Is(err, ErrSchoolIdentityTagTaken)
 }
 
 // SchoolIdentityProvisioning is the consumer-owned port over the Identity &

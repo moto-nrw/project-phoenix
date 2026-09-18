@@ -15,10 +15,6 @@ import (
 const (
 	invitationTable      = "auth.invitation_tokens"
 	invitationTableAlias = `auth.invitation_tokens AS "invitation_token"`
-
-	// maxEmailErrorLength caps the persisted email_error column before a
-	// delivery failure message is stored.
-	maxEmailErrorLength = 1024
 )
 
 // InvitationTokenRepository provides persistence for invitation tokens.

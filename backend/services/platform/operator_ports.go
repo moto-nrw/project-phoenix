@@ -92,20 +92,6 @@ type OperatorInvitationTokens interface {
 	CountRecentByCreatedBy(ctx context.Context, createdByID int64, since time.Time) (int, error)
 }
 
-// OperatorEmailChangeTokens reads and writes the operator e-mail change
-// links, which Identity & Access owns (#2722), with the same conventions as
-// OperatorInvitationTokens. A second active link for the same operator
-// fails with the unique violation the initiation maps to its rate limit.
-type OperatorEmailChangeTokens interface {
-	Create(ctx context.Context, token *platform.OperatorEmailChangeToken) error
-	ConsumeByToken(ctx context.Context, tokenStr string) (*platform.OperatorEmailChangeToken, error)
-	InvalidateByOperatorID(ctx context.Context, operatorID int64) error
-	UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error
-	CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error)
-	InvalidateExpiredTokens(ctx context.Context) (int, error)
-	DeleteStaleTokens(ctx context.Context) (int, error)
-}
-
 // OperatorPasskeyRecords reads and writes the operator passkey credentials
 // and ceremony sessions, which Identity & Access owns (#2724). A missing
 // row is (nil, nil): no active credential for a lookup, no unconsumed and

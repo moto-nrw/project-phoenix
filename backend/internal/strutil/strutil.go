@@ -23,16 +23,6 @@ func TrimPtrToNil(p *string) *string {
 	return TrimToNil(*p)
 }
 
-// TruncateBytes caps s to at most n bytes and appends suffix when it cut.
-// Pass "" for a plain cut. Byte-based: only safe for ASCII-bounded content
-// (log/error payloads); use TruncateRunes for user-visible text.
-func TruncateBytes(s string, n int, suffix string) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + suffix
-}
-
 // TruncateRunes caps s to at most n runes (multibyte-safe) and appends suffix
 // when it cut. Pass "" for a plain cut.
 func TruncateRunes(s string, n int, suffix string) string {

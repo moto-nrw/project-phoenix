@@ -121,81 +121,6 @@ func (t operatorInvitationTokens) CountRecentByCreatedBy(ctx context.Context, cr
 	return count, nil
 }
 
-type operatorEmailChangeTokens struct {
-	tokens identityaccess.OperatorTokens
-}
-
-func newOperatorEmailChangeTokens(tokens identityaccess.OperatorTokens) platform.OperatorEmailChangeTokens {
-	return operatorEmailChangeTokens{tokens: tokens}
-}
-
-func (t operatorEmailChangeTokens) Create(ctx context.Context, token *platformModels.OperatorEmailChangeToken) error {
-	if token == nil {
-		return fmt.Errorf("operator email change token cannot be nil")
-	}
-	if err := token.Validate(); err != nil {
-		return err
-	}
-	stored, err := t.tokens.CreateOperatorEmailChange(ctx, identityaccess.OperatorEmailChange{
-		OperatorID: token.OperatorID, NewEmail: token.NewEmail, Token: token.Token, Expiry: token.Expiry, Used: token.Used,
-	})
-	if err != nil {
-		return operatorDatabaseError("create operator email change token", err)
-	}
-	*token = *operatorEmailChangeTokenModel(stored)
-	return nil
-}
-
-func (t operatorEmailChangeTokens) ConsumeByToken(ctx context.Context, tokenStr string) (*platformModels.OperatorEmailChangeToken, error) {
-	change, err := t.tokens.RedeemOperatorEmailChange(ctx, tokenStr)
-	if errors.Is(err, identityaccess.ErrOperatorEmailChangeNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, operatorDatabaseError("consume email change token", err)
-	}
-	return operatorEmailChangeTokenModel(change), nil
-}
-
-func (t operatorEmailChangeTokens) InvalidateByOperatorID(ctx context.Context, operatorID int64) error {
-	if err := t.tokens.RevokeOperatorEmailChanges(ctx, operatorID); err != nil {
-		return operatorDatabaseError("invalidate email change tokens by operator ID", err)
-	}
-	return nil
-}
-
-func (t operatorEmailChangeTokens) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	delivery := identityaccess.TokenDelivery{SentAt: sentAt, Error: emailError, RetryCount: retryCount}
-	if err := t.tokens.RecordOperatorEmailChangeDelivery(ctx, tokenID, delivery); err != nil {
-		return operatorDatabaseError("update email change delivery result", err)
-	}
-	return nil
-}
-
-func (t operatorEmailChangeTokens) CountRecentByOperatorID(ctx context.Context, operatorID int64, since time.Time) (int, error) {
-	count, err := t.tokens.CountOperatorEmailChangesCreatedAfter(ctx, operatorID, since)
-	if err != nil {
-		return 0, operatorDatabaseError("count recent email change tokens", err)
-	}
-	return count, nil
-}
-
-func (t operatorEmailChangeTokens) InvalidateExpiredTokens(ctx context.Context) (int, error) {
-	revoked, err := t.tokens.RevokeExpiredOperatorEmailChanges(ctx)
-	if err != nil {
-		return 0, operatorDatabaseError("invalidate expired email change tokens", err)
-	}
-	return revoked, nil
-}
-
-func (t operatorEmailChangeTokens) DeleteStaleTokens(ctx context.Context) (int, error) {
-	deleted, err := t.tokens.DeleteStaleOperatorEmailChanges(ctx)
-	if err != nil {
-		return 0, operatorDatabaseError("delete stale email change tokens", err)
-	}
-	return deleted, nil
-}
-
 // stateChanged reports a state change the owner refused as false.
 func stateChanged(err, refused error, op string) (bool, error) {
 	if errors.Is(err, refused) {
@@ -212,15 +137,6 @@ func operatorInvitationTokenModel(src identityaccess.OperatorInvitation) *platfo
 		Email: src.Email, Token: src.Token, ExpiresAt: src.ExpiresAt, UsedAt: src.UsedAt, CreatedBy: src.CreatedBy,
 		DisplayName: src.DisplayName, EmailSentAt: src.Delivery.SentAt, EmailError: src.Delivery.Error,
 		EmailRetryCount: src.Delivery.RetryCount,
-	}
-	token.ID, token.CreatedAt, token.UpdatedAt = src.ID, src.CreatedAt, src.UpdatedAt
-	return token
-}
-
-func operatorEmailChangeTokenModel(src identityaccess.OperatorEmailChange) *platformModels.OperatorEmailChangeToken {
-	token := &platformModels.OperatorEmailChangeToken{
-		OperatorID: src.OperatorID, NewEmail: src.NewEmail, Token: src.Token, Expiry: src.Expiry, Used: src.Used,
-		EmailSentAt: src.Delivery.SentAt, EmailError: src.Delivery.Error, EmailRetryCount: src.Delivery.RetryCount,
 	}
 	token.ID, token.CreatedAt, token.UpdatedAt = src.ID, src.CreatedAt, src.UpdatedAt
 	return token
