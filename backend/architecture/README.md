@@ -93,6 +93,20 @@ with `audit-platform` for the same reason: People Directory decides which of
 its fields are tracked and how a change reads, and appends through a
 consumer-owned port.
 
+#3349 also found what blocks the student write flow from following the reads.
+`StudentRepository.Update` is not only a student write: between the row lock
+and the plan write it reconciles the `users.student_companions` edges a
+narrowed departure plan no longer allows, takes the far children's row locks
+for that, and refuses the write when dropping an edge would strand one of them
+(`planCompanionReconcile`, `checkCompanionStranding`, the deferred verdicts of
+`users.CompanionStrandingBatch`). Those are Care Plan's rules about Care Plan's
+table, reached from People Directory's write path because that is the one path
+every writer passes through. Moving the flow as it stands would move them into
+the wrong owner; splitting them out changes a boundary, which #2580 requires a
+decision for. The read, lock and gate halves moved; the write flow waits on
+that decision, and `database/repositories/users/student.go` keeps serving
+`users.students` until then.
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe

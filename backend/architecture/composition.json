@@ -5881,7 +5881,7 @@
     },
     {
       "scope": "test",
-      "file": "services/users/person_service_test.go",
+      "file": "services/users/person_directory_service_test.go",
       "declaration": "TestPersonService_LinkStudentToRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -5894,7 +5894,7 @@
     },
     {
       "scope": "test",
-      "file": "services/users/person_service_test.go",
+      "file": "services/users/person_directory_service_test.go",
       "declaration": "setupPersonService",
       "target": "database/repositories.NewFactory",
       "lines": [
