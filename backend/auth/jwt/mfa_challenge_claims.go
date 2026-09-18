@@ -110,7 +110,7 @@ func (a *TokenAuth) CreateMFAChallengeJWT(c MFAChallengeClaims, ttl time.Duratio
 // claims into MFAChallengeClaims, and rejects expired tokens. Used by
 // both the tenant- and operator-side MFA verification flows — the
 // service-layer wrappers used to inline this logic, but the loop was
-// identical and flagged by SonarCloud as duplication.
+// identical in both, so it lives here once.
 func (a *TokenAuth) ParseMFAChallengeJWT(tokenString string) (*MFAChallengeClaims, error) {
 	jwtToken, err := a.JwtAuth.Decode(tokenString)
 	if err != nil {

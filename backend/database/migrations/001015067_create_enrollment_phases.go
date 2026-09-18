@@ -24,8 +24,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.67: Creating enrollment.phases table...")
-
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS enrollment.phases (
 					id                          BIGSERIAL PRIMARY KEY,
@@ -91,7 +89,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.67: Dropping enrollment.phases...")
 			if _, err := db.NewRaw(`DROP TABLE IF EXISTS enrollment.phases CASCADE;`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed dropping enrollment.phases: %w", err)
 			}

@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	auditRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	scheduleRepoPkg "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,8 +43,8 @@ func newStubSettingsService(hasOverride bool, hasOverrideErr error, intVal int, 
 // buildSvc wires a TimetableCleanupService with the given settings stub.
 func buildSvc(db *bun.DB, settings configSvc.SettingsService) timetableplanning.TimetableCleanupService {
 	return timetableplanning.NewTimetableCleanupService(
-		scheduleRepoPkg.NewActivityInstanceRepository(db),
-		scheduleRepoPkg.NewActivityExceptionRepository(db),
+		timetablesqltest.NewActivityInstanceRepository(db),
+		timetablesqltest.NewActivityExceptionRepository(db),
 		testInstanceStudents(db),
 		auditRepoPkg.NewDataDeletionRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
 		auditRepoPkg.NewDeviationEventRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
@@ -260,8 +260,8 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 
 	// Build service with nil audit repo.
 	svc := timetableplanning.NewTimetableCleanupService(
-		scheduleRepoPkg.NewActivityInstanceRepository(f.db),
-		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
+		timetablesqltest.NewActivityInstanceRepository(f.db),
+		timetablesqltest.NewActivityExceptionRepository(f.db),
 		testInstanceStudents(f.db),
 		nil,
 		nil,
@@ -289,8 +289,8 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 	// Pass nil logger — constructor must substitute slog.Default() so calls
 	// inside the service do not panic.
 	svc := timetableplanning.NewTimetableCleanupService(
-		scheduleRepoPkg.NewActivityInstanceRepository(db),
-		scheduleRepoPkg.NewActivityExceptionRepository(db),
+		timetablesqltest.NewActivityInstanceRepository(db),
+		timetablesqltest.NewActivityExceptionRepository(db),
 		testInstanceStudents(db),
 		auditRepoPkg.NewDataDeletionRepository(auditRepoPkg.NewRuntime(db, auditModels.TenantIDFromContext)),
 		nil,

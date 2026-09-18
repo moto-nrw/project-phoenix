@@ -1,7 +1,6 @@
 package platform
 
 import (
-	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -20,27 +19,4 @@ type OperatorEmailChangeToken struct {
 	EmailRetryCount int        `bun:"email_retry_count,notnull,default:0" json:"email_retry_count"`
 
 	// Relations
-}
-
-// Validate ensures the token data is valid
-func (t *OperatorEmailChangeToken) Validate() error {
-	if t.OperatorID <= 0 {
-		return errors.New("operator ID is required")
-	}
-	if t.Token == "" {
-		return errors.New("token value is required")
-	}
-	if t.NewEmail == "" {
-		return errors.New("new email is required")
-	}
-	// Creation-time data-integrity guard: never persist an already-expired
-	// token. This is distinct from the usage-time IsExpired decision (which
-	// lives in the service); the repository Create path relies on it.
-	if t.Expiry.Before(time.Now()) {
-		return errors.New("token has already expired")
-	}
-	if t.Used {
-		return errors.New("token has already been used")
-	}
-	return nil
 }

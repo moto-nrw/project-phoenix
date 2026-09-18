@@ -11,11 +11,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type guardianFinancialAuditCommand struct {
@@ -58,7 +61,7 @@ func TestInviteToStudent_NewEmail_CreatesProfileLinkAndInvite(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     email,
 		FirstName: "Neue",
@@ -73,7 +76,7 @@ func TestInviteToStudent_NewEmail_CreatesProfileLinkAndInvite(t *testing.T) {
 		}
 	}()
 
-	assert.Equal(t, authService.InviteOutcomeInvited, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeInvited, result.Outcome)
 	assert.NotNil(t, result.InvitationID, "a token invitation should have been created")
 	assert.Greater(t, result.GuardianProfileID, int64(0))
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID),
@@ -99,7 +102,7 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
 	}()
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     *profile.Email,
 		CreatedBy: creatorID,
@@ -107,10 +110,61 @@ func TestInviteToStudent_ExistingAccount_AutoLinks(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	assert.Equal(t, authService.InviteOutcomeLinkedExistingAccount, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeLinkedExistingAccount, result.Outcome)
 	assert.Nil(t, result.InvitationID, "existing accounts are linked without a token invite")
 	assert.Equal(t, profile.ID, result.GuardianProfileID)
 	assert.True(t, env.linkExists(t, student.ID, profile.ID))
+}
+
+// #3320: a school admin is also a parent. Staff created the guardian profile
+// with the admin's address and linked the child; "Einladen" must not create a
+// registration token, but must mail a pointer to the parents portal login.
+func TestInviteToStudent_StaffAccountAsParent_GetsPortalAccessEmail(t *testing.T) {
+	t.Parallel()
+
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
+	})
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Admin", "Kind", "1c")
+	creatorID := env.inviterAccountID(t)
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	_, adminAccount := testpkg.CreateTestPersonWithAccount(t, env.db, "Schul", "Admin")
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "admin-parent")
+	ctx := testpkg.Ctx(t)
+	_, err := env.db.NewUpdate().TableExpr("users.guardian_profiles").
+		Set("email = ?", adminAccount.Email).
+		Where("id = ?", profile.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	testpkg.CreateTestStudentGuardianLink(t, env.db, student.ID, profile.ID, "legal_guardian")
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
+	}()
+
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
+		StudentID: student.ID,
+		Email:     adminAccount.Email,
+		CreatedBy: creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, identityaccess.InviteOutcomeAlreadyLinked, result.Outcome)
+	assert.Nil(t, result.InvitationID, "no registration token for an existing account")
+	stored, err := env.repos.GuardianProfile.FindByID(ctx, profile.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.AccountID)
+	assert.Equal(t, adminAccount.ID, *stored.AccountID, "the profile is attached to the admin account")
+
+	require.Len(t, outbox.requests, 1)
+	payload := outbox.requests[0].Payload
+	assert.Equal(t, platformModels.EmailKindGuardianInvitation, outbox.requests[0].Kind)
+	assert.Equal(t, adminAccount.Email, payload["recipient_email"])
+	assert.Equal(t, "http://localhost:3000/login", payload["invitation_url"])
+	assert.Equal(t, true, payload["existing_account"])
 }
 
 func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testing.T) {
@@ -125,7 +179,7 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     account.Email,
 		CreatedBy: creatorID,
@@ -136,7 +190,7 @@ func TestInviteToStudent_ExistingAccountWithoutTenantProfile_AutoLinks(t *testin
 		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", result.GuardianProfileID).Exec(context.Background())
 	}()
 
-	assert.Equal(t, authService.InviteOutcomeLinkedExistingAccount, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeLinkedExistingAccount, result.Outcome)
 	assert.Nil(t, result.InvitationID, "existing accounts are linked without a password invite")
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID))
 
@@ -159,7 +213,7 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      account.Email,
 		CreatedBy:                  creatorID,
@@ -170,7 +224,7 @@ func TestInviteToStudent_RequireApprovalExistingAccountWithoutTenantProfile_Defe
 	require.NotNil(t, result.InvitationID)
 	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 
-	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID), "staff approval must not create the child link")
 
 	profile, err := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
@@ -216,19 +270,19 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 	actorID := env.inviterAccountID(t)
 
 	// Parent attempt → rejected, link survives.
-	err := env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	err := env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
 		ByParent:          true,
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, authService.ErrCannotRemovePrimaryGuardian),
+	assert.True(t, errors.Is(err, identityaccess.ErrCannotRemovePrimaryGuardian),
 		"parents must not be able to remove the primary guardian")
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "link must survive a rejected parent removal")
 
 	// Staff attempt → succeeds, link gone.
-	err = env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	err = env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
@@ -245,8 +299,8 @@ func TestRevokeAccess_ParentCannotRemovePrimary_StaffCan(t *testing.T) {
 func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	t.Parallel()
 
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.Audit = guardianFinancialAuditCommand{repo: repositories.NewFactory(cfg.DB, repositories.NewUnobservedTimetableDependencies(cfg.DB)).GuardianFinancialChange}
+	env := setupGuardianInvitationTest(t, func(db *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Audit = guardianFinancialAuditCommand{repo: repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).GuardianFinancialChange}
 	})
 	defer env.cleanup()
 
@@ -272,27 +326,27 @@ func TestRevokeAccess_PayerStaysWithoutFinancialPermission(t *testing.T) {
 	actorID := env.inviterAccountID(t)
 
 	// Parent attempt (the parents portal never grants MayClearPayer) → refused.
-	err := env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	err := env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
 		ByParent:          true,
 	})
-	require.ErrorIs(t, err, authService.ErrCannotRemovePayerGuardian)
+	require.ErrorIs(t, err, identityaccess.ErrCannotRemovePayerGuardian)
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "link must survive a refused payer removal")
 	assert.True(t, env.fetchLink(t, student.ID, profile.ID).IsPayer, "payer mark must survive a refused removal")
 
 	// Staff without guardians:financial → refused the same way.
-	err = env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	err = env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
 	})
-	require.ErrorIs(t, err, authService.ErrCannotRemovePayerGuardian)
+	require.ErrorIs(t, err, identityaccess.ErrCannotRemovePayerGuardian)
 	assert.True(t, env.linkExists(t, student.ID, profile.ID))
 
 	// With the financial permission the link goes and the change is audited.
-	err = env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	err = env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
@@ -334,14 +388,14 @@ func TestRevokeAccess_ParentCannotRemoveStaffManagedNoAccountContact(t *testing.
 	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
 
-	err := env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	err := env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
 		ByParent:          true,
 	})
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, authService.ErrCannotRemoveStaffManagedGuardian))
+	assert.True(t, errors.Is(err, identityaccess.ErrCannotRemoveStaffManagedGuardian))
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "staff-maintained contact link must survive")
 }
 
@@ -379,9 +433,9 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
 
-	require.NoError(t, env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	require.NoError(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		ActorAccountID:    actorID,
@@ -389,8 +443,7 @@ func TestRevokeAccess_ParentCancelsInviteForStaffManagedContactWithoutDeletingLi
 	}))
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "cancelling portal invite must not delete staff contact data")
 
-	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
-	require.NoError(t, err)
+	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.False(t, updated.ExpiresAt.After(time.Now()), "pending portal token must be invalidated")
 }
 
@@ -406,7 +459,7 @@ func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      email,
 		CreatedBy:                  creatorID,
@@ -417,7 +470,7 @@ func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 	assert.True(t, env.linkExists(t, student.ID, result.GuardianProfileID))
 
-	require.NoError(t, env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{
+	require.NoError(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{
 		StudentID:         student.ID,
 		GuardianProfileID: result.GuardianProfileID,
 		ActorAccountID:    creatorID,
@@ -425,8 +478,7 @@ func TestRevokeAccess_ParentPendingInviteRemovalExpiresToken(t *testing.T) {
 	}))
 	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID), "pending access link must be removed")
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.False(t, inv.ExpiresAt.After(time.Now()), "removing pending access must invalidate the token")
 }
 
@@ -442,7 +494,7 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      email,
 		CreatedBy:                  creatorID,
@@ -453,7 +505,7 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 	require.NotNil(t, result.InvitationID)
 	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
 
-	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 	// No link is created until approval.
 	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID),
 		"pending approval must not link the child yet")
@@ -475,6 +527,100 @@ func TestInviteToStudent_RequireApproval_QueuesPending(t *testing.T) {
 		"approval must link the child")
 }
 
+// A request awaiting a staff decision holds a token nobody may spend: the
+// public preview and acceptance refuse it, and a resend never mails it out,
+// so staff approval stays the only way to hand that link over.
+func TestInviteToStudent_PendingApprovalTokenIsNotDeliverableOrRedeemable(t *testing.T) {
+	t.Parallel()
+
+	outbox := &stubOutboxEnqueuer{}
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
+	})
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Frozen", "Token", "4g")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("frozen-token-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.Ctx(t)
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+	require.Empty(t, outbox.requests, "a queued request mails nothing before staff decide")
+
+	invitation := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
+
+	_, err = env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
+	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound)
+
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
+		Password: strongTestPassword, ConfirmPassword: strongTestPassword,
+	})
+	require.ErrorIs(t, err, identityaccess.ErrInvitationNotFound)
+
+	require.Error(t, env.service.ResendGuardianInvitation(ctx, invitation.ID, creatorID))
+	assert.Empty(t, outbox.requests, "the frozen token must not be mailed out by a resend")
+
+	// Staff approval is what releases it.
+	require.NoError(t, env.service.ApproveInvitation(ctx, invitation.ID, creatorID))
+	require.Len(t, outbox.requests, 1)
+	preview, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
+	require.NoError(t, err)
+	assert.Equal(t, email, preview.Email)
+}
+
+// A request whose window ran out is no longer a decision staff can take:
+// approving it would link a child from an expired request, so the queue
+// stops listing it and the approval is refused.
+func TestPendingApprovalQueue_LeavesOutExpiredRequests(t *testing.T) {
+	t.Parallel()
+
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	student := testpkg.CreateTestStudent(t, env.db, "Stale", "Request", "4h")
+	creatorID := env.inviterAccountID(t)
+	email := fmt.Sprintf("stale-request-%d@example.test", time.Now().UnixNano())
+	defer env.deleteStudentGuardianLinks(student.ID)
+
+	ctx := testpkg.Ctx(t)
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
+		StudentID:                  student.ID,
+		Email:                      email,
+		CreatedBy:                  creatorID,
+		RequestedByParentAccountID: &creatorID,
+		RequireApproval:            true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result.InvitationID)
+	defer env.cleanupInvitation(t, *result.InvitationID, result.GuardianProfileID)
+
+	_, err = env.db.NewUpdate().
+		TableExpr("auth.guardian_invitations").
+		Set("expires_at = ?", time.Now().Add(-time.Hour)).
+		Where("id = ?", *result.InvitationID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	pending, err := env.service.ListPendingApprovalsDetailed(ctx)
+	require.NoError(t, err)
+	for _, view := range pending {
+		assert.NotEqual(t, *result.InvitationID, view.InvitationID, "an expired request must leave the queue")
+	}
+
+	require.Error(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
+	assert.False(t, env.linkExists(t, student.ID, result.GuardianProfileID))
+}
+
 func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	t.Parallel()
 
@@ -487,7 +633,7 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	pending, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	pending, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      email,
 		CreatedBy:                  creatorID,
@@ -498,7 +644,7 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	require.NotNil(t, pending.InvitationID)
 	defer env.cleanupInvitation(t, *pending.InvitationID, pending.GuardianProfileID)
 
-	direct, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	direct, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     email,
 		CreatedBy: creatorID,
@@ -508,8 +654,7 @@ func TestInviteToStudent_DirectInvitePromotesPendingApproval(t *testing.T) {
 	assert.Equal(t, *pending.InvitationID, *direct.InvitationID, "staff/direct invite should reuse the pending token")
 	assert.True(t, env.linkExists(t, student.ID, pending.GuardianProfileID), "staff/direct invite should create the child link")
 
-	invitation, err := env.repos.GuardianInvitation.FindByID(context.Background(), *pending.InvitationID)
-	require.NoError(t, err)
+	invitation := testpkg.GuardianInvitationByID(t, env.db, *pending.InvitationID)
 	assert.Equal(t, authModels.GuardianInvitationApprovalNotRequired, invitation.ApprovalStatus)
 }
 
@@ -525,7 +670,7 @@ func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(student.ID)
 
 	ctx := testpkg.Ctx(t)
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      email,
 		FirstName:                  "Oma",
@@ -541,10 +686,10 @@ func TestListPendingApprovalsDetailed_ResolvesNames(t *testing.T) {
 	views, err := env.service.ListPendingApprovalsDetailed(ctx)
 	require.NoError(t, err)
 
-	var view *authService.PendingApprovalView
-	for _, v := range views {
-		if v.InvitationID == *result.InvitationID {
-			view = v
+	var view *identityaccess.PendingApprovalView
+	for index, candidate := range views {
+		if candidate.InvitationID == *result.InvitationID {
+			view = &views[index]
 		}
 	}
 	require.NotNil(t, view, "queued invite must appear in the detailed approval queue")
@@ -569,7 +714,7 @@ func TestRejectInvitation_MarksRejectedAndCleansOrphan(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	// Parent-initiated, requires approval → creates a fresh orphan profile +
 	// a pending invitation, but no link.
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      email,
 		FirstName:                  "Orphan",
@@ -591,8 +736,13 @@ func TestRejectInvitation_MarksRejectedAndCleansOrphan(t *testing.T) {
 	// CASCADE), so the whole speculative record disappears on reject.
 	profile, _ := env.repos.GuardianProfile.FindByID(ctx, result.GuardianProfileID)
 	assert.Nil(t, profile, "orphan profile must be removed on reject")
-	inv, _ := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	assert.Nil(t, inv, "the rejected orphan invitation is cascade-deleted with its profile")
+	var remaining int
+	require.NoError(t, env.db.NewSelect().
+		ColumnExpr("COUNT(*)").
+		TableExpr("auth.guardian_invitations").
+		Where("id = ?", *result.InvitationID).
+		Scan(context.Background(), &remaining))
+	assert.Zero(t, remaining, "the rejected orphan invitation is cascade-deleted with its profile")
 }
 
 func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
@@ -615,7 +765,7 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 
 	// Parent-initiated, requires approval → pending, no link yet.
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -632,8 +782,7 @@ func TestApproveInvitation_ExistingAccount_LinksWithoutEmail(t *testing.T) {
 	require.NoError(t, env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID))
 	assert.True(t, env.linkExists(t, student.ID, profile.ID), "approval must link the child")
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.Equal(t, authModels.GuardianInvitationApprovalApproved, inv.ApprovalStatus)
 	assert.NotNil(t, inv.AcceptedAt, "existing-account approval closes the invitation")
 }
@@ -647,13 +796,13 @@ func TestInviteToStudent_ValidationErrors(t *testing.T) {
 	creator := env.inviterAccountID(t)
 	student := testpkg.CreateTestStudent(t, env.db, "Val", "Idation", "1a")
 
-	_, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{StudentID: 0, Email: "a@b.de", CreatedBy: creator})
+	_, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{StudentID: 0, Email: "a@b.de", CreatedBy: creator})
 	require.Error(t, err, "missing student ID")
 
-	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{StudentID: student.ID, Email: "a@b.de", CreatedBy: 0})
+	_, err = env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{StudentID: student.ID, Email: "a@b.de", CreatedBy: 0})
 	require.Error(t, err, "missing created_by")
 
-	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{StudentID: student.ID, Email: "   ", CreatedBy: creator})
+	_, err = env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{StudentID: student.ID, Email: "   ", CreatedBy: creator})
 	require.Error(t, err, "blank email")
 }
 
@@ -672,7 +821,7 @@ func TestApproveRejectInvitation_NotFoundAndNotPending(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, env.db, "NotP", "Ending", "2b")
 	defer env.deleteStudentGuardianLinks(student.ID)
 	email := fmt.Sprintf("notpending-%d@example.test", time.Now().UnixNano())
-	res, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{StudentID: student.ID, Email: email, CreatedBy: approver})
+	res, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{StudentID: student.ID, Email: email, CreatedBy: approver})
 	require.NoError(t, err)
 	require.NotNil(t, res.InvitationID)
 	defer env.cleanupInvitation(t, *res.InvitationID, res.GuardianProfileID)
@@ -692,7 +841,7 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	email := fmt.Sprintf("repeat-invite-%d@example.test", time.Now().UnixNano())
 	defer env.deleteStudentGuardianLinks(student.ID)
 
-	first, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	first, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     email,
 		CreatedBy: creator,
@@ -701,7 +850,7 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	require.NotNil(t, first.InvitationID)
 	defer env.cleanupInvitation(t, *first.InvitationID, first.GuardianProfileID)
 
-	second, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	second, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     email,
 		CreatedBy: creator,
@@ -712,12 +861,11 @@ func TestInviteToStudent_ReusesOpenInvitationForSameChildAndProfile(t *testing.T
 	assert.Equal(t, first.GuardianProfileID, second.GuardianProfileID)
 	assert.Equal(t, *first.InvitationID, *second.InvitationID, "repeat invite should reuse the open invitation")
 
-	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, first.GuardianProfileID)
-	require.NoError(t, err)
+	invitations := testpkg.GuardianInvitationsByProfile(t, env.db, first.GuardianProfileID)
 	openForStudent := 0
 	now := time.Now()
 	for _, inv := range invitations {
-		if inv.StudentID != nil && *inv.StudentID == student.ID && authService.GuardianInvitationValid(inv, now) {
+		if inv.StudentID != nil && *inv.StudentID == student.ID && inv.AcceptedAt == nil && inv.ExpiresAt.After(now) {
 			openForStudent++
 		}
 	}
@@ -737,8 +885,8 @@ func TestRevokeAccess_ValidationAndNotLinked(t *testing.T) {
 		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
 	}()
 
-	require.Error(t, env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{StudentID: 0, GuardianProfileID: profile.ID, ActorAccountID: actor}), "missing ids")
-	require.Error(t, env.service.RevokeAccess(ctx, authService.RevokeAccessRequest{StudentID: student.ID, GuardianProfileID: profile.ID, ActorAccountID: actor}), "not linked")
+	require.Error(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{StudentID: 0, GuardianProfileID: profile.ID, ActorAccountID: actor}), "missing ids")
+	require.Error(t, env.service.RevokeAccess(ctx, identityaccess.RevokeAccessRequest{StudentID: student.ID, GuardianProfileID: profile.ID, ActorAccountID: actor}), "not linked")
 }
 
 func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
@@ -763,7 +911,7 @@ func TestRejectInvitation_PreservesProfileWithOtherLinks(t *testing.T) {
 	require.NoError(t, env.repos.StudentGuardian.Create(ctx, link))
 
 	// Pending request for the SAME guardian, targeting student B.
-	res, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	res, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  studentB.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  approver,
@@ -795,7 +943,7 @@ func TestRejectInvitation_PreservesPreexistingProfileWithoutLinks(t *testing.T) 
 		_, _ = env.db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(context.Background())
 	}()
 
-	res, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	res, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  approver,
@@ -826,7 +974,7 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	defer env.deleteStudentGuardianLinks(studentA.ID)
 	defer env.deleteStudentGuardianLinks(studentB.ID)
 
-	first, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	first, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  studentA.ID,
 		Email:                      email,
 		FirstName:                  "Shared",
@@ -838,7 +986,7 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, first.InvitationID)
 
-	second, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	second, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  studentB.ID,
 		Email:                      email,
 		CreatedBy:                  approver,
@@ -857,8 +1005,7 @@ func TestRejectInvitation_PreservesSharedPendingProfile(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, p, "profile with another open invitation must survive reject cleanup")
 
-	inv, err := env.repos.GuardianInvitation.FindByID(ctx, *second.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *second.InvitationID)
 	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 }
 
@@ -904,20 +1051,20 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
 
 	// Staff-shaped invite without confirmation → detection, zero side effects.
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     *profile.Email,
 		CreatedBy: creatorID,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, authService.InviteOutcomeExistingContactRestricted, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeExistingContactRestricted, result.Outcome)
 	assert.Equal(t, authorize.GuardianRoleEmergency, result.ExistingRole)
 	assert.Equal(t, profile.ID, result.GuardianProfileID)
 	assert.Nil(t, result.InvitationID)
 
 	// Parent-shaped invite (approval mode) without confirmation → same, and
 	// crucially nothing was queued.
-	parentResult, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	parentResult, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -925,12 +1072,11 @@ func TestInviteToStudent_RestrictedContact_RequiresConfirmation(t *testing.T) {
 		RequireApproval:            true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, authService.InviteOutcomeExistingContactRestricted, parentResult.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeExistingContactRestricted, parentResult.Outcome)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRoleEmergency, link.GuardianRole, "link role must be untouched")
-	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, profile.ID)
-	require.NoError(t, err)
+	invitations := testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID)
 	assert.Empty(t, invitations, "detection must not create invitation rows")
 }
 
@@ -951,7 +1097,7 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:          student.ID,
 		Email:              *profile.Email,
 		CreatedBy:          creatorID,
@@ -961,14 +1107,13 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectNoAccount(t *testing.T) {
 	require.NotNil(t, result.InvitationID, "no-account contact still needs a token invitation")
 	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
 
-	assert.Equal(t, authService.InviteOutcomeInvited, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeInvited, result.Outcome)
 	link := env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
 	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess),
 		"upgraded link must carry parent_portal.access")
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.False(t, inv.RoleUpgrade, "direct mode applies the upgrade immediately; the row flag stays false")
 }
 
@@ -991,14 +1136,14 @@ func TestInviteToStudent_ConfirmedUpgrade_DirectExistingAccount(t *testing.T) {
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleEmergency)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:          student.ID,
 		Email:              *profile.Email,
 		CreatedBy:          creatorID,
 		ConfirmRoleUpgrade: true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeAlreadyLinked, result.Outcome)
 	assert.Nil(t, result.InvitationID)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
@@ -1026,7 +1171,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1037,10 +1182,9 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
 	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
-	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.True(t, inv.RoleUpgrade, "approval mode must persist the upgrade intent")
 	link := env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRoleCustom, link.GuardianRole, "no upgrade before approval")
@@ -1048,10 +1192,10 @@ func TestInviteToStudent_ConfirmedUpgrade_ApprovalPersistsFlagAndAppliesOnApprov
 	// Staff sees the upgrade marker in the queue.
 	views, err := env.service.ListPendingApprovalsDetailed(ctx)
 	require.NoError(t, err)
-	var view *authService.PendingApprovalView
-	for _, v := range views {
-		if v.InvitationID == *result.InvitationID {
-			view = v
+	var view *identityaccess.PendingApprovalView
+	for index, candidate := range views {
+		if candidate.InvitationID == *result.InvitationID {
+			view = &views[index]
 		}
 	}
 	require.NotNil(t, view)
@@ -1091,9 +1235,9 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 		ApprovalStatus:       authModels.GuardianInvitationApprovalPending,
 	}
 	existing.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1105,8 +1249,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ReusedPendingInvitationGetsFlag(t *tes
 	require.NotNil(t, result.InvitationID)
 	assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
 	assert.True(t, inv.RoleUpgrade, "reused invitation must carry the upgrade flag")
 }
 
@@ -1129,13 +1272,13 @@ func TestInviteToStudent_FullRoleLink_NoConfirmationNeeded(t *testing.T) {
 	require.NoError(t, env.repos.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleLegalGuardian)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     *profile.Email,
 		CreatedBy: creatorID,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, result.Outcome,
+	assert.Equal(t, identityaccess.InviteOutcomeAlreadyLinked, result.Outcome,
 		"full-role links must not trigger the restricted-contact confirmation")
 	assert.Empty(t, result.ExistingRole)
 }
@@ -1158,24 +1301,24 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleSocialWorker)
 
 	// Without confirmation → refused outright, never the confirmation outcome.
-	_, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	_, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID: student.ID,
 		Email:     *profile.Email,
 		CreatedBy: creatorID,
 	})
-	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 
 	// With confirmation → still refused; the upgrade path must stay closed.
-	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	_, err = env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:          student.ID,
 		Email:              *profile.Email,
 		CreatedBy:          creatorID,
 		ConfirmRoleUpgrade: true,
 	})
-	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 
 	// Approval mode (parent-shaped) → refused before anything is queued.
-	_, err = env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	_, err = env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1183,13 +1326,12 @@ func TestInviteToStudent_SocialWorkerLink_RefusedEvenWithConfirmation(t *testing
 		RequireApproval:            true,
 		ConfirmRoleUpgrade:         true,
 	})
-	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole, "link must be untouched")
 	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
-	invitations, err := env.repos.GuardianInvitation.FindByGuardianProfileID(ctx, profile.ID)
-	require.NoError(t, err)
+	invitations := testpkg.GuardianInvitationsByProfile(t, env.db, profile.ID)
 	assert.Empty(t, invitations, "refusal must not create invitation rows")
 }
 
@@ -1202,8 +1344,8 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	t.Parallel()
 
 	outbox := &stubOutboxEnqueuer{}
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.OutboxEnqueuer = outbox
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
 
@@ -1218,7 +1360,7 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRoleCustom)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1237,15 +1379,14 @@ func TestApproveInvitation_RoleUpgradeRefusesSocialWorkerLink(t *testing.T) {
 	require.NoError(t, env.repos.StudentGuardian.Update(ctx, link))
 
 	err = env.service.ApproveInvitation(ctx, *result.InvitationID, creatorID)
-	require.ErrorIs(t, err, authService.ErrInviteSocialWorkerManaged)
+	require.ErrorIs(t, err, identityaccess.ErrInviteSocialWorkerManaged)
 
 	link = env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRoleSocialWorker, link.GuardianRole,
 		"persisted upgrade flag must not promote a social-worker link")
 	assert.False(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"a refused upgrade must not mark the request approved")
 	assert.Nil(t, inv.ApprovedAt)
@@ -1277,7 +1418,7 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 
 	// Parent-shaped invite in DIRECT mode (RequireApproval false) with a
 	// confirmed upgrade → queued, nothing applied yet.
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1288,10 +1429,9 @@ func TestInviteToStudent_ConfirmedUpgrade_ParentDirectModeQueuesApproval(t *test
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
 	defer env.cleanupInvitation(t, *result.InvitationID, profile.ID)
-	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *result.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *result.InvitationID)
 	assert.True(t, inv.RoleUpgrade, "queued request must persist the upgrade intent")
 	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 
@@ -1342,10 +1482,10 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
 	existing.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 	// Parent confirms the upgrade (direct mode — approval is forced).
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1356,10 +1496,9 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	require.NoError(t, err)
 	require.NotNil(t, result.InvitationID)
 	assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
-	assert.Equal(t, authService.InviteOutcomePendingApproval, result.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, result.Outcome)
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
 	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"reused not_required invitation must be re-queued as pending")
 	assert.True(t, inv.RoleUpgrade)
@@ -1370,10 +1509,10 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeuesOpenDirectInvitation(t *testin
 	// upgrade.
 	views, err := env.service.ListPendingApprovalsDetailed(ctx)
 	require.NoError(t, err)
-	var view *authService.PendingApprovalView
-	for _, v := range views {
-		if v.InvitationID == existing.ID {
-			view = v
+	var view *identityaccess.PendingApprovalView
+	for index, candidate := range views {
+		if candidate.InvitationID == existing.ID {
+			view = &views[index]
 		}
 	}
 	require.NotNil(t, view, "re-queued request must appear in the approval queue")
@@ -1423,9 +1562,9 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 		EmailError:        &emailError,
 	}
 	existing.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+	testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
-	result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1436,8 +1575,7 @@ func TestInviteToStudent_ConfirmedUpgrade_RequeueRefreshesExpiry(t *testing.T) {
 	require.NotNil(t, result.InvitationID)
 	require.Equal(t, existing.ID, *result.InvitationID)
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
 	assert.Equal(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus)
 	assert.True(t, inv.ExpiresAt.After(staleExpiry.Add(time.Hour)),
 		"re-queued request must get a fresh approval window, not the leftover expiry")
@@ -1475,7 +1613,7 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 	env.createRestrictedContactLink(t, student.ID, profile.ID, authorize.GuardianRolePickupOnly)
 
 	// Parent queues the upgrade request.
-	queued, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	queued, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:                  student.ID,
 		Email:                      *profile.Email,
 		CreatedBy:                  creatorID,
@@ -1485,24 +1623,23 @@ func TestInviteToStudent_DirectLinkClosesPendingApprovalRequest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotNil(t, queued.InvitationID)
-	assert.Equal(t, authService.InviteOutcomePendingApproval, queued.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomePendingApproval, queued.Outcome)
 
 	// Staff grant the same access directly instead of using the queue.
-	direct, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+	direct, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 		StudentID:          student.ID,
 		Email:              *profile.Email,
 		CreatedBy:          creatorID,
 		ConfirmRoleUpgrade: true,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, authService.InviteOutcomeAlreadyLinked, direct.Outcome)
+	assert.Equal(t, identityaccess.InviteOutcomeAlreadyLinked, direct.Outcome)
 
 	link := env.fetchLink(t, student.ID, profile.ID)
 	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
 	assert.True(t, authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess))
 
-	inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), *queued.InvitationID)
-	require.NoError(t, err)
+	inv := testpkg.GuardianInvitationByID(t, env.db, *queued.InvitationID)
 	assert.NotEqual(t, authModels.GuardianInvitationApprovalPending, inv.ApprovalStatus,
 		"the superseded request must leave the approval queue")
 	assert.NotNil(t, inv.AcceptedAt, "access exists, so the request is resolved")
@@ -1563,10 +1700,10 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 			// Cleanup: the test-level defer deletes every invitation of this
 			// profile, so no per-subtest cleanup (which would also delete the
 			// shared profile).
-			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, existing))
+			testpkg.InsertTestGuardianInvitation(t, env.db, existing)
 
 			// Duplicate plain parent invite in staff_approval mode.
-			result, err := env.service.InviteToStudent(ctx, authService.InviteToStudentRequest{
+			result, err := env.service.InviteToStudent(ctx, identityaccess.InviteToStudentRequest{
 				StudentID:                  student.ID,
 				Email:                      *profile.Email,
 				CreatedBy:                  creatorID,
@@ -1577,8 +1714,7 @@ func TestInviteToStudent_PlainReinviteKeepsResolvedInvitation(t *testing.T) {
 			require.NotNil(t, result.InvitationID)
 			assert.Equal(t, existing.ID, *result.InvitationID, "open invitation must be reused")
 
-			inv, err := env.repos.GuardianInvitation.FindByID(context.Background(), existing.ID)
-			require.NoError(t, err)
+			inv := testpkg.GuardianInvitationByID(t, env.db, existing.ID)
 			assert.Equal(t, status, inv.ApprovalStatus,
 				"a plain re-invite must not revert a resolved invitation")
 			assert.False(t, inv.RoleUpgrade)

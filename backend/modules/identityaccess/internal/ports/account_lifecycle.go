@@ -153,24 +153,51 @@ type GuardianDirectory interface {
 	FindPersonNamesByIDs(ctx context.Context, personIDs []int64) (map[int64]domain.PersonName, error)
 }
 
-// GuardianInvitationStore is the persistence port over auth.guardian_invitations
-// as the relative access flows read and write it. The retained guardian
-// invitation storage serves it until #2722 moves the invitation lifecycle.
+// GuardianInvitationStore is the persistence port over
+// auth.guardian_invitations and the account an acceptance creates, as the
+// guardian invitation lifecycle and the relative access flows read and
+// write them (#2722). Every statement runs on the connection the caller's
+// context carries; the public validate and accept routes hold the
+// administrative transaction.
 type GuardianInvitationStore interface {
 	FindGuardianInvitation(ctx context.Context, id int64) (domain.GuardianInvitation, bool, error)
+	FindGuardianInvitationByToken(ctx context.Context, token string) (domain.GuardianInvitation, bool, error)
 	ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error)
 	ListPendingGuardianApprovals(ctx context.Context) ([]domain.GuardianInvitation, error)
+	// ListOpenGuardianInvitations returns the invitations of the profiles
+	// that are still going somewhere: redeemable or awaiting a decision.
+	ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error)
+	// ListRedeemableGuardianInvitations returns the invitations of the
+	// school in context whose link can still be spent.
+	ListRedeemableGuardianInvitations(ctx context.Context, now time.Time) ([]domain.GuardianInvitation, error)
 	InsertGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianInvitation, error)
 	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error
+	// AcceptGuardianInvitation stamps the acceptance and reports whether the
+	// invitation was still unaccepted, so a token is spent exactly once.
+	AcceptGuardianInvitation(ctx context.Context, id int64, acceptedAt time.Time) (bool, error)
+
+	AccountProvisioning
+}
+
+// GuardianEnrollments is the consumer-owned port over the Enrollment
+// module's pre-account requests: accepting an invitation claims the
+// requests the guardian filed before they had an account (#2722).
+type GuardianEnrollments interface {
+	// ClaimGuardianEnrollments stamps the account onto every request of
+	// that address and returns how many it claimed.
+	ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error)
 }
 
 // GuardianInvitationDelivery is the consumer-owned port over the retained
 // guardian invitation service's delivery seams (#2722): the token expiry the
 // tenant configured, the school name for the mail and the outbox enqueue.
+// EnqueueExistingAccountEmail tells an account holder who got access without
+// a token invitation to sign in to the parents portal with their credentials.
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
 	EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string)
+	EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string)
 }
 
 // FinancialAudit is the consumer-owned port over the Audit platform's

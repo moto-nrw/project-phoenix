@@ -3,7 +3,6 @@ package platform
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -15,7 +14,6 @@ import (
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/uptrace/bun"
@@ -32,7 +30,9 @@ type OperatorPasskeyService interface {
 }
 
 type OperatorPasskeyServiceConfig struct {
-	Repos *repositories.Factory
+	// Records is the consumer-owned port over the Identity & Access operator
+	// passkey credentials and ceremony sessions.
+	Records OperatorPasskeyRecords
 	// Operators is the consumer-owned port over the Identity & Access
 	// operator rows the passkey ceremonies resolve their user from.
 	Operators           OperatorDirectory
@@ -72,7 +72,7 @@ type OperatorPasskeyLoginFinishRequest struct {
 }
 
 type operatorPasskeyService struct {
-	repos              *repositories.Factory
+	records            OperatorPasskeyRecords
 	operators          OperatorDirectory
 	mfaService         OperatorMFAService
 	authService        OperatorAuthService
@@ -86,8 +86,8 @@ type operatorPasskeyService struct {
 var _ OperatorPasskeyService = (*operatorPasskeyService)(nil)
 
 func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasskeyService, error) {
-	if cfg.Repos == nil {
-		return nil, errors.New("OperatorPasskeyServiceConfig.Repos is required")
+	if cfg.Records == nil {
+		return nil, errors.New("OperatorPasskeyServiceConfig.Records is required")
 	}
 	if cfg.Operators == nil {
 		return nil, errors.New("OperatorPasskeyServiceConfig.Operators is required")
@@ -118,7 +118,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 		logger = slog.Default()
 	}
 	return &operatorPasskeyService{
-		repos:              cfg.Repos,
+		records:            cfg.Records,
 		operators:          cfg.Operators,
 		mfaService:         cfg.MFAService,
 		authService:        cfg.AuthService,
@@ -131,7 +131,7 @@ func NewOperatorPasskeyService(cfg OperatorPasskeyServiceConfig) (OperatorPasske
 }
 
 func (s *operatorPasskeyService) StartEnrollmentChallenge(ctx context.Context, operatorID int64, ip net.IP) (*OperatorPasskeyEnrollmentChallenge, error) {
-	operator, err := s.operators.FindByID(ctx, operatorID)
+	operator, err := s.findOperator(ctx, operatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 	if err := s.mfaService.VerifyCodeForOperator(ctx, req.OperatorID, req.Code); err != nil {
 		return nil, err
 	}
-	operator, err := s.operators.FindByID(ctx, req.OperatorID)
+	operator, err := s.findOperator(ctx, req.OperatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -199,25 +199,48 @@ func (s *operatorPasskeyService) BeginRegistration(ctx context.Context, req Oper
 		ExpiresAt:      sessionData.Expires,
 	}
 	session.ID = sessionID.String()
-	if err := s.repos.OperatorPasskeySession.Create(ctx, session); err != nil {
+	if err := s.records.CreateSession(ctx, session); err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyCredentialCreation{SessionID: sessionID.String(), Options: creation}, nil
 }
 
+// FinishRegistration consumes the ceremony and stores the credential in one
+// administrative transaction (see auth.CompleteCeremony).
 func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req OperatorPasskeyRegistrationFinishRequest) (*authService.PasskeyCredentialSummary, error) {
-	sessionRow, err := s.repos.OperatorPasskeySession.Consume(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeRegistration, time.Now())
+	var summary *authService.PasskeyCredentialSummary
+	err := authService.CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
+		row, err := s.verifyRegistration(txCtx, req)
+		if err != nil {
+			return err
+		}
+		if err := s.records.CreateCredential(txCtx, row); err != nil {
+			return err
+		}
+		summary = summarizeOperatorPasskeyCredential(row)
+		return nil
+	})
 	if err != nil {
-		return nil, authService.ErrPasskeySessionInvalid
+		return nil, err
 	}
-	if sessionRow.OperatorID == nil || *sessionRow.OperatorID != req.OperatorID {
-		return nil, authService.ErrPasskeySessionInvalid
+	return summary, nil
+}
+
+// verifyRegistration consumes the ceremony and verifies the attestation. It
+// returns the credential to store; a refused ceremony is a rejection.
+func (s *operatorPasskeyService) verifyRegistration(ctx context.Context, req OperatorPasskeyRegistrationFinishRequest) (*platform.OperatorPasskeyCredential, error) {
+	sessionRow, err := s.records.ConsumeSession(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeRegistration, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	if sessionRow == nil || sessionRow.OperatorID == nil || *sessionRow.OperatorID != req.OperatorID {
+		return nil, authService.RejectCeremony(authService.ErrPasskeySessionInvalid)
 	}
 	var sessionData webauthn.SessionData
 	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return nil, err
+		return nil, authService.RejectCeremony(err)
 	}
-	operator, err := s.operators.FindByID(ctx, req.OperatorID)
+	operator, err := s.findOperator(ctx, req.OperatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -227,15 +250,15 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 	}
 	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
 	if err != nil {
-		return nil, err
+		return nil, authService.RejectCeremony(err)
 	}
 	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
-		return nil, err
+		return nil, authService.RejectCeremony(err)
 	}
 	credential, err := webAuthn.FinishRegistration(user, sessionData, httpReq)
 	if err != nil {
-		return nil, err
+		return nil, authService.RejectCeremony(err)
 	}
 	credentialJSON, err := json.Marshal(credential)
 	if err != nil {
@@ -245,17 +268,13 @@ func (s *operatorPasskeyService) FinishRegistration(ctx context.Context, req Ope
 	if name == "" {
 		name = "Passkey"
 	}
-	row := &platform.OperatorPasskeyCredential{
+	return &platform.OperatorPasskeyCredential{
 		OperatorID:     req.OperatorID,
 		UserHandle:     user.WebAuthnID(),
 		CredentialID:   credential.ID,
 		CredentialJSON: credentialJSON,
 		Name:           name,
-	}
-	if err := s.repos.OperatorPasskeyCredential.Create(ctx, row); err != nil {
-		return nil, err
-	}
-	return summarizeOperatorPasskeyCredential(row), nil
+	}, nil
 }
 
 func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin string) (*authService.PasskeyCredentialAssertion, error) {
@@ -290,68 +309,128 @@ func (s *operatorPasskeyService) BeginLogin(ctx context.Context, expectedOrigin 
 		ExpiresAt:      sessionData.Expires,
 	}
 	session.ID = sessionID.String()
-	if err := s.repos.OperatorPasskeySession.Create(ctx, session); err != nil {
+	if err := s.records.CreateSession(ctx, session); err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyCredentialAssertion{SessionID: sessionID.String(), Options: assertion}, nil
 }
 
+// FinishLogin consumes the ceremony and records the credential use in one
+// administrative transaction (see auth.CompleteCeremony). The token pair is
+// issued after the commit.
 func (s *operatorPasskeyService) FinishLogin(ctx context.Context, req OperatorPasskeyLoginFinishRequest) (*authService.PasskeyLoginResult, error) {
-	sessionRow, err := s.repos.OperatorPasskeySession.Consume(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeLogin, time.Now())
-	if err != nil {
-		return nil, authService.ErrPasskeySessionInvalid
-	}
-	var sessionData webauthn.SessionData
-	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
-		return nil, err
-	}
-	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
-	if err != nil {
-		return nil, err
-	}
-	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
-	if err != nil {
-		return nil, err
-	}
-	var matchedCredentialID int64
-	user, credential, err := webAuthn.FinishPasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
-		row, err := s.repos.OperatorPasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, rawID, userHandle)
+	var operatorID int64
+	err := authService.CompleteCeremony(ctx, s.db, func(txCtx context.Context) error {
+		verified, err := s.verifyLogin(txCtx, req)
 		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, &InvalidCredentialsError{}
-			}
-			return nil, err
+			return err
 		}
-		matchedCredentialID = row.ID
-		operator, err := s.operators.FindByID(ctx, row.OperatorID)
-		if err != nil {
-			return nil, err
+		if err := s.records.RecordCredentialUse(txCtx, verified.credentialID, verified.credentialJSON, time.Now()); err != nil {
+			return err
 		}
-		return s.passkeyUserForOperator(ctx, operator)
-	}, sessionData, httpReq)
-	if err != nil {
-		return nil, &InvalidCredentialsError{}
-	}
-	credentialJSON, err := json.Marshal(credential)
+		operatorID = verified.operatorID
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if err := s.repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
-		return nil, err
-	}
-	passkeyUser, ok := user.(*authService.WebAuthnUser)
-	if !ok {
-		return nil, &InvalidCredentialsError{}
-	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedOperator(ctx, passkeyUser.ID, req.IPAddress, req.UserAgent)
+	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedOperator(ctx, operatorID, req.IPAddress, req.UserAgent)
 	if err != nil {
 		return nil, err
 	}
 	return &authService.PasskeyLoginResult{AccessToken: accessToken, RefreshToken: refreshToken}, nil
 }
 
+type verifiedOperatorPasskeyLogin struct {
+	operatorID     int64
+	credentialID   int64
+	credentialJSON []byte
+}
+
+// verifyLogin consumes the ceremony and verifies the assertion. A refused
+// assertion is a rejection; a failed read is returned as it is.
+func (s *operatorPasskeyService) verifyLogin(ctx context.Context, req OperatorPasskeyLoginFinishRequest) (verifiedOperatorPasskeyLogin, error) {
+	sessionRow, err := s.records.ConsumeSession(ctx, req.SessionID, platform.OperatorPasskeySessionPurposeLogin, time.Now())
+	if err != nil {
+		return verifiedOperatorPasskeyLogin{}, err
+	}
+	if sessionRow == nil {
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(authService.ErrPasskeySessionInvalid)
+	}
+	var sessionData webauthn.SessionData
+	if err := json.Unmarshal(sessionRow.SessionJSON, &sessionData); err != nil {
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(err)
+	}
+	webAuthn, err := s.webAuthnForOrigin(sessionRow.ExpectedOrigin)
+	if err != nil {
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(err)
+	}
+	httpReq, err := authService.PasskeyResponseRequest(ctx, req.CredentialResponse)
+	if err != nil {
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(err)
+	}
+	var matchedCredentialID int64
+	// The WebAuthn library reports every handler error as a failed
+	// assertion; a failed read is kept apart so a store outage does not read
+	// as wrong credentials.
+	var readErr error
+	user, credential, err := webAuthn.FinishPasskeyLogin(func(rawID, userHandle []byte) (webauthn.User, error) {
+		row, err := s.records.FindActiveCredential(ctx, rawID, userHandle)
+		if err != nil {
+			readErr = err
+			return nil, err
+		}
+		if row == nil {
+			return nil, &InvalidCredentialsError{}
+		}
+		matchedCredentialID = row.ID
+		operator, err := s.findOperator(ctx, row.OperatorID)
+		if err != nil {
+			var notFound *OperatorNotFoundError
+			if !errors.As(err, &notFound) {
+				readErr = err
+			}
+			return nil, err
+		}
+		user, err := s.passkeyUserForOperator(ctx, operator)
+		if err != nil {
+			readErr = err
+			return nil, err
+		}
+		return user, nil
+	}, sessionData, httpReq)
+	if readErr != nil {
+		return verifiedOperatorPasskeyLogin{}, readErr
+	}
+	if err != nil {
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(&InvalidCredentialsError{})
+	}
+	passkeyUser, ok := user.(*authService.WebAuthnUser)
+	if !ok {
+		return verifiedOperatorPasskeyLogin{}, authService.RejectCeremony(&InvalidCredentialsError{})
+	}
+	credentialJSON, err := json.Marshal(credential)
+	if err != nil {
+		return verifiedOperatorPasskeyLogin{}, err
+	}
+	return verifiedOperatorPasskeyLogin{operatorID: passkeyUser.ID, credentialID: matchedCredentialID, credentialJSON: credentialJSON}, nil
+}
+
+// findOperator resolves the operator a ceremony belongs to; a missing row
+// is OperatorNotFoundError, never a nil operator.
+func (s *operatorPasskeyService) findOperator(ctx context.Context, operatorID int64) (*platform.Operator, error) {
+	operator, err := s.operators.FindByID(ctx, operatorID)
+	if err != nil {
+		return nil, err
+	}
+	if operator == nil {
+		return nil, &OperatorNotFoundError{OperatorID: operatorID}
+	}
+	return operator, nil
+}
+
 func (s *operatorPasskeyService) ListCredentials(ctx context.Context, operatorID int64) ([]authService.PasskeyCredentialSummary, error) {
-	rows, err := s.repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operatorID)
+	rows, err := s.records.ListActiveCredentials(ctx, operatorID)
 	if err != nil {
 		return nil, err
 	}
@@ -363,14 +442,18 @@ func (s *operatorPasskeyService) ListCredentials(ctx context.Context, operatorID
 }
 
 func (s *operatorPasskeyService) RevokeCredential(ctx context.Context, operatorID, credentialID int64) error {
-	if err := s.repos.OperatorPasskeyCredential.Revoke(ctx, operatorID, credentialID, time.Now()); err != nil {
+	revoked, err := s.records.RevokeCredential(ctx, operatorID, credentialID, time.Now())
+	if err != nil {
+		return err
+	}
+	if !revoked {
 		return authService.ErrPasskeyNotFound
 	}
 	return nil
 }
 
 func (s *operatorPasskeyService) passkeyUserForOperator(ctx context.Context, operator *platform.Operator, sessionUserHandle ...[]byte) (*authService.WebAuthnUser, error) {
-	rows, err := s.repos.OperatorPasskeyCredential.FindActiveByOperatorID(ctx, operator.ID)
+	rows, err := s.records.ListActiveCredentials(ctx, operator.ID)
 	if err != nil {
 		return nil, err
 	}

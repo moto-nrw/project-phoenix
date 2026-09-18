@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/services/schedule/scheduletest"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,14 +33,14 @@ func timetableDataWithArrivalBaseline(
 	require.NoError(t, err)
 	return timetableplanning.NewTimetableDataService(timetableplanning.TimetableDataDependencies{
 		InstanceStudentRepo:   env.repos.InstanceStudent,
-		ActivityInstanceRepo:  scheduleRepo.NewActivityInstanceRepository(env.db),
-		ActivityExceptionRepo: scheduleRepo.NewActivityExceptionRepository(env.db),
+		ActivityInstanceRepo:  timetablesqltest.NewActivityInstanceRepository(env.db),
+		ActivityExceptionRepo: timetablesqltest.NewActivityExceptionRepository(env.db),
 		ActivityScheduleRepo:  env.repos.ActivitySchedule,
 		ArrivalScheduleRepo:   env.repos.StudentArrivalSchedule,
 		ArrivalBaselines:      bookingModeArrivalBaseline(t, env, authoritative),
 		ArrivalExceptionRepo:  env.repos.StudentArrivalException,
 		PickupScheduleRepo:    env.repos.StudentPickupSchedule,
-		PickupBaselines: scheduletest.NewPickupBaselineService(
+		PickupBaselines: carescheduletest.NewPickupBaselineService(
 			env.repos.StudentPickupSchedule,
 			approvedOfferingTestProjection(env.repos),
 			env.repos.CareOffering,
@@ -147,7 +147,7 @@ func TestTimetableRead_StudentWeekCareDayWithoutClassTime(t *testing.T) {
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exception.Validate())
-	require.NoError(t, scheduleRepo.NewActivityExceptionRepository(env.db).Create(ctx, exception))
+	require.NoError(t, timetablesqltest.NewActivityExceptionRepository(env.db).Create(ctx, exception))
 
 	conflicts, err := data.DetectExceptionConflicts(ctx, monday, monday, slog.Default())
 	require.NoError(t, err)
@@ -229,5 +229,5 @@ func createModifiedException(
 	}
 	exception.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, exception.Validate())
-	require.NoError(t, scheduleRepo.NewActivityExceptionRepository(env.db).Create(testpkg.Ctx(t), exception))
+	require.NoError(t, timetablesqltest.NewActivityExceptionRepository(env.db).Create(testpkg.Ctx(t), exception))
 }

@@ -22,7 +22,6 @@ func init() {
 }
 
 func parentCareRequestFieldSettingsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.288: Backfilling parent permanent-care request field settings...")
 	_, err := db.NewRaw(`
 		WITH schools_and_effective_value AS (
 			SELECT school.id AS tenant_id,
@@ -55,7 +54,6 @@ func parentCareRequestFieldSettingsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func parentCareRequestFieldSettingsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.288: Removing parent permanent-care request field settings...")
 	_, err := db.NewRaw(`
 		WITH deleted AS (
 			DELETE FROM config.setting_values

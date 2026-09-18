@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
 )
 
@@ -25,34 +24,6 @@ func findSchool(ctx context.Context, schools organizationtenancy.Query, id int64
 		return organizationtenancy.School{}, false, err
 	}
 	return school, true, nil
-}
-
-// invitationSchoolDirectory answers the staff and guardian invitation flows.
-type invitationSchoolDirectory struct {
-	schools organizationtenancy.Query
-}
-
-func (d invitationSchoolDirectory) FindSchool(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
-	school, found, err := findSchool(ctx, d.schools, id)
-	return invitationSchool(school, found, err)
-}
-
-func (d invitationSchoolDirectory) FindSchoolForShare(ctx context.Context, id int64) (*auth.InvitationSchool, error) {
-	school, err := d.schools.FindSchoolForShare(ctx, id)
-	if errors.Is(err, organizationtenancy.ErrSchoolNotFound) {
-		return nil, nil
-	}
-	return invitationSchool(school, err == nil, err)
-}
-
-func invitationSchool(school organizationtenancy.School, found bool, err error) (*auth.InvitationSchool, error) {
-	if err != nil || !found {
-		return nil, err
-	}
-	return &auth.InvitationSchool{
-		Name: school.Name, Slug: school.Slug, Subdomain: school.Subdomain,
-		Settings: school.Settings, Deleted: school.IsDeleted(),
-	}, nil
 }
 
 // enrollmentSchoolDirectory answers the enrollment flows.

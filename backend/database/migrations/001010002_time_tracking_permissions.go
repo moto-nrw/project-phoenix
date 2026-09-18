@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func addTimeTrackingPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.10.2: Adding time tracking permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -69,20 +66,17 @@ func addTimeTrackingPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting time tracking permissions to roles: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.2: Successfully added time tracking permissions")
 	return tx.Commit()
 }
 
 func removeTimeTrackingPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.10.2: Removing time tracking permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -105,6 +99,5 @@ func removeTimeTrackingPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error removing time tracking permissions: %w", err)
 	}
 
-	fmt.Println("Migration 1.10.2: Successfully removed time tracking permissions")
 	return tx.Commit()
 }

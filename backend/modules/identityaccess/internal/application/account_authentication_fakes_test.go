@@ -191,6 +191,11 @@ type fakeStore struct {
 
 	// observations
 	calls []string
+
+	insertOperatorErr error
+	// nextOperatorID hands out the identities an insert assigns; seeded
+	// operators use their own ids, so it starts above the usual ones.
+	nextOperatorID int64
 }
 
 func newFakeStore() *fakeStore {
@@ -198,7 +203,7 @@ func newFakeStore() *fakeStore {
 		accounts: map[int64]domain.LoginAccount{}, inactive: map[mappingKey]bool{},
 		roles: map[mappingKey][]domain.RoleAssignment{}, permissions: map[mappingKey][]string{},
 		operators: map[int64]domain.Operator{}, sessions: map[int64]domain.AccountSession{}, operatorTokens: map[int64]domain.OperatorSession{},
-		findSessionErrs: map[string]error{},
+		findSessionErrs: map[string]error{}, nextOperatorID: 1000,
 	}
 }
 
@@ -206,6 +211,13 @@ func (s *fakeStore) record(call string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.calls = append(s.calls, call)
+}
+
+// recorded returns the statements in the order they ran.
+func (s *fakeStore) recorded() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]string(nil), s.calls...)
 }
 
 func (s *fakeStore) addAccount(id int64, email, passwordHash string, active bool) {
@@ -373,8 +385,22 @@ func (s *fakeStore) AssignAccountRole(context.Context, int64, int64, int64) (boo
 func (s *fakeStore) ListOperators(context.Context) ([]domain.Operator, domain.OperationStats, error) {
 	panic("not used")
 }
-func (s *fakeStore) InsertOperator(context.Context, domain.Operator) (domain.Operator, domain.OperationStats, error) {
-	panic("not used")
+
+// InsertOperator serves the invitation acceptance, which is the one flow
+// that creates an operator (#3332).
+func (s *fakeStore) InsertOperator(_ context.Context, operator domain.Operator) (domain.Operator, domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.calls = append(s.calls, "InsertOperator")
+	if s.insertOperatorErr != nil {
+		return domain.Operator{}, stats(), s.insertOperatorErr
+	}
+	s.nextOperatorID++
+	operator.ID = s.nextOperatorID
+	operator.CreatedAt = time.Now()
+	operator.UpdatedAt = operator.CreatedAt
+	s.operators[operator.ID] = operator
+	return operator, stats(), nil
 }
 func (s *fakeStore) DeleteOperator(context.Context, int64) (domain.OperationStats, error) {
 	panic("not used")

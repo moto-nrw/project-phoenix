@@ -32,8 +32,6 @@ func init() {
 }
 
 func studentsDropBusColumnUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.119: Dropping legacy users.students.bus column...")
-
 	// Defensive backfill before the drop: guarantee no Buskind information is
 	// lost if any row still has the legacy bus flag set but never received the
 	// weekday backfill (bus_days became the SSOT in #1582; this should be a
@@ -64,8 +62,6 @@ func studentsDropBusColumnUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentsDropBusColumnDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.119: Re-adding users.students.bus column...")
-
 	if _, err := db.NewRaw(`
 		ALTER TABLE users.students
 			ADD COLUMN IF NOT EXISTS bus BOOLEAN DEFAULT FALSE;

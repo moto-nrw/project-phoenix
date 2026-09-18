@@ -15,7 +15,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -23,6 +22,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -437,7 +437,7 @@ func TestTemplateUpdatePropagatesListKindToFutureInstances(t *testing.T) {
 	created := decodeTemplateData[createTemplateResponse](t, w)
 	require.NotZero(t, created.TemplateID)
 
-	instanceRepo := scheduleRepo.NewActivityInstanceRepository(s.db)
+	instanceRepo := timetablesqltest.NewActivityInstanceRepository(s.db)
 	today := timezone.NewDate(2026, 8, 24)
 	mkInstance := func(name string, date timezone.Date, hour int, listKind *string) *scheduleModel.ActivityInstance {
 		tmplID := created.TemplateID
@@ -1537,7 +1537,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
 		}
 		exception.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
+		require.NoError(t, timetablesqltest.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
 		assert.Zero(t, got.RequiredStaffCount)
@@ -1612,7 +1612,7 @@ func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
 			RoomID:          &s.roomID,
 		}
 		exception.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
+		require.NoError(t, timetablesqltest.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
 
 		got := listCapacityTemplate(t, router, period.ID, templateID)
 		assert.Equal(t, 1, got.RequiredStaffCount,

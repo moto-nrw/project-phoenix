@@ -1066,7 +1066,7 @@ describe("StudentSearchPage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("1 Kind · 0 zuhause · 1 krank"),
+          screen.getByText("1 Kind · 0 in der Schule · 0 zuhause · 1 krank"),
         ).toBeInTheDocument();
       });
     });

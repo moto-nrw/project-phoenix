@@ -3,9 +3,8 @@ package users
 // In-package unit tests for the side-effect helpers and feature-toggle
 // dispatcher on studentPhotoService. The integration tests in
 // api/students/photo_routes_test.go exercise the DB-bound methods but live
-// in a different Go package — they don't credit this file under
-// SonarCloud's "new code coverage" metric. These tests close the broadcast
-// + toggle paths without standing up a real DB.
+// in a different Go package. These tests close the broadcast + toggle paths
+// without standing up a real DB.
 
 import (
 	"bytes"

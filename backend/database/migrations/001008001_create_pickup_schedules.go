@@ -36,8 +36,6 @@ func init() {
 }
 
 func createPickupSchedulesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.8.1: Creating student pickup schedules tables...")
-
 	// Create student_pickup_schedules table (weekly recurring)
 	_, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS schedule.student_pickup_schedules (
@@ -105,8 +103,6 @@ func createPickupSchedulesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createPickupSchedulesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.8.1: Dropping student pickup schedules tables...")
-
 	// Drop exceptions table first (no dependencies)
 	_, err := db.NewRaw(`
 		DROP TABLE IF EXISTS schedule.student_pickup_exceptions CASCADE;

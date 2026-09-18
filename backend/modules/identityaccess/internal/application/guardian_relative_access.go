@@ -214,10 +214,13 @@ func (l *AccountLifecycle) resolveInviteNow(ctx context.Context, req domain.Invi
 	}
 
 	// Existing account: access is granted by the link alone; no token needed.
+	// The account holder still gets a mail pointing at the parents portal
+	// login (#3320), otherwise nobody tells them the access exists.
 	if profile.HasAccount {
 		if err := l.closeSupersededApprovalRequests(ctx, profile.ID, req.StudentID); err != nil {
 			return nil, err
 		}
+		l.delivery.EnqueueExistingAccountEmail(ctx, profile, l.delivery.SchoolName(ctx, tenantID))
 		outcome := domain.InviteOutcomeLinkedExistingAccount
 		if !linkCreated {
 			outcome = domain.InviteOutcomeAlreadyLinked
@@ -434,6 +437,7 @@ func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, 
 			slog.Int64("invitation_id", invitation.ID),
 			slog.Int64("approver_account_id", approverAccountID),
 		)
+		l.delivery.EnqueueExistingAccountEmail(ctx, profile, l.delivery.SchoolName(ctx, invitation.TenantID))
 		return nil
 	}
 

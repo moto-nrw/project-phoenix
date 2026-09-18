@@ -23,7 +23,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.72: Adding rollover columns to enrollment.phases...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.phases
 				ADD COLUMN IF NOT EXISTS rollover_source_phase_id BIGINT

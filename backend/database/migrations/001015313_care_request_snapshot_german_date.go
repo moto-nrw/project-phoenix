@@ -31,8 +31,6 @@ func init() {
 // complete ISO date followed by the separator the builder writes. A weekday
 // label ("Montag · Abholzeit") cannot match, so the regex needs no kind filter.
 func careRequestSnapshotGermanDateUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.313: Rewriting frozen pickup-change labels to German dates...")
-
 	res, err := db.ExecContext(ctx, `
 		UPDATE schedule.care_schedule_change_requests r
 		   SET decision_snapshot = jsonb_set(
@@ -76,7 +74,9 @@ func careRequestSnapshotGermanDateUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("count rewritten frozen pickup-change labels: %w", err)
 	}
-	fmt.Printf("Migration 1.15.313: %d snapshot(s) rewritten\n", rows)
+	migrationLog().InfoContext(ctx, "frozen pickup-change labels rewritten to German dates",
+		"rows", rows,
+	)
 	return nil
 }
 
@@ -86,6 +86,5 @@ func careRequestSnapshotGermanDateUp(ctx context.Context, db *bun.DB) error {
 // change, so the presentation stays as it is — the frozen values themselves
 // (old/new times) were never touched.
 func careRequestSnapshotGermanDateDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back 1.15.313: no-op — the label rewrite is not reversible.")
 	return nil
 }

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 type timetableInstanceStaffRepository struct {
@@ -23,7 +23,7 @@ func (r timetableInstanceStaffRepository) Create(ctx context.Context, value *sch
 	}
 	created, err := r.timetable.CreateInstanceStaff(ctx, publicInstanceStaffInput(value))
 	if err != nil {
-		return scheduleRepo.WrapDatabaseError("create", err)
+		return timetableCompose.WrapDatabaseError("create", err)
 	}
 	replaceLegacyInstanceStaff(value, created)
 	return nil
@@ -32,7 +32,7 @@ func (r timetableInstanceStaffRepository) Create(ctx context.Context, value *sch
 func (r timetableInstanceStaffRepository) FindByID(ctx context.Context, id any) (*scheduleModels.InstanceStaff, error) {
 	rowID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, scheduleRepo.WrapDatabaseError("find by id", fmt.Errorf("invalid instance staff id %T", id))
+		return nil, timetableCompose.WrapDatabaseError("find by id", fmt.Errorf("invalid instance staff id %T", id))
 	}
 	value, err := r.timetable.FindInstanceStaff(ctx, rowID)
 	if err != nil {
@@ -59,18 +59,18 @@ func (r timetableInstanceStaffRepository) Update(ctx context.Context, value *sch
 func (r timetableInstanceStaffRepository) Delete(ctx context.Context, id any) error {
 	rowID, ok := legacyGroupID(id)
 	if !ok {
-		return scheduleRepo.WrapDatabaseError("delete", fmt.Errorf("invalid instance staff id %T", id))
+		return timetableCompose.WrapDatabaseError("delete", fmt.Errorf("invalid instance staff id %T", id))
 	}
 	if err := r.timetable.DeleteInstanceStaff(ctx, rowID); err != nil {
-		return scheduleRepo.WrapDatabaseError("delete", err)
+		return timetableCompose.WrapDatabaseError("delete", err)
 	}
 	return nil
 }
 
-func (r timetableInstanceStaffRepository) List(ctx context.Context, options *scheduleRepo.InstanceStaffQueryOptions) ([]*scheduleModels.InstanceStaff, error) {
-	filter, err := scheduleRepo.InstanceStaffListOptions(options)
+func (r timetableInstanceStaffRepository) List(ctx context.Context, options *timetableCompose.InstanceStaffQueryOptions) ([]*scheduleModels.InstanceStaff, error) {
+	filter, err := timetableCompose.InstanceStaffListOptions(options)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("list with options", err)
+		return nil, timetableCompose.WrapDatabaseError("list with options", err)
 	}
 	return r.list(ctx, timetable.InstanceStaffFilter{
 		IDs: filter.IDs, InstanceIDs: filter.InstanceIDs, StaffIDs: filter.StaffIDs,
@@ -84,7 +84,7 @@ func (r timetableInstanceStaffRepository) UpdateColumns(ctx context.Context, val
 	}
 	rows, err := r.timetable.PatchInstanceStaff(ctx, value.ID, publicInstanceStaffInput(value), columns)
 	if err != nil {
-		return 0, scheduleRepo.WrapDatabaseError("update columns", err)
+		return 0, timetableCompose.WrapDatabaseError("update columns", err)
 	}
 	return rows, nil
 }
@@ -100,12 +100,12 @@ func (r timetableInstanceStaffRepository) FindByInstanceIDs(ctx context.Context,
 	return r.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true}, "find by instance ids")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date scheduleRepo.InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffID int64, date timetableCompose.InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
 	text := date.String()
 	return r.list(ctx, timetable.InstanceStaffFilter{StaffIDs: []int64{staffID}, Date: &text, OrderByActivityTime: true}, "find by staff and date")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date scheduleRepo.InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timetableCompose.InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
 	if len(staffIDs) == 0 {
 		return []*scheduleModels.InstanceStaff{}, nil
 	}
@@ -113,7 +113,7 @@ func (r timetableInstanceStaffRepository) FindByStaffIDsAndDate(ctx context.Cont
 	return r.list(ctx, timetable.InstanceStaffFilter{StaffIDs: staffIDs, Date: &text, OrderByActivityTime: true}, "find by staff ids and date")
 }
 
-func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to scheduleRepo.InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
+func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timetableCompose.InstanceStaffDate) ([]*scheduleModels.InstanceStaff, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, timetable.InstanceStaffFilter{
 		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,
@@ -123,14 +123,14 @@ func (r timetableInstanceStaffRepository) FindByStaffAndDateRange(ctx context.Co
 func (r timetableInstanceStaffRepository) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
 	result, err := r.timetable.CountNonAbsentInstanceStaff(ctx, instanceIDs)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError("count non-absent by instance ids", err)
+		return nil, timetableCompose.WrapDatabaseError("count non-absent by instance ids", err)
 	}
 	return result, nil
 }
 
 func (r timetableInstanceStaffRepository) DeleteByInstanceID(ctx context.Context, instanceID int64) error {
 	if err := r.timetable.DeleteInstanceStaffByInstance(ctx, instanceID); err != nil {
-		return scheduleRepo.WrapDatabaseError("delete by instance id", err)
+		return timetableCompose.WrapDatabaseError("delete by instance id", err)
 	}
 	return nil
 }
@@ -138,7 +138,7 @@ func (r timetableInstanceStaffRepository) DeleteByInstanceID(ctx context.Context
 func (r timetableInstanceStaffRepository) list(ctx context.Context, filter timetable.InstanceStaffFilter, operation string) ([]*scheduleModels.InstanceStaff, error) {
 	values, err := r.timetable.ListInstanceStaff(ctx, filter)
 	if err != nil {
-		return nil, scheduleRepo.WrapDatabaseError(operation, err)
+		return nil, timetableCompose.WrapDatabaseError(operation, err)
 	}
 	result := make([]*scheduleModels.InstanceStaff, 0, len(values))
 	for _, value := range values {
@@ -173,7 +173,7 @@ func publicInstanceStaffInput(value *scheduleModels.InstanceStaff) timetable.Ins
 
 func legacyInstanceStaffError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrInstanceStaffNotFound) {
-		return scheduleRepo.WrapNotFoundDatabaseError(operation)
+		return timetableCompose.WrapNotFoundDatabaseError(operation)
 	}
-	return scheduleRepo.WrapDatabaseError(operation, err)
+	return timetableCompose.WrapDatabaseError(operation, err)
 }

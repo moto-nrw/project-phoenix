@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createAnnouncementTargetRoles(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.12.4: Adding target_roles column to announcements...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -80,20 +77,17 @@ func createAnnouncementTargetRoles(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error adding column comment: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.4: Successfully added target_roles column")
 	return tx.Commit()
 }
 
 func rollbackAnnouncementTargetRoles(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.12.4: Removing target_roles column...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -123,6 +117,5 @@ func rollbackAnnouncementTargetRoles(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error re-adding target_school_ids column: %w", err)
 	}
 
-	fmt.Println("Migration 1.12.4: Successfully removed target_roles column")
 	return tx.Commit()
 }

@@ -6,7 +6,7 @@ import (
 	shiftplanning "github.com/moto-nrw/project-phoenix/modules/workforce/legacy/shiftplanning"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -24,7 +24,7 @@ func NewStaffNoticeTestService(db *bun.DB) (shiftplanning.StaffNoticeService, er
 		return nil, err
 	}
 	return shiftplanning.NewStaffNoticeService(shiftplanning.StaffNoticeServiceConfig{
-		Repo:    scheduleRepo.NewStaffNoticeRepository(db),
+		Repo:    timetableCompose.NewStaffNoticeRepository(db),
 		Periods: timetable.CalendarPeriod,
 		Names:   newStaffNoticeNameLookup(persons),
 		Logger:  slog.Default(),

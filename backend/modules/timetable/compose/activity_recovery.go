@@ -1,0 +1,86 @@
+package compose
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/uptrace/bun"
+)
+
+type AssignmentRecovery interface {
+	LockAttendance(context.Context, int64) error
+	RestoreAttendance(context.Context, int64, []scheduleModel.CompletionAttendanceSnapshot) error
+}
+
+// PresenceRecovery is the Student Presence capability this repository needs:
+// the live group, its supervisors, and its visits are owned there.
+type PresenceRecovery interface {
+	LockOpenVisits(context.Context, int64) error
+	RestoreVisits(context.Context, []int64) error
+	LockOpenSupervisors(context.Context, int64) error
+	LockSupervisors(context.Context, []int64) error
+	RestoreGroup(context.Context, int64, time.Time) error
+	RestoreSupervisors(context.Context, []int64) error
+}
+
+type ActivityRecoveryRepository struct {
+	store       *postgres.Store
+	assignments AssignmentRecovery
+	presence    PresenceRecovery
+}
+
+func NewActivityRecoveryRepository(db *bun.DB, assignments AssignmentRecovery, presence PresenceRecovery) *ActivityRecoveryRepository {
+	if assignments == nil || presence == nil {
+		panic("activity recovery: timetable assignments and presence are required")
+	}
+	return &ActivityRecoveryRepository{store: postgres.New(databaseRuntime(db)), assignments: assignments, presence: presence}
+}
+
+func (r *ActivityRecoveryRepository) LockOpenSupervisors(ctx context.Context, activeGroupID int64) error {
+	return r.presence.LockOpenSupervisors(ctx, activeGroupID)
+}
+
+func (r *ActivityRecoveryRepository) LockSupervisors(ctx context.Context, supervisorIDs []int64) error {
+	return r.presence.LockSupervisors(ctx, supervisorIDs)
+}
+
+func (r *ActivityRecoveryRepository) LockOpenVisits(ctx context.Context, activeGroupID int64) error {
+	return r.presence.LockOpenVisits(ctx, activeGroupID)
+}
+
+func (r *ActivityRecoveryRepository) LockAttendance(ctx context.Context, instanceID int64) error {
+	if err := r.assignments.LockAttendance(ctx, instanceID); err != nil {
+		return fmt.Errorf("lock attendance: %w", err)
+	}
+	return nil
+}
+
+func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int64, snapshot scheduleModel.ActivityCompletionSnapshot, now time.Time) error {
+	if err := r.presence.RestoreGroup(ctx, snapshot.ActiveGroupID, now); err != nil {
+		return err
+	}
+	if err := r.presence.RestoreVisits(ctx, snapshot.VisitIDs); err != nil {
+		return err
+	}
+	if err := r.presence.RestoreSupervisors(ctx, snapshot.SupervisorIDs); err != nil {
+		return err
+	}
+	if err := r.assignments.RestoreAttendance(ctx, instanceID, snapshot.Attendance); err != nil {
+		return err
+	}
+	result, err := r.store.ReopenCompletedActivityInstance(ctx, instanceID, snapshot.ActiveGroupID)
+	if err != nil {
+		return fmt.Errorf("restore instance: %w", err)
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("count restored instances: %w", err)
+	}
+	if rows != 1 {
+		return fmt.Errorf("restore instance: expected one completed instance, updated %d", rows)
+	}
+	return nil
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -36,15 +35,13 @@ func init() {
 }
 
 func createAuthInvitationTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.9: Creating auth.invitation_tokens table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in invitation tokens migration: %v", rbErr)
+			logRollbackFailure(ctx, rbErr)
 		}
 	}()
 
@@ -93,15 +90,13 @@ func createAuthInvitationTokensTable(ctx context.Context, db *bun.DB) error {
 }
 
 func dropAuthInvitationTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.9: Dropping auth.invitation_tokens table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if rbErr := tx.Rollback(); rbErr != nil && rbErr != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in invitation tokens down migration: %v", rbErr)
+			logRollbackFailure(ctx, rbErr)
 		}
 	}()
 

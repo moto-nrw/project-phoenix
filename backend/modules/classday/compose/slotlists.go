@@ -19,33 +19,33 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // CareDayResolver is the retained schedule service's care-day derivation.
 type CareDayResolver interface {
-	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]scheduleSvc.CareDayStatus, error)
+	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]careschedule.CareDayStatus, error)
 }
 
 // PickupTimeReader is the retained pickup schedule service's bulk read.
 type PickupTimeReader interface {
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleSvc.EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error)
 }
 
 // ArrivalTimeReader is the retained arrival schedule service's bulk read.
 type ArrivalTimeReader interface {
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*scheduleSvc.EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error)
 }
 
 // PickupBaselineReader is the retained date-aware recurring pickup projection
 // (no exceptions applied).
 type PickupBaselineReader interface {
-	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*scheduleSvc.PickupBaselineProjection, error)
+	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*careschedule.PickupBaselineProjection, error)
 }
 
 // SettingsReader is the slice of the settings service the lists read.
@@ -246,7 +246,7 @@ func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdi
 		Status: row.Status, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
 		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
 	}
-	return ports.CareDay(scheduleSvc.AttendanceRowCareDay(instanceCompleted, model, scheduleSvc.CareDayStatus(planVerdict)))
+	return ports.CareDay(careschedule.AttendanceRowCareDay(instanceCompleted, model, careschedule.CareDayStatus(planVerdict)))
 }
 
 func (Rules) EnrolledOn(student ports.StudentFacts, date, today timezone.Date) bool {

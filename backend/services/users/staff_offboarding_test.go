@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -195,7 +196,7 @@ func TestOffboardStaff_CleanupIntentFailureRestoresAccessAndAllOwnerWrites(t *te
 	require.NoError(t, err)
 	require.NotNil(t, person.AccountID)
 	require.Equal(t, account.ID, *person.AccountID)
-	roles, err := sc.authSvc.GetAccountRoles(sc.ctx, int(account.ID))
+	roles, err := sc.repos.Role.FindByAccountID(sc.ctx, account.ID)
 	require.NoError(t, err)
 	require.NotEmpty(t, roles)
 	active, err := sc.authSvc.VerifyAccountTenantMembership(sc.ctx, account.ID, testpkg.Tenant(t))
@@ -530,22 +531,10 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
-	schoolIdentity, identityErr := services.NewSchoolIdentityForTests(sc.db, testpkg.TenantRuntime(t, sc.db))
-	require.NoError(t, identityErr)
-	invSvc := authSvcPkg.NewInvitationService(authSvcPkg.InvitationServiceConfig{
-		SchoolIdentity:    schoolIdentity,
-		InvitationRepo:    sc.repos.InvitationToken,
-		AccountRepo:       sc.repos.Account,
-		AccountTenantRepo: sc.repos.AccountTenant,
-		RoleRepo:          sc.repos.Role,
-		AccountRoleRepo:   sc.repos.AccountRole,
-		SchoolRepo:        services.InvitationSchoolsForTests(sc.repos.School, testpkg.TenantRuntime(t, sc.db)),
-		Mailer:            email.NewMockMailer(),
-		FrontendURL:       "http://localhost:3000",
-		InvitationExpiry:  time.Hour,
-		DB:                sc.db,
-	})
-	testpkg.SetTenantRuntime(t, invSvc, sc.db)
+	factory, factoryErr := services.NewFactoryForTests(sc.repos, sc.db, slog.Default())
+	require.NoError(t, factoryErr)
+	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
+	invSvc := factory.Invitation
 
 	oldCredential := offboardingCredential("Offboard", "123")
 	newCredential := offboardingCredential("Reinvited", "456")
@@ -563,18 +552,18 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 
 	// Before offboarding the re-invite is blocked (current production behavior).
-	_, err := invSvc.CreateInvitation(sc.ctx, authSvcPkg.InvitationRequest{
+	_, err := invSvc.CreateSchoolInvitation(sc.ctx, services.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
 		CreatedBy: account.ID,
 	})
 	require.Error(t, err, "re-invite must be blocked while the mapping is active")
-	require.ErrorIs(t, err, authSvcPkg.ErrAccountAlreadyHasTenantAccess)
+	require.ErrorIs(t, err, services.ErrAccountAlreadyHasTenantAccess)
 
 	require.NoError(t, sc.svc.OffboardStaff(sc.ctx, staff.ID, staff.ID, "test-admin"))
 
-	invitation, err := invSvc.CreateInvitation(sc.ctx, authSvcPkg.InvitationRequest{
+	invitation, err := invSvc.CreateSchoolInvitation(sc.ctx, services.SchoolInvitationRequest{
 		Email:     emailAddr,
 		RoleID:    role.ID,
 		TenantID:  testpkg.Tenant(t),
@@ -582,14 +571,14 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 	})
 	require.NoError(t, err, "re-invite must succeed after offboarding")
 
-	reactivated, err := invSvc.AcceptInvitation(context.Background(), invitation.Token, authSvcPkg.UserRegistrationData{
+	reactivated, err := invSvc.AcceptSchoolInvitation(context.Background(), invitation.Token, services.InvitationRegistration{
 		FirstName:       "Re",
 		LastName:        "Invited",
 		Password:        newCredential,
 		ConfirmPassword: newCredential,
 	})
-	require.ErrorIs(t, err, authSvcPkg.ErrInvitationOwnerRequired)
-	require.Nil(t, reactivated)
+	require.ErrorIs(t, err, services.ErrInvitationOwnerRequired)
+	require.Zero(t, reactivated.ID, "a refused acceptance hands back no account")
 
 	exists, err := sc.repos.AccountTenant.ExistsByAccountAndTenant(sc.ctx, account.ID, testpkg.Tenant(t))
 	require.NoError(t, err)

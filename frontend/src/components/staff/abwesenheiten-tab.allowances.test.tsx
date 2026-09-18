@@ -90,6 +90,10 @@ const allowance = {
   takenDays: 0.5,
   reservedDays: 1,
   remainingDays: 2,
+  expiresOn: `${year}-12-31`,
+  expiredDays: 0,
+  bookingDays: 0,
+  carriedIn: null,
 };
 const regeneration = {
   id: "12",
@@ -97,6 +101,7 @@ const regeneration = {
   baseType: "other",
   isActive: true,
   allowanceEnabled: true,
+  carryoverUntil: null,
 };
 
 function renderTab(props: Partial<{ canEditQuota: boolean }> = {}) {
@@ -162,6 +167,67 @@ describe("AbwesenheitenTab Kontingente (#3256)", () => {
     expect(
       screen.getByRole("link", { name: /Abwesenheitsarten verwalten/ }),
     ).toHaveAttribute("href", "/demo/database/absence-types");
+  });
+
+  it("says when the rest expires and what was carried over (#3257)", async () => {
+    mocks.getAllowance.mockImplementation(
+      (_type: string, _id: string, y: number) =>
+        Promise.resolve({
+          ...allowance,
+          year: y,
+          expiresOn: `${y + 1}-03-31`,
+          carriedIn: {
+            year: y - 1,
+            remainingDays: 0,
+            expiredDays: 4,
+            expiresOn: `${y}-03-31`,
+          },
+        }),
+    );
+    renderTab();
+
+    const card = await screen.findByRole("region", {
+      name: "Regenerationstag 2026",
+    });
+    expect(
+      within(card).getByText("Rest verfällt am 31.03.2027."),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText("4 Tage aus 2025 am 31.03.2026 verfallen."),
+    ).toBeInTheDocument();
+  });
+
+  it("shows an expired rest and a usable carryover", async () => {
+    mocks.getAllowance.mockImplementation(
+      (_type: string, _id: string, y: number) =>
+        Promise.resolve({
+          ...allowance,
+          year: y,
+          remainingDays: 0,
+          expiredDays: 1.5,
+          expiresOn: `${y}-12-31`,
+          carriedIn: {
+            year: y - 1,
+            remainingDays: 3,
+            expiredDays: 0,
+            expiresOn: `${y + 1}-03-31`,
+          },
+        }),
+    );
+    renderTab();
+
+    const card = await screen.findByRole("region", {
+      name: "Regenerationstag 2026",
+    });
+    expect(
+      within(card).getByText("1,5 Tage am 31.12.2026 verfallen."),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        "Dazu noch 3 Tage aus 2025, nutzbar bis 31.03.2027. Diese gehen zuerst ab.",
+      ),
+    ).toBeInTheDocument();
+    expect(within(card).queryByText(/Rest verfällt/)).not.toBeInTheDocument();
   });
 
   it("raises a claim with plus and requires a reason", async () => {

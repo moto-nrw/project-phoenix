@@ -23,8 +23,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.74: Adding name column to enrollment.form_schemas...")
-
 			if _, err := db.NewRaw(`
 				ALTER TABLE enrollment.form_schemas
 				ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
@@ -82,8 +80,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.74...")
-
 			if _, err := db.NewRaw(`DROP INDEX IF EXISTS enrollment.uq_form_schemas_tenant_name_version;`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed dropping tenant_name_version unique index: %w", err)
 			}

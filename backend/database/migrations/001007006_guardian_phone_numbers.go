@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // guardianPhoneNumbersUp creates the users.guardian_phone_numbers table
 func guardianPhoneNumbersUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.6: Creating users.guardian_phone_numbers table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func guardianPhoneNumbersUp(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -186,8 +183,6 @@ func guardianPhoneNumbersUp(ctx context.Context, db *bun.DB) error {
 
 // guardianPhoneNumbersDown removes the users.guardian_phone_numbers table
 func guardianPhoneNumbersDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.6: Removing users.guardian_phone_numbers table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -195,7 +190,7 @@ func guardianPhoneNumbersDown(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

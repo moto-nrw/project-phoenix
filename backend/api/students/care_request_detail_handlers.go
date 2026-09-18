@@ -8,8 +8,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // CareRequestDetailResponse is one care-schedule request of any status, read
@@ -43,7 +43,7 @@ type CareRequestPickupChangeResponse struct {
 	PreviousPickupTime string `json:"previous_pickup_time,omitempty"`
 }
 
-func toCareRequestDetailResponse(item *scheduleService.CareRequestHistoryItem) CareRequestDetailResponse {
+func toCareRequestDetailResponse(item *careschedule.CareRequestHistoryItem) CareRequestDetailResponse {
 	req := item.Request
 	var diff []CareRequestDiffResponse
 	if len(item.Diff) > 0 {
@@ -103,5 +103,5 @@ func (rs *Resource) getCareScheduleChangeRequest(w http.ResponseWriter, r *http.
 
 var careRequestDetailErrorRenderer = common.RulesRenderer(parentRequestRules(
 	common.ErrorRule{Target: scheduleModels.ErrCareRequestNotFound, Render: common.ErrorNotFound},
-	common.ErrorRule{Target: scheduleService.ErrCareRequestForbidden, Render: common.ErrorForbidden},
+	common.ErrorRule{Target: careschedule.ErrCareRequestForbidden, Render: common.ErrorForbidden},
 ), common.ErrorInternalServer)

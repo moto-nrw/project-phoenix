@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createImportPerformanceIndexes creates indexes for import performance
 func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.18: Creating performance indexes for imports...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in up migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -111,14 +108,11 @@ func createImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Println("✓ Migration 1.6.18: Performance indexes created successfully")
 	return nil
 }
 
 // dropImportPerformanceIndexes drops the import performance indexes (rollback)
 func dropImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.18: Rolling back performance indexes...")
-
 	// IMPORTANT: Indexes are in the same schema as their tables, so we need schema prefixes
 	_, err := db.ExecContext(ctx, `
 		DROP INDEX IF EXISTS users.idx_guardian_profiles_email_lower;
@@ -131,6 +125,5 @@ func dropImportPerformanceIndexes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping performance indexes: %w", err)
 	}
 
-	log.Println("✓ Migration 1.6.18: Performance indexes dropped successfully")
 	return nil
 }

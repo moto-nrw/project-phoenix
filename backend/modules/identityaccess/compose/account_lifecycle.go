@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -12,12 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
-// The account lifecycle flows (#3225) need facts other owners hold and seams
-// the composition root binds: persons, staff and caregiver profiles, guardian
-// profiles and relationships, the audit evidence, the PIN and password
-// hashers, the retained role management and the retained guardian invitation
-// delivery. The seams below are expressed in public values; this package
-// adapts them to the consumer-owned ports.
+// The account lifecycle flows (#3225) and the role administration (#3314)
+// need facts other owners hold and seams the composition root binds: persons,
+// staff and caregiver profiles, guardian profiles and relationships, the
+// audit evidence, the PIN and password hashers, the retained role storage and
+// account management and the retained guardian invitation delivery. The
+// seams below are expressed in public values; this package adapts them to the
+// consumer-owned ports.
 
 // StaffMember is the users.staff fact of a school.
 type StaffMember struct {
@@ -68,6 +70,9 @@ type StaffDirectory interface {
 	CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
+	// HasLiveCaregiverProfile reports whether the account's live person at the
+	// school carries a live staff record with a live caregiver profile.
+	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
 }
 
 // PINHasher hashes and verifies staff PINs.
@@ -99,13 +104,6 @@ type PreviewAudit interface {
 	RecordStaffPreviewEndOnce(ctx context.Context, event StaffPreviewEvent) (bool, error)
 	LockStaffPreview(ctx context.Context, adminAccountID int64, previewID string) error
 	StaffPreviewEnded(ctx context.Context, adminAccountID int64, previewID string) (bool, error)
-}
-
-// AccountAdministration is the retained role and account management staff
-// offboarding drives on the caller's transaction (#2721).
-type AccountAdministration interface {
-	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
-	DeactivateAccount(ctx context.Context, accountID int64) error
 }
 
 // PasswordPolicy validates and hashes parent account passwords.
@@ -174,43 +172,20 @@ type GuardianDirectory interface {
 	FindPersonNamesByIDs(ctx context.Context, personIDs []int64) (map[int64]PersonName, error)
 }
 
-// GuardianInvitation is one auth.guardian_invitations row.
-type GuardianInvitation struct {
-	ID                          int64
-	TenantID                    int64
-	Token                       string
-	GuardianProfileID           int64
-	CreatedBy                   int64
-	ExpiresAt                   time.Time
-	AcceptedAt                  *time.Time
-	EmailSentAt                 *time.Time
-	EmailError                  *string
-	StudentID                   *int64
-	RequestedByAccountID        *int64
-	ApprovalStatus              string
-	ApprovedBy                  *int64
-	ApprovedAt                  *time.Time
-	ProfileCreatedForInvitation bool
-	RoleUpgrade                 bool
-	CreatedAt                   time.Time
+// GuardianEnrollments claims the enrollment requests a guardian filed
+// before they had an account, on the caller's transaction.
+type GuardianEnrollments interface {
+	ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error)
 }
 
-// GuardianInvitationStore is the retained guardian invitation storage the
-// relative access flows read and write until #2722 moves it.
-type GuardianInvitationStore interface {
-	FindGuardianInvitation(ctx context.Context, id int64) (GuardianInvitation, bool, error)
-	ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitation, error)
-	ListPendingGuardianApprovals(ctx context.Context) ([]GuardianInvitation, error)
-	InsertGuardianInvitation(ctx context.Context, invitation GuardianInvitation) (GuardianInvitation, error)
-	UpdateGuardianInvitation(ctx context.Context, invitation GuardianInvitation) error
-}
-
-// GuardianInvitationDelivery is the retained guardian invitation service's
-// delivery seam: token expiry, school name and the outbox enqueue.
+// GuardianInvitationDelivery mails a guardian invitation: the token expiry
+// the tenant configured, the school name for the mail and the outbox
+// enqueue the worker dispatches from.
 type GuardianInvitationDelivery interface {
 	InvitationExpiry(ctx context.Context) time.Duration
 	SchoolName(ctx context.Context, tenantID int64) string
-	EnqueueInvitationEmail(ctx context.Context, invitation GuardianInvitation, profile GuardianProfile, schoolName string)
+	EnqueueInvitationEmail(ctx context.Context, invitation identityaccess.GuardianInvitation, profile GuardianProfile, schoolName string)
+	EnqueueExistingAccountEmail(ctx context.Context, profile GuardianProfile, schoolName string)
 }
 
 // FinancialAudit records the removal of a child's payer.
@@ -221,58 +196,82 @@ type FinancialAudit interface {
 // LifecycleDependencies are the seams the account lifecycle flows need
 // beyond the database and the session dependencies.
 type LifecycleDependencies struct {
-	Staff       StaffDirectory
-	PINs        PINHasher
-	Lockout     LockoutPolicy
-	Audit       PreviewAudit
-	Admin       AccountAdministration
-	Passwords   PasswordPolicy
-	Guardians   GuardianDirectory
-	Invitations GuardianInvitationStore
-	Delivery    GuardianInvitationDelivery
+	Staff     StaffDirectory
+	PINs      PINHasher
+	Lockout   LockoutPolicy
+	Audit     PreviewAudit
+	Passwords PasswordPolicy
+	Guardians GuardianDirectory
+	Delivery  GuardianInvitationDelivery
+	// Enrollments is optional: without it an acceptance claims no
+	// pre-account enrollment requests.
+	Enrollments GuardianEnrollments
 	Financial   FinancialAudit
-	Logger      *slog.Logger
+	// Roles is the retained role and permission storage the role
+	// administration (#3314) reads and writes.
+	Roles  RoleDirectory
+	Logger *slog.Logger
 }
 
-func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies) (*application.AccountLifecycle, error) {
+// newAccountLifecycle composes the lifecycle flows and the role
+// administration: offboarding removes roles through the administration, and
+// an assignment completes the school identity through the lifecycle.
+func newAccountLifecycle(service *application.Service, auth *application.AccountAuthentication, store lifecycleStore, sessions *SessionDependencies, deps *LifecycleDependencies, administration *application.AccountAdministration) (*application.AccountLifecycle, *application.RoleAdministration, error) {
 	if deps == nil {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if auth == nil || sessions == nil {
-		return nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
+		return nil, nil, errors.New("identity access compose: the lifecycle flows require the session dependencies")
 	}
 	switch {
-	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil, deps.Admin == nil,
-		deps.Passwords == nil, deps.Guardians == nil, deps.Invitations == nil, deps.Delivery == nil, deps.Financial == nil:
-		return nil, errors.New("identity access compose: every lifecycle dependency is required")
+	case deps.Staff == nil, deps.PINs == nil, deps.Lockout == nil, deps.Audit == nil,
+		deps.Passwords == nil, deps.Guardians == nil, deps.Delivery == nil, deps.Financial == nil,
+		deps.Roles == nil:
+		return nil, nil, errors.New("identity access compose: every lifecycle dependency is required")
+	case administration == nil:
+		return nil, nil, errors.New("identity access compose: the account administration is required")
 	}
 	attach := sessions.TenantRuntime
 	if attach == nil {
 		attach = func(ctx context.Context) context.Context { return ctx }
 	}
-	return application.NewAccountLifecycle(service, auth, application.AccountLifecycleDependencies{
+	runtime := tenantRuntime{attach: attach, runner: newTransactionRunner()}
+	var lifecycle *application.AccountLifecycle
+	roles, err := newRoleAdministration(auth, runtime, deps, func() *application.AccountLifecycle { return lifecycle })
+	if err != nil {
+		return nil, nil, err
+	}
+	lifecycle, err = application.NewAccountLifecycle(service, auth, application.AccountLifecycleDependencies{
 		Store: store, Logins: store, RFID: canonicalTagStore{store},
 		Staff:       staffDirectory{deps.Staff},
+		Profiles:    staffDirectory{deps.Staff},
 		Roles:       rolePolicy{},
 		PINs:        deps.PINs,
 		Lockout:     deps.Lockout,
 		Audit:       previewAudit{deps.Audit},
 		Codec:       tokenCodec{sessions.Codec},
-		Admin:       deps.Admin,
+		Admin:       accountAdministration{roles: roles, accounts: administration},
 		Passwords:   deps.Passwords,
 		Guardians:   guardianDirectory{deps.Guardians},
-		Invitations: guardianInvitationStore{deps.Invitations},
+		Invitations: store,
 		Delivery:    guardianInvitationDelivery{deps.Delivery},
+		Enrollments: guardianEnrollments(deps.Enrollments),
+		Schools:     schoolDirectory{sessions.Schools},
 		Financial:   deps.Financial,
-		Runtime:     tenantRuntime{attach: attach, runner: newTransactionRunner()},
+		Runtime:     runtime,
 		Logger:      deps.Logger,
 	})
+	if err != nil {
+		return nil, nil, err
+	}
+	return lifecycle, roles, nil
 }
 
 // lifecycleStore is the module store as the lifecycle flows read it.
 type lifecycleStore interface {
 	ports.AccountLifecycleStore
 	ports.AccountLoginStore
+	ports.GuardianInvitationStore
 	ports.Store
 }
 
@@ -497,41 +496,25 @@ func (d guardianDirectory) FindPersonNamesByIDs(ctx context.Context, personIDs [
 	return personNames(names), err
 }
 
-type guardianInvitationStore struct{ source GuardianInvitationStore }
-
-func guardianInvitations(values []GuardianInvitation) []domain.GuardianInvitation {
-	if values == nil {
+// guardianEnrollments keeps the optional enrollment claim out of the flows:
+// a composition without it reports nothing to claim.
+func guardianEnrollments(source GuardianEnrollments) ports.GuardianEnrollments {
+	if source == nil {
 		return nil
 	}
-	result := make([]domain.GuardianInvitation, 0, len(values))
-	for _, value := range values {
-		result = append(result, domain.GuardianInvitation(value))
+	return guardianEnrollmentClaims{source: source}
+}
+
+type guardianEnrollmentClaims struct{ source GuardianEnrollments }
+
+// ClaimGuardianEnrollments translates the one outcome the acceptance must
+// not treat as best-effort back into the flows' vocabulary.
+func (c guardianEnrollmentClaims) ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error) {
+	claimed, err := c.source.ClaimGuardianEnrollments(ctx, accountID, email)
+	if err != nil && errors.Is(err, identityaccess.ErrTransactionUnusable) {
+		return claimed, fmt.Errorf("%w: %w", domain.ErrTransactionUnusable, err)
 	}
-	return result
-}
-
-func (s guardianInvitationStore) FindGuardianInvitation(ctx context.Context, id int64) (domain.GuardianInvitation, bool, error) {
-	invitation, found, err := s.source.FindGuardianInvitation(ctx, id)
-	return domain.GuardianInvitation(invitation), found, err
-}
-
-func (s guardianInvitationStore) ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error) {
-	values, err := s.source.ListGuardianInvitationsByProfile(ctx, guardianProfileID)
-	return guardianInvitations(values), err
-}
-
-func (s guardianInvitationStore) ListPendingGuardianApprovals(ctx context.Context) ([]domain.GuardianInvitation, error) {
-	values, err := s.source.ListPendingGuardianApprovals(ctx)
-	return guardianInvitations(values), err
-}
-
-func (s guardianInvitationStore) InsertGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianInvitation, error) {
-	stored, err := s.source.InsertGuardianInvitation(ctx, GuardianInvitation(invitation))
-	return domain.GuardianInvitation(stored), err
-}
-
-func (s guardianInvitationStore) UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) error {
-	return s.source.UpdateGuardianInvitation(ctx, GuardianInvitation(invitation))
+	return claimed, err
 }
 
 type guardianInvitationDelivery struct{ source GuardianInvitationDelivery }
@@ -545,7 +528,11 @@ func (d guardianInvitationDelivery) SchoolName(ctx context.Context, tenantID int
 }
 
 func (d guardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) {
-	d.source.EnqueueInvitationEmail(ctx, GuardianInvitation(invitation), GuardianProfile(profile), schoolName)
+	d.source.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), GuardianProfile(profile), schoolName)
+}
+
+func (d guardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) {
+	d.source.EnqueueExistingAccountEmail(ctx, GuardianProfile(profile), schoolName)
 }
 
 // --- engine methods -------------------------------------------------------
@@ -660,6 +647,14 @@ func (e engine) EnsureSchoolIdentity(ctx context.Context, input identityaccess.S
 	return &result, nil
 }
 
+func (e engine) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	if e.lifecycle == nil {
+		return false, errAccountLifecycleUnavailable
+	}
+	hasProfile, err := e.lifecycle.HasLiveCaregiverProfile(e.attach(ctx), accountID)
+	return hasProfile, lifecycleError(err)
+}
+
 func parentAccount(value domain.ParentAccount) identityaccess.ParentAccount {
 	return identityaccess.ParentAccount{
 		ID: value.ID, TenantID: value.TenantID, Email: value.Email, Username: value.Username, Active: value.Active,
@@ -756,6 +751,92 @@ func (e engine) RejectInvitation(ctx context.Context, invitationID, approverAcco
 		return errAccountLifecycleUnavailable
 	}
 	return lifecycleError(e.lifecycle.RejectInvitation(e.attach(ctx), invitationID, approverAccountID))
+}
+
+// The guardian invitation lifecycle answers with the invitation sentinels
+// the school invitation flows share; invitationError falls through to the
+// lifecycle mapping for the rest.
+
+func (e engine) CreateGuardianInvitation(ctx context.Context, request identityaccess.GuardianInvitationRequest) (identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return identityaccess.GuardianInvitation{}, errAccountLifecycleUnavailable
+	}
+	invitation, err := e.lifecycle.CreateGuardianInvitation(e.attach(ctx), domain.GuardianInvitationRequest(request))
+	if err != nil {
+		return identityaccess.GuardianInvitation{}, invitationError(err)
+	}
+	return identityaccess.GuardianInvitation(invitation), nil
+}
+
+func (e engine) ValidateGuardianInvitation(ctx context.Context, token string) (identityaccess.GuardianInvitationPreview, error) {
+	if e.lifecycle == nil {
+		return identityaccess.GuardianInvitationPreview{}, errAccountLifecycleUnavailable
+	}
+	preview, err := e.lifecycle.ValidateGuardianInvitation(e.attach(ctx), token)
+	if err != nil {
+		return identityaccess.GuardianInvitationPreview{}, invitationError(err)
+	}
+	return identityaccess.GuardianInvitationPreview(preview), nil
+}
+
+func (e engine) AcceptGuardianInvitation(ctx context.Context, token string, registration identityaccess.GuardianRegistration) (identityaccess.Account, error) {
+	if e.lifecycle == nil {
+		return identityaccess.Account{}, errAccountLifecycleUnavailable
+	}
+	account, err := e.lifecycle.AcceptGuardianInvitation(e.attach(ctx), token, domain.GuardianRegistration(registration))
+	if err != nil {
+		return identityaccess.Account{}, invitationError(err)
+	}
+	return identityaccess.Account{ID: account.ID, Email: account.Email}, nil
+}
+
+func (e engine) ResendGuardianInvitation(ctx context.Context, invitationID, actorAccountID int64) error {
+	if e.lifecycle == nil {
+		return errAccountLifecycleUnavailable
+	}
+	return invitationError(e.lifecycle.ResendGuardianInvitation(e.attach(ctx), invitationID, actorAccountID))
+}
+
+func (e engine) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	invitations, err := e.lifecycle.ListGuardianInvitations(e.attach(ctx), guardianProfileID)
+	return publicGuardianInvitations(invitations), invitationError(err)
+}
+
+func (e engine) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	invitations, err := e.lifecycle.ListOpenGuardianInvitations(e.attach(ctx), guardianProfileIDs)
+	return publicGuardianInvitations(invitations), invitationError(err)
+}
+
+func (e engine) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {
+	if e.lifecycle == nil {
+		return nil, errAccountLifecycleUnavailable
+	}
+	invitations, err := e.lifecycle.ListRedeemableGuardianInvitations(e.attach(ctx))
+	return publicGuardianInvitations(invitations), invitationError(err)
+}
+
+func publicGuardianInvitations(invitations []domain.GuardianInvitation) []identityaccess.GuardianInvitation {
+	if invitations == nil {
+		return nil
+	}
+	result := make([]identityaccess.GuardianInvitation, 0, len(invitations))
+	for _, invitation := range invitations {
+		result = append(result, identityaccess.GuardianInvitation(invitation))
+	}
+	return result
+}
+
+func (e engine) GuardianInvitationSchoolSlug(ctx context.Context, token string) string {
+	if e.lifecycle == nil {
+		return ""
+	}
+	return e.lifecycle.GuardianInvitationSchoolSlug(e.attach(ctx), token)
 }
 
 func (e engine) PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error) {

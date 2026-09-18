@@ -66,6 +66,13 @@ func IsValidMFAAdminOverride(v string) bool {
 	return false
 }
 
+// mfaEmailBackoff spaces the retries of the MFA notification mails.
+var mfaEmailBackoff = []time.Duration{
+	time.Second,
+	5 * time.Second,
+	15 * time.Second,
+}
+
 // Errors surfaced by the MFA service. Generic messages — internal detail
 // stays in slog at Debug level.
 var (
@@ -1826,7 +1833,7 @@ func (s *mfaService) dispatchChallengeEmail(ctx context.Context, account *auth.A
 	if err := s.Dispatcher.Deliver(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
-		BackoffPolicy: passwordResetEmailBackoff,
+		BackoffPolicy: mfaEmailBackoff,
 		MaxAttempts:   3,
 	}); err != nil {
 		s.Logger.Warn("mfa challenge delivery failed",
@@ -1890,7 +1897,7 @@ func (s *mfaService) dispatchTrustedDeviceAddedEmail(ctx context.Context, accoun
 	s.Dispatcher.Dispatch(ctx, email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
-		BackoffPolicy: passwordResetEmailBackoff,
+		BackoffPolicy: mfaEmailBackoff,
 		MaxAttempts:   3,
 	})
 }

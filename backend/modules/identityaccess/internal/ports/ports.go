@@ -73,6 +73,119 @@ type OperatorStore interface {
 	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 }
 
+// OperatorMFAStore is the persistence port over the operator MFA enrollment,
+// e-mail challenge and trusted-device tables. All three are platform-wide:
+// no row carries a tenant. "Active" compares against the now the caller
+// passes.
+type OperatorMFAStore interface {
+	FindOperatorMFACredential(ctx context.Context, operatorID int64) (domain.OperatorMFACredential, bool, domain.OperationStats, error)
+	InsertOperatorMFACredential(ctx context.Context, credential domain.OperatorMFACredential) (domain.OperatorMFACredential, domain.OperationStats, error)
+	TouchOperatorMFACredential(ctx context.Context, id int64, usedAt time.Time) (domain.OperationStats, error)
+	DeleteOperatorMFACredentials(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+
+	InsertOperatorMFAChallenge(ctx context.Context, challenge domain.OperatorMFAChallenge) (domain.OperatorMFAChallenge, domain.OperationStats, error)
+	// FindActiveOperatorMFAChallenge returns the unconsumed, unexpired code
+	// with the latest expiry.
+	FindActiveOperatorMFAChallenge(ctx context.Context, operatorID int64, now time.Time) (domain.OperatorMFAChallenge, bool, domain.OperationStats, error)
+	CountOperatorMFAChallengesSince(ctx context.Context, operatorID int64, since time.Time) (int, domain.OperationStats, error)
+	// ActivateOperatorMFAChallenge clears consumed_at on a consumed row and
+	// reports whether such a row existed.
+	ActivateOperatorMFAChallenge(ctx context.Context, id int64) (bool, domain.OperationStats, error)
+	// ConsumeOperatorMFAChallenge stamps consumed_at on an unconsumed row and
+	// reports whether such a row existed.
+	ConsumeOperatorMFAChallenge(ctx context.Context, id int64, consumedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertOperatorTrustedDevice(ctx context.Context, device domain.OperatorTrustedDevice) (domain.OperatorTrustedDevice, domain.OperationStats, error)
+	FindActiveOperatorTrustedDevice(ctx context.Context, operatorID int64, tokenHash string, now time.Time) (domain.OperatorTrustedDevice, bool, domain.OperationStats, error)
+	// ListActiveOperatorTrustedDevices orders by last use, most recent first,
+	// then by creation.
+	ListActiveOperatorTrustedDevices(ctx context.Context, operatorID int64, now time.Time) ([]domain.OperatorTrustedDevice, domain.OperationStats, error)
+	TouchOperatorTrustedDevice(ctx context.Context, id int64, usedAt time.Time) (domain.OperationStats, error)
+	// RevokeOperatorTrustedDevice stamps revoked_at on an unrevoked row and
+	// reports whether such a row existed.
+	RevokeOperatorTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
+}
+
+// OperatorTokenStore is the persistence port over the operator invitation
+// and e-mail change links. Both tables are platform-wide: no row carries a
+// tenant. "Redeemable" means unused and not expired at the now the caller
+// passes. The bool results report whether a row in the expected state
+// existed.
+type OperatorTokenStore interface {
+	InsertOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation) (domain.OperatorInvitation, domain.OperationStats, error)
+	FindOperatorInvitation(ctx context.Context, id int64) (domain.OperatorInvitation, bool, domain.OperationStats, error)
+	FindRedeemableOperatorInvitation(ctx context.Context, token string, now time.Time) (domain.OperatorInvitation, bool, domain.OperationStats, error)
+	// ListRedeemableOperatorInvitations orders by creation, newest first.
+	ListRedeemableOperatorInvitations(ctx context.Context, now time.Time) ([]domain.OperatorInvitation, domain.OperationStats, error)
+	CountOperatorInvitationsCreatedAfter(ctx context.Context, createdBy int64, since time.Time) (int, domain.OperationStats, error)
+	// RedeemOperatorInvitation stamps used_at on the redeemable row and
+	// returns it; concurrent redemptions see exactly one winner.
+	RedeemOperatorInvitation(ctx context.Context, token string, now time.Time) (domain.OperatorInvitation, bool, domain.OperationStats, error)
+	RevokeOperatorInvitation(ctx context.Context, id int64, now time.Time) (bool, domain.OperationStats, error)
+	RevokeOperatorInvitationsForEmail(ctx context.Context, email string, now time.Time) (int, domain.OperationStats, error)
+	ExtendOperatorInvitation(ctx context.Context, id int64, expiresAt, now time.Time) (bool, domain.OperationStats, error)
+	RecordOperatorInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
+	DeleteExpiredOperatorInvitations(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+
+	InsertOperatorEmailChange(ctx context.Context, change domain.OperatorEmailChange) (domain.OperatorEmailChange, domain.OperationStats, error)
+	CountOperatorEmailChangesCreatedAfter(ctx context.Context, operatorID int64, since time.Time) (int, domain.OperationStats, error)
+	// RedeemOperatorEmailChange marks the redeemable row used and returns it;
+	// concurrent redemptions see exactly one winner.
+	RedeemOperatorEmailChange(ctx context.Context, token string, now time.Time) (domain.OperatorEmailChange, bool, domain.OperationStats, error)
+	RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
+	// RevokeExpiredOperatorEmailChanges marks expired, unused rows used so
+	// they stop occupying the one-active-link-per-operator index.
+	RevokeExpiredOperatorEmailChanges(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
+	// DeleteStaleOperatorEmailChanges deletes expired or used rows created
+	// before createdBefore, so the rate-limit window keeps its rows.
+	DeleteStaleOperatorEmailChanges(ctx context.Context, createdBefore, now time.Time) (int, domain.OperationStats, error)
+}
+
+// OperatorPasskeyStore is the persistence port over the operator passkey
+// credential and ceremony-session tables. Both are platform-wide: no row
+// carries a tenant. "Active" means unrevoked.
+type OperatorPasskeyStore interface {
+	InsertOperatorPasskey(ctx context.Context, credential domain.OperatorPasskeyCredential) (domain.OperatorPasskeyCredential, domain.OperationStats, error)
+	// ListActiveOperatorPasskeys orders by creation, oldest first.
+	ListActiveOperatorPasskeys(ctx context.Context, operatorID int64) ([]domain.OperatorPasskeyCredential, domain.OperationStats, error)
+	FindActiveOperatorPasskey(ctx context.Context, credentialID, userHandle []byte) (domain.OperatorPasskeyCredential, bool, domain.OperationStats, error)
+	// UpdateOperatorPasskeyAfterUse stores the credential state on an active
+	// row and reports whether such a row existed.
+	UpdateOperatorPasskeyAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) (bool, domain.OperationStats, error)
+	// RevokeOperatorPasskey stamps revoked_at on an active row of that
+	// operator and reports whether such a row existed.
+	RevokeOperatorPasskey(ctx context.Context, operatorID, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertOperatorPasskeySession(ctx context.Context, session domain.OperatorPasskeySession) (domain.OperatorPasskeySession, domain.OperationStats, error)
+	// ConsumeOperatorPasskeySession stamps consumed_at on an unconsumed row
+	// with that purpose that expires after consumedAt and returns it.
+	ConsumeOperatorPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (domain.OperatorPasskeySession, bool, domain.OperationStats, error)
+}
+
+// AccountPasskeyStore is the persistence port over the school-portal
+// passkey credential and ceremony-session tables. Credentials belong to the
+// account and carry no tenant; a ceremony records the school whose portal
+// started it. "Active" means unrevoked.
+type AccountPasskeyStore interface {
+	InsertAccountPasskey(ctx context.Context, credential domain.AccountPasskeyCredential) (domain.AccountPasskeyCredential, domain.OperationStats, error)
+	// ListActiveAccountPasskeys orders by creation, oldest first.
+	ListActiveAccountPasskeys(ctx context.Context, accountID int64) ([]domain.AccountPasskeyCredential, domain.OperationStats, error)
+	FindActiveAccountPasskey(ctx context.Context, credentialID, userHandle []byte) (domain.AccountPasskeyCredential, bool, domain.OperationStats, error)
+	// UpdateAccountPasskeyAfterUse stores the credential state on an active
+	// row and reports whether such a row existed.
+	UpdateAccountPasskeyAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) (bool, domain.OperationStats, error)
+	// RevokeAccountPasskey stamps revoked_at on an active row of that account
+	// and reports whether such a row existed.
+	RevokeAccountPasskey(ctx context.Context, accountID, id int64, revokedAt time.Time) (bool, domain.OperationStats, error)
+
+	InsertAccountPasskeySession(ctx context.Context, session domain.AccountPasskeySession) (domain.AccountPasskeySession, domain.OperationStats, error)
+	// ConsumeAccountPasskeySession stamps consumed_at on an unconsumed row
+	// with that purpose that expires after consumedAt and returns it.
+	ConsumeAccountPasskeySession(ctx context.Context, id, purpose string, consumedAt time.Time) (domain.AccountPasskeySession, bool, domain.OperationStats, error)
+}
+
 // AccountSessionStore is the persistence port over auth.tokens, the
 // tenant-scoped refresh sessions of platform accounts. Reads and deletes that
 // name no explicit tenant apply the scope the composition resolves from the
@@ -365,8 +478,9 @@ type OperatorAudit interface {
 }
 
 // OperatorCredentialCleanup invalidates the bearer-style controls a password
-// rotation must not leave alive besides the refresh sessions the module
-// owns: the pending e-mail change links.
+// rotation must not leave alive besides the refresh sessions: the pending
+// e-mail change links. The composition binds it to the module's own link
+// operations (#2722), so the revocation joins the password change.
 type OperatorCredentialCleanup interface {
 	InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error
 }

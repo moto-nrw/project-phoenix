@@ -30,8 +30,6 @@ func init() {
 }
 
 func renameDeviceTypes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.16: Renaming legacy device types to 'terminal'...")
-
 	result, err := db.ExecContext(ctx, `
 		UPDATE iot.devices
 		SET device_type = 'terminal'
@@ -42,13 +40,13 @@ func renameDeviceTypes(ctx context.Context, db *bun.DB) error {
 	}
 
 	rows, _ := result.RowsAffected()
-	fmt.Printf("Migration 1.15.16: Updated %d devices from rfid_reader/rfid_scanner to terminal\n", rows)
+	migrationLog().InfoContext(ctx, "legacy device types renamed to terminal",
+		"rows", rows,
+	)
 	return nil
 }
 
 func revertDeviceTypes(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.16: Reverting device types to 'rfid_reader'...")
-
 	_, err := db.ExecContext(ctx, `
 		UPDATE iot.devices
 		SET device_type = 'rfid_reader'
@@ -58,6 +56,5 @@ func revertDeviceTypes(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error reverting device types: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.16: Successfully reverted device types")
 	return nil
 }

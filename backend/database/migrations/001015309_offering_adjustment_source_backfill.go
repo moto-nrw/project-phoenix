@@ -46,8 +46,6 @@ func init() {
 // character-identical free-text note) that an accidental match is not
 // realistic.
 func offeringAdjustmentSourceBackfillUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.309: Classifying historical offering adjustments...")
-
 	// Rule 1: the reason is machine-generated, so the shape identifies it.
 	generated, err := db.ExecContext(ctx, `
 		UPDATE audit.enrollment_offering_adjustments
@@ -98,8 +96,11 @@ func offeringAdjustmentSourceBackfillUp(ctx context.Context, db *bun.DB) error {
 	generatedRows, _ := generated.RowsAffected()
 	correlatedRows, _ := correlated.RowsAffected()
 	directRows, _ := direct.RowsAffected()
-	fmt.Printf("Migration 1.15.309: %d generated + %d correlated request row(s), %d direct correction(s)\n",
-		generatedRows, correlatedRows, directRows)
+	migrationLog().InfoContext(ctx, "historical offering adjustments classified",
+		"generated_rows", generatedRows,
+		"correlated_rows", correlatedRows,
+		"direct_corrections", directRows,
+	)
 	return nil
 }
 
@@ -109,6 +110,5 @@ func offeringAdjustmentSourceBackfillUp(ctx context.Context, db *bun.DB) error {
 // so the rollback deliberately does nothing. Rolling back past 1.15.308 drops
 // the column entirely, which covers the real "undo" case.
 func offeringAdjustmentSourceBackfillDown(_ context.Context, _ *bun.DB) error {
-	fmt.Println("Rolling back 1.15.309: no-op — the source classification is not reversible (1.15.308 drops the column).")
 	return nil
 }

@@ -3,6 +3,28 @@
 
 <div class="email-body">
     {{template "moto-brand" .}}
+    {{if .ExistingAccount}}
+    <h1>Ihr Zugang zum Eltern-Portal</h1>
+    {{if .FirstName}}
+    <p>Sehr geehrte/r {{.FirstName}} {{.LastName}},</p>
+    {{else}}
+    <p>Sehr geehrte Damen und Herren,</p>
+    {{end}}
+    <p>Im <strong>Eltern-Portal</strong> von moto sehen Sie jetzt die Informationen zu Ihren Kindern.</p>
+    <p>Sie haben schon ein Konto bei moto. Sie brauchen kein neues Konto.</p>
+    <p>Melden Sie sich im Eltern-Portal mit Ihren bisherigen Zugangsdaten an.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.InvitationURL}}">Zum Eltern-Portal</a>
+    </div>
+
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box">
+        <a href="{{.InvitationURL}}">{{.InvitationURL}}</a>
+    </div>
+
+    <p class="security-note">Passwort vergessen? Auf der Anmeldeseite können Sie ein neues Passwort anfordern.</p>
+    {{else}}
     <h1>Einladung zum Eltern-Portal</h1>
     {{if .FirstName}}
     <p>Sehr geehrte/r {{.FirstName}} {{.LastName}},</p>
@@ -47,6 +69,7 @@
     </div>
 
     <p class="security-note">Falls Sie diese Einladung nicht erwartet haben oder keinen Bezug zur moto-Einrichtung haben, können Sie diese E-Mail ignorieren.</p>
+    {{end}}
 </div>
 
 {{template "footer" .}}

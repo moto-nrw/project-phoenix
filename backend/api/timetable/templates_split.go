@@ -16,8 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -399,7 +399,7 @@ func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error)
 	switch {
 	case errors.Is(err, timetableplanning.ErrSplitTemplateNotFound):
 		renderTemplateNotFound(w, r)
-	case errors.Is(err, scheduleSvc.ErrCategoryNotAssignable):
+	case errors.Is(err, careschedule.ErrCategoryNotAssignable):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("category is archived or unavailable")))
 	case errors.Is(err, timetableplanning.ErrPlanningTrackNotFound), errors.Is(err, timetableplanning.ErrPlanningTrackArchived):
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("planning track is archived or unavailable")))

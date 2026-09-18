@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
@@ -28,7 +29,6 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
@@ -37,6 +37,22 @@ import (
 // Resource defines the students API resource
 type Resource struct {
 	ResourceConfig
+}
+
+// ClassListEntry is one class-list-only child (#2382) as this resource reads
+// it: a name and a free-text class, nothing else exists.
+type ClassListEntry struct {
+	ID          int64
+	FirstName   string
+	LastName    string
+	SchoolClass string
+}
+
+// ClassListEntryReader hands over the entries in the class-then-name display
+// order the "Klassenliste" export and the class dropdown both rely on. The
+// root binds it to the School Membership capability that owns them.
+type ClassListEntryReader interface {
+	ListClassListEntriesInDisplayOrder(context.Context) ([]ClassListEntry, error)
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
@@ -48,23 +64,24 @@ type ResourceConfig struct {
 	UserContextService     userContextService.UserContextService
 	ActiveService          activeService.Service
 	IoTService             iotSvc.Service
-	PickupScheduleService  scheduleService.PickupScheduleService
-	PartialAbsenceService  scheduleService.PartialAbsenceService
-	ArrivalScheduleService scheduleService.ArrivalScheduleService
+	PickupScheduleService  careschedule.PickupScheduleService
+	PartialAbsenceService  careschedule.PartialAbsenceService
+	ArrivalScheduleService careschedule.ArrivalScheduleService
 	InstanceService        timetableplanning.InstanceService
 	// CareDayService gates the day-planning timetable signal on the child's
 	// care plan (#1747) — without it a child assigned to a block counts as
 	// "kommt heute" on every weekday, including the ones they are not booked
 	// for. Optional: nil keeps the unfiltered pre-#1747 behaviour, which is
 	// what bare test Resources rely on.
-	CareDayService  scheduleService.CareDayService
+	CareDayService  careschedule.CareDayService
 	SchoolService   SchoolDirectory
 	SettingsService configService.SettingsService
 	StudentService  userService.StudentService
-	// ClassListEntryService supplies the class-list-only entries (#2382) the
-	// "Klassenliste" export merges into the Klassenverband. Optional: nil
-	// exports without entries (bare test Resources).
-	ClassListEntryService userService.ClassListEntryService
+	// ClassListEntries supplies the class-list-only entries (#2382) the
+	// "Klassenliste" export merges into the Klassenverband, read through
+	// their School Membership owner in the display order the export needs.
+	// Optional: nil exports without entries (bare test Resources).
+	ClassListEntries ClassListEntryReader
 	// StudentDeletion is the owner workflow behind the permanent deletion
 	// routes (#2710): delete-impact, DELETE /{id}, the graduate purge and the
 	// withdrawal deletion. Optional so bare test Resources still compile; the
@@ -75,7 +92,7 @@ type ResourceConfig struct {
 	CareLifecycleService    userService.CareLifecycleService
 	StudentAuditService     userService.StudentAuditService
 	MasterDataReviewService userService.MasterDataReviewService
-	CareRequestService      scheduleService.CareScheduleRequestService
+	CareRequestService      careschedule.CareScheduleRequestService
 	// OfferingChangeService backs the post-enrollment offering-change queue
 	// (#1665).
 	OfferingChangeService    enrollmentService.OfferingChangeRequestService

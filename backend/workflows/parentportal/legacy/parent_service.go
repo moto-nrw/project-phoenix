@@ -20,21 +20,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -502,14 +500,14 @@ type ServiceConfig struct {
 	// PickupAutoExcusal couples pulled-forward day pickup times with the
 	// per-block partial-absence mechanics (#2360). Optional in tests; nil
 	// skips the coupling.
-	PickupAutoExcusal *scheduleSvc.PickupAutoExcusalSyncer
+	PickupAutoExcusal *careschedule.PickupAutoExcusalSyncer
 	Settings          configService.SettingsService
 	Broadcaster       realtime.Broadcaster
 
 	// Weekly care plan read view + change requests (#1803).
-	ArrivalSchedules scheduleSvc.ArrivalScheduleService
-	PickupSchedules  scheduleSvc.PickupScheduleService
-	CareRequests     scheduleSvc.CareScheduleRequestService
+	ArrivalSchedules careschedule.ArrivalScheduleService
+	PickupSchedules  careschedule.PickupScheduleService
+	CareRequests     careschedule.CareScheduleRequestService
 	// ExcusedRequests is the legacy-named office-approval store for parent sick
 	// and excused absences. When the matching setting is on, a submission becomes
 	// a pending request here instead of a direct status day.
@@ -552,9 +550,13 @@ type ServiceConfig struct {
 	AnnouncementRepo usersModels.ParentAnnouncementRepository
 
 	// Related-accounts management (invite/remove further guardians from the
-	// parents portal). The invitation service runs the shared resolve logic.
-	GuardianInvites     authService.GuardianInvitationService
-	GuardianInviteRepo  authModels.GuardianInvitationRepository
+	// parents portal). The owner runs the shared resolve logic behind the
+	// consumer-owned GuardianAccess port.
+	GuardianInvites GuardianAccess
+	// GuardianInvitations is the consumer-owned port over the Identity &
+	// Access guardian invitations (#2722): a contact with an open invitation
+	// shows as pending instead of "no account".
+	GuardianInvitations GuardianInvitationReads
 	StudentGuardianRepo usersModels.StudentGuardianRepository
 
 	// Stammdaten view + change flow (Track A direct edit, Track B requests).

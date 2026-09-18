@@ -32,8 +32,6 @@ func init() {
 }
 
 func enablePgStatStatementsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.78: Enabling pg_stat_statements extension...")
-
 	_, err := db.NewRaw(`CREATE EXTENSION IF NOT EXISTS pg_stat_statements;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed enabling pg_stat_statements extension: %w", err)
@@ -43,8 +41,6 @@ func enablePgStatStatementsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func enablePgStatStatementsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.78: Disabling pg_stat_statements extension...")
-
 	_, err := db.NewRaw(`DROP EXTENSION IF EXISTS pg_stat_statements;`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed disabling pg_stat_statements extension: %w", err)

@@ -116,7 +116,7 @@ func (m *mockCalendarPeriodService) GetUsageCounts(_ context.Context) (map[int64
 	return m.usage, nil
 }
 
-// scheduleSvcErr is a minimal stand-in for services/schedule.ScheduleError.
+// scheduleSvcErr is a minimal stand-in for careschedule.ScheduleError.
 // It lets the test verify errors.Is traverses a wrapping layer without pulling
 // the services package into the handler test.
 type scheduleSvcErr struct {

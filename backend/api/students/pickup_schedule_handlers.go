@@ -16,9 +16,9 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -99,9 +99,9 @@ type BulkPickupScheduleRequest struct {
 }
 
 type BulkPickupSchedulePatchRequest struct {
-	StudentIDs         []int64                               `json:"student_ids"`
-	Schedules          []scheduleService.PickupScheduleInput `json:"schedules"`
-	ConfirmedException bool                                  `json:"confirmed_exception"`
+	StudentIDs         []int64                            `json:"student_ids"`
+	Schedules          []careschedule.PickupScheduleInput `json:"schedules"`
+	ConfirmedException bool                               `json:"confirmed_exception"`
 }
 
 // PickupExceptionRequest represents a request to create/update a pickup exception
@@ -372,7 +372,7 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	var data *scheduleService.StudentPickupData
+	var data *careschedule.StudentPickupData
 	if hasRange {
 		data, err = rs.PickupScheduleService.GetStudentPickupDataForRange(r.Context(), student.ID, from, to)
 	} else {
@@ -412,7 +412,7 @@ func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, boo
 }
 
 // buildPickupDataResponse converts service pickup data to API response
-func buildPickupDataResponse(data *scheduleService.StudentPickupData) PickupDataResponse {
+func buildPickupDataResponse(data *careschedule.StudentPickupData) PickupDataResponse {
 	response := PickupDataResponse{
 		Schedules:          make([]PickupScheduleResponse, 0, len(data.Schedules)),
 		EffectiveSchedules: make([]DatedPickupScheduleResponse, 0, len(data.EffectiveSchedules)),
@@ -604,11 +604,11 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 			))
 			return
 		}
-		if errors.Is(err, scheduleService.ErrBulkStudentUnauthorized) {
+		if errors.Is(err, careschedule.ErrBulkStudentUnauthorized) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
-		if errors.Is(err, scheduleService.ErrBulkStudentNotFound) {
+		if errors.Is(err, careschedule.ErrBulkStudentNotFound) {
 			renderError(w, r, common.ErrorNotFound(err))
 			return
 		}
@@ -755,7 +755,7 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
+		if err := careschedule.LockCareExceptionDay(ctx, rs.DB, student.ID, timezone.Date(existingException.ExceptionDate)); err != nil {
 			return err
 		}
 		freshException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(ctx, exceptionID)
@@ -950,7 +950,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 
 func mapBulkPickupTimeResponse(
 	studentID int64,
-	effectiveTime *scheduleService.EffectivePickupTime,
+	effectiveTime *careschedule.EffectivePickupTime,
 ) BulkPickupTimeResponse {
 	response := BulkPickupTimeResponse{
 		StudentID:   studentID,

@@ -45,8 +45,6 @@ func init() {
 // can only match by normalized identity and would silently overwrite an
 // admin's display-form edit ("2a" → "2A") made between apply and revert.
 func classListEntriesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.306: Class-list-only entries...")
-
 	_, err := db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS users.class_list_entries (
 			id           BIGSERIAL PRIMARY KEY,
@@ -150,8 +148,6 @@ func classListEntriesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func classListEntriesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.306: Dropping users.class_list_entries...")
-
 	_, err := db.ExecContext(ctx, `
 		DROP TABLE IF EXISTS education.grade_transition_class_list_entries;
 		DROP TABLE IF EXISTS audit.class_list_entry_changes;

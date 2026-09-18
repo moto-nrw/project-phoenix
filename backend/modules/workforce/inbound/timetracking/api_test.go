@@ -1784,6 +1784,20 @@ func TestClassifyAbsenceError(t *testing.T) {
 		assert.JSONEq(t, `{"status":"error","error":"absence type is manager-controlled","code":"manager_controlled_absence"}`, w.Body.String())
 	})
 
+	t.Run("allowance booking overlap returns conflict", func(t *testing.T) {
+		err := &workforce.TimeTrackingError{
+			Kind:  workforce.ErrAllowanceBookingOverlap,
+			Cause: errors.New("Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."),
+		}
+		renderer := classifyAbsenceError(err)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderErr := render.Render(w, r, renderer)
+		require.NoError(t, renderErr)
+		require.Equal(t, http.StatusConflict, w.Code)
+		assert.JSONEq(t, `{"status":"error","error":"Diese Buchung überschneidet sich. Bitte löschen Sie die alte Buchung. Tragen Sie alle Tage zusammen ein."}`, w.Body.String())
+	})
+
 }
 
 // --- parseDateRange tests ---

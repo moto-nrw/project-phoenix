@@ -224,6 +224,8 @@ func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date
 			counts.Sick++
 		} else if (student.Excused != nil && *student.Excused) || day.excused || day.classTrip {
 			counts.Excused++
+		} else {
+			counts.UnaccountedIDs = append(counts.UnaccountedIDs, student.ID)
 		}
 	}
 	return counts, stats, nil

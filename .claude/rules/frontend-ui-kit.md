@@ -157,6 +157,7 @@ NEVER use a generic Tailwind color class (`text-green-500`, `bg-blue-500`, …) 
 | Brand green (primary)    | `#83CD2D` | `GROUP_ROOM`          |
 | Brand blue               | `#5080D8` | `OTHER_ROOM`          |
 | Neutral gray (Zuhause)   | `#6B7280` | `HOME`                |
+| Petrol (Schule)          | `#217A78` | `AT_SCHOOL`           |
 | Orange (Schulhof)        | `#F78C10` | `SCHOOLYARD`          |
 | Magenta (Unterwegs)      | `#D946EF` | `TRANSIT`             |
 | Red (Krank / Fehler)     | `#DC2626` | `SICK` / `DANGER`     |
@@ -200,6 +201,7 @@ Compact / ghost / icon-only buttons now EXIST on `ui/Button` (`variant="ghost"`,
 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. The page-level sizes (`sm` `base` `lg` `xl`) are `rounded-lg px-5 py-3 shadow-md` and oversized for both dense chrome and modal footers; for toolbars, dropdown triggers, and icon actions use `size="compact"` / `size="icon"` (flat `h-8`, `rounded-md`) with `variant="ghost"`, and for **modal / slide-over footers and in-form actions** use `size="md"` (`px-4 py-2 text-sm`) instead of reaching for `size="sm"` (which is the same height as `base`).
+- **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface that gets its own height and scrolls inside (the chats with `useChatViewportLock`) must carry `moto-scroll-surface`, otherwise it grows to its full content height and its fixed-height wrapper clips the rest (#3328). Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`).
 - **`NavigationTabs` collapses to a dropdown on mobile** — use it for page-level navigation, not a compact segmented switcher. For a segmented switcher use `ui/Tabs` `variant="default"`.
 
 ## UI skills: this rule outranks all of them

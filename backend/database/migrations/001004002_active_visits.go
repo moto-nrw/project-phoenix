@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // createActiveVisitsTable creates the active.visits table
 func createActiveVisitsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.4.2: Creating active.visits table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func createActiveVisitsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -117,8 +114,6 @@ func createActiveVisitsTable(ctx context.Context, db *bun.DB) error {
 
 // dropActiveVisitsTable drops the active.visits table
 func dropActiveVisitsTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.4.2: Removing active.visits table...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -126,7 +121,7 @@ func dropActiveVisitsTable(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

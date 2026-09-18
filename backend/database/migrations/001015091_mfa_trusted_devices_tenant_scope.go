@@ -21,7 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.91: adding tenant_id to auth.mfa_trusted_devices...")
 			_, err := db.ExecContext(ctx, `
 				-- 2FA hasn't shipped yet, so existing rows are throwaway. Clearing
 				-- them is the only way to add a NOT NULL column without a sentinel
@@ -57,7 +56,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.91: dropping tenant_id from auth.mfa_trusted_devices...")
 			_, err := db.ExecContext(ctx, `
 				DROP INDEX IF EXISTS auth.idx_mfa_trusted_devices_account_tenant_active;
 				CREATE INDEX IF NOT EXISTS idx_mfa_trusted_devices_account_active

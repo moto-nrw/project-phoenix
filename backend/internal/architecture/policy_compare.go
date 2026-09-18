@@ -9,12 +9,13 @@ import (
 // CompareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
 // in this candidate actually creates, and for tables a reviewed epoch adopts
-// from recorded debt (adoptableDataObjects). Without the first exception the
+// from recorded debt (adoptableDataObjects, judged against the candidate's
+// current violations). Without the first exception the
 // ratchet would freeze the schema: a table cannot exist in the base policy
 // before the migration that introduces it. Without the second, a live table
 // the baseline already tracks as unowned could only gain its owner through a
 // data migration. Every other ownership change remains a strict loosening.
-func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest) error {
+func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) error {
 	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
 		return err
@@ -31,7 +32,7 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 	if err != nil {
 		return err
 	}
-	adoptedDataObjects := adoptableDataObjects(base, candidate, baseManifest)
+	adoptedDataObjects := adoptableDataObjects(base, candidate, baseManifest, violations)
 	return comparePolicyStrictness(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols)
 }
 
@@ -39,13 +40,16 @@ func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *
 // epoch may adopt from recorded debt (ADR 0015, #3235). A table qualifies
 // when it has no write owner at the base, the base baseline records at least
 // one production tables.unclassified finding for it, and every package those
-// findings name is classified under the adopting owner in the candidate or
-// no longer exists there. The epoch must increase, as for every reviewed
-// registration. Transferring an owned table, adopting a table with no
+// findings name is classified under the adopting owner in the candidate, no
+// longer exists there, or is proven by the candidate's own findings to reach
+// neither that table nor any table expression the analysis cannot resolve
+// (#3221: the recorded access moved to the adopting owner while the old
+// package lives on for other tables). The epoch must increase, as for every
+// reviewed registration. Transferring an owned table, adopting a table with no
 // recorded debt, and adopting while a package of another owner still
 // accesses it stay loosenings; after the adoption the ordinary foreign-read
 // and foreign-write rules guard every other accessor.
-func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest) map[string]struct{} {
+func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) map[string]struct{} {
 	adoptable := make(map[string]struct{})
 	if baseManifest == nil || candidate.PolicyEpoch <= base.PolicyEpoch {
 		return adoptable
@@ -56,6 +60,7 @@ func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest)
 			sourcesByTable[entry.Target] = append(sourcesByTable[entry.Target], entry.Source)
 		}
 	}
+	candidateAccess, unresolvedSources := tableAccessBySource(violations)
 	baseObjects := dataObjectsByName(base)
 	candidatePackages := candidate.packageMap()
 	for _, object := range candidate.DataObjects {
@@ -68,7 +73,10 @@ func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest)
 		}
 		adopt := true
 		for _, source := range sources {
-			if pkg, classified := candidatePackages[source]; classified && pkg.Owner != object.WriteOwner {
+			pkg, classified := candidatePackages[source]
+			_, named := candidateAccess[[2]string{source, object.Name}]
+			_, unresolved := unresolvedSources[source]
+			if classified && pkg.Owner != object.WriteOwner && (named || unresolved) {
 				adopt = false
 				break
 			}
@@ -78,6 +86,33 @@ func adoptableDataObjects(base, candidate *Policy, baseManifest *LegacyManifest)
 		}
 	}
 	return adoptable
+}
+
+// tableAccessBySource indexes the candidate's ownership findings by
+// (source package, table), plus the packages whose table expressions the
+// analysis could not resolve. Under the candidate policy an adopted table
+// read or written by a package of another owner surfaces as a foreign-read or
+// foreign-write finding, and a table left without an owner as unclassified,
+// so the first index is exactly the set of named accesses that block an
+// adoption. The second index blocks it as well: an unresolved expression
+// names no table, so such a package cannot prove it stopped reaching the one
+// being adopted. Migration and test-support packages produce no findings of
+// either kind.
+func tableAccessBySource(violations []Violation) (map[[2]string]struct{}, map[string]struct{}) {
+	access := make(map[[2]string]struct{})
+	unresolved := make(map[string]struct{})
+	for _, violation := range violations {
+		if violation.Scope != ScopeProduction {
+			continue
+		}
+		switch violation.Rule {
+		case "tables.foreign-read", "tables.foreign-write", "tables.unclassified":
+			access[[2]string{violation.Source, violation.Target}] = struct{}{}
+		case "tables.unresolved":
+			unresolved[violation.Source] = struct{}{}
+		}
+	}
+	return access, unresolved
 }
 
 func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {

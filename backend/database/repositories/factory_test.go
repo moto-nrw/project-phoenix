@@ -27,10 +27,7 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.RolePermission)
 		assert.NotNil(t, factory.AccountRole)
 		assert.NotNil(t, factory.AccountPermission)
-		assert.NotNil(t, factory.PasswordResetToken)
-		assert.NotNil(t, factory.PasswordResetRateLimit)
 		assert.NotNil(t, factory.InvitationToken)
-		assert.NotNil(t, factory.GuardianInvitation)
 	})
 
 	// Verify users repositories are initialized

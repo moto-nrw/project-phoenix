@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 )
 
 func TestAppendArrivalWarningsAddsTheClassExceptionLine(t *testing.T) {
@@ -19,8 +19,8 @@ func TestAppendArrivalWarningsAddsTheClassExceptionLine(t *testing.T) {
 	clock := mustClock(t, "12:45")
 	warnings := map[int64][]OperationRosterWarning{}
 
-	appendArrivalWarnings(warnings, map[int64]*scheduleSvc.EffectiveArrivalTime{
-		1: {ArrivalTime: &clock, ClassException: &scheduleSvc.ClassArrivalExceptionInfo{
+	appendArrivalWarnings(warnings, map[int64]*careschedule.EffectiveArrivalTime{
+		1: {ArrivalTime: &clock, ClassException: &careschedule.ClassArrivalExceptionInfo{
 			SchoolClass: "4a", ArrivalTime: "12:45", Label: "Klasse 4a: Unterricht fällt aus",
 		}},
 		2: {ArrivalTime: &clock},
@@ -41,8 +41,8 @@ func TestAppendArrivalWarningsKeepsOnlyTheReasonWhenTheClassArrivesLate(t *testi
 	late := mustClock(t, "13:30")
 	warnings := map[int64][]OperationRosterWarning{}
 
-	appendArrivalWarnings(warnings, map[int64]*scheduleSvc.EffectiveArrivalTime{
-		1: {ArrivalTime: &late, ClassException: &scheduleSvc.ClassArrivalExceptionInfo{
+	appendArrivalWarnings(warnings, map[int64]*careschedule.EffectiveArrivalTime{
+		1: {ArrivalTime: &late, ClassException: &careschedule.ClassArrivalExceptionInfo{
 			SchoolClass: "4a", ArrivalTime: "13:30", Label: "Klasse 4a: Wandertag",
 		}},
 	}, inst)

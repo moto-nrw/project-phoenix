@@ -33,8 +33,6 @@ func init() {
 }
 
 func createRequestChildOfferingsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.64: Creating enrollment.request_child_offerings table...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS enrollment.request_child_offerings (
 			id                BIGSERIAL PRIMARY KEY,
@@ -75,7 +73,6 @@ func createRequestChildOfferingsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createRequestChildOfferingsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.64: Dropping enrollment.request_child_offerings...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS enrollment.request_child_offerings CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping enrollment.request_child_offerings: %w", err)
 	}

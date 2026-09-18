@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func createPlatformOperatorEmailChangeTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.26: Creating platform.operator_email_change_tokens table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in operator email change tokens migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -117,15 +114,13 @@ func createPlatformOperatorEmailChangeTokensTable(ctx context.Context, db *bun.D
 }
 
 func dropPlatformOperatorEmailChangeTokensTable(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.26: Removing platform.operator_email_change_tokens table...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err != sql.ErrTxDone {
-			log.Printf("Failed to rollback transaction in operator email change tokens down migration: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

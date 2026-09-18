@@ -5,7 +5,9 @@
 // acceptance (#2699), the platform operator identity and refresh sessions
 // behind operator login, refresh and revocation, and the account refresh
 // sessions behind tenant, parent and school login, refresh, switching and
-// revocation (#2720).
+// revocation (#2720). The role and permission administration behind the RBAC
+// routes, staff membership, operator provisioning and staff offboarding
+// followed with #3314.
 //
 // Accounts are platform-wide rows without a tenant. The school mapping
 // (`auth.account_tenants`), the guardian base role assignment
@@ -51,9 +53,15 @@ func ErrorCode(err error) string {
 		return "none"
 	case errors.Is(err, ErrAccountNotFound), errors.Is(err, ErrRoleNotFound), errors.Is(err, ErrGuardianRoleMissing),
 		errors.Is(err, ErrOperatorNotFound), errors.Is(err, ErrOperatorSessionNotFound),
-		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound):
+		errors.Is(err, ErrAccountSessionNotFound), errors.Is(err, ErrSchoolNotFound), errors.Is(err, ErrAccountTenantAccessNotFound),
+		errors.Is(err, ErrOperatorMFACredentialNotFound), errors.Is(err, ErrOperatorMFAChallengeNotFound),
+		errors.Is(err, ErrOperatorTrustedDeviceNotFound), errors.Is(err, ErrOperatorInvitationNotFound),
+		errors.Is(err, ErrOperatorEmailChangeNotFound), errors.Is(err, ErrOperatorPasskeyNotFound),
+		errors.Is(err, ErrOperatorPasskeySessionNotFound), errors.Is(err, ErrAccountPasskeyNotFound),
+		errors.Is(err, ErrAccountPasskeySessionNotFound):
 		return "not_found"
-	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists):
+	case errors.Is(err, ErrOperatorSessionRotated), errors.Is(err, ErrAccountSessionRotated), errors.Is(err, ErrAccountTenantAccessExists),
+		errors.Is(err, ErrOperatorMFAChallengeStateChanged):
 		return "conflict"
 	case errors.Is(err, ErrTenantRequired):
 		return "tenant_required"
@@ -317,6 +325,12 @@ type AccountSessionAccess interface {
 type Engine interface {
 	GuardianAccess
 	OperatorAccess
+	OperatorMFARecords
+	OperatorTokens
+	OperatorPasskeyRecords
+	AccountPasskeyRecords
+	PasswordResets
+	SchoolInvitations
 	AccountSessionAccess
 	RFIDQuery
 	SchoolAccountQuery
@@ -331,6 +345,10 @@ type Engine interface {
 	OperatorAuthentication
 	OperatorAccountAccess
 	AccountLifecycle
+	RoleAdministration
+	AccountProvisioning
+	AccountAdministration
+	OperatorProvisioning
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in

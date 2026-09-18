@@ -110,14 +110,21 @@ export function RolePermissionsTab({
     void fetchPermissions(editing);
   }, [editing, fetchPermissions]);
 
+  const wasEditing = useRef(false);
+
   // Der Entwurf beginnt beim Umschalten in den Bearbeiten-Zustand immer beim
-  // gespeicherten Stand; ein Abbruch wirft die Kästchen zurück.
+  // gespeicherten Stand; ein Abbruch wirft die Kästchen zurück. Nur beim
+  // Umschalten: setAssignedMap übergibt bei jedem Laden ein frisches Objekt,
+  // und ein Reset auf dessen Identität verwirft einen Klick, der vor dem
+  // passiven Effekt des Lade-Commits liegt. Den Entwurf setzt der Ladepfad in
+  // fetchPermissions selbst (#3346).
   useEffect(() => {
-    if (editing) {
-      setDraftMap(assignedMap);
-      setSearchTerm("");
-      setSaveError(null);
-    }
+    const entersEditing = editing && !wasEditing.current;
+    wasEditing.current = editing;
+    if (!entersEditing) return;
+    setDraftMap(assignedMap);
+    setSearchTerm("");
+    setSaveError(null);
   }, [assignedMap, editing, setSaveError]);
 
   const assignedCount = useMemo(

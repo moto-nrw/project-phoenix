@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 )
 
@@ -45,7 +45,7 @@ func (r reminderVisitReader) ListOpenVisitStudentIDsByRoom(ctx context.Context) 
 
 type reminderPickupReader struct {
 	source interface {
-		GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*schedule.EffectivePickupTime, error)
+		GetBulkEffectivePickupTimesForDate(context.Context, []int64, timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error)
 	}
 }
 

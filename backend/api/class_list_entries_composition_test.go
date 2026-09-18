@@ -13,23 +13,20 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // The tests below exercise the composed /class-list-entries router (#2668):
-// the School Membership class-list adapter bound to the shared renderer, the
-// JWT identity and the legacy audited write flows. They keep the contract the
-// former api/classlistentries router tests pinned (#2382).
+// the School Membership class-list adapter bound to the shared renderer and
+// the JWT identity, over the owner's audited write flows. They keep the
+// contract the former api/classlistentries router tests pinned (#2382).
 
 func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
-	db, svc := testutil.SetupClassListModule(t)
-	membership, err := repositories.NewSchoolMembership(db)
-	require.NoError(t, err)
-	return db, newClassListEntriesResource(membership, svc, db, slog.Default()).Router()
+	db, module := testutil.SetupClassListModule(t)
+	return db, newClassListEntriesResource(module.Membership, db, slog.Default()).Router()
 }
 
 func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) jwt.AppClaims {
@@ -113,6 +110,78 @@ func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {
 	rec = testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:delete"})
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Klassenlisteneintrag nicht gefunden")
+
+	// Entries carry children's names, so every write leaves a trace (#2382).
+	// The trail is written by the owner through the shared Audit command, in
+	// the same transaction as the change it describes.
+	assert.Equal(t, []classListEntryChangeRow{
+		{Action: "created", NewValue: "Zoe Aalders (" + className + ")", ChangedBy: int64(claims.ID)},
+		{Action: "updated", OldValue: "Zoe Aalders (" + className + ")", NewValue: "Zoe Aalders (" + className + "-b)", ChangedBy: int64(claims.ID)},
+		{Action: "assigned", OldValue: "Zoe Aalders (" + className + "-b)", MatchedStudentID: &student.ID, ChangedBy: int64(claims.ID)},
+	}, classListEntryTrail(t, db, entryID))
+}
+
+// The listing resolves the "Zuordnen" hint per entry (#2382): the entry set is
+// a hand-maintained handful per school and the lookup is an exact-name query,
+// so one pair of statements per entry is the accepted shape. The budget pins
+// that pair — a third statement per entry, or a new constant read inside the
+// loop, fails here.
+func TestClassListEntriesCompositionKeepsItsQueryBudget(t *testing.T) {
+	t.Parallel()
+	db, router := setupClassListEntriesRoute(t)
+	claims := classListEntryClaims(t, db, "cle-budget")
+	className := fmt.Sprintf("cleb%d", time.Now().UnixNano()%100000)
+
+	// Every entry gets a namesake student, so both legs of the hint run: the
+	// person lookup and the student read behind it.
+	add := func(from, to int) {
+		for i := from; i < to; i++ {
+			name := fmt.Sprintf("Budget%d", i)
+			testpkg.CreateTestClassListEntry(t, db, name, "Kind", className)
+			testpkg.CreateTestStudent(t, db, name, "Kind", className)
+		}
+	}
+	add(0, 3)
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	list := func() []string {
+		counter.Reset()
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req = req.WithContext(counter.Context(req.Context()))
+		rec := testutil.ExecuteWithAuthPermissions(t, router, req, claims, []string{"users:read"})
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return counter.Operation("SELECT")
+	}
+
+	small := list()
+	testpkg.AssertQueryBudget(t, "api.class_list_entries.list", small)
+
+	add(3, 6)
+	large := list()
+	assert.Equal(t, len(small)+6, len(large),
+		"three more entries cost three more hint lookups, two statements each, and nothing else")
+}
+
+// classListEntryChangeRow is the part of the audit trail this contract pins:
+// what changed, into what, and who did it.
+type classListEntryChangeRow struct {
+	Action           string `bun:"action"`
+	OldValue         string `bun:"old_value"`
+	NewValue         string `bun:"new_value"`
+	MatchedStudentID *int64 `bun:"matched_student_id"`
+	ChangedBy        int64  `bun:"changed_by"`
+}
+
+func classListEntryTrail(t *testing.T, db *testpkg.DB, entryID int64) []classListEntryChangeRow {
+	t.Helper()
+	rows := []classListEntryChangeRow{}
+	require.NoError(t, db.NewSelect().
+		ColumnExpr(`"change".action, "change".old_value, "change".new_value, "change".matched_student_id, "change".changed_by`).
+		TableExpr(`audit.class_list_entry_changes AS "change"`).
+		Where(`"change".entry_id = ?`, entryID).
+		OrderExpr(`"change".id ASC`).
+		Scan(testpkg.Ctx(t), &rows))
+	return rows
 }
 
 // Whitespace-only fields are an invalid request, not a server error: Bind

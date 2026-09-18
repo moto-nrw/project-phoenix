@@ -8,9 +8,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
-// GuardianInvitation represents an invitation sent to create a guardian account
+// GuardianInvitation is an invitation to create a guardian account, as the
+// retained services carry it between their callers and the Identity & Access
+// capability that owns auth.guardian_invitations (#2722). It names no table:
+// nothing outside the owner module queries that row, and the field mappings
+// remain only so fixtures can scan one.
 type GuardianInvitation struct {
-	base.Model `bun:"schema:auth,table:guardian_invitations"`
+	base.Model
 	base.TenantModel
 
 	Token             string     `bun:"token,notnull,unique" json:"token"`

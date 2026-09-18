@@ -34,6 +34,12 @@ type recordingEngine struct {
 	createdEntry schoolmembership.CreateClassListEntry
 	updatedEntry schoolmembership.UpdateClassListEntry
 	entryFilter  schoolmembership.ClassListEntryFilter
+
+	matchedFields schoolmembership.ClassListEntryFields
+	addedEntry    schoolmembership.AddClassListEntry
+	revisedEntry  schoolmembership.ReviseClassListEntry
+	removedEntry  schoolmembership.RemoveClassListEntry
+	resolvedEntry schoolmembership.ResolveClassListEntry
 }
 
 func (e *recordingEngine) FindStaff(_ context.Context, _ int64, lock string) (schoolmembership.Staff, error) {
@@ -595,4 +601,48 @@ func TestListStaffNormalizesTenantIDsLikeTheOtherIDFilters(t *testing.T) {
 	if engine.staffFilter.TenantIDs != nil {
 		t.Fatalf("an unset tenant filter must stay nil: %+v", engine.staffFilter)
 	}
+}
+
+// The audited class-list administration (#2382) is exercised against a real
+// database in modules/schoolmembership/compose; the recording engine only has
+// to satisfy the interface and let the facade's validation be asserted.
+
+func (e *recordingEngine) ListClassListEntriesInDisplayOrder(_ context.Context, filter schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.entryFilter = filter
+	return nil, nil
+}
+
+func (e *recordingEngine) MatchingStudentIDs(_ context.Context, fields schoolmembership.ClassListEntryFields) ([]int64, error) {
+	e.calls++
+	e.matchedFields = fields
+	return nil, nil
+}
+
+func (e *recordingEngine) AddClassListEntry(_ context.Context, input schoolmembership.AddClassListEntry) (schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.addedEntry = input
+	return schoolmembership.ClassListEntry{FirstName: input.FirstName}, nil
+}
+
+func (e *recordingEngine) ReviseClassListEntry(_ context.Context, input schoolmembership.ReviseClassListEntry) (schoolmembership.ClassListEntry, error) {
+	e.calls++
+	e.revisedEntry = input
+	return schoolmembership.ClassListEntry{ID: input.ID}, nil
+}
+
+func (e *recordingEngine) RemoveClassListEntry(_ context.Context, input schoolmembership.RemoveClassListEntry) error {
+	e.calls++
+	e.removedEntry = input
+	return nil
+}
+
+func (e *recordingEngine) ResolveClassListEntry(_ context.Context, input schoolmembership.ResolveClassListEntry) error {
+	e.calls++
+	e.resolvedEntry = input
+	return nil
+}
+
+func (e *recordingEngine) BindClassListEntryAdministration(schoolmembership.ClassListEntryStudents, schoolmembership.ClassListEntryTrail) {
+	e.calls++
 }

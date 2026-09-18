@@ -21,8 +21,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.10: Granting operator platform permissions to phoenix_auth...")
-
 			// Operator services (announcements, suggestions, auth) run directly as
 			// phoenix_auth without WithAdminTx. They need explicit grants because
 			// phoenix_auth is NOINHERIT.
@@ -51,8 +49,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.10: Revoking operator platform permissions from phoenix_auth...")
-
 			_, err := db.ExecContext(ctx, `
 				ALTER DEFAULT PRIVILEGES IN SCHEMA suggestions
 					REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLES FROM phoenix_auth;

@@ -164,7 +164,7 @@ func setupTakeoverLockTest(t *testing.T) (*takeoverLockEnv, func()) {
 
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
-		nil, nil, nil, nil, db,
+		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil, db,
 	)
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentService.SubmitRequest{

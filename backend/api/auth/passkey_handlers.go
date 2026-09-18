@@ -276,6 +276,8 @@ func mapPasskeyError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, authService.ErrPasskeyNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		// A failed read or write of the passkey records reaches this branch
+		// since #2724; the cause is logged, never returned.
+		common.RenderError(w, r, common.ErrorInternalServerWrap("passkey request failed", err))
 	}
 }

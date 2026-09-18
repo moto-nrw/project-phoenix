@@ -13,8 +13,7 @@ import (
 //
 // Shared between the tenant /auth/mfa/trusted-devices endpoints and
 // the operator /operator/auth/mfa/trusted-devices endpoints —
-// extracted to remove the duplicated DTO definition and mapping
-// loop flagged by SonarCloud.
+// extracted to remove the duplicated DTO definition and mapping loop.
 type TrustedDeviceDTO struct {
 	ID         int64   `json:"id"`
 	UserAgent  *string `json:"user_agent,omitempty"`

@@ -35,6 +35,7 @@ func TestAllowanceSummaryNativeContract(t *testing.T) {
 	assert.Equal(t, workforce.AbsenceTypeAllowanceSummary{
 		StaffID: staff.ID, AbsenceTypeID: absenceType.ID, Year: 2026,
 		EntitledDays: 4.5, TakenDays: 1.5, ReservedDays: 0.5, RemainingDays: 2.5,
+		ExpiresOn: "2026-12-31",
 	}, summary)
 	previous, err := capability.AllowanceSummary(ctx, staff.ID, absenceType.ID, 2025)
 	require.NoError(t, err)

@@ -121,6 +121,40 @@ func TestInviteToStudent_ExistingAccountIsLinkedWithoutInvitation(t *testing.T) 
 	assert.Equal(t, domain.InviteOutcomeAlreadyLinked, again.Outcome)
 }
 
+// An address that already owns an account (e.g. a school admin who is also a
+// parent, #3320) gets no registration link, but must still learn that the
+// parents portal is open to them with their existing credentials.
+func TestInviteToStudent_ExistingAccountGetsPortalAccessEmail(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+	f.store.addAccount(40, "admin@example.test", "hash:secret", true)
+	profile := f.guardians.addProfile(domain.GuardianProfile{Email: "admin@example.test", FirstName: "Olga"})
+	f.guardians.addLink(domain.StudentGuardianLink{StudentID: relativeStudent, GuardianProfileID: profile.ID, GuardianRole: "legal_guardian"})
+
+	result, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("Admin@example.test"))
+	require.NoError(t, err)
+	assert.Equal(t, domain.InviteOutcomeAlreadyLinked, result.Outcome)
+	assert.Empty(t, f.delivery.emails, "no registration link for an existing account")
+	require.Len(t, f.delivery.accessEmails, 1)
+	assert.Equal(t, "admin@example.test", f.delivery.accessEmails[0].Email)
+	assert.Equal(t, "Olga", f.delivery.accessEmails[0].FirstName)
+
+	// A repeated invite for the same address sends the hint again.
+	_, err = f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("admin@example.test"))
+	require.NoError(t, err)
+	assert.Len(t, f.delivery.accessEmails, 2)
+}
+
+func TestInviteToStudent_NewAccountGetsNoPortalAccessEmail(t *testing.T) {
+	t.Parallel()
+	f := newLifecycleFixture(t)
+
+	_, err := f.lifecycle.InviteToStudent(tenantContext(), inviteRequest("new@example.test"))
+	require.NoError(t, err)
+	assert.Len(t, f.delivery.emails, 1)
+	assert.Empty(t, f.delivery.accessEmails)
+}
+
 func TestInviteToStudent_ApprovalModeQueuesWithoutLinking(t *testing.T) {
 	t.Parallel()
 	f := newLifecycleFixture(t)
@@ -252,6 +286,8 @@ func TestApproveInvitation_Paths(t *testing.T) {
 		assert.NotNil(t, f.invitations.rows[invitation.ID].AcceptedAt)
 		assert.True(t, f.guardians.profiles[profile.ID].HasAccount)
 		assert.Empty(t, f.delivery.emails)
+		require.Len(t, f.delivery.accessEmails, 1, "the account holder learns about the portal access")
+		assert.Equal(t, "Parent@example.test", f.delivery.accessEmails[0].Email)
 	})
 
 	// A promised upgrade that can no longer be applied aborts the approval:

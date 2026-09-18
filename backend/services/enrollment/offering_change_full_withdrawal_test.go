@@ -138,7 +138,7 @@ func TestOfferingChangeRequestService_Reject_DoesNotCreateWithdrawalCompletion(t
 func assertNoPendingWithdrawal(t *testing.T, env *decisionTestEnv, studentID int64) {
 	t.Helper()
 	pending, _, err := env.repos.CareWithdrawal.ListPending(
-		t.Context(),
+		testpkg.Ctx(t),
 		userModels.CareWithdrawalCompletionFilter{StudentID: studentID, Page: 1, PageSize: 1},
 	)
 	require.NoError(t, err)

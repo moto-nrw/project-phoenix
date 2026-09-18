@@ -11,8 +11,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -54,10 +54,10 @@ type ClassDayArrivalExceptionWrite struct {
 // Sentinels the HTTP layer classifies. They share identity with the schedule
 // service's errors, so errors.Is works on either name.
 var (
-	ErrClassDayArrivalExceptionPastDate      = scheduleService.ErrClassArrivalExceptionPastDate
-	ErrClassDayArrivalExceptionWeekend       = scheduleService.ErrClassArrivalExceptionWeekend
-	ErrClassDayArrivalExceptionClassNotFound = scheduleService.ErrClassArrivalExceptionClassNotFound
-	ErrClassDayArrivalExceptionNotFound      = scheduleService.ErrClassArrivalExceptionNotFound
+	ErrClassDayArrivalExceptionPastDate      = careschedule.ErrClassArrivalExceptionPastDate
+	ErrClassDayArrivalExceptionWeekend       = careschedule.ErrClassArrivalExceptionWeekend
+	ErrClassDayArrivalExceptionClassNotFound = careschedule.ErrClassArrivalExceptionClassNotFound
+	ErrClassDayArrivalExceptionNotFound      = careschedule.ErrClassArrivalExceptionNotFound
 )
 
 // ClassDayArrivalExceptionOriginSchool marks an entry a Lehrkraft made.
@@ -92,7 +92,7 @@ type ClassDayArrivalExceptionService interface {
 
 // ClassDayArrivalExceptionConfig wires the seam.
 type ClassDayArrivalExceptionConfig struct {
-	ArrivalSchedule scheduleService.ArrivalScheduleService
+	ArrivalSchedule careschedule.ArrivalScheduleService
 	Settings        ClassDaySettingsReader
 	BlockStarts     ClassDayBlockStartReader
 	// Broadcaster is optional: without it nothing is announced.
@@ -149,7 +149,7 @@ func (s *classDayArrivalExceptionService) Set(ctx context.Context, in ClassDayAr
 	if s.cfg.ArrivalSchedule == nil {
 		return nil, errors.New("class day arrival exceptions: arrival schedule service not configured")
 	}
-	row, err := s.cfg.ArrivalSchedule.UpsertClassArrivalException(ctx, scheduleService.ClassArrivalExceptionInput{
+	row, err := s.cfg.ArrivalSchedule.UpsertClassArrivalException(ctx, careschedule.ClassArrivalExceptionInput{
 		SchoolClass: in.SchoolClass,
 		Date:        in.Date,
 		ArrivalTime: in.ArrivalTime,

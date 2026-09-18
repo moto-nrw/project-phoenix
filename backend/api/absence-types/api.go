@@ -84,6 +84,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(manage, withTx).Post("/", rs.create)
 		r.With(manage, withTx).Put("/{id}", rs.update)
 		r.With(allowanceRead, withTx).Get("/{id}/allowances/{staffId}", rs.getAllowance)
+		r.With(allowanceRead, withTx).Get("/{id}/allowances/{staffId}/preview", rs.previewAllowance)
 		r.With(manage, withTx).Put("/{id}/allowances/{staffId}", rs.setAllowance)
 	})
 
@@ -95,6 +96,9 @@ func (rs *Resource) Router() chi.Router {
 type CreateAbsenceTypeRequest struct {
 	Name             string `json:"name"`
 	AllowanceEnabled bool   `json:"allowance_enabled"`
+	// CarryoverUntil is "MM-DD" in the following year until which a rest
+	// stays usable; empty or omitted lets it expire on 31.12. (#3257).
+	CarryoverUntil string `json:"carryover_until"`
 }
 
 // UpdateAbsenceTypeRequest renames and/or (de)activates. Omitted fields stay
@@ -103,6 +107,8 @@ type UpdateAbsenceTypeRequest struct {
 	Name             *string `json:"name"`
 	IsActive         *bool   `json:"is_active"`
 	AllowanceEnabled *bool   `json:"allowance_enabled"`
+	// CarryoverUntil: omitted keeps the rule, "" ends it at 31.12.
+	CarryoverUntil *string `json:"carryover_until"`
 }
 
 // AbsenceTypeResponse is the wire format returned to clients. BaseType tells
@@ -114,6 +120,8 @@ type AbsenceTypeResponse struct {
 	BaseType         string `json:"base_type"`
 	IsActive         bool   `json:"is_active"`
 	AllowanceEnabled bool   `json:"allowance_enabled"`
+	// CarryoverUntil is null when a rest expires on 31.12.
+	CarryoverUntil *string `json:"carryover_until"`
 }
 
 // AllowanceSummaryResponse keeps database IDs as strings on the wire, matching
@@ -126,6 +134,29 @@ type AllowanceSummaryResponse struct {
 	TakenDays     float64 `json:"taken_days"`
 	ReservedDays  float64 `json:"reserved_days"`
 	RemainingDays float64 `json:"remaining_days"`
+	// ExpiresOn is the last day the rest can be booked; ExpiredDays is the
+	// rest that was left when that day passed.
+	ExpiresOn   string  `json:"expires_on"`
+	ExpiredDays float64 `json:"expired_days"`
+	// BookingDays is set on previews: what the booking takes from this year.
+	BookingDays float64                 `json:"booking_days"`
+	CarriedIn   *AllowanceCarryResponse `json:"carried_in"`
+}
+
+// AllowanceCarryResponse is the previous year's rest still usable in the
+// summarized year.
+type AllowanceCarryResponse struct {
+	Year          int     `json:"year"`
+	RemainingDays float64 `json:"remaining_days"`
+	ExpiredDays   float64 `json:"expired_days"`
+	ExpiresOn     string  `json:"expires_on"`
+}
+
+// AllowancePreviewResponse lists the yearly accounts a booking would use.
+// Blocked is true when one of them would drop below zero.
+type AllowancePreviewResponse struct {
+	Years   []AllowanceSummaryResponse `json:"years"`
+	Blocked bool                       `json:"blocked"`
 }
 
 // SetAllowanceRequest is the payload of PUT /{id}/allowances/{staffId}.
@@ -136,7 +167,7 @@ type SetAllowanceRequest struct {
 }
 
 func toAllowanceSummaryResponse(summary workforce.AbsenceTypeAllowanceSummary) AllowanceSummaryResponse {
-	return AllowanceSummaryResponse{
+	response := AllowanceSummaryResponse{
 		StaffID:       strconv.FormatInt(summary.StaffID, 10),
 		AbsenceTypeID: strconv.FormatInt(summary.AbsenceTypeID, 10),
 		Year:          summary.Year,
@@ -144,7 +175,17 @@ func toAllowanceSummaryResponse(summary workforce.AbsenceTypeAllowanceSummary) A
 		TakenDays:     summary.TakenDays,
 		ReservedDays:  summary.ReservedDays,
 		RemainingDays: summary.RemainingDays,
+		ExpiresOn:     summary.ExpiresOn,
+		ExpiredDays:   summary.ExpiredDays,
+		BookingDays:   summary.BookingDays,
 	}
+	if carried := summary.CarriedIn; carried != nil {
+		response.CarriedIn = &AllowanceCarryResponse{
+			Year: carried.Year, RemainingDays: carried.RemainingDays,
+			ExpiredDays: carried.ExpiredDays, ExpiresOn: carried.ExpiresOn,
+		}
+	}
+	return response
 }
 
 func toAbsenceTypeResponse(t workforce.StaffAbsenceType) AbsenceTypeResponse {
@@ -154,7 +195,15 @@ func toAbsenceTypeResponse(t workforce.StaffAbsenceType) AbsenceTypeResponse {
 		BaseType:         t.BaseType,
 		IsActive:         t.IsActive,
 		AllowanceEnabled: t.AllowanceEnabled,
+		CarryoverUntil:   carryoverResponse(t.CarryoverUntil),
 	}
+}
+
+func carryoverResponse(value string) *string {
+	if value == "" {
+		return nil
+	}
+	return &value
 }
 
 func toAbsenceTypeResponses(types []workforce.StaffAbsenceType) []AbsenceTypeResponse {
@@ -213,7 +262,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	saved, err := rs.types.CreateAbsenceType(r.Context(), workforce.CreateAbsenceType{
-		Name: req.Name, AllowanceEnabled: req.AllowanceEnabled,
+		Name: req.Name, AllowanceEnabled: req.AllowanceEnabled, CarryoverUntil: req.CarryoverUntil,
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
@@ -235,6 +284,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := rs.types.UpdateAbsenceType(r.Context(), workforce.UpdateAbsenceType{
 		ID: id, Name: req.Name, IsActive: req.IsActive, AllowanceEnabled: req.AllowanceEnabled,
+		CarryoverUntil: req.CarryoverUntil,
 	})
 	if err != nil {
 		rs.renderError(w, r, err)
@@ -255,6 +305,36 @@ func (rs *Resource) getAllowance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rs.runtime.Success(w, r, http.StatusOK, toAllowanceSummaryResponse(summary), "Kontingent geladen")
+}
+
+// previewAllowance answers with the yearly split of a planned booking. An
+// exceeded allowance is part of the answer, not an error: the dialog shows
+// which year falls short before anything is saved.
+func (rs *Resource) previewAllowance(w http.ResponseWriter, r *http.Request) {
+	typeID, err := rs.runtime.ParseID(r)
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInvalid, err)
+		return
+	}
+	staffID, err := rs.runtime.ParseIDParam(r, "staffId")
+	if err != nil {
+		rs.runtime.Failure(w, r, FailureInvalid, err)
+		return
+	}
+	query := r.URL.Query()
+	previews, err := rs.types.PreviewAllowanceBooking(
+		r.Context(), staffID, typeID, query.Get("date_start"), query.Get("date_end"), query.Get("half_day") == "true",
+	)
+	blocked := errors.Is(err, workforce.ErrAbsenceTypeAllowanceExceeded)
+	if err != nil && !blocked {
+		rs.renderError(w, r, err)
+		return
+	}
+	response := AllowancePreviewResponse{Years: make([]AllowanceSummaryResponse, 0, len(previews)), Blocked: blocked}
+	for _, preview := range previews {
+		response.Years = append(response.Years, toAllowanceSummaryResponse(preview))
+	}
+	rs.runtime.Success(w, r, http.StatusOK, response, "Vorschau berechnet")
 }
 
 func (rs *Resource) setAllowance(w http.ResponseWriter, r *http.Request) {

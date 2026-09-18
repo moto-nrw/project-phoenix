@@ -84,6 +84,7 @@ func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, 
 	snapshot, err := batch.ResolveMany(ctx, []string{
 		configModel.KeyEnrollmentBookingsAuthoritative,
 		configModel.KeyPresenceMode,
+		configModel.KeySessionEndTime,
 		configModel.KeyStudentPhotosEnabled,
 	})
 	if err != nil {
@@ -185,6 +186,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+	responses = applyLocationFilter(responses, params.location)
 	responses = applyDayPlanningFilter(responses, params.dayStatus)
 	// Administrative filters (#1492): bus / photo consent / pickup rule.
 	// Applied here, before in-memory pagination, so server-side counts and
@@ -480,10 +482,10 @@ func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 // children are all list entries must still be selectable for class lists.
 // Dedupe uses the LOWER(TRIM(...)) identity every class comparison uses.
 func (rs *Resource) appendClassListEntryClasses(ctx context.Context, classes []string) ([]string, error) {
-	if rs.ClassListEntryService == nil {
+	if rs.ClassListEntries == nil {
 		return classes, nil
 	}
-	entries, err := rs.ClassListEntryService.ListAll(ctx)
+	entries, err := rs.ClassListEntries.ListClassListEntriesInDisplayOrder(ctx)
 	if err != nil {
 		return nil, err
 	}

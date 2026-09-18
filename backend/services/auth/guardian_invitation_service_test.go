@@ -10,6 +10,7 @@ import (
 	"time"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
@@ -19,7 +20,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -35,7 +35,7 @@ const strongTestPassword = "GuardianTest!2026"
 type guardianTestEnv struct {
 	db      *bun.DB
 	repos   *repositories.Factory
-	service authService.GuardianInvitationService
+	service services.GuardianInvitationCapability
 	mailer  *email.MockMailer
 	cleanup func()
 }
@@ -51,32 +51,24 @@ func (s *stubOutboxEnqueuer) EnqueueOutbox(_ context.Context, req platformModels
 	return nil
 }
 
-func setupGuardianInvitationTest(t *testing.T, mutate ...func(*authService.GuardianInvitationServiceConfig)) *guardianTestEnv {
+// setupGuardianInvitationTest composes the guardian invitation service over
+// the owner module and the test database, the way the factory does it. Each
+// mutate hook may steer what the test observes (the outbox, the audit
+// command, the enrollment claims).
+func setupGuardianInvitationTest(t *testing.T, mutate ...func(*bun.DB, *services.GuardianInvitationTestConfig)) *guardianTestEnv {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 	mailer := email.NewMockMailer()
 
-	cfg := authService.GuardianInvitationServiceConfig{
-		InvitationRepo:      repoFactory.GuardianInvitation,
-		AccountRepo:         repoFactory.Account,
-		AccountTenantRepo:   repoFactory.AccountTenant,
-		AccountRoleRepo:     repoFactory.AccountRole,
-		RoleRepo:            repoFactory.Role,
-		PersonRepo:          repoFactory.Person,
-		GuardianProfileRepo: repoFactory.GuardianProfile,
-		StudentGuardianRepo: repoFactory.StudentGuardian,
-		StudentRepo:         repoFactory.Student,
-		SchoolRepo:          services.InvitationSchoolsForTests(repoFactory.School, testpkg.TenantRuntime(t, db)),
-		OutboxEnqueuer:      &stubOutboxEnqueuer{},
-		FrontendURL:         "http://localhost:3000",
-		FallbackExpiry:      48 * time.Hour,
-		DB:                  db,
-		Logger:              slog.Default(),
+	cfg := services.GuardianInvitationTestConfig{
+		Outbox: &stubOutboxEnqueuer{},
+		Expiry: 48 * time.Hour,
+		Logger: slog.Default(),
 	}
 	for _, m := range mutate {
-		m(&cfg)
+		m(db, &cfg)
 	}
 	service, err := services.NewGuardianInvitationServiceForTests(db, testpkg.TenantRuntime(t, db), cfg)
 	require.NoError(t, err)
@@ -141,7 +133,7 @@ func TestGuardianInvitationService_Create_TokenAndExpiry(t *testing.T) {
 	}()
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
@@ -189,7 +181,7 @@ func TestGuardianInvitationService_Create_RejectsProfileWithoutEmail(t *testing.
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	_, err = env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	_, err = env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
@@ -206,14 +198,14 @@ func TestGuardianInvitationService_Validate_ReturnsPublicInfo(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	result, err := env.service.Validate(context.Background(), invitation.Token)
+	result, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
 	require.NoError(t, err)
 	assert.Equal(t, *profile.Email, result.Email)
 	assert.Equal(t, profile.FirstName, result.FirstName)
@@ -226,7 +218,7 @@ func TestGuardianInvitationService_Validate_UnknownTokenReturns404Error(t *testi
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
-	_, err := env.service.Validate(context.Background(), "nonexistent-token")
+	_, err := env.service.ValidateGuardianInvitation(context.Background(), "nonexistent-token")
 	require.Error(t, err)
 	// Service wraps inner error in AuthError; the inner err is ErrInvitationNotFound.
 }
@@ -241,7 +233,7 @@ func TestGuardianInvitationService_Validate_ExpiredTokenReturnsExpired(t *testin
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
@@ -256,7 +248,7 @@ func TestGuardianInvitationService_Validate_ExpiredTokenReturnsExpired(t *testin
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = env.service.Validate(context.Background(), invitation.Token)
+	_, err = env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
 	require.Error(t, err)
 }
 
@@ -270,14 +262,14 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -300,8 +292,7 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	})
 
 	// Invitation must be marked accepted.
-	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
-	require.NoError(t, err)
+	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.NotNil(t, updated.AcceptedAt, "invitation should be marked accepted")
 
 	// Profile must point at the new account.
@@ -329,13 +320,57 @@ func TestGuardianInvitationService_Accept_HappyPath(t *testing.T) {
 	assert.True(t, hasGuardian, "guardian role should be assigned")
 }
 
+// A guardian invitation belongs to one school: another school's staff can
+// neither see nor touch it, while the public token routes — which run
+// without a school in context — still reach it.
+func TestGuardianInvitationBelongsToItsSchoolOnly(t *testing.T) {
+	t.Parallel()
+
+	env := setupGuardianInvitationTest(t)
+	defer env.cleanup()
+
+	profile := testpkg.CreateTestGuardianProfile(t, env.db, "tenant-isolated")
+	creatorID := env.inviterAccountID(t)
+
+	invitation, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
+		GuardianProfileID: profile.ID,
+		CreatedBy:         creatorID,
+	})
+	require.NoError(t, err)
+	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
+
+	otherTenant, _ := testpkg.CreateTestTenant(t, env.db)
+	require.NotEqual(t, testpkg.Tenant(t), otherTenant)
+	foreignCtx := testpkg.TenantContext(otherTenant)
+
+	require.Error(t, env.service.ResendGuardianInvitation(foreignCtx, invitation.ID, creatorID),
+		"another school must not resend this invitation")
+
+	pending, err := env.service.ListPendingApprovalsDetailed(foreignCtx)
+	require.NoError(t, err)
+	for _, view := range pending {
+		assert.NotEqual(t, invitation.ID, view.InvitationID, "another school must not see this request")
+	}
+
+	// The accept page has no school in context and must still find the link,
+	// and it answers with that school's data only.
+	preview, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
+	require.NoError(t, err)
+	assert.Equal(t, *profile.Email, preview.Email)
+	assert.Equal(t, profile.FirstName, preview.FirstName)
+	assert.Equal(t, profile.LastName, preview.LastName)
+	school, err := env.repos.School.FindSchool(testpkg.Ctx(t), testpkg.Tenant(t))
+	require.NoError(t, err)
+	assert.Equal(t, school.Name, preview.SchoolName)
+	assert.Equal(t, school.Slug, preview.SchoolSlug)
+}
+
 func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testing.T) {
 	t.Parallel()
 
 	env := setupGuardianInvitationTest(t)
 	defer env.cleanup()
 
-	ctx := testpkg.Ctx(t)
 	creatorID := env.inviterAccountID(t)
 	statuses := []string{
 		authModels.GuardianInvitationApprovalPending,
@@ -352,19 +387,19 @@ func TestGuardianInvitationService_PublicTokenRejectsUnapprovedStatuses(t *testi
 				ApprovalStatus:    status,
 			}
 			invitation.SetTenantID(testpkg.Tenant(t))
-			require.NoError(t, env.repos.GuardianInvitation.Create(ctx, invitation))
+			testpkg.InsertTestGuardianInvitation(t, env.db, invitation)
 			defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-			_, err := env.service.Validate(context.Background(), invitation.Token)
+			_, err := env.service.ValidateGuardianInvitation(context.Background(), invitation.Token)
 			require.Error(t, err)
-			assert.True(t, errors.Is(err, authService.ErrInvitationNotFound))
+			assert.True(t, errors.Is(err, identityaccess.ErrInvitationNotFound))
 
-			_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+			_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 				Password:        strongTestPassword,
 				ConfirmPassword: strongTestPassword,
 			})
 			require.Error(t, err)
-			assert.True(t, errors.Is(err, authService.ErrInvitationNotFound))
+			assert.True(t, errors.Is(err, identityaccess.ErrInvitationNotFound))
 		})
 	}
 }
@@ -386,14 +421,14 @@ func TestGuardianInvitationService_Accept_ReusesExistingAccountWithoutPasswordCh
 	})
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	acceptedAccount, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	acceptedAccount, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -430,14 +465,14 @@ func TestGuardianInvitationService_Accept_ReactivatesExistingTenantMapping(t *te
 	})
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -466,14 +501,14 @@ func TestGuardianInvitationService_Accept_PasswordMismatch(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: "DifferentP@ss!1",
 	})
@@ -490,14 +525,14 @@ func TestGuardianInvitationService_Accept_WeakPassword(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        "short",
 		ConfirmPassword: "short",
 	})
@@ -514,14 +549,14 @@ func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -542,7 +577,7 @@ func TestGuardianInvitationService_Accept_AlreadyAccepted(t *testing.T) {
 	})
 
 	// Second accept must fail.
-	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -556,8 +591,8 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	// dispatcher path would asynchronously re-populate email_sent_at after
 	// delivery, racing the nil assertions below.
 	outbox := &stubOutboxEnqueuer{}
-	env := setupGuardianInvitationTest(t, func(cfg *authService.GuardianInvitationServiceConfig) {
-		cfg.OutboxEnqueuer = outbox
+	env := setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Outbox = outbox
 	})
 	defer env.cleanup()
 
@@ -565,7 +600,7 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
@@ -573,14 +608,18 @@ func TestGuardianInvitationService_Resend_ResetsEmailColumns(t *testing.T) {
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
 	// Stamp a fake error so we can verify Resend clears it.
-	errMsg := "previous send failed"
-	now := time.Now()
-	require.NoError(t, env.repos.GuardianInvitation.UpdateEmailStatus(context.Background(), invitation.ID, &now, &errMsg, 2))
-
-	require.NoError(t, env.service.Resend(ctx, invitation.ID, creatorID))
-
-	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
+	_, err = env.db.NewUpdate().
+		TableExpr("auth.guardian_invitations").
+		Set("email_sent_at = ?", time.Now()).
+		Set("email_error = ?", "previous send failed").
+		Set("email_retry_count = ?", 2).
+		Where("id = ?", invitation.ID).
+		Exec(context.Background())
 	require.NoError(t, err)
+
+	require.NoError(t, env.service.ResendGuardianInvitation(ctx, invitation.ID, creatorID))
+
+	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.Nil(t, updated.EmailSentAt, "email_sent_at must be cleared on resend")
 	assert.Nil(t, updated.EmailError, "email_error must be cleared on resend")
 }
@@ -629,42 +668,13 @@ func (s *stubEnrollmentBackfiller) BackfillGuardianAccountID(_ context.Context, 
 }
 
 // setupGuardianInviteWithBackfiller wires the service exactly as
-// setupGuardianInvitationTest but plugs in a custom EnrollmentBackfiller
-// so the accept flow's backfill call can be observed.
-func setupGuardianInviteWithBackfiller(t *testing.T, backfiller authService.EnrollmentBackfiller) *guardianTestEnv {
+// setupGuardianInvitationTest but plugs in a custom enrollment claim so the
+// accept flow's backfill call can be observed.
+func setupGuardianInviteWithBackfiller(t *testing.T, backfiller services.GuardianEnrollmentClaims) *guardianTestEnv {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
-
-	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	mailer := email.NewMockMailer()
-
-	service := authService.NewGuardianInvitationService(authService.GuardianInvitationServiceConfig{
-		InvitationRepo:       repoFactory.GuardianInvitation,
-		AccountRepo:          repoFactory.Account,
-		AccountTenantRepo:    repoFactory.AccountTenant,
-		AccountRoleRepo:      repoFactory.AccountRole,
-		RoleRepo:             repoFactory.Role,
-		PersonRepo:           repoFactory.Person,
-		GuardianProfileRepo:  repoFactory.GuardianProfile,
-		SchoolRepo:           services.InvitationSchoolsForTests(repoFactory.School, testpkg.TenantRuntime(t, db)),
-		EnrollmentBackfiller: backfiller,
-		OutboxEnqueuer:       &stubOutboxEnqueuer{},
-		FrontendURL:          "http://localhost:3000",
-		FallbackExpiry:       48 * time.Hour,
-		DB:                   db,
-		Logger:               slog.Default(),
+	return setupGuardianInvitationTest(t, func(_ *bun.DB, cfg *services.GuardianInvitationTestConfig) {
+		cfg.Enrollments = backfiller
 	})
-	testpkg.SetTenantRuntime(t, service, db)
-
-	cleanup := func() {}
-
-	return &guardianTestEnv{
-		db:      db,
-		repos:   repoFactory,
-		service: service,
-		mailer:  mailer,
-		cleanup: cleanup,
-	}
 }
 
 // cleanupAcceptedAccount wipes the account + its derived rows created
@@ -726,14 +736,14 @@ func TestGuardianInvitationService_Accept_InvokesBackfiller(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -756,23 +766,23 @@ func TestGuardianInvitationService_Accept_ClaimsEnrollmentInsideOuterAdminTransa
 	request := createEnrollmentAwaitingGuardian(t, env, "  "+strings.ToUpper(*profile.Email)+"  ")
 
 	creatorID := env.inviterAccountID(t)
-	invitation, err := env.service.Create(testpkg.Ctx(t), authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 
-	var account *authModels.Account
+	var account identityaccess.Account
 	err = testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 		var acceptErr error
-		account, acceptErr = env.service.Accept(adminCtx, invitation.Token, authService.GuardianInvitationAcceptData{
+		account, acceptErr = env.service.AcceptGuardianInvitation(adminCtx, invitation.Token, identityaccess.GuardianRegistration{
 			Password:        strongTestPassword,
 			ConfirmPassword: strongTestPassword,
 		})
 		return acceptErr
 	})
 	require.NoError(t, err)
-	require.NotNil(t, account)
+	require.NotZero(t, account.ID)
 	requireGuardianEnrollmentClaimed(t, env, request.ID, account.ID)
 }
 
@@ -787,14 +797,14 @@ func TestGuardianInvitationService_Accept_NotInvokedOnPasswordMismatch(t *testin
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: "DifferentP@ss!1",
 	})
@@ -813,14 +823,14 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -828,8 +838,7 @@ func TestGuardianInvitationService_Accept_BackfillErrorDoesNotBreakAccept(t *tes
 	require.NotNil(t, account)
 	t.Cleanup(func() { cleanupAcceptedAccount(t, env.db, account.ID) })
 
-	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
-	require.NoError(t, err)
+	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.NotNil(t, updated.AcceptedAt, "invitation must remain accepted after backfill error")
 	unlinked, err := env.repos.Enrollment().RequestByID(testpkg.Ctx(t), request.ID, false)
 	require.NoError(t, err)
@@ -846,14 +855,14 @@ func TestGuardianInvitationService_Accept_OrdinaryBackfillErrorDoesNotBreakAccep
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-ordinary-error")
 	creatorID := env.inviterAccountID(t)
 
-	invitation, err := env.service.Create(testpkg.Ctx(t), authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
@@ -870,20 +879,19 @@ func TestGuardianInvitationService_Accept_SavepointControlFailureRollsBackAccept
 	profile := testpkg.CreateTestGuardianProfile(t, env.db, "backfill-savepoint-control")
 	creatorID := env.inviterAccountID(t)
 
-	invitation, err := env.service.Create(testpkg.Ctx(t), authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(testpkg.Ctx(t), identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 
-	_, err = env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	_, err = env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})
 	require.ErrorIs(t, err, tenant.ErrSavepointControl)
 
-	updated, err := env.repos.GuardianInvitation.FindByID(context.Background(), invitation.ID)
-	require.NoError(t, err)
+	updated := testpkg.GuardianInvitationByID(t, env.db, invitation.ID)
 	assert.Nil(t, updated.AcceptedAt, "untrusted transaction state must roll back invitation acceptance")
 }
 
@@ -900,14 +908,14 @@ func TestGuardianInvitationService_Accept_NilBackfillerIsSafe(t *testing.T) {
 	creatorID := env.inviterAccountID(t)
 
 	ctx := testpkg.Ctx(t)
-	invitation, err := env.service.Create(ctx, authService.GuardianInvitationCreateRequest{
+	invitation, err := env.service.CreateGuardianInvitation(ctx, identityaccess.GuardianInvitationRequest{
 		GuardianProfileID: profile.ID,
 		CreatedBy:         creatorID,
 	})
 	require.NoError(t, err)
 	defer env.cleanupInvitation(t, invitation.ID, profile.ID)
 
-	account, err := env.service.Accept(context.Background(), invitation.Token, authService.GuardianInvitationAcceptData{
+	account, err := env.service.AcceptGuardianInvitation(context.Background(), invitation.Token, identityaccess.GuardianRegistration{
 		Password:        strongTestPassword,
 		ConfirmPassword: strongTestPassword,
 	})

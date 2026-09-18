@@ -68,8 +68,6 @@ func init() {
 // for the same reason the grade-transition ledger keeps them so: they are a
 // snapshot, and the restore re-validates them.
 func studentCareExitRemovalsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.320: Creating users.student_care_exit_removals...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.student_care_exit_removals (
 			id                    BIGSERIAL PRIMARY KEY,
@@ -150,7 +148,6 @@ func studentCareExitRemovalsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func studentCareExitRemovalsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back 1.15.320: Dropping users.student_care_exit_removals...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS users.student_care_exit_removals;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping users.student_care_exit_removals: %w", err)
 	}

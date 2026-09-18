@@ -32,8 +32,6 @@ func init() {
 }
 
 func requestChildrenMatchedStudentUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.232: Adding matched_student_id to enrollment.request_children...")
-
 	// ON DELETE SET NULL mirrors created_student_id: if the matched student
 	// is removed before the request is approved, the reference clears and
 	// approval falls back to the fresh-create path rather than dangling.
@@ -67,8 +65,6 @@ func requestChildrenMatchedStudentUp(ctx context.Context, db *bun.DB) error {
 }
 
 func requestChildrenMatchedStudentDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.232: Removing matched_student_id from enrollment.request_children...")
-
 	// DROP COLUMN removes the dependent index implicitly; the explicit DROP
 	// keeps the rollback correct if the column was already gone.
 	_, err := db.NewRaw(`

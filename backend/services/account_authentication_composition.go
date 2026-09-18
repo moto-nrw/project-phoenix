@@ -47,6 +47,16 @@ type accountAuthenticationWiring struct {
 	// lifecycle binds the account lifecycle seams (#3225); nil composes the
 	// module without them (cleanup roots, repository fixtures).
 	lifecycle *lifecycleWiring
+	// resets configures the password reset flows (#2722); nil composes the
+	// module without them and every reset reports it as unavailable.
+	resets *passwordResetWiring
+	// invitations configures the school invitation flows (#2722); nil
+	// composes the module with the invitation maintenance only.
+	invitations *invitationWiring
+	// operatorLinks configures the operator invitation and e-mail change
+	// flows (#3332); nil composes the module without them and every
+	// operator link reports it as unavailable.
+	operatorLinks *operatorLinkWiring
 }
 
 // sessionRepositories are the retained repositories the session seams read:
@@ -70,9 +80,11 @@ func sessionRepositoriesOf(repos *repositories.Factory, organizations organizati
 		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 		guardianProfiles: repos.GuardianProfile, studentGuardians: repos.StudentGuardian, authEvents: repos.AuthEvent,
 	}
-	if repos.GuardianInvitation != nil {
-		lifecycle.guardianInvitations = auth.NewGuardianInvitationStore(repos.GuardianInvitation)
-	}
+	lifecycle.roles, lifecycle.rolesErr = repositories.NewIdentityRoleDirectory(repositories.IdentityRoleRepositories{
+		Roles: repos.Role, Permissions: repos.Permission, RolePermissions: repos.RolePermission,
+		AccountRoles: repos.AccountRole, AccountPermissions: repos.AccountPermission,
+		Accounts: repos.Account, AccountTenants: repos.AccountTenant,
+	})
 	return sessionRepositories{
 		schools: newSchoolDirectory(organizations, repos),
 		persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
@@ -106,10 +118,19 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	if err != nil {
 		return nil, err
 	}
-	return identityaccessCompose.New(identityaccessCompose.Dependencies{
-		Lifecycle: lifecycle,
-		DB:        db,
-		Observe:   observe,
+	// The reset delivery records its outcome through the module it is
+	// composed into, so it reads the module back at call time.
+	var module *identityaccess.Module
+	resets := passwordResetDependencies(wiring.resets, func() identityaccess.PasswordResets { return module }, wiring.logger)
+	invitations := invitationDependencies(wiring.invitations, func() identityaccess.SchoolInvitations { return module }, wiring.logger)
+	operatorLinks := operatorProvisioningDependencies(wiring.operatorLinks, func() identityaccess.OperatorTokens { return module }, wiring.logger)
+	module, err = identityaccessCompose.New(identityaccessCompose.Dependencies{
+		Lifecycle:            lifecycle,
+		Resets:               resets,
+		Invitations:          invitations,
+		OperatorProvisioning: operatorLinks,
+		DB:                   db,
+		Observe:              observe,
 		Sessions: &identityaccessCompose.SessionDependencies{
 			Schools:       wiring.repos.schools,
 			Persons:       personDirectory{persons: wiring.repos.persons},
@@ -124,6 +145,10 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 		},
 		Operators: wiring.operators,
 	})
+	if err != nil {
+		return nil, err
+	}
+	return module, nil
 }
 
 // AccountAuthentication returns the Identity & Access module the retained
@@ -131,7 +156,13 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 // hand it to the routes that call the public contract directly. It is nil
 // when the auth service was composed without the port.
 func (f *Factory) AccountAuthentication() *identityaccess.Module {
-	provider, ok := f.Auth.(interface{ AccountSessions() auth.AccountSessions })
+	return identityAccessOf(f.Auth)
+}
+
+// identityAccessOf returns the module behind the retained auth service's
+// session port, or nil when the service was composed without it.
+func identityAccessOf(service auth.AuthService) *identityaccess.Module {
+	provider, ok := service.(interface{ AccountSessions() auth.AccountSessions })
 	if !ok {
 		return nil
 	}
@@ -176,7 +207,8 @@ type schoolDirectory struct {
 func schoolFact(school organizationtenancy.School) identityaccess.School {
 	return identityaccess.School{
 		ID: school.ID, OrganizationID: school.OrganizationID, Name: school.Name, Slug: school.Slug,
-		Active: school.Active, Deleted: school.IsDeleted(),
+		Subdomain: school.Subdomain, Active: school.Active, Deleted: school.IsDeleted(),
+		LogoURL: schoolLogoURLFromSettings(school.Settings),
 	}
 }
 
@@ -238,6 +270,27 @@ func (d schoolDirectory) ListActiveSchoolsOfAccount(ctx context.Context, account
 		}
 	}
 	return result, nil
+}
+
+// ListManageableSchoolIDs is the set an organisation-scoped administrator
+// is bounded by: the organisation's live, active schools. An organisation
+// without one leaves them with no account to administer, which is the
+// refusal the account boundary applies.
+func (d schoolDirectory) ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {
+	if d.schools == nil {
+		return nil, errors.New("school directory is not composed")
+	}
+	schools, err := d.schools.ListSchoolsByOrganization(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]int64, 0, len(schools))
+	for _, school := range schools {
+		if school.Active && !school.IsDeleted() {
+			ids = append(ids, school.ID)
+		}
+	}
+	return ids, nil
 }
 
 type personDirectory struct{ persons userModels.PersonRepository }
@@ -775,6 +828,9 @@ var retainedSentinels = []retainedSentinel{
 	// the retained token sentinels the refresh flow already reports.
 	{identityaccess.ErrAccountSessionNotFound, auth.ErrTokenNotFound},
 	{identityaccess.ErrAccountSessionRotated, auth.ErrInvalidToken},
+	// The password policy seam answers with the owner's sentinel (#3332);
+	// the retained consumers still switch on this package's.
+	{identityaccess.ErrPasswordTooWeak, auth.ErrPasswordTooWeak},
 }
 
 // authServiceError translates the public contract into the retained
@@ -789,7 +845,7 @@ func authServiceError(err error) error {
 	if errors.As(err, &operation) && operation == err {
 		return &auth.AuthError{Op: operation.Op, Err: authServiceError(operation.Err)}
 	}
-	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels} {
+	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels} {
 		for _, sentinel := range sentinels {
 			if !errors.Is(err, sentinel.public) {
 				continue

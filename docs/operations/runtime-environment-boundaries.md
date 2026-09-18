@@ -43,10 +43,14 @@ There are no invented configuration defaults.
 credentials do not belong in deployed serving processes. Node production mode
 and telemetry settings already come from the final image.
 
-Legacy `GUARDIAN_INVITATION_TOKEN_EXPIRY_HOURS` and enrollment CAPTCHA
-environment settings are absent from both encrypted deployment configurations.
-The allowlist does not introduce these optional features. Adding deployment
-support requires the usual settings/environment review and key synchronization.
+`GUARDIAN_INVITATION_TOKEN_EXPIRY_HOURS` no longer exists: the guardian token
+lifetime resolves through the tenant setting
+`invitations.guardian_token_expiry_hours` and the deployment's invitation
+lifetime, as the settings rule requires (#2722). Enrollment CAPTCHA
+environment settings remain absent from both encrypted deployment
+configurations. The allowlist does not introduce these optional features.
+Adding deployment support requires the usual settings/environment review and
+key synchronization.
 `PHOENIX_ALLOW_GUARDIAN_RESET` remains an explicit maintenance opt-in, never
 enabled by the deployment service.
 

@@ -23,7 +23,6 @@ func init() {
 }
 
 func preserveStudentDeletionAuditUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.244: Preserving data-deletion audit records for deleted students...")
 	if _, err := db.ExecContext(ctx, `
 		ALTER TABLE audit.data_deletions
 			DROP CONSTRAINT IF EXISTS fk_data_deletions_student;

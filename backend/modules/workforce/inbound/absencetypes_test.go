@@ -89,6 +89,104 @@ func TestAbsenceTypesRouteManagesCustomTypeAllowance(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, testutil.ExecuteRequest(router, unknown).Code)
 }
 
+// #3257: the carryover rule travels on the type, and the preview shows the
+// yearly split of a booking. An exceeded allowance is an answer, not an error.
+func TestAbsenceTypesRouteCarryoverAndPreview(t *testing.T) {
+	t.Parallel()
+
+	db, router := setupAbsenceTypesRoute(t)
+	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Swantje", "Leitung")
+	staff := testpkg.CreateTestStaff(t, db, "Rena", "Übertrag")
+	claims := testutil.DefaultTestClaims()
+	claims.ID = int(account.ID)
+	claims.TenantID = testpkg.Tenant(t)
+	claims.Permissions = []string{permissions.TimeTrackingManage}
+	claims.IsAdmin = false
+	token := testutil.MintTestJWT(t, claims)
+
+	type typeData struct {
+		ID             string  `json:"id"`
+		CarryoverUntil *string `json:"carryover_until"`
+	}
+	decodeType := func(body []byte) typeData {
+		var envelope struct {
+			Data typeData `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(body, &envelope))
+		return envelope.Data
+	}
+	created := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "POST", "/", map[string]any{
+		"name": "Krank-Urlaubstag", "allowance_enabled": true, "carryover_until": "03-31",
+	}, testutil.WithJWTBearer(token)))
+	require.Equal(t, http.StatusCreated, created.Code, created.Body.String())
+	typ := decodeType(created.Body.Bytes())
+	require.NotNil(t, typ.CarryoverUntil)
+	assert.Equal(t, "03-31", *typ.CarryoverUntil)
+
+	invalid := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "PUT", "/"+typ.ID, map[string]any{
+		"carryover_until": "02-29",
+	}, testutil.WithJWTBearer(token)))
+	assert.Equal(t, http.StatusBadRequest, invalid.Code, invalid.Body.String())
+
+	path := fmt.Sprintf("/%s/allowances/%d", typ.ID, staff.ID)
+	for year, days := range map[int]float64{2030: 1, 2031: 1} {
+		saved := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{
+			"year": year, "entitled_days": days, "reason": "Anspruch",
+		}, testutil.WithJWTBearer(token)))
+		require.Equal(t, http.StatusOK, saved.Code, saved.Body.String())
+	}
+
+	type previewYear struct {
+		Year          int     `json:"year"`
+		BookingDays   float64 `json:"booking_days"`
+		RemainingDays float64 `json:"remaining_days"`
+		ExpiresOn     string  `json:"expires_on"`
+		CarriedIn     *struct {
+			Year          int     `json:"year"`
+			RemainingDays float64 `json:"remaining_days"`
+		} `json:"carried_in"`
+	}
+	preview := func(query string) (int, []previewYear, bool) {
+		response := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "GET", path+"/preview?"+query, nil, testutil.WithJWTBearer(token)))
+		var envelope struct {
+			Data struct {
+				Years   []previewYear `json:"years"`
+				Blocked bool          `json:"blocked"`
+			} `json:"data"`
+		}
+		if response.Code == http.StatusOK {
+			require.NoError(t, json.Unmarshal(response.Body.Bytes(), &envelope))
+		}
+		return response.Code, envelope.Data.Years, envelope.Data.Blocked
+	}
+
+	// Mo 13.01. und Di 14.01.2031: ein Tag aus 2030, einer aus 2031.
+	code, years, blocked := preview("date_start=2031-01-13&date_end=2031-01-14")
+	require.Equal(t, http.StatusOK, code)
+	assert.False(t, blocked)
+	require.Len(t, years, 2)
+	assert.Equal(t, previewYear{Year: 2030, BookingDays: 1, ExpiresOn: "2031-03-31"}, years[0])
+	assert.Equal(t, 2031, years[1].Year)
+	assert.Equal(t, 1.0, years[1].BookingDays)
+	require.NotNil(t, years[1].CarriedIn)
+	assert.Equal(t, 2030, years[1].CarriedIn.Year)
+
+	code, years, blocked = preview("date_start=2031-01-13&date_end=2031-01-15")
+	require.Equal(t, http.StatusOK, code)
+	assert.True(t, blocked, "three days do not fit into two")
+	require.Len(t, years, 2)
+	assert.Equal(t, -1.0, years[1].RemainingDays)
+
+	code, _, _ = preview("date_start=2031-01-15&date_end=2031-01-13")
+	assert.Equal(t, http.StatusBadRequest, code)
+
+	ownClaims := claims
+	ownClaims.Permissions = []string{permissions.TimeTrackingOwn}
+	denied := testutil.NewAuthenticatedRequest(t, "GET", path+"/preview?date_start=2031-01-13&date_end=2031-01-13", nil,
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, ownClaims)))
+	assert.Equal(t, http.StatusForbidden, testutil.ExecuteRequest(router, denied).Code)
+}
+
 // Reading is open to time_tracking:own so the Leitung's approval views can
 // render the school's wording; writing stays with time_tracking:manage.
 func TestAbsenceTypesRouteRejectsWritesWithoutManage(t *testing.T) {

@@ -75,6 +75,12 @@ describe("deriveCheckinState", () => {
     expect(deriveCheckinState(undefined)).toBe("abwesend");
   });
 
+  // #3260: a child still in class has not checked in, so the toggle must
+  // check it in, never out.
+  it("maps Schule to abwesend", () => {
+    expect(deriveCheckinState("Schule")).toBe("abwesend");
+  });
+
   it("maps Unterwegs and room names to anwesend (present in building)", () => {
     // "Unterwegs" = between rooms but still checked in. Toggling must
     // fire checkout — this mapping ensures action='out' via actionForState.

@@ -150,6 +150,7 @@ export type HomeBlockKey =
   | "tile.students_on_playground"
   | "tile.students_sick"
   | "tile.students_excused"
+  | "tile.students_at_school"
   | "tile.students_home"
   | "tile.active_activities"
   | "tile.capacity_utilization"
@@ -203,6 +204,7 @@ const TILE_CONCEPT: Record<string, MotoConceptKey> = {
   "tile.students_on_playground": "schoolyard",
   "tile.students_sick": "sick",
   "tile.students_excused": "excused",
+  "tile.students_at_school": "atSchool",
   "tile.students_home": "home",
   "tile.active_activities": "activities",
   "tile.capacity_utilization": "utilization",
@@ -265,9 +267,15 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
     always,
   ),
   tile(
+    "tile.students_at_school",
+    "Schule",
+    "Kinder, die heute erwartet werden und noch nicht eingecheckt sind.",
+    always,
+  ),
+  tile(
     "tile.students_home",
     "Zuhause",
-    "Kinder, die heute nicht in der Betreuung sind.",
+    "Kinder, die heute nicht oder nicht mehr in der Betreuung sind.",
     always,
   ),
   tile(
@@ -523,10 +531,13 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "section.birthdays", span: 2, col: 2, row: 5 },
   ],
   lead: [
+    // Eine Reihe mit vier Zahlen (#3260): wer da ist, wer noch im Unterricht
+    // sitzt, wer zu Hause ist, wer krank ist. „Entschuldigt" steht im
+    // Hinzufügen-Menü; eine fünfte Kachel bräche das Raster.
     { key: "tile.students_present", span: 1, col: 0, row: 0 },
-    { key: "tile.students_sick", span: 1, col: 1, row: 0 },
-    { key: "tile.students_excused", span: 1, col: 2, row: 0 },
-    { key: "tile.students_home", span: 1, col: 3, row: 0 },
+    { key: "tile.students_at_school", span: 1, col: 1, row: 0 },
+    { key: "tile.students_home", span: 1, col: 2, row: 0 },
+    { key: "tile.students_sick", span: 1, col: 3, row: 0 },
     { key: "section.open_requests", span: 2, col: 0, row: 1 },
     { key: "section.staff_today", span: 2, col: 2, row: 1 },
     { key: "section.staff_notices", span: 2, col: 0, row: 3 },
@@ -543,9 +554,9 @@ export const DEFAULT_LAYOUTS: Record<
     { key: "section.my_group", span: 2, col: 0, row: 3 },
     { key: "section.open_requests", span: 2, col: 2, row: 3 },
     { key: "tile.students_present", span: 1, col: 0, row: 5 },
-    { key: "tile.students_sick", span: 1, col: 1, row: 5 },
-    { key: "tile.students_excused", span: 1, col: 2, row: 5 },
-    { key: "tile.students_home", span: 1, col: 3, row: 5 },
+    { key: "tile.students_at_school", span: 1, col: 1, row: 5 },
+    { key: "tile.students_home", span: 1, col: 2, row: 5 },
+    { key: "tile.students_sick", span: 1, col: 3, row: 5 },
     { key: "section.staff_today", span: 2, col: 0, row: 6 },
     { key: "section.staff_notices", span: 2, col: 2, row: 6 },
     { key: "section.day_flow", span: 2, col: 0, row: 8 },

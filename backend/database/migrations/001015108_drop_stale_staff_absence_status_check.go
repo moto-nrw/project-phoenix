@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func dropStaleStaffAbsenceStatusCheck(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.108: Dropping legacy chk_sa_status constraint...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -57,20 +54,17 @@ func dropStaleStaffAbsenceStatusCheck(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error dropping chk_sa_status: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.108: chk_sa_status dropped")
 	return tx.Commit()
 }
 
 func restoreStaleStaffAbsenceStatusCheck(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.108: Restoring legacy chk_sa_status...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

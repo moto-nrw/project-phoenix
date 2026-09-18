@@ -22,7 +22,6 @@ func init() {
 }
 
 func enrollmentNotificationModeAndCleanupGrantsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.180: Pinning enrollment notification modes and granting tenant cleanup deletes...")
 	if _, err := db.NewRaw(`
 		ALTER TABLE enrollment.requests
 			ADD COLUMN IF NOT EXISTS decision_notification_mode TEXT;
@@ -132,7 +131,6 @@ func backfillEnrollmentDecisionNotificationModes(ctx context.Context, db *bun.DB
 }
 
 func enrollmentNotificationModeAndCleanupGrantsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.180: Removing enrollment notification mode pins and tenant cleanup deletes...")
 	// enrollment.late_invites inherited DELETE from the enrollment schema's
 	// default privileges before this migration. Its explicit Up grant is a
 	// repair/no-op and must not be revoked or rollback would narrow prior access.

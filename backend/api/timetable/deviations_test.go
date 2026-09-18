@@ -25,10 +25,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -112,7 +112,7 @@ func doDev(t *testing.T, router chi.Router, instanceID int64, body any) *httptes
 
 func devInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, instanceID int64) []*scheduleModel.InstanceStaff {
 	t.Helper()
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := timetablesqltest.NewInstanceStaffRepository(db)
 	rows, err := repo.FindByInstanceID(ctx, instanceID)
 	require.NoError(t, err)
 	return rows
@@ -733,7 +733,7 @@ func futureSubDate(offsetDays int) (string, timezone.Date) {
 // assertions. Uses the repo to honour tenant scoping.
 func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.InstanceStaff {
 	t.Helper()
-	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	repo := timetablesqltest.NewInstanceStaffRepository(db)
 	row, err := repo.FindByID(ctx, id)
 	require.NoError(t, err)
 	return row
@@ -745,7 +745,7 @@ func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) 
 // the persisted row instead of the old mock recorders.
 func readInstance(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.ActivityInstance {
 	t.Helper()
-	repo := scheduleRepo.NewActivityInstanceRepository(db)
+	repo := timetablesqltest.NewActivityInstanceRepository(db)
 	inst, err := repo.FindByID(ctx, id)
 	require.NoError(t, err)
 	return inst

@@ -63,9 +63,6 @@ atlassian-ide-plugin.xml
 # Cursive Clojure plugin
 .idea/replstate.xml
 
-# SonarLint plugin
-.idea/sonarlint/
-
 # Crashlytics plugin (for Android Studio and IntelliJ)
 com_crashlytics_export_strings.xml
 crashlytics.properties
@@ -132,8 +129,6 @@ media
 # JIRA plugin
 
 # Cursive Clojure plugin
-
-# SonarLint plugin
 
 # Crashlytics plugin (for Android Studio and IntelliJ)
 
@@ -367,8 +362,6 @@ cython_debug/
 
 # Cursive Clojure plugin
 
-# SonarLint plugin
-
 # Crashlytics plugin (for Android Studio and IntelliJ)
 
 # Editor-based Rest Client
@@ -450,17 +443,11 @@ frontend/fix-permissions.sql
 frontend/remove-admin-role.sql
 frontend/rebuild-and-test.sh
 
-# SonarQube files
-.sonarqube/
-.scannerwork/
-sonar-reports/
+# Local coverage and lint reports
 **/coverage.out
 **/golint-report.out
 **/govet-report.out
 **/golangci-lint-report.xml
-.env.sonar
-docker-compose.sonar.yml
-# sonar-project.properties is now safe to track (no secrets)
 
 .cursor/*
 

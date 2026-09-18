@@ -15,8 +15,8 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	baseModels "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 func TestClassDayWeekdayKey(t *testing.T) {
@@ -271,31 +271,31 @@ func TestClassDayWithoutPhaseListsFullClass(t *testing.T) {
 
 // fakeCareDayService serves fixed care-day statuses.
 type fakeCareDayService struct {
-	scheduleService.CareDayService
-	statuses map[int64]scheduleService.CareDayStatus
+	careschedule.CareDayService
+	statuses map[int64]careschedule.CareDayStatus
 }
 
-func (f *fakeCareDayService) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]scheduleService.CareDayStatus, error) {
+func (f *fakeCareDayService) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]careschedule.CareDayStatus, error) {
 	return f.statuses, nil
 }
 
 // fakePickupScheduleService / fakeArrivalScheduleService serve fixed
 // effective times for the bulk read the class day view uses.
 type fakePickupScheduleService struct {
-	scheduleService.PickupScheduleService
-	byStudent map[int64]*scheduleService.EffectivePickupTime
+	careschedule.PickupScheduleService
+	byStudent map[int64]*careschedule.EffectivePickupTime
 }
 
-func (f *fakePickupScheduleService) GetBulkEffectivePickupTimesForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]*scheduleService.EffectivePickupTime, error) {
+func (f *fakePickupScheduleService) GetBulkEffectivePickupTimesForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]*careschedule.EffectivePickupTime, error) {
 	return f.byStudent, nil
 }
 
 type fakeArrivalScheduleService struct {
-	scheduleService.ArrivalScheduleService
-	byStudent map[int64]*scheduleService.EffectiveArrivalTime
+	careschedule.ArrivalScheduleService
+	byStudent map[int64]*careschedule.EffectiveArrivalTime
 }
 
-func (f *fakeArrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]*scheduleService.EffectiveArrivalTime, error) {
+func (f *fakeArrivalScheduleService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]*careschedule.EffectiveArrivalTime, error) {
 	return f.byStudent, nil
 }
 
@@ -312,10 +312,10 @@ func wireClassDayDeps(svc *reportService) {
 func TestClassDayCancellationsUseCareDayService(t *testing.T) {
 	t.Parallel()
 
-	svc := &reportService{ReportServiceConfig: ReportServiceConfig{CareDaySvc: &fakeCareDayService{statuses: map[int64]scheduleService.CareDayStatus{
-		1: scheduleService.CareDayCancelled,
-		2: scheduleService.CareDayScheduled,
-		3: scheduleService.CareDayNotScheduled,
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{CareDaySvc: &fakeCareDayService{statuses: map[int64]careschedule.CareDayStatus{
+		1: careschedule.CareDayCancelled,
+		2: careschedule.CareDayScheduled,
+		3: careschedule.CareDayNotScheduled,
 	}}}}
 
 	facts := newClassDayFacts()
@@ -333,11 +333,11 @@ func TestClassDayCancellationUsesArrivalExceptionReportTime(t *testing.T) {
 
 	reportedAt := time.Date(2026, 8, 5, 7, 24, 0, 0, time.UTC)
 	svc := &reportService{ReportServiceConfig: ReportServiceConfig{
-		ArrivalScheduleSvc: &fakeArrivalScheduleService{byStudent: map[int64]*scheduleService.EffectiveArrivalTime{
+		ArrivalScheduleSvc: &fakeArrivalScheduleService{byStudent: map[int64]*careschedule.EffectiveArrivalTime{
 			1: {IsException: true, ChangedAt: &reportedAt},
 		}},
-		CareDaySvc: &fakeCareDayService{statuses: map[int64]scheduleService.CareDayStatus{
-			1: scheduleService.CareDayCancelled,
+		CareDaySvc: &fakeCareDayService{statuses: map[int64]careschedule.CareDayStatus{
+			1: careschedule.CareDayCancelled,
 		}},
 	}}
 	facts := newClassDayFacts()
@@ -615,7 +615,7 @@ func TestApplyClassDayPickupDeviation(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		entry       *scheduleService.EffectivePickupTime
+		entry       *careschedule.EffectivePickupTime
 		wantPickup  string
 		wantChanged bool
 		wantRegular string
@@ -623,12 +623,12 @@ func TestApplyClassDayPickupDeviation(t *testing.T) {
 	}{
 		{
 			name:       "plan time without exception is no deviation",
-			entry:      &scheduleService.EffectivePickupTime{PickupTime: clockTime(15, 0), RegularPickupTime: clockTime(15, 0)},
+			entry:      &careschedule.EffectivePickupTime{PickupTime: clockTime(15, 0), RegularPickupTime: clockTime(15, 0)},
 			wantPickup: "15:00",
 		},
 		{
 			name: "earlier pickup names the regular time it replaces",
-			entry: &scheduleService.EffectivePickupTime{
+			entry: &careschedule.EffectivePickupTime{
 				PickupTime: clockTime(12, 15), RegularPickupTime: clockTime(15, 0),
 				IsException: true, ChangedAt: &recorded,
 			},
@@ -636,7 +636,7 @@ func TestApplyClassDayPickupDeviation(t *testing.T) {
 		},
 		{
 			name: "later pickup is a deviation too",
-			entry: &scheduleService.EffectivePickupTime{
+			entry: &careschedule.EffectivePickupTime{
 				PickupTime: clockTime(16, 30), RegularPickupTime: clockTime(15, 0),
 				IsException: true, ChangedAt: &recorded,
 			},
@@ -646,7 +646,7 @@ func TestApplyClassDayPickupDeviation(t *testing.T) {
 			// A parent re-entering the time the plan already holds must not
 			// reach the Lehrkraft as a change.
 			name: "exception repeating the plan time is not a deviation",
-			entry: &scheduleService.EffectivePickupTime{
+			entry: &careschedule.EffectivePickupTime{
 				PickupTime: clockTime(15, 0), RegularPickupTime: clockTime(15, 0),
 				IsException: true, ChangedAt: &recorded,
 			},
@@ -656,7 +656,7 @@ func TestApplyClassDayPickupDeviation(t *testing.T) {
 			// The child is not normally in care that weekday; there is no
 			// "sonst" to name, but the time itself is news.
 			name: "pickup on a day without a plan time is a deviation without a regular time",
-			entry: &scheduleService.EffectivePickupTime{
+			entry: &careschedule.EffectivePickupTime{
 				PickupTime: clockTime(14, 0), IsException: true, ChangedAt: &recorded,
 			},
 			wantPickup: "14:00", wantChanged: true, wantStamp: true,
@@ -666,7 +666,7 @@ func TestApplyClassDayPickupDeviation(t *testing.T) {
 			// pickup time — otherwise the row claims a pickup that is not
 			// happening.
 			name: "timeless exception records only when it became known",
-			entry: &scheduleService.EffectivePickupTime{
+			entry: &careschedule.EffectivePickupTime{
 				RegularPickupTime: clockTime(15, 0), IsException: true, ChangedAt: &recorded,
 			},
 			wantStamp: true,

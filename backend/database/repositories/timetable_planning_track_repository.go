@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 type timetablePlanningTrackRepository struct {
@@ -23,7 +23,7 @@ func (r timetablePlanningTrackRepository) Create(ctx context.Context, value *sch
 	}
 	created, err := r.timetable.CreatePlanningTrack(ctx, publicPlanningTrackInput(value))
 	if err != nil {
-		return scheduleRepo.WrapDatabaseError("create", err)
+		return timetableCompose.WrapDatabaseError("create", err)
 	}
 	replaceLegacyPlanningTrack(value, created)
 	return nil
@@ -32,7 +32,7 @@ func (r timetablePlanningTrackRepository) Create(ctx context.Context, value *sch
 func (r timetablePlanningTrackRepository) FindByID(ctx context.Context, id any) (*scheduleModels.PlanningTrack, error) {
 	trackID, ok := legacyGroupID(id)
 	if !ok {
-		return nil, scheduleRepo.WrapDatabaseError("find by id", fmt.Errorf("invalid planning track id %T", id))
+		return nil, timetableCompose.WrapDatabaseError("find by id", fmt.Errorf("invalid planning track id %T", id))
 	}
 	value, err := r.timetable.FindPlanningTrack(ctx, trackID)
 	if err != nil {
@@ -59,10 +59,10 @@ func (r timetablePlanningTrackRepository) Update(ctx context.Context, value *sch
 func (r timetablePlanningTrackRepository) Delete(ctx context.Context, id any) error {
 	trackID, ok := legacyGroupID(id)
 	if !ok {
-		return scheduleRepo.WrapDatabaseError("delete", fmt.Errorf("invalid planning track id %T", id))
+		return timetableCompose.WrapDatabaseError("delete", fmt.Errorf("invalid planning track id %T", id))
 	}
 	if err := r.timetable.DeletePlanningTrack(ctx, trackID); err != nil {
-		return scheduleRepo.WrapDatabaseError("delete", err)
+		return timetableCompose.WrapDatabaseError("delete", err)
 	}
 	return nil
 }
@@ -70,7 +70,7 @@ func (r timetablePlanningTrackRepository) Delete(ctx context.Context, id any) er
 func (r timetablePlanningTrackRepository) List(ctx context.Context, filters map[string]any) ([]*scheduleModels.PlanningTrack, error) {
 	for _, value := range filters {
 		if value != nil {
-			return nil, scheduleRepo.WrapDatabaseError("list", errors.New("planning track filters are unsupported"))
+			return nil, timetableCompose.WrapDatabaseError("list", errors.New("planning track filters are unsupported"))
 		}
 	}
 	return r.list(ctx, timetable.PlanningTrackFilter{}, "list")
@@ -104,7 +104,7 @@ func (r timetablePlanningTrackRepository) UpdateIfActive(ctx context.Context, va
 	}
 	updated, ok, err := r.timetable.UpdateActivePlanningTrack(ctx, value.ID, publicPlanningTrackInput(value))
 	if err != nil {
-		return false, scheduleRepo.WrapDatabaseError("update active planning track", err)
+		return false, timetableCompose.WrapDatabaseError("update active planning track", err)
 	}
 	if ok {
 		replaceLegacyPlanningTrack(value, updated)
@@ -122,7 +122,7 @@ func (r timetablePlanningTrackRepository) RestoreAtEnd(ctx context.Context, valu
 	}
 	restored, ok, err := r.timetable.RestorePlanningTrackAtEnd(ctx, value.ID)
 	if err != nil {
-		return false, scheduleRepo.WrapDatabaseError("restore planning track", err)
+		return false, timetableCompose.WrapDatabaseError("restore planning track", err)
 	}
 	if ok {
 		replaceLegacyPlanningTrack(value, restored)
@@ -139,7 +139,7 @@ func (r timetablePlanningTrackRepository) UpdateColumns(ctx context.Context, val
 	}
 	updated, ok, err := r.timetable.SetPlanningTrackArchivedAt(ctx, value.ID, value.ArchivedAt)
 	if err != nil {
-		return 0, scheduleRepo.WrapDatabaseError("update columns", err)
+		return 0, timetableCompose.WrapDatabaseError("update columns", err)
 	}
 	if !ok {
 		return 0, nil
@@ -180,7 +180,7 @@ func legacyPlanningTrackError(operation string, err error) error {
 		return nil
 	}
 	if errors.Is(err, timetable.ErrPlanningTrackNotFound) {
-		return scheduleRepo.WrapNotFoundDatabaseError(operation)
+		return timetableCompose.WrapNotFoundDatabaseError(operation)
 	}
-	return scheduleRepo.WrapDatabaseError(operation, err)
+	return timetableCompose.WrapDatabaseError(operation, err)
 }

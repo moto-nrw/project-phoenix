@@ -43,12 +43,12 @@ import (
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -331,7 +331,7 @@ type InstanceServiceDependencies struct {
 	Materialization    MaterializationService
 	// CareDayService decides which still-expected children may be stamped
 	// absent when an instance ends (#1747) — required.
-	CareDayService scheduleSvc.CareDayService
+	CareDayService careschedule.CareDayService
 	// DeviationEventRepo appends the Änderungsprotokoll (#1886) — required.
 	DeviationEventRepo auditModel.DeviationEventRepository
 	Broadcaster        realtime.Broadcaster
@@ -1282,7 +1282,7 @@ func (s *instanceService) validateReopenOccupancy(ctx context.Context, instance 
 		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *room.Capacity {
-		return scheduleSvc.ErrRoomCapacityExceeded
+		return careschedule.ErrRoomCapacityExceeded
 	}
 	return nil
 }
@@ -2232,7 +2232,7 @@ func (s *instanceService) lockCareExceptionDaysForStudents(
 	sorted := append([]int64(nil), studentIDs...)
 	slices.Sort(sorted)
 	for _, studentID := range sorted {
-		if err := scheduleSvc.LockCareExceptionDay(ctx, s.deps.DB, studentID, date); err != nil {
+		if err := careschedule.LockCareExceptionDay(ctx, s.deps.DB, studentID, date); err != nil {
 			return &ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
 		}
 	}

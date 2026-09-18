@@ -24,7 +24,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.210: Adding staff_shift_id anchor to audit.deviation_events...")
 			if _, err := db.NewRaw(`
 				-- A Dienstplan shift is not an activity slot, so shift-move events
 				-- (#1884) cannot use the (activity_group_id, occurrence_date,
@@ -42,7 +41,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.210: Dropping audit.deviation_events.staff_shift_id...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS audit.idx_deviation_events_staff_shift;
 				ALTER TABLE audit.deviation_events DROP COLUMN IF EXISTS staff_shift_id;

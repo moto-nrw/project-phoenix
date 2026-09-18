@@ -19,9 +19,9 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
-	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -45,7 +45,7 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	db := testpkg.SetupTestDB(t)
 	lock, notFound, err := repositories.NewCareStudentLock(db)
 	require.NoError(t, err)
-	scheduleService.BindCareStudentLockForDB(db, lock, notFound)
+	careschedule.BindCareStudentLockForDB(db, lock, notFound)
 	// Close the pool after all fixture cleanups registered by the test. The
 	// decision-service tests reuse this setup and may register additional
 	// t.Cleanup hooks (for example calendar periods); closing inside the

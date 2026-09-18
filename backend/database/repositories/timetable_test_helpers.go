@@ -8,7 +8,6 @@ import (
 
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -22,6 +21,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -115,7 +115,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 		Room:                      facilitiesAdapter.New(),
 		DeviationEvent:            auditRepo.NewDeviationEventRepository(newTestAuditRuntime(db)),
 		ClassArrivalTime:          educationRepo.NewClassArrivalTimeRepository(db),
-		ClassArrivalException:     scheduleRepo.NewClassArrivalExceptionRepository(db),
+		ClassArrivalException:     timetableCompose.NewClassArrivalExceptionRepository(db),
 		SubmissionRateLimit:       enrollmentCompose.New(),
 	}
 	repos.bindDefaultFacilities(db)

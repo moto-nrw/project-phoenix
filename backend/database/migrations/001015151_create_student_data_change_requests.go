@@ -48,8 +48,6 @@ func init() {
 // parent account cascades their request history (GDPR erasure), while a deleted
 // reviewer only nulls the audit link.
 func createStudentDataChangeRequestsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.151: Creating users.student_data_change_requests table...")
-
 	if _, err := db.NewRaw(`
 		CREATE TABLE IF NOT EXISTS users.student_data_change_requests (
 			id              BIGSERIAL PRIMARY KEY,
@@ -119,7 +117,6 @@ func createStudentDataChangeRequestsUp(ctx context.Context, db *bun.DB) error {
 }
 
 func createStudentDataChangeRequestsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.151: Dropping users.student_data_change_requests...")
 	if _, err := db.NewRaw(`DROP TABLE IF EXISTS users.student_data_change_requests CASCADE;`).Exec(ctx); err != nil {
 		return fmt.Errorf("failed dropping users.student_data_change_requests: %w", err)
 	}

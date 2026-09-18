@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -32,15 +31,13 @@ func init() {
 }
 
 func grantWorkTimeModelPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.109: Granting phoenix_tenant access to work-time model tables...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -56,20 +53,17 @@ func grantWorkTimeModelPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error granting phoenix_tenant work-time model access: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.109: Successfully granted work-time model access")
 	return tx.Commit()
 }
 
 func revokeWorkTimeModelPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.109: Revoking work-time model grants...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -85,6 +79,5 @@ func revokeWorkTimeModelPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("error revoking phoenix_tenant work-time model access: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.109: Successfully rolled back")
 	return tx.Commit()
 }

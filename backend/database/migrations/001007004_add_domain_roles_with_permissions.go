@@ -33,8 +33,6 @@ func init() {
 // addDomainRolesWithPermissions adds teacher, staff, guardian roles with their permissions
 // Safe for existing databases - uses ON CONFLICT DO NOTHING
 func addDomainRolesWithPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.7.4: Adding domain roles (teacher, staff, guardian) with permissions...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -210,7 +208,6 @@ func addDomainRolesWithPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.4: Successfully added domain roles with permissions")
 	return nil
 }
 
@@ -218,8 +215,6 @@ func addDomainRolesWithPermissions(ctx context.Context, db *bun.DB) error {
 // Note: Only removes role_permissions assignments, keeps roles and permissions
 // to avoid breaking existing account-role assignments
 func removeDomainRolesWithPermissions(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.7.4: Removing domain role permission assignments...")
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
@@ -246,6 +241,5 @@ func removeDomainRolesWithPermissions(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	fmt.Println("Migration 1.7.4: Successfully removed domain role permission assignments")
 	return nil
 }

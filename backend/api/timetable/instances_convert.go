@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -125,7 +125,7 @@ var convertInstanceToSeriesErrorRules = []common.ErrorRule{
 		Render: common.ErrorInvalidRequest,
 	},
 	{
-		Target: scheduleSvc.ErrCategoryNotAssignable,
+		Target: careschedule.ErrCategoryNotAssignable,
 		Render: func(error) render.Renderer {
 			return common.ErrorInvalidRequest(errors.New("category is archived or unavailable"))
 		},

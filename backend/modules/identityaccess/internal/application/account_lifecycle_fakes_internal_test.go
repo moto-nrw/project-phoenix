@@ -374,6 +374,19 @@ func (d *lifecycleStaff) FindCaregiverProfile(_ context.Context, staffID int64) 
 	return domain.CaregiverProfile{}, false, nil
 }
 
+func (d *lifecycleStaff) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	person, found, err := d.FindPersonByAccount(ctx, accountID)
+	if err != nil || !found {
+		return false, err
+	}
+	member, found, err := d.FindStaffByPerson(ctx, person.ID)
+	if err != nil || !found || member.Deleted {
+		return false, err
+	}
+	profile, found, err := d.FindCaregiverProfile(ctx, member.ID)
+	return found && !profile.Deleted, err
+}
+
 func (d *lifecycleStaff) CreateCaregiverProfile(_ context.Context, _, staffID int64, position string) (int64, error) {
 	if d.createTeacherErr != nil {
 		return 0, d.createTeacherErr
@@ -757,6 +770,7 @@ func (g *lifecycleGuardians) FindPersonNamesByIDs(_ context.Context, ids []int64
 
 type lifecycleInvitations struct {
 	rows       map[int64]domain.GuardianInvitation
+	accounts   []domain.LoginAccount
 	nextID     int64
 	findErr    error
 	listErr    error
@@ -824,14 +838,93 @@ func (s *lifecycleInvitations) UpdateGuardianInvitation(_ context.Context, invit
 	return nil
 }
 
+func (s *lifecycleInvitations) FindGuardianInvitationByToken(_ context.Context, token string) (domain.GuardianInvitation, bool, error) {
+	if s.findErr != nil {
+		return domain.GuardianInvitation{}, false, s.findErr
+	}
+	for _, invitation := range s.sorted(func(row domain.GuardianInvitation) bool { return row.Token == token }) {
+		return invitation, true, nil
+	}
+	return domain.GuardianInvitation{}, false, nil
+}
+
+func (s *lifecycleInvitations) ListOpenGuardianInvitations(_ context.Context, profileIDs []int64, now time.Time) ([]domain.GuardianInvitation, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	wanted := map[int64]bool{}
+	for _, id := range profileIDs {
+		wanted[id] = true
+	}
+	return s.sorted(func(invitation domain.GuardianInvitation) bool {
+		return wanted[invitation.GuardianProfileID] && guardianInvitationNonFinal(invitation, now)
+	}), nil
+}
+
+func (s *lifecycleInvitations) ListRedeemableGuardianInvitations(_ context.Context, now time.Time) ([]domain.GuardianInvitation, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.sorted(func(invitation domain.GuardianInvitation) bool {
+		return guardianInvitationNonFinal(invitation, now) && !invitation.IsPendingApproval()
+	}), nil
+}
+
+func (s *lifecycleInvitations) AcceptGuardianInvitation(_ context.Context, id int64, acceptedAt time.Time) (bool, error) {
+	if s.updateErr != nil {
+		return false, s.updateErr
+	}
+	invitation, ok := s.rows[id]
+	if !ok || invitation.AcceptedAt != nil {
+		return false, nil
+	}
+	invitation.AcceptedAt = &acceptedAt
+	s.rows[id] = invitation
+	return true, nil
+}
+
+// InsertAccount mirrors the store's account provisioning; the fake accounts
+// live in the shared session store.
+func (s *lifecycleInvitations) InsertAccount(_ context.Context, email, passwordHash string) (domain.LoginAccount, domain.OperationStats, error) {
+	if s.insertErr != nil {
+		return domain.LoginAccount{}, domain.OperationStats{}, s.insertErr
+	}
+	s.nextID++
+	account := domain.LoginAccount{ID: s.nextID, Email: email, PasswordHash: passwordHash, Active: true}
+	s.accounts = append(s.accounts, account)
+	return account, domain.OperationStats{Queries: 1, Rows: 1}, nil
+}
+
+// lifecycleEnrollments records the claims an acceptance runs.
+type lifecycleEnrollments struct {
+	claimed map[int64]string
+	err     error
+}
+
+func newLifecycleEnrollments() *lifecycleEnrollments {
+	return &lifecycleEnrollments{claimed: map[int64]string{}}
+}
+
+func (e *lifecycleEnrollments) ClaimGuardianEnrollments(_ context.Context, accountID int64, email string) (int, error) {
+	if e.err != nil {
+		return 0, e.err
+	}
+	e.claimed[accountID] = email
+	return 1, nil
+}
+
 type lifecycleDelivery struct {
-	emails []domain.GuardianInvitation
+	emails       []domain.GuardianInvitation
+	accessEmails []domain.GuardianProfile
 }
 
 func (lifecycleDelivery) InvitationExpiry(context.Context) time.Duration { return 48 * time.Hour }
 func (lifecycleDelivery) SchoolName(context.Context, int64) string       { return "OGS Musterschule" }
 func (d *lifecycleDelivery) EnqueueInvitationEmail(_ context.Context, invitation domain.GuardianInvitation, _ domain.GuardianProfile, _ string) {
 	d.emails = append(d.emails, invitation)
+}
+func (d *lifecycleDelivery) EnqueueExistingAccountEmail(_ context.Context, profile domain.GuardianProfile, _ string) {
+	d.accessEmails = append(d.accessEmails, profile)
 }
 
 type lifecycleFinancial struct {
@@ -859,6 +952,8 @@ type lifecycleFixture struct {
 	guardians   *lifecycleGuardians
 	invitations *lifecycleInvitations
 	delivery    *lifecycleDelivery
+	enrollments *lifecycleEnrollments
+	schools     *fakeSchools
 	financial   *lifecycleFinancial
 	runtime     *fakeRuntime
 	sessions    *fakeStore
@@ -883,13 +978,15 @@ func newLifecycleFixture(t *testing.T) *lifecycleFixture {
 	f := &lifecycleFixture{
 		store: store, staff: newLifecycleStaff(), lockout: &lifecycleLockout{}, audit: &lifecyclePreviewAudit{},
 		guardians: newLifecycleGuardians(), invitations: newLifecycleInvitations(), delivery: &lifecycleDelivery{},
+		enrollments: newLifecycleEnrollments(), schools: schools,
 		financial: &lifecycleFinancial{}, runtime: runtime, sessions: store.fakeStore, persons: persons,
 	}
 	f.admin = &lifecycleAdmin{store: store}
 	f.lifecycle, err = NewAccountLifecycle(sessions, auth, AccountLifecycleDependencies{
-		Store: store, Logins: store, RFID: store, Staff: f.staff, Roles: lifecycleRoles{}, PINs: lifecyclePINs{},
+		Store: store, Logins: store, RFID: store, Staff: f.staff, Profiles: f.staff, Roles: lifecycleRoles{}, PINs: lifecyclePINs{},
 		Lockout: f.lockout, Audit: f.audit, Codec: lifecycleCodec{}, Admin: f.admin, Passwords: lifecyclePasswords{},
-		Guardians: f.guardians, Invitations: f.invitations, Delivery: f.delivery, Financial: f.financial,
+		Guardians: f.guardians, Invitations: f.invitations, Delivery: f.delivery, Enrollments: f.enrollments,
+		Schools: f.schools, Financial: f.financial,
 		Runtime: runtime, Logger: logger,
 	})
 	require.NoError(t, err)

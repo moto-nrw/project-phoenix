@@ -42,15 +42,14 @@ type operatorAuthenticationWiring struct {
 }
 
 // operatorRepositories are the retained repositories the operator seams
-// read: the audit ledger, the e-mail change tokens and the identity chain
-// rows a school access provisions.
+// read: the audit ledger and the identity chain rows a school access
+// provisions.
 type operatorRepositories struct {
-	auditLog          platformModels.OperatorAuditLogRepository
-	emailChangeTokens platformModels.OperatorEmailChangeTokenRepository
-	persons           userModels.PersonRepository
-	staff             userModels.StaffRepository
-	teachers          userModels.TeacherRepository
-	students          userModels.StudentRepository
+	auditLog platformModels.OperatorAuditLogRepository
+	persons  userModels.PersonRepository
+	staff    userModels.StaffRepository
+	teachers userModels.TeacherRepository
+	students userModels.StudentRepository
 }
 
 func operatorRepositoriesOf(repos *repositories.Factory) operatorRepositories {
@@ -58,8 +57,8 @@ func operatorRepositoriesOf(repos *repositories.Factory) operatorRepositories {
 		return operatorRepositories{}
 	}
 	return operatorRepositories{
-		auditLog: repos.OperatorAuditLog, emailChangeTokens: repos.OperatorEmailChangeToken,
-		persons: repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
+		auditLog: repos.OperatorAuditLog,
+		persons:  repos.Person, staff: repos.Staff, teachers: repos.Teacher, students: repos.Student,
 	}
 }
 
@@ -75,15 +74,13 @@ func newOperatorDependencies(wiring operatorAuthenticationWiring) (*identityacce
 	return &identityaccessCompose.OperatorDependencies{
 		MFA:           operatorMFAGate{current: mfa},
 		Audit:         operatorAuditLedger{ledger: wiring.repos.auditLog},
-		Credentials:   operatorCredentialCleanup{tokens: wiring.repos.emailChangeTokens},
 		Passwords:     passwordHasher{},
 		Organizations: tenancyDirectory{query: wiring.organizations},
 		Identities: schoolIdentityProvisioner{
 			persons: wiring.repos.persons, staff: wiring.repos.staff, teachers: wiring.repos.teachers, students: wiring.repos.students,
 			directory: wiring.persons, membership: wiring.membership,
 		},
-		RolePolicy: schoolRolePolicy{},
-		Logger:     wiring.logger,
+		Logger: wiring.logger,
 	}, nil
 }
 
@@ -172,19 +169,8 @@ func operatorAuditChanges(entry identityaccess.OperatorAuditEntry) map[string]an
 	return changes
 }
 
-type operatorCredentialCleanup struct {
-	tokens platformModels.OperatorEmailChangeTokenRepository
-}
-
-// InvalidateEmailChangeTokens is a no-op without the token repository, as
-// the retained password change treated it.
-func (c operatorCredentialCleanup) InvalidateEmailChangeTokens(ctx context.Context, operatorID int64) error {
-	if c.tokens == nil {
-		return nil
-	}
-	return c.tokens.InvalidateByOperatorID(ctx, operatorID)
-}
-
+// passwordHasher binds the credential policy Security Runtime owns to the
+// operator flows and reports the module's public sentinel.
 type passwordHasher struct{}
 
 func (passwordHasher) HashPassword(password string) (string, error) {
@@ -192,7 +178,10 @@ func (passwordHasher) HashPassword(password string) (string, error) {
 }
 
 func (passwordHasher) ValidatePasswordStrength(password string) error {
-	return auth.ValidatePasswordStrength(password)
+	if err := auth.ValidatePasswordStrength(password); err != nil {
+		return identityaccess.ErrPasswordTooWeak
+	}
+	return nil
 }
 
 type tenancyDirectory struct{ query organizationtenancy.Query }
@@ -285,7 +274,7 @@ func (p schoolIdentityProvisioner) personIsStudent(ctx context.Context, personID
 }
 
 func (p schoolIdentityProvisioner) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	return auth.HasLiveCaregiverProfile(ctx, p.persons, p.staff, p.teachers, accountID)
+	return hasLiveCaregiverProfile(ctx, p.persons, p.staff, p.teachers, accountID)
 }
 
 func (p schoolIdentityProvisioner) EnsureSchoolIdentity(context.Context, identityaccessCompose.SchoolIdentityRequest) error {
@@ -336,29 +325,6 @@ func (p schoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context,
 	}
 	return facts, nil
 }
-
-// schoolRolePolicy serves the retained role assignment rules.
-type schoolRolePolicy struct{}
-
-func (schoolRolePolicy) ValidateAssignableSchoolRole(role identityaccess.SchoolRole, tenantID int64) error {
-	if role.ID <= 0 {
-		return auth.ErrRoleNotAssignable
-	}
-	_, err := auth.ValidateResolvedAssignableSchoolRole(auth.ResolvedSchoolRole(role.ID, role.TenantID, role.Name, role.IsSystem, role.BaseRole), tenantID)
-	return err
-}
-
-func (schoolRolePolicy) IsLehrkraftSystemRole(role identityaccess.SchoolRole) bool {
-	return auth.IsLehrkraftSystemRole(auth.ResolvedSchoolRole(role.ID, role.TenantID, role.Name, role.IsSystem, role.BaseRole))
-}
-
-func (schoolRolePolicy) RoleNeedsStaffRecord(role identityaccess.SchoolRole) bool {
-	return identityaccess.RoleNeedsStaffRecord(&identityaccess.RoleFacts{
-		ID: role.ID, TenantID: role.TenantID, Name: role.Name, IsSystem: role.IsSystem, BaseRole: role.BaseRole,
-	})
-}
-
-func (schoolRolePolicy) LehrkraftRoleImmutable() error { return auth.ErrLehrkraftRoleImmutable }
 
 // --- the retained platform services' consumer-owned ports -----------------
 

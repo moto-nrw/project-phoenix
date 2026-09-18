@@ -8,6 +8,7 @@ const (
 	profileSettingPresenceMode          = "operations.presence_mode"
 	profileSettingAttendanceNFC         = "attendance.nfc_enabled"
 	profileSettingAttendanceWeb         = "attendance.web_enabled"
+	profileSettingSessionEndTime        = "operations.session_end_time"
 	profileSettingOverviewScope         = "operations.operational_overview_scope"
 	profileSettingAttendanceScope       = "operations.attendance_edit_scope"
 	profileSettingAbsenceScope          = "operations.student_absence_edit_scope"
@@ -69,6 +70,12 @@ func fullOperationSettings() map[string]SeedSetting {
 		},
 		profileSettingAttendanceWeb: {
 			Value: json.RawMessage(`true`), ManagedBy: SettingManagedByOperator,
+		},
+		// The seeded arrival plans leave several children expected but not
+		// checked in. Keeping the demo care day open until 23:59 makes the
+		// dashboard's "Schule" tile reviewable throughout the seed day.
+		profileSettingSessionEndTime: {
+			Value: json.RawMessage(`"23:59"`), ManagedBy: SettingManagedByOperator,
 		},
 		profileSettingGroupMode: {
 			Value: json.RawMessage(`"` + profileGroupModeFixed + `"`), ManagedBy: SettingManagedByTenant,

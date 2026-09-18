@@ -17,7 +17,6 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal/legacy"
@@ -27,22 +26,49 @@ import (
 // invitation service, so tests can assert on delegation (mode → RequireApproval,
 // ByParent) without standing up the full invite machinery. Embeds the interface
 // so the un-overridden methods exist but panic if unexpectedly called.
-type stubInvites struct {
-	authService.GuardianInvitationService
-	lastInvite *authService.InviteToStudentRequest
-	lastRevoke *authService.RevokeAccessRequest
+// guardianInvitationReads reads the owner's invitations straight from the
+// table, which is what the serving root's port does through the Identity &
+// Access capability.
+type guardianInvitationReads struct{ db *bun.DB }
+
+func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProfileID int64) ([]parentService.GuardianInvitationRecord, error) {
+	var invitations []*authModels.GuardianInvitation
+	err := r.db.NewSelect().
+		Model(&invitations).
+		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
+		Where(`"guardian_invitation".guardian_profile_id = ?`, guardianProfileID).
+		OrderExpr(`"guardian_invitation".created_at DESC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, err
+	}
+	records := make([]parentService.GuardianInvitationRecord, 0, len(invitations))
+	for _, invitation := range invitations {
+		records = append(records, parentService.GuardianInvitationRecord{
+			ID: invitation.ID, GuardianProfileID: invitation.GuardianProfileID, StudentID: invitation.StudentID,
+			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, ApprovalStatus: invitation.ApprovalStatus,
+		})
+	}
+	return records, nil
 }
 
-func (s *stubInvites) InviteToStudent(_ context.Context, req authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
-	s.lastInvite = &req
-	return &authService.InviteToStudentResult{
-		Outcome:           authService.InviteOutcomeInvited,
-		GuardianProfileID: req.StudentID, // arbitrary non-zero
+// stubInvites stands in for the consumer-owned relative access port the
+// composition root binds to Identity & Access (#3332).
+type stubInvites struct {
+	lastInvite *parentService.GuardianInviteRequest
+	lastRevoke *parentService.GuardianAccessRevocation
+}
+
+func (s *stubInvites) InviteToStudent(_ context.Context, request parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	s.lastInvite = &request
+	return parentService.GuardianInviteOutcome{
+		Outcome:           "invited",
+		GuardianProfileID: request.StudentID, // arbitrary non-zero
 	}, nil
 }
 
-func (s *stubInvites) RevokeAccess(_ context.Context, req authService.RevokeAccessRequest) error {
-	s.lastRevoke = &req
+func (s *stubInvites) RevokeAccess(_ context.Context, revocation parentService.GuardianAccessRevocation) error {
+	s.lastRevoke = &revocation
 	return nil
 }
 
@@ -61,7 +87,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (paren
 		},
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     invites,
-		GuardianInviteRepo:  repos.GuardianInvitation,
+		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -151,7 +177,7 @@ func TestListRelatedAccounts_NoAccountWithOpenInviteIsPending(t *testing.T) {
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -200,7 +226,7 @@ func TestListRelatedAccounts_OpenInviteForAnotherChildIsNotPending(t *testing.T)
 		ApprovalStatus:    authModels.GuardianInvitationApprovalNotRequired,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -239,8 +265,7 @@ func TestInviteRelatedAccount_DirectDelegatesWithoutApproval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastInvite)
 	assert.False(t, invites.lastInvite.RequireApproval, "direct mode must not require approval")
-	require.NotNil(t, invites.lastInvite.RequestedByParentAccountID)
-	assert.Equal(t, chain.AccountID, *invites.lastInvite.RequestedByParentAccountID)
+	assert.Equal(t, chain.AccountID, invites.lastInvite.RequestedByAccountID)
 	assert.Equal(t, chain.StudentID, invites.lastInvite.StudentID)
 }
 
@@ -342,7 +367,11 @@ func TestRemoveRelatedAccount_EnabledDelegatesAsParent(t *testing.T) {
 	err := svc.RemoveRelatedAccount(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 	require.NotNil(t, invites.lastRevoke)
-	assert.True(t, invites.lastRevoke.ByParent, "parent removals must set ByParent (primary protection)")
+	// The port revokes as a parent by contract, so the portal passes only
+	// who acts and on which link; the root proves the ByParent flag
+	// (TestParentGuardianAccessRevokesAsParent).
+	assert.Equal(t, chain.AccountID, invites.lastRevoke.ActorAccountID)
+	assert.Equal(t, chain.StudentID, invites.lastRevoke.StudentID)
 	assert.Equal(t, chain.GuardianProfileID, invites.lastRevoke.GuardianProfileID)
 }
 
@@ -391,7 +420,6 @@ func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsServic
 		Settings:            settings,
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
-		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -441,19 +469,17 @@ func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
 }
 
 // failingInvites errors on delegation so the parent service's error-return
-// branches around the guardian invitation service are exercised.
-type failingInvites struct {
-	authService.GuardianInvitationService
-}
+// branches around the relative access port are exercised.
+type failingInvites struct{}
 
-func (failingInvites) InviteToStudent(_ context.Context, _ authService.InviteToStudentRequest) (*authService.InviteToStudentResult, error) {
-	return nil, errors.New("invite failed")
+func (failingInvites) InviteToStudent(_ context.Context, _ parentService.GuardianInviteRequest) (parentService.GuardianInviteOutcome, error) {
+	return parentService.GuardianInviteOutcome{}, errors.New("invite failed")
 }
-func (failingInvites) RevokeAccess(_ context.Context, _ authService.RevokeAccessRequest) error {
+func (failingInvites) RevokeAccess(_ context.Context, _ parentService.GuardianAccessRevocation) error {
 	return errors.New("revoke failed")
 }
 
-func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites authService.GuardianInvitationService) (parentService.Service, *bun.DB) {
+func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool, invites parentService.GuardianAccess) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
@@ -466,7 +492,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
 		},
 		GuardianInvites:     invites,
-		GuardianInviteRepo:  repos.GuardianInvitation,
+		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: repos.GuardianProfile,
 		DB:                  db,
@@ -583,7 +609,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		RoleUpgrade:       true,
 	}
 	invitation.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianInvitation.Create(ctx, invitation))
+	testpkg.InsertTestGuardianInvitation(t, db, invitation)
 
 	accounts, err := svc.ListRelatedAccounts(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)

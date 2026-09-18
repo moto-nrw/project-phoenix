@@ -71,7 +71,26 @@ dynamically, so the baseline records no `tables.unclassified` finding to adopt
 it from, and the File Storage composition binds its intent operations to that
 repository as a compatibility permission until the table can be adopted.
 #2710 adopts `users.persons_guardians` under `people-directory` the same way
-(policy epoch 7 to 8); the remaining #2727 tables stay unclassified debt.
+(policy epoch 7 to 8). #3221 adopts `users.guardian_financial_data` under
+`people-directory` and moves the staff messaging persistence out of
+`database/repositories/users`, adopting `users.staff_message_threads`,
+`users.staff_message_participants`, `users.staff_messages` and
+`users.staff_message_reads` under `communication` (policy epoch 12 to 13).
+With that the baseline records no `tables.unclassified` debt.
+The same ticket moves the two foreign accesses the package kept on owned
+tables: `users.profiles` belongs to the account, not the person, so its model,
+contract and repository move to `models/auth` and
+`database/repositories/auth` under `identity-access`.
+
+The staff messaging writes live in the Communication Postgres adapter
+`modules/communication/internal/adapters/staffpostgres`. The inbox and unread
+badge join People Directory's person rows, so they read through the tenant-safe
+projection `modules/communication/internal/adapters/staffinbox` (owner
+`staff-message-inbox`). `modules/communication/staffstore` is the
+Communication composition seam that keeps the `models/users` staff message
+repository contracts for the legacy factory. The colleague picker, its
+authorization predicate and the role kinds stay in People Directory as
+`MessageableStaffRepository` and reach the seam as a colleague directory.
 `target.svg` shows File Storage as domain and Document Rendering as platform;
 do not commit the generated diagram.
 
@@ -307,7 +326,7 @@ are temporary debt that goes with the retained services under #2730 and
 #3218; a fix to the #1844 staffing broadcast must land in both until then.
 #3218 moved the coverage probe, the staff pool, the bulk substitution and the
 shared interval vocabulary on with the timetable services (below); the
-partial-absence service stays in `services/schedule` for #3220.
+partial-absence service moved with the care services in #3220.
 
 The retained timetable and instance services that `services/schedule` used to
 hold (templates, splits and updates, materialization, the instance lifecycle
@@ -318,18 +337,17 @@ roster reconciler, cleanup and the attendance mirror) are retained as the
 `modules/timetable/legacy/timetableplanning` (#3218), moved file for file with
 their behaviour tests. No HTTP path, status code, error string, authorization
 check, tenant scoping, recurrence, exception or materialization semantics
-changed. `services/schedule` keeps the care, arrival and pickup services for
-#3220, together with what only they need or what both sides share: the generic
+changed. The care, arrival and pickup services stayed behind for #3220 (below),
+together with what only they need or what both sides share: the generic
 effective-time engine (`effective_time_service.go`,
 `effective_time_domains.go`, which the arrival and pickup services
 instantiate), the day-planning resolver the care-day resolver calls, and the
 `ScheduleError` type with its sentinels (the moved package aliases the type,
 so `errors.As` matches either name). The moved package imports
-`services/schedule` for these and for the care-day, care-exception-lock,
-baseline and effective-time contracts; the `services/schedule` package never
-imports it back, so the packages depend in one direction only (only the
-test-support package `services/schedule/scheduletest` binds its mocks to the
-moved services). `germanDateLayout` now
+them (`modules/careplan/legacy/careschedule` since #3220) for these and for
+the care-day, care-exception-lock, baseline and effective-time contracts;
+that package never imports it back, so the packages depend in one direction
+only. `germanDateLayout` now
 exists in both packages, and the care-day resolver uses the effective-time
 engine's identical weekday helper instead of the materializer's copy. The
 package could not land on an existing point: it still speaks the retained
@@ -365,6 +383,58 @@ persistence adapter, the legacy weekend-instance cleanup in
 `database/repositories/schedule`, is deleted; production already used the
 Timetable owner's `DeleteRemovedWeekendActivityInstances`, whose owner test now
 also pins the retained-weekday and empty-set cases.
+
+The retained care, arrival and pickup services that `services/schedule` held
+last (care-schedule change requests, arrival and pickup schedules and their
+baselines, class arrival exceptions, the care-day and day-planning resolvers,
+the effective-time engine, pickup auto-excusal, partial absences, the
+same-day cutoff and the care-exception lock) are retained as the
+`inbound-schedules`/`adapter` compatibility package
+`modules/careplan/legacy/careschedule` (#3220), moved file for file with their
+behaviour tests; `services/schedule` no longer exists. No HTTP path, status
+code, error string, authorization check, tenant scoping, auto-excusal,
+attendance-correction or parent-permission semantics changed. The package
+could not land on the existing `care-plan`/`adapter` point for the same reason
+as #3218; `inbound-schedules` had no package left since #3073. Every
+`inbound-schedules.*` rule and every `<consumer>.<role>.inbound-schedules-*`
+rule is a compatibility permission that exists only because PR mode cannot
+record debt for a package the candidate creates: convert them to exact debt
+once the package exists at a base SHA, and dissolve the services into the Care
+Plan application and domain layers. The test doubles of
+`services/schedule/scheduletest` split with their subjects: the pickup
+baseline double is `modules/careplan/legacy/careschedule/carescheduletest`
+(`inbound-schedules`/`test-support`), and the closing-day mock became a test
+file of its only consumer, `api/timetable`. The care request service takes its
+sharing resolver and its test clock at construction
+(`WithRequestShareVisibility`, `WithCareRequestToday`) instead of the former
+setters; the legacy factory passes the same lazy resolver the excused requests
+use (`requestShares`), so a request the parents service has not been bound to
+yet still yields the neutral co-guardian line. Tests that pinned the clock
+after construction now pass it at construction (the students route through its
+module clock).
+
+`database/repositories/schedule` no longer exists either (#3220). Its three
+remaining SQL repositories (class arrival exceptions, staff notices and the
+activity-reopen instance update) write Timetable-owned tables, so their SQL
+moved into the owner's persistence adapter
+(`modules/timetable/internal/adapters/postgres`, `retained_rows.go`) with an
+explicit tenant filter on every statement; `modules/timetable/compose` serves
+the retained `models/schedule` and `models/users` repository contracts over it
+with the legacy error contract. `ClassArrivalExceptionRepository` dropped its
+unused generic CRUD methods. The pure query-option translations and listing
+adapters the legacy composition uses moved to `modules/timetable/compose`
+(`legacy_repository_options.go`, `legacy_composition_support.go`,
+`calendar_period_usage.go`), which may already import their models. The SQL
+test providers the cross-package tests build and the repository behaviour
+tests are the test-only root `modules/timetable/legacy/timetablesqltest`
+(`inbound-timetable`/`test-support`, `e2e-test` in both test scopes, as
+`modules/workforce/contracttest`); its `inbound-timetable.test-support.*`,
+`inbound-timetable.e2e-test.*` and `<consumer>.<role>.inbound-timetable-test-support`
+rules are compatibility permissions of the same kind. With both packages gone,
+all #2730 entries left `legacy.jsonl`, together with the other resolved
+imports of the two packages, and the 25 rules that only those imports used
+(for example `parent-portal.adapter.timetable-application` and
+`inbound-timetable.adapter.timetable-activities-application`) were deleted.
 
 The Workforce time-tracking HTTP composition
 (`modules/workforce/inbound/timetracking`) is classified `workforce`/`http`
@@ -411,6 +481,19 @@ Convert them to exact debt with the rule above once the package exists at a
 base SHA; the package itself goes when the Presence half (#3214) deletes
 `services/active` and its keys, and finally when the retained services
 dissolve into the Workforce application and domain layers.
+
+`users.care_withdrawal_completions` is persisted by its `care-plan` owner
+alone since #3221: the statements moved from `database/repositories/users`
+into `modules/careplan/internal/adapters/postgres` (`withdrawal_completions.go`)
+and reach consumers through the public `WithdrawalQuery`/`WithdrawalCommand`
+capability. `database/repositories.careWithdrawalCompletionRepository` serves
+the retained `models/users` contract over it without persistence of its own,
+and supplies the children's names and classes, which the queue queries used to
+join from `users.students` and `users.persons`, as a People Directory
+recordset. The care-exit cleanup's booking-expiry query no longer reads the
+table either: it filters its grouped rows against the owner's completion keys,
+which the former `NOT EXISTS` clause tested on the same grouping key. Both
+#2727 baseline entries for the table are gone.
 
 The Care Plan compatibility adapter (`modules/careplan/legacy`) uses this
 representation. Its remaining imports and repository-composition caller are
@@ -644,9 +727,10 @@ public `OperatorAuthentication` and `OperatorAccountAccess` capabilities
 (#3252). The facts those flows need from other owners (the operator MFA
 service, the operator audit ledger, the pending e-mail change links, the
 password policy, schools and organisations, the People Directory and School
-Membership identity chain a school access provisions, the retained role
-assignment rules) are bound at the serving root through public-typed seams
-(`compose.OperatorDependencies`). The login, refresh, profile, password and
+Membership identity chain a school access provisions) are bound at the
+serving root through public-typed seams (`compose.OperatorDependencies`);
+the role assignment rules are the module's own since #3314. The login,
+refresh, profile, password and
 school-access handlers live in `modules/identityaccess/inbound/operator`,
 the owner's HTTP adapter, and call the public contract there. `api/operator`
 keeps the operator router with its middleware chain and rate limiters,
@@ -661,8 +745,77 @@ flows through the `OperatorDirectory` port the root binds to the public
 module. The public audit evidence is typed (`TenantAccessEvidence`,
 `OperatorAccessChange`); the root renders it into the ledger keys. The former
 `models/platform` operator and refresh-session repository contracts and
-their compatibility adapters are deleted; the operator invitation, e-mail
-change, MFA and passkey flows stay under #2722, #2723 and #2724. The foreign
+their compatibility adapters are deleted; the operator passkey records
+followed under #2724. The operator invitation and e-mail change links (#2722):
+`platform.operator_invitation_tokens` and
+`platform.operator_email_change_tokens` are read and written only through the
+public `OperatorTokens` capability, with the same platform-wide transaction
+rule. The capability decides expiry with one clock: it never stores a link
+that is already expired or used, never extends one that expired meanwhile,
+and redeems a link exactly once. The retained `services/platform` invitation
+and e-mail change flows keep their orchestration and reach the rows through
+the `OperatorInvitationTokens` and `OperatorEmailChangeTokens` ports the root
+binds to the public module; invite, accept and confirm stay one
+administrative transaction the module operations join. The operator password
+change revokes pending e-mail change links inside the module, so the former
+root-supplied credential cleanup seam is gone. The `models/platform` token
+repository contracts, their `database/repositories/platform` adapters and the
+`repositories.Factory` fields are deleted; the token models remain as the
+retained ports' value types. The school invitations, the password reset
+and the guardian invitations (#2722) follow the same shape:
+`auth.invitation_tokens`, `auth.password_reset_tokens` with its rate-limit
+window, and `auth.guardian_invitations` are read and written only through the
+public `SchoolInvitations`, `PasswordResets` and `GuardianInvitations`
+capabilities, and the account an acceptance provisions is written there too.
+Expiry is decided with one clock: a link is never stored already expired or
+spent, a resend never revives one, and redemption spends it exactly once. The
+retained `services/auth` invitation, password reset and guardian invitation
+services keep their contracts and reach the rows through the consumer-owned
+ports the root binds to the public module; the acceptance holds one
+administrative transaction, so the account, its school mapping, the role, the
+identity chain and the spent link commit together. The mail stays in the
+composition root, which knows the portal hosts, the tenant reply-to identity
+and the e-mail outbox, and the enrollment requests a guardian acceptance
+claims arrive through their own port. Every reader of `auth.guardian_invitations` goes
+through the owner: the People Directory guardian list and the parents portal
+related-accounts view consume their own record types over the public
+capability, so the `models/auth` guardian invitation contract, its
+`database/repositories/auth` adapter, the `repositories.Factory` field and
+the People Directory's deprecated invitation twin are deleted with the
+retained token lookup, approval-queue and acceptance methods. The operator MFA
+records (#2723): `platform.operator_mfa_credentials`,
+`platform.operator_mfa_email_challenges` and
+`platform.operator_mfa_trusted_devices` are read and written only through the
+public `OperatorMFARecords` capability, with the same platform-wide
+transaction rule as the operator rows. The retained `services/platform`
+operator MFA service keeps the challenge, verification, enrollment and
+trusted-device flow and reaches the rows through the `OperatorMFARecords`
+port the root binds to the public module; its disable cascade (enrollment
+delete, device revocation, lockout reset) stays one administrative
+transaction the module operations join. The `models/platform` MFA repository
+contracts and their `database/repositories/platform` adapters are deleted;
+the MFA models remain as the retained port's value types. The operator
+passkey records (#2724), `platform.operator_passkey_credentials` and
+`platform.operator_passkey_sessions`, follow the same shape through the
+public `OperatorPasskeyRecords` capability. The retained `services/platform`
+operator passkey service keeps the WebAuthn ceremonies, the origin check and
+the token exchange and reaches the rows through the `OperatorPasskeyRecords`
+port the root binds to the public module. A ceremony completes at most once,
+in one administrative transaction with the credential insert or use record
+the module operations join: a refused ceremony commits and stays spent, a
+failed read or write rolls back and leaves the ceremony open. Only the
+owner's not-found outcomes become an invalid session or a missing passkey,
+so store failures reach the caller as errors. The `models/platform`
+passkey repository contracts and their adapter are deleted; the passkey
+models remain as the retained port's value types. The school-portal passkeys
+(`auth.passkey_credentials`, `auth.passkey_sessions`) follow the same shape
+through `AccountPasskeyRecords`: the retained `services/auth` passkey service
+keeps the ceremonies, the tenant-origin check and the school-membership gate
+and reaches the rows through its own `PasskeyRecords` port. A credential
+belongs to the account and carries no school; the ceremony records the school
+whose portal started it, and login refuses a school the account has no access
+to. Their `models/auth` models and `database/repositories/auth` adapter are
+deleted; the port's value types live in `services/auth`. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
 account lookup and active-account subquery of `database/repositories/auth`
@@ -695,6 +848,81 @@ because no target rule lets those inbound packages import the identity-access
 public package. The legacy `auth.accounts_parents` model, repository and its
 six `/auth/parent-accounts` routes stay unchanged; the table has no target
 owner and that conflict stays open under #2720.
+
+The role and permission administration (#3314) lives in the module's
+application layer as the public `RoleAdministration` capability
+(`RoleQuery`, `RoleCommand`, `PermissionQuery`, `PermissionCommand`): role
+and permission CRUD, account role assignment with the school identity it
+owes, direct account grants, role-permission selections and the default
+staff permission. `auth.roles`, `auth.permissions`, `auth.role_permissions`,
+`auth.account_roles`, `auth.account_permissions` and the account and
+membership locks the mutations serialize on are still read and written
+through the retained `database/repositories/auth` repositories:
+`database/repositories/identity_roles.go` serves the module's
+`compose.RoleDirectory` seam over them, without changing a statement or the
+lock order, until #3226 moves the stores into the module. The school-role
+assignment policy (`ValidateAssignableSchoolRole` and the Lehrkraft and
+guardian-tier classification) is a public function of the module; the
+operator school access binds it inside the module, and the retained
+registration, linking and invitation flows of `services/auth` reach it and
+the caregiver-profile fact through their `SchoolIdentityProvisioning` port.
+`api/auth`, the staff membership runtime, operator provisioning and the data
+import call the public contract; the caregiver capability and the person
+service of `services/users` reach it through consumer-owned ports the root
+binds. Classifying and promoting a stored `users.students_guardians` role
+applies the security-runtime guardian presets, which neither the module nor
+the root may import, so it moved to its write owner, the People Directory
+(`services/users`).
+
+The non-identity operator handlers left `api/operator` for their owners
+(#3232), moved file for file with their adapter tests: provisioning and its
+summaries to `modules/organizationtenancy/inbound/operator`
+(`organization-tenancy`/`http`), the school settings routes to
+`modules/settings/inbound/operator` (`settings-platform`/`http`), and the
+announcement routes to `modules/communication/http/operatorannouncements`
+(`communication`/`http`), all with `adapter-test` in both test scopes. No
+route path, status code, error string or authorization check changed.
+`api/operator` keeps the router with its middleware chain, builds these
+resources from its configuration and mounts them
+(`inbound-operator.http.organization-tenancy-http`,
+`inbound-operator.http.settings-platform-http`,
+`inbound-operator.http.communication-http`). The operator error body and
+the operator-audited id action live in `api/common` (`OperatorErrResponse`,
+`OperatorAuditedIDAction`), so every half of the operator surface renders
+one wire format; `api/operator` keeps its `Err*` names as thin delegations.
+The three packages are the only packages of their points, which exist only
+in the candidate. The owner rules `organization-tenancy.http.public`,
+`settings-platform.http.organization-public` and `communication.http.public`
+are the target shape (an inbound adapter calling a public capability).
+Every other `organization-tenancy.http.*`,
+`organization-tenancy.adapter-test.*`, `settings-platform.http.*`,
+`settings-platform.adapter-test.*`, `communication.http.*` and
+`communication.adapter-test.*` rule is a compatibility permission for the
+retained services, rows, token claims, calendar date, tenant runtime and
+ORM the handlers still speak, including the `internal/timezone` edge the
+ticket names: convert them to exact debt with the rule above under #2736
+once the packages exist at a base SHA. The operator settings hook is now
+construction-time configuration (`SettingsConfig.OnValueSet`,
+`ResourceConfig.SettingValueSet`) instead of a setter, because the
+composition surface guard records mutable wiring per package.
+
+The review of unregistered RFID scans could not join a candidate-only
+point: `device-fleet`/`http` already exists (`api/iot/devices`,
+`modules/devicefleet/deviceauth`), so PR mode admits no new permission for
+it, and `inbound-operator` may not import that point. Its handlers in
+`modules/devicefleet/inbound/operator` therefore read and resolve scans
+through the public Device Fleet capability, label them through a
+consumer-owned school directory, and take the operator surface (error
+bodies, response envelope, authenticated operator, resolution fallback) as
+plain functions. The root composition binds the directory to Organisation &
+Tenancy (`api/school_directories.go`) and hands the built router to
+`api/operator`, which mounts it as a plain handler. The wire shape of a scan,
+the school and Träger narrowing and labelling, and the administrative
+transaction are unchanged. The retained `services/audit` review path
+(`ListForOperator`, `Resolve`) and its repository methods are deleted; the
+service keeps recording and expiring scans. The school MFA admin handlers
+stay in `api/operator` with the identity half (#3231), which also removes
+`api.go` and the package.
 
 The session end workflow (`workflows/sessionend`, owner `session-end`, kind
 `workflow`, #2697) is a cross-module write workflow of #2580. Its
@@ -871,7 +1099,7 @@ classification are gone, and with them the transitional
 `care-plan.application.parent-portal` edge and the last 47 `legacy.jsonl`
 entries that named the package (#3227 had already resolved six of its
 internal-test imports). The package keeps the public `Service` contract that
-`api/parent` and the service factory consume. No HTTP path, status code,
+the guardian portal HTTP composition and the service factory consume. No HTTP path, status code,
 error string, validation rule, authorization check or tenant scoping changed,
 and no table changed owner. The package could not join the existing
 `parent-portal`/`application` point: it still speaks the retained audit,
@@ -894,6 +1122,35 @@ construction-time configuration, because the composition surface guard
 records mutable wiring per package and a relocated setter would count as
 growth. The factory resolves the student-photo lifecycle on use, since the
 API bootstrap builds it after the parent services.
+
+The guardian portal HTTP composition (`modules/careplan/inbound/parent`,
+#3229) replaced `api/parent`, moved file for file with its adapter tests. It
+keeps the `inbound-parent` owner and the `http` / `adapter-test` roles, so the
+36 `legacy.jsonl` entries #2735 recorded for `api/parent` fell with the path,
+together with the root mount (#2750) and the calendar end-to-end import
+(#2748). No route path, method, status code, error string, authorization check
+or tenant scoping changed. Besides the `care-plan` capability that
+`inbound-parent.to.care-plan` names, the handlers still call the retained
+auth, enrollment and users services, the parent-portal adapter and the shared
+HTTP helpers directly, and match their result types and error values:
+routing those calls through the `modules/careplan` contract would add imports
+to the existing `care-plan`/`public` point, which PR mode rejects. The
+care-schedule diff row is named through the parent-portal adapter
+(`CareRequestDiffEntry`), so the production `services/schedule` import fell
+with the move; the adapter tests still build that vocabulary. After the move the package
+is the only `inbound-parent` package, so the point exists only in the
+candidate. Every `inbound-parent.http.*` and `inbound-parent.adapter-test.*`
+rule this move added, `root-composition.to.inbound-parent-http` and
+`test-support.e2e-test.inbound-parent-http` are compatibility permissions, not
+target dependencies. They cover every future `inbound-parent` package, so no
+other package may join that point before the conversion. Convert them to exact
+debt with the rule above under #2580 once the package exists at a base SHA;
+the `auth/jwt` and `services/auth` edges then wait for #2725. The move replaced
+the calendar, push, notification-preference and PWA-usage setters with a
+construction-time `ResourceConfig`, and the auth rate-limiter setter with
+`RouterWithAuthRateLimiter` (the school portal shape), because the
+composition surface guard records mutable wiring per package and a relocated
+setter would count as growth.
 
 The emergency snapshot read projection (`modules/emergencysnapshot`,
 `emergency-snapshot`/`public`, #2704) builds the Notfallliste, the present
@@ -1014,7 +1271,7 @@ same shapes. Every foreign fact enters through consumer-owned ports: the four
 queues, the correction log, the caller's rights, the group names and the
 Familienschutz flag. Its compatibility adapter (`modules/requestreview/legacy`,
 `request-review-view`/`adapter`) binds those ports to the retained
-`services/users`, `services/schedule`, `services/enrollment` review queues,
+`services/users`, `modules/careplan/legacy/careschedule`, `services/enrollment` review queues,
 the Care Plan excused-request contract, the retained review policy, people,
 education and Familienschutz services, and derives the per-row facts
 (urgency, past scope, version, conflict keys) with the owners' own rules.
@@ -1314,7 +1571,11 @@ A reviewed epoch may also let a target owner adopt an existing table
 `data_objects` entry is accepted when the table has no owner in the base
 policy, the base `legacy.jsonl` records at least one production
 `tables.unclassified` finding for it, and every package those findings name is
-classified under the adopting owner in the candidate or no longer exists. The
+classified under the adopting owner in the candidate, no longer exists, or no
+longer reads or writes the table in the candidate's current findings. The last
+case covers a shared legacy package whose access to the table moved to the
+adopting owner while the package itself stays for other tables
+([#3221](https://github.com/moto-nrw/project-phoenix/issues/3221)). The
 candidate must remove those findings from the baseline as usual. Transferring
 an owned table, adopting a table with no recorded debt, and adopting while a
 package of another owner still accesses it remain loosenings; after the

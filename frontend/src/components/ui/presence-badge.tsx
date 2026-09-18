@@ -5,7 +5,8 @@ import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
   getLocationBadgeTone,
-  isHomeLocation,
+  isAtSchoolLocation,
+  isNotCheckedInLocation,
   isSchoolyardLocation,
   parseLocation,
 } from "@/lib/location-helper";
@@ -15,7 +16,8 @@ import {
  *
  * Renders only three visual states: Anwesend (green), Schulhof (orange),
  * Abwesend (gray — LOCATION_COLORS.HOME is the neutral #6B7280 since the
- * palette move; red now means SICK/DANGER). No room details, no "Unterwegs",
+ * palette move; red now means SICK/DANGER), which reads "Schule" for an
+ * expected child before the first check-in (#3260). No room details, no "Unterwegs",
  * no display-mode switching.
  * Sick / excused overlays mirror LocationBadge so those students still look
  * right in binary-mode tenants.
@@ -37,7 +39,7 @@ import {
 function derivePresenceState(
   location?: string | null,
 ): "anwesend" | "schulhof" | "abwesend" {
-  if (!location || isHomeLocation(location)) {
+  if (isNotCheckedInLocation(location)) {
     return "abwesend";
   }
   if (isSchoolyardLocation(location)) {
@@ -162,6 +164,13 @@ function resolveBadgeStyle(
           : LOCATION_COLORS.SCHOOLYARD,
       };
     default:
+      // Before the first check-in an expected child is still in class (#3260).
+      if (isAtSchoolLocation(student.current_location)) {
+        return {
+          label: LOCATION_STATUSES.AT_SCHOOL,
+          color: LOCATION_COLORS.AT_SCHOOL,
+        };
+      }
       return { label: LOCATION_STATUSES.HOME, color: LOCATION_COLORS.HOME };
   }
 }

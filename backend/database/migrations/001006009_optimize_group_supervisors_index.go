@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/uptrace/bun"
 )
@@ -35,8 +34,6 @@ func init() {
 
 // addGroupSupervisorsCompositeIndex adds a composite index on (group_id, end_date)
 func addGroupSupervisorsCompositeIndex(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.6.9: Adding composite index on active.group_supervisors (group_id, end_date)...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -44,7 +41,7 @@ func addGroupSupervisorsCompositeIndex(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -66,8 +63,6 @@ func addGroupSupervisorsCompositeIndex(ctx context.Context, db *bun.DB) error {
 
 // dropGroupSupervisorsCompositeIndex drops the composite index
 func dropGroupSupervisorsCompositeIndex(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.6.9: Dropping composite index on active.group_supervisors...")
-
 	// Begin a transaction for atomicity
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
@@ -75,7 +70,7 @@ func dropGroupSupervisorsCompositeIndex(ctx context.Context, db *bun.DB) error {
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			log.Printf("Error rolling back transaction: %v", err)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 
 	"github.com/uptrace/bun"
 )
@@ -46,18 +45,13 @@ func init() {
 // Wichtigkeit, optionale Kenntnisnahme in einer eigenen Tabelle) — nur ohne
 // Zielgruppen: die Reichweite ist zunächst schulweit.
 func staffNoticesUp(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration starting", "migration", staffNoticesVersion)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Warn("migration rollback failed",
-				"migration", staffNoticesVersion,
-				"error", err,
-			)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -134,23 +128,17 @@ func staffNoticesUp(ctx context.Context, db *bun.DB) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit staff notices migration: %w", err)
 	}
-	slog.Info("migration finished", "migration", staffNoticesVersion)
 	return nil
 }
 
 func staffNoticesDown(ctx context.Context, db *bun.DB) error {
-	slog.Info("migration rollback starting", "migration", staffNoticesVersion)
-
 	tx, err := db.BeginTx(ctx, &sql.TxOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
 		if err := tx.Rollback(); err != nil && err.Error() != "sql: transaction has already been committed or rolled back" {
-			slog.Warn("migration rollback failed",
-				"migration", staffNoticesVersion,
-				"error", err,
-			)
+			logRollbackFailure(ctx, err)
 		}
 	}()
 
@@ -165,6 +153,5 @@ func staffNoticesDown(ctx context.Context, db *bun.DB) error {
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit staff notices rollback: %w", err)
 	}
-	slog.Info("migration rollback finished", "migration", staffNoticesVersion)
 	return nil
 }

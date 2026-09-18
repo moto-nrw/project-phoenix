@@ -1,6 +1,7 @@
 import type { Student } from "~/lib/api";
 import {
   isPresentLocation,
+  isAtSchoolLocation,
   isHomeLocation,
   isSchoolyardLocation,
   isTransitLocation,
@@ -112,6 +113,8 @@ export function matchesAttendanceFilter(
       return isTransitLocation(student.current_location);
     case "schoolyard":
       return isSchoolyardLocation(student.current_location);
+    case "at_school":
+      return isAtSchoolLocation(student.current_location);
     case "at_home":
       return isHomeLocation(student.current_location);
     default:

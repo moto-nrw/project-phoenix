@@ -88,10 +88,10 @@ func SetupTestDB(t testing.TB) *bun.DB {
 
 	// -short überspringt alle DB-Integrationstests: `go test -short ./...` ist
 	// der schnelle Inner-Loop (Unit-/AST-/Ratchet-Tests, keine Postgres-Last).
-	// -short darf NIE in CI laufen — es würde coverage.out aushöhlen und das
-	// Sonar-Gate (80% on new code) bedeutungslos machen, während junit Skips
-	// als grün meldet. Es überspringt auch TestRouteTableGolden und test/e2e —
-	// ein Filter für die lokale Entwicklungsschleife, kein Pre-Merge-Check.
+	// -short darf NIE in CI laufen — der junit-Report meldet Skips als grün,
+	// ein übersprungener Lauf sähe also bestanden aus. Es überspringt auch
+	// TestRouteTableGolden und test/e2e — ein Filter für die lokale
+	// Entwicklungsschleife, kein Pre-Merge-Check.
 	if testing.Short() {
 		t.Skip("skipping DB integration test in -short mode")
 	}

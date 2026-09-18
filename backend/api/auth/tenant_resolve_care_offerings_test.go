@@ -51,7 +51,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 	schoolService := authRoute.SchoolService
 	request := func(t *testing.T, settings configSvc.SettingsService) resolveCareOfferingsResponse {
 		t.Helper()
-		resource := authAPI.NewResource(authRoute.AuthService, authRoute.InvitationService, schoolService, authRoute.Sessions, db)
+		resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, schoolService, authRoute.Sessions, db)
 		resource.SettingsService = settings
 		router := chi.NewRouter()
 		router.Mount("/auth", resource.Router())

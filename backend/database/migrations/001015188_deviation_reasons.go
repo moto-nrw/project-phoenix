@@ -24,7 +24,6 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.188: Adding absence_reason + cancel_reason columns...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.instance_staff
 				ADD COLUMN IF NOT EXISTS absence_reason TEXT;
@@ -44,7 +43,6 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.188...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.activity_instances DROP COLUMN IF EXISTS cancel_reason;
 			`).Exec(ctx); err != nil {
