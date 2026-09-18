@@ -112,9 +112,9 @@ export async function fetchPickupExtensions(
     credentials: "include",
   });
   const responseData = await readData<{
-    data: { tasks: BackendPickupExtension[] | null };
+    tasks: BackendPickupExtension[] | null;
   }>(response);
-  return (responseData.data.tasks ?? []).map(mapPickupExtension);
+  return (responseData.tasks ?? []).map(mapPickupExtension);
 }
 
 /**

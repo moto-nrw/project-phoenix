@@ -7,29 +7,25 @@ describe("fetchPickupExtensions", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps the effective date of a weekday task", async () => {
+  it("reads the unwrapped task list returned by the BFF", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
         new Response(
           JSON.stringify({
-            success: true,
-            message: "Success",
-            data: {
-              tasks: [
-                {
-                  id: 7,
-                  student_id: 42,
-                  student_name: "Mia Beispiel",
-                  kind: "weekday",
-                  weekday: 2,
-                  effective_from: "2026-09-15",
-                  previous_pickup_time: "14:45",
-                  pickup_time: "16:00",
-                  blocks: [],
-                },
-              ],
-            },
+            tasks: [
+              {
+                id: 7,
+                student_id: 42,
+                student_name: "Mia Beispiel",
+                kind: "weekday",
+                weekday: 2,
+                effective_from: "2026-09-15",
+                previous_pickup_time: "14:45",
+                pickup_time: "16:00",
+                blocks: [],
+              },
+            ],
           }),
         ),
       ),
