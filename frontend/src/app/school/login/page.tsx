@@ -207,7 +207,14 @@ function LoginForm() {
         return;
       }
 
-      if (err instanceof MFAApiError && err.status === 401) {
+      // Ausgeschaltetes Konto: gleiche Begründung wie oben, das Passwort war
+      // korrekt. Die generische 401-Meldung schickt sonst in eine
+      // Passwort-Reset-Schleife, die nichts ändern kann (#3376).
+      if (err instanceof MFAApiError && err.code === "account_inactive") {
+        setError(
+          "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die OGS-Leitung.",
+        );
+      } else if (err instanceof MFAApiError && err.status === 401) {
         setError("Ungültige E-Mail oder Passwort");
       } else {
         setError(germanMFAErrorMessage(err));
