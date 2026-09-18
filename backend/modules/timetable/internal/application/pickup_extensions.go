@@ -338,8 +338,14 @@ func (s *Service) pickupExtensionBlocks(ctx context.Context, tasks []domain.Pick
 		return nil, err
 	}
 	for _, block := range blocks {
-		if !block.Member && targets[block.TaskID][block.ID] {
-			block.Member = true
+		if !block.Member {
+			targeted, hasTargetGroup := targets[block.TaskID][block.ID]
+			if hasTargetGroup {
+				if !targeted {
+					continue
+				}
+				block.Member = true
+			}
 		}
 		byTask[block.TaskID] = append(byTask[block.TaskID], block)
 	}
@@ -375,14 +381,14 @@ func (s *Service) pickupExtensionTargets(
 		if block.Member {
 			continue
 		}
-		task := tasks[block.TaskID]
-		if !slices.Contains(targets[block.ID], task.StudentID) {
+		if len(targetRules[block.ID]) == 0 {
 			continue
 		}
+		task := tasks[block.TaskID]
 		if result[block.TaskID] == nil {
 			result[block.TaskID] = make(map[int64]bool)
 		}
-		result[block.TaskID][block.ID] = true
+		result[block.TaskID][block.ID] = slices.Contains(targets[block.ID], task.StudentID)
 	}
 	return result, nil
 }

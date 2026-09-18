@@ -712,7 +712,14 @@ func TestModuleUsesCurrentPickupDateForTargets(t *testing.T) {
 		PreviousPickup: "14:45", Pickup: "16:00",
 	}))
 	task := pickupExtensionTask(t, module, ctx, child.ID)
-	assert.Equal(t, []int64{group.ID}, pickupExtensionBlockIDs(task.Blocks))
+	assert.Empty(t, task.Blocks, "a child outside the current target group cannot choose its template")
+	_, err = module.ResolvePickupExtension(ctx, task.ID, []int64{group.ID})
+	require.ErrorIs(t, err, timetable.ErrPickupExtensionBlockGone)
+	enrollments, err := module.ListStudentEnrollments(ctx, timetable.StudentEnrollmentFilter{
+		StudentIDs: []int64{child.ID}, ActivityGroupIDs: []int64{group.ID},
+	})
+	require.NoError(t, err)
+	assert.Empty(t, enrollments, "a rejected target-group block must not create a direct enrollment")
 }
 
 func TestModuleRejectsInvalidPickupExtensions(t *testing.T) {
