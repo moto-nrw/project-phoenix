@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -1176,11 +1175,11 @@ func (s *reportService) classRosterGroupNames(ctx context.Context, students []*u
 // non-empty class name. The shared participation rule filters that candidate
 // set after the one bulk query.
 func (s *reportService) classRosterStudents(ctx context.Context, filters ClassRosterFilters) ([]*userModels.Student, error) {
-	options := modelBase.NewQueryOptions()
+	schoolClass := ""
 	if !filters.AllClasses {
-		options.Filter.TrimEqual("school_class", filters.SchoolClass)
+		schoolClass = filters.SchoolClass
 	}
-	students, err := s.StudentRepo.ListWithOptions(ctx, options)
+	students, err := s.StudentRepo.ListClassRoster(ctx, schoolClass)
 	if err != nil {
 		return nil, fmt.Errorf("class roster report: list students: %w", err)
 	}

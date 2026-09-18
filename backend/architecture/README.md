@@ -82,6 +82,52 @@ tables: `users.profiles` belongs to the account, not the person, so its model,
 contract and repository move to `models/auth` and
 `database/repositories/auth` under `identity-access`.
 
+#3349 settles the one table two owners reached for: `users.privacy_consents`
+stays with `student-presence`. The recorded window bounds how long presence
+data is kept, and the GDPR cleanup reads it through that owner's
+`ListAcceptedRetentionSettings`; People Directory gives up the consent
+lifecycle it kept in `services/users` instead. The policy entry is unchanged —
+the decision is that the existing owner keeps the table, not that it changes
+hands. `audit.student_consent_changes` and `audit.student_field_edits` stay
+with `audit-platform` for the same reason: People Directory decides which of
+its fields are tracked and how a change reads, and appends through a
+consumer-owned port.
+
+#3349 moved the child's whole lifecycle to its owner, including the write.
+`StudentRepository.Update` looked like it crossed a boundary: between the row
+lock and the plan write it reconciles the `users.student_companions` edges a
+narrowed departure plan no longer allows, takes the far children's row locks for
+that, and refuses the write when dropping an edge would strand one of them. It
+does not cross one. `database/repositories/users` is already
+`people-directory/postgres` in `policy.json`, so that code was always on this
+owner's side of the line, reaching Care Plan through a port. Relocating it into
+`modules/peopledirectory/internal` changed no ownership; the port is now
+`ports.StudentCompanions`, bound to Care Plan's `compose.CompanionRecords` — a
+slice of that owner narrow enough to build from the database alone, which is
+what lets the directory have it without waiting for a Care Plan that needs the
+directory.
+
+Two things stayed shared rather than moving. `departure.StrandingBatch` is the
+scope a coordinated multi-child write defers its verdicts into: the owner
+decides them, but the caller opens the scope and carries it on its context, so
+the type lives in the leaf both sides already import. And
+`RecordCompanionChange` stays with the composition seam, because the
+`student_companions_changed` announcement travels on the caller's context too.
+
+`database/repositories/users/student.go` issues no SQL at all any more. What
+remains is the interface the retained `StudentRepository` still declares, each
+method reporting a configuration error when a graph reaches it without the
+owner bound — the composition root binds it for every graph, so the shell is
+reachable only by a mistake.
+
+The reads moved with the same care as the writes, because three of them are
+not what their names suggest: the class lookup matches trimmed and
+case-insensitively, the id list keeps graduates because one who is actually
+present must stay reachable, and the participation candidates and the class
+roster count graduates while every other roster read does not. That last
+distinction is now stated as `peopledirectory.StudentScope` rather than left to
+each query.
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe
@@ -251,6 +297,41 @@ Once recorded, the tuple follows the ordinary shrink-only and issue-audit
 rules. Restoring its target permission is still policy loosening. Removing the
 import requires removing its debt entry in the same change. No schema change
 or second allowlist is needed for the final contract step.
+
+### Relocating a package without losing its debt
+
+A violation is identified by `scope|rule|source|target`, so moving a package
+renames every key it appears in, in both directions, although no import, owner
+or role changed. [ADR 0020](../../docs/adr/0020-a-relocated-package-keeps-its-debt.md)
+lets a reviewed epoch declare that move in the optional `relocations` array,
+sorted by `from`:
+
+```json
+{"from":"models/auth","to":"modules/identityaccess/legacy/authmodels","issue":"https://github.com/moto-nrw/project-phoenix/issues/3226"}
+```
+
+PR mode then reads the base baseline at the candidate's paths. A declaration is
+active while `from` is still classified in the base policy; afterwards it is a
+record of which path became which, and it cannot replay. An active declaration
+must prove the epoch increased, that `from` is classified in the base policy
+and gone from the candidate while `to` is classified in the candidate and
+absent from the base, that owner and all three roles are identical on both
+sides, and that `to` holds exactly the Go files `from` held at the base commit.
+The file set comes from Git, not from the declaration, so a move that adds,
+drops or renames a file is a rewrite and keeps the ordinary guards. It compares
+names, not contents, which it cannot do because a relocation rewrites import
+paths and may rename the package clause. It is a sanity gate; the safety
+property is the unchanged violation-key set below.
+
+The declaration renames keys and grants nothing else. An added import has no
+renamed twin and stays a new violation, a changed migration issue is still a
+reassignment, and a base entry whose import disappeared is still stale. Rule
+anchoring does not read the declaration: whether a package counts as
+candidate-created still comes from Git, as for any package the candidate
+writes. Prefer a relocation over compatibility permissions whenever a package
+moves unchanged — it keeps each consumer's debt under the consumer's own
+migration issue instead of dropping it and re-deriving it later.
+
 
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as

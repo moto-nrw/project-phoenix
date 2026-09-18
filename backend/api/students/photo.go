@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -53,6 +54,11 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	defer common.CloseFile(uploaded.File)
 
+	if !rs.canModifyStudentPhoto(r.Context()) {
+		mapPhotoUploadError(w, r, peopleModule.ErrPhotoStudentForbidden)
+		return
+	}
+
 	consentAck := r.FormValue("consent_acknowledged") == "true"
 
 	// {tenantID}_{studentID} prefix prevents cross-tenant collisions and
@@ -87,6 +93,10 @@ func (rs *Resource) deleteStudentPhoto(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
+	if !rs.canModifyStudentPhoto(r.Context()) {
+		mapPhotoDeleteError(w, r, peopleModule.ErrPhotoStudentForbidden)
+		return
+	}
 	clearedURL, err := rs.StudentPhotos.CommitDelete(r.Context(), id)
 	if err != nil {
 		mapPhotoDeleteError(w, r, err)
@@ -110,6 +120,10 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	}
 	filename := chi.URLParam(r, "filename")
 
+	if !rs.canReadStudentPhoto(r.Context()) {
+		mapPhotoReadError(w, r, peopleModule.ErrPhotoStudentForbidden)
+		return
+	}
 	storedURL, err := rs.StudentPhotos.LookupForRead(r.Context(), id, filename)
 	if err != nil {
 		mapPhotoReadError(w, r, err)
@@ -128,18 +142,17 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 // mapPhotoUploadError maps service sentinels to HTTP status.
 func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, userService.ErrPhotoFeatureDisabled),
-		errors.Is(err, userService.ErrPhotoFeatureDisabledMid):
+	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled),
+		errors.Is(err, peopleModule.ErrPhotoFeatureDisabledMid):
 		render.Status(r, http.StatusForbidden)
 		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
-	case errors.Is(err, userService.ErrPhotoStudentNotFound):
+	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, userService.ErrPhotoStudentForbidden),
-		errors.Is(err, userService.ErrPhotoStudentReassigned):
+	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):
 		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to update this student's photo")))
-	case errors.Is(err, userService.ErrPhotoConsentRequired):
+	case errors.Is(err, peopleModule.ErrPhotoConsentRequired):
 		renderError(w, r, common.ErrorInvalidRequest(errors.New(msgConsentRequiredFirst))) //nolint:staticcheck // ST1005: user-facing German message
-	case errors.Is(err, userService.ErrPhotoConsentWithdrawn):
+	case errors.Is(err, peopleModule.ErrPhotoConsentWithdrawn):
 		// 409 — consent flipped between request and commit; frontend re-prompts.
 		renderError(w, r, common.ErrorConflictMessage(msgConsentWithdrawnRetry))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
@@ -151,13 +164,12 @@ func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 
 func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, userService.ErrPhotoFeatureDisabled):
+	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
 		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
-	case errors.Is(err, userService.ErrPhotoStudentNotFound):
+	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
-	case errors.Is(err, userService.ErrPhotoStudentForbidden),
-		errors.Is(err, userService.ErrPhotoStudentReassigned):
+	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):
 		renderError(w, r, common.ErrorForbidden(errors.New("insufficient permissions to delete this student's photo")))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
 		renderError(w, r, common.ErrorInvalidRequest(err))
@@ -168,16 +180,16 @@ func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 
 func mapPhotoReadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, userService.ErrPhotoFeatureDisabled):
+	case errors.Is(err, peopleModule.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
 		renderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, userService.ErrPhotoStudentNotFound):
+	case errors.Is(err, peopleModule.ErrStudentNotFound):
 		renderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, userService.ErrPhotoStudentForbidden):
+	case errors.Is(err, peopleModule.ErrPhotoStudentForbidden):
 		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotoForbiddenForAcct)))
-	case errors.Is(err, userService.ErrPhotoNotSet):
+	case errors.Is(err, peopleModule.ErrPhotoNotSet):
 		renderError(w, r, common.ErrorNotFound(errors.New(msgPhotoNotFound)))
-	case errors.Is(err, userService.ErrPhotoFilenameMismatch):
+	case errors.Is(err, peopleModule.ErrPhotoFilenameMismatch):
 		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotoBelongsToOther)))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
 		renderError(w, r, common.ErrorInvalidRequest(err))

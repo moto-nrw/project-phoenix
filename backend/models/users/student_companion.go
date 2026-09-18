@@ -158,20 +158,7 @@ func (c *StudentCompanion) Other(studentID int64) (int64, bool) {
 // exist on a day the plan actually allows. Without that, a child's Stammdaten
 // could read "geht immer alleine" and "läuft mit Sophie" at the same time.
 func AccompaniedWeekdays(allowed AllowedDepartureModes, days DepartureDays) map[string]bool {
-	out := make(map[string]bool, len(PickupDayOrder))
-	for _, day := range PickupDayOrder {
-		if modes, ok := allowed[day]; ok {
-			for _, mode := range modes {
-				if mode == DepartureAccompanied {
-					out[day] = true
-				}
-			}
-		}
-		if days[day] == DepartureAccompanied {
-			out[day] = true
-		}
-	}
-	return out
+	return DeparturePlan{AllowedDepartureModes: allowed, DepartureDays: days}.AccompaniedDays()
 }
 
 // WithAccompaniedDays returns a copy of the allowed-modes map that additionally

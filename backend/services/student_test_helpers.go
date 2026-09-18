@@ -51,8 +51,12 @@ type StudentTestModule struct {
 	ExcusedRequests    careplan.ExcusedAbsenceRequests
 	MasterDataReview   users.MasterDataReviewService
 	ParentRequests     *users.ParentRequestCoordinator
-	FamilyProtection   *users.FamilyProtectionService
 	OGSGroupLive       grouplive.Query
+	StudentPhotos      users.StudentPhotoService
+	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
+	// and file cleanup. Adapter tests assert on both, and the stored files are
+	// an api-layer concern this graph cannot supply.
+	NewStudentPhotos func(PhotoBroadcaster, users.PhotoUnlinker) users.StudentPhotoService
 }
 
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
@@ -131,7 +135,16 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	emailOutboxService := delivery.EmailOutbox
 	frontendURL := currentFactoryConfig().FrontendURL
 	parentsURL := currentFactoryConfig().ParentsURL
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
+	studentConsentService := repositories.NewStudentConsents(db)
+	// The stored files live in the API layer, so a services-only graph binds
+	// no unlinker: the runtime skips the cleanup instead of guessing a path.
+	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker users.PhotoUnlinker) users.StudentPhotoService {
+		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
+			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
+			Consents: studentConsentService, Logger: logger,
+		})
+	}
+	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	users.WirePersonCareParticipation(usersService, careLifecycleService)
 	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
@@ -323,7 +336,6 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	parentRequestCoordinator.SetCareConflictPort(careRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetOfferingConflictPort(offeringChangeRequestService.(users.ParentRequestConflictPort))
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
-	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 	substitutionService := education.NewSubstitutionModule(education.SubstitutionDependencies{
 		Groups: repos.Group, Substitutions: contextRepos.Substitutions, Persons: newEducationPersonQuery(persons),
 		Teachers: repos.Teacher, Staff: repos.Staff, Actors: substitutionActorResolver{identity: userContextService},
@@ -378,10 +390,11 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 	}
 	return StudentTestModule{
 		ActiveTestModule: live, GradeTransitionTestModule: grade, PeopleDirectory: persons, Audit: auditCommand,
+		StudentPhotos: studentPhotoService, NewStudentPhotos: newStudentPhotos,
 		Schools: repos.School, CareLifecycle: careLifecycleService, StudentAudit: studentAuditService,
 		PartialAbsence: partialAbsenceService, EnrollmentDecision: enrollmentDecisionService, CareRequests: careRequestService,
 		OfferingChanges: offeringChangeRequestService, PickupAdjustments: pickupAdjustmentService, ExcusedRequests: excusedRequestService,
-		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, FamilyProtection: familyProtectionService, OGSGroupLive: ogsGroupLiveService,
+		MasterDataReview: masterDataReviewService, ParentRequests: parentRequestCoordinator, OGSGroupLive: ogsGroupLiveService,
 	}, nil
 }
 

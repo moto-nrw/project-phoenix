@@ -266,7 +266,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
+	audit := userService.NewStudentAuditService(repositories.NewStudentAudit(db))
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -282,7 +282,7 @@ func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	student, err := repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "2b", student.SchoolClass)
 }
@@ -434,7 +434,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default())
+	audit := userService.NewStudentAuditService(repositories.NewStudentAudit(db))
 	svc := userService.NewMasterDataReviewServiceWithAuditAndPolicy(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, audit, testpkg.RequestReviewPolicy{}, nil, slog.Default())
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -446,7 +446,7 @@ func TestMasterDataReview_ApproveAppliesDepartureModes(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	student, err := repos.Student.FindByID(context.Background(), chain.StudentID)
+	student, err := repos.Student.FindByID(testpkg.WithPackageTenantRuntime(context.Background()), chain.StudentID)
 	require.NoError(t, err)
 	assert.Equal(t, []userModels.DepartureMode{userModels.DepartureBus}, student.AllowedDepartureModes[userModels.PickupDayMonday])
 	assert.Equal(t, []userModels.DepartureMode{userModels.DeparturePickup}, student.AllowedDepartureModes[userModels.PickupDayWednesday])

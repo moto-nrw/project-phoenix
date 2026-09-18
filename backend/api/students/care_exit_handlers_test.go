@@ -18,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -42,7 +43,7 @@ func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritati
 			CleanupRepo:    repos.CareExitCleanup,
 			WithdrawalRepo: repos.CareWithdrawal,
 			TagReleaser:    repos.TagReleaser,
-			AuditService:   userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+			AuditService:   userService.NewStudentAuditService(repositories.NewStudentAudit(tc.db)),
 			BookingsAuthoritative: func(context.Context) (bool, error) {
 				return authoritative, nil
 			},
