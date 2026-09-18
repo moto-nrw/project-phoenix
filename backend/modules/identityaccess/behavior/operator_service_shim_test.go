@@ -20,10 +20,6 @@ func clientAddressOf(clientIP net.IP) string {
 	return clientIP.String()
 }
 
-func (s operatorServiceShim) IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error) {
-	return s.module.IssueTokensForAuthenticatedOperator(ctx, operatorID, ipAddress, userAgent)
-}
-
 func (s operatorServiceShim) InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
 	return s.module.InitiateOperatorEmailChange(ctx, identityaccess.OperatorEmailChangeRequest{
 		OperatorID: operatorID, NewEmail: newEmail, CurrentPassword: currentPassword,
@@ -66,12 +62,4 @@ func (s operatorServiceShim) RevokeOperatorInvitation(ctx context.Context, invit
 
 func (s operatorServiceShim) ResendOperatorInvitation(ctx context.Context, invitationID, actorID int64, clientIP net.IP) error {
 	return s.module.ResendOperatorInvitationByActor(ctx, invitationID, actorID, clientAddressOf(clientIP))
-}
-
-func (s operatorServiceShim) CleanupExpiredOperatorInvitations(ctx context.Context) (int, error) {
-	return s.module.DeleteExpiredOperatorInvitations(ctx)
-}
-
-func (s operatorServiceShim) ListOperators(ctx context.Context) ([]identityaccess.Operator, error) {
-	return s.module.ListOperators(ctx)
 }
