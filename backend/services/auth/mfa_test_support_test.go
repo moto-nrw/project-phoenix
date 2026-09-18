@@ -2,6 +2,7 @@ package auth_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,5 +145,24 @@ func withFailingMFARecords(replace failingMFARecords) services.AuthTestOption {
 	return services.WithAuthTestMFARecords(func(records services.AccountMFARecords) services.AccountMFARecords {
 		replace.AccountMFARecords = records
 		return replace
+	})
+}
+
+// requiredAdminsPolicy is the verdict a school with security.mfa_mode
+// "required_admins" produces: the second factor is required of the admin
+// role and of nobody else. The gate holds the policy as an interface, so a
+// test that drives a branch supplies the predicate directly.
+type mfaPolicyFunc func(roleNames []string) bool
+
+func (f mfaPolicyFunc) RequiredFor(roleNames []string) bool { return f(roleNames) }
+
+func requiredAdminsPolicy() auth.MFAPolicy {
+	return mfaPolicyFunc(func(roleNames []string) bool {
+		for _, name := range roleNames {
+			if strings.EqualFold(name, "admin") {
+				return true
+			}
+		}
+		return false
 	})
 }

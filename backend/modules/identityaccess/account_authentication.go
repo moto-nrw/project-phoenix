@@ -182,11 +182,6 @@ type MFAPolicy interface {
 	RequiredFor(roleNames []string) bool
 }
 
-// MFAPolicyFunc adapts a predicate to MFAPolicy.
-type MFAPolicyFunc func(roleNames []string) bool
-
-func (f MFAPolicyFunc) RequiredFor(roleNames []string) bool { return f(roleNames) }
-
 // Authentication audit event types, as the Audit platform stores them.
 const (
 	AuthEventLogin                    = "login"

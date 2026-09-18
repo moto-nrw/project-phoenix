@@ -13,8 +13,6 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/auth/authtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -862,12 +860,12 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 			assignment.SetTenantID(tenantID)
 			_, err := db.NewInsert().Model(assignment).ModelTableExpr(`auth.account_roles`).Exec(context.Background())
 			require.NoError(t, err)
-			return identityaccess.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
+			return requiredAdminsPolicy(), nil
 		},
 		// The guard re-reads the policy inside the mint transaction; the school
 		// still says `required_admins`, and this time it meets the admin role.
 		ResolveMFAPolicyInTxFn: func(context.Context, int64, int64) (auth.MFAPolicy, error) {
-			return identityaccess.MFAPolicyForMode(configModels.MFAModeRequiredAdmins), nil
+			return requiredAdminsPolicy(), nil
 		},
 		HasMFAEnrollmentFn: func(context.Context, int64) (bool, error) { return true, nil },
 		StartMFAChallengeFn: func(_ context.Context, _, _ int64, scope string, _ net.IP) (string, error) {

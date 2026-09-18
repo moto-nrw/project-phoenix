@@ -316,24 +316,3 @@ func (m *Module) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, t
 func (m *Module) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {
 	return m.engine.GetGlobalMFAOverride(ctx, accountID)
 }
-
-// MFAPolicyForMode is the verdict a school's security.mfa_mode produces,
-// applied to a role set by RequiredFor. A composition that supplies its own
-// capability answers with it.
-func MFAPolicyForMode(mode string) MFAPolicy {
-	return MFAPolicyFunc(func(roleNames []string) bool {
-		switch mode {
-		case MFAModeRequiredAll:
-			return true
-		case MFAModeRequiredAdmins:
-			for _, name := range roleNames {
-				if name == AdminRoleName {
-					return true
-				}
-			}
-			return false
-		default:
-			return false
-		}
-	})
-}
