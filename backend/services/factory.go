@@ -235,7 +235,7 @@ type Factory struct {
 	OperatorProvisioning organizationtenancy.Provisioning
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
-	Students             users.StudentService
+	Students             StudentServices
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        carelifecycle.CareLifecycleService
 	StudentAudit         users.StudentAuditService
@@ -2989,7 +2989,7 @@ func newFactory(
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              organizations,
-		Students:             studentService,
+		Students:             StudentServices{Directory: studentService, Companions: companionService},
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,

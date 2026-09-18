@@ -46,7 +46,7 @@ func TestCareWithdrawalLifecycle_AllowsRetroactiveExitButNotBeforeAttendance(t *
 	checkedInAt := today.AddDays(-1).BerlinMidnight().Add(9 * time.Hour)
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID,
 		scheduleModels.AttendanceStatusPresent, testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, today)
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, today)
 
 	_, err = svc.PreviewWithdrawalCareEnd(ctx, completion.ID, carelifecycle.CareExitInput{
 		LastCareDay: today.AddDays(-2), Reason: userModels.CareExitReasonNoCareNeed,
@@ -125,7 +125,7 @@ func TestCareWithdrawalLifecycle_ConcurrentCompletionWritesOneResult(t *testing.
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mika", "Parallel", "3a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate().AddDays(1))
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, timezone.TodayDate().AddDays(1))
 	input := carelifecycle.CareExitInput{LastCareDay: timezone.TodayDate(), Reason: userModels.CareExitReasonNoCareNeed}
 	preview, err := svc.PreviewWithdrawalCareEnd(ctx, completion.ID, input)
 	require.NoError(t, err)
@@ -170,7 +170,7 @@ func TestCareWithdrawalLifecycle_ResolvedCompletionIsAConflict(t *testing.T) {
 	svc := newCareLifecycleService(t, db)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Mila", "Erledigt", "3a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, timezone.TodayDate())
 	changed, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal.MarkResolved(ctx, completion.ID, actorID, time.Now())
 	require.NoError(t, err)
 	require.True(t, changed)
@@ -192,7 +192,7 @@ func TestCareWithdrawalLifecycle_CancellingPlannedExitRestoresTask(t *testing.T)
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Nele", "Storno", "2b")
 	firstGap := today.AddDays(2)
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, firstGap)
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, firstGap)
 	input := carelifecycle.CareExitInput{
 		LastCareDay: firstGap.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
 	}
@@ -226,7 +226,7 @@ func TestCareWithdrawalLifecycle_CancellingLaterOrdinaryExitDoesNotRestoreOldTas
 	actorID := careActor(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Nele", "Neuer Austritt", "2b")
 	firstGap := timezone.TodayDate().AddDays(2)
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, actorID, firstGap)
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, actorID, firstGap)
 	withdrawal := carelifecycle.CareExitInput{
 		LastCareDay: firstGap.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
 	}

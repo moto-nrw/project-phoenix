@@ -15,10 +15,12 @@
 // retained `models/users` rows, the retained audit contracts, the shared
 // authorization helpers and the Bun database, so it could not land on Care
 // Plan's `application` point: those imports are permissions PR mode cannot
-// record as debt for an existing package. The services sit behind the public
-// `careplan.CareExitWorkflow`, `careplan.CompanionLinks` and
-// `careplan.CareDocuments` contracts instead, so the handlers already talk to
-// the owner's vocabulary while the implementation catches up (#2731).
+// record as debt for an existing package. The three service contracts
+// therefore still live here — `CareLifecycleService`, `StudentCompanionService`
+// and `StudentDocumentService` — and `api/students` holds them from this
+// package rather than from `careplan` itself. Dissolving them into the Care
+// Plan application and domain layers, behind the module's public contract, is
+// the remaining step and belongs to #2731.
 package carelifecycle
 
 import (

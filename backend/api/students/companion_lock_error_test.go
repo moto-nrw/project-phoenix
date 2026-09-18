@@ -54,8 +54,8 @@ func TestUpdateStudentTxErrorRenderer_CompanionLockBusy(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 	})
 
-	t.Run("the services and models sentinels are the same instance", func(t *testing.T) {
-		// services/users re-exports the models sentinel. If that ever becomes a
+	t.Run("the Care Plan and models sentinels are the same instance", func(t *testing.T) {
+		// carelifecycle re-exports the models sentinel. If that ever becomes a
 		// separate errors.New, the repository's error would silently fall
 		// through to the 500 branch.
 		assert.Equal(t, userModels.ErrCompanionLockBusy, carelifecycle.ErrCompanionLockBusy)

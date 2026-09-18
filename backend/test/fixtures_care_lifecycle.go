@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -17,18 +16,24 @@ import (
 // rather than in either package because both suites need the identical
 // starting state and a second copy is how the two drift apart.
 
+// CareWithdrawalWriter is the slice of the withdrawal repository the fixture
+// stores through. Care Plan owns the task's upsert rule (one pending task per
+// child, a school confirmation surviving a booking expiry), so the fixture
+// asks the owner rather than inserting a row the owner would never write.
+type CareWithdrawalWriter interface {
+	UpsertPending(ctx context.Context, completion *users.CareWithdrawalCompletion) error
+}
+
 // CreateTestCareWithdrawalCompletion stores one pending withdrawal task for
 // the child: the school confirmed the withdrawal and firstGap is the first day
-// without a booking. The row is written directly because a fixture states the
-// starting position; the flows under test are the ones that change it.
+// without a booking.
 func CreateTestCareWithdrawalCompletion(
 	tb testing.TB,
-	db *bun.DB,
+	withdrawals CareWithdrawalWriter,
 	studentID, actorID int64,
 	firstGap timezone.Date,
 ) *users.CareWithdrawalCompletion {
 	tb.Helper()
-	ctx := Ctx(tb)
 	row := &users.CareWithdrawalCompletion{
 		StudentID:               &studentID,
 		FirstBookinglessDay:     firstGap,
@@ -36,14 +41,8 @@ func CreateTestCareWithdrawalCompletion(
 		WithdrawalConfirmedBy:   &actorID,
 		WithdrawalConfirmedRole: "admin",
 		WithdrawalConfirmedAt:   time.Now(),
-		SourceOfferings:         []users.CareExitSourceOffering{},
-		State:                   users.CareWithdrawalStatePending,
 	}
-	row.TenantID = tenant.FromContext(ctx)
-	_, err := db.NewInsert().Model(row).
-		ModelTableExpr("users.care_withdrawal_completions").
-		Exec(ctx)
-	require.NoError(tb, err)
+	require.NoError(tb, withdrawals.UpsertPending(Ctx(tb), row))
 	return row
 }
 

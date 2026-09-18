@@ -28,12 +28,15 @@ import (
 // last care day, and ending their offering and activity bookings there.
 //
 // They span schemas no single domain repository owns (users, active,
-// enrollment, schedule, activities), which is the documented exception in
-// backend-conventions rule 11 — the raw SQL lives here, never in the service.
-// Enrollment's application identity and Care Plan's effective bookings arrive
-// through a composed owner capability; the remaining SQL joins those recordsets.
-// Keeping them together also keeps the counting half (the preview) and the
-// writing half (the confirmation) side by side, where a divergence is
+// enrollment, schedule, activities), and every one of them now reaches its
+// owner: Timetable's roster and bookings, Care Plan's removal ledger and
+// weekly plans, Enrollment's source bookings, Student Presence's open rows.
+// The reads that are nobody's write — the child rows the preview freezes and
+// the booking evaluation interprets — go through the named projection
+// careexitview, so this repository issues no SQL of its own.
+//
+// Keeping the operations together keeps the counting half (the preview) and
+// the writing half (the confirmation) side by side, where a divergence is
 // visible.
 type CareExitCleanupRepository struct {
 	db          *bun.DB
@@ -190,7 +193,7 @@ type CalendarPeriodDirectory interface {
 	ListCalendarPeriodIDs(ctx context.Context) ([]int64, error)
 }
 
-var errCalendarPeriodDirectoryRequired = errors.New("users repositories: calendar period directory is not bound")
+var errCalendarPeriodDirectoryRequired = errors.New("care exit cleanup: calendar period directory is not bound")
 
 // CareExitCleanupDependencies wires the repository once, at construction.
 //
@@ -243,7 +246,7 @@ func (r *CareExitCleanupRepository) calendarPeriods() CalendarPeriodDirectory { 
 
 func (r *CareExitCleanupRepository) requireActivityBookings() error {
 	if r.activityBookings() == nil {
-		return errors.New("users repositories: activity booking directory is not bound")
+		return errors.New("care exit cleanup: activity booking directory is not bound")
 	}
 	return nil
 }
@@ -931,7 +934,10 @@ func (r *CareExitCleanupRepository) listCareBookingStudents(
 ) ([]userModels.CareBookingFacts, error) {
 	rows, err := careexitview.ListCareStudents(
 		ctx, base.GetDB(ctx, r.db), tenant.FromContext(ctx), on, studentIDs,
-		string(userModels.StudentStatusInactive), string(userModels.StudentStatusActive),
+		careexitview.CareStudentStatuses{
+			Inactive: string(userModels.StudentStatusInactive),
+			Active:   string(userModels.StudentStatusActive),
+		},
 	)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list current care students for booking evaluation", Err: base.TranslateNotFound(err)}

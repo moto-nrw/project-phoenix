@@ -27199,17 +27199,6 @@
       "target_role": "adapter"
     },
     {
-      "id": "root-composition.compose.inbound-students-adapter",
-      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-students",
-      "target_role": "adapter"
-    },
-    {
       "id": "care-exit-view.postgres.enrollment-public",
       "description": "The care-exit read projection modules/careplan/legacy/careexitview (#3350) joins the Enrollment offering-link record columns, which that owner names. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
       "scopes": [

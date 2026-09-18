@@ -30,6 +30,12 @@ func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
 	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 }
 
+// careWithdrawals is the Care Plan repository the withdrawal fixture stores
+// through, so a staged task obeys the owner's one-pending-task-per-child rule.
+func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
+}
+
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
 // whose "mit wem" is answered only by the structured link. The API cannot
 // express that order (the note is required until a link exists), but stored

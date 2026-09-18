@@ -54,6 +54,12 @@ func studentPlans(db *bun.DB) testpkg.StudentPlanWriter {
 	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student
 }
 
+// careWithdrawals is the Care Plan repository the withdrawal fixture stores
+// through, so a staged task obeys the owner's one-pending-task-per-child rule.
+func careWithdrawals(db *bun.DB) testpkg.CareWithdrawalWriter {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).CareWithdrawal
+}
+
 // clearCompanionNote drops the free-text note straight in SQL, leaving a child
 // whose "mit wem" is answered only by the structured link — the state in which
 // deleting the far end would strand them.
@@ -588,7 +594,7 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 			document := storeStudentDocument(t, ctx, f.repos.StudentDocument, target.ID, f.actorID,
 				userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("rollback-%s-%d.pdf", phase, target.ID))
-			completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, target.ID, f.actorID, timezone.TodayDate())
+			completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), target.ID, f.actorID, timezone.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
 			history := &educationModels.GradeTransitionHistory{
 				TransitionID: transition.ID, StudentID: target.ID, PersonName: "Rollback Target",
@@ -726,17 +732,17 @@ func TestStudentDeletionWorkflow_RedactsPendingWithdrawalOutsideCompletionFlow(t
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Direktloeschung", "3b")
-	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate())
 	resolvedAt := time.Now().Add(-2 * time.Hour)
 	changed, err := f.repos.CareWithdrawal.MarkResolved(ctx, resolved.ID, f.actorID, resolvedAt)
 	require.NoError(t, err)
 	require.True(t, changed)
-	obsolete := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate().AddDays(1))
+	obsolete := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate().AddDays(1))
 	obsoleteAt := time.Now().Add(-time.Hour)
 	changed, err = f.repos.CareWithdrawal.MarkObsoleteForRebooking(ctx, student.ID, timezone.TodayDate(), obsoleteAt)
 	require.NoError(t, err)
 	require.True(t, changed)
-	pending := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate().AddDays(2))
+	pending := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate().AddDays(2))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -778,7 +784,7 @@ func TestStudentDeletionWorkflow_WithdrawalDeletesStudentAndRedactsCompletionAto
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Loeschung", "2a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate())
 	workflow := f.workflow(t)
 
 	preview, err := workflow.PreviewWithdrawal(ctx, completion.ID)
@@ -825,7 +831,7 @@ func TestStudentDeletionWorkflow_WithdrawalTakesClassWritesBeforeRecurrence(t *t
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lock", "Order", "2a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, careWithdrawals(db), student.ID, f.actorID, timezone.TodayDate())
 
 	order := &[]string{}
 	f.deps.Directory = recordingClassWritesDirectory{Directory: f.deps.Directory, order: order}

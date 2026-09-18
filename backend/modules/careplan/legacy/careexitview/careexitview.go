@@ -291,6 +291,19 @@ func ListBookingExpiries(
 	return rows, nil
 }
 
+// CareStudentStatuses names the two lifecycle values the candidate filter
+// compares against. They arrive as one value rather than two adjacent strings
+// because the caller owns the child's status vocabulary and swapping them
+// would silently widen the candidate set.
+type CareStudentStatuses struct {
+	// Inactive is the status a child left with no enrolment interval at all
+	// carries; such a child is not a candidate.
+	Inactive string
+	// Active is the status that keeps a child a candidate even when their
+	// enrolment start is still in the future (immediate activation).
+	Active string
+}
+
 // ListCareStudents reads the children the booking evaluation covers: the given
 // ids, or every child whose enrolment interval contains on.
 func ListCareStudents(
@@ -299,7 +312,7 @@ func ListCareStudents(
 	tenantID int64,
 	on timezone.Date,
 	studentIDs []int64,
-	inactiveStatus, activeStatus string,
+	statuses CareStudentStatuses,
 ) ([]CareStudentRow, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
@@ -318,8 +331,8 @@ func ListCareStudents(
 		query = query.Where(`"student".id IN (?)`, bun.List(studentIDs))
 	} else {
 		query = query.
-			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`, inactiveStatus).
-			Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ? OR "student".status = ?)`, on, activeStatus).
+			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`, statuses.Inactive).
+			Where(`("student".enrolled_from IS NULL OR "student".enrolled_from <= ? OR "student".status = ?)`, on, statuses.Active).
 			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, on)
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
