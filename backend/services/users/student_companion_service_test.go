@@ -2,7 +2,6 @@ package users_test
 
 import (
 	"context"
-	"log/slog"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -21,7 +20,7 @@ import (
 // the mock.
 func newCompanionTestService(db *bun.DB) usersService.StudentService {
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return usersService.NewStudentService(factory.Student, repositories.NewStudentPrivacyConsentStore(db), factory.StudentCompanion, nil)
+	return usersService.NewStudentService(repositories.NewStudentDirectory(repositories.MustNewPeopleDirectory(db)), repositories.MustNewPeopleDirectory(db), factory.Student, factory.StudentCompanion, nil)
 }
 
 // setAccompaniedDays gives the student an "Anderes Kind" departure plan on the
@@ -214,10 +213,12 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 		LastName:  "Confirm",
 	})
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	audit := usersService.NewStudentAuditService(factory.StudentFieldEdit, slog.Default())
+	audit := usersService.NewStudentAuditService(repositories.NewStudentAudit(db))
+	directory := repositories.MustNewPeopleDirectory(db)
 	service := usersService.NewStudentService(
+		repositories.NewStudentDirectory(directory),
+		directory,
 		factory.Student,
-		repositories.NewStudentPrivacyConsentStore(db),
 		factory.StudentCompanion,
 		audit,
 	)

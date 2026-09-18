@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -184,7 +185,7 @@ func newWithdrawalLifecycle(env *decisionTestEnv) usersService.CareLifecycleServ
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
-		AuditService: usersService.NewStudentAuditService(env.repos.StudentFieldEdit, slog.Default()),
+		AuditService: usersService.NewStudentAuditService(repositories.NewStudentAudit(env.db)),
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return env.settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
 		},
@@ -299,7 +300,7 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 		StudentRepo: repos.Student, PersonRepo: repos.Person,
 		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
 		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.StudentTagReleaser(),
-		AuditService: usersService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+		AuditService: usersService.NewStudentAuditService(repositories.NewStudentAudit(f.env.db)),
 		LockCareBookingWrites: func(ctx context.Context) error {
 			close(f.completionWaiting)
 			return f.recurrenceGate(ctx)

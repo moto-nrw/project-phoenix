@@ -4,22 +4,36 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	usersService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 const (
-	ChildConsentStateGranted     = usersService.StudentConsentStateGranted
-	ChildConsentStateWithdrawn   = usersService.StudentConsentStateWithdrawn
-	ChildConsentStateNotRecorded = usersService.StudentConsentStateNotRecorded
+	ChildConsentStateGranted     = usersModels.StudentConsentStateGranted
+	ChildConsentStateWithdrawn   = usersModels.StudentConsentStateWithdrawn
+	ChildConsentStateNotRecorded = usersModels.StudentConsentStateNotRecorded
 )
 
-type ChildConsent = usersService.StudentConsentState
+type ChildConsent = usersModels.StudentConsentState
+
+// StudentConsentService is the consent surface this portal needs: the shared
+// projection People Directory folds together, and the Audit Platform trail
+// every effective change appends to. The composition root binds both (#3349).
+type StudentConsentService interface {
+	CurrentStates(ctx context.Context, student *usersModels.Student, canManagePhoto bool) ([]ChildConsent, error)
+	RecordTransitions(
+		ctx context.Context,
+		before, after *usersModels.Student,
+		source string,
+		actorAccountID *int64,
+		changedAt time.Time,
+	) error
+}
 
 type photoConsentAction string
 
@@ -115,7 +129,7 @@ func (s *service) setPhotoConsent(ctx context.Context, accountID, studentID int6
 			wasWithdrawn := false
 			for _, consent := range currentStates {
 				if consent.Key == auditModels.StudentConsentPhoto {
-					wasWithdrawn = consent.State == usersService.StudentConsentStateWithdrawn
+					wasWithdrawn = consent.State == usersModels.StudentConsentStateWithdrawn
 					break
 				}
 			}

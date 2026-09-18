@@ -447,15 +447,12 @@ func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListP
 // params.studentIDs (if set by a pre-filter above) and combines it with
 // school_class / guardian_name and pagination.
 func (rs *Resource) runStandardStudentQuery(ctx context.Context, params *studentListParams) ([]*users.Student, int, error) {
-	queryOptions := params.buildQueryOptions()
-	countOptions := params.buildCountOptions()
-
-	totalCount, err := rs.StudentService.CountWithOptions(ctx, countOptions)
+	totalCount, err := rs.StudentService.CountStudents(ctx, params.buildDirectoryFilter())
 	if err != nil {
 		return nil, 0, err
 	}
 
-	students, err := rs.StudentService.ListWithOptions(ctx, queryOptions)
+	students, err := rs.StudentService.ListStudents(ctx, params.buildPagedDirectoryFilter())
 	if err != nil {
 		return nil, 0, err
 	}

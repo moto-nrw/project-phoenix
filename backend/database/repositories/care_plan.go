@@ -149,9 +149,6 @@ func (f *Factory) bindCarePlanAdapters(capability careplan.Capability) {
 	companion := carePlanLegacy.NewCompanionRepository(capability)
 	f.StudentCompanion = companion
 	f.StudentDocument = carePlanLegacy.NewCareDocumentRepository(capability)
-	if repository, ok := f.Student.(*usersRepo.StudentRepository); ok {
-		repository.BindCompanionRepository(companion)
-	}
 	f.bindCarePlanAuditDirectory()
 
 	if repository, ok := f.CareExitCleanup.(*usersRepo.CareExitCleanupRepository); ok {

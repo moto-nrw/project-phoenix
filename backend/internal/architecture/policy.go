@@ -26,6 +26,9 @@ type Policy struct {
 	ExternalClasses   []string          `json:"external_classes"`
 	ExternalPackages  []ExternalPackage `json:"external_packages"`
 	Rules             []Rule            `json:"rules"`
+	// Relocations records the package renames of a reviewed epoch (ADR 0020).
+	// It is optional: a policy without one declares no move.
+	Relocations []Relocation `json:"relocations,omitempty"`
 }
 
 type DataObject struct {
@@ -160,6 +163,9 @@ func (p *Policy) Validate() error {
 		return err
 	}
 	if err := p.validateExternalPackages(classes); err != nil {
+		return err
+	}
+	if err := p.validateRelocations(); err != nil {
 		return err
 	}
 	return p.validateRules(owners, roles, classes)

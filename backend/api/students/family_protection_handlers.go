@@ -8,8 +8,10 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 type setFamilyProtectionBody struct {
@@ -27,30 +29,27 @@ type familyProtectionResponse struct {
 }
 
 func (rs *Resource) getFamilyProtection(w http.ResponseWriter, r *http.Request) {
-	if rs.FamilyProtectionService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("family protection service not configured")))
+	if rs.FamilyProtection == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("family protection capability is not configured")))
 		return
 	}
 	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid student id")
 	if !ok {
 		return
 	}
-	current, err := rs.FamilyProtectionService.Current(r.Context(), []int64{studentID})
+	current, err := rs.FamilyProtection.CurrentFamilyProtection(r.Context(), []int64{studentID})
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	event := current[studentID]
-	response := familyProtectionResponse{StudentID: strconv.FormatInt(studentID, 10)}
-	if event != nil {
-		response.Enabled = event.Enabled
-	}
-	common.Respond(w, r, http.StatusOK, response, "Family protection retrieved")
+	common.Respond(w, r, http.StatusOK, familyProtectionResponse{
+		StudentID: strconv.FormatInt(studentID, 10), Enabled: current[studentID],
+	}, "Family protection retrieved")
 }
 
 func (rs *Resource) setFamilyProtection(w http.ResponseWriter, r *http.Request) {
-	if rs.FamilyProtectionService == nil {
-		renderError(w, r, common.ErrorInternalServer(errors.New("family protection service not configured")))
+	if rs.FamilyProtection == nil {
+		renderError(w, r, common.ErrorInternalServer(errors.New("family protection capability is not configured")))
 		return
 	}
 	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid student id")
@@ -62,22 +61,28 @@ func (rs *Resource) setFamilyProtection(w http.ResponseWriter, r *http.Request) 
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("enabled and reason are required")))
 		return
 	}
+	// Re-check the route's own gate inside the handler: the privacy ledger is
+	// an admin decision, and the owner capability deliberately does not decide
+	// who may ask.
+	if !authorize.HasPermission(permissions.ConfigManage, jwt.PermissionsFromCtx(r.Context())) {
+		renderError(w, r, common.ErrorForbidden(errors.New("family protection requires configuration permission")))
+		return
+	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	event, err := rs.FamilyProtectionService.Set(r.Context(), userService.SetFamilyProtectionInput{
+	enabled, err := rs.FamilyProtection.SetFamilyProtection(r.Context(), peopleModule.SetFamilyProtection{
 		StudentID: studentID, Enabled: *body.Enabled, Reason: body.Reason, ActorAccountID: int64(claims.ID),
 	})
-	unchanged := errors.Is(err, userService.ErrFamilyProtectionUnchanged)
+	unchanged := errors.Is(err, peopleModule.ErrFamilyProtectionUnchanged)
 	if err != nil && !unchanged {
 		renderError(w, r, familyProtectionErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, familyProtectionResponse{
-		StudentID: strconv.FormatInt(event.StudentID, 10), Enabled: event.Enabled, Unchanged: unchanged,
+		StudentID: strconv.FormatInt(studentID, 10), Enabled: enabled, Unchanged: unchanged,
 	}, "Family protection updated")
 }
 
 var familyProtectionErrorRenderer = common.RulesRenderer([]common.ErrorRule{
-	{Target: userService.ErrFamilyProtectionForbidden, Render: common.ErrorForbidden},
-	{Target: userService.ErrFamilyProtectionInvalid, Render: common.ErrorInvalidRequest},
-	{Target: userService.ErrFamilyProtectionNotFound, Render: common.ErrorNotFound},
+	{Target: peopleModule.ErrFamilyProtectionInvalid, Render: common.ErrorInvalidRequest},
+	{Target: peopleModule.ErrStudentNotFound, Render: common.ErrorNotFound},
 }, common.ErrorInternalServer)

@@ -72,15 +72,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		slog.Default(),
 	)
 
-	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
-		StudentRepo: repoFactory.Student,
-		Settings:    svc.Settings,
-		UserContext: svc.UserContext,
-		Broadcaster: broadcaster,
-		Unlinker:    studentsAPI.NewPhotoUnlinker(slog.Default(), "public"),
-		DB:          db,
-		Logger:      slog.Default(),
-	})
+	studentPhotos := svc.NewStudentPhotos(broadcaster, studentsAPI.NewPhotoUnlinker(slog.Default(), "public"))
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
@@ -188,7 +180,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
 		StudentDeletion:        studentDeletion,
-		StudentService:         userService.NewStudentService(repoFactory.Student, repositories.NewStudentPrivacyConsentStore(db), repoFactory.StudentCompanion, nil),
+		StudentService:         userService.NewStudentService(repositories.NewStudentDirectory(svc.PeopleDirectory), svc.PeopleDirectory, repoFactory.Student, repoFactory.StudentCompanion, nil),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,
@@ -218,6 +210,7 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		AbsenceOverview:         activeSvc.NewStudentStatusDayOverviewService(repoFactory.StudentStatusDay, svc.StatusDayOverviewPeople()),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		StudentAuditService:     svc.StudentAudit,
+		PrivacyConsents:         presence,
 		EnrollmentDecision:      svc.EnrollmentDecision,
 		// The three users:update-gated review queues, wired so the combined
 		// pending-count endpoint can be exercised end to end (#2232).
@@ -226,12 +219,12 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		OfferingChangeService:    svc.OfferingChanges,
 		PickupAdjustmentService:  svc.PickupAdjustments,
 		ParentRequestBulkService: svc.ParentRequests,
-		FamilyProtectionService:  svc.FamilyProtection,
+		FamilyProtection:         svc.PeopleDirectory,
 		RequestReview:            requestReview,
 		Broadcaster:              broadcaster,
 		ParentEventEmitter:       parentEventEmitter,
 		StudentPhotos:            studentPhotos,
-		StudentConsents:          userService.NewStudentConsentService(repoFactory.StudentConsentChange),
+		StudentConsents:          repositories.NewStudentConsents(db),
 		ListExportService:        listexport.NewService(),
 		Logger:                   slog.Default(),
 		Now:                      firstClock(clocks),

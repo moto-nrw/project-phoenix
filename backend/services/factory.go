@@ -54,6 +54,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	planexportlegacy "github.com/moto-nrw/project-phoenix/modules/planexport/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -245,7 +246,6 @@ type Factory struct {
 	PickupAdjustments enrollment.PickupAdjustmentService
 	ExcusedRequests   careplan.ExcusedAbsenceRequests
 	ParentRequests    *users.ParentRequestCoordinator
-	FamilyProtection  *users.FamilyProtectionService
 	// RequestReviewPolicy is the one cross-domain decision about WHO may see
 	// and decide parent requests. The API layer reads it to explain an empty
 	// queue; the four request services enforce it per child.
@@ -316,7 +316,7 @@ type Factory struct {
 	// supplies a PhotoUnlinker (file IO is an api-layer concern, not a
 	// service-layer one).
 	StudentPhotos   users.StudentPhotoService
-	StudentConsents users.StudentConsentService
+	StudentConsents *repositories.StudentConsents
 }
 
 // SetSettingsObservers wires delivery-owned metrics without coupling the
@@ -614,7 +614,7 @@ func newFactory(
 	if err := bindClassListEntryAdministration(membership, persons, auditCommand); err != nil {
 		return nil, err
 	}
-	studentConsentService := users.NewStudentConsentService(repos.StudentConsentChange)
+	studentConsentService := repositories.NewStudentConsentsFor(persons, repos.StudentConsentChange)
 
 	dispatcher := email.NewDispatcher(mailer, emailLogger, email.DeliveryObserver(observeDelivery))
 
@@ -820,6 +820,8 @@ func newFactory(
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
+		PersonDirectory:      repositories.NewPersonDirectory(persons),
+		StudentDirectory:     repositories.NewStudentDirectory(persons),
 		PersonRepo:           repos.Person,
 		RFIDRepo:             repos.RFIDCard,
 		AccountRepo:          repos.Account,
@@ -1831,8 +1833,7 @@ func newFactory(
 	// Initialize database stats service
 	databaseService := database.NewService(database.StatsDependencies{
 		Students: func(ctx context.Context) (int, error) {
-			rows, err := repos.Student.List(ctx, nil)
-			return len(rows), err
+			return repos.Student.CountEnrolled(ctx)
 		},
 		Teachers: func(ctx context.Context) (int, error) { rows, err := repos.Staff.List(ctx, nil); return len(rows), err },
 		Rooms:    func(ctx context.Context) (int, error) { rows, err := repos.Room.List(ctx, nil); return len(rows), err },
@@ -1954,10 +1955,7 @@ func newFactory(
 		repos.Enrollment(),
 	))
 
-	studentAuditService := users.NewStudentAuditService(
-		repos.StudentFieldEdit,
-		logger.With("service", "student_audit"),
-	)
+	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
 	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
 		StudentRepo:    repos.Student,
 		PersonRepo:     repos.Person,
@@ -2182,8 +2180,9 @@ func newFactory(
 	// Created before the change-request service: its multi-child approval takes
 	// the companion lock order through this service.
 	studentService := users.NewStudentService(
+		repositories.NewStudentDirectory(persons),
+		persons,
 		repos.Student,
-		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
@@ -2883,7 +2882,6 @@ func newFactory(
 	// The resolver records ONLY the staff-entered result. Every verdict it
 	// takes goes through a domain Decide, which writes its own decided event.
 	parentRequestCoordinator.SetEventRecorder(parentRequestEvents)
-	familyProtectionService := users.NewFamilyProtectionService(repos.FamilyProtection, repos.Student)
 
 	factory = &Factory{
 		settingsRuntimeDB:       db,
@@ -2998,7 +2996,6 @@ func newFactory(
 		PickupAdjustments:    pickupAdjustmentService,
 		ExcusedRequests:      excusedRequestService,
 		ParentRequests:       parentRequestCoordinator,
-		FamilyProtection:     familyProtectionService,
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
@@ -3120,31 +3117,29 @@ func optionalClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
-// StudentPhotoBootstrap aggregates the dependencies api/base.go must
-// provide to wire the photo lifecycle. The unlinker is api-layer (file IO
-// shared with login-image/avatar upload helpers); the StudentRepo is
-// passed in to avoid storing the repo factory on the services Factory.
+// StudentPhotoBootstrap aggregates what api/base.go must provide to wire the
+// photo lifecycle: the file IO is an api-layer concern (shared with the
+// login-image and avatar upload helpers), and the owner's runtime slot is
+// filled here because the factory holds the rest.
 type StudentPhotoBootstrap struct {
-	Unlinker    users.PhotoUnlinker
-	StudentRepo userModels.StudentRepository
-	DB          *bun.DB
-	Logger      *slog.Logger
+	Unlinker users.PhotoUnlinker
+	// PhotoRuntime is the slot the People Directory owner resolves its photo
+	// runtime from; EnableStudentPhotos fills it with the surfaces this
+	// factory holds.
+	PhotoRuntime *peopleCompose.StudentPhotoRuntime
+	Logger       *slog.Logger
 }
 
-// EnableStudentPhotos constructs the StudentPhotoService with the supplied
-// dependencies and registers its settings handler on
-// f.SettingsSideEffects. Idempotent: repeated calls overwrite the prior
-// service. Call once at API bootstrap.
+// EnableStudentPhotos stores the photo lifecycle and registers its settings
+// handler on f.SettingsSideEffects. Idempotent: repeated calls overwrite the
+// prior service. Call once at API bootstrap.
 func (f *Factory) EnableStudentPhotos(deps StudentPhotoBootstrap) {
-	f.StudentPhotos = users.NewStudentPhotoService(users.StudentPhotoServiceDependencies{
-		StudentRepo: deps.StudentRepo,
+	f.StudentPhotos = NewStudentPhotos(f.PeopleDirectory, deps.PhotoRuntime, StudentPhotoRuntimeDependencies{
 		Settings:    f.Settings,
-		UserContext: f.UserContext,
 		Broadcaster: f.RealtimeHub,
 		Unlinker:    deps.Unlinker,
-		DB:          deps.DB,
-		Logger:      deps.Logger,
 		Consents:    f.StudentConsents,
+		Logger:      deps.Logger,
 	})
 	users.RegisterStudentPhotoSettingsSideEffects(f.SettingsSideEffects, f.StudentPhotos)
 }

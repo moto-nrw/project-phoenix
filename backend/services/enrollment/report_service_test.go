@@ -1204,7 +1204,7 @@ type fakeClassRosterStudentRepo struct {
 	students []*userModels.Student
 }
 
-func (r *fakeClassRosterStudentRepo) ListWithOptions(_ context.Context, _ *baseModels.QueryOptions) ([]*userModels.Student, error) {
+func (r *fakeClassRosterStudentRepo) ListClassRoster(_ context.Context, _ string) ([]*userModels.Student, error) {
 	return r.students, nil
 }
 

@@ -33,7 +33,7 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 	if err != nil {
 		return CareLifecycleTestModule{}, err
 	}
-	audit := users.NewStudentAuditService(r.StudentFieldEdit, slog.Default())
+	audit := users.NewStudentAuditService(repositories.NewStudentAudit(db))
 	service := users.NewCareLifecycleService(users.CareLifecycleDependencies{
 		StudentRepo: r.Student, PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
 		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.TagReleaser, AuditService: audit,

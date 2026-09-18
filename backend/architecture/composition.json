@@ -50,7 +50,7 @@
       "declaration": "initializeModuleServices",
       "target": "database/repositories.NewFactory",
       "lines": [
-        302
+        313
       ],
       "tables": []
     },
@@ -2334,17 +2334,17 @@
       "declaration": "TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySlice",
       "target": "database/repositories.NewFactory",
       "lines": [
-        49
+        52
       ],
       "tables": []
     },
     {
       "scope": "test",
       "file": "database/repositories/users/list_behavior_test.go",
-      "declaration": "TestStudentRepositoryListWithOptionsPreservesHydrationOrderAndEmptySlice",
+      "declaration": "TestStudentClassRosterHydratesOrdersAndReturnsNilWhenEmpty",
       "target": "database/repositories.NewFactory",
       "lines": [
-        18
+        22
       ],
       "tables": []
     },
@@ -2982,7 +2982,7 @@
       "declaration": "TestStudentRepository_ExistsEnrolledByNameAndBirthday_Pending",
       "target": "database/repositories.NewFactory",
       "lines": [
-        88
+        91
       ],
       "tables": [
         "users.students"
@@ -3263,9 +3263,31 @@
       "declaration": "TestStudentRepository_AssignToGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        404
+        402
       ],
       "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_repository_test.go",
+      "declaration": "TestStudentRepository_ClassRoster",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        506
+      ],
+      "tables": []
+    },
+    {
+      "scope": "test",
+      "file": "database/repositories/users/student_repository_test.go",
+      "declaration": "TestStudentRepository_CountEnrolledLeavesGraduatesOut",
+      "target": "database/repositories.NewFactory",
+      "lines": [
+        532
+      ],
+      "tables": [
+        "users.students"
+      ]
     },
     {
       "scope": "test",
@@ -3273,7 +3295,7 @@
       "declaration": "TestStudentRepository_CountWithOptions",
       "target": "database/repositories.NewFactory",
       "lines": [
-        570
+        584
       ],
       "tables": []
     },
@@ -3283,7 +3305,7 @@
       "declaration": "TestStudentRepository_Create",
       "target": "database/repositories.NewFactory",
       "lines": [
-        51
+        49
       ],
       "tables": []
     },
@@ -3293,7 +3315,7 @@
       "declaration": "TestStudentRepository_Delete",
       "target": "database/repositories.NewFactory",
       "lines": [
-        291
+        289
       ],
       "tables": [
         "users.persons"
@@ -3305,7 +3327,7 @@
       "declaration": "TestStudentRepository_FindByGroupID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        336
+        334
       ],
       "tables": []
     },
@@ -3315,7 +3337,7 @@
       "declaration": "TestStudentRepository_FindByGroupIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
-        369
+        367
       ],
       "tables": []
     },
@@ -3325,7 +3347,7 @@
       "declaration": "TestStudentRepository_FindByID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        201
+        199
       ],
       "tables": []
     },
@@ -3335,7 +3357,7 @@
       "declaration": "TestStudentRepository_FindByIDForUpdate",
       "target": "database/repositories.NewFactory",
       "lines": [
-        981
+        891
       ],
       "tables": []
     },
@@ -3345,7 +3367,7 @@
       "declaration": "TestStudentRepository_FindByPersonID",
       "target": "database/repositories.NewFactory",
       "lines": [
-        225
+        223
       ],
       "tables": []
     },
@@ -3355,7 +3377,7 @@
       "declaration": "TestStudentRepository_FindBySchoolClass",
       "target": "database/repositories.NewFactory",
       "lines": [
-        461
+        459
       ],
       "tables": [
         "users.students"
@@ -3367,7 +3389,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroups",
       "target": "database/repositories.NewFactory",
       "lines": [
-        716
+        730
       ],
       "tables": [
         "users.students"
@@ -3379,7 +3401,7 @@
       "declaration": "TestStudentRepository_FindOverlappingWithGroupsImmediateActivation",
       "target": "database/repositories.NewFactory",
       "lines": [
-        804
+        818
       ],
       "tables": [
         "users.students"
@@ -3388,42 +3410,14 @@
     {
       "scope": "test",
       "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_List",
+      "declaration": "TestStudentRepository_ListByGroupIDsIncludingAlumni",
       "target": "database/repositories.NewFactory",
       "lines": [
-        505
+        555
       ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_ListWithOptions",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        533
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_LockPhotoFeature",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        932
-      ],
-      "tables": []
-    },
-    {
-      "scope": "test",
-      "file": "database/repositories/users/student_repository_test.go",
-      "declaration": "TestStudentRepository_PurgeAllPhotos",
-      "target": "database/repositories.NewFactory",
-      "lines": [
-        877
-      ],
-      "tables": []
+      "tables": [
+        "users.students"
+      ]
     },
     {
       "scope": "test",
@@ -3431,7 +3425,7 @@
       "declaration": "TestStudentRepository_RemoveFromGroup",
       "target": "database/repositories.NewFactory",
       "lines": [
-        427
+        425
       ],
       "tables": [
         "users.students"
@@ -3443,7 +3437,7 @@
       "declaration": "TestStudentRepository_Update",
       "target": "database/repositories.NewFactory",
       "lines": [
-        248
+        246
       ],
       "tables": []
     },
@@ -3453,7 +3447,7 @@
       "declaration": "newGroupProjectionFactory",
       "target": "database/repositories.NewFactory",
       "lines": [
-        601
+        615
       ],
       "tables": []
     },
@@ -5765,7 +5759,7 @@
     },
     {
       "scope": "test",
-      "file": "services/users/person_service_test.go",
+      "file": "services/users/person_directory_service_test.go",
       "declaration": "TestPersonService_LinkStudentToRFIDCard",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -5778,7 +5772,7 @@
     },
     {
       "scope": "test",
-      "file": "services/users/person_service_test.go",
+      "file": "services/users/person_directory_service_test.go",
       "declaration": "setupPersonService",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -5852,7 +5846,7 @@
       "declaration": "TestStudentService_ReplaceCompanions_ExtendPreservesCompanionFields",
       "target": "database/repositories.NewFactory",
       "lines": [
-        161
+        160
       ],
       "tables": []
     },
@@ -5862,7 +5856,7 @@
       "declaration": "TestStudentService_ReplaceCompanions_ExtensionIsPerWeekday",
       "target": "database/repositories.NewFactory",
       "lines": [
-        532
+        533
       ],
       "tables": []
     },
@@ -5872,7 +5866,7 @@
       "declaration": "TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit",
       "target": "database/repositories.NewFactory",
       "lines": [
-        216
+        215
       ],
       "tables": []
     },
@@ -5882,7 +5876,7 @@
       "declaration": "TestStudentUpdate_CompanionLinkCoversOnlyItsWeekdays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        588
+        589
       ],
       "tables": []
     },
@@ -5892,7 +5886,7 @@
       "declaration": "TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement",
       "target": "database/repositories.NewFactory",
       "lines": [
-        267
+        268
       ],
       "tables": []
     },
@@ -5902,7 +5896,7 @@
       "declaration": "newCompanionTestService",
       "target": "database/repositories.NewFactory",
       "lines": [
-        23
+        22
       ],
       "tables": []
     },
@@ -5912,7 +5906,7 @@
       "declaration": "setAccompaniedDays",
       "target": "database/repositories.NewFactory",
       "lines": [
-        33
+        32
       ],
       "tables": []
     },
@@ -5972,7 +5966,7 @@
       "declaration": "TestTenantIsolation_ActivityCategoryVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        411
+        410
       ],
       "tables": []
     },
@@ -5982,7 +5976,7 @@
       "declaration": "TestTenantIsolation_TimeframeVisibility",
       "target": "database/repositories.NewFactory",
       "lines": [
-        207
+        206
       ],
       "tables": []
     },
@@ -22261,27 +22255,27 @@
         },
         {
           "file": "api/base.go",
-          "line": 502,
+          "line": 513,
           "declaration": "mealPlanParticipantFinder"
         },
         {
           "file": "api/base.go",
-          "line": 665,
+          "line": 676,
           "declaration": "type API"
         },
         {
           "file": "api/base.go",
-          "line": 903,
+          "line": 914,
           "declaration": "initializeAPIResourcesWithRequestFeed"
         },
         {
           "file": "api/base.go",
-          "line": 1308,
+          "line": 1319,
           "declaration": "activeSchoolMemberships"
         },
         {
           "file": "api/base.go",
-          "line": 1323,
+          "line": 1334,
           "declaration": "initializeAPIResources"
         }
       ]
@@ -22291,7 +22285,7 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 302,
+          "line": 313,
           "declaration": "initializeModuleServices"
         }
       ]
@@ -22306,17 +22300,17 @@
         },
         {
           "file": "api/base.go",
-          "line": 374,
+          "line": 385,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 418,
+          "line": 429,
           "declaration": "withFileStorageWiring"
         },
         {
           "file": "api/base.go",
-          "line": 662,
+          "line": 673,
           "declaration": "type API"
         },
         {

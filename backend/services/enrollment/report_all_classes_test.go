@@ -19,7 +19,7 @@ type fakeAllClassesStudentRepo struct {
 	students []*userModels.Student
 }
 
-func (r *fakeAllClassesStudentRepo) ListWithOptions(_ context.Context, _ *baseModels.QueryOptions) ([]*userModels.Student, error) {
+func (r *fakeAllClassesStudentRepo) ListClassRoster(_ context.Context, _ string) ([]*userModels.Student, error) {
 	return r.students, nil
 }
 
@@ -72,7 +72,7 @@ type fakeCaseVariantStudentRepo struct {
 	listCalls int
 }
 
-func (r *fakeCaseVariantStudentRepo) ListWithOptions(_ context.Context, _ *baseModels.QueryOptions) ([]*userModels.Student, error) {
+func (r *fakeCaseVariantStudentRepo) ListClassRoster(_ context.Context, _ string) ([]*userModels.Student, error) {
 	r.listCalls++
 	return r.students, nil
 }
