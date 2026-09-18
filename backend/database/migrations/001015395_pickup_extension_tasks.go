@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	pickupExtensionTasksVersion     = "1.15.394"
+	pickupExtensionTasksVersion     = "1.15.395"
 	pickupExtensionTasksDescription = "Open tasks for later pickup times that still need a Betreuungsblock (#3261)"
 )
 
