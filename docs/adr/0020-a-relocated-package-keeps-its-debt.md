@@ -59,7 +59,7 @@ active declaration must prove all of:
 - the policy epoch increased, as for every reviewed mechanism
   ([ADR 0014](0014-test-roles-may-import-test-infrastructure.md),
   [ADR 0015](0015-owners-adopt-existing-unowned-tables.md),
-  [ADR 0019](0019-parent-portal-is-an-application-workflow.md));
+  [ADR 0022](0022-parent-portal-is-an-application-workflow.md));
 - `from` is classified in the base policy and gone from the candidate, and `to`
   is classified in the candidate and absent from the base;
 - owner, production role, internal-test role and external-test role are
