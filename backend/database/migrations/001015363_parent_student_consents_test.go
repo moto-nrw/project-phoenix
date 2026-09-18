@@ -63,7 +63,7 @@ func TestStudentConsentChangesAreTenantScopedAndAppendOnly(t *testing.T) {
 
 func TestParentStudentConsentsRollbackOnlyRemovesUnchangedMigrationGrant(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 
 	require.NoError(t, parentStudentConsentsDown(ctx, db))

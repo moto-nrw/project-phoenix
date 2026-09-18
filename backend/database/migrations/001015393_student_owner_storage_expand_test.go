@@ -42,7 +42,7 @@ var studentOwnerStorageNewColumns = []string{
 
 func TestStudentOwnerStorageExpandColumnMapping(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	for _, tc := range []struct {
 		target  string
 		columns []string
@@ -122,7 +122,7 @@ func TestStudentOwnerStorageExpandColumnMapping(t *testing.T) {
 // every rejection test written against one tenant.
 func TestStudentOwnerStorageExpandConstraintDefinitions(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	for table, expected := range map[string]map[string]string{
 		"users.student_profiles": {
 			"student_profiles_pkey":                        "PRIMARY KEY (id)",
@@ -205,7 +205,7 @@ func (f studentOwnerExpandFixture) insertChain(t *testing.T, db *testpkg.DB) (in
 
 func TestStudentOwnerStorageExpandTenantIsolation(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	fixtures := []studentOwnerExpandFixture{
 		createStudentOwnerExpandFixture(t, db), createStudentOwnerExpandFixture(t, db),
 	}
@@ -314,7 +314,7 @@ func TestStudentOwnerStorageExpandTenantIsolation(t *testing.T) {
 
 func TestStudentOwnerStorageExpandConstraints(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	a, b := createStudentOwnerExpandFixture(t, db), createStudentOwnerExpandFixture(t, db)
 	profile, membership := a.insertChain(t, db)
 
@@ -395,7 +395,7 @@ func TestStudentOwnerStorageExpandConstraints(t *testing.T) {
 // it.
 func TestStudentOwnerStorageExpandKeepsSharedDepartureValidators(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createStudentOwnerExpandFixture(t, db)
 	_, membership := f.insertChain(t, db)
 	// The rollbacks are not undone afterwards: this test owns its database
@@ -438,7 +438,7 @@ func TestStudentOwnerStorageExpandKeepsSharedDepartureValidators(t *testing.T) {
 
 func TestStudentOwnerStorageExpandReferenceDeletion(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createStudentOwnerExpandFixture(t, db)
 	profile, membership := f.insertChain(t, db)
 	_, err := db.ExecContext(t.Context(), `UPDATE users.student_profiles
@@ -511,7 +511,7 @@ func assertStudentOwnerStorageTargetsEmpty(t *testing.T, db *testpkg.DB) {
 
 func TestStudentOwnerStorageExpandUpDownPreservesOldAuthority(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createStudentOwnerExpandFixture(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, f.tenant, "Old", "Authority", "1a")
 	assertStudentOwnerStorageTargetsEmpty(t, db)
@@ -558,7 +558,7 @@ func TestStudentOwnerStorageExpandUpDownPreservesOldAuthority(t *testing.T) {
 
 func TestStudentOwnerStorageExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createStudentOwnerExpandFixture(t, db)
 	f.insertChain(t, db)
 	// Drain from the leaves inward so each table is the only populated one.
@@ -581,7 +581,7 @@ func studentOwnerStorageTargetsLeafFirst() []string {
 
 func TestStudentOwnerStorageExpandCatalogAndDefaults(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	for _, table := range studentOwnerStorageTargets {
 		schema, name, _ := strings.Cut(table, ".")
 		var forced bool
@@ -647,7 +647,7 @@ func TestStudentOwnerStorageExpandCatalogAndDefaults(t *testing.T) {
 
 func TestStudentOwnerStorageExpandFailureIsAtomic(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	require.NoError(t, runPresenceMigration(t.Context(), db, studentOwnerStorageExpandName, false))
 	// Fail after the first two tables exist, before grants and RLS provisioning.
 	_, err := db.ExecContext(t.Context(), `CREATE TABLE users.student_care_profiles (probe BOOLEAN)`)

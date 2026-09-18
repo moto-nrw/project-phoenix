@@ -12,7 +12,7 @@ import (
 func TestMealParticipationMigrationBackfillsFullGuardianPermission(t *testing.T) {
 	t.Parallel()
 
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 	require.NoError(t, mealParticipationDown(ctx, db))
 	migrationApplied := false

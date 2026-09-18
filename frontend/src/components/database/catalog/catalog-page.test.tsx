@@ -397,5 +397,6 @@ describe("CatalogPage", () => {
     expect(
       screen.getByText("Legen Sie eine Kategorie an."),
     ).toBeInTheDocument();
+    expect(document.body.querySelectorAll("[data-icon-only]")).toHaveLength(1);
   });
 });

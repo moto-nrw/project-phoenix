@@ -29,7 +29,7 @@ func busColumnExists(t *testing.T, db *testpkg.DB) bool {
 // bus_days source of truth survives the round-trip unchanged.
 func TestStudentsDropBusColumnMigration(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 
 	// Normalize to the post-migration baseline (bus dropped) regardless of the

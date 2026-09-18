@@ -4250,6 +4250,14 @@
       "write_owner": "care-plan"
     },
     {
+      "name": "users.student_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.student_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
       "name": "users.teachers",
       "write_owner": "school-membership"
     },

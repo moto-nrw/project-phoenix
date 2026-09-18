@@ -1986,13 +1986,12 @@ export const appChapters: readonly GuideChapter[] = [
         id: "kind-dauerhaft-loeschen",
         title: "Kind dauerhaft löschen",
         summary:
-          "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt mehrere Bestätigungen.",
+          "Entfernt einen Kind-Datensatz zusammen mit seinen kindbezogenen Verknüpfungen. Die App zeigt vorher genau, welche Daten betroffen sind, und verlangt einen Grund und eine Bestätigung.",
         steps: [
           "`Datenverwaltung` -> `Kinderdaten` öffnen und das betreffende Kind auswählen. Kinder, deren Betreuung schon beendet ist, stehen unter `Beendete Betreuungen` im Menü oben rechts.",
           "Oben in der Detailansicht `Löschen` wählen und warten, bis die Auswirkungs-Vorschau vollständig geladen ist.",
           "Die aufgeführten Datensätze prüfen. Stundenplan-Zuordnungen, Anwesenheitsdaten, Betreuungszeiten, Einwilligungen und weitere kindbezogene Verknüpfungen werden gelöscht oder vom Kind getrennt.",
-          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Weiter` wählen. Bei Kindern, deren Betreuung beendet ist, steht zusätzlich `Aufbewahrungsfrist abgelaufen` zur Wahl.",
-          "Den Namen des Kindes exakt wie angezeigt erneut eingeben und erst dann `Kind endgültig löschen` wählen.",
+          "Einen Löschgrund auswählen und bestätigen, dass die Daten geprüft wurden. Danach `Ja, löschen` und `Kind endgültig löschen` wählen. Bei Kindern, deren Betreuung beendet ist, steht zusätzlich `Aufbewahrungsfrist abgelaufen` zur Wahl.",
         ],
         callout: {
           title: "Gemeinsam genutzte Daten bleiben erhalten",
@@ -2000,7 +1999,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "red",
         },
         screenshot:
-          "Mehrstufiger Löschdialog mit Auswirkungs-Vorschau, Löschgrund, Bestätigung und Eingabe des vollständigen Kindernamens.",
+          "Löschdialog mit Auswirkungs-Vorschau, Löschgrund und Bestätigung.",
       },
       {
         id: "jahrgangswechsel",
