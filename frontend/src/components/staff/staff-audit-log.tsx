@@ -103,6 +103,18 @@ function describeEvent(event: AuditLogEvent): string {
       const status =
         absenceStatusLabels[String(d.to_status)] ?? String(d.to_status ?? "");
       const range = from === to ? from : `${from}–${to}`;
+      // Umbuchung (#3258): der Status bleibt, die Art ändert sich.
+      if (typeof d.from_absence_type === "string") {
+        const before = absenceAuditTypeLabel({
+          absence_type: d.from_absence_type,
+          absence_type_label: d.from_absence_type_label,
+        });
+        const after = absenceAuditTypeLabel({
+          absence_type: d.to_absence_type,
+          absence_type_label: d.to_absence_type_label,
+        });
+        return `Art geändert ${range}: ${before} → ${after}`;
+      }
       return `${type} ${range}: ${status}`;
     }
     case "adjustment": {

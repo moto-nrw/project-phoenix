@@ -165,6 +165,38 @@ describe("StaffAuditLog", () => {
     ).toBeInTheDocument();
   });
 
+  it("beschreibt eine Umbuchung mit alter und neuer Art (#3258)", async () => {
+    const rebooked: AuditLogEvent = {
+      ...event(9),
+      source: "absence",
+      entryId: "rebook-1",
+      reason: "Kontingent angelegt",
+      detail: {
+        absence_id: 71,
+        absence_type: "other",
+        absence_type_label: "Krank-Urlaubstag",
+        date_start: "2026-08-07",
+        date_end: "2026-08-07",
+        from_status: "reported",
+        to_status: "reported",
+        from_absence_type: "comp_time",
+        to_absence_type: "other",
+        from_absence_type_label: null,
+        to_absence_type_label: "Krank-Urlaubstag",
+      },
+    };
+    getAuditLog.mockResolvedValueOnce(page([rebooked], null));
+
+    render(<StaffAuditLog staffOptions={[]} />);
+
+    expect(
+      await screen.findByText(
+        "Art geändert 07.08.2026: Freizeitausgleich → Krank-Urlaubstag",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Kontingent angelegt")).toBeInTheDocument();
+  });
+
   it("rendert Ereignisse mit gleichem Umschlag über eindeutige Entry-IDs", async () => {
     const first = event(6);
     const second = { ...event(6), entryId: "different-entry" };

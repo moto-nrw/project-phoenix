@@ -36,6 +36,8 @@ interface SickReportModalProps {
   // Fired once the absence was created successfully, so the caller can
   // revalidate the Dienst-/Betreuungs-/Vertretungsplan caches (#1843).
   readonly onCreated: (absence: StaffAbsenceRow) => void;
+  /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
+  readonly initialDate?: string;
 }
 
 // Krank melden. Freizeitausgleich und alle anderen Arten trägt die Leitung
@@ -46,10 +48,11 @@ export function SickReportModal({
   staff,
   onClose,
   onCreated,
+  initialDate,
 }: SickReportModalProps) {
   const router = useTenantRouter();
-  const [dateStart, setDateStart] = useState(() => todayISO());
-  const [dateEnd, setDateEnd] = useState(() => todayISO());
+  const [dateStart, setDateStart] = useState(() => initialDate ?? todayISO());
+  const [dateEnd, setDateEnd] = useState(() => initialDate ?? todayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -61,16 +64,16 @@ export function SickReportModal({
   // Reset the form each time the modal is opened.
   useEffect(() => {
     if (isOpen) {
-      const today = todayISO();
-      setDateStart(today);
-      setDateEnd(today);
+      const start = initialDate ?? todayISO();
+      setDateStart(start);
+      setDateEnd(start);
       setHalfDay(false);
       setNote("");
       setError(null);
       setCreatedStart(null);
       setSubmitting(false);
     }
-  }, [isOpen]);
+  }, [isOpen, initialDate]);
 
   const staffName = `${staff.firstName} ${staff.lastName}`;
 
