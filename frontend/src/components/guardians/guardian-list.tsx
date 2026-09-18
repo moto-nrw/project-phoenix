@@ -27,6 +27,7 @@ import {
   Globe,
   Send,
 } from "lucide-react";
+import { Button } from "~/components/ui/button";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -47,7 +48,7 @@ const ACCOUNT_STATUS_META: Record<
   none: { label: "Kein Konto", dot: LOCATION_COLORS.UNKNOWN },
 };
 
-// Menu label for the invite action per account status. "active_no_access"
+// Visible label for the invite action per account status. "active_no_access"
 // reuses the invite flow: the backend answers with the restricted-contact
 // confirmation, so the action reads as granting access, not re-inviting.
 const INVITE_ACTION_LABEL: Record<
@@ -58,6 +59,10 @@ const INVITE_ACTION_LABEL: Record<
   pending: "Erneut einladen",
   none: "Einladen",
 };
+
+function getInviteActionLabel(status?: GuardianAccountStatus) {
+  return INVITE_ACTION_LABEL[status === "active" ? "none" : (status ?? "none")];
+}
 
 function AccountStatusBadge({
   status,
@@ -83,6 +88,32 @@ interface GuardianListProps {
   readonly showRelationship?: boolean;
 }
 
+function canInviteGuardian(
+  guardian: GuardianWithRelationship,
+  onInvite: GuardianListProps["onInvite"],
+) {
+  return Boolean(
+    onInvite &&
+    guardian.accountStatus !== "active" &&
+    guardian.guardianRole !== "social_worker" &&
+    !(guardian.accountStatus === "pending" && guardian.hasAccount) &&
+    guardian.email,
+  );
+}
+
+function inviteNeedsEmail(
+  guardian: GuardianWithRelationship,
+  onInvite: GuardianListProps["onInvite"],
+) {
+  return Boolean(
+    onInvite &&
+    guardian.accountStatus !== "active" &&
+    guardian.guardianRole !== "social_worker" &&
+    !(guardian.accountStatus === "pending" && guardian.hasAccount) &&
+    !guardian.email,
+  );
+}
+
 export default function GuardianList({
   guardians,
   onEdit,
@@ -102,7 +133,9 @@ export default function GuardianList({
     );
   }
 
-  // Zeilenaktionen nur im Kebab der Karte (BAUARTEN-SPEC Bauart 1 Regel 4).
+  // Bearbeiten bleibt im Kebab (BAUARTEN-SPEC Bauart 1 Regel 4). Einladen
+  // ist für Personen ohne Portalzugang der nächste wichtige Schritt und bleibt
+  // deshalb in der Zeile sichtbar (#3329).
   // Social-worker contacts are school-managed: the backend refuses to invite
   // or upgrade them, so no invite entry is offered. A pending entry for an
   // ACCOUNT holder is a role-upgrade request awaiting approval in the queue —
@@ -111,20 +144,6 @@ export default function GuardianList({
     guardian: GuardianWithRelationship,
   ): OverflowMenuEntry[] => {
     const items: OverflowMenuEntry[] = [];
-    if (
-      onInvite &&
-      guardian.accountStatus !== "active" &&
-      guardian.guardianRole !== "social_worker" &&
-      !(guardian.accountStatus === "pending" && guardian.hasAccount) &&
-      guardian.email
-    ) {
-      items.push({
-        label: INVITE_ACTION_LABEL[guardian.accountStatus ?? "none"],
-        icon: <Send className="h-4 w-4" aria-hidden />,
-        disabled: invitingGuardianId === guardian.id,
-        onClick: () => onInvite(guardian),
-      });
-    }
     if (onEdit) {
       items.push({
         label: "Bearbeiten",
@@ -137,131 +156,158 @@ export default function GuardianList({
 
   return (
     <div className="space-y-3">
-      {guardians.map((guardian) => (
-        <div
-          key={guardian.id}
-          className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
-        >
-          {/* Header with name and actions */}
-          <div className="mb-3 flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <h4 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
-                <span className="break-words">
-                  {getGuardianFullName(guardian)}
-                </span>
-                {guardian.isPrimary && (
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
-                    Primär
+      {guardians.map((guardian) => {
+        const showInvite = canInviteGuardian(guardian, onInvite);
+        const showMissingEmailHint = inviteNeedsEmail(guardian, onInvite);
+        const menuItems = buildGuardianMenu(guardian);
+
+        return (
+          <div
+            key={guardian.id}
+            className="rounded-lg border border-gray-200 bg-white p-3 transition-colors sm:p-4"
+          >
+            {/* Header with name and actions */}
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <h4 className="flex flex-wrap items-center gap-2 text-base font-semibold sm:text-lg">
+                  <span className="break-words">
+                    {getGuardianFullName(guardian)}
                   </span>
+                  {guardian.isPrimary && (
+                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+                      Primär
+                    </span>
+                  )}
+                  <AccountStatusBadge status={guardian.accountStatus} />
+                </h4>
+                {showRelationship && (
+                  <p className="mt-1 text-xs text-gray-600 sm:text-sm">
+                    {getRelationshipTypeLabel(guardian.relationshipType)}
+                  </p>
                 )}
-                <AccountStatusBadge status={guardian.accountStatus} />
-              </h4>
-              {showRelationship && (
-                <p className="mt-1 text-xs text-gray-600 sm:text-sm">
-                  {getRelationshipTypeLabel(guardian.relationshipType)}
-                </p>
+              </div>
+
+              {!readOnly && (showInvite || menuItems.length > 0) && (
+                <div className="flex flex-shrink-0 flex-wrap items-center justify-end gap-1">
+                  {showInvite && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="compact"
+                      isLoading={invitingGuardianId === guardian.id}
+                      loadingText="Wird eingeladen"
+                      onClick={() => onInvite?.(guardian)}
+                    >
+                      <Send className="h-4 w-4" aria-hidden />
+                      {getInviteActionLabel(guardian.accountStatus)}
+                    </Button>
+                  )}
+                  {menuItems.length > 0 && (
+                    <OverflowMenu
+                      ariaLabel={`Aktionen für ${getGuardianFullName(guardian)}`}
+                      items={menuItems}
+                    />
+                  )}
+                </div>
               )}
             </div>
 
-            {!readOnly && (
-              <div className="flex flex-shrink-0 items-center">
-                <OverflowMenu
-                  ariaLabel={`Aktionen für ${getGuardianFullName(guardian)}`}
-                  items={buildGuardianMenu(guardian)}
-                />
-              </div>
+            {showMissingEmailHint && !readOnly && (
+              <p className="-mt-1 mb-3 text-sm text-gray-600">
+                Für die Einladung fehlt die E-Mail-Adresse.
+              </p>
             )}
-          </div>
 
-          {/* Contact Information */}
-          <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
-            <EmailItem
-              email={guardian.email}
-              guardianName={getGuardianFullName(guardian)}
-            />
-            {/* Display flexible phone numbers */}
-            {guardian.phoneNumbers && guardian.phoneNumbers.length > 0 ? (
-              guardian.phoneNumbers.map((phone) => (
-                <PhoneItem key={phone.id} phone={phone} />
-              ))
-            ) : (
-              <InfoItem
-                label="Telefon"
-                value="Nicht angegeben"
-                icon={<Phone className="h-4 w-4" />}
+            {/* Contact Information */}
+            <div className="grid grid-cols-1 gap-2 sm:gap-3 md:grid-cols-2">
+              <EmailItem
+                email={guardian.email}
+                guardianName={getGuardianFullName(guardian)}
               />
-            )}
-          </div>
+              {/* Display flexible phone numbers */}
+              {guardian.phoneNumbers && guardian.phoneNumbers.length > 0 ? (
+                guardian.phoneNumbers.map((phone) => (
+                  <PhoneItem key={phone.id} phone={phone} />
+                ))
+              ) : (
+                <InfoItem
+                  label="Telefon"
+                  value="Nicht angegeben"
+                  icon={<Phone className="h-4 w-4" />}
+                />
+              )}
+            </div>
 
-          {/* Address — use explicit check because nullish coalescing treats "" as present */}
-          {[
-            guardian.addressStreet,
-            guardian.addressCity,
-            guardian.addressPostalCode,
-          ].some((v) => v && v.trim() !== "") && (
-            <div className="mt-2 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
-              <div className="flex items-start gap-1.5 text-xs text-gray-500 sm:text-sm">
-                <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-                <span className="text-gray-700">
-                  {[
-                    guardian.addressStreet,
-                    [guardian.addressPostalCode, guardian.addressCity]
+            {/* Address — use explicit check because nullish coalescing treats "" as present */}
+            {[
+              guardian.addressStreet,
+              guardian.addressCity,
+              guardian.addressPostalCode,
+            ].some((v) => v && v.trim() !== "") && (
+              <div className="mt-2 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
+                <div className="flex items-start gap-1.5 text-xs text-gray-500 sm:text-sm">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
+                  <span className="text-gray-700">
+                    {[
+                      guardian.addressStreet,
+                      [guardian.addressPostalCode, guardian.addressCity]
+                        .filter(Boolean)
+                        .join(" "),
+                    ]
                       .filter(Boolean)
-                      .join(" "),
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
+                      .join(", ")}
+                  </span>
+                </div>
               </div>
+            )}
+
+            {/* Badges: Flags and Language */}
+            <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
+              {guardian.canPickup && (
+                <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+                  <Shield className="h-3 w-3" />
+                  Abholberechtigt
+                </span>
+              )}
+              {guardian.isEmergencyContact && (
+                <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+                  <AlertCircle className="h-3 w-3" />
+                  Notfallkontakt
+                </span>
+              )}
+              {guardian.languagePreference && (
+                <span className="bg-moto-blue/15 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
+                  <Globe className="h-3 w-3" />
+                  {getLanguageLabel(guardian.languagePreference)}
+                </span>
+              )}
             </div>
-          )}
 
-          {/* Badges: Flags and Language */}
-          <div className="mt-2 flex flex-wrap gap-1.5 border-t border-gray-100 pt-2 sm:mt-3 sm:pt-3">
-            {guardian.canPickup && (
-              <span className="bg-moto-green/15 text-moto-green-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                <Shield className="h-3 w-3" />
-                Abholberechtigt
-              </span>
+            {/* Notes */}
+            {guardian.notes && (
+              <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
+                {guardian.notes}
+              </div>
             )}
-            {guardian.isEmergencyContact && (
-              <span className="bg-moto-red/10 text-moto-red-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                <AlertCircle className="h-3 w-3" />
-                Notfallkontakt
-              </span>
-            )}
-            {guardian.languagePreference && (
-              <span className="bg-moto-blue/15 text-moto-blue-strong inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium">
-                <Globe className="h-3 w-3" />
-                {getLanguageLabel(guardian.languagePreference)}
-              </span>
-            )}
-          </div>
 
-          {/* Notes */}
-          {guardian.notes && (
-            <div className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 sm:text-sm">
-              {guardian.notes}
+            {/* Contact Actions */}
+            <div className="mt-2 sm:mt-3">
+              <GuardianContactActions
+                email={guardian.email}
+                phone={getPrimaryPhone(guardian)}
+                phoneNumbers={
+                  guardian.phoneNumbers?.map((p) => ({
+                    number: p.phoneNumber,
+                    label: getPhoneLabel(p),
+                    isPrimary: p.isPrimary,
+                  })) ?? []
+                }
+                contactName={getGuardianFullName(guardian)}
+              />
             </div>
-          )}
-
-          {/* Contact Actions */}
-          <div className="mt-2 sm:mt-3">
-            <GuardianContactActions
-              email={guardian.email}
-              phone={getPrimaryPhone(guardian)}
-              phoneNumbers={
-                guardian.phoneNumbers?.map((p) => ({
-                  number: p.phoneNumber,
-                  label: getPhoneLabel(p),
-                  isPrimary: p.isPrimary,
-                })) ?? []
-              }
-              contactName={getGuardianFullName(guardian)}
-            />
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

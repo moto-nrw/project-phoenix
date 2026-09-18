@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import GuardianList from "./guardian-list";
 
-// Zeilenaktionen liegen im Kebab der Karte (Bauart 1 Regel 4).
+// Bearbeiten liegt im Kebab der Karte (Bauart 1 Regel 4).
 function rowMenuTriggers() {
   return screen.getAllByRole("button", { name: /^Aktionen für/ });
 }
@@ -230,7 +230,7 @@ describe("GuardianList", () => {
     expect(phoneCounts[1]).toHaveTextContent("0");
   });
 
-  it("shows the honest status and a grant-access action for active_no_access", () => {
+  it("shows the honest status and a visible grant-access action for active_no_access", () => {
     const onInvite = vi.fn();
     const guardian = {
       ...mockGuardians[1]!,
@@ -243,8 +243,7 @@ describe("GuardianList", () => {
     expect(
       screen.getByText("Konto aktiv, kein Portalzugriff"),
     ).toBeInTheDocument();
-    fireEvent.click(rowMenuTriggers()[0]!);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Zugriff gewähren" }));
+    fireEvent.click(screen.getByRole("button", { name: "Zugriff gewähren" }));
     expect(onInvite).toHaveBeenCalledWith(guardian);
   });
 
@@ -263,18 +262,46 @@ describe("GuardianList", () => {
     expect(screen.queryByText("Zugriff gewähren")).not.toBeInTheDocument();
   });
 
-  it("offers re-invite for a pending guardian without an account", () => {
+  it("shows re-invite for a pending guardian without an account", () => {
     const guardian = {
       ...mockGuardians[1]!,
       accountStatus: "pending" as const,
     };
-    render(<GuardianList guardians={[guardian]} onInvite={vi.fn()} />);
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        onInvite={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
 
     expect(screen.getByText("Einladung offen")).toBeInTheDocument();
-    fireEvent.click(rowMenuTriggers()[0]!);
     expect(
-      screen.getByRole("menuitem", { name: "Erneut einladen" }),
+      screen.getByRole("button", { name: "Erneut einladen" }),
     ).toBeInTheDocument();
+  });
+
+  it("explains why a person without an email address cannot be invited", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      email: undefined,
+      accountStatus: "none" as const,
+    };
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        onInvite={vi.fn()}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Für die Einladung fehlt die E-Mail-Adresse."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Einladen" }),
+    ).not.toBeInTheDocument();
+    expect(rowMenuTriggers()).toHaveLength(1);
   });
 
   it("hides the invite action while an account holder's upgrade approval is pending", () => {

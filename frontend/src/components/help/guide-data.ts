@@ -807,7 +807,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Steuern Sie, wer Zugriff auf ein Kind im Elternportal hat. Sie können weitere Bezugspersonen einladen und bestehende Zugänge wieder trennen – pro Kind sind oft mehrere Konten sinnvoll (zweiter Elternteil, Großeltern).",
         steps: [
           "Im Tab `Erziehungsberechtigte` eines Kindes am Status erkennen, wer bereits ein Konto hat (`Konto aktiv`), eingeladen ist (`Einladung offen`) oder noch keinen Zugang hat (`Kein Konto`).",
-          "Mit `Einladen` neben einer Person eine Einladung zum Elternportal an deren hinterlegte E-Mail-Adresse senden. Die Person legt sich darüber selbst ein Passwort an.",
+          "Rechts bei einer Person auf `Einladen` klicken. moto schickt die Einladung an die hinterlegte E-Mail-Adresse. Fehlt die E-Mail-Adresse, tragen Sie sie zuerst über das Menü mit den drei Punkten und `Bearbeiten` ein.",
           "Einen bestehenden Zugang über `Bearbeiten` -> `Entfernen` wieder trennen – die Person sieht das Kind danach nicht mehr im Elternportal.",
           "Ob Eltern selbst weitere Bezugspersonen einladen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal` (`Deaktiviert`, `Direkt` oder `Mit Freigabe durch das Team`).",
           "Antwortet eine Person auf die Einladung, geht die Antwort an die `Antwortadresse für Eltern-E-Mails` unter `Einstellungen` -> `Betrieb`. Ohne Eintrag gilt die Kontaktadresse Ihrer Einrichtung.",
@@ -823,7 +823,7 @@ export const appChapters: readonly GuideChapter[] = [
           {
             image: "/help/screens/erziehungsberechtigte-konten.webp",
             caption:
-              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus (Konto aktiv / Kein Konto) und die Schaltfläche „Einladen“.",
+              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus und rechts die Schaltfläche „Einladen“. Weitere Aktionen stehen im Menü mit den drei Punkten.",
           },
           {
             image: "/help/screens/konto-anfragen.webp",
