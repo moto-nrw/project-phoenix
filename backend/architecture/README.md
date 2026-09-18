@@ -114,10 +114,19 @@ the type lives in the leaf both sides already import. And
 `RecordCompanionChange` stays with the composition seam, because the
 `student_companions_changed` announcement travels on the caller's context too.
 
-`database/repositories/users/student.go` keeps its reads; its four write entry
-points remain only as the interface the retained `StudentRepository` still
-declares, and report a configuration error when a graph reaches them without
-the owner bound.
+`database/repositories/users/student.go` issues no SQL at all any more. What
+remains is the interface the retained `StudentRepository` still declares, each
+method reporting a configuration error when a graph reaches it without the
+owner bound — the composition root binds it for every graph, so the shell is
+reachable only by a mistake.
+
+The reads moved with the same care as the writes, because three of them are
+not what their names suggest: the class lookup matches trimmed and
+case-insensitively, the id list keeps graduates because one who is actually
+present must stay reachable, and the participation candidates and the class
+roster count graduates while every other roster read does not. That last
+distinction is now stated as `peopledirectory.StudentScope` rather than left to
+each query.
 
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
