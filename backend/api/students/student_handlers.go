@@ -21,12 +21,12 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
-	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
@@ -1590,13 +1590,13 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// Companion input the client should not have sent: a day the child's own
 	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
 	// with the German sentinel text going straight to the UI.
-	case errors.Is(err, userService.ErrCompanionNotFound):
+	case errors.Is(err, carelifecycle.ErrCompanionNotFound):
 		return common.ErrorNotFound(err)
-	case errors.Is(err, userService.ErrCompanionDayNotAllowed),
-		errors.Is(err, userService.ErrDuplicateCompanion),
-		errors.Is(err, userService.ErrCompanionWeekdayRequired),
-		errors.Is(err, userService.ErrTooManyCompanions),
-		errors.Is(err, userService.ErrCompanionAtLimit),
+	case errors.Is(err, carelifecycle.ErrCompanionDayNotAllowed),
+		errors.Is(err, carelifecycle.ErrDuplicateCompanion),
+		errors.Is(err, carelifecycle.ErrCompanionWeekdayRequired),
+		errors.Is(err, carelifecycle.ErrTooManyCompanions),
+		errors.Is(err, carelifecycle.ErrCompanionAtLimit),
 		errors.Is(err, users.ErrCompanionSelfLink),
 		errors.Is(err, users.ErrCompanionStudentIDRequired),
 		errors.Is(err, users.ErrCompanionInvalidWeekday):

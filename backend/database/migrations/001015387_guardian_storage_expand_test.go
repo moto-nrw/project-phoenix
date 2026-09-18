@@ -342,7 +342,7 @@ func assertGuardianStorageTargetsEmpty(t *testing.T, db *testpkg.DB) {
 
 func TestGuardianStorageExpandUpDownPreservesOldAuthority(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createGuardianStorageExpandFixture(t, db)
 	link := testpkg.CreateTestStudentGuardianLinkForTenant(t, db, f.tenant, f.student, f.guardian, "primary_guardian")
 	assertGuardianStorageTargetsEmpty(t, db)
@@ -389,7 +389,7 @@ func TestGuardianStorageExpandUpDownPreservesOldAuthority(t *testing.T) {
 
 func TestGuardianStorageExpandRollbackRefusesPopulatedTargets(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	f := createGuardianStorageExpandFixture(t, db)
 	relationship := f.insertRelationship(t, db)
 	for _, table := range []string{"users.student_guardian_pickup_permissions", "auth.guardian_student_access"} {
@@ -469,7 +469,7 @@ func TestGuardianStorageExpandCatalogAndDefaults(t *testing.T) {
 
 func TestGuardianStorageExpandFailureIsAtomic(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupIsolatedTestDB(t)
+	db := setupIsolatedStudentStorageBeforeCutover(t)
 	require.NoError(t, runPresenceMigration(t.Context(), db, guardianStorageExpandName, false))
 	// Fail after the first two tables exist, before grants and RLS provisioning.
 	_, err := db.ExecContext(t.Context(), `CREATE TABLE auth.guardian_student_access (probe BOOLEAN)`)

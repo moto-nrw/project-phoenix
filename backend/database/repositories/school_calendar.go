@@ -70,11 +70,8 @@ func (f *Factory) bindSchoolCalendarAdapters(capability schoolcalendar.Capabilit
 	f.CalendarPeriod = newCalendarPeriodCalendarRepository(capability, usage)
 	f.ClosingDay = newClosingDayCalendarRepository(capability)
 	f.Dateframe = newDateframeCalendarRepository(capability)
-	if repo, ok := f.CareExitCleanup.(interface {
-		BindCalendarPeriods(usersRepo.CalendarPeriodDirectory)
-	}); ok {
-		repo.BindCalendarPeriods(careExitCalendarPeriods{calendar: capability})
-	}
+	// The care-exit cleanup repository reads f.schoolCalendar through the
+	// resolver it was constructed with, so the assignment above binds it too.
 }
 
 const opFindByID = "find by id"

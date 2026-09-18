@@ -172,7 +172,7 @@ func TestPickupExtensions_ResolveErrors(t *testing.T) {
 
 func TestPickupExtensions_UnreadableChildrenAreHidden(t *testing.T) {
 	t.Parallel()
-	s := buildPickupExtensionSetup(t, testpkg.SetupTestDB(t))
+	s := buildPickupExtensionSetup(t, testpkg.SetupIsolatedTestDB(t))
 	childID, _ := s.addChild(t, "Ole")
 	tasks, err := s.module.ListOpenPickupExtensions(s.ctx, childID)
 	require.NoError(t, err)

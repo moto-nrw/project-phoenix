@@ -439,8 +439,8 @@ func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 	} {
 		setBirthday(t, db, personID, birthday)
 	}
-	assignStudentGroup(t, db, mine.ID, myGroup.ID)
-	assignStudentGroup(t, db, foreign.ID, otherGroup.ID)
+	testpkg.AssignStudentGroup(t, db, mine.ID, myGroup.ID)
+	testpkg.AssignStudentGroup(t, db, foreign.ID, otherGroup.ID)
 
 	ctx := testpkg.Ctx(t)
 	service := newBirthdayService(db, birthdaySettings(true, false), func() time.Time { return today })
@@ -468,20 +468,6 @@ func TestBirthdayOverviewAppliesStudentDataScope(t *testing.T) {
 		assert.Contains(t, names, "Fremdes Gruppenkind")
 		assert.Contains(t, names, "Ohne Gruppenkind", "a group-less child is visible to staff like any other")
 	})
-}
-
-// assignStudentGroup puts a fixture child into an education group.
-func assignStudentGroup(t *testing.T, db *bun.DB, studentID, groupID int64) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewUpdate().
-		Table("users.students").
-		Set("group_id = ?", groupID).
-		Where("id = ?", studentID).
-		Exec(ctx)
-	require.NoError(t, err, "assign group to test student")
 }
 
 // A child whose care has ended is off the birthday card from the day after

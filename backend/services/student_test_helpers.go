@@ -16,6 +16,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -41,7 +42,7 @@ type StudentTestModule struct {
 	PeopleDirectory    peopledirectory.Capability
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
-	CareLifecycle      users.CareLifecycleService
+	CareLifecycle      carelifecycle.CareLifecycleService
 	StudentAudit       users.StudentAuditService
 	PartialAbsence     careschedule.PartialAbsenceService
 	EnrollmentDecision enrollment.DecisionService
@@ -145,7 +146,7 @@ func NewStudentTestModule(db *bun.DB, unit tenant.UnitOfWork, feedbackCounter us
 		})
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
-	users.WirePersonCareParticipation(usersService, careLifecycleService)
+	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	approvedOfferings := enrollment.NewApprovedOfferingProjection(repos.Enrollment(), offeringStudents{query: persons})
 	pickupBaselines := careschedule.NewPickupBaselineServiceWithSettings(repos.StudentPickupSchedule, approvedOfferings, repos.CareOffering, settingsService)

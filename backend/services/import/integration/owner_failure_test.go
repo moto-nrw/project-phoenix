@@ -20,8 +20,11 @@ import (
 func TestDataImportCutover_StudentOwnerFailuresRollbackAndReplay(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// users.student_profiles is where a student write lands after Cutover
+	// #2759; users.students is the rollback-only view, which cannot carry a
+	// row trigger.
 	for _, table := range []string{
-		"users.persons", "users.students", "users.privacy_consents",
+		"users.persons", "users.student_profiles", "users.privacy_consents",
 		"users.guardian_profiles", "users.guardian_phone_numbers", "users.students_guardians",
 		"schedule.student_arrival_schedules", "schedule.student_pickup_schedules",
 		"audit.student_consent_changes",

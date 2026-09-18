@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -163,7 +164,7 @@ func (f *completeWithdrawalFixture) assertCompletionAudit() {
 
 func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userModels.CareWithdrawalCompletion) {
 	lifecycle := newWithdrawalLifecycle(f.env)
-	input := usersService.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
+	input := carelifecycle.CareExitInput{LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed}
 	preview, err := lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, input)
 	require.NoError(f.t, err)
 	require.Len(f.t, preview.Students, 1)
@@ -180,8 +181,8 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 	assert.Equal(f.t, decisionTestToday, *validUntil)
 }
 
-func newWithdrawalLifecycle(env *decisionTestEnv) usersService.CareLifecycleService {
-	return usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
+func newWithdrawalLifecycle(env *decisionTestEnv) carelifecycle.CareLifecycleService {
+	return carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),
@@ -263,7 +264,7 @@ type withdrawalRaceFixture struct {
 	t                 *testing.T
 	env               *decisionTestEnv
 	ctx               context.Context
-	lifecycle         usersService.CareLifecycleService
+	lifecycle         carelifecycle.CareLifecycleService
 	decision          enrollmentService.DecisionService
 	recurrenceGate    func(context.Context) error
 	completionWaiting chan struct{}
@@ -296,7 +297,7 @@ func (f *withdrawalRaceFixture) wireRaceServices(authoritative *bool) {
 		return timetableplanning.LockTenantRecurrenceWrites(ctx, f.env.db)
 	}
 	repos := f.env.repos
-	f.lifecycle = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
+	f.lifecycle = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: repos.Student, PersonRepo: repos.Person,
 		CareExitRepo: repos.CareExit, CleanupRepo: repos.CareExitCleanup,
 		WithdrawalRepo: repos.CareWithdrawal, TagReleaser: repos.StudentTagReleaser(),
@@ -341,7 +342,7 @@ func (f *withdrawalRaceFixture) applyInTenantTx() error {
 }
 
 func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
-	*userModels.CareWithdrawalCompletion, *usersService.CareExitPreview, usersService.CareExitInput,
+	*userModels.CareWithdrawalCompletion, *carelifecycle.CareExitPreview, carelifecycle.CareExitInput,
 ) {
 	require.NoError(f.t, f.applyInTenantTx())
 	f.input.Offerings = nil
@@ -350,7 +351,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 	pending, err := pendingWithdrawalForStudent(f.ctx, f.env.repos.CareWithdrawal, f.studentID)
 	require.NoError(f.t, err)
 	require.NotNil(f.t, pending)
-	exitInput := usersService.CareExitInput{
+	exitInput := carelifecycle.CareExitInput{
 		LastCareDay: decisionTestToday.AddDays(-1), Reason: userModels.CareExitReasonNoCareNeed,
 	}
 	preview, err := f.lifecycle.PreviewWithdrawalCareEnd(f.ctx, pending.ID, exitInput)
@@ -359,7 +360,7 @@ func (f *withdrawalRaceFixture) prepareWithdrawalRace() (
 }
 
 func (f *withdrawalRaceFixture) runRebookingRace(
-	pending *userModels.CareWithdrawalCompletion, preview *usersService.CareExitPreview, input usersService.CareExitInput,
+	pending *userModels.CareWithdrawalCompletion, preview *carelifecycle.CareExitPreview, input carelifecycle.CareExitInput,
 ) {
 	confirmErr := make(chan error, 1)
 	err := testpkg.WithTenantTx(f.t, f.ctx, f.env.db, testpkg.Tenant(f.t), func(ctx context.Context, _ bun.Tx) error {

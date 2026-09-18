@@ -281,6 +281,7 @@ function GroupsPageContent() {
                   <DatabaseCreateAction
                     label="Gruppe"
                     ariaLabel="Gruppe erstellen"
+                    showMobileFab={false}
                     onClick={() => setShowCreateModal(true)}
                   />
                 ),

@@ -26,6 +26,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
@@ -194,7 +195,7 @@ type Factory struct {
 	Users                     users.PersonService
 	Birthdays                 users.BirthdayService
 	StaffDocuments            users.StaffDocumentService
-	StudentDocuments          users.StudentDocumentService
+	StudentDocuments          carelifecycle.StudentDocumentService
 	FileStore                 *filestorageModule.Module
 	CaregiverCapability       users.CaregiverCapabilityService
 	Guardian                  *users.GuardianService
@@ -234,9 +235,9 @@ type Factory struct {
 	OperatorProvisioning organizationtenancy.Provisioning
 	Announcement         communication.Capability
 	Schools              organizationtenancy.Capability
-	Students             users.StudentService
+	Students             StudentServices
 	StudentDeletion      *studentdeletion.Workflow
-	CareLifecycle        users.CareLifecycleService
+	CareLifecycle        carelifecycle.CareLifecycleService
 	StudentAudit         users.StudentAuditService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         careschedule.CareScheduleRequestService
@@ -547,7 +548,6 @@ func newFactory(
 	repos.BindOrganizationTenancy(organizations)
 	repos.BindSchoolStructure(groups)
 	repos.BindFacilities(rooms)
-	repos.BindTimetable(timetableCapability)
 	repos.Student = overlappingRosterGroupNames{StudentRepository: repos.Student, groups: groups}
 	settingsRuntime := newSettingsRuntime(db, nil).WithSchoolMembership(membership)
 	repos.SetConfigRuntime(settingsRuntime)
@@ -1956,7 +1956,7 @@ func newFactory(
 	))
 
 	studentAuditService := users.NewStudentAuditService(repositories.NewStudentAuditFor(persons))
-	careLifecycleService := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+	careLifecycleService := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo:    repos.Student,
 		PersonRepo:     repos.Person,
 		CareExitRepo:   repos.CareExit,
@@ -1973,7 +1973,7 @@ func newFactory(
 		DB:     db,
 		Logger: logger.With("service", "care_lifecycle"),
 	})
-	users.WirePersonCareParticipation(usersService, careLifecycleService)
+	users.WirePersonCareParticipation(usersService, careParticipationResolver(careLifecycleService))
 	careschedule.WireCareParticipation(careDayService, careLifecycleService)
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
 		Bookings:                  enrollmentCareBookingCommands{owner: repos.CarePlan()},
@@ -2177,11 +2177,14 @@ func newFactory(
 	})
 	enrollmentDecisionApplier, _ := enrollmentDecisionService.(enrollment.ChangeRequestDecisionApplier)
 
-	// Created before the change-request service: its multi-child approval takes
-	// the companion lock order through this service.
 	studentService := users.NewStudentService(
 		repositories.NewStudentDirectory(persons),
 		persons,
+		repos.Student,
+	)
+	// Created before the change-request service: its multi-child approval takes
+	// the companion lock order through this service.
+	companionService := carelifecycle.NewStudentCompanionService(
 		repos.Student,
 		repos.StudentCompanion,
 		studentAuditService,
@@ -2190,7 +2193,7 @@ func newFactory(
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
 	// answer "does this caller supervise this child", so it is wired after it.
-	studentDocumentService := users.NewStudentDocumentService(
+	studentDocumentService := carelifecycle.NewStudentDocumentService(
 		db,
 		repos.StudentDocument,
 		repos.Student,
@@ -2215,7 +2218,7 @@ func newFactory(
 		StudentRepo:          repos.Student,
 		GuardianAuthorizer:   repos.StudentGuardian,
 		DecisionService:      enrollmentDecisionApplier,
-		CompanionGraphLocker: studentService,
+		CompanionGraphLocker: companionService,
 		Settings:             settingsService,
 		OutboxEnqueuer:       outboxEnqueuer{outbox: emailOutboxService},
 		FrontendURL:          frontendURL,
@@ -2986,7 +2989,7 @@ func newFactory(
 		OperatorProvisioning: operatorProvisioningService,
 		Announcement:         communicationCapability,
 		Schools:              organizations,
-		Students:             studentService,
+		Students:             StudentServices{Directory: studentService, Companions: companionService},
 		CareLifecycle:        careLifecycleService,
 		StudentAudit:         studentAuditService,
 		StudentConsents:      studentConsentService,
@@ -3053,7 +3056,7 @@ func newFactory(
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
-	users.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	carelifecycle.RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := config.NewTenantOperations(
 		settingsService,
 		payrollStatusService,

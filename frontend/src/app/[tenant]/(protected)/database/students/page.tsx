@@ -474,6 +474,7 @@ function StudentsPageContent() {
                   <DatabaseCreateAction
                     label="Kind"
                     ariaLabel="Kind anlegen"
+                    showMobileFab={false}
                     onClick={() => setShowCreateModal(true)}
                   />
                 ),

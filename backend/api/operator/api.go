@@ -6,6 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
@@ -66,7 +67,7 @@ type ResourceConfig struct {
 	// `tenant-${slug}` cache after tenant-resolve-affecting toggles.
 	SchoolService settingsoperator.SchoolLookup
 	ActiveService activeSvc.Service
-	CareLifecycle usersSvc.CareLifecycleService
+	CareLifecycle carelifecycle.CareLifecycleService
 	// SettingValueSet runs the settings side effects of an operator write
 	// (e.g. auto-provisioning system rooms when checkout toggles flip on).
 	// It runs in the tenant transaction; the optional postCommit closure it

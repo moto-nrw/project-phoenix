@@ -1,4 +1,4 @@
-package users
+package carelifecycle
 
 import (
 	"context"
@@ -15,10 +15,10 @@ import (
 // The "läuft mit" graph: which children walk home together, on which weekdays,
 // and what a change to one child's plan means for the others.
 //
-// It stays here rather than moving to People Directory with the rest of the
-// student directory (#3349): users.student_companions belongs to Care Plan,
-// and the rules below are about that table. What the directory owns — the
-// child row and its departure plan — is reached through the owner.
+// It did not move to People Directory with the rest of the student directory
+// (#3349) and moved here instead (#3350): users.student_companions belongs to
+// Care Plan, and the rules below are about that table. What the directory
+// owns — the child row and its departure plan — is reached through the owner.
 
 // StudentCompanionService is the Care Plan half: the "läuft mit" edges and the
 // lock protocol every writer of them shares.
@@ -94,6 +94,30 @@ type StudentCompanionService interface {
 	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
 }
 
+// companionService holds exactly the three collaborators the graph needs: the
+// edges it owns, the child rows it locks and widens through the People
+// Directory repository, and the audit seam a widened departure plan appends to.
+type companionService struct {
+	studentRepo   userModels.StudentRepository
+	companionRepo userModels.StudentCompanionRepository
+	studentAudit  StudentChangeRecorder
+}
+
+// NewStudentCompanionService builds the "läuft mit" service. The audit
+// recorder may be nil only in tests that do not widen a companion's plan; the
+// write path refuses an unattributed widening rather than skipping the trail.
+func NewStudentCompanionService(
+	studentRepo userModels.StudentRepository,
+	companionRepo userModels.StudentCompanionRepository,
+	studentAudit StudentChangeRecorder,
+) StudentCompanionService {
+	return &companionService{
+		studentRepo:   studentRepo,
+		companionRepo: companionRepo,
+		studentAudit:  studentAudit,
+	}
+}
+
 // LockStudentsForUpdate takes every student row lock a request needs up front,
 // in ascending id order.
 //
@@ -108,7 +132,7 @@ type StudentCompanionService interface {
 // Missing rows are skipped rather than reported: this establishes lock order
 // and nothing else, and the validation that follows already distinguishes "the
 // child being edited is gone" from "a submitted companion is gone".
-func (s *studentService) LockStudentsForUpdate(ctx context.Context, ids []int64) error {
+func (s *companionService) LockStudentsForUpdate(ctx context.Context, ids []int64) error {
 	// Nothing is held yet, so every id is "at or above the bound" and may wait.
 	return s.LockStudentsForUpdateBelow(ctx, ids, 0)
 }
@@ -128,7 +152,7 @@ func (s *studentService) LockStudentsForUpdate(ctx context.Context, ids []int64)
 // lock is either free (the overwhelmingly common case, since the writer that
 // created the edge has committed and released it) or the request is refused
 // with the retriable ErrCompanionLockBusy.
-func (s *studentService) LockStudentsForUpdateBelow(ctx context.Context, ids []int64, maxHeldID int64) error {
+func (s *companionService) LockStudentsForUpdateBelow(ctx context.Context, ids []int64, maxHeldID int64) error {
 	ordered := make([]int64, 0, len(ids))
 	seen := make(map[int64]bool, len(ids))
 	for _, id := range ids {
@@ -188,7 +212,7 @@ func (s *studentService) LockStudentsForUpdateBelow(ctx context.Context, ids []i
 // the deadlock this whole protocol exists to prevent. Those downward locks are
 // therefore taken with NOWAIT (LockStudentsForUpdateBelow), which either gets
 // them immediately or refuses the request as retriable — never blocks.
-func (s *studentService) LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error {
+func (s *companionService) LockCompanionGraph(ctx context.Context, subjectIDs []int64, additional []int64) error {
 	if len(subjectIDs) == 0 {
 		return nil
 	}
@@ -246,13 +270,13 @@ func (s *studentService) LockCompanionGraph(ctx context.Context, subjectIDs []in
 // the layer that deferred the verdicts in the first place (every departure-plan
 // write passes through it) and the only one that can re-read the plans and edges
 // the batch left behind.
-func (s *studentService) VerifyCompanionStrandingBatch(ctx context.Context) error {
+func (s *companionService) VerifyCompanionStrandingBatch(ctx context.Context) error {
 	return s.studentRepo.VerifyCompanionStrandingBatch(ctx)
 }
 
 // companionIDsOfMany collects the far ends of every stored edge of the given
 // subjects, duplicates included — LockCompanionGraph folds them.
-func (s *studentService) companionIDsOfMany(ctx context.Context, subjectIDs []int64) ([]int64, error) {
+func (s *companionService) companionIDsOfMany(ctx context.Context, subjectIDs []int64) ([]int64, error) {
 	out := make([]int64, 0, len(subjectIDs))
 	links, err := s.ListCompanionsForStudents(ctx, subjectIDs)
 	if err != nil {
@@ -266,27 +290,21 @@ func (s *studentService) companionIDsOfMany(ctx context.Context, subjectIDs []in
 	return out, nil
 }
 
-// MaxStudentCompanions caps how many children one child may be linked to. A
-// Laufgemeinschaft is a handful of neighbours walking home together; a request
-// with more than this is a client bug or an attempt to use the field as a group
-// list, and both should fail loudly rather than produce an unreadable grouping.
-const MaxStudentCompanions = 10
-
-func (s *studentService) ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error) {
+func (s *companionService) ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error) {
 	if studentID <= 0 {
 		return nil, ErrStudentNotFound
 	}
 	return s.companionRepo.ListLinksForStudent(ctx, studentID)
 }
 
-func (s *studentService) ListCompanionsForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
+func (s *companionService) ListCompanionsForStudents(ctx context.Context, studentIDs []int64) (map[int64][]userModels.CompanionLink, error) {
 	if len(studentIDs) == 0 {
 		return map[int64][]userModels.CompanionLink{}, nil
 	}
 	return s.companionRepo.ListLinksForStudents(ctx, studentIDs)
 }
 
-func (s *studentService) ListCompanionIDs(ctx context.Context, studentID int64) ([]int64, error) {
+func (s *companionService) ListCompanionIDs(ctx context.Context, studentID int64) ([]int64, error) {
 	if studentID <= 0 {
 		return nil, ErrStudentNotFound
 	}
@@ -315,7 +333,7 @@ func (s *studentService) ListCompanionIDs(ctx context.Context, studentID int64) 
 // or the Kindersuche keeps grouping the children on a day the Stammdaten
 // forbid. Only ever removes, so no companion's plan is consulted — a day that
 // was legal before cannot become illegal by disappearing.
-func (s *studentService) TrimCompanionsToDays(ctx context.Context, studentID int64, allowedDays map[string]bool) ([]userModels.CompanionLink, error) {
+func (s *companionService) TrimCompanionsToDays(ctx context.Context, studentID int64, allowedDays map[string]bool) ([]userModels.CompanionLink, error) {
 	if studentID <= 0 {
 		return nil, ErrStudentNotFound
 	}
@@ -359,7 +377,7 @@ func (s *studentService) TrimCompanionsToDays(ctx context.Context, studentID int
 // is unambiguous without any reference to the stored links — deleting the child
 // itself, whose edges go by ON DELETE CASCADE. A trim that a submitted departure
 // plan drives is the other case and belongs in CheckCompanionTrimForPlan.
-func (s *studentService) CheckCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) error {
+func (s *companionService) CheckCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) error {
 	links, trimmed, err := s.planCompanionTrim(ctx, studentID, allowedDays)
 	if err != nil || links == nil {
 		return err
@@ -384,7 +402,7 @@ func (s *studentService) CheckCompanionTrim(ctx context.Context, studentID int64
 // would actually drop something — "I don't know what is stored" is not a licence
 // to delete it. A trim that changes nothing needs no claim at all, so the
 // overwhelmingly common resubmit of an unchanged plan passes untouched.
-func (s *studentService) CheckCompanionTrimForPlan(ctx context.Context, studentID int64, allowedDays map[string]bool, expectedFingerprint *string) error {
+func (s *companionService) CheckCompanionTrimForPlan(ctx context.Context, studentID int64, allowedDays map[string]bool, expectedFingerprint *string) error {
 	links, trimmed, err := s.planCompanionTrim(ctx, studentID, allowedDays)
 	if err != nil || links == nil {
 		return err
@@ -402,7 +420,7 @@ func (s *studentService) CheckCompanionTrimForPlan(ctx context.Context, studentI
 // stored links and what survives, or (nil, nil, nil) when the trim changes
 // nothing — which is how callers tell "no removal at all" from "these links are
 // about to lose weekdays".
-func (s *studentService) planCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) (stored, trimmed []userModels.CompanionLink, err error) {
+func (s *companionService) planCompanionTrim(ctx context.Context, studentID int64, allowedDays map[string]bool) (stored, trimmed []userModels.CompanionLink, err error) {
 	if studentID <= 0 {
 		return nil, nil, ErrStudentNotFound
 	}
@@ -463,7 +481,7 @@ func trimCompanionLinks(links []userModels.CompanionLink, allowedDays map[string
 // answer for Tuesday either. Every removed (companion, weekday) pair therefore
 // needs the far child to keep a note, another link ON THAT DAY, or a plan that
 // does not claim "Anderes Kind" there.
-func (s *studentService) checkCompanionRemovals(ctx context.Context, studentID int64, before, after []userModels.CompanionLink) error {
+func (s *companionService) checkCompanionRemovals(ctx context.Context, studentID int64, before, after []userModels.CompanionLink) error {
 	keptDays := make(map[int64]map[string]bool, len(after))
 	for _, link := range after {
 		days := keptDays[link.CompanionStudentID]
@@ -598,7 +616,7 @@ type CompanionConflict struct {
 // so adding Tom to Lina's card is the same row that shows Lina on Tom's card.
 // The flip side is that replacing Lina's list only touches edges that TOUCH
 // Lina — a link between Tom and Mia is left alone.
-func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
+func (s *companionService) ReplaceCompanions(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
 	edges, conflicts, err := s.validateCompanionUpdate(ctx, studentID, update)
 	if err != nil {
 		return nil, err
@@ -643,7 +661,7 @@ func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64,
 // not just the confirmable conflicts, and it does so regardless of
 // ExtendCompanionPlans: a confirmed retry can still be rejected for one of the
 // other reasons.
-func (s *studentService) CheckCompanionConflicts(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
+func (s *companionService) CheckCompanionConflicts(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
 	_, conflicts, err := s.validateCompanionUpdate(ctx, studentID, update)
 	return conflicts, err
 }
@@ -652,7 +670,7 @@ func (s *studentService) CheckCompanionConflicts(ctx context.Context, studentID 
 // returns the edges to write plus the companions whose own departure plan does
 // not allow the requested days. It writes nothing, so the read-only
 // CheckCompanionConflicts and the writing ReplaceCompanions cannot drift apart.
-func (s *studentService) validateCompanionUpdate(ctx context.Context, studentID int64, update CompanionUpdate) ([]*userModels.StudentCompanion, []CompanionConflict, error) {
+func (s *companionService) validateCompanionUpdate(ctx context.Context, studentID int64, update CompanionUpdate) ([]*userModels.StudentCompanion, []CompanionConflict, error) {
 	if studentID <= 0 {
 		return nil, nil, ErrStudentNotFound
 	}
@@ -725,7 +743,7 @@ func (s *studentService) validateCompanionUpdate(ctx context.Context, studentID 
 // resolveCompanions loads the requested companions, enforces the companion cap
 // at their end of the edge, and reports which of them may not leave with
 // another child on the requested days, in ascending id order.
-func (s *studentService) resolveCompanions(ctx context.Context, studentID int64, companionDays map[int64][]string) ([]CompanionConflict, error) {
+func (s *companionService) resolveCompanions(ctx context.Context, studentID int64, companionDays map[int64][]string) ([]CompanionConflict, error) {
 	companionIDs := make([]int64, 0, len(companionDays))
 	for id := range companionDays {
 		companionIDs = append(companionIDs, id)
@@ -837,7 +855,7 @@ func missingAccompaniedDays(companion *userModels.Student, requested []string) [
 // unlocked snapshot resolveCompanions took: widening writes the WHOLE student
 // row, so a sick/group/consent/photo change that another request committed in
 // between would be silently rolled back by a stale snapshot write.
-func (s *studentService) extendAccompaniedDays(
+func (s *companionService) extendAccompaniedDays(
 	ctx context.Context,
 	companionID int64,
 	days []string,
@@ -887,6 +905,6 @@ func (s *studentService) extendAccompaniedDays(
 	return nil
 }
 
-func (s *studentService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
+func (s *companionService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	return s.companionRepo.CompanionIDsForWeekday(ctx, studentIDs, weekday)
 }

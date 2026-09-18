@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -30,15 +31,15 @@ func TestCompanionPlanErrorRenderer(t *testing.T) {
 	t.Parallel()
 
 	t.Run("stranded companion is a client-fixable 400", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(userService.ErrCompanionWouldLoseDeparture))
+		resp := rendererStatus(t, companionPlanErrorRenderer(carelifecycle.ErrCompanionWouldLoseDeparture))
 
 		assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
 		// The German sentinel text is the whole instruction the user gets.
-		assert.Equal(t, userService.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
+		assert.Equal(t, carelifecycle.ErrCompanionWouldLoseDeparture.Error(), resp.ErrorText)
 	})
 
 	t.Run("busy companion lock is a retriable 409 with its code", func(t *testing.T) {
-		resp := rendererStatus(t, companionPlanErrorRenderer(userService.ErrCompanionLockBusy))
+		resp := rendererStatus(t, companionPlanErrorRenderer(carelifecycle.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, CodeCompanionLockBusy, resp.Code)
@@ -69,8 +70,8 @@ func TestDecideMasterDataChangeRequest_MapsCompanionErrors(t *testing.T) {
 		err  error
 		want int
 	}{
-		{name: "stranded companion", err: userService.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
-		{name: "busy companion lock", err: userService.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stranded companion", err: carelifecycle.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
+		{name: "busy companion lock", err: carelifecycle.ErrCompanionLockBusy, want: http.StatusConflict},
 	}
 
 	for _, tt := range tests {
@@ -151,8 +152,8 @@ func TestDecideCareScheduleChangeRequest_MapsCompanionErrors(t *testing.T) {
 		want     int
 		wantCode string
 	}{
-		{name: "stranded companion", err: userService.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
-		{name: "busy companion lock", err: userService.ErrCompanionLockBusy, want: http.StatusConflict},
+		{name: "stranded companion", err: carelifecycle.ErrCompanionWouldLoseDeparture, want: http.StatusBadRequest},
+		{name: "busy companion lock", err: carelifecycle.ErrCompanionLockBusy, want: http.StatusConflict},
 		{name: "stale pickup impact", err: careschedule.ErrPickupChangeImpactChanged, want: http.StatusConflict, wantCode: "pickup_change_impact_changed"},
 		{name: "care day belongs to booking", err: careschedule.ErrCareDayManagedByBooking, want: http.StatusConflict, wantCode: "care_day_managed_by_booking"},
 		{name: "missing pickup impact", want: http.StatusBadRequest},

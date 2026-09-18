@@ -267,6 +267,9 @@ checkpoint. The Expand rollback follows after the targets are empty.
 
 ## Exit criterion for Cutover
 
+The switch itself, its compatibility shape and the rollback window are in
+[the cutover guide](student-owner-storage-cutover.md).
+
 `backfill student-owner status` exits zero only when every school reports
 `stable: true`, equal counts and checksums, `mismatch_count: 0`,
 `guardian_mismatch_count: 0`, `care_state_mismatch_count: 0`, and

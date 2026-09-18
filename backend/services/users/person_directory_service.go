@@ -89,10 +89,18 @@ type PersonServiceDependencies struct {
 	Logger          *slog.Logger
 }
 
+// CareParticipationResolver is the Care Plan seam behind the dated visibility
+// decision this directory read applies (#3350). Care Plan owns the exit and
+// withdrawal boundaries it resolves; the directory only asks which of the
+// children it selected still take part in care on the given day.
+type CareParticipationResolver func(
+	ctx context.Context, studentIDs []int64, on, today timezone.Date,
+) (map[int64]bool, error)
+
 // personService implements the PersonService interface
 type personService struct {
 	PersonServiceDependencies
-	careParticipation CareLifecycleService
+	careParticipation CareParticipationResolver
 }
 
 // NewPersonService creates a new person service
@@ -100,12 +108,12 @@ func NewPersonService(deps PersonServiceDependencies) PersonService {
 	return &personService{PersonServiceDependencies: deps}
 }
 
-func WirePersonCareParticipation(service PersonService, lifecycle CareLifecycleService) {
+func WirePersonCareParticipation(service PersonService, resolve CareParticipationResolver) {
 	concrete, ok := service.(*personService)
 	if !ok {
 		panic("person service does not support care-participation wiring")
 	}
-	concrete.careParticipation = lifecycle
+	concrete.careParticipation = resolve
 }
 
 // Get retrieves a person by their ID
@@ -538,14 +546,14 @@ func (s *personService) GetEligibleStudentsByGroupIDsOnDate(ctx context.Context,
 	for _, student := range students {
 		ids = append(ids, student.ID)
 	}
-	resolution, err := s.careParticipation.ResolveListParticipation(ctx, ids, date, today, false)
+	participating, err := s.careParticipation(ctx, ids, date, today)
 	if err != nil {
 		return nil, err
 	}
 	started := filterStudentsStartedOnDate(students, date, today)
 	kept := make([]*userModels.Student, 0, len(started))
 	for _, student := range started {
-		if resolution.ParticipatingIDs[student.ID] {
+		if participating[student.ID] {
 			kept = append(kept, student)
 		}
 	}

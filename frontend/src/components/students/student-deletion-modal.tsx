@@ -74,9 +74,9 @@ interface StudentDeletionModalProps {
   readonly onDeleted: () => Promise<void> | void;
 }
 
-// Endgültiges Löschen eines Kindes (#3110): ein ConfirmDeleteModal mit der
-// Texteingabe-Stufe. Vorschau der Folgen, Löschgrund und Bestätigungshaken
-// liegen im Dialog; die Namenseingabe ist das Gate des Bauteils.
+// Endgültiges Löschen eines Kindes (#3110): Vorschau der Folgen, Löschgrund
+// und Bestätigungshaken liegen im Dialog. Das zweistufige Gate verlangt nach
+// diesen Voraussetzungen eine weitere bewusste Löschbestätigung.
 export function StudentDeletionModal({
   isOpen,
   studentId,
@@ -93,7 +93,7 @@ export function StudentDeletionModal({
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
-  // Bumped after a 409 so the dialog remounts and the typed name is cleared.
+  // Bumped after a 409 so the dialog returns to its first confirmation step.
   const [gateReset, setGateReset] = useState(0);
 
   useEffect(() => {
@@ -199,7 +199,7 @@ export function StudentDeletionModal({
         // The backend re-checks the preview under a row lock. A 409 means the
         // user must see a fresh impact before confirming again: the
         // acknowledgement resets, and the dialog remounts (`key` below),
-        // which clears the typed name.
+        // which returns the two-step gate to its first step.
         setAcknowledged(false);
         setGateReset((count) => count + 1);
         setLoadingPreview(true);
@@ -323,14 +323,7 @@ export function StudentDeletionModal({
           ) : null}
         </div>
       }
-      gate={{
-        mode: "textConfirm",
-        expected: impact?.confirmation_name ?? "",
-        inputId: "student-deletion-confirmation-name",
-        label: "Zur Sicherheit: Name des Kindes erneut eingeben",
-        placeholder: impact?.confirmation_name,
-        preview: impact?.confirmation_name,
-      }}
+      gate={{ mode: "twoStep" }}
       confirmDisabled={loadingPreview || !prerequisitesMet}
       confirmLabel="Kind endgültig löschen"
       onConfirm={handleDelete}

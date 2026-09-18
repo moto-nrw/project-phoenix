@@ -26,7 +26,7 @@ func allowedDepartureModesColumnExists(t *testing.T, db *testpkg.DB) bool {
 
 func TestStudentsAllowedDepartureModesMigration_BackfillsFromLegacyMaps(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := setupStudentStorageBeforeCutover(t)
 	ctx := context.Background()
 
 	if !allowedDepartureModesColumnExists(t, db) {
