@@ -189,6 +189,17 @@ const studentOwnerCompatibilityRouting = `
 				COALESCE(NEW.pickup_days, '{}'::jsonb), COALESCE(NEW.bus_days, '{}'::jsonb),
 				NEW.created_at, NEW.updated_at);
 		ELSE
+			-- The live enrollment is taken first and held: it is the row that
+			-- can disappear under a concurrent retirement, and reporting "no
+			-- row updated" after the profile had already been rewritten would
+			-- leave a write behind that the caller was told did not happen.
+			-- Once it is locked the profile is guaranteed by the foreign key.
+			SELECT membership.id INTO owning_membership
+			FROM users.student_school_memberships AS membership
+			WHERE membership.tenant_id = OLD.tenant_id AND membership.student_profile_id = OLD.id
+			  AND membership.deleted_at IS NULL
+			FOR UPDATE;
+			IF NOT FOUND THEN RETURN NULL; END IF;
 			UPDATE users.student_profiles SET
 				person_id = NEW.person_id, address_street = NEW.address_street,
 				address_city = NEW.address_city, address_postal_code = NEW.address_postal_code,
@@ -201,14 +212,11 @@ const studentOwnerCompatibilityRouting = `
 				created_at = NEW.created_at, updated_at = NEW.updated_at
 			WHERE tenant_id = OLD.tenant_id AND id = OLD.id
 			RETURNING updated_at INTO NEW.updated_at;
-			IF NOT FOUND THEN RETURN NULL; END IF;
 			UPDATE users.student_school_memberships SET
 				school_class = NEW.school_class, group_id = NEW.group_id,
 				status = COALESCE(NEW.status, 'active'), enrolled_from = NEW.enrolled_from,
 				enrolled_until = NEW.enrolled_until, updated_at = NEW.updated_at
-			WHERE tenant_id = OLD.tenant_id AND student_profile_id = OLD.id AND deleted_at IS NULL
-			RETURNING id INTO owning_membership;
-			IF owning_membership IS NULL THEN RETURN NULL; END IF;
+			WHERE tenant_id = OLD.tenant_id AND id = owning_membership;
 			UPDATE users.student_care_profiles SET
 				supervisor_notes = NEW.supervisor_notes, health_info = NEW.health_info,
 				pickup_status = NEW.pickup_status,

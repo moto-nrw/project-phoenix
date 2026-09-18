@@ -89,6 +89,12 @@ membership and the care profile, and the archive row with it. A stale archive
 row still claiming the per-person unique key of a child the current providers
 deleted is released by the same trigger rather than rejecting the write.
 
+Reading a child through the view costs more than reading the old table did: two
+joins plus one primary-key lookup in the archive for the legacy columns, per
+row. That is the price of the rollback window and another reason the
+compatibility counters have to trend to zero. Watch the p95 of the student list
+endpoints against the pre-release baseline while callers still go through it.
+
 ## Release and rollback
 
 1. Save the previous image identifier and the completed
@@ -160,6 +166,61 @@ plus the rates of `phoenix_db_wait_count_total` and
 `phoenix_unit_of_work_retries_total`. Compare with the pre-release baseline
 under comparable traffic, and keep raw evidence, image identifiers, sampling
 intervals, probe activity and database statistics resets together.
+
+## Still open on #2759: the application caller switch
+
+The database switch above is complete. The ticket's exit criterion also requires
+that every current caller reads and writes the owner interfaces instead of
+`users.students`, that exactly one application provider writes each field, and
+that a caller-inventory test proves zero old application reads and writes. That
+part is **not** in this change, and it is not a small edit, because the split
+moves fields across owners that the current code reads from one place:
+
+1. **School Membership has to own the enrollment queries and commands.**
+   `modules/peopledirectory`'s student store serves `school_class`, `group_id`,
+   the lifecycle `status` and the `enrolled_from`/`enrolled_until` window — all
+   School Membership columns after the split. A People adapter reading
+   `users.student_school_memberships` is a `tables.foreign-read` violation, and
+   the policy admits a named read projection only for a package owned by a
+   *projection* owner, never for a domain adapter. So `ListByClasses`,
+   `ListEnrolled`, `ListClasses`, `Promote`, `RevertClass`, `GraduateByClasses`,
+   `GraduateByIDs` and `Reactivate` move into a School Membership capability,
+   and `ListByIDs`/`ListByPersonIDs` compose the two owners. Composing them in
+   Go costs a second statement per list endpoint, which the shrink-only query
+   budgets in `backend/test/query_budgets.go` do not allow, so the joined read
+   belongs in a named tenant-safe read projection instead — the mechanism
+   `class-day-view` and `group-live-view` already use. That needs a new
+   projection owner, and a new owner needs an architecture decision linked from
+   #2580 before it is added.
+2. **Care Plan has to own the care columns.** `supervisor_notes`, `health_info`,
+   `pickup_status`, the departure plan and the companion note are written today
+   through People's `ApplyEnrollmentProfile` and through the legacy student
+   repository. They become Care Plan commands, and the multi-owner writes
+   (create student, apply enrollment profile, delete student) become one
+   UnitOfWork per write.
+3. **The legacy `sick`/`excused` flags have to go.** They exist only in the
+   rollback archive from here on. Every write path already mirrors them into
+   `active.student_status_days` (`persistStudentStatusHistory` for the staff
+   toggle, `recordStudentStatusForClear` for the next-check-in clear, the parent
+   portal's report), and `ResolveEffectiveStatus` over those days is already the
+   read the group-live projection uses. What is left is deleting the flag half:
+   `peopledirectory.StudentStatusFlagCapability`, Care Plan's
+   `ArchiveStudentStatusFlags`, the scheduler's end-of-day
+   `ArchiveAndClearStatusFlag` task, and the four fields on
+   `models/users.Student`, `peopledirectory.Student` and
+   `careplan.StatusStudent` — with their remaining readers moved onto the
+   effective status.
+4. **The legacy guardian columns have to go the same way.**
+   `guardian_name`, `guardian_contact`, `guardian_email` and `guardian_phone`
+   have no owner storage; `users.guardian_profiles` and
+   `users.guardian_phone_numbers` do. The backfill's
+   `guardian_mismatch_count: 0` gate is what makes removing them safe.
+
+Until that lands, current callers keep reading and writing through the
+compatibility view, so the counters in the evidence table below will not trend
+to zero and #2760 stays blocked. Nothing about the database switch changes when
+the caller switch lands: the view, its routing and the counters are exactly the
+rollback shape #2760 removes.
 
 ## Staging acceptance record
 

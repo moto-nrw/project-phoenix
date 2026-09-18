@@ -230,6 +230,21 @@ func TestStudentOwnerCutoverHidesRetiredMemberships(t *testing.T) {
 	var visible int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.students WHERE id = ?`, ids[0]).Scan(t.Context(), &visible))
 	require.Zero(t, visible, "a retired enrollment must read as a row that is gone, not as an enrolled child")
+
+	// Writing a row the previous image can no longer see must leave every
+	// owner untouched, not rewrite the profile half of it.
+	before := studentProfileJSON(t, db, ids[0])
+	_, err = db.NewRaw(`UPDATE users.students SET extra_info = 'ghost' WHERE id = ?`, ids[0]).Exec(t.Context())
+	require.NoError(t, err)
+	require.JSONEq(t, before, studentProfileJSON(t, db, ids[0]))
+}
+
+func studentProfileJSON(t *testing.T, db *testpkg.DB, id int64) string {
+	t.Helper()
+	var row string
+	require.NoError(t, db.NewRaw(`SELECT to_jsonb(p)::text FROM users.student_profiles p WHERE p.id = ?`, id).
+		Scan(t.Context(), &row))
+	return row
 }
 
 func TestStudentOwnerCutoverRepointsAndValidatesForeignKeys(t *testing.T) {
