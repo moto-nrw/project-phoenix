@@ -9,6 +9,7 @@ import (
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -17,18 +18,16 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 type AuthTestModule struct {
-	Auth auth.AuthService
-	// AccountAuthentication is the Identity & Access module the auth
-	// service delegates its session flows to (#3251); the auth HTTP tests
-	// hand it to the routes that call the public contract directly.
+	// Auth and AccountAuthentication are the same composed Identity &
+	// Access module: the surfaces the behaviour tests drive consume it
+	// through the capabilities they were bound to (#3364).
+	Auth                  *identityaccess.Module
 	AccountAuthentication *identityaccess.Module
 	StaffPINAuth          StaffPINAuthenticator
 	Invitation            InvitationCapability
@@ -38,10 +37,10 @@ type AuthTestModule struct {
 	// MFA, Passkeys, OperatorMFA and OperatorPasskeys are the Identity &
 	// Access second factor and both portals' WebAuthn ceremonies (#3331),
 	// composed over the same repositories the root uses.
-	MFA              auth.MFAService
-	Passkeys         auth.PasskeyService
-	OperatorMFA      platform.OperatorMFAService
-	OperatorPasskeys platform.OperatorPasskeyService
+	MFA              identityaccess.AccountMFA
+	Passkeys         identityaccess.AccountPasskeyFlows
+	OperatorMFA      identityaccess.OperatorMFAFlows
+	OperatorPasskeys identityaccess.OperatorPasskeyFlows
 	// Repos and TokenAuth let a behaviour test read the rows the flows
 	// wrote and mint the tokens they expect.
 	Repos     *repositories.Factory
@@ -51,6 +50,10 @@ type AuthTestModule struct {
 type InvitationTestModule struct {
 	Persistence *repositories.InvitationPersistence
 	Invitation  InvitationCapability
+	// Auth is the composed Identity & Access module, for the invitation
+	// HTTP tests that mount the whole auth router and therefore need the
+	// account-lifecycle capability its unrelated routes bind (#3364).
+	Auth *identityaccess.Module
 }
 
 func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTestModule, error) {
@@ -62,7 +65,7 @@ func NewInvitationTestModule(db *bun.DB, unit tenant.UnitOfWork) (InvitationTest
 	if err != nil {
 		return InvitationTestModule{}, err
 	}
-	return InvitationTestModule{Persistence: repos, Invitation: auth.Invitation}, nil
+	return InvitationTestModule{Persistence: repos, Invitation: auth.Invitation, Auth: auth.Auth}, nil
 }
 
 // AccountMFARecords is the account MFA record port the composed module
@@ -79,7 +82,7 @@ type authTestSettings struct {
 	resetBackoff     []time.Duration
 	mfaBackoff       []time.Duration
 	mfaRecords       func(AccountMFARecords) AccountMFARecords
-	mfaCapability    auth.MFAService
+	mfaCapability    identityaccess.AccountMFA
 	mfaSettings      config.SettingsService
 	staffCreateErr   error
 }
@@ -133,7 +136,7 @@ func WithAuthTestMFASettings(settings config.SettingsService) AuthTestOption {
 // WithAuthTestMFACapability composes the module over the given account
 // second factor instead of the one over the repositories, so a test can
 // drive the login branches the gate decides between.
-func WithAuthTestMFACapability(capability auth.MFAService) AuthTestOption {
+func WithAuthTestMFACapability(capability identityaccess.AccountMFA) AuthTestOption {
 	return func(s *authTestSettings) { s.mfaCapability = capability }
 }
 
@@ -185,20 +188,10 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	} else if inviteHours > 168 {
 		inviteHours = 168
 	}
-	authConfig, err := auth.NewServiceConfig(dispatcher, defaultFrom, frontendURL, time.Duration(resetMinutes)*time.Minute)
+	tokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	authConfig.ParentsURL = parentsURL
-	authConfig.SchoolURL = schoolURL
-	authConfig.RateLimitEnabled = settingsOverrides.rateLimitEnabled
-	authConfig.Settings = settings.Settings
-	authConfig.Audit = command
-	authConfig.TokenAuth, err = authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
-	if err != nil {
-		return AuthTestModule{}, err
-	}
-	var service *auth.Service
 	// The delivery module is composed after the identity module, so the
 	// guardian mail reads its outbox at call time, as the factory does.
 	var deliveryModule DeliveryTestModule
@@ -228,14 +221,13 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		return AuthTestModule{}, err
 	}
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepos, tokenAuth: authConfig.TokenAuth, settings: settings.Settings, audit: command, logger: logger,
-		operators:     operators,
-		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
+		repos: sessionRepos, tokenAuth: tokenAuth, settings: settings.Settings, audit: command, logger: logger,
+		operators: operators,
 		mfa: &mfaWiring{
-			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides), tokenAuth: authConfig.TokenAuth,
+			repos: r, settings: mfaSettingsService(settings.Settings, settingsOverrides), tokenAuth: tokenAuth,
 			dispatcher: dispatcher, defaultFrom: defaultFrom, frontendURL: frontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger, backoff: settingsOverrides.mfaBackoff,
-			decorate: settingsOverrides.mfaRecords, capability: newModuleAccountMFA(settingsOverrides.mfaCapability),
+			decorate: settingsOverrides.mfaRecords, capability: settingsOverrides.mfaCapability,
 			passkeys: &authTestRelyingParty,
 		},
 		lifecycle: &lifecycleWiring{
@@ -255,21 +247,16 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 		},
 		invitations: &invitationWiring{
 			dispatcher: dispatcher, defaultFrom: defaultFrom, staffURL: frontendURL, schoolURL: schoolURL,
-			mailIdentity: identity, tokenAuth: authConfig.TokenAuth, expiry: time.Duration(inviteHours) * time.Hour,
+			mailIdentity: identity, tokenAuth: tokenAuth, expiry: time.Duration(inviteHours) * time.Hour,
 			backoff: settingsOverrides.resetBackoff,
 		},
 	})
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	accountSessionsPort := newAccountSessions(identityAccess)
-	authConfig.Sessions = accountSessionsPort
-	authConfig.Lifecycle = accountSessionsPort
-	service, err = auth.NewService(r, authConfig, db, logger)
-	if err != nil {
+	if err := identityAccess.SetTenantRuntime(unit); err != nil {
 		return AuthTestModule{}, err
 	}
-	service.SetTenantRuntime(unit)
 	invitation := InvitationCapability(identityAccess)
 	deliveryModule, err = NewDeliveryTestModule(db, unit)
 	if err != nil {
@@ -277,44 +264,41 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	}
 	guardian := GuardianInvitationCapability(identityAccess)
 	return AuthTestModule{
-		Auth: service, AccountAuthentication: identityAccess,
+		Auth: identityAccess, AccountAuthentication: identityAccess,
 		StaffPINAuth: NewStaffPINAuthenticator(identityAccess),
-		MFA:          newAccountMFAPort(identityAccess), Passkeys: newAccountPasskeyPort(identityAccess),
-		OperatorMFA: newOperatorMFAPort(identityAccess), OperatorPasskeys: newOperatorPasskeyPort(identityAccess),
-		Repos: r, TokenAuth: authConfig.TokenAuth,
+		MFA:          identityAccess, Passkeys: identityAccess,
+		OperatorMFA: identityAccess, OperatorPasskeys: identityAccess,
+		Repos: r, TokenAuth: tokenAuth,
 		Invitation: invitation, GuardianInvitation: guardian,
 		Schools: r.School, Settings: settings.Settings,
 	}, nil
 }
 
-// NewAuthServiceForTests composes the retained auth service over the given
-// repositories with its session flows bound to Identity & Access (#3251),
-// the way the factory does it. Tests that used to build the service alone
-// use it where login, refresh or revocation is exercised.
-func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig, db *bun.DB, logger *slog.Logger) (*auth.Service, error) {
-	cfg := base
+// IdentityAccessForTests composes the Identity & Access module over the
+// given repositories the way the factory does it, for behaviour tests that
+// exercise sessions, the account lifecycle or the role administration
+// without the whole factory (#3364).
+func IdentityAccessForTests(repos *repositories.Factory, cfg IdentityAccessTestConfig, db *bun.DB, logger *slog.Logger) (*identityaccess.Module, error) {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if cfg.TokenAuth == nil {
-		signer, err := authjwt.NewTokenAuth()
+	signer := cfg.TokenAuth
+	if signer == nil {
+		created, err := authjwt.NewTokenAuth()
 		if err != nil {
 			return nil, err
 		}
-		cfg.TokenAuth = signer
+		signer = created
 	}
-	var service *auth.Service
-	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
-		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: cfg.TokenAuth, settings: cfg.Settings, audit: cfg.Audit, logger: logger,
-		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
+	module, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
+		repos: sessionRepositoriesOf(repos, repos.School), tokenAuth: signer, settings: cfg.Settings,
+		audit: cfg.Audit, logger: logger,
 		mfa: &mfaWiring{
-			repos: repos, settings: cfg.Settings, tokenAuth: cfg.TokenAuth,
+			repos: repos, settings: cfg.Settings, tokenAuth: signer,
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom, frontendURL: cfg.FrontendURL,
 			jwtSecret: mfaTestSecret(), logger: logger,
 		},
-		lifecycle: &lifecycleWiring{
-			settings: cfg.Settings, audit: cfg.Audit,
-		},
+		lifecycle: &lifecycleWiring{settings: cfg.Settings, audit: cfg.Audit},
 		resets: &passwordResetWiring{
 			dispatcher: cfg.Dispatcher, defaultFrom: cfg.DefaultFrom,
 			staffURL: cfg.FrontendURL, parentsURL: cfg.ParentsURL, schoolURL: cfg.SchoolURL,
@@ -324,18 +308,27 @@ func NewAuthServiceForTests(repos *repositories.Factory, base auth.ServiceConfig
 	if err != nil {
 		return nil, err
 	}
-	port := newAccountSessions(identityAccess)
-	cfg.Sessions = port
-	cfg.Lifecycle = port
-	service, err = auth.NewService(repos, &cfg, db, logger)
-	return service, err
+	if err := module.SetTenantRuntime(cfg.TenantRuntime); err != nil {
+		return nil, err
+	}
+	return module, nil
 }
 
-// IdentityAccessForTests returns the Identity & Access module a retained
-// auth service composed by NewAuthServiceForTests delegates to, so behaviour
-// tests reach the role administration (#3314) through the public contract.
-func IdentityAccessForTests(service auth.AuthService) *identityaccess.Module {
-	return identityAccessOf(service)
+// IdentityAccessTestConfig is what a behaviour test supplies to compose the
+// module: the signer, the mail transport, the portal hosts and the audit
+// ledger. Every zero value composes the module without that seam.
+type IdentityAccessTestConfig struct {
+	TokenAuth           *authjwt.TokenAuth
+	TenantRuntime       tenant.UnitOfWork
+	Settings            config.SettingsService
+	Audit               auditModels.Command
+	Dispatcher          *email.Dispatcher
+	DefaultFrom         email.Email
+	FrontendURL         string
+	ParentsURL          string
+	SchoolURL           string
+	PasswordResetExpiry time.Duration
+	RateLimitEnabled    bool
 }
 
 // failingStaffDirectory fails every staff insert; every other operation is

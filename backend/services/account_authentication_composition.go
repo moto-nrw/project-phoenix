@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
 )
@@ -149,26 +149,12 @@ func newIdentityAccessWithSessions(db *bun.DB, wiring accountAuthenticationWirin
 	return module, nil
 }
 
-// AccountAuthentication returns the Identity & Access module the retained
-// auth service delegates its session work to, so the HTTP composition can
-// hand it to the routes that call the public contract directly. It is nil
-// when the auth service was composed without the port.
+// AccountAuthentication returns the Identity & Access module the session,
+// lifecycle, MFA and passkey routes consume, so the HTTP composition can
+// hand it to the surfaces that call the public contract directly and bind
+// the consumer-owned runtimes of those that may not (#3364).
 func (f *Factory) AccountAuthentication() *identityaccess.Module {
-	return identityAccessOf(f.Auth)
-}
-
-// identityAccessOf returns the module behind the retained auth service's
-// session port, or nil when the service was composed without it.
-func identityAccessOf(service auth.AuthService) *identityaccess.Module {
-	provider, ok := service.(interface{ AccountSessions() auth.AccountSessions })
-	if !ok {
-		return nil
-	}
-	sessions, ok := provider.AccountSessions().(*accountSessions)
-	if !ok {
-		return nil
-	}
-	return sessions.module
+	return f.Auth
 }
 
 // --- retained owner seams -------------------------------------------------
@@ -310,7 +296,7 @@ func (d personDirectory) FindPersonName(ctx context.Context, accountID int64) (s
 type passwordVerifier struct{}
 
 func (passwordVerifier) VerifyPassword(password, hash string) (bool, error) {
-	return auth.VerifyPassword(password, hash)
+	return securityruntime.VerifyPassword(password, hash)
 }
 
 type sessionTokenCodec struct{ tokenAuth *authjwt.TokenAuth }
@@ -529,261 +515,3 @@ func (p pushSubscriptionCleanup) DeleteOrphaned(ctx context.Context) error {
 	}
 	return p.subscriptions.DeleteOrphanedSubscriptions(ctx)
 }
-
-// --- the retained auth service's consumer-owned port -----------------------
-
-// accountSessions serves auth.AccountSessions over the public module and
-// translates the public contract back into the retained error envelope.
-type accountSessions struct{ module *identityaccess.Module }
-
-func newAccountSessions(module *identityaccess.Module) *accountSessions {
-	return &accountSessions{module: module}
-}
-
-func (a *accountSessions) LoginWithAudit(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug string) (string, string, error) {
-	access, refresh, err := a.module.LoginWithAudit(ctx, email, password, ipAddress, userAgent, tenantSlug)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) LoginWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie string) (*auth.LoginResult, error) {
-	result, err := a.module.LoginWithMFAGate(ctx, email, password, ipAddress, userAgent, tenantSlug, trustedDeviceCookie)
-	return retainedLoginResult(result), authServiceError(err)
-}
-
-func (a *accountSessions) LoginParentWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := a.module.LoginParentWithAudit(ctx, email, password, ipAddress, userAgent)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) LoginSchoolWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*auth.LoginResult, error) {
-	result, err := a.module.LoginSchoolWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie)
-	return retainedLoginResult(result), authServiceError(err)
-}
-
-func (a *accountSessions) LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*auth.LoginResult, error) {
-	result, err := a.module.LoginSchoolAtTenantWithMFAGate(ctx, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug)
-	return retainedLoginResult(result), authServiceError(err)
-}
-
-func (a *accountSessions) IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := a.module.IssueTokensForAuthenticatedAccount(ctx, accountID, tenantID, ipAddress, userAgent)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := a.module.IssueSchoolTokensForAuthenticatedAccount(ctx, accountID, tenantID, ipAddress, userAgent)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := a.module.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error {
-	return authServiceError(a.module.LogoutWithAudit(ctx, refreshToken, ipAddress, userAgent))
-}
-
-func (a *accountSessions) SwitchTenant(ctx context.Context, accountID int64, tenantSlug, presentedFamilyID string) (string, string, error) {
-	access, refresh, err := a.module.SwitchTenant(ctx, accountID, tenantSlug, presentedFamilyID)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) SwitchSchool(ctx context.Context, accountID int64, tenantSlug, ipAddress, userAgent string) (string, string, error) {
-	access, refresh, err := a.module.SwitchSchool(ctx, accountID, tenantSlug, ipAddress, userAgent)
-	return access, refresh, authServiceError(err)
-}
-
-func (a *accountSessions) HasSchoolPortalAccess(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	allowed, err := a.module.HasSchoolPortalAccess(ctx, accountID, tenantID)
-	return allowed, authServiceError(err)
-}
-
-func (a *accountSessions) ValidateSessionTokens(ctx context.Context, accessToken, refreshToken, portal string) (*authjwt.AppClaims, error) {
-	claims, err := a.module.ValidateSessionTokens(ctx, accessToken, refreshToken, portal)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	result := appClaims(claims)
-	return &result, nil
-}
-
-func (a *accountSessions) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (bool, error) {
-	ok, err := a.module.VerifyAccountTenantMembership(ctx, accountID, tenantID)
-	return ok, authServiceError(err)
-}
-
-func (a *accountSessions) CountExpiredTokens(ctx context.Context) (int, error) {
-	count, err := a.module.CountExpiredTokens(ctx)
-	return count, authServiceError(err)
-}
-
-func (a *accountSessions) CleanupExpiredTokens(ctx context.Context) (int, error) {
-	count, err := a.module.CleanupExpiredTokens(ctx)
-	return count, authServiceError(err)
-}
-
-func (a *accountSessions) ListActiveSessions(ctx context.Context, accountID int64) ([]auth.ActiveSession, error) {
-	sessions, err := a.module.ListActiveSessions(ctx, accountID)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	result := make([]auth.ActiveSession, 0, len(sessions))
-	for _, session := range sessions {
-		active := auth.ActiveSession{ID: session.ID, Token: session.Token, Expiry: session.Expiry, Mobile: session.Mobile, CreatedAt: session.CreatedAt}
-		if session.Identifier != nil {
-			active.Identifier = *session.Identifier
-		}
-		result = append(result, active)
-	}
-	return result, nil
-}
-
-func (a *accountSessions) ListSessionIDs(ctx context.Context, accountID int64) ([]int64, error) {
-	ids, err := a.module.ListSessionIDs(ctx, accountID)
-	return ids, authServiceError(err)
-}
-
-func (a *accountSessions) RevokeAllTokensWithReason(ctx context.Context, accountID int64, reason string) error {
-	return authServiceError(a.module.RevokeAllTokensWithReason(ctx, accountID, reason))
-}
-
-func (a *accountSessions) RevokeTokensByTenantID(ctx context.Context, tenantID int64) (int, error) {
-	count, err := a.module.RevokeTokensByTenantID(ctx, tenantID)
-	return count, authServiceError(err)
-}
-
-func revokedSessions(sessions []identityaccess.AccountSession) []auth.RevokedSession {
-	result := make([]auth.RevokedSession, 0, len(sessions))
-	for _, session := range sessions {
-		result = append(result, auth.RevokedSession{ID: session.ID, AccountID: session.AccountID, TenantID: session.TenantID, FamilyID: session.FamilyID, PortalScope: session.PortalScope})
-	}
-	return result
-}
-
-func (a *accountSessions) DeleteAccountSessionsWithAudit(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) ([]auth.RevokedSession, error) {
-	sessions, err := a.module.DeleteAccountSessionsWithAudit(ctx, accountID, reason, ipAddress, userAgent)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	return revokedSessions(sessions), nil
-}
-
-func (a *accountSessions) QueuePushCleanup(ctx context.Context, accountID int64, revoked []auth.RevokedSession, reason string) {
-	sessions := make([]identityaccess.AccountSession, 0, len(revoked))
-	for _, session := range revoked {
-		sessions = append(sessions, identityaccess.AccountSession{ID: session.ID, AccountID: session.AccountID, TenantID: session.TenantID, FamilyID: session.FamilyID, PortalScope: session.PortalScope})
-	}
-	a.module.QueuePushCleanup(ctx, accountID, sessions, reason)
-}
-
-func (a *accountSessions) ScheduleAccountWideRevoke(ctx context.Context, accountID int64, reason, ipAddress, userAgent string) error {
-	return authServiceError(a.module.ScheduleAccountWideRevoke(ctx, accountID, reason, ipAddress, userAgent))
-}
-
-func (a *accountSessions) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) error {
-	return authServiceError(a.module.MarkAccountWideWipeCompleted(ctx, accountID))
-}
-
-func (a *accountSessions) LoadAccountClaims(ctx context.Context, accountID, tenantID int64) (*auth.AccountClaims, error) {
-	claims, err := a.module.LoadAccountClaims(ctx, accountID, tenantID)
-	if err != nil {
-		return nil, authServiceError(err)
-	}
-	roles := make([]auth.AccountRoleClaim, 0, len(claims.Roles))
-	for _, role := range claims.Roles {
-		roles = append(roles, auth.AccountRoleClaim{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem, TenantID: role.TenantID})
-	}
-	return &auth.AccountClaims{
-		RoleNames: claims.RoleNames, Roles: roles, Permissions: claims.Permissions, Username: claims.Username,
-		FirstName: claims.FirstName, LastName: claims.LastName, IsAdmin: claims.IsAdmin,
-		TenantID: claims.TenantID, OrgID: claims.OrgID, Scope: claims.Scope,
-	}, nil
-}
-
-func (a *accountSessions) FindGuardianTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	found, tenantID, err := a.module.FindGuardianTenant(ctx, accountID)
-	return found, tenantID, authServiceError(err)
-}
-
-func (a *accountSessions) FindSchoolPortalTenant(ctx context.Context, accountID int64) (bool, int64, error) {
-	found, tenantID, err := a.module.FindSchoolPortalTenant(ctx, accountID)
-	return found, tenantID, authServiceError(err)
-}
-
-func retainedLoginResult(result *identityaccess.LoginResult) *auth.LoginResult {
-	if result == nil {
-		return nil
-	}
-	return &auth.LoginResult{
-		Status: auth.LoginStatus(result.Status), AccessToken: result.AccessToken, RefreshToken: result.RefreshToken,
-		ChallengeToken: result.ChallengeToken, MaskedEmail: result.MaskedEmail, MFAEnrollmentRequired: result.MFAEnrollmentRequired,
-		TrustedDeviceEnabled: result.TrustedDeviceEnabled, TrustedDeviceDays: result.TrustedDeviceDays,
-	}
-}
-
-type retainedSentinel struct {
-	public   error
-	retained error
-}
-
-var retainedSentinels = []retainedSentinel{
-	{identityaccess.ErrInvalidCredentials, auth.ErrInvalidCredentials},
-	{identityaccess.ErrAccountNotFound, auth.ErrAccountNotFound},
-	{identityaccess.ErrAccountInactive, auth.ErrAccountInactive},
-	{identityaccess.ErrTenantNotFound, auth.ErrTenantNotFound},
-	{identityaccess.ErrTenantAccessDenied, auth.ErrTenantAccessDenied},
-	{identityaccess.ErrParentMustUseParentPortal, auth.ErrParentMustUseParentPortal},
-	{identityaccess.ErrAccountNoGuardianRole, auth.ErrAccountNoGuardianRole},
-	{identityaccess.ErrAccountNoSchoolPortalRole, auth.ErrAccountNoSchoolPortalRole},
-	{identityaccess.ErrMustUseSchoolPortal, auth.ErrMustUseSchoolPortal},
-	{identityaccess.ErrInvalidToken, auth.ErrInvalidToken},
-	{identityaccess.ErrTokenExpired, auth.ErrTokenExpired},
-	{identityaccess.ErrTokenNotFound, auth.ErrTokenNotFound},
-	{identityaccess.ErrAccountAuthenticationUnavailable, auth.ErrAccountSessionsUnavailable},
-	// A session that vanished or was rotated underneath a consumer reads as
-	// the retained token sentinels the refresh flow already reports.
-	{identityaccess.ErrAccountSessionNotFound, auth.ErrTokenNotFound},
-	{identityaccess.ErrAccountSessionRotated, auth.ErrInvalidToken},
-	// The password policy seam answers with the owner's sentinel (#3332);
-	// the retained consumers still switch on this package's.
-	{identityaccess.ErrPasswordTooWeak, auth.ErrPasswordTooWeak},
-}
-
-// authServiceError translates the public contract into the retained
-// envelope: an AuthenticationError becomes an AuthError with the same
-// operation, and a cause that carries a public sentinel gains the retained
-// one while keeping its text.
-func authServiceError(err error) error {
-	if err == nil {
-		return nil
-	}
-	var operation *identityaccess.AuthenticationError
-	if errors.As(err, &operation) && operation == err {
-		return &auth.AuthError{Op: operation.Op, Err: authServiceError(operation.Err)}
-	}
-	for _, sentinels := range [][]retainedSentinel{retainedSentinels, lifecycleRetainedSentinels, roleRetainedSentinels, mfaRetainedSentinels} {
-		for _, sentinel := range sentinels {
-			if !errors.Is(err, sentinel.public) {
-				continue
-			}
-			if err == sentinel.public {
-				return sentinel.retained
-			}
-			return &retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err}
-		}
-	}
-	return err
-}
-
-// retainedError keeps the public cause's text while exposing the retained
-// sentinel to errors.Is.
-type retainedError struct {
-	text     string
-	sentinel error
-	cause    error
-}
-
-func (e *retainedError) Error() string { return e.text }
-
-func (e *retainedError) Unwrap() []error { return []error{e.sentinel, e.cause} }

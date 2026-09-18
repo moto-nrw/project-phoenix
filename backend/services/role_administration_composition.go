@@ -7,7 +7,6 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 )
 
 // Identity & Access owns role and permission management (#3314): role and
@@ -55,24 +54,9 @@ func hasLiveCaregiverProfile(
 	return teacher != nil && teacher.DeletedAt == nil, nil
 }
 
-// --- the retained services' consumer-owned ports ---------------------------
-
-func (a *accountSessions) IsLehrkraftSystemRole(role *auth.RoleFacts) bool {
-	return identityaccess.IsLehrkraftSystemRole(roleFacts(role))
-}
-
-func (a *accountSessions) ValidateAssignableSchoolRole(role *auth.RoleFacts, tenantID int64) error {
-	return authServiceError(identityaccess.ValidateAssignableSchoolRole(roleFacts(role), tenantID))
-}
-
-func (a *accountSessions) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
-	hasProfile, err := a.module.HasLiveCaregiverProfile(ctx, accountID)
-	return hasProfile, authServiceError(err)
-}
-
-// roleAdministration serves the people services' role ports over the public
-// module and keeps the retained error envelope their handlers render. The
-// module is composed after the person service, so it is read at call time.
+// roleAdministration serves the people services' role port over the public
+// module. The module is composed after the person service, so it is read at
+// call time.
 type roleAdministration struct {
 	current func() *identityaccess.Module
 }
@@ -80,33 +64,23 @@ type roleAdministration struct {
 func (r roleAdministration) AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error {
 	module := r.current()
 	if module == nil {
-		return auth.ErrAccountLifecycleUnavailable
+		return identityaccess.ErrAccountLifecycleUnavailable
 	}
-	return authServiceError(module.AssignRoleToAccount(ctx, accountID, roleID))
+	return module.AssignRoleToAccount(ctx, accountID, roleID)
 }
 
 func (r roleAdministration) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
 	module := r.current()
 	if module == nil {
-		return auth.ErrAccountLifecycleUnavailable
+		return identityaccess.ErrAccountLifecycleUnavailable
 	}
-	return authServiceError(module.RemoveRoleFromAccount(ctx, accountID, roleID))
+	return module.RemoveRoleFromAccount(ctx, accountID, roleID)
 }
 
 func (r roleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error) {
 	module := r.current()
 	if module == nil {
-		return false, auth.ErrAccountLifecycleUnavailable
+		return false, identityaccess.ErrAccountLifecycleUnavailable
 	}
 	return module.AccountHoldsLehrkraftRole(ctx, accountID)
-}
-
-// roleRetainedSentinels extend the session translation with the school-role
-// policy outcomes the retained registration and invitation flows switch on.
-var roleRetainedSentinels = []retainedSentinel{
-	{identityaccess.ErrRoleNotAssignable, auth.ErrRoleNotAssignable},
-	{identityaccess.ErrRoleForeignTenant, auth.ErrRoleForeignTenant},
-	{identityaccess.ErrRoleGuardianNotAssignable, auth.ErrRoleGuardianNotAssignable},
-	{identityaccess.ErrRoleLegacyTeacherNotAssignable, auth.ErrRoleLegacyTeacherNotAssignable},
-	{identityaccess.ErrRoleLehrkraftCaregiverProfile, auth.ErrRoleLehrkraftCaregiverProfile},
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/legacy/timetracking"
-	"github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -66,11 +65,11 @@ func NewCleanupAuditCommand(logger *slog.Logger) (AuditCommand, error) {
 type AuditCommand = auditModels.Command
 
 // AuthMaintenance is the identity maintenance the cleanup CLI and the
-// scheduler run. Both halves are Identity & Access flows: the session sweep
-// still reaches the module through the retained service's port (#3251) while
-// the password reset maintenance is called on the module directly (#3332).
+// scheduler run: the expired session sweep and the revocation follow-ups
+// (#3251) and the password reset maintenance (#3332), both called on the
+// Identity & Access module directly (#3364).
 type AuthMaintenance struct {
-	auth.AuthService
+	identityaccess.AccountSessionMaintenance
 	identityaccess.PasswordResets
 }
 
@@ -85,7 +84,7 @@ func (f *Factory) AuthMaintenanceRuntime() *AuthMaintenance {
 	if resets == nil {
 		return nil
 	}
-	return &AuthMaintenance{AuthService: f.Auth, PasswordResets: resets}
+	return &AuthMaintenance{AccountSessionMaintenance: resets, PasswordResets: resets}
 }
 
 // NewAuthCleanupService composes the token and rate-limit maintenance the
@@ -98,13 +97,11 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	if err != nil {
 		return nil, fmt.Errorf("auth cleanup service: token auth: %w", err)
 	}
-	var service *auth.Service
 	identityAccess, err := newIdentityAccessWithSessions(db, accountAuthenticationWiring{
 		repos: sessionRepositories{
 			schools: newSchoolDirectory(repos.School, nil), persons: repos.Person, authEvents: repos.AuthEvent, pushSubscriptions: repos.PushSubscription,
 		},
 		tokenAuth: tokenAuth, audit: command, logger: logger,
-		tenantRuntime: func(ctx context.Context) context.Context { return service.WithTenantRuntime(ctx) },
 		// The cleanup root only removes spent links and stale windows; it
 		// never issues a link, so it composes the flows without a mailer.
 		resets: &passwordResetWiring{expiry: cleanupResetExpiry},
@@ -112,13 +109,10 @@ func NewAuthCleanupService(db *bun.DB, runtime tenant.UnitOfWork, logger *slog.L
 	if err != nil {
 		return nil, err
 	}
-	sessions := newAccountSessions(identityAccess)
-	service = auth.NewCleanupService(auth.CleanupDependencies{
-		Sessions: sessions,
-		Audit:    command,
-		DB:       db, Logger: logger, TenantRuntime: runtime,
-	})
-	return &AuthMaintenance{AuthService: service, PasswordResets: identityAccess}, nil
+	if err := identityAccess.SetTenantRuntime(runtime); err != nil {
+		return nil, err
+	}
+	return &AuthMaintenance{AccountSessionMaintenance: identityAccess, PasswordResets: identityAccess}, nil
 }
 
 // NewInvitationCleanupService composes the invitation maintenance the

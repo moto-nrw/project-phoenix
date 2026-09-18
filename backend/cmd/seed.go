@@ -6,7 +6,7 @@ import (
 	"io"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/spf13/cobra"
 )
 
@@ -50,7 +50,7 @@ func (root seedRoot) validate() error {
 
 var defaultSeedRoot = seedRoot{newAdapter: func(baseURL string, verbose bool) seedapi.Adapter {
 	return newSeedCommandAdapter(baseURL, verbose)
-}, random: authService.SecureRandomSource(), seed: runSeed}
+}, random: services.SecureRandomSource(), seed: runSeed}
 
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{

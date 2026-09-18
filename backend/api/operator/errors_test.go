@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"testing"
 
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/operator"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +91,7 @@ func TestErrServiceUnavailable(t *testing.T) {
 func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {
 	t.Parallel()
 
-	err := &platformSvc.InvalidCredentialsError{}
+	err := identityoperator.ErrOperatorInvalidCredentials
 	renderer := operator.AuthErrorRenderer(err)
 
 	status, _, errorText := extractErrResponse(t, renderer)
@@ -103,7 +102,7 @@ func TestAuthErrorRenderer_InvalidCredentials(t *testing.T) {
 func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
 	t.Parallel()
 
-	err := &platformSvc.OperatorInactiveError{OperatorID: 123}
+	err := identityoperator.ErrOperatorInactive
 	renderer := operator.AuthErrorRenderer(err)
 
 	status, _, errorText := extractErrResponse(t, renderer)
@@ -114,7 +113,7 @@ func TestAuthErrorRenderer_OperatorInactive(t *testing.T) {
 func TestAuthErrorRenderer_OperatorNotFound(t *testing.T) {
 	t.Parallel()
 
-	err := &platformSvc.OperatorNotFoundError{Email: "test@example.com"}
+	err := identityoperator.ErrOperatorNotFound
 	renderer := operator.AuthErrorRenderer(err)
 
 	status, _, errorText := extractErrResponse(t, renderer)
@@ -141,7 +140,7 @@ func TestAuthErrorRenderer_GenericError(t *testing.T) {
 func TestAuthErrorRenderer_MFAStatusUnavailable(t *testing.T) {
 	t.Parallel()
 
-	renderer := operator.AuthErrorRenderer(authSvc.ErrMFAStatusUnavailable)
+	renderer := operator.AuthErrorRenderer(identityoperator.ErrMFAStatusUnavailable)
 
 	status, _, errorText := extractErrResponse(t, renderer)
 	assert.Equal(t, http.StatusServiceUnavailable, status)

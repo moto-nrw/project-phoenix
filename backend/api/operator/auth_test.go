@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
 // Mock OperatorAuthService
@@ -55,7 +54,7 @@ func (m *mockOperatorAuthService) LoginOperatorWithMFAGate(ctx context.Context, 
 	}
 	return nil, nil
 }
-func (m *mockOperatorAuthService) SetMFAService(_ platformSvc.OperatorMFAService) {}
+func (m *mockOperatorAuthService) SetMFAService(_ identityoperator.OperatorMFA) {}
 
 // IssueTokensForAuthenticatedOperator no-op stub. The legacy auth_test cases
 // exercise the password-only Login flow; the new MFA verify flow has its own
@@ -75,10 +74,29 @@ func (m *mockOperatorAuthService) ValidateOperator(ctx context.Context, email, p
 	return nil, nil
 }
 
-func (m *mockOperatorAuthService) GetOperator(ctx context.Context, id int64) (*platform.Operator, error) {
+func (m *mockOperatorAuthService) FindOperator(ctx context.Context, id int64) (identityaccess.Operator, error) {
 	if m.getOperatorFn != nil {
-		return m.getOperatorFn(ctx, id)
+		op, err := m.getOperatorFn(ctx, id)
+		if op == nil {
+			if err == nil {
+				err = identityoperator.ErrOperatorNotFound
+			}
+			return identityaccess.Operator{}, err
+		}
+		return *identityOperatorOf(op), err
 	}
+	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (m *mockOperatorAuthService) FindOperatorForUpdate(ctx context.Context, id int64) (identityaccess.Operator, error) {
+	return m.FindOperator(ctx, id)
+}
+
+func (m *mockOperatorAuthService) FindOperatorByEmail(context.Context, string) (identityaccess.Operator, error) {
+	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (m *mockOperatorAuthService) ListOperators(context.Context) ([]identityaccess.Operator, error) {
 	return nil, nil
 }
 
@@ -100,25 +118,53 @@ func (m *mockOperatorAuthService) ChangeOperatorPassword(ctx context.Context, op
 	return nil
 }
 
-func (m *mockOperatorAuthService) InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
+func (m *mockOperatorAuthService) InitiateOperatorEmailChange(ctx context.Context, request identityaccess.OperatorEmailChangeRequest) error {
 	if m.initiateEmailChangeFn != nil {
-		return m.initiateEmailChangeFn(ctx, operatorID, newEmail, currentPassword, clientIP)
+		return m.initiateEmailChangeFn(ctx, request.OperatorID, request.NewEmail, request.CurrentPassword, net.ParseIP(request.IPAddress))
 	}
 	return nil
 }
 
-func (m *mockOperatorAuthService) ConfirmEmailChange(ctx context.Context, token string, clientIP net.IP) (string, error) {
+func (m *mockOperatorAuthService) ConfirmOperatorEmailChange(ctx context.Context, token, ipAddress string) (identityaccess.OperatorEmailChangeResult, error) {
 	if m.confirmEmailChangeFn != nil {
-		return m.confirmEmailChangeFn(ctx, token, clientIP)
+		newEmail, err := m.confirmEmailChangeFn(ctx, token, net.ParseIP(ipAddress))
+		return identityaccess.OperatorEmailChangeResult{NewEmail: newEmail}, err
 	}
-	return "", nil
+	return identityaccess.OperatorEmailChangeResult{}, nil
 }
 
-func (m *mockOperatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
+func (m *mockOperatorAuthService) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	if m.cleanupExpiredEmailChangeTokenFn != nil {
 		return m.cleanupExpiredEmailChangeTokenFn(ctx)
 	}
 	return 0, nil
+}
+
+// The invitation half of the provisioning capability is exercised by the
+// invitations tests; the auth and profile cases never reach it.
+
+func (m *mockOperatorAuthService) InviteOperator(context.Context, identityaccess.OperatorInvitationRequest) error {
+	return nil
+}
+
+func (m *mockOperatorAuthService) ValidateOperatorInvitation(context.Context, string) (identityaccess.OperatorInvitationPreview, error) {
+	return identityaccess.OperatorInvitationPreview{}, nil
+}
+
+func (m *mockOperatorAuthService) AcceptOperatorInvitation(context.Context, identityaccess.OperatorInvitationAcceptance) (identityaccess.Operator, error) {
+	return identityaccess.Operator{}, nil
+}
+
+func (m *mockOperatorAuthService) ListPendingOperatorInvitations(context.Context) ([]identityaccess.OperatorInvitation, error) {
+	return nil, nil
+}
+
+func (m *mockOperatorAuthService) RevokeOperatorInvitationByActor(context.Context, int64, int64, string) error {
+	return nil
+}
+
+func (m *mockOperatorAuthService) ResendOperatorInvitationByActor(context.Context, int64, int64, string) error {
+	return nil
 }
 
 func TestLogin_Success(t *testing.T) {
@@ -220,7 +266,7 @@ func TestLogin_InvalidCredentials(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, &platformSvc.InvalidCredentialsError{}
+			return nil, identityoperator.ErrOperatorInvalidCredentials
 		},
 	}
 
@@ -246,7 +292,7 @@ func TestLogin_OperatorInactive(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, &platformSvc.OperatorInactiveError{}
+			return nil, identityoperator.ErrOperatorInactive
 		},
 	}
 
@@ -272,7 +318,7 @@ func TestLogin_OperatorNotFound(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*identityaccess.OperatorLoginResult, error) {
-			return nil, &platformSvc.OperatorNotFoundError{}
+			return nil, identityoperator.ErrOperatorNotFound
 		},
 	}
 
@@ -566,7 +612,7 @@ func TestRefreshToken_ServiceError(t *testing.T) {
 
 	mockService := &mockOperatorAuthService{
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
-			return "", "", &platformSvc.OperatorInactiveError{}
+			return "", "", identityoperator.ErrOperatorInactive
 		},
 	}
 

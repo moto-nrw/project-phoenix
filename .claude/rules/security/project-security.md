@@ -27,7 +27,7 @@ The project-specific security reference. The load-bearing rules live where they 
 - **Signature**: RSA with PKCS#1 v1.5 padding
 - **Key exchange**: static RSA, anonymous Diffie-Hellman, DHE with weak primes
 
-**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE. Passwords/PINs: Argon2id (existing helpers in `backend/auth/userpass/` and `services/auth/password_helpers.go` — reuse, never roll your own).
+**Use instead**: SHA-256+, AES-256-GCM, ChaCha20, ECDHE. Passwords/PINs: Argon2id (existing helpers in `backend/auth/userpass/` and `backend/auth/authorize/credentials.go`, served to compositions through `backend/modules/securityruntime` — reuse, never roll your own).
 
 ## Certificates
 

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -61,7 +60,7 @@ type trustedDeviceMFAStub struct {
 	issueCookie    string
 	issueExpiresAt time.Time
 	issueErr       error
-	verifyResult   authService.VerifiedMFAChallenge
+	verifyResult   identityaccess.VerifiedMFAChallenge
 	verifyErr      error
 
 	gotIssueAccountID int64
@@ -70,7 +69,7 @@ type trustedDeviceMFAStub struct {
 	gotIssueIP        net.IP
 }
 
-func (s *trustedDeviceMFAStub) VerifyMFAChallenge(_ context.Context, _, _ string) (authService.VerifiedMFAChallenge, error) {
+func (s *trustedDeviceMFAStub) VerifyMFAChallenge(_ context.Context, _, _ string) (identityaccess.VerifiedMFAChallenge, error) {
 	return s.verifyResult, s.verifyErr
 }
 
@@ -99,7 +98,7 @@ func TestMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 
 	auth := &completeMFAExchangeStub{access: "access-tok", refresh: "refresh-tok"}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{
+		verifyResult: identityaccess.VerifiedMFAChallenge{
 			AccountID: 4242,
 			Scope:     "tenant",
 			TenantID:  70010001,
@@ -135,7 +134,7 @@ func TestMFAVerify_RememberDeviceIssuesTrustedCookie(t *testing.T) {
 
 	auth := &completeMFAExchangeStub{access: "a", refresh: "r"}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{
+		verifyResult: identityaccess.VerifiedMFAChallenge{
 			AccountID: 4242,
 			TenantID:  70010001,
 		},
@@ -177,7 +176,7 @@ func TestMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
 	// security one, so the login must succeed.
 	auth := &completeMFAExchangeStub{access: "a", refresh: "r"}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueErr:     errors.New("cookie store down"),
 	}
 	rs := &Resource{Sessions: auth, MFAService: mfa}
@@ -206,7 +205,7 @@ func TestMFAVerify_RememberDeviceEmptyCookieSkipsHeader(t *testing.T) {
 	// browser stores a useless empty cookie that masks the disabled state.
 	auth := &completeMFAExchangeStub{access: "a", refresh: "r"}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueCookie:  "", // tenant has trusted devices disabled
 	}
 	rs := &Resource{Sessions: auth, MFAService: mfa}
@@ -234,7 +233,7 @@ func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 		Err: identityaccess.ErrAccountInactive,
 	}}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{Sessions: auth, MFAService: mfa}
 
@@ -255,7 +254,7 @@ func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) 
 		Err: identityaccess.ErrAccountNotFound,
 	}}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{Sessions: auth, MFAService: mfa}
 
@@ -275,7 +274,7 @@ func TestMFAVerify_SchoolPortalOnlyAccountReturnsPortalCode(t *testing.T) {
 		Err: identityaccess.ErrMustUseSchoolPortal,
 	}}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{Sessions: auth, MFAService: mfa}
 
@@ -296,7 +295,7 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 
 	auth := &completeMFAExchangeStub{err: errors.New("kafka is on fire")}
 	mfa := &trustedDeviceMFAStub{
-		verifyResult: authService.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
+		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
 	rs := &Resource{Sessions: auth, MFAService: mfa}
 
@@ -310,8 +309,8 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 		"non-AuthError failures must fall through to 500")
 }
 
-// Ensure the embedded stub still satisfies authService.MFAService.
-var _ authService.MFAService = (*trustedDeviceMFAStub)(nil)
+// Ensure the embedded stub still satisfies identityaccess.AccountMFA.
+var _ identityaccess.AccountMFA = (*trustedDeviceMFAStub)(nil)
 
 // authModels is imported only to keep the stubMFAService field types
 // resolvable; suppress the unused-import warning when the field set

@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	authsvc "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // seedParentsCmd promotes demo guardians (created by `seed`) into loginable
@@ -109,7 +109,7 @@ func seedParentAccounts(ctx context.Context, db *bun.DB, count int, password str
 		count = 5
 	}
 
-	passwordHash, err := authsvc.HashPassword(password)
+	passwordHash, err := services.HashPassword(password)
 	if err != nil {
 		return fmt.Errorf("hash password: %w", err)
 	}

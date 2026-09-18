@@ -12,7 +12,7 @@ import (
 
 type fakeOperatorInvitationCleaner struct{}
 
-func (*fakeOperatorInvitationCleaner) CleanupExpiredOperatorInvitations(context.Context) (int, error) {
+func (*fakeOperatorInvitationCleaner) DeleteExpiredOperatorInvitations(context.Context) (int, error) {
 	return 0, nil
 }
 

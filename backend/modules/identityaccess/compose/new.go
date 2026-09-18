@@ -71,6 +71,17 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
 	}
+	// Every flow attaches the unit of work through the same reference, so
+	// a root that only has its runtime after the module is composed binds
+	// it once and every flow composed above sees it (#3364). The caller's
+	// own attachment stays the fallback until then.
+	runtime := tenant.NewRuntimeRef(nil)
+	if dependencies.Sessions != nil {
+		sessions := *dependencies.Sessions
+		runtime = tenant.NewRuntimeRef(sessions.TenantRuntime)
+		sessions.TenantRuntime = runtime.Attach
+		dependencies.Sessions = &sessions
+	}
 	scope := func(ctx context.Context) postgres.TenantScope {
 		return postgres.TenantScope{TenantID: tenant.FromContext(ctx), AdminTransaction: tenant.IsAdminTx(ctx)}
 	}
@@ -150,10 +161,8 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
-	if dependencies.Sessions != nil {
-		e.runtime = dependencies.Sessions.TenantRuntime
-	}
-	return identityaccess.NewModule(e), nil
+	e.runtime = runtime.Attach
+	return identityaccess.NewModule(e, runtime), nil
 }
 
 type transaction struct{}

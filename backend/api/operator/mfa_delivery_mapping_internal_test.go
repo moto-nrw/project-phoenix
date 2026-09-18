@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
+	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -16,7 +16,7 @@ func TestMapOperatorMFAErrorDeliveryUnavailableWireContract(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	request := httptest.NewRequest(http.MethodPost, "/operator/mfa/resend", nil)
 
-	mapOperatorMFAError(recorder, request, authSvc.ErrMFAStatusUnavailable)
+	mapOperatorMFAError(recorder, request, identityoperator.ErrMFAStatusUnavailable)
 
 	assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
 	assert.Equal(t,

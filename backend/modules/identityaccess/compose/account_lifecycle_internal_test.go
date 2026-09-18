@@ -41,7 +41,7 @@ func TestLifecycleErrorFallsThroughToTheSessionMapping(t *testing.T) {
 func TestModuleWithoutLifecycleReportsUnavailable(t *testing.T) {
 	t.Parallel()
 
-	module := identityaccess.NewModule(engine{})
+	module := identityaccess.NewModule(engine{}, nil)
 	_, err := module.AuthenticateStaffPIN(t.Context(), 7, 8, "1234")
 	require.ErrorIs(t, err, identityaccess.ErrAccountLifecycleUnavailable)
 	require.ErrorIs(t, module.RevokeAccess(t.Context(), identityaccess.RevokeAccessRequest{}), identityaccess.ErrAccountLifecycleUnavailable)

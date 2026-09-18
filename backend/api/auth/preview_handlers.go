@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	authService "github.com/moto-nrw/project-phoenix/services/auth"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
 // StaffPreviewStartRequest selects the staff account to preview (#2893).
@@ -125,23 +125,23 @@ func (rs *Resource) listStaffPreviewCandidates(w http.ResponseWriter, r *http.Re
 // responses. Mirrors the switch-tenant mapping; the not-previewable cases
 // carry stable codes so the frontend can explain them.
 func renderStaffPreviewError(w http.ResponseWriter, r *http.Request, err error) {
-	var authErr *authService.AuthError
+	var authErr *identityaccess.AuthenticationError
 	if errors.As(err, &authErr) {
 		switch {
-		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(authService.ErrAccountNotFound))
-		case errors.Is(authErr.Err, authService.ErrAccountInactive),
-			errors.Is(authErr.Err, authService.ErrTenantAccessDenied),
-			errors.Is(authErr.Err, authService.ErrPreviewTargetNotStaff):
+		case errors.Is(authErr.Err, identityaccess.ErrAccountNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrAccountNotFound))
+		case errors.Is(authErr.Err, identityaccess.ErrAccountInactive),
+			errors.Is(authErr.Err, identityaccess.ErrTenantAccessDenied),
+			errors.Is(authErr.Err, identityaccess.ErrPreviewTargetNotStaff):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, "preview_target_not_previewable"))
-		case errors.Is(authErr.Err, authService.ErrMustUseSchoolPortal):
+		case errors.Is(authErr.Err, identityaccess.ErrMustUseSchoolPortal):
 			common.RenderError(w, r, common.ErrorForbiddenWithCode(authErr.Err, "preview_target_school_portal"))
-		case errors.Is(authErr.Err, authService.ErrPreviewTokenInvalid):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(authService.ErrPreviewTokenInvalid, "preview_token_invalid"))
-		case errors.Is(authErr.Err, authService.ErrPreviewSelf):
-			common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPreviewSelf))
-		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
+		case errors.Is(authErr.Err, identityaccess.ErrPreviewTokenInvalid):
+			common.RenderError(w, r, common.ErrorForbiddenWithCode(identityaccess.ErrPreviewTokenInvalid, "preview_token_invalid"))
+		case errors.Is(authErr.Err, identityaccess.ErrPreviewSelf):
+			common.RenderError(w, r, common.ErrorInvalidRequest(identityaccess.ErrPreviewSelf))
+		case errors.Is(authErr.Err, identityaccess.ErrTenantNotFound):
+			common.RenderError(w, r, common.ErrorNotFound(identityaccess.ErrTenantNotFound))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
