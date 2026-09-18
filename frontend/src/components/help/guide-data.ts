@@ -1360,6 +1360,38 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/mitarbeiter-kontingente.webp",
       },
       {
+        id: "abwesenheit-art-aendern",
+        title: "Abwesenheiten nachträglich umbuchen",
+        icon: Repeat,
+        summary:
+          "Ändert die Art schon eingetragener Tage, zum Beispiel Freizeitausgleich in Krank-Urlaubstage. Stundenkonto und Kontingente rechnen danach rückwirkend richtig.",
+        searchTerms: [
+          "Art ändern",
+          "umbuchen",
+          "Freizeitausgleich umwandeln",
+          "nachtragen",
+          "nicht erfasst",
+        ],
+        steps: [
+          "`Mitarbeiter` öffnen, Person wählen, Reiter `Abwesenheiten`.",
+          "In der Karte `Historie` auf `Art ändern` tippen. Jetzt hat jeder Eintrag, der sich ändern lässt, ein Kästchen.",
+          "Die betroffenen Tage ankreuzen, zum Beispiel alle Freitage seit August. Dann `Weiter` wählen.",
+          "Die neue Art wählen. moto zeigt, wie sich das Stundenkonto ändert und wie viele Tage vom Kontingent abgehen.",
+          "Einen Grund eintragen und `Art ändern` wählen. Die Einträge bleiben stehen, nur ihre Art ändert sich.",
+          "Fehlt an einem vergangenen Tag noch jeder Eintrag: Reiter `Zeiterfassung`, im Menü mit den drei Punkten des Tages `Abwesenheit nachtragen` oder `Krankmeldung nachtragen` wählen. Der Tag ist dann schon vorbelegt.",
+        ],
+        checklist: [
+          "Von Freizeitausgleich auf eine andere Art bekommt das Stundenkonto die abgezogene Sollzeit zurück.",
+          "Reicht das Kontingent nicht, lässt sich nicht umbuchen. Erst den Anspruch erhöhen oder weniger Tage wählen.",
+          "Liegt ein Tag in einem abgeschlossenen Monat, erst den Monat im Reiter `Zeiterfassung` wieder öffnen.",
+          "Krankmeldungen und Urlaubsanträge lassen sich nicht umbuchen. Eine Krankmeldung löschen und neu eintragen.",
+          "Jede Umbuchung steht mit Grund, alter und neuer Art im `Änderungsprotokoll` unter `Mitarbeiter`.",
+        ],
+        screenshot:
+          "Dialog Art ändern mit zwei gewählten Freitagen, der neuen Art Krank-Urlaubstag, der Änderung am Stundenkonto und dem Pflichtfeld Grund.",
+        image: "/help/screens/abwesenheit-art-aendern.webp",
+      },
+      {
         id: "mitarbeiter-vorschau",
         title: "Ansicht eines Mitarbeitenden",
         icon: Eye,

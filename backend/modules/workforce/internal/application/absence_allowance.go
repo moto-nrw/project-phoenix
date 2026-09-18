@@ -119,11 +119,95 @@ func (s *Service) PreviewAllowanceBooking(ctx context.Context, staffID, absenceT
 		use.Days = max(0, use.Days-covered[use.Day])
 		additional = append(additional, use)
 	}
+	return s.allowancePreviews(accounts, staffID, absenceTypeID, firstYear, lastYear, []int64{previewAbsenceID}, additional)
+}
+
+// PreviewAllowanceRebooking shows what moving stored absences into the
+// allowance of absenceTypeID would take (#3258). Each absence keeps its entry
+// date, so it may use an older rest exactly when its original entry could
+// have. With ErrAbsenceTypeAllowanceExceeded the previews are still set.
+func (s *Service) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]domain.AbsenceTypeAllowanceSummary, error) {
+	absenceType, err := s.findAllowanceType(ctx, absenceTypeID)
+	if err != nil {
+		return nil, err
+	}
+	if !absenceType.AllowanceEnabled || len(absenceIDs) == 0 {
+		return nil, nil
+	}
+	candidates := make([]domain.StaffAbsence, 0, len(absenceIDs))
+	firstYear, lastYear := 0, 0
+	for _, id := range absenceIDs {
+		absence, err := s.FindStaffAbsence(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if absence.StaffID != staffID {
+			return nil, domain.ErrStaffAbsenceNotFound
+		}
+		start, end, err := absenceYears(absence)
+		if err != nil {
+			return nil, err
+		}
+		if firstYear == 0 || start < firstYear {
+			firstYear = start
+		}
+		lastYear = max(lastYear, end)
+		candidates = append(candidates, absence)
+	}
+	accounts, err := s.loadAllowanceAccounts(ctx, staffID, absenceType, firstYear, lastYear)
+	if err != nil {
+		return nil, err
+	}
+	accounts.uses = slices.DeleteFunc(accounts.uses, func(use domain.AllowanceUse) bool {
+		return slices.Contains(absenceIDs, use.AbsenceID)
+	})
+	var additional []domain.AllowanceUse
+	for _, candidate := range candidates {
+		uses, err := s.allowanceUses(candidate)
+		if err != nil {
+			return nil, err
+		}
+		additional = append(additional, uses...)
+	}
+	return s.allowancePreviews(accounts, staffID, absenceTypeID, firstYear, lastYear, absenceIDs, additional)
+}
+
+func absenceYears(absence domain.StaffAbsence) (int, int, error) {
+	if len(absence.DateStart) < 4 || len(absence.DateEnd) < 4 {
+		return 0, 0, domain.ErrAbsenceTypeAllowanceInvalid
+	}
+	start, err := strconv.Atoi(absence.DateStart[:4])
+	if err != nil {
+		return 0, 0, domain.ErrAbsenceTypeAllowanceInvalid
+	}
+	end, err := strconv.Atoi(absence.DateEnd[:4])
+	if err != nil {
+		return 0, 0, domain.ErrAbsenceTypeAllowanceInvalid
+	}
+	return start, end, nil
+}
+
+// allowancePreviews books additional onto the accounts and reports every year
+// the bookings in bookingIDs draw on, plus firstYear..lastYear.
+func (s *Service) allowancePreviews(
+	accounts allowanceAccounts,
+	staffID, absenceTypeID int64,
+	firstYear, lastYear int,
+	bookingIDs []int64,
+	additional []domain.AllowanceUse,
+) ([]domain.AbsenceTypeAllowanceSummary, error) {
 	today := s.clock.Today()
 	before := accounts.ledger(today)
 	after := accounts.ledger(today, additional...)
 
-	years := after.BookedYears(previewAbsenceID)
+	var years []int
+	for _, id := range bookingIDs {
+		for _, year := range after.BookedYears(id) {
+			if !slices.Contains(years, year) {
+				years = append(years, year)
+			}
+		}
+	}
 	for year := firstYear; year <= lastYear; year++ {
 		if !slices.Contains(years, year) {
 			years = append(years, year)
@@ -133,7 +217,9 @@ func (s *Service) PreviewAllowanceBooking(ctx context.Context, staffID, absenceT
 	previews := make([]domain.AbsenceTypeAllowanceSummary, 0, len(years))
 	for _, year := range years {
 		summary := after.Summary(staffID, absenceTypeID, year)
-		summary.BookingDays = after.Booked(previewAbsenceID, year)
+		for _, id := range bookingIDs {
+			summary.BookingDays += after.Booked(id, year)
+		}
 		previews = append(previews, summary)
 	}
 	// Kontingente never go negative (#3256); only the Stundenkonto may.

@@ -65,6 +65,7 @@ var staffRouteSurface = []string{
 	"POST /absences/{absenceId}/question",
 	"POST /time-tracking/month-close",
 	"POST /{id}/absences",
+	"POST /{id}/absences/rebook",
 	"POST /{id}/documents",
 	"POST /{id}/stammdaten/bank-steuer/reveal",
 	"POST /{id}/time-tracking/adjustments",
