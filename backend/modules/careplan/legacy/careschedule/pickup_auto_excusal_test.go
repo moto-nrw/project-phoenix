@@ -2,6 +2,7 @@ package careschedule_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule/carescheduletest"
 	activeModel "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -44,16 +46,51 @@ func wallClockAt(h, m int) *time.Time {
 	return &t
 }
 
+type failingPickupBaseline struct{}
+
+func (failingPickupBaseline) Project(
+	context.Context, []int64, timezone.Date, timezone.Date,
+) (*careschedule.PickupBaselineProjection, error) {
+	return nil, errors.New("weekly pickup projection unavailable")
+}
+
+func (failingPickupBaseline) OfferingPickupForDate(
+	context.Context, int64, timezone.Date,
+) (*scheduleModel.StudentPickupSchedule, error) {
+	return nil, errors.New("weekly pickup projection unavailable")
+}
+
+func (failingPickupBaseline) HasBookedOfferingPickupForWeekday(
+	context.Context, int64, int,
+) (bool, error) {
+	return false, errors.New("weekly pickup projection unavailable")
+}
+
+// autoExcusalRepositories is the one repository graph the pickup trigger
+// tests share (auto excusal and later-pickup tasks).
+func autoExcusalRepositories(db *bun.DB) *repositories.Factory {
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+}
+
 func setupAutoExcusalHarness(t *testing.T, withBaseline bool) *autoExcusalHarness {
+	return setupAutoExcusalHarnessWithExtensions(t, withBaseline, false)
+}
+
+func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExtensions bool) *autoExcusalHarness {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
+	repos := autoExcusalRepositories(db)
+	options := []careschedule.PickupAutoExcusalOption{}
+	if withExtensions {
+		options = append(options, careschedule.WithPickupExtensions(timetabletest.New(t, db)))
+	}
 
 	syncer := careschedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
 		carescheduletest.NewPickupBaselineService(repos.StudentPickupSchedule, approvedOfferingProjection(t), repos.CareOffering),
 		repos.InstanceStudent,
 		db,
+		options...,
 	)
 	svc := careschedule.NewPickupScheduleServiceWithBulk(
 		repos.StudentPickupSchedule,
@@ -266,6 +303,67 @@ func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
 	// Blocks follow the manual 13:30 cutoff, not the 15:30 pickup time.
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.afterRow).Status)
+}
+
+func TestAutoExcusal_ManualPartialAbsenceRecordsLaterPickupTask(t *testing.T) {
+	t.Parallel()
+
+	h := setupAutoExcusalHarnessWithExtensions(t, true, true)
+	manual, err := h.partial.Create(h.ctx, careschedule.PartialAbsenceInput{
+		StudentID: h.student.ID,
+		Date:      h.date,
+		FromTime:  *wallClockAt(13, 30),
+		Reason:    "Arzttermin",
+		StaffID:   h.staffID,
+	})
+	require.NoError(t, err)
+
+	updated, err := h.svc.UpdateException(h.ctx, manual.ID, h.student.ID, h.date, nil, wallClockAt(16, 30), false, h.resolveStaff)
+	require.NoError(t, err)
+	require.NotNil(t, updated.ExcusedFrom)
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
+	assert.False(t, updated.ExcusedAuto)
+
+	var taskCount int
+	err = h.db.NewSelect().TableExpr(`schedule.pickup_extension_tasks`).ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("student_id = ?", h.student.ID).
+		Where("task_date = ?::date", h.date.String()).
+		Scan(h.ctx, &taskCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, taskCount)
+}
+
+func TestAutoExcusal_ManualPartialAbsenceSkipsFailedBaseline(t *testing.T) {
+	t.Parallel()
+
+	h := setupAutoExcusalHarness(t, true)
+	manual, err := h.partial.Create(h.ctx, careschedule.PartialAbsenceInput{
+		StudentID: h.student.ID,
+		Date:      h.date,
+		FromTime:  *wallClockAt(13, 30),
+		Reason:    "Arzttermin",
+		StaffID:   h.staffID,
+	})
+	require.NoError(t, err)
+
+	repos := autoExcusalRepositories(h.db)
+	syncer := careschedule.NewPickupAutoExcusalSyncer(
+		repos.StudentPickupException,
+		failingPickupBaseline{},
+		repos.InstanceStudent,
+		h.db,
+	)
+	changed, err := syncer.Sync(h.ctx, manual.ID)
+	require.NoError(t, err)
+	assert.False(t, changed)
+
+	unchanged, err := repos.StudentPickupException.FindByID(h.ctx, manual.ID)
+	require.NoError(t, err)
+	require.NotNil(t, unchanged)
+	require.NotNil(t, unchanged.ExcusedFrom)
+	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*unchanged.ExcusedFrom).Format("15:04"))
+	assert.False(t, unchanged.ExcusedAuto)
 }
 
 func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {

@@ -3975,6 +3975,10 @@
       "write_owner": "meal-plan"
     },
     {
+      "name": "schedule.pickup_extension_tasks",
+      "write_owner": "timetable-activities"
+    },
+    {
       "name": "schedule.planning_tracks",
       "write_owner": "timetable-activities"
     },

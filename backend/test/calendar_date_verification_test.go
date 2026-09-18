@@ -67,6 +67,11 @@ var unmappedDateColumns = map[string]string{
 	"schedule.meal_participation_schedules.effective_from": "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
 	"schedule.meal_participation_overrides.date":           "meal-participation Postgres adapter-local row uses timezone.Date — no models/ struct",
 	"schedule.meal_sickness_status_history.date":           "meal-participation sickness history is queried through adapter-local timezone.Date rows — no models/ struct",
+	// Later-pickup tasks (#3261) are owned by the Timetable module. Its
+	// adapter-local rows use the module's distinct Date value, because the
+	// target architecture forbids a dependency on internal/timezone.
+	"schedule.pickup_extension_tasks.task_date":      "timetable adapter-local row uses the typed domain.Date — no models/ struct",
+	"schedule.pickup_extension_tasks.effective_from": "timetable adapter-local row uses the typed domain.Date — no models/ struct",
 }
 
 // renamedDateColumns maps a DATE column declared under an old name in a
