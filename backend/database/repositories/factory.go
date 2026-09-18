@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -526,7 +527,11 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	personRepo := NewPersonRepository(db)
 	studentRepo := NewStudentRepository(db)
 	groupRepo := education.NewGroupRepository(db)
-	factory := &Factory{
+	// The care-exit repositories read their owners through resolvers over this
+	// pointer, because Care Plan and the School Calendar are composed after
+	// the factory; its own bind methods fill the fields they read.
+	var factory *Factory
+	factory = &Factory{
 		db: db,
 		// Auth repositories
 		Account:                accountRepo,
@@ -545,11 +550,13 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 		MFAOverride:            authpostgres.NewMFAOverrideRepository(db),
 
 		// Users repositories
-		Person:              personRepo,
-		RFIDCard:            authpostgres.NewRFIDCardRepository(db),
-		Student:             studentRepo,
-		CareExit:            users.NewCareExitRepository(db),
-		CareExitCleanup:     users.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentModule), careExitAssignments{capability: timetableCapability}, presenceCapability),
+		Person:   personRepo,
+		RFIDCard: authpostgres.NewRFIDCardRepository(db),
+		Student:  studentRepo,
+		CareExit: carelifecycle.NewCareExitRepository(db, careExitReasonsOf(&factory)),
+		CareExitCleanup: carelifecycle.NewCareExitCleanupRepository(db, newCareExitCleanup(
+			db, &factory, NewEnrollmentBookingProjection(enrollmentModule), presenceCapability, timetableCapability,
+		)),
 		Profile:             authpostgres.NewProfileRepository(db),
 		StudentGuardian:     NewStudentGuardianRepository(db),
 		StudentCompanion:    nil, // bound to Care Plan below
@@ -804,7 +811,6 @@ func NewFactory(db *bun.DB, timetableDependencies TimetableDependencies, clocks 
 	factory.PlanningTrack, factory.RecurrenceRule = adapters.PlanningTrack, adapters.RecurrenceRule
 	factory.ActivityException, factory.ActivityInstance = adapters.ActivityException, adapters.ActivityInstance
 	factory.InstanceIdempotency, factory.InstanceStaff = adapters.InstanceIdempotency, adapters.InstanceStaff
-	factory.BindTimetable(timetableCapability)
 	return factory
 }
 

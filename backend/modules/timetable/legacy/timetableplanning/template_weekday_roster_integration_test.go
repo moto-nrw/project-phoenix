@@ -16,7 +16,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -54,7 +53,6 @@ type weekdayRosterScenario struct {
 func ownedStudentEnrollmentRepository(t *testing.T, db *bun.DB) activitiesModels.StudentEnrollmentRepository {
 	t.Helper()
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	return repos.StudentEnrollment
 }
 
@@ -243,7 +241,6 @@ func TestMaterialization_PrefersScopedPrimaryWithoutClearingLegacyFallback(t *te
 
 	weekday := activitiesModels.WeekdayMonday
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	repos.BindTimetable(timetabletest.New(t, s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
@@ -807,7 +804,6 @@ func TestTemplateWeekdayRosterRead_ExpandsSharedRowsAcrossScopedDays(t *testing.
 	s.registerTemplate(t, result.TemplateID, result.TimeframeID)
 
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	repos.BindTimetable(timetabletest.New(t, s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:   s.staffA,
 		GroupID:   result.TemplateID,
@@ -966,7 +962,6 @@ func TestTemplateWeekdayRosterRead_IsolatesCalendarPeriods(t *testing.T) {
 
 	weekday := activitiesModels.WeekdayMonday
 	repos := repositories.NewFactory(s.db, repositories.NewUnobservedTimetableDependencies(s.db))
-	repos.BindTimetable(timetabletest.New(t, s.db))
 	require.NoError(t, repos.ActivitySupervisor.Create(s.ctx, &activitiesModels.SupervisorPlanned{
 		StaffID:          s.staffB,
 		GroupID:          result.TemplateID,

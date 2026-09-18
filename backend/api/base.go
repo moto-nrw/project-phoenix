@@ -1378,7 +1378,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Students = studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PersonService:                api.Services.Users,
 		PeopleDirectory:              api.Services.PeopleDirectory,
-		StudentService:               api.Services.Students,
+		StudentService:               api.Services.Students.Directory,
+		CompanionService:             api.Services.Students.Companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: api.membership},
 		StudentDeletion:              api.Services.StudentDeletion,
 		CareLifecycleService:         api.Services.CareLifecycle,

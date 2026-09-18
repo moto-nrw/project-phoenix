@@ -13,9 +13,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeModels "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetablesqltest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,29 +26,7 @@ func newBoundPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupE
 
 func instanceStudentFactory(t *testing.T, db *bun.DB) *repositories.Factory {
 	t.Helper()
-	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	people, err := repositories.NewPeopleDirectory(db)
-	require.NoError(t, err)
-	rooms, err := repositories.NewFacilities(db)
-	require.NoError(t, err)
-	factory.BindTimetable(timetabletest.NewWithDirectories(t, db,
-		func(ctx context.Context) ([]timetabletest.TargetStudent, error) {
-			values, listErr := people.ListEnrolledStudents(ctx)
-			result := make([]timetabletest.TargetStudent, 0, len(values))
-			for _, value := range values {
-				result = append(result, timetabletest.TargetStudent{ID: value.ID, SchoolClass: value.SchoolClass,
-					EducationGroupID: value.GroupID, EnrolledUntil: value.EnrolledUntil})
-			}
-			return result, listErr
-		}, timetable.RoomDirectoryFunc(func(ctx context.Context, ids []int64) ([]timetable.RoomRef, error) {
-			values, lockErr := rooms.LockRoomsByID(ctx, ids)
-			result := make([]timetable.RoomRef, 0, len(values))
-			for _, value := range values {
-				result = append(result, timetable.RoomRef{ID: value.ID, TenantID: value.TenantID})
-			}
-			return result, lockErr
-		})))
-	return factory
+	return repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
 }
 
 func instanceStudentRepository(t *testing.T, db *bun.DB) scheduleModels.InstanceStudentRepository {

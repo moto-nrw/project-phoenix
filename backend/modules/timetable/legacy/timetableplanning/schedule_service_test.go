@@ -48,7 +48,6 @@ func setupScheduleService(t *testing.T, db *bun.DB) timetableplanning.Service {
 	t.Helper()
 
 	repoFactory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repoFactory.BindTimetable(timetabletest.New(t, db))
 
 	return timetableplanning.NewServiceWithConfig(timetableplanning.ServiceConfig{
 		RecurrenceEvents: timetabletest.New(t, db),
@@ -556,7 +555,6 @@ func TestScheduleService_TimeframeCareOfferingGuard(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	repos.BindTimetable(timetabletest.New(t, db))
 	ctx := testpkg.Ctx(t)
 	start := time.Now().Add(time.Hour)
 	end := start.Add(time.Hour)

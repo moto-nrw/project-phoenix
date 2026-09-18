@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 
@@ -180,7 +181,8 @@ func setupStudentsRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 		PersonService:          svc.Users,
 		PeopleDirectory:        svc.PeopleDirectory,
 		StudentDeletion:        studentDeletion,
-		StudentService:         userService.NewStudentService(repositories.NewStudentDirectory(svc.PeopleDirectory), svc.PeopleDirectory, repoFactory.Student, repoFactory.StudentCompanion, nil),
+		StudentService:         userService.NewStudentService(repositories.NewStudentDirectory(svc.PeopleDirectory), svc.PeopleDirectory, repoFactory.Student),
+		CompanionService:       carelifecycle.NewStudentCompanionService(repoFactory.Student, repoFactory.StudentCompanion, svc.StudentAudit),
 		EducationService:       svc.Education,
 		UserContextService:     svc.UserContext,
 		ActiveService:          svc.Active,

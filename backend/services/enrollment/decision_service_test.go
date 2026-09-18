@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -154,7 +155,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 		outbox = outboxes[0]
 	}
 	if careWithdrawal == nil {
-		careWithdrawal = usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
+		careWithdrawal = carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 			StudentRepo: repoFactory.Student, PersonRepo: repoFactory.Person,
 			CareExitRepo: repoFactory.CareExit, CleanupRepo: repoFactory.CareExitCleanup,
 			WithdrawalRepo: repoFactory.CareWithdrawal, TagReleaser: repoFactory.StudentTagReleaser(),

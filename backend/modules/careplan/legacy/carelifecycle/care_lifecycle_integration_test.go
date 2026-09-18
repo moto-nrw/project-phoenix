@@ -8,7 +8,7 @@
 //     times. No care plan, no offerings, no parent accounts.
 //   - Am Berg: the full setup — materialized timetable blocks with roster
 //     rows, care offerings, detailed room presence and parent accounts.
-package users_test
+package carelifecycle_test
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -125,7 +126,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	// when the day ends — the case the effect pass has to close cleanly.
 	attendance := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, time.Now().Add(-3*time.Hour), nil)
 
-	endCare(t, ctx, svc, actorID, userService.CareExitInput{
+	endCare(t, ctx, svc, actorID, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{student.ID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonMovedAway,
@@ -178,7 +179,15 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 			TeacherRepo: repos.Teacher,
 			DB:          db,
 		})
-		userService.WirePersonCareParticipation(personSvc, svc)
+		userService.WirePersonCareParticipation(personSvc, func(
+			ctx context.Context, studentIDs []int64, on, today timezone.Date,
+		) (map[int64]bool, error) {
+			resolution, err := svc.ResolveListParticipation(ctx, studentIDs, on, today, false)
+			if err != nil {
+				return nil, err
+			}
+			return resolution.ParticipatingIDs, nil
+		})
 		eligible, err := personSvc.GetEligibleStudentsByGroupIDsOnDate(
 			ctx, []int64{group.ID}, today, today)
 		require.NoError(t, err)
@@ -256,7 +265,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 		Exec(ctx)
 	require.NoError(t, err)
 
-	preview, err := svc.Preview(ctx, userService.CareExitInput{
+	preview, err := svc.Preview(ctx, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{studentID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonOther,
@@ -275,7 +284,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 			"an open roster check-in is closed when the exit takes effect")
 	})
 
-	_, err = svc.Confirm(ctx, preview.Token, userService.CareExitInput{
+	_, err = svc.Confirm(ctx, preview.Token, carelifecycle.CareExitInput{
 		StudentIDs:  []int64{studentID},
 		LastCareDay: today,
 		Reason:      userModels.CareExitReasonOther,

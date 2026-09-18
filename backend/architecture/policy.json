@@ -35,6 +35,10 @@
       "kind": "domain"
     },
     {
+      "id": "care-exit-view",
+      "kind": "projection"
+    },
+    {
       "id": "parent-request-feed-view",
       "kind": "projection"
     },
@@ -2506,6 +2510,20 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/careplan/legacy/carelifecycle",
+      "owner": "inbound-students",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/legacy/careexitview",
+      "owner": "care-exit-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/careplan/legacy/careschedule/carescheduletest",
       "owner": "inbound-schedules",
       "role": "test-support",
@@ -4356,6 +4374,15 @@
         "enrollment.phases",
         "enrollment.request_children",
         "enrollment.requests"
+      ],
+      "tenant_safe": true
+    },
+    {
+      "id": "care-exit-view",
+      "package": "modules/careplan/legacy/careexitview",
+      "data_objects": [
+        "users.persons",
+        "users.students"
       ],
       "tenant_safe": true
     },
@@ -26696,6 +26723,510 @@
       "source_role": "adapter-test",
       "target_owner": "inbound-school",
       "target_role": "test-support"
+    },
+    {
+      "id": "care-exit-view.postgres.legacy-shared-domain",
+      "description": "The care-exit read projection modules/careplan/legacy/careexitview (#3350) answers with the shared calendar-day value and joins the Enrollment offering-link record columns. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit-view",
+      "source_role": "postgres",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "enrollment.application.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.module-behavior-test.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "enrollment.module-internal-test.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "group-live-view.adapter.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "group-live-view",
+      "source_role": "adapter",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-operator.http.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-operator",
+      "source_role": "http",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.adapter-test.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.adapter-test.inbound-students-adapter.1",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter-test",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.adapter.audit-platform-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter.care-exit-view-postgres",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "care-exit-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-students.adapter.crypto",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_class": "crypto"
+    },
+    {
+      "id": "inbound-students.adapter.enrollment-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter.enrollment-public",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.adapter.legacy-shared-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter.orm-sql",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "inbound-students.adapter.people-directory-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter.security-runtime-application",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-students.adapter.security-runtime-contract",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "inbound-students.adapter.settings-platform-application",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-students.adapter.settings-platform-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "settings-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter.tenant-runtime-public",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.adapter.timetable-legacy-view-postgres",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-students.adapter.transaction-runtime-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.adapter.transaction-runtime-postgres",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "adapter",
+      "target_owner": "transaction-runtime",
+      "target_role": "postgres"
+    },
+    {
+      "id": "inbound-students.http.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "http",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.audit-platform-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "audit-platform",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.enrollment-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.enrollment-test-support",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.identity-access-adapter",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.inbound-students-adapter",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.inbound-timetable-adapter",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-timetable",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.legacy-composition-compose",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.legacy-shared-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.people-directory-application",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "application"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.people-directory-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.student-presence-adapter",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "adapter"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.student-presence-compose",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.student-presence-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "student-presence",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.tenant-runtime-public",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "inbound-students.module-behavior-test.timetable-activities-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-internal-test.legacy-shared-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-internal-test",
+      "target_owner": "legacy-shared",
+      "target_role": "domain"
+    },
+    {
+      "id": "inbound-students.module-internal-test.people-directory-domain",
+      "description": "The relocated care-exit, companion and care-document services in modules/careplan/legacy/carelifecycle (#3350) still speak the contracts they spoke in services/users and database/repositories/users. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "inbound-students",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "domain"
+    },
+    {
+      "id": "legacy-composition.compose.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "people-directory.module-behavior-test.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "module-behavior-test",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
+    },
+    {
+      "id": "care-exit-view.postgres.enrollment-public",
+      "description": "The care-exit read projection modules/careplan/legacy/careexitview (#3350) joins the Enrollment offering-link record columns, which that owner names. Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-exit-view",
+      "source_role": "postgres",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "settings-platform.http.inbound-students-adapter",
+      "description": "Consumers of the care-exit, companion and care-document services reach them at their new home in modules/careplan/legacy/carelifecycle (#3350). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "settings-platform",
+      "source_role": "http",
+      "target_owner": "inbound-students",
+      "target_role": "adapter"
     }
   ],
   "relocations": [

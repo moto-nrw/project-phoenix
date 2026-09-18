@@ -1,4 +1,4 @@
-package users_test
+package carelifecycle_test
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func TestCareExitRepository_RecordedAtUsesTheBerlinDay(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CareExitRecorded", "Kid", class)
 
 	yesterday := timezone.TodayDate().AddDays(-1)
-	setLifecycle(t, db, student.ID, users.StudentStatusActive, nil, &yesterday)
+	testpkg.SetStudentLifecycle(t, db, student.ID, users.StudentStatusActive, nil, &yesterday)
 
 	require.NoError(t, repo.Upsert(ctx, &users.CareExit{
 		StudentID: student.ID,

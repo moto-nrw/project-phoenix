@@ -128,6 +128,53 @@ roster count graduates while every other roster read does not. That last
 distinction is now stated as `peopledirectory.StudentScope` rather than left to
 each query.
 
+#3350 moves the application the same tables' persistence already left behind.
+The care-exit lifecycle ("Betreuung beenden", #2487), the "läuft mit" graph and
+the child Dokumente tab were written in `services/users`, which is
+`people-directory/application`, although `users.student_care_exits`,
+`users.student_care_exit_removals`, `users.student_care_exit_source_removals`,
+`users.student_companions`, `users.student_documents` and
+`users.care_withdrawal_completions` are all Care Plan's. #2682 moved the
+persistence behind `CareRecordsQuery`/`CareRecordsCommand`; the services that
+drive it now live in `modules/careplan/legacy/carelifecycle`, together with the
+care-exit cleanup repository that used to be
+`database/repositories/users/care_exit*.go`.
+
+They could not land on Care Plan's `application` point. The relocated code
+still speaks the retained `models/users` rows, the retained audit contracts,
+the shared authorization helpers and the Bun database, and PR mode rejects a
+new permission on a point that exists at the base SHA — the same reason
+#3219's shift-planning services went to `inbound-staff-shifts`/`adapter`. The
+package is therefore `inbound-students`/`adapter`, the consumer-side twin of
+`modules/careplan/legacy/careschedule` (`inbound-schedules`/`adapter`, #3220),
+and every `inbound-students.adapter.*` rule and every
+`<consumer>.<role>.inbound-students-adapter` rule is a compatibility
+permission: convert them to exact debt once the package exists at a base SHA,
+and dissolve the services into the Care Plan application and domain layers
+under #2731.
+
+Two things the move settled rather than carried. The care-exit flow reads two
+People Directory tables — the archive lists the children whose enrolment
+interval has run out, the binding preview freezes their person rows, and the
+booking evaluation reads their enrolment bounds — so those queries are now the
+named tenant-safe projection `modules/careplan/legacy/careexitview`
+(`care-exit-view`, the one owner this epoch adds). It takes the tenant id
+explicitly and joins the Enrollment and Care Plan recordsets its caller
+already loaded; the adapter itself issues no SQL. And the three owner queries
+the cleanup repository used to receive through `Bind*` setters arrive at
+construction instead, as resolvers over the repository factory's own fields:
+the composition-surface guard records mutable wiring per package, so a
+relocated setter counts as growth (#3219 hit the same wall).
+`Factory.BindTimetable` went with them — it only ever forwarded the Timetable
+owner to that one repository, which now reads the capability the same graph
+hands `NewFactory`.
+
+`services/users` keeps the People Directory half of the child record.
+`StudentService` no longer carries the companion graph; `api/students` holds
+`carelifecycle.StudentCompanionService` beside it, and the group roster read
+asks Care Plan for the dated participation decision through a narrow
+`CareParticipationResolver` instead of holding the whole lifecycle service.
+
 The staff messaging writes live in the Communication Postgres adapter
 `modules/communication/internal/adapters/staffpostgres`. The inbox and unread
 badge join People Directory's person rows, so they read through the tenant-safe

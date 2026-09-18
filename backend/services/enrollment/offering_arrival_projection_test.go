@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -56,7 +57,7 @@ func bookingModeSettings(authoritative bool) configService.SettingsService {
 
 func bookingModeCareDays(t *testing.T, env *decisionTestEnv, authoritative bool) careschedule.CareDayService {
 	t.Helper()
-	participation := usersService.NewCareLifecycleService(usersService.CareLifecycleDependencies{
+	participation := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: env.repos.Student, PersonRepo: env.repos.Person,
 		CareExitRepo: env.repos.CareExit, CleanupRepo: env.repos.CareExitCleanup,
 		WithdrawalRepo: env.repos.CareWithdrawal, TagReleaser: env.repos.StudentTagReleaser(),

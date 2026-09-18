@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/services/config"
@@ -15,7 +16,7 @@ import (
 )
 
 type CareLifecycleTestModule struct {
-	CareLifecycle users.CareLifecycleService
+	CareLifecycle carelifecycle.CareLifecycleService
 	StudentAudit  users.StudentAuditService
 	Settings      config.SettingsService
 }
@@ -34,7 +35,7 @@ func NewCareLifecycleTestModule(db *bun.DB, unit tenant.UnitOfWork) (CareLifecyc
 		return CareLifecycleTestModule{}, err
 	}
 	audit := users.NewStudentAuditService(repositories.NewStudentAudit(db))
-	service := users.NewCareLifecycleService(users.CareLifecycleDependencies{
+	service := carelifecycle.NewCareLifecycleService(carelifecycle.CareLifecycleDependencies{
 		StudentRepo: r.Student, PersonRepo: r.Person, CareExitRepo: r.CareExit, CleanupRepo: r.CareExitCleanup,
 		WithdrawalRepo: r.CareWithdrawal, TagReleaser: r.TagReleaser, AuditService: audit,
 		LockCareBookingWrites: func(ctx context.Context) error { return timetableplanning.LockTenantRecurrenceWrites(ctx, db) },

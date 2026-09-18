@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/carelifecycle"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -21,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -34,9 +34,8 @@ func wireCareLifecycle(t *testing.T, tc *testContext) {
 func wireCareLifecycleWithBookingMode(t *testing.T, tc *testContext, authoritative bool) {
 	t.Helper()
 	repos := newStudentTestRepositories(tc.db)
-	repos.BindTimetable(timetabletest.New(t, tc.db))
-	tc.resource.CareLifecycleService = userService.NewCareLifecycleService(
-		userService.CareLifecycleDependencies{
+	tc.resource.CareLifecycleService = carelifecycle.NewCareLifecycleService(
+		carelifecycle.CareLifecycleDependencies{
 			StudentRepo:    repos.Student,
 			PersonRepo:     repos.Person,
 			CareExitRepo:   repos.CareExit,
