@@ -191,7 +191,9 @@ moves fields across owners that the current code reads from one place:
    belongs in a named tenant-safe read projection instead — the mechanism
    `class-day-view` and `group-live-view` already use. That needs a new
    projection owner, and a new owner needs an architecture decision linked from
-   #2580 before it is added.
+   #2580 before it is added. **That decision is
+   [#3386](https://github.com/moto-nrw/project-phoenix/issues/3386), which
+   blocks #2759.**
 2. **Care Plan has to own the care columns.** `supervisor_notes`, `health_info`,
    `pickup_status`, the departure plan and the companion note are written today
    through People's `ApplyEnrollmentProfile` and through the legacy student
@@ -210,11 +212,18 @@ moves fields across owners that the current code reads from one place:
    `models/users.Student`, `peopledirectory.Student` and
    `careplan.StatusStudent` — with their remaining readers moved onto the
    effective status.
-4. **The legacy guardian columns have to go the same way.**
+4. **The legacy guardian columns have to go, but they are a wire contract.**
    `guardian_name`, `guardian_contact`, `guardian_email` and `guardian_phone`
    have no owner storage; `users.guardian_profiles` and
-   `users.guardian_phone_numbers` do. The backfill's
-   `guardian_mismatch_count: 0` gate is what makes removing them safe.
+   `users.guardian_phone_numbers` do, and the backfill's
+   `guardian_mismatch_count: 0` gate is what makes losing the columns safe. But
+   the four are required fields on the student list and detail wire types
+   (`frontend/src/app/api/students/route.ts`,
+   `frontend/src/app/api/students/[id]/route.ts`), so removing them means either
+   re-sourcing from the guardian owners or changing the contract and the
+   frontend. Split out as
+   [#3387](https://github.com/moto-nrw/project-phoenix/issues/3387) so the
+   caller switch can land without a frontend change.
 
 Until that lands, current callers keep reading and writing through the
 compatibility view, so the counters in the evidence table below will not trend
