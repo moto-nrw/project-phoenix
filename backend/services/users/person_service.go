@@ -43,6 +43,9 @@ const (
 
 // PersonServiceDependencies contains all dependencies required by the person service
 type PersonServiceDependencies struct {
+	// PersonDirectory is the owner's person write path (#3349); the
+	// composition root binds database/repositories.NewPersonDirectory.
+	PersonDirectory PersonWriter
 	// Repository dependencies
 	PersonRepo  userModels.PersonRepository
 	RFIDRepo    auth.RFIDCardRepository
@@ -162,8 +165,11 @@ func (s *personService) Create(ctx context.Context, person *userModels.Person) e
 		}
 	}
 
-	if err := s.PersonRepo.Create(ctx, person); err != nil {
-		return &UsersError{Op: opCreatePerson, Err: err}
+	if s.PersonDirectory == nil {
+		return &UsersError{Op: opCreatePerson, Err: errPersonDirectoryUnwired}
+	}
+	if err := s.PersonDirectory.CreatePerson(ctx, person); err != nil {
+		return &UsersError{Op: opCreatePerson, Err: translateMissingPerson(err)}
 	}
 
 	return nil
@@ -191,8 +197,11 @@ func (s *personService) Update(ctx context.Context, person *userModels.Person) e
 		return err
 	}
 
-	if err := s.PersonRepo.Update(ctx, person); err != nil {
-		return &UsersError{Op: opUpdatePerson, Err: err}
+	if s.PersonDirectory == nil {
+		return &UsersError{Op: opUpdatePerson, Err: errPersonDirectoryUnwired}
+	}
+	if err := s.PersonDirectory.UpdatePerson(ctx, person); err != nil {
+		return &UsersError{Op: opUpdatePerson, Err: translateMissingPerson(err)}
 	}
 
 	return nil
@@ -250,10 +259,28 @@ func (s *personService) Delete(ctx context.Context, id interface{}) error {
 		return &UsersError{Op: opDeletePerson, Err: ErrPersonNotFound}
 	}
 
-	if err := s.PersonRepo.Delete(ctx, id); err != nil {
-		return &UsersError{Op: opDeletePerson, Err: err}
+	if s.PersonDirectory == nil {
+		return &UsersError{Op: opDeletePerson, Err: errPersonDirectoryUnwired}
+	}
+	if err := s.PersonDirectory.DeletePerson(ctx, person.ID); err != nil {
+		return &UsersError{Op: opDeletePerson, Err: translateMissingPerson(err)}
 	}
 	return nil
+}
+
+// errPersonDirectoryUnwired names a composition graph that reaches a person
+// write without the owner behind it. It is a configuration error, reported
+// rather than panicked so it cannot abort a request mid-transaction.
+var errPersonDirectoryUnwired = errors.New("person directory is not configured")
+
+// translateMissingPerson restates the owner's missing person as this package's
+// own sentinel, so a row that disappeared between the existence check and the
+// write is reported exactly as one that was never there.
+func translateMissingPerson(err error) error {
+	if errors.Is(err, userModels.ErrPersonRowMissing) {
+		return ErrPersonNotFound
+	}
+	return err
 }
 
 // List retrieves persons matching the provided query options

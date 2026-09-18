@@ -23,7 +23,8 @@ func NewRFIDTestModule(db *bun.DB) (RFIDTestModule, error) {
 		return RFIDTestModule{}, err
 	}
 	people := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo: r.Membership.Person, StaffRepo: r.Membership.Staff, TeacherRepo: r.Membership.Teacher,
+		PersonDirectory: repositories.NewPersonDirectory(repositories.MustNewPeopleDirectory(db)),
+		PersonRepo:      r.Membership.Person, StaffRepo: r.Membership.Staff, TeacherRepo: r.Membership.Teacher,
 		AccountRepo: r.Membership.Account, StudentRepo: r.Student, RFIDRepo: r.RFID,
 		DB: db, Logger: slog.Default(),
 	})
