@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   MOBILE_CREATE_FAB_MEDIA_QUERY,
   useFloatingFabOffset,
@@ -22,6 +24,15 @@ export function DatabaseCreateAction({
   disabled = false,
   onClick,
 }: DatabaseCreateActionProps) {
+  // `TenantPage` renders actions inside a blurred content surface. A backdrop
+  // filter establishes a containing block for fixed descendants, so the mobile
+  // button must live outside that surface to remain viewport-fixed.
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   useFloatingFabOffset({
     active: true,
     mediaQuery: MOBILE_CREATE_FAB_MEDIA_QUERY,
@@ -38,30 +49,34 @@ export function DatabaseCreateAction({
       >
         + {label}
       </button>
-      <button
-        type="button"
-        onClick={onClick}
-        disabled={disabled}
-        className="bg-moto-green hover:bg-moto-green-hover fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:hidden"
-        // Schwebender Symbolknopf: das Gerüst der Kopfkarte darf ihn auf dem
-        // Telefon nicht wie einen Textknopf über die Zeile strecken.
-        data-icon-only=""
-        aria-label={ariaLabel}
-      >
-        <svg
-          className="h-6 w-6"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 4.5v15m7.5-7.5h-15"
-          />
-        </svg>
-      </button>
+      {mounted &&
+        createPortal(
+          <button
+            type="button"
+            onClick={onClick}
+            disabled={disabled}
+            className="bg-moto-green hover:bg-moto-green-hover fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50 md:hidden"
+            // Schwebender Symbolknopf: Das Portal löst ihn aus dem
+            // Filter-Kontext der Kopfkarte, damit `fixed` den Viewport meint.
+            data-icon-only=""
+            aria-label={ariaLabel}
+          >
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 4.5v15m7.5-7.5h-15"
+              />
+            </svg>
+          </button>,
+          document.body,
+        )}
     </>
   );
 }

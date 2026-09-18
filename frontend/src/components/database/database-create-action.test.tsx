@@ -26,12 +26,14 @@ describe("DatabaseCreateAction", () => {
   });
 
   it("publishes stack clearance while its mobile FAB is visible", () => {
-    const { unmount } = render(
-      <DatabaseCreateAction
-        label="Raum"
-        ariaLabel="Raum erstellen"
-        onClick={() => undefined}
-      />,
+    const { container, unmount } = render(
+      <div data-testid="header-action-slot">
+        <DatabaseCreateAction
+          label="Raum"
+          ariaLabel="Raum erstellen"
+          onClick={() => undefined}
+        />
+      </div>,
     );
 
     expect(
@@ -43,6 +45,16 @@ describe("DatabaseCreateAction", () => {
         "--moto-floating-fab-offset",
       ),
     ).toBe("4.5rem");
+
+    // The blurred TenantPage header is a containing block for `fixed`
+    // descendants. The FAB must be portaled outside its action slot so its
+    // viewport offsets remain stable while the header scrolls away.
+    expect(container.querySelector("[data-icon-only]")).not.toBeInTheDocument();
+    expect(document.body.querySelector("[data-icon-only]")).toHaveClass(
+      "fixed",
+      "right-4",
+      "bottom-24",
+    );
 
     unmount();
     expect(
