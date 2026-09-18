@@ -828,8 +828,28 @@ describe("PersonalInfoReadOnly", () => {
 
     const healthInfo = screen.getByText("Allergien: Erdnüsse");
     expect(
-      within(healthInfo).getByText("Für Eltern sichtbar"),
+      within(healthInfo.parentElement as HTMLElement).getByText(
+        "Für Eltern sichtbar",
+      ),
     ).toBeInTheDocument();
+  });
+
+  it("allows long health information to wrap while keeping its marker visible", () => {
+    const healthInfo = "https://example.test/".padEnd(500, "a");
+    render(
+      <PersonalInfoReadOnly
+        student={{ ...mockStudent, health_info: healthInfo }}
+      />,
+    );
+
+    const healthValue = screen.getByText(healthInfo);
+    expect(healthValue).toHaveClass("min-w-0", "break-words");
+    expect(healthValue.parentElement).toHaveClass("inline-flex", "min-w-0");
+    expect(
+      within(healthValue.parentElement as HTMLElement)
+        .getByText("Für Eltern sichtbar")
+        .closest(".shrink-0"),
+    ).not.toBeNull();
   });
 
   it("renders enrollment extra fields as personal info rows", () => {
