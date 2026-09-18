@@ -70,7 +70,7 @@ runs:
           LINK_TEXT="View failed deployment →"
         else
           SUBJECT="[INFO] $DISPLAY_ENV deploy aborted — no changes applied"
-          STATUS="Deployment to $DISPLAY_ENV was aborted before any changes were applied (image pull or database backup failed).<br>$DISPLAY_ENV is operational on the previous version."
+          STATUS="Deployment to $DISPLAY_ENV was aborted before any changes were applied (migration preflight, image pull or database backup failed).<br>$DISPLAY_ENV is operational on the previous version."
           LINK_TEXT="View failed deployment →"
         fi
 

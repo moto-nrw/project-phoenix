@@ -42,4 +42,17 @@ type Migration struct {
 	DependsOn   []string // Versions this migration depends on
 	Up          func(ctx context.Context, db *bun.DB) error
 	Down        func(ctx context.Context, db *bun.DB) error
+
+	// Precondition reports whether the data this migration needs is already
+	// in the shape it requires, without changing anything. A migration that
+	// refuses on data a human has to correct — an unreconciled value, a
+	// stale flag — registers the same check here, so `migrate preflight` can
+	// ask the question before the deployment stops the application instead
+	// of discovering the answer mid-migration and rolling the release back.
+	//
+	// It must be read-only and must answer for the state it is given: the
+	// migration is pending, so its own schema changes have not happened yet.
+	// A check that can only run after this migration's own Up belongs in Up.
+	// Optional; most migrations have no data precondition.
+	Precondition func(ctx context.Context, db *bun.DB) error
 }
