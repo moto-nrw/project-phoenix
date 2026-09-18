@@ -226,6 +226,7 @@ func (s *Store) ListPickupExtensionDayBlocks(ctx context.Context, tasks []domain
 			ON "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id
 			AND "own".student_id = task.student_id
 		WHERE "instance".status NOT IN ('cancelled', 'completed')
+			AND NOT "instance".is_spontaneous
 			AND "instance".start_time < task.to_time AND "instance".end_time > task.from_time
 			AND ("own".id IS NULL OR NOT "own".not_scheduled)
 			AND EXISTS (

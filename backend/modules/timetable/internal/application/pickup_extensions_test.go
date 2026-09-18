@@ -41,18 +41,32 @@ func (s *pickupExtensionInstanceStore) LockActivityInstance(_ context.Context, i
 	return s.instance, true, domain.OperationStats{}, nil
 }
 
-func TestPickupExtensionInstanceLockRejectsLifecycleChange(t *testing.T) {
+func TestPickupExtensionInstanceLockRejectsChangedSelection(t *testing.T) {
 	t.Parallel()
-	for _, status := range []string{"cancelled", "completed"} {
-		t.Run(status, func(t *testing.T) {
-			store := &pickupExtensionInstanceStore{instance: domain.ActivityInstance{
-				ID: 7, Date: "2099-03-03", Status: status,
-			}}
+	for _, tc := range []struct {
+		name     string
+		instance domain.ActivityInstance
+	}{
+		{name: "cancelled", instance: domain.ActivityInstance{ID: 7, Date: "2099-03-03", Status: "cancelled"}},
+		{name: "completed", instance: domain.ActivityInstance{ID: 7, Date: "2099-03-03", Status: "completed"}},
+		{name: "spontaneous", instance: domain.ActivityInstance{
+			ID: 7, Date: "2099-03-03", Status: "planned", StartTime: "14:45:00", EndTime: "16:00:00", IsSpontaneous: true,
+		}},
+		{name: "moved outside pickup time", instance: domain.ActivityInstance{
+			ID: 7, Date: "2099-03-03", Status: "planned", StartTime: "16:00:00", EndTime: "17:00:00",
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &pickupExtensionInstanceStore{instance: tc.instance}
 			service := &Service{store: store}
 
-			err := service.lockPickupExtensionInstance(context.Background(), domain.PickupExtensionInstance{
-				ID: 7, Date: "2099-03-03",
-			}, 0, &domain.OperationStats{})
+			err := service.lockPickupExtensionInstance(
+				context.Background(),
+				domain.PickupExtensionTask{PreviousPickup: "14:45", Pickup: "16:00"},
+				domain.PickupExtensionInstance{ID: tc.instance.ID, Date: "2099-03-03"},
+				0,
+				&domain.OperationStats{},
+			)
 
 			require.ErrorIs(t, err, domain.ErrPickupExtensionBlockGone)
 			assert.Equal(t, store.instance.ID, store.lockedID)

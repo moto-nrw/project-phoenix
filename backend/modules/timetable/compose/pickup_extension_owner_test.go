@@ -100,10 +100,16 @@ func TestModuleOwnsPickupDayExtension(t *testing.T) {
 	office := pickupExtensionInstance(t, module, ctx, fixture, date, "15:00:00", "15:30:00", "Bürotermin")
 	notScheduled := pickupExtensionInstance(t, module, ctx, fixture, date, "15:31:00", "16:00:00", "Abgemeldet")
 	lunch := pickupExtensionInstance(t, module, ctx, fixture, date, "12:00:00", "13:00:00", "Mittagessen")
+	spontaneousInput := ownedActivityInstanceInput(fixture, date, "14:45:00", "Spontaner Termin")
+	spontaneousInput.EndTime = "16:00:00"
+	spontaneousInput.IsSpontaneous = true
+	spontaneous, err := module.CreateActivityInstance(ctx, spontaneousInput)
+	require.NoError(t, err)
 	createOwnedInstanceStudent(t, module, ctx, freePlay.ID, other.ID, timetable.InstanceAttendanceExpected)
 	createOwnedInstanceStudent(t, module, ctx, notScheduled.ID, other.ID, timetable.InstanceAttendanceExpected)
 	createOwnedInstanceStudent(t, module, ctx, lunch.ID, other.ID, timetable.InstanceAttendanceExpected)
 	createOwnedInstanceStudent(t, module, ctx, lunch.ID, child.ID, timetable.InstanceAttendanceExpected)
+	createOwnedInstanceStudent(t, module, ctx, spontaneous.ID, other.ID, timetable.InstanceAttendanceExpected)
 	require.NoError(t, module.MarkNotScheduled(ctx, []timetable.StudentInstanceRef{{
 		StudentID: other.ID, InstanceID: notScheduled.ID,
 	}}))

@@ -188,7 +188,7 @@ func (s *Service) chosenPickupExtensionBlocks(ctx context.Context, task domain.P
 
 func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.PickupExtensionTask, block domain.PickupExtensionBlock, stats *domain.OperationStats) ([]int64, error) {
 	if task.IsDay() {
-		if err := s.lockPickupExtensionInstance(ctx, domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}, 0, stats); err != nil {
+		if err := s.lockPickupExtensionInstance(ctx, task, domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}, 0, stats); err != nil {
 			return nil, err
 		}
 		if err := s.addPlannedStudent(ctx, block.ID, task.StudentID, task.Date, stats); err != nil {
@@ -207,7 +207,7 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 		return nil, err
 	}
 	for _, instance := range instances {
-		if err := s.lockPickupExtensionInstance(ctx, instance, block.ID, stats); err != nil {
+		if err := s.lockPickupExtensionInstance(ctx, task, instance, block.ID, stats); err != nil {
 			return nil, err
 		}
 	}
@@ -226,21 +226,36 @@ func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.Pi
 
 // lockPickupExtensionInstance keeps a selected instance selectable until the
 // resolution commits. Lifecycle writers take the same row exclusively, so a
-// cancellation or completion that wins the race is observed before adding the
-// child.
-func (s *Service) lockPickupExtensionInstance(ctx context.Context, instance domain.PickupExtensionInstance, templateID int64, stats *domain.OperationStats) error {
+// cancellation, spontaneous conversion or time change that wins the race is
+// observed before adding the child.
+func (s *Service) lockPickupExtensionInstance(
+	ctx context.Context,
+	task domain.PickupExtensionTask,
+	instance domain.PickupExtensionInstance,
+	templateID int64,
+	stats *domain.OperationStats,
+) error {
 	current, found, queryStats, err := s.store.LockActivityInstance(ctx, instance.ID, true)
 	stats.Add(queryStats)
 	if err != nil {
 		return err
 	}
-	if !found || current.Date != instance.Date.String() || (current.Status != "planned" && current.Status != "active") {
+	if !found || current.Date != instance.Date.String() || current.IsSpontaneous ||
+		(current.Status != "planned" && current.Status != "active") ||
+		!pickupExtensionTimesOverlap(current.StartTime, current.EndTime, task.PreviousPickup, task.Pickup) {
 		return domain.ErrPickupExtensionBlockGone
 	}
-	if templateID > 0 && (current.ActivityGroupID == nil || *current.ActivityGroupID != templateID || current.IsSpontaneous) {
+	if templateID > 0 && (current.ActivityGroupID == nil || *current.ActivityGroupID != templateID) {
 		return domain.ErrPickupExtensionBlockGone
 	}
 	return nil
+}
+
+func pickupExtensionTimesOverlap(start, end, from, to string) bool {
+	if len(start) < 5 || len(end) < 5 {
+		return false
+	}
+	return start[:5] < to && end[:5] > from
 }
 
 func (s *Service) ensurePickupWeekdayEnrollment(
