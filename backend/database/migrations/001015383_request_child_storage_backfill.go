@@ -107,7 +107,7 @@ func createRequestChildStorageCheckpoints(ctx context.Context, db *bun.DB) error
 // requestChildStorageBackfillDown is the pre-Cutover rollback: it removes only
 // copied target rows and the checkpoints. Legacy rows are never touched.
 func requestChildStorageBackfillDown(ctx context.Context, db *bun.DB) error {
-	release, err := lockRequestChildStorageBackfill(ctx, db)
+	release, err := lockStorageBackfill(ctx, db, requestChildStorageBackfillName)
 	if err != nil {
 		return err
 	}

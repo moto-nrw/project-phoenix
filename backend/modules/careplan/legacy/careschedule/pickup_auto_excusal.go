@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/uptrace/bun"
 )
 
@@ -28,13 +29,32 @@ import (
 // Every method must run inside a tenant transaction with
 // LockCareExceptionDay already held for the student and date — the same
 // serialization contract the manual partial-absence writers follow.
+//
+// The mirror case, a pickup LATER than before (#3261), never changes a roster.
+// It records an open task for the Leitung through the Timetable owner, from
+// the same write paths, so every later pickup the team or a request stores is
+// covered.
 type PickupAutoExcusalSyncer struct {
-	pickups scheduleModel.StudentPickupExceptionRepository
-	weekly  PickupBaselineReader
-	slots   scheduleModel.InstanceStudentRepository
-	preview partialAbsenceBlockFinder
-	db      *bun.DB
+	pickups    scheduleModel.StudentPickupExceptionRepository
+	weekly     PickupBaselineReader
+	slots      scheduleModel.InstanceStudentRepository
+	preview    partialAbsenceBlockFinder
+	extensions timetable.PickupExtensionRecorder
+	db         *bun.DB
 }
+
+// PickupAutoExcusalOption configures optional collaborators.
+type PickupAutoExcusalOption func(*PickupAutoExcusalSyncer)
+
+// WithPickupExtensions records later pickups as open block decisions
+// (#3261). Without it (older tests) later pickups record nothing.
+func WithPickupExtensions(recorder timetable.PickupExtensionRecorder) PickupAutoExcusalOption {
+	return func(s *PickupAutoExcusalSyncer) { s.extensions = recorder }
+}
+
+// WeeklyPickupSnapshot is the regular pickup time per weekday before a
+// weekly write, as "HH:MM".
+type WeeklyPickupSnapshot map[int]string
 
 type partialAbsenceBlockFinder interface {
 	FindPartialAbsenceBlocks(context.Context, int64, scheduleModel.Date, time.Time) ([]scheduleModel.PartialAbsenceBlock, error)
@@ -49,15 +69,20 @@ func NewPickupAutoExcusalSyncer(
 	weekly PickupBaselineReader,
 	slots scheduleModel.InstanceStudentRepository,
 	db *bun.DB,
+	options ...PickupAutoExcusalOption,
 ) *PickupAutoExcusalSyncer {
 	preview, _ := slots.(partialAbsenceBlockFinder)
-	return &PickupAutoExcusalSyncer{
+	syncer := &PickupAutoExcusalSyncer{
 		pickups: pickups,
 		weekly:  weekly,
 		slots:   slots,
 		preview: preview,
 		db:      db,
 	}
+	for _, option := range options {
+		option(syncer)
+	}
+	return syncer
 }
 
 // Sync reconciles the auto excusal for one freshly written pickup exception.
@@ -73,16 +98,25 @@ func (s *PickupAutoExcusalSyncer) Sync(ctx context.Context, exceptionID int64) (
 	if row == nil {
 		return false, nil
 	}
-	// A staff-set partial absence is an explicit decision; the sync never
-	// overrides it, even when the pickup time changes underneath.
-	if row.HasManualPartialAbsence() {
+	// A staff-set partial absence is an explicit decision. Without later-pickup
+	// tasks, no baseline is needed because the sync must leave it untouched.
+	// With tasks, the baseline still decides whether the changed pickup is later.
+	manualPartialAbsence := row.HasManualPartialAbsence()
+	if manualPartialAbsence && s.extensions == nil {
 		return false, nil
 	}
-
-	desired, cutoff, err := s.desiredCutoff(ctx, row)
+	baseline, err := s.baselineClock(ctx, row)
 	if err != nil {
 		return false, err
 	}
+	if err := s.syncDayExtension(ctx, row, baseline); err != nil {
+		return false, err
+	}
+	if manualPartialAbsence {
+		return false, nil
+	}
+
+	desired, cutoff := desiredCutoff(row, baseline)
 
 	current := row.ExcusedAuto && row.ExcusedFrom != nil
 	if desired && current && timezone.SameClockTime(*row.ExcusedFrom, cutoff) {
@@ -133,10 +167,11 @@ func (s *PickupAutoExcusalSyncer) Preview(
 		ExceptionDate: scheduleModel.Date(date),
 		PickupTime:    &pickupTime,
 	}
-	desired, cutoff, err := s.desiredCutoff(ctx, row)
+	baseline, err := s.baselineClock(ctx, row)
 	if err != nil {
 		return nil, err
 	}
+	desired, cutoff := desiredCutoff(row, baseline)
 	if !desired {
 		return []scheduleModel.PartialAbsenceBlock{}, nil
 	}
@@ -162,10 +197,20 @@ func (s *PickupAutoExcusalSyncer) DetachForDate(ctx context.Context, studentID i
 	return s.DetachRow(ctx, row)
 }
 
-// DetachRow is DetachForDate for an already loaded row. Nil rows and rows
-// without an auto excusal are no-ops.
+// DetachRow is DetachForDate for an already loaded row. It first removes an
+// open later-pickup decision for the row's stored date, because a following
+// update may move that same exception to another date. Nil rows are no-ops.
 func (s *PickupAutoExcusalSyncer) DetachRow(ctx context.Context, row *scheduleModel.StudentPickupException) error {
-	if row == nil || !row.ExcusedAuto {
+	if row == nil {
+		return nil
+	}
+	if s.extensions != nil {
+		date := timezone.Date(row.ExceptionDate).String()
+		if err := s.extensions.ClearPickupDayExtension(ctx, row.StudentID, date); err != nil {
+			return fmt.Errorf("pickup extension: clear day %s: %w", date, err)
+		}
+	}
+	if !row.ExcusedAuto {
 		return nil
 	}
 	if _, err := s.slots.ReleasePartialAbsence(ctx, row.ID); err != nil {
@@ -237,33 +282,130 @@ func (s *PickupAutoExcusalSyncer) ReleaseBeforeDelete(ctx context.Context, row *
 	return nil
 }
 
-// desiredCutoff decides whether the exception should carry an auto excusal
-// and from which wall-clock time. Only a pull-forward against the weekly
-// baseline couples; without a baseline there is no "Vorverlegung".
-func (s *PickupAutoExcusalSyncer) desiredCutoff(
+// baselineClock returns the weekly pickup time that applies to the
+// exception's date. Timeless exceptions, weekend days and days without a
+// weekly time have no baseline.
+func (s *PickupAutoExcusalSyncer) baselineClock(
 	ctx context.Context, row *scheduleModel.StudentPickupException,
-) (bool, time.Time, error) {
-	var zero time.Time
+) (*time.Time, error) {
 	if row.PickupTime == nil {
-		return false, zero, nil
+		return nil, nil
 	}
 	date := timezone.Date(row.ExceptionDate)
-	weekday := effectiveISOWeekday(date)
-	if weekday > scheduleModel.WeekdayFriday {
-		return false, zero, nil
+	if effectiveISOWeekday(date) > scheduleModel.WeekdayFriday {
+		return nil, nil
 	}
 	projection, err := s.weekly.Project(ctx, []int64{row.StudentID}, date, date)
 	if err != nil {
-		return false, zero, fmt.Errorf("auto excusal: load weekly pickup baseline: %w", err)
+		return nil, fmt.Errorf("auto excusal: load weekly pickup baseline: %w", err)
 	}
 	baseline := projection.ForDate(row.StudentID, date)
 	if baseline == nil {
-		return false, zero, nil
+		return nil, nil
+	}
+	clock := timezone.NormalizeWallClock(baseline.PickupTime)
+	return &clock, nil
+}
+
+// desiredCutoff decides whether the exception should carry an auto excusal
+// and from which wall-clock time. Only a pull-forward against the weekly
+// baseline couples; without a baseline there is no "Vorverlegung".
+func desiredCutoff(row *scheduleModel.StudentPickupException, baseline *time.Time) (bool, time.Time) {
+	if row.PickupTime == nil || baseline == nil {
+		return false, time.Time{}
 	}
 	exceptionClock := timezone.NormalizeWallClock(*row.PickupTime)
-	baselineClock := timezone.NormalizeWallClock(baseline.PickupTime)
-	if !exceptionClock.Before(baselineClock) {
-		return false, zero, nil
+	if !exceptionClock.Before(*baseline) {
+		return false, time.Time{}
 	}
-	return true, exceptionClock, nil
+	return true, exceptionClock
+}
+
+// syncDayExtension keeps the open block decision of a day in step with the
+// exception: a pickup later than the weekly time opens or updates it, any
+// other state removes it.
+func (s *PickupAutoExcusalSyncer) syncDayExtension(
+	ctx context.Context, row *scheduleModel.StudentPickupException, baseline *time.Time,
+) error {
+	if s.extensions == nil {
+		return nil
+	}
+	date := timezone.Date(row.ExceptionDate).String()
+	if row.PickupTime == nil || baseline == nil || !timezone.NormalizeWallClock(*row.PickupTime).After(*baseline) {
+		if err := s.extensions.ClearPickupDayExtension(ctx, row.StudentID, date); err != nil {
+			return fmt.Errorf("pickup extension: clear day %s: %w", date, err)
+		}
+		return nil
+	}
+	err := s.extensions.RecordPickupDayExtension(ctx, timetable.PickupDayExtension{
+		StudentID:         row.StudentID,
+		PickupExceptionID: row.ID,
+		Date:              date,
+		PreviousPickup:    baseline.Format("15:04"),
+		Pickup:            timezone.NormalizeWallClock(*row.PickupTime).Format("15:04"),
+	})
+	if err != nil {
+		return fmt.Errorf("pickup extension: record day %s: %w", date, err)
+	}
+	return nil
+}
+
+// SnapshotWeeklyPickups captures the regular pickup times on date before a
+// weekly write. It returns nil when later pickups are not recorded.
+func (s *PickupAutoExcusalSyncer) SnapshotWeeklyPickups(
+	ctx context.Context, studentID int64, date timezone.Date,
+) (WeeklyPickupSnapshot, error) {
+	if s.extensions == nil {
+		return nil, nil
+	}
+	projection, err := s.weekly.Project(ctx, []int64{studentID}, date, date)
+	if err != nil {
+		return nil, fmt.Errorf("pickup extension: load weekly pickup times: %w", err)
+	}
+	snapshot := WeeklyPickupSnapshot{}
+	for weekday, row := range projection.WeeklyForDate(studentID, date) {
+		if row != nil && weekday >= scheduleModel.WeekdayMonday && weekday <= scheduleModel.WeekdayFriday {
+			snapshot[weekday] = timezone.NormalizeWallClock(row.PickupTime).Format("15:04")
+		}
+	}
+	return snapshot, nil
+}
+
+// RecordWeeklyPickupChanges compares the weekly pickup times on date with the
+// snapshot taken before the write (#3261). A changed weekday is handed to the
+// Timetable owner, which opens, keeps or closes its task; a removed weekday
+// closes it. A weekday that had no time before opens nothing: there is no
+// "longer than before" to plan for. A nil snapshot is a no-op.
+func (s *PickupAutoExcusalSyncer) RecordWeeklyPickupChanges(
+	ctx context.Context, studentID int64, date timezone.Date, before WeeklyPickupSnapshot,
+) error {
+	if s.extensions == nil || before == nil {
+		return nil
+	}
+	after, err := s.SnapshotWeeklyPickups(ctx, studentID, date)
+	if err != nil {
+		return err
+	}
+	for weekday := scheduleModel.WeekdayMonday; weekday <= scheduleModel.WeekdayFriday; weekday++ {
+		previous, hadTime := before[weekday]
+		current, hasTime := after[weekday]
+		switch {
+		case !hasTime:
+			err = s.extensions.ClearPickupWeekdayExtension(ctx, studentID, weekday)
+		case !hadTime || previous == current:
+			continue
+		default:
+			err = s.extensions.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension{
+				StudentID:      studentID,
+				Weekday:        weekday,
+				EffectiveFrom:  date.String(),
+				PreviousPickup: previous,
+				Pickup:         current,
+			})
+		}
+		if err != nil {
+			return fmt.Errorf("pickup extension: weekday %d: %w", weekday, err)
+		}
+	}
+	return nil
 }

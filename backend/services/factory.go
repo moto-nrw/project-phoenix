@@ -1324,11 +1324,13 @@ func newFactory(
 	// Couples pulled-forward day pickup times with the per-block partial
 	// absences (#2360). Shared by the staff pickup-exception writers and the
 	// parent care-exception writers so both derive the same state.
+	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal := careschedule.NewPickupAutoExcusalSyncer(
 		repos.StudentPickupException,
 		pickupBaselines,
 		repos.InstanceStudent,
 		db,
+		careschedule.WithPickupExtensions(timetableCapability),
 	)
 
 	// Initialize pickup schedule service
@@ -2036,6 +2038,13 @@ func newFactory(
 				return nil
 			})
 		},
+		SnapshotPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
+			return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
+		},
+		RecordPickupWeekdayChanges: func(ctx context.Context, studentID int64, date timezone.Date, before map[int]string) error {
+			return pickupAutoExcusal.RecordWeeklyPickupChanges(ctx, studentID, date, careschedule.WeeklyPickupSnapshot(before))
+		},
+		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
 		// The reconciler takes these BEFORE writing weekly rows — the same
 		// student → schedule-row → care-day lock order the staff weekly
 		// editors use, so the two weekly writers cannot deadlock against

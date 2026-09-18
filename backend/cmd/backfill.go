@@ -86,20 +86,69 @@ func (root backfillRoot) staffOwnerReset(cmd *cobra.Command) error {
 	})
 }
 
-// writeStaffOwnerReport prints the per-tenant checkpoints as JSON followed by
-// the Cutover verdict. Unstable tenants make the command fail so deployment
-// scripts cannot mistake an incomplete backfill for a finished one.
-func writeStaffOwnerReport(output io.Writer, report *migrations.StaffOwnerBackfillReport) error {
+// backfillReport is the shared shape of every storage backfill's per-tenant
+// report: the JSON payload plus the Cutover verdict derived from it.
+type backfillReport interface {
+	Stable() bool
+	Unstable() []int64
+}
+
+// writeBackfillReport prints the per-tenant checkpoints as JSON followed by the
+// Cutover verdict. Unstable tenants make the command fail so deployment scripts
+// cannot mistake an incomplete backfill for a finished one. label names the
+// backfill in prose, command names its subcommand, and inspect lists the
+// checkpoint fields that explain why a tenant is still unstable.
+func writeBackfillReport(output io.Writer, label, command, inspect string, report backfillReport) error {
 	encoder := json.NewEncoder(output)
 	encoder.SetIndent("", "  ")
 	if err := encoder.Encode(report); err != nil {
 		return fmt.Errorf("write backfill report: %w", err)
 	}
 	if !report.Stable() {
-		return fmt.Errorf("staff owner backfill is not stable for tenants %v; rerun `backfill staff-owner` and inspect rows_rejected and mismatch_count", report.Unstable())
+		return fmt.Errorf("%s backfill is not stable for tenants %v; rerun `backfill %s` and inspect %s", label, report.Unstable(), command, inspect)
 	}
-	_, err := fmt.Fprintln(output, "staff owner backfill stable: every tenant reports equal counts and checksums")
+	_, err := fmt.Fprintf(output, "%s backfill stable: every tenant reports equal counts and checksums\n", label)
 	return err
+}
+
+func writeStaffOwnerReport(output io.Writer, report *migrations.StaffOwnerBackfillReport) error {
+	return writeBackfillReport(output, "staff owner", "staff-owner", "rows_rejected and mismatch_count", report)
+}
+
+func writeStudentOwnerReport(output io.Writer, report *migrations.StudentOwnerBackfillReport) error {
+	return writeBackfillReport(output, "student owner", "student-owner",
+		"rows_rejected, mismatch_count, guardian_mismatch_count and care_state_mismatch_count", report)
+}
+
+func (root backfillRoot) studentOwnerRun(cmd *cobra.Command, opts migrations.StudentOwnerBackfillOptions) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+		opts.Logger = slog.Default().With("backfill", migrations.StudentOwnerBackfillName)
+		report, err := migrations.RunStudentOwnerBackfill(ctx, db, opts)
+		if report != nil {
+			err = errors.Join(err, writeStudentOwnerReport(cmd.OutOrStdout(), report))
+		}
+		return err
+	})
+}
+
+func (root backfillRoot) studentOwnerStatus(cmd *cobra.Command) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+		report, err := migrations.StudentOwnerBackfillStatus(ctx, db)
+		if err != nil {
+			return err
+		}
+		return writeStudentOwnerReport(cmd.OutOrStdout(), report)
+	})
+}
+
+func (root backfillRoot) studentOwnerReset(cmd *cobra.Command) error {
+	return root.run(cmd.Context(), func(ctx context.Context, db *bun.DB) error {
+		if err := migrations.ResetStudentOwnerBackfill(ctx, db); err != nil {
+			return err
+		}
+		_, err := fmt.Fprintln(cmd.OutOrStdout(), "student owner backfill reset: target rows and checkpoints discarded; users.students untouched")
+		return err
+	})
 }
 
 var backfillCmd = &cobra.Command{
@@ -149,11 +198,59 @@ longer a base table, because the targets are then authoritative.`,
 	},
 }
 
+var backfillStudentOwnerCmd = &cobra.Command{
+	Use:   "student-owner",
+	Short: "Backfill People, School Membership and Care Plan student storage from users.students (#2758)",
+	Long: `Copy users.students into users.student_profiles, users.student_school_memberships and
+users.student_care_profiles. Re-reads changed old rows until every tenant is stable, then prints
+per-tenant counts, checksums, batch timings, retries and the final-delta checkpoint that Cutover
+#2759 consumes. The legacy guardian columns and the sick/excused flags have no target: they are
+reconciled against users.guardian_profiles / users.guardian_phone_numbers and
+active.student_status_days and reported as guardian_mismatch_count / care_state_mismatch_count
+instead of being dropped. Exits non-zero while any tenant is unstable.`,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		batchSize, err := cmd.Flags().GetInt(flagBackfillBatchSize)
+		if err != nil {
+			return err
+		}
+		maxPasses, err := cmd.Flags().GetInt(flagBackfillMaxPasses)
+		if err != nil {
+			return err
+		}
+		return defaultBackfillRoot.studentOwnerRun(cmd, migrations.StudentOwnerBackfillOptions{BatchSize: batchSize, MaxPasses: maxPasses})
+	},
+}
+
+var backfillStudentOwnerStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show the persisted per-tenant checkpoints without copying",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultBackfillRoot.studentOwnerStatus(cmd)
+	},
+}
+
+var backfillStudentOwnerResetCmd = &cobra.Command{
+	Use:   "reset",
+	Short: "Discard target rows and checkpoints to restart from zero (refused after Cutover)",
+	Long: `Truncate users.student_profiles, users.student_school_memberships and
+users.student_care_profiles and delete the student-owner checkpoints. users.students is never
+modified. The command refuses once users.students is no longer a base table, because the targets
+are then authoritative.`,
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return defaultBackfillRoot.studentOwnerReset(cmd)
+	},
+}
+
 func init() {
-	backfillStaffOwnerCmd.Flags().Int(flagBackfillBatchSize, 0, "rows per batch transaction (default 500)")
-	backfillStaffOwnerCmd.Flags().Int(flagBackfillMaxPasses, 0, "re-read passes per tenant before giving up on stability (default 5)")
+	for _, cmd := range []*cobra.Command{backfillStaffOwnerCmd, backfillStudentOwnerCmd} {
+		cmd.Flags().Int(flagBackfillBatchSize, 0, "rows per batch transaction (default 500)")
+		cmd.Flags().Int(flagBackfillMaxPasses, 0, "re-read passes per tenant before giving up on stability (default 5)")
+	}
 	RootCmd.AddCommand(backfillCmd)
 	backfillCmd.AddCommand(backfillStaffOwnerCmd)
 	backfillStaffOwnerCmd.AddCommand(backfillStaffOwnerStatusCmd)
 	backfillStaffOwnerCmd.AddCommand(backfillStaffOwnerResetCmd)
+	backfillCmd.AddCommand(backfillStudentOwnerCmd)
+	backfillStudentOwnerCmd.AddCommand(backfillStudentOwnerStatusCmd)
+	backfillStudentOwnerCmd.AddCommand(backfillStudentOwnerResetCmd)
 }

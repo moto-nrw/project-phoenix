@@ -272,21 +272,30 @@ func (s *Service) ListGroupTargets(ctx context.Context, ids []int64) (result map
 
 func (s *Service) ListTargetStudentIDs(ctx context.Context, ids []int64) (result map[int64][]int64, err error) {
 	err = s.run("list_target_student_ids", func(stats *domain.OperationStats) error {
-		targets, targetStats, listErr := s.store.ListGroupTargets(ctx, ids)
-		stats.Add(targetStats)
-		if listErr != nil || len(targets) == 0 {
-			result = make(map[int64][]int64, len(ids))
+		targets, students, listErr := s.loadTargetStudentCandidates(ctx, ids, stats)
+		if listErr != nil {
 			return listErr
-		}
-		students, studentStats, studentErr := s.students.ListEnrolledStudents(ctx)
-		stats.Add(studentStats)
-		if studentErr != nil {
-			return studentErr
 		}
 		result = matchTargetStudents(targets, students, s.today())
 		return nil
 	})
 	return result, err
+}
+
+func (s *Service) loadTargetStudentCandidates(
+	ctx context.Context, ids []int64, stats *domain.OperationStats,
+) (map[int64][]domain.GroupTarget, []domain.TargetStudent, error) {
+	targets, targetStats, err := s.store.ListGroupTargets(ctx, ids)
+	stats.Add(targetStats)
+	if err != nil || len(targets) == 0 {
+		return targets, nil, err
+	}
+	students, studentStats, err := s.students.ListEnrolledStudents(ctx)
+	stats.Add(studentStats)
+	if err != nil {
+		return nil, nil, err
+	}
+	return targets, students, nil
 }
 
 func (s *Service) ReplaceGroupTargets(ctx context.Context, groupID int64, targets []domain.GroupTargetFields) error {

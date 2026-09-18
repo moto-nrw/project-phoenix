@@ -627,6 +627,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Die Leitung startet mit vier Kennzahlen (`Kinder anwesend`, `Schule`, `Zuhause`, `Krank`), den `Offenen Anfragen`, `Personal heute`, den `Tagesinformationen`, dem `Ablauf des Tages`, den `Ungelesenen Nachrichten` und der `Laufenden Betreuung`. Wer die Einrichtung leitet und selbst betreut, bekommt beides: den eigenen Tag vorneweg, die Lage der Schule dahinter.",
           "Ein Klick auf eine Kennzahl springt in den passenden Bereich, zum Beispiel von `Krank` in den bereits gefilterten Bereich `Alle Kinder`. Jede Zeile in einer Karte führt dorthin, wo Sie damit arbeiten.",
           "Verlangt eine Tagesinformation eine Kenntnisnahme, bestätigen Sie sie direkt auf der Karte.",
+          "Wird ein Kind später abgeholt als bisher und steht für die zusätzliche Zeit in keinem Termin, erscheint oben der Hinweis `Längere Betreuung eintragen` mit Kind, Tag und neuer Abholzeit. Über `Termin wählen` tragen Sie das Kind in einen Termin ein. Danach verschwindet der Hinweis. Ihn sieht, wer den Betreuungsplan bearbeiten darf.",
           "Passt in eine Karte nicht alles hinein, steht darunter `Noch 3 ansehen` mit dem Weg zum Rest. Die Startseite selbst bleibt einen Bildschirm lang.",
           "Oben rechts `Anpassen` öffnen, um Bausteine zu tauschen, zu verschieben oder in der Breite zu ändern. Wie das geht, steht im Abschnitt `Startseite anpassen`.",
         ],
@@ -636,7 +637,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Startseite der Leitung mit Begrüßung, der Zeile mit Uhrzeit, der Lage der Schule und den Knöpfen `Aufsicht starten` und `Alle Kinder`, darunter die Bausteine und oben rechts der Knopf `Anpassen`.",
+          "Startseite der Leitung mit dem festen Hinweis `Längere Betreuung eintragen`, Begrüßung, der Zeile mit Uhrzeit, der Lage der Schule und den Knöpfen `Aufsicht starten` und `Alle Kinder`, darunter die Bausteine und oben rechts der Knopf `Anpassen`.",
         image: "/help/screens/startseite.webp",
       },
       {
@@ -743,6 +744,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Tab `Betreuungsplan`: sehen, wie der Tag oder die Woche eines Kindes geplant ist – Ankunft, geplante Aktivitäten, AGs, Mensa und Lernzeiten, freie Betreuungszeit sowie die Abholung als Zeitleiste. Oben zwischen `Tag` und `Woche` umschalten und mit den Pfeilen navigieren. `Freie Betreuung` erscheint als eigener Abschnitt zwischen den Aktivitäten; Abweichungen wie `Krank`, `Entschuldigt`, `Klassenfahrt` oder eine abgesagte Ankunft bzw. Abholung werden pro Tag hervorgehoben. Diese Ansicht ist nur zum Ansehen. Die Zeiten selbst ändern Sie im Tab `Betreuungszeiten` über `Wochenplan bearbeiten` oder `Ausnahme`.",
           "Tab `Betreuungszeiten`: die Ankunfts- und Abholzeiten des Kindes verwalten. Es gibt genau zwei Wege. Auf einer Tageskarte führt `Ausnahme eintragen` zu einer Änderung nur für diesen einen Tag; neben `Regulär` und `Andere Zeit` stehen dort auch `Kommt nicht` und `Keine Abholung`, dazu ein `Grund`. `Wochenplan bearbeiten` oben rechts zeigt die festen Zeiten aller Wochentage samt der Notizen, die jede Woche gelten, direkt im Tab; unten schließen Sie mit `Speichern` ab oder verwerfen mit `Abbrechen`. Ausnahmen bleiben bestehen, wenn der Wochenplan geändert wird; würde eine geleerte Zeit einen Eintrag entfernen, fragt die App vorher nach.",
           "Wird die Abholzeit eines Tages gegenüber dem Wochenplan vorverlegt – vom Team oder von den Eltern –, meldet die App das Kind automatisch aus allen Betreuungsblöcken ab, die nach der neuen Zeit beginnen (als entschuldigt). Ein Block, in den die Abholzeit hineinfällt, bleibt erwartet und zeigt die frühere Abholung als Hinweis. Wird die Ausnahme geändert oder entfernt, werden nur die dadurch abgemeldeten Blöcke wiederhergestellt; bereits erfasste Anwesenheit bleibt erhalten.",
+          "Wird die Abholzeit später als bisher eingetragen, für einen Tag oder dauerhaft für einen Wochentag, trägt die App das Kind nicht selbst in einen Termin ein. Steht es für die zusätzliche Zeit in keinem Termin, erscheint auf der Startseite der Hinweis `Längere Betreuung eintragen`. Dort wählen Sie den Termin.",
           "Hat ein Elternteil über das Elternportal eine Ankunfts- oder Abholzeit für einen Tag geändert, ist dieser Tag mit `Von Eltern` markiert; beim Ändern oder Entfernen dieser Zeit fragt die App zur Sicherheit nach, damit die Angabe der Eltern nicht versehentlich überschrieben wird. Ebenso fragt die App nach, wenn beim Speichern des Wochenplans eine bereits eingetragene Zeit entfernt würde.",
           "Tab `Historie`: die Anwesenheits-Historie je Betreuungsangebot nachvollziehen. Morgen- und Nachmittagsbetreuung erscheinen als getrennte Zeitslots; ungeplante Besuche sind gekennzeichnet. Die Daten lassen sich als PDF, DOCX oder XLSX exportieren. Raum-Details ergänzen die Slot-Historie, soweit die Aufbewahrungsfrist sie noch zulässt.",
           "Bemerkungen, die während der Betreuung zu einem Kind erfasst wurden, stehen im Tab `Historie` beim jeweiligen Zeitslot. So finden Sie eine Bemerkung auch Wochen später wieder. Mit der Berechtigung `Betreuungsplan verwalten` können Sie einen abgeschlossenen Eintrag über `Korrigieren` nachträglich ändern; dabei ist ein Grund Pflicht, und die Änderung wird mit Name und Uhrzeit festgehalten.",
@@ -807,7 +809,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Steuern Sie, wer Zugriff auf ein Kind im Elternportal hat. Sie können weitere Bezugspersonen einladen und bestehende Zugänge wieder trennen – pro Kind sind oft mehrere Konten sinnvoll (zweiter Elternteil, Großeltern).",
         steps: [
           "Im Tab `Erziehungsberechtigte` eines Kindes am Status erkennen, wer bereits ein Konto hat (`Konto aktiv`), eingeladen ist (`Einladung offen`) oder noch keinen Zugang hat (`Kein Konto`).",
-          "Mit `Einladen` neben einer Person eine Einladung zum Elternportal an deren hinterlegte E-Mail-Adresse senden. Die Person legt sich darüber selbst ein Passwort an.",
+          "Das Menü mit den drei Punkten bei der Person öffnen und `Einladen` wählen.",
+          "Bei `Einladung offen` im Menü `Erneut einladen` wählen.",
+          "Bei `Konto aktiv, kein Portalzugriff` im Menü `Zugriff gewähren` wählen.",
+          "Fehlt die E-Mail-Adresse, im Menü `Bearbeiten` wählen und sie eintragen.",
           "Einen bestehenden Zugang über `Bearbeiten` -> `Entfernen` wieder trennen – die Person sieht das Kind danach nicht mehr im Elternportal.",
           "Ob Eltern selbst weitere Bezugspersonen einladen dürfen, steuern Sie unter `Einstellungen` im Bereich `Elternportal` (`Deaktiviert`, `Direkt` oder `Mit Freigabe durch das Team`).",
           "Antwortet eine Person auf die Einladung, geht die Antwort an die `Antwortadresse für Eltern-E-Mails` unter `Einstellungen` -> `Betrieb`. Ohne Eintrag gilt die Kontaktadresse Ihrer Einrichtung.",
@@ -818,12 +823,12 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "green",
         },
         screenshot:
-          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und Einladen-Schaltflächen sowie die Admin-Seite Elternzugänge mit Freigeben- und Ablehnen-Aktionen.",
+          "Tab Erziehungsberechtigte mit Kontostatus-Markierungen und dem Menü mit den drei Punkten für Einladen-Aktionen sowie die Admin-Seite Elternzugänge mit Freigeben- und Ablehnen-Aktionen.",
         gallery: [
           {
             image: "/help/screens/erziehungsberechtigte-konten.webp",
             caption:
-              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus (Konto aktiv / Kein Konto) und die Schaltfläche „Einladen“.",
+              "Tab „Erziehungsberechtigte“: pro Person der Kontostatus. Im geöffneten Menü mit den drei Punkten steht je nach Status „Einladen“, „Erneut einladen“ oder „Zugriff gewähren“.",
           },
           {
             image: "/help/screens/konto-anfragen.webp",
@@ -872,6 +877,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Erst mit `Änderung freigeben` übernehmen Sie die Angebots-Anfrage und die angezeigten Folgeänderungen.",
           "Bei den anderen Anfragearten wird der neue Wert direkt mit `Freigeben` übernommen.",
           "Freigegebene Betreuungszeiten ändern den Wochenplan des Kindes.",
+          "Wird ein Kind nach der Freigabe später abgeholt als bisher, fragt moto direkt: `In welchem Termin ist das Kind in dieser Zeit?`. Zur Wahl stehen nur Termine mit Kindern, die in die zusätzliche Zeit fallen; Bürotermine ohne Kinder fehlen. Gibt es nur einen, ist er schon angehakt, ein Klick auf `Eintragen` genügt. Bei einer dauerhaften Änderung gilt die Wahl für alle kommenden Termine dieses Wochentags. `Keinem Termin zuordnen` schließt die Frage ohne Änderung. Schließen Sie das Fenster, bleibt die Frage als Aufgabe auf der Startseite.",
           "Eine Abwesenheit gilt dann als `Krank` oder `Entschuldigt`.",
           "Mit `Ablehnen` bleibt der bisherige Stand erhalten.",
           "Bei Betreuungszeiten, Angeboten und Abwesenheiten ist eine Begründung Pflicht.",
