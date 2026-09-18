@@ -34,8 +34,9 @@ func finalizeStudentOwnerStorage(ctx context.Context, db *bun.DB, switchSchema f
 		return err
 	}
 	defer release()
-	// Running twice must not archive the archive. The switch is idempotent
-	// only in the sense that it refuses once it has happened.
+	// Running twice must not archive the archive. studentOwnerCutoverUp
+	// resumes VALIDATE CONSTRAINT when the view is already in place; this
+	// helper is only the switch itself and still refuses.
 	if err := assertStudentSourceIsBaseTable(ctx, db); err != nil {
 		return fmt.Errorf("student owner cutover: %w", err)
 	}
@@ -64,6 +65,14 @@ func finalizeStudentOwnerStorage(ctx context.Context, db *bun.DB, switchSchema f
 		}
 		return switchSchema(ctx, tx)
 	})
+}
+
+func studentOwnerRelationKind(ctx context.Context, db bun.IDB) (string, error) {
+	var kind string
+	if err := db.NewRaw(`SELECT relkind::text FROM pg_class WHERE oid = 'users.students'::regclass`).Scan(ctx, &kind); err != nil {
+		return "", fmt.Errorf("student owner cutover: inspect users.students: %w", err)
+	}
+	return kind, nil
 }
 
 // reconcileStudentOwnerFinalDelta copies everything the resumable backfill has

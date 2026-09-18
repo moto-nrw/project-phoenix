@@ -49,8 +49,11 @@ not evidence.
    children enrolled after the switch.
 7. Commits, then validates the repointed constraints one at a time outside the
    transaction. `VALIDATE CONSTRAINT` takes a share-update-exclusive lock on the
-   dependent table, so ordinary reads and writes continue. Interrupting it is
-   safe; the next run skips the constraints already validated.
+   dependent table, so ordinary reads and writes continue. Interrupting it
+   leaves `users.students` as the compatibility view and `1.15.397` unrecorded.
+   The next `phoenix migrate` sees the view, skips the switch, resumes
+   `VALIDATE CONSTRAINT` (already-valid constraints are a no-op) and records
+   the version.
 
 The down step is deliberately an error. Rollback deploys the previous image
 against the retained compatibility shape; it never renames the archive back over
@@ -83,11 +86,17 @@ row into the archive, so a previous image finds its legacy columns unchanged.
 `INSERT` allocates the profile id from `users.student_profiles_id_seq` (the
 view's column default) and lets the membership sequence allocate the membership
 id — nothing references a membership id, and the profile id is what every
-foreign key names. `UPDATE` refuses to change `id` or `tenant_id`
-(`SQLSTATE 23514`). `DELETE` removes the profile, whose cascade takes the
-membership and the care profile, and the archive row with it. A stale archive
-row still claiming the per-person unique key of a child the current providers
-deleted is released by the same trigger rather than rejecting the write.
+foreign key names. `UPDATE` locks the three owners in the view's join order
+(profile, live membership, care) so it cannot deadlock against
+`SELECT … FOR UPDATE`, then re-reads and applies only the columns the statement
+assigned. A concurrent `SET extra_info` is kept; `SET status` against a
+membership whose status moved (the activate-students / `TransitionStatus`
+case) affects 0 rows, the way heap `EvalPlanQual` would. `UPDATE` refuses to
+change `id` or `tenant_id` (`SQLSTATE 23514`). `DELETE` removes the profile,
+whose cascade takes the membership and the care profile, and the archive row
+with it. A stale archive row still claiming the per-person unique key of a
+child the current providers deleted is released by the same trigger rather than
+rejecting the write.
 
 Reading a child through the view costs more than reading the old table did: two
 joins plus one primary-key lookup in the archive for the legacy columns, per

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -482,4 +483,157 @@ func TestStudentOwnerCutoverRefusesToRunTwice(t *testing.T) {
 	require.ErrorContains(t,
 		finalizeStudentOwnerStorage(t.Context(), db, installStudentOwnerCompatibility),
 		"not a base table")
+}
+
+func TestStudentOwnerCutoverUpResumesWhenAlreadyAView(t *testing.T) {
+	t.Parallel()
+	db := setupStudentStorageBeforeCutover(t)
+	studentOwnerCutoverFixture(t, db, 1)
+	require.NoError(t, finalizeStudentOwnerStorage(t.Context(), db, installStudentOwnerCompatibility))
+	require.NoError(t, studentOwnerCutoverUp(t.Context(), db),
+		"an interrupted VALIDATE CONSTRAINT must let the next migrate finish and record the version")
+	var unvalidated int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_constraint
+		WHERE confrelid = 'users.student_profiles'::regclass AND contype = 'f' AND NOT convalidated`).
+		Scan(t.Context(), &unvalidated))
+	require.Zero(t, unvalidated)
+	require.NoError(t, studentOwnerCutoverUp(t.Context(), db), "a second run must be a no-op once the view is in place")
+}
+
+func TestStudentOwnerCutoverTransitionStatusDoesNotRevertAlumnus(t *testing.T) {
+	t.Parallel()
+	db := setupIsolatedStudentStorageBeforeCutover(t)
+	_, ids := studentOwnerCutoverFixture(t, db, 1)
+	require.NoError(t, finalizeStudentOwnerStorage(t.Context(), db, installStudentOwnerCompatibility))
+	id := ids[0]
+	ctx := t.Context()
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.ExecContext(ctx, `SELECT id FROM users.students WHERE id = ? FOR UPDATE`, id)
+	require.NoError(t, err)
+
+	done := make(chan studentUpdateResult, 1)
+	go func() {
+		result, execErr := db.NewRaw(`UPDATE users.students SET status = 'inactive' WHERE id = ? AND status = 'active'`, id).Exec(ctx)
+		if execErr != nil {
+			done <- studentUpdateResult{err: execErr}
+			return
+		}
+		n, nErr := result.RowsAffected()
+		done <- studentUpdateResult{affected: n, err: nErr}
+	}()
+	requireStudentUpdateWaiting(t, db, ctx, "%SET status = 'inactive'%")
+	_, err = holder.ExecContext(ctx, `UPDATE users.students SET status = 'alumnus' WHERE id = ?`, id)
+	require.NoError(t, err)
+	require.NoError(t, holder.Commit())
+
+	got := waitStudentUpdate(t, done)
+	require.NoError(t, got.err)
+	require.Zero(t, got.affected, "EvalPlanQual of WHERE status = 'active' must skip the row")
+	var status string
+	require.NoError(t, db.NewRaw(`SELECT status FROM users.students WHERE id = ?`, id).Scan(ctx, &status))
+	require.Equal(t, "alumnus", status)
+}
+
+func TestStudentOwnerCutoverUpdateKeepsConcurrentColumns(t *testing.T) {
+	t.Parallel()
+	db := setupIsolatedStudentStorageBeforeCutover(t)
+	_, ids := studentOwnerCutoverFixture(t, db, 1)
+	require.NoError(t, finalizeStudentOwnerStorage(t.Context(), db, installStudentOwnerCompatibility))
+	id := ids[0]
+	ctx := t.Context()
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.ExecContext(ctx, `SELECT id FROM users.students WHERE id = ? FOR UPDATE`, id)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, execErr := db.NewRaw(`UPDATE users.students SET extra_info = 'kept' WHERE id = ?`, id).Exec(ctx)
+		done <- execErr
+	}()
+	requireStudentUpdateWaiting(t, db, ctx, "%SET extra_info = 'kept'%")
+	_, err = holder.ExecContext(ctx, `UPDATE users.students SET status = 'alumnus' WHERE id = ?`, id)
+	require.NoError(t, err)
+	require.NoError(t, holder.Commit())
+	require.NoError(t, waitStudentUpdateErr(t, done))
+
+	var status, extra string
+	require.NoError(t, db.NewRaw(`SELECT status, extra_info FROM users.students WHERE id = ?`, id).Scan(ctx, &status, &extra))
+	require.Equal(t, "alumnus", status)
+	require.Equal(t, "kept", extra)
+}
+
+func TestStudentOwnerCutoverSelectForUpdateAndUpdateShareLockOrder(t *testing.T) {
+	t.Parallel()
+	db := setupIsolatedStudentStorageBeforeCutover(t)
+	_, ids := studentOwnerCutoverFixture(t, db, 1)
+	require.NoError(t, finalizeStudentOwnerStorage(t.Context(), db, installStudentOwnerCompatibility))
+	id := ids[0]
+	ctx := t.Context()
+
+	readTx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = readTx.Rollback() }()
+	updateTx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = updateTx.Rollback() }()
+
+	_, err = readTx.ExecContext(ctx, `SELECT id FROM users.student_profiles WHERE id = ? FOR UPDATE`, id)
+	require.NoError(t, err)
+
+	done := make(chan error, 1)
+	go func() {
+		_, execErr := updateTx.ExecContext(ctx, `UPDATE users.students SET extra_info = 'ordered' WHERE id = ?`, id)
+		done <- execErr
+	}()
+	requireStudentUpdateWaiting(t, db, ctx, "%SET extra_info = 'ordered'%")
+	_, err = readTx.ExecContext(ctx, `SELECT s.id FROM users.students s WHERE s.id = ? FOR UPDATE`, id)
+	require.NoError(t, err, "SELECT FOR UPDATE must take the same lock order as a routed UPDATE")
+	require.NoError(t, readTx.Commit())
+	require.NoError(t, waitStudentUpdateErr(t, done))
+	require.NoError(t, updateTx.Commit())
+}
+
+type studentUpdateResult struct {
+	affected int64
+	err      error
+}
+
+func requireStudentUpdateWaiting(t *testing.T, db *testpkg.DB, ctx context.Context, queryLike string) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var blocked bool
+		err := db.NewRaw(`SELECT EXISTS (
+			SELECT 1 FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE ?)`,
+			queryLike).Scan(ctx, &blocked)
+		return err == nil && blocked
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
+func waitStudentUpdate(t *testing.T, done <-chan studentUpdateResult) studentUpdateResult {
+	t.Helper()
+	select {
+	case got := <-done:
+		return got
+	case <-time.After(10 * time.Second):
+		t.Fatal("update did not finish after the holder committed")
+		return studentUpdateResult{}
+	}
+}
+
+func waitStudentUpdateErr(t *testing.T, done <-chan error) error {
+	t.Helper()
+	select {
+	case err := <-done:
+		return err
+	case <-time.After(10 * time.Second):
+		t.Fatal("update did not finish after the holder committed")
+		return nil
+	}
 }

@@ -31,6 +31,16 @@ func init() {
 // dependent foreign keys move onto the People profile in the same transaction;
 // only their validation scan runs afterwards, where it no longer blocks writes.
 func studentOwnerCutoverUp(ctx context.Context, db *bun.DB) error {
+	kind, err := studentOwnerRelationKind(ctx, db)
+	if err != nil {
+		return err
+	}
+	// VALIDATE CONSTRAINT runs after the switch commits. A timeout there
+	// leaves the view in place and 1.15.397 unrecorded; the next migrate
+	// must resume validation instead of refusing on the base-table guard.
+	if kind == "v" {
+		return ValidateStudentOwnerForeignKeys(ctx, db)
+	}
 	if err := finalizeStudentOwnerStorage(ctx, db, installStudentOwnerCompatibility); err != nil {
 		return err
 	}

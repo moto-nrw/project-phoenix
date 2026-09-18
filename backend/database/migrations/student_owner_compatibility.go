@@ -142,6 +142,8 @@ const studentOwnerCompatibilityView = `
 // studentOwnerCompatibilityRouting sends every write on the view to the owner
 // that holds the column, and mirrors the whole old row into the archive so a
 // previous image finds its legacy guardian and absence columns unchanged.
+// Routed UPDATE locks profile, live membership and care in that join order,
+// then applies only assigned columns onto the locked rows.
 //
 // Membership identity is not preserved for rows created here: nothing
 // references a membership id, the profile id is what every foreign key names,
@@ -149,7 +151,9 @@ const studentOwnerCompatibilityView = `
 const studentOwnerCompatibilityRouting = `
 	CREATE OR REPLACE FUNCTION users.route_student_compatibility()
 	RETURNS trigger LANGUAGE plpgsql SECURITY INVOKER SET search_path = pg_catalog AS $function$
-	DECLARE owning_membership bigint;
+	DECLARE
+		owning_membership bigint;
+		current_status text;
 	BEGIN
 		PERFORM nextval('users.student_compatibility_writes');
 		IF TG_OP = 'DELETE' THEN
@@ -189,17 +193,74 @@ const studentOwnerCompatibilityRouting = `
 				COALESCE(NEW.pickup_days, '{}'::jsonb), COALESCE(NEW.bus_days, '{}'::jsonb),
 				NEW.created_at, NEW.updated_at);
 		ELSE
-			-- The live enrollment is taken first and held: it is the row that
-			-- can disappear under a concurrent retirement, and reporting "no
-			-- row updated" after the profile had already been rewritten would
-			-- leave a write behind that the caller was told did not happen.
-			-- Once it is locked the profile is guaranteed by the foreign key.
-			SELECT membership.id INTO owning_membership
+			-- Lock the three owners in the view's join order (profile, live
+			-- membership, care) so SELECT ... FOR UPDATE on the view cannot
+			-- deadlock against a routed UPDATE. The live enrollment is still
+			-- the row that can disappear under a concurrent retirement: if it
+			-- is gone after the profile lock, return no row without writing.
+			PERFORM 1 FROM users.student_profiles AS profile
+			WHERE profile.tenant_id = OLD.tenant_id AND profile.id = OLD.id
+			FOR UPDATE;
+			IF NOT FOUND THEN RETURN NULL; END IF;
+			SELECT membership.id, membership.status INTO owning_membership, current_status
 			FROM users.student_school_memberships AS membership
 			WHERE membership.tenant_id = OLD.tenant_id AND membership.student_profile_id = OLD.id
 			  AND membership.deleted_at IS NULL
 			FOR UPDATE;
 			IF NOT FOUND THEN RETURN NULL; END IF;
+			PERFORM 1 FROM users.student_care_profiles AS care
+			WHERE care.tenant_id = OLD.tenant_id AND care.membership_id = owning_membership
+			FOR UPDATE;
+			IF NOT FOUND THEN RETURN NULL; END IF;
+			-- Heap EvalPlanQual would recheck WHERE status = OLD.status after
+			-- waiting. INSTEAD OF has no WHERE, so a SET of status against a
+			-- membership whose status moved is no row updated.
+			IF NEW.status IS DISTINCT FROM OLD.status
+				AND current_status IS DISTINCT FROM OLD.status THEN
+				RETURN NULL;
+			END IF;
+			-- NEW was built from an unlocked snapshot. Apply only columns the
+			-- UPDATE assigned; keep concurrently committed values for the rest.
+			SELECT
+				CASE WHEN NEW.person_id IS DISTINCT FROM OLD.person_id THEN NEW.person_id ELSE profile.person_id END,
+				CASE WHEN NEW.address_street IS DISTINCT FROM OLD.address_street THEN NEW.address_street ELSE profile.address_street END,
+				CASE WHEN NEW.address_city IS DISTINCT FROM OLD.address_city THEN NEW.address_city ELSE profile.address_city END,
+				CASE WHEN NEW.address_postal_code IS DISTINCT FROM OLD.address_postal_code THEN NEW.address_postal_code ELSE profile.address_postal_code END,
+				CASE WHEN NEW.extra_info IS DISTINCT FROM OLD.extra_info THEN NEW.extra_info ELSE profile.extra_info END,
+				CASE WHEN NEW.photo_path IS DISTINCT FROM OLD.photo_path THEN NEW.photo_path ELSE profile.photo_path END,
+				CASE WHEN NEW.photo_consent_given_at IS DISTINCT FROM OLD.photo_consent_given_at THEN NEW.photo_consent_given_at ELSE profile.photo_consent_given_at END,
+				CASE WHEN NEW.photo_consent_given_by IS DISTINCT FROM OLD.photo_consent_given_by THEN NEW.photo_consent_given_by ELSE profile.photo_consent_given_by END,
+				CASE WHEN NEW.agb_accepted_at IS DISTINCT FROM OLD.agb_accepted_at THEN NEW.agb_accepted_at ELSE profile.agb_accepted_at END,
+				CASE WHEN NEW.data_processing_accepted_at IS DISTINCT FROM OLD.data_processing_accepted_at THEN NEW.data_processing_accepted_at ELSE profile.data_processing_accepted_at END,
+				CASE WHEN NEW.email_contact_accepted_at IS DISTINCT FROM OLD.email_contact_accepted_at THEN NEW.email_contact_accepted_at ELSE profile.email_contact_accepted_at END,
+				CASE WHEN NEW.created_at IS DISTINCT FROM OLD.created_at THEN NEW.created_at ELSE profile.created_at END,
+				CASE WHEN NEW.school_class IS DISTINCT FROM OLD.school_class THEN NEW.school_class ELSE membership.school_class END,
+				CASE WHEN NEW.group_id IS DISTINCT FROM OLD.group_id THEN NEW.group_id ELSE membership.group_id END,
+				CASE WHEN NEW.status IS DISTINCT FROM OLD.status THEN NEW.status ELSE membership.status END,
+				CASE WHEN NEW.enrolled_from IS DISTINCT FROM OLD.enrolled_from THEN NEW.enrolled_from ELSE membership.enrolled_from END,
+				CASE WHEN NEW.enrolled_until IS DISTINCT FROM OLD.enrolled_until THEN NEW.enrolled_until ELSE membership.enrolled_until END,
+				CASE WHEN NEW.supervisor_notes IS DISTINCT FROM OLD.supervisor_notes THEN NEW.supervisor_notes ELSE care.supervisor_notes END,
+				CASE WHEN NEW.health_info IS DISTINCT FROM OLD.health_info THEN NEW.health_info ELSE care.health_info END,
+				CASE WHEN NEW.pickup_status IS DISTINCT FROM OLD.pickup_status THEN NEW.pickup_status ELSE care.pickup_status END,
+				CASE WHEN NEW.departure_days IS DISTINCT FROM OLD.departure_days THEN NEW.departure_days ELSE care.departure_days END,
+				CASE WHEN NEW.allowed_departure_modes IS DISTINCT FROM OLD.allowed_departure_modes THEN NEW.allowed_departure_modes ELSE care.allowed_departure_modes END,
+				CASE WHEN NEW.departure_companion_note IS DISTINCT FROM OLD.departure_companion_note THEN NEW.departure_companion_note ELSE care.departure_companion_note END,
+				CASE WHEN NEW.pickup_days IS DISTINCT FROM OLD.pickup_days THEN NEW.pickup_days ELSE care.pickup_days END,
+				CASE WHEN NEW.bus_days IS DISTINCT FROM OLD.bus_days THEN NEW.bus_days ELSE care.bus_days END
+			INTO
+				NEW.person_id, NEW.address_street, NEW.address_city, NEW.address_postal_code,
+				NEW.extra_info, NEW.photo_path, NEW.photo_consent_given_at, NEW.photo_consent_given_by,
+				NEW.agb_accepted_at, NEW.data_processing_accepted_at, NEW.email_contact_accepted_at,
+				NEW.created_at, NEW.school_class, NEW.group_id, NEW.status, NEW.enrolled_from,
+				NEW.enrolled_until, NEW.supervisor_notes, NEW.health_info, NEW.pickup_status,
+				NEW.departure_days, NEW.allowed_departure_modes, NEW.departure_companion_note,
+				NEW.pickup_days, NEW.bus_days
+			FROM users.student_profiles AS profile
+			JOIN users.student_school_memberships AS membership
+				ON membership.tenant_id = profile.tenant_id AND membership.id = owning_membership
+			JOIN users.student_care_profiles AS care
+				ON care.tenant_id = membership.tenant_id AND care.membership_id = membership.id
+			WHERE profile.tenant_id = OLD.tenant_id AND profile.id = OLD.id;
 			UPDATE users.student_profiles SET
 				person_id = NEW.person_id, address_street = NEW.address_street,
 				address_city = NEW.address_city, address_postal_code = NEW.address_postal_code,
