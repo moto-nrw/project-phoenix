@@ -93,12 +93,15 @@ function rebooking(extra: Partial<AbsenceRebooking> = {}): AbsenceRebooking {
   };
 }
 
-function renderModal(onSaved = vi.fn().mockResolvedValue(undefined)) {
+function renderModal(
+  onSaved = vi.fn().mockResolvedValue(undefined),
+  absences = fridays,
+) {
   render(
     <AbsenceRebookModal
       staff={staff}
       types={[sickLeave]}
-      absences={fridays}
+      absences={absences}
       onClose={vi.fn()}
       onSaved={onSaved}
     />,
@@ -169,6 +172,26 @@ describe("AbsenceRebookModal", () => {
     expect(
       screen.getByRole("radio", { name: /Krank-Urlaubstag/ }),
     ).toBeInTheDocument();
+  });
+
+  it("loads and shows allowance accounts for every affected year", async () => {
+    mocks.getAllowance.mockImplementation(
+      (_type: string, _staffID: string, year: number) =>
+        Promise.resolve({
+          remainingDays: year === 2025 ? 1 : 3,
+          carriedIn: null,
+        }),
+    );
+    renderModal(undefined, [
+      { ...fridays[0]!, date_start: "2025-12-31", date_end: "2026-01-02" },
+    ]);
+
+    expect(await screen.findByText("2025: noch 1 Tag")).toBeInTheDocument();
+    expect(screen.getByText("2026: noch 3 Tage")).toBeInTheDocument();
+    expect(mocks.getAllowance).toHaveBeenCalledWith("12", "4", 2025);
+    expect(mocks.getAllowance).toHaveBeenCalledWith("12", "4", 2026);
+    expect(mocks.getVacationQuota).toHaveBeenCalledWith("4", 2025);
+    expect(mocks.getVacationQuota).toHaveBeenCalledWith("4", 2026);
   });
 
   it("shows the effects and saves with a reason", async () => {

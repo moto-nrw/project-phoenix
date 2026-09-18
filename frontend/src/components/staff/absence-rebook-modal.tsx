@@ -13,6 +13,7 @@ import {
   QuotaSummary,
   TypeChoice,
   useYearAccounts,
+  yearsBetween,
   type Projection,
 } from "~/components/staff/absence-booking-modal";
 import type { SickReportStaff } from "~/components/staff/sick-report-modal";
@@ -166,11 +167,36 @@ export function AbsenceRebookModal({
       ),
     [absences],
   );
+  const accountFirstDays = useMemo(() => {
+    const firstDays = new Map<number, string>();
+    for (const absence of absences) {
+      for (const year of yearsBetween(absence.date_start, absence.date_end)) {
+        const firstDayInYear =
+          absence.date_start > `${year}-01-01`
+            ? absence.date_start
+            : `${year}-01-01`;
+        const current = firstDays.get(year);
+        if (!current || firstDayInYear < current) {
+          firstDays.set(year, firstDayInYear);
+        }
+      }
+    }
+    return firstDays;
+  }, [absences]);
   const years = useMemo(
-    () => (firstDay ? [Number(firstDay.slice(0, 4))] : []),
-    [firstDay],
+    () => [...accountFirstDays.keys()].sort((left, right) => left - right),
+    [accountFirstDays],
   );
   const { accounts } = useYearAccounts(staff.id, types, years);
+  const accountHints = useMemo(
+    () =>
+      years.map((year) => ({
+        year,
+        account: accounts.get(year),
+        firstDay: accountFirstDays.get(year)!,
+      })),
+    [accountFirstDays, accounts, years],
+  );
   const selected = options.find((option) => option.value === value);
   const { preview, blocked, failed, loading } = useRebookingPreview({
     staffId: staff.id,
@@ -318,6 +344,7 @@ export function AbsenceRebookModal({
           value={value}
           account={years[0] ? accounts.get(years[0]) : undefined}
           firstDay={firstDay}
+          accountHints={accountHints}
           onChange={setValue}
         />
         {loading ? (

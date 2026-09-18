@@ -241,7 +241,7 @@ async function loadYear(
   };
 }
 
-function yearsBetween(dateStart: string, dateEnd: string): number[] {
+export function yearsBetween(dateStart: string, dateEnd: string): number[] {
   const first = Number(dateStart.slice(0, 4));
   const last = Number((dateEnd || dateStart).slice(0, 4));
   if (!Number.isFinite(first) || !Number.isFinite(last) || last < first)
@@ -303,14 +303,22 @@ export interface Projection {
   readonly expiresOn?: string;
 }
 
+interface AccountHint {
+  readonly year?: number;
+  readonly account: YearAccount | undefined;
+  readonly firstDay: string;
+}
+
 function OptionHint({
   option,
   account,
   firstDay,
+  accountHints,
 }: {
   option: BookingOption;
   account: YearAccount | undefined;
   firstDay: string;
+  accountHints?: readonly AccountHint[];
 }) {
   if (option.kind === "comp_time") {
     return (
@@ -326,15 +334,37 @@ function OptionHint({
       </span>
     );
   }
-  if (!account) {
+  const hints: readonly AccountHint[] = accountHints ?? [{ account, firstDay }];
+  if (hints.length === 1 && !hints[0]!.account) {
     return <span className="text-xs text-gray-400">…</span>;
   }
-  const remaining = remainingFor(option.value, account, firstDay);
   return (
-    <span
-      className={`shrink-0 text-xs whitespace-nowrap tabular-nums ${remaining <= 0 ? "text-moto-red-strong" : "text-gray-600"}`}
-    >
-      noch {formatDayCount(remaining)}
+    <span className="flex shrink-0 flex-col items-end text-xs whitespace-nowrap tabular-nums">
+      {hints.map((hint) => {
+        if (!hint.account) {
+          return (
+            <span key={hint.year ?? hint.firstDay} className="text-gray-400">
+              {hints.length > 1 ? `${hint.year}: ` : ""}…
+            </span>
+          );
+        }
+        const remaining = remainingFor(
+          option.value,
+          hint.account,
+          hint.firstDay,
+        );
+        return (
+          <span
+            key={hint.year ?? hint.firstDay}
+            className={
+              remaining <= 0 ? "text-moto-red-strong" : "text-gray-600"
+            }
+          >
+            {hints.length > 1 ? `${hint.year}: ` : ""}noch{" "}
+            {formatDayCount(remaining)}
+          </span>
+        );
+      })}
     </span>
   );
 }
@@ -344,6 +374,7 @@ export function TypeChoice({
   value,
   account,
   firstDay,
+  accountHints,
   onChange,
   legend = "Von welchem Kontingent?",
   name = "absence-booking-type",
@@ -352,6 +383,7 @@ export function TypeChoice({
   value: string;
   account: YearAccount | undefined;
   firstDay: string;
+  accountHints?: readonly AccountHint[];
   onChange: (value: string) => void;
   legend?: string;
   name?: string;
@@ -377,7 +409,12 @@ export function TypeChoice({
               />
               <span className="truncate">{option.label}</span>
             </span>
-            <OptionHint option={option} account={account} firstDay={firstDay} />
+            <OptionHint
+              option={option}
+              account={account}
+              firstDay={firstDay}
+              accountHints={accountHints}
+            />
           </ChoiceTile>
         ))}
       </div>
