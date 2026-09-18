@@ -2,6 +2,7 @@ package students
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/legacy/careschedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -470,8 +472,15 @@ func newStudentResponseFromSnapshot(_ context.Context, student *users.Student, p
 	return response
 }
 
-// newPrivacyConsentResponse converts a privacy consent model to a response
-func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResponse {
+// newPrivacyConsentResponse converts an owner consent record to a response.
+// Details travels as the recorded JSON document and is decoded for the wire.
+func newPrivacyConsentResponse(consent studentpresence.PrivacyConsent) (PrivacyConsentResponse, error) {
+	var details map[string]interface{}
+	if len(consent.Details) > 0 {
+		if err := json.Unmarshal(consent.Details, &details); err != nil {
+			return PrivacyConsentResponse{}, err
+		}
+	}
 	return PrivacyConsentResponse{
 		ID:                consent.ID,
 		StudentID:         consent.StudentID,
@@ -482,10 +491,10 @@ func newPrivacyConsentResponse(consent *users.PrivacyConsent) PrivacyConsentResp
 		DurationDays:      consent.DurationDays,
 		RenewalRequired:   consent.RenewalRequired,
 		DataRetentionDays: consent.DataRetentionDays,
-		Details:           consent.Details,
+		Details:           details,
 		CreatedAt:         consent.CreatedAt,
 		UpdatedAt:         consent.UpdatedAt,
-	}
+	}, nil
 }
 
 // teacherToSupervisorContact converts a teacher to a supervisor contact if valid

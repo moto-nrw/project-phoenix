@@ -21,7 +21,7 @@ import (
 // the mock.
 func newCompanionTestService(db *bun.DB) usersService.StudentService {
 	factory := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db))
-	return usersService.NewStudentService(factory.Student, repositories.NewStudentPrivacyConsentStore(db), factory.StudentCompanion, nil)
+	return usersService.NewStudentService(factory.Student, factory.StudentCompanion, nil)
 }
 
 // setAccompaniedDays gives the student an "Anderes Kind" departure plan on the
@@ -217,7 +217,6 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	audit := usersService.NewStudentAuditService(factory.StudentFieldEdit, slog.Default())
 	service := usersService.NewStudentService(
 		factory.Student,
-		repositories.NewStudentPrivacyConsentStore(db),
 		factory.StudentCompanion,
 		audit,
 	)

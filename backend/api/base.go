@@ -1353,6 +1353,9 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	// Regeltermine like a grade transition does (#2147 review round 10). The
 	// factory already fails startup when the decision service stops
 	// implementing the resync, so the assertion cannot silently miss here.
+	// One Student Presence owner for this entry point; it also serves the
+	// students resource's privacy-consent routes (#3349).
+	presence := newStudentPresence(db, logger)
 	studentClassResyncer, _ := api.Services.EnrollmentDecision.(educationSvc.OfferingSourceResyncer)
 	reviewDependencies, err := requestReviewDependencies(api, modules, db)
 	if err != nil {
@@ -1408,6 +1411,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 		AbsenceNotifier:        api.Services.AbsenceNotifier,
 		StudentPhotos:          api.Services.StudentPhotos,
 		StudentConsents:        api.Services.StudentConsents,
+		PrivacyConsents:        presence,
 		StudentDocumentService: api.Services.StudentDocuments,
 		ListExportService:      api.Services.ListExport,
 		Logger:                 logger.With("handler", "students"),
@@ -1469,7 +1473,6 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, modules
 	api.Schedules = timetableHTTPAdapter.NewSchedulesResource(api.Services.Schedule, db)
 	homeLayouts := requireHomeLayoutOperations(api.Services.Settings)
 	api.Settings = newSettingsResource(api.Services.TenantSettings, homeLayouts, repoFactory.Enrollment().SchemaReferencesLegalDocument, db)
-	presence := newStudentPresence(db, logger)
 	openRoomPresence, ok := api.Services.Active.(openRoomMoveCompose.RetainedPresence)
 	if !ok {
 		return errors.New("open room move: the active service does not provide the room session operations")

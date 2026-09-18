@@ -19,6 +19,7 @@ import (
 	userContextService "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/services/active"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/legacy/timetableplanning"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -46,6 +47,16 @@ type ClassListEntry struct {
 	FirstName   string
 	LastName    string
 	SchoolClass string
+}
+
+// PrivacyConsentCapability is the Student Presence owner surface this
+// resource needs for the per-child GDPR retention consent. Student Presence
+// owns users.privacy_consents because the recorded window bounds how long
+// presence data is kept (#3349).
+type PrivacyConsentCapability interface {
+	ListPrivacyConsents(context.Context, int64) ([]studentpresence.PrivacyConsent, error)
+	RecordPrivacyConsent(context.Context, studentpresence.PrivacyConsent) (studentpresence.PrivacyConsent, error)
+	RevisePrivacyConsent(context.Context, studentpresence.PrivacyConsent) (studentpresence.PrivacyConsent, error)
 }
 
 // ClassListEntryReader hands over the entries in the class-then-name display
@@ -140,6 +151,11 @@ type ResourceConfig struct {
 	AbsenceNotifier    notificationsService.AbsenceNotifier
 	StudentPhotos      userService.StudentPhotoService
 	StudentConsents    userService.StudentConsentService
+	// PrivacyConsents is the Student Presence owner capability over
+	// users.privacy_consents (#3349). Optional: a bare test Resource answers
+	// 500 on the two consent routes rather than reaching the table through a
+	// second path.
+	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService userService.StudentDocumentService
 	ListExportService      *listexport.RendererService

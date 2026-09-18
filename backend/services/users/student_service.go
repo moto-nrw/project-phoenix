@@ -75,15 +75,6 @@ type StudentService interface {
 	// before their first student row lock — see the repository method.
 	LockClassWritesShared(ctx context.Context) error
 
-	// ListPrivacyConsents retrieves a student's privacy consents.
-	ListPrivacyConsents(ctx context.Context, studentID int64) ([]*userModels.PrivacyConsent, error)
-
-	// CreatePrivacyConsent persists a new privacy consent.
-	CreatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error
-
-	// UpdatePrivacyConsent persists changes to a privacy consent.
-	UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error
-
 	// GetByIDs retrieves several students in one query, keyed by id.
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
 
@@ -134,25 +125,22 @@ type StudentService interface {
 }
 
 type studentService struct {
-	studentRepo        userModels.StudentRepository
-	privacyConsentRepo PrivacyConsentStore
-	companionRepo      userModels.StudentCompanionRepository
-	studentAudit       StudentChangeRecorder
+	studentRepo   userModels.StudentRepository
+	companionRepo userModels.StudentCompanionRepository
+	studentAudit  StudentChangeRecorder
 }
 
 // NewStudentService creates a StudentService backed by the student-domain
 // repositories.
 func NewStudentService(
 	studentRepo userModels.StudentRepository,
-	privacyConsentRepo PrivacyConsentStore,
 	companionRepo userModels.StudentCompanionRepository,
 	studentAudit StudentChangeRecorder,
 ) StudentService {
 	return &studentService{
-		studentRepo:        studentRepo,
-		privacyConsentRepo: privacyConsentRepo,
-		companionRepo:      companionRepo,
-		studentAudit:       studentAudit,
+		studentRepo:   studentRepo,
+		companionRepo: companionRepo,
+		studentAudit:  studentAudit,
 	}
 }
 
@@ -366,18 +354,6 @@ func (s *studentService) LockPhotoFeature(ctx context.Context) error {
 
 func (s *studentService) LockClassWritesShared(ctx context.Context) error {
 	return s.studentRepo.LockStudentClassWritesShared(ctx)
-}
-
-func (s *studentService) ListPrivacyConsents(ctx context.Context, studentID int64) ([]*userModels.PrivacyConsent, error) {
-	return s.privacyConsentRepo.FindByStudentID(ctx, studentID)
-}
-
-func (s *studentService) CreatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error {
-	return s.privacyConsentRepo.Create(ctx, consent)
-}
-
-func (s *studentService) UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error {
-	return s.privacyConsentRepo.Update(ctx, consent)
 }
 
 // MaxStudentCompanions caps how many children one child may be linked to. A
@@ -1010,10 +986,4 @@ func (s *studentService) extendAccompaniedDays(
 
 func (s *studentService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
 	return s.companionRepo.CompanionIDsForWeekday(ctx, studentIDs, weekday)
-}
-
-type PrivacyConsentStore interface {
-	FindByStudentID(context.Context, int64) ([]*userModels.PrivacyConsent, error)
-	Create(context.Context, *userModels.PrivacyConsent) error
-	Update(context.Context, *userModels.PrivacyConsent) error
 }

@@ -18,7 +18,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,7 +44,7 @@ func newStaffNotesResource(db *bun.DB) *Resource {
 	rf := newStudentTestRepositories(db)
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
-		StudentService:          usersSvc.NewStudentService(rf.Student, repositories.NewStudentPrivacyConsentStore(db), rf.StudentCompanion, nil),
+		StudentService:          usersSvc.NewStudentService(rf.Student, rf.StudentCompanion, nil),
 		StudentStatusDayService: activeSvc.NewStudentStatusDayServiceWithPartialAbsences(rf.StudentStatusDay, nil, nil, rf.CarePlan.LockExceptionDay),
 		Logger:                  slog.Default(),
 		DB:                      db,

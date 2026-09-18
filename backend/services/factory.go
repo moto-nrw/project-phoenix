@@ -2218,7 +2218,6 @@ func newFactory(
 	// the companion lock order through this service.
 	studentService := users.NewStudentService(
 		repos.Student,
-		repositories.StudentPrivacyConsentCapability(newStudentPresence(db, logger)),
 		repos.StudentCompanion,
 		studentAuditService,
 	)
