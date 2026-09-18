@@ -287,3 +287,33 @@ func (e *recordingEngine) VerifyStudentStrandingBatch(context.Context) error {
 	e.calls++
 	return nil
 }
+
+func (e *recordingEngine) SetStudentStatus(_ context.Context, id int64, _ string) error {
+	e.calls++
+	e.lockedRecord = id
+	return nil
+}
+
+func (e *recordingEngine) TransitionStudentStatus(_ context.Context, id int64, _, _ string) (bool, error) {
+	e.calls++
+	e.lockedRecord = id
+	return true, nil
+}
+
+func (e *recordingEngine) SetStudentCareEnd(_ context.Context, ids []int64, _ string) (int64, error) {
+	e.calls++
+	e.recordIDs = ids
+	return int64(len(ids)), nil
+}
+
+func (e *recordingEngine) ReopenStudentCare(_ context.Context, id int64, _, _ string) error {
+	e.calls++
+	e.lockedRecord = id
+	return nil
+}
+
+func (e *recordingEngine) ListStudentCareEnds(_ context.Context, ids []int64) (map[int64]string, error) {
+	e.calls++
+	e.recordIDs = ids
+	return map[int64]string{}, nil
+}

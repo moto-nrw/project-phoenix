@@ -65,6 +65,56 @@ func (w *StudentWrites) Delete(ctx context.Context, id int64) error {
 	return translateStudentWriteError(w.directory.DeleteStudentRecord(ctx, id))
 }
 
+// UpdateStatus, TransitionStatus, SetEnrolledUntilByIDs and
+// SetEnrollmentWindowByID are the child's lifecycle and care window. They take
+// the same class-writes gate every other student write does, because either can
+// move a child into or out of a class a grade transition is mid-way through.
+func (w *StudentWrites) UpdateStatus(ctx context.Context, studentID int64, status userModels.StudentStatus) error {
+	return translateStudentWriteError(w.directory.SetStudentStatus(ctx, studentID, string(status)))
+}
+
+func (w *StudentWrites) TransitionStatus(
+	ctx context.Context,
+	studentID int64,
+	expected, next userModels.StudentStatus,
+) (bool, error) {
+	moved, err := w.directory.TransitionStudentStatus(ctx, studentID, string(expected), string(next))
+	return moved, translateStudentWriteError(err)
+}
+
+func (w *StudentWrites) SetEnrolledUntilByIDs(
+	ctx context.Context,
+	ids []int64,
+	until *userModels.CalendarDate,
+) (int64, error) {
+	affected, err := w.directory.SetStudentCareEnd(ctx, ids, userModels.RenderCalendarDate(until))
+	return affected, translateStudentWriteError(err)
+}
+
+func (w *StudentWrites) SetEnrollmentWindowByID(
+	ctx context.Context,
+	id int64,
+	from userModels.CalendarDate,
+	status userModels.StudentStatus,
+) error {
+	return translateStudentWriteError(
+		w.directory.ReopenStudentCare(ctx, id, from.String(), string(status)))
+}
+
+func (w *StudentWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
+	values, err := w.directory.ListStudentCareEnds(ctx, ids)
+	if err != nil {
+		return nil, translateStudentWriteError(err)
+	}
+	bounds := make(map[int64]userModels.CalendarDate, len(values))
+	for id, value := range values {
+		if parsed := userModels.OptionalCalendarDate(value); parsed != nil {
+			bounds[id] = *parsed
+		}
+	}
+	return bounds, nil
+}
+
 func (w *StudentWrites) VerifyCompanionStrandingBatch(ctx context.Context) error {
 	return translateStudentWriteError(w.directory.VerifyStudentStrandingBatch(ctx))
 }
@@ -288,6 +338,35 @@ func studentIDOf(id any) (int64, bool) {
 
 func (r studentRepositoryWithOwnerWrites) VerifyCompanionStrandingBatch(ctx context.Context) error {
 	return r.writes.VerifyCompanionStrandingBatch(ctx)
+}
+
+func (r studentRepositoryWithOwnerWrites) UpdateStatus(ctx context.Context, studentID int64, status userModels.StudentStatus) error {
+	return r.writes.UpdateStatus(ctx, studentID, status)
+}
+
+func (r studentRepositoryWithOwnerWrites) TransitionStatus(
+	ctx context.Context,
+	studentID int64,
+	expected, next userModels.StudentStatus,
+) (bool, error) {
+	return r.writes.TransitionStatus(ctx, studentID, expected, next)
+}
+
+func (r studentRepositoryWithOwnerWrites) SetEnrolledUntilByIDs(ctx context.Context, ids []int64, until *userModels.CalendarDate) (int64, error) {
+	return r.writes.SetEnrolledUntilByIDs(ctx, ids, until)
+}
+
+func (r studentRepositoryWithOwnerWrites) SetEnrollmentWindowByID(
+	ctx context.Context,
+	id int64,
+	from userModels.CalendarDate,
+	status userModels.StudentStatus,
+) error {
+	return r.writes.SetEnrollmentWindowByID(ctx, id, from, status)
+}
+
+func (r studentRepositoryWithOwnerWrites) FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]userModels.CalendarDate, error) {
+	return r.writes.FindCareBoundsByIDs(ctx, ids)
 }
 
 // The composition root installs the retained repository's read-side

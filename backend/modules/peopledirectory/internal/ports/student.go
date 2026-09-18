@@ -25,6 +25,17 @@ type StudentStore interface {
 	// UpdateRecord rewrites the owned columns; false means the tenant has no
 	// such row.
 	UpdateRecord(context.Context, domain.StudentRecord) (domain.StudentRecord, bool, domain.OperationStats, error)
+	// SetStatus changes one child's lifecycle status; false means no such row.
+	SetStatus(context.Context, int64, string) (bool, domain.OperationStats, error)
+	// TransitionStatus moves the status only while the stored one still
+	// matches; false means another writer got there first.
+	TransitionStatus(context.Context, int64, string, string) (bool, domain.OperationStats, error)
+	// SetCareEnd writes the enrolment upper bound for a batch of children.
+	SetCareEnd(context.Context, []int64, string) (int64, domain.OperationStats, error)
+	// ReopenCare gives one child a new start day and clears the end day.
+	ReopenCare(context.Context, int64, string, string) (bool, domain.OperationStats, error)
+	// ListCareEnds projects the enrolment upper bound of the given children.
+	ListCareEnds(context.Context, []int64) (map[int64]string, domain.OperationStats, error)
 	// DeleteRecord removes one child, reporting whether a row went.
 	DeleteRecord(context.Context, int64) (bool, domain.OperationStats, error)
 	// FindDeparturePlan reads the plan the row holds, already resolved through

@@ -1034,73 +1034,6 @@ func (r *StudentRepository) FindByIDsForUpdate(ctx context.Context, ids []int64)
 	return result, nil
 }
 
-// UpdateStatus changes the lifecycle status of a single student. Tenant-scoped
-// via context. Returns an error if no row was affected (wrong tenant or
-// missing student).
-func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, newStatus users.StudentStatus) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		TableExpr(`users.students AS "student"`).
-		Set("status = ?", string(newStatus)).
-		Set("updated_at = NOW()").
-		Where(`"student".id = ?`, studentID)
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update student status",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update student status")
-}
-
-// TransitionStatus changes a student's lifecycle status only when the stored
-// status still matches expected. It returns false without error when another
-// writer changed or removed the row after the caller selected it.
-//
-// Background lifecycle work (the activate-students tick) selects due rows, then
-// updates them one by one. An unconditional update by id resurrects a student
-// whose status changed in that window: a grade transition graduating the child
-// commits `alumnus`, the pending update waits on the same row lock, and then
-// replaces it with `active` or `inactive` — putting a departed child back into
-// every staff list, roster and export, past all the alumnus read filters and
-// without any of apply's guards. Comparing against the status the caller
-// actually saw makes that update a no-op instead (#405 review).
-func (r *StudentRepository) TransitionStatus(
-	ctx context.Context,
-	studentID int64,
-	expected users.StudentStatus,
-	next users.StudentStatus,
-) (bool, error) {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		TableExpr(`users.students AS "student"`).
-		Set("status = ?", string(next)).
-		Set("updated_at = NOW()").
-		Where(`"student".id = ?`, studentID).
-		Where(`"student".status = ?`, string(expected))
-
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return false, &modelBase.DatabaseError{
-			Op:  "transition student status",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, &modelBase.DatabaseError{
-			Op:  "transition student status",
-			Err: base.TranslateNotFound(err),
-		}
-	}
-	return affected == 1, nil
-}
-
 // FindPendingDueForActivation returns students whose status='pending' and
 // enrolled_from <= asOf within the current tenant context. Drives the
 // pending→active half of the activate-students scheduler tick.
@@ -1149,81 +1082,29 @@ func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, as
 	return students, nil
 }
 
-// SetEnrolledUntilByIDs writes the enrollment interval's inclusive upper bound
-// for a batch of children in one statement (#2487).
-func (r *StudentRepository) SetEnrolledUntilByIDs(
-	ctx context.Context, ids []int64, until *timezone.Date,
-) (int64, error) {
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Set("enrolled_until = ?", until).
-		Set("updated_at = NOW()").
-		Where(`"student".id IN (?)`, bun.List(ids))
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: base.TranslateNotFound(err)}
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "set enrolled_until by ids", Err: base.TranslateNotFound(err)}
-	}
-	return affected, nil
+// The lifecycle status and the care window are the owner's too (#3349). These
+// stay only as the interface the retained StudentRepository declares; the
+// composition root routes them to People Directory.
+func (r *StudentRepository) UpdateStatus(context.Context, int64, users.StudentStatus) error {
+	return errStudentWritesMoved
 }
 
-// SetEnrollmentWindowByID reopens one child's care: a new start day, no end
-// day, and the lifecycle status the caller derived for today (#2487).
+func (r *StudentRepository) TransitionStatus(
+	context.Context, int64, users.StudentStatus, users.StudentStatus,
+) (bool, error) {
+	return false, errStudentWritesMoved
+}
+
+func (r *StudentRepository) SetEnrolledUntilByIDs(context.Context, []int64, *timezone.Date) (int64, error) {
+	return 0, errStudentWritesMoved
+}
+
 func (r *StudentRepository) SetEnrollmentWindowByID(
-	ctx context.Context, id int64, from timezone.Date, status users.StudentStatus,
+	context.Context, int64, timezone.Date, users.StudentStatus,
 ) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		Set("enrolled_from = ?", from).
-		Set("enrolled_until = NULL").
-		Set("status = ?", string(status)).
-		Set("updated_at = NOW()").
-		Where(`"student".id = ?`, id)
-	query = base.WithTenantFilter(ctx, query, "student")
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "set enrollment window", Err: base.TranslateNotFound(err)}
-	}
-	return base.AssertRowsAffected(result, 1, "set enrollment window")
+	return errStudentWritesMoved
 }
 
-// FindCareBoundsByIDs projects the enrollment interval's upper bound for the
-// given children (#2487).
-func (r *StudentRepository) FindCareBoundsByIDs(
-	ctx context.Context, ids []int64,
-) (map[int64]timezone.Date, error) {
-	bounds := make(map[int64]timezone.Date, len(ids))
-	if len(ids) == 0 {
-		return bounds, nil
-	}
-	var rows []struct {
-		ID            int64         `bun:"id"`
-		EnrolledUntil timezone.Date `bun:"enrolled_until"`
-	}
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(tableExprUsersStudentsAsStudent).
-		ColumnExpr(`"student".id AS id`).
-		ColumnExpr(`"student".enrolled_until AS enrolled_until`).
-		Where(`"student".id IN (?)`, bun.List(ids)).
-		Where(`"student".enrolled_until IS NOT NULL`)
-	query = base.WithTenantFilter(ctx, query, "student")
-	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find care bounds by ids", Err: base.TranslateNotFound(err)}
-	}
-	for _, row := range rows {
-		bounds[row.ID] = row.EnrolledUntil
-	}
-	return bounds, nil
+func (r *StudentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]timezone.Date, error) {
+	return nil, errStudentWritesMoved
 }

@@ -53,3 +53,17 @@ func OptionalCalendarDate(value string) *timezone.Date {
 	}
 	return &parsed
 }
+
+// CalendarDate is the calendar-day value the retained models carry, named here
+// so a composition seam can pass one across without reaching for the shared
+// date package itself.
+type CalendarDate = timezone.Date
+
+// RenderCalendarDate is the inverse of OptionalCalendarDate: the owner's wire
+// form of a day, empty when there is none.
+func RenderCalendarDate(value *CalendarDate) string {
+	if value == nil {
+		return ""
+	}
+	return value.String()
+}

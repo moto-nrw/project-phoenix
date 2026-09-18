@@ -552,11 +552,13 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("student UpdateStatus blocked", func(t *testing.T) {
-		repo := repoUsers.NewStudentRepository(db)
+		// The lifecycle status is the owner's write (#3349), so this has to be
+		// the composed repository the composition root hands out.
+		repo := repositories.NewStudentRepository(db)
 		err := repo.UpdateStatus(ctxB, studentA.ID, users.StudentStatusInactive)
 		require.Error(t, err, "cross-tenant UpdateStatus must fail")
-		assert.Contains(t, err.Error(), "rows affected",
-			"error should mention rows affected guard")
+		require.ErrorIs(t, err, users.ErrStudentRowMissing,
+			"another tenant's child must not exist for this writer")
 	})
 
 	// ------------------------------------------------------------------
