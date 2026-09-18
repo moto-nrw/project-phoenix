@@ -27,6 +27,12 @@ type Person struct {
 }
 
 // Validate ensures person data is valid
+// ErrPersonRowMissing says a person the caller named has no row. It lives here
+// because the two sides that need it — the People Directory composition seam
+// that observes the owner's not-found, and the retained person service that
+// maps it onto its own sentinel — may not import each other (#3349).
+var ErrPersonRowMissing = errors.New("person row not found")
+
 func (p *Person) Validate() error {
 	if p.FirstName == "" {
 		return errors.New("first name is required")

@@ -2,7 +2,6 @@ package repositories
 
 import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
@@ -49,7 +48,7 @@ func NewInvitationPersistence(db *bun.DB) (*InvitationPersistence, error) {
 		MFACredential:   authRepo.NewMFACredentialRepository(db),
 		Person:          NewPersonRepository(db),
 		Staff:           staff, Teacher: teachers,
-		Student: usersRepo.NewStudentRepository(db),
+		Student: NewStudentRepository(db),
 		School:  organizations,
 	}, nil
 }

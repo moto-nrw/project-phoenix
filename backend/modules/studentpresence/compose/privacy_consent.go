@@ -66,7 +66,7 @@ func (e engine) RevisePrivacyConsent(ctx context.Context, value studentpresence.
 		RenewalRequired: value.RenewalRequired, DataRetentionDays: value.DataRetentionDays, Details: value.Details,
 	}
 	if err := e.Service.RevisePrivacyConsent(ctx, &row); err != nil {
-		return studentpresence.PrivacyConsent{}, err
+		return studentpresence.PrivacyConsent{}, mapPrivacyConsentError(err)
 	}
 	return privacyConsentToPublic(row), nil
 }

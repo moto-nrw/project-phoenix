@@ -4,7 +4,6 @@ import (
 	"context"
 
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -48,7 +47,7 @@ func NewParentRouteTestRepositories(db *bun.DB) (ParentRouteTestRepositories, er
 	}
 	r := &Factory{db: db,
 		ParentChild: parentRepo.NewChildRepository(carePlanLegacy.NewParentRuntime(db), activeMembershipQuery(db)),
-		Student:     usersRepo.NewStudentRepository(db), Person: NewPersonRepository(db),
+		Student:     NewStudentRepository(db), Person: NewPersonRepository(db),
 		GuardianProfile: NewGuardianProfileRepository(db), StudentGuardian: NewStudentGuardianRepository(db),
 	}
 	r.BindPeopleDirectory(people)

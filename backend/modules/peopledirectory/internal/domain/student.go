@@ -92,3 +92,7 @@ type StudentName struct {
 }
 
 func (s Student) IsAlumnus() bool { return s.Status == StudentStatusAlumnus }
+
+// StudentStatusActive is the lifecycle status of a currently enrolled child.
+// It is also the column's default, which is why an unset status means this.
+const StudentStatusActive = "active"

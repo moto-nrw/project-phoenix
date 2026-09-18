@@ -60,7 +60,7 @@ func newCareLifecycleServiceWithLockAt(
 		CleanupRepo:           repos.CareExitCleanup,
 		WithdrawalRepo:        repos.CareWithdrawal,
 		TagReleaser:           repos.StudentTagReleaser(),
-		AuditService:          userService.NewStudentAuditService(repos.StudentFieldEdit, slog.Default()),
+		AuditService:          userService.NewStudentAuditService(repositories.NewStudentAudit(db)),
 		LockCareBookingWrites: lockCareBookingWrites,
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		DB:                    db,
@@ -311,7 +311,7 @@ func TestCareLifecycle_TenantIsolation(t *testing.T) {
 		"a child of another school is unknown here, not endable")
 
 	stored, err := repositories.NewFactory(db, repositories.NewUnobservedTimetableDependencies(db)).Student.FindByID(
-		tenant.WithTenantID(context.Background(), otherTenantID), foreign.ID)
+		tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), otherTenantID), foreign.ID)
 	require.NoError(t, err)
 	assert.Nil(t, stored.EnrolledUntil)
 }

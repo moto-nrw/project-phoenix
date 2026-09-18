@@ -10,16 +10,26 @@ import (
 // StudentService serves the student directory over the same transaction
 // and observation seams as the person service.
 type StudentService struct {
-	store   ports.StudentStore
-	tx      ports.Transaction
-	observe ports.Observer
+	store ports.StudentStore
+	// companions is Care Plan's "läuft mit" edges. Narrowing a child's
+	// departure plan has to drop the links it no longer allows, and this is the
+	// one write path every writer passes through. Optional: a graph that never
+	// binds it refuses only the writes that would touch a link.
+	companions ports.StudentCompanions
+	tx         ports.Transaction
+	observe    ports.Observer
 }
 
-func NewStudents(store ports.StudentStore, tx ports.Transaction, observe ports.Observer) *StudentService {
+func NewStudents(
+	store ports.StudentStore,
+	companions ports.StudentCompanions,
+	tx ports.Transaction,
+	observe ports.Observer,
+) *StudentService {
 	if store == nil || tx == nil || observe == nil {
 		panic("people directory application: all student dependencies are required")
 	}
-	return &StudentService{store: store, tx: tx, observe: observe}
+	return &StudentService{store: store, companions: companions, tx: tx, observe: observe}
 }
 
 func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []domain.Student, err error) {

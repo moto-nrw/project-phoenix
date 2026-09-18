@@ -573,6 +573,8 @@ export default function StaffDetailContent() {
             <ZeiterfassungTab
               staffId={staffId}
               initialDate={initialTimeTrackingDate}
+              staff={staff}
+              canBookAbsences={canManageTimeTracking}
             />
           )}
 

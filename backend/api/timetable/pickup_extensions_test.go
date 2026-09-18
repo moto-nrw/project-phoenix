@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
@@ -54,7 +55,7 @@ func buildPickupExtensionSetup(t *testing.T, db *bun.DB) *pickupExtensionSetup {
 	res := NewResource(Dependencies{
 		PickupExtensions: module,
 		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-			StudentRepo: usersRepo.NewStudentRepository(db),
+			StudentRepo: repositories.NewStudentRepository(db),
 			PersonRepo:  usersRepo.NewPersonRepository(db),
 			StaffRepo:   mustTimetableTestRepositories(db).Staff,
 		}),

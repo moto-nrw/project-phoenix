@@ -104,7 +104,7 @@ func NewTimetableTestRepositories(db *bun.DB, clocks ...func() time.Time) (Timet
 	repos := &Factory{
 		db: db, Person: members.Person, Staff: members.Staff, Teacher: members.Teacher,
 		Group: members.Group, GroupTeacher: members.GroupTeacher, ClassTeacher: members.ClassTeacher,
-		Student:         usersRepo.NewStudentRepository(db),
+		Student:         NewStudentRepository(db),
 		CareExitCleanup: usersRepo.NewCareExitCleanupRepository(db, NewEnrollmentBookingProjection(enrollmentCompose.New()), careExitAssignments{capability: bookings}, newStudentPresence(db)),
 		StaffShift:      newWorkforceStaffShiftRepository(workTime), StaffShiftSeries: newWorkforceStaffShiftSeriesRepository(workTime),
 		StaffShiftSeriesException: newWorkforceStaffShiftSeriesExceptionRepository(workTime),

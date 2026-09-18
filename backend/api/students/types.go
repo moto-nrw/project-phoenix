@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"
 )
 
@@ -774,7 +775,8 @@ func (req *PrivacyConsentRequest) Bind(_ *http.Request) error {
 	if req.PolicyVersion == "" {
 		return errors.New("policy version is required")
 	}
-	if req.DataRetentionDays < 1 || req.DataRetentionDays > 31 {
+	if req.DataRetentionDays < studentpresence.MinPrivacyConsentRetentionDays ||
+		req.DataRetentionDays > studentpresence.MaxPrivacyConsentRetentionDays {
 		return errors.New("data retention days must be between 1 and 31")
 	}
 	return nil
