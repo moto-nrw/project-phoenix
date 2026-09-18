@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 

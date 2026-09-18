@@ -16,8 +16,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

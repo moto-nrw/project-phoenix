@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 )
 
 // The contracts below are what the retained services call when they mutate an

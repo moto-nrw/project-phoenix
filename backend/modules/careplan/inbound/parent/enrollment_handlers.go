@@ -15,8 +15,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )

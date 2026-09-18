@@ -13,8 +13,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	studentsAPI "github.com/moto-nrw/project-phoenix/api/students"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )

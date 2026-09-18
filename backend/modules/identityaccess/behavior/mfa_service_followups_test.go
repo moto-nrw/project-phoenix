@@ -18,8 +18,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

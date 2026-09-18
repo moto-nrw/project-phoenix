@@ -8,10 +8,10 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"

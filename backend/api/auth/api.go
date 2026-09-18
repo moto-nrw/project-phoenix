@@ -9,8 +9,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
 )

@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
+	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

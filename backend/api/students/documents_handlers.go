@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )

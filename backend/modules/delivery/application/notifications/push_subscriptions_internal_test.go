@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"

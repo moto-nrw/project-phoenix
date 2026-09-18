@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
-	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	authModels "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 )
 
 // The account second factor lives in Identity & Access (#3331). Its rows are

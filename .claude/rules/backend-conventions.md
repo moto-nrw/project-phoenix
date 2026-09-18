@@ -215,10 +215,14 @@ Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` struc
 
 `backend/auth/` is NOT legacy. It contains structured low-level utility packages:
 
-- `backend/auth/jwt/` — JWT plumbing (claims incl. MFA challenge/enrollment, tokenauth, tenant/parent middleware)
 - `backend/auth/authorize/` — authorization service + permission policies
 - `backend/auth/device/` — device API key + PIN authentication
 - `backend/auth/userpass/` — password hashing primitives
+
+The JWT plumbing (claims incl. MFA challenge/enrollment, tokenauth,
+tenant/parent middleware) is the Identity & Access token adapter and lives in
+`backend/modules/identityaccess/legacy/jwt/` since #3226. It is `legacy/` only
+because packages outside the module still import it; do not move it back.
 
 `backend/modules/identityaccess/` owns the business flows (login, invitations, MFA orchestration, password reset, operator identity); they depend on the lower-level `backend/auth/` packages. The retained `services/auth` and `services/platform` ports are gone (#3364).
 

@@ -267,7 +267,7 @@ These files intentionally use `log.Printf` and must NOT be converted:
 
 | File | Reason |
 |------|--------|
-| `auth/jwt/tokenauth.go` | Startup config logging (process exits on failure) |
+| `modules/identityaccess/legacy/jwt/tokenauth.go` | Startup config logging (process exits on failure) |
 | `cmd/` package | CLI bootstrapping (before logger exists) |
 | `seed/` package | One-off data seeding |
 | `simulator/` package | Standalone simulation tool |

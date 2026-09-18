@@ -2,12 +2,12 @@ package repositories
 
 import (
 	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	authRepo "github.com/moto-nrw/project-phoenix/database/repositories/auth"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	carePlanLegacy "github.com/moto-nrw/project-phoenix/modules/careplan/legacy"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	authRepo "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authpostgres"
 	"github.com/uptrace/bun"
 )
 

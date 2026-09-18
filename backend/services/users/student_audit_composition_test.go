@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/stretchr/testify/assert"

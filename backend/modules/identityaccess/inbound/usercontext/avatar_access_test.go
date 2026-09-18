@@ -9,9 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	authModel "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/authmodels"
 	usercontextsvc "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/usercontext"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/legacy/models/active"

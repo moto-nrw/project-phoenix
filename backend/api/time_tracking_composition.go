@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
-	projectJWT "github.com/moto-nrw/project-phoenix/auth/jwt"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"

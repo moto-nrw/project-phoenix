@@ -79,8 +79,8 @@ repository as a compatibility permission until the table can be adopted.
 With that the baseline records no `tables.unclassified` debt.
 The same ticket moves the two foreign accesses the package kept on owned
 tables: `users.profiles` belongs to the account, not the person, so its model,
-contract and repository move to `models/auth` and
-`database/repositories/auth` under `identity-access`.
+contract and repository move to `modules/identityaccess/legacy/authmodels` and
+`modules/identityaccess/legacy/authpostgres` under `identity-access`.
 
 #3349 settles the one table two owners reached for: `users.privacy_consents`
 stays with `student-presence`. The recorded window bounds how long presence
@@ -332,6 +332,19 @@ writes. Prefer a relocation over compatibility permissions whenever a package
 moves unchanged — it keeps each consumer's debt under the consumer's own
 migration issue instead of dropping it and re-deriving it later.
 
+#3226 moves `auth/jwt`, `models/auth` and `database/repositories/auth` into
+`modules/identityaccess/legacy/jwt`, `.../legacy/authmodels` and
+`.../legacy/authpostgres` this way (policy epoch 13 to 15), with no rule, owner
+or role change. They stay outside the module's `internal` tree because
+`database/repositories`, `services/users`, `models/users`, `api/auth`, `cmd`
+and the retained parent-portal and delivery packages still import them; that
+debt is recorded against #2727 through #2751 and falls with those tickets, at
+which point the packages can join `internal/domain` and
+`internal/adapters/postgres`. The typed-root composition inventory only scans
+`api`, `cmd`, `services`, `database/repositories` and `test`, so the moved
+repository tests' factory calls left `composition.json` with the move, as with
+#3218 and #3219; they are not fewer callers, and the composition surface count
+is unchanged at 673.
 
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as
@@ -529,7 +542,7 @@ offboarding workflow), so no status code, error string or wire shape moved.
 The credential primitives the compositions hand the module — the Argon2id
 hash, the password policy and the entropy source — are Security Runtime's
 (`auth/authorize/credentials.go`, served through `modules/securityruntime`);
-the school-role lookup is `models/auth.ResolveSystemRoleByName`; the
+the school-role lookup is `authmodels.ResolveSystemRoleByName`; the
 "no row" classification is `models/users.RowMissing`. The module binds the
 unit of work it opens its own transactions under through
 `identityaccess.Module.SetTenantRuntime`, which the legacy factory's existing
@@ -764,7 +777,7 @@ and template routes from the public Data Import contract with unchanged paths,
 status codes, error strings, multipart handling, file-size limit and
 permission checks. The `root-composition.to.import-http` mount replaces the
 `api -> api/import` debt entry that fell with the old package; it and the
-`inbound-import.compose.*` rules that bind `api/common`, `auth/jwt`, `tenant`
+`inbound-import.compose.*` rules that bind `api/common`, `modules/identityaccess/legacy/jwt`, `tenant`
 and the ORM are compatibility permissions, not target dependencies. Convert
 them to exact debt with the rule above once the package exists at a base SHA.
 
@@ -897,8 +910,8 @@ and the e-mail outbox, and the enrollment requests a guardian acceptance
 claims arrive through their own port. Every reader of `auth.guardian_invitations` goes
 through the owner: the People Directory guardian list and the parents portal
 related-accounts view consume their own record types over the public
-capability, so the `models/auth` guardian invitation contract, its
-`database/repositories/auth` adapter, the `repositories.Factory` field and
+capability, so the `modules/identityaccess/legacy/authmodels` guardian invitation contract, its
+`modules/identityaccess/legacy/authpostgres` adapter, the `repositories.Factory` field and
 the People Directory's deprecated invitation twin are deleted with the
 retained token lookup, approval-queue and acceptance methods. The operator MFA
 records (#2723): `platform.operator_mfa_credentials`,
@@ -932,11 +945,11 @@ keeps the ceremonies, the tenant-origin check and the school-membership gate
 and reaches the rows through its own `PasskeyRecords` port. A credential
 belongs to the account and carries no school; the ceremony records the school
 whose portal started it, and login refuses a school the account has no access
-to. Their `models/auth` models and `database/repositories/auth` adapter are
+to. Their `modules/identityaccess/legacy/authmodels` models and `modules/identityaccess/legacy/authpostgres` adapter are
 deleted; the port's value types live in `services/auth`. The foreign
 `auth.accounts` reads of the People Directory, Care Plan parent and CLI
 packages use owner queries bound the same way (`identity_ports.go`): the
-account lookup and active-account subquery of `database/repositories/auth`
+account lookup and active-account subquery of `modules/identityaccess/legacy/authpostgres`
 and the public account fact. The
 same owner serves the account refresh sessions behind tenant, parent and
 school login, refresh, tenant switching, logout, session validation and
@@ -951,7 +964,7 @@ tenant and school switch, logout, session validation, session cleanup and
 revocation orchestration lives in the module's application layer (#3251),
 with the `auth.accounts`, `auth.account_tenants`, role and permission reads
 it needs served by the module's own store; the retained
-`models/auth.TokenRepository` contract and its compatibility adapter are
+`authmodels.TokenRepository` contract and its compatibility adapter are
 deleted. The facts the flows need from other owners (schools, persons, the
 password verifier, the JWT codec, the MFA gate, the settings lock, the audit
 ledger, push subscriptions) are bound at the serving root through
@@ -975,10 +988,11 @@ owes, direct account grants, role-permission selections and the default
 staff permission. `auth.roles`, `auth.permissions`, `auth.role_permissions`,
 `auth.account_roles`, `auth.account_permissions` and the account and
 membership locks the mutations serialize on are still read and written
-through the retained `database/repositories/auth` repositories:
+through the retained `modules/identityaccess/legacy/authpostgres` repositories:
 `database/repositories/identity_roles.go` serves the module's
 `compose.RoleDirectory` seam over them, without changing a statement or the
-lock order, until #3226 moves the stores into the module. The school-role
+lock order. #3226 moved those stores into the module; the seam still binds
+them from the legacy factory until #2743 retires it. The school-role
 assignment policy (`ValidateAssignableSchoolRole` and the Lehrkraft and
 guardian-tier classification) is a public function of the module; the
 operator school access binds it inside the module, and the retained
@@ -1263,7 +1277,7 @@ rule this move added, `root-composition.to.inbound-parent-http` and
 target dependencies. They cover every future `inbound-parent` package, so no
 other package may join that point before the conversion. Convert them to exact
 debt with the rule above under #2580 once the package exists at a base SHA;
-the `auth/jwt` and `services/auth` edges then wait for #2725. The move replaced
+the `modules/identityaccess/legacy/jwt` and `services/auth` edges then wait for #2725. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the

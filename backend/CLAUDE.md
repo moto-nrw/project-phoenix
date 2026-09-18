@@ -164,7 +164,7 @@ s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_ca
 - Loggers flow through the factory: `services.NewFactory(repos, db, logger)`; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
-- Known exceptions (intentional `log.Printf`): `auth/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
+- Known exceptions (intentional `log.Printf`): `modules/identityaccess/legacy/jwt/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN
 
 ## Real-time updates
 

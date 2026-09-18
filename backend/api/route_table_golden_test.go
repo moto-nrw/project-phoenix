@@ -113,7 +113,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *API) {
 	// policy) needs nothing.
 	t.Run("every authenticated write route carries the read-only preview guard", func(t *testing.T) {
 		const (
-			authenticator = "auth/jwt.Authenticator"
+			authenticator = "modules/identityaccess/legacy/jwt.Authenticator"
 			readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
 		)
 		safeMethods := map[string]bool{
